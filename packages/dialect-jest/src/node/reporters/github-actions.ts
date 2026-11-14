@@ -4,7 +4,7 @@
 // failed file. `silent: false` (`GitHubActionsReporter#printFullResult`, L176-L459) adds, per file,
 // the result tree in `::group::` blocks and the file's console output; the default is
 // `silent: true`, as there.
-import { stripVTControlCharacters, styleText } from 'node:util'
+import { stripVTControlCharacters } from 'node:util'
 import type {
   AggregatedResult,
   AssertionResult,
@@ -13,6 +13,7 @@ import type {
   Test,
   TestResult,
 } from '@provino/dialect-jest/results'
+import type { TextStyle } from '@provino/types'
 import { hideProvinoFrames } from '../../results/failure-message.ts'
 import { jestConsoleTrace } from './console-trace.ts'
 import type { JestReporterClass, JestReporterInstance } from './host.ts'
@@ -27,14 +28,36 @@ function messageUtil(): Promise<MessageUtil> {
   return loaded
 }
 
-/** `jest-util`'s `specialChars.ICONS` (`specialChars.ts`), as the result tree prints them. */
-const ICONS = { failed: '\u2715', pending: '\u25CB', success: '\u2713', todo: '\u270E' }
+/**
+ * `jest-util`'s `specialChars.ICONS` (`specialChars.ts` L8-L16), as the result tree prints them:
+ * Windows has `\u00D7` and `\u221A` for a failure and a pass.
+ * @public
+ */
+export function jestResultIcons(platform: string = process.platform): {
+  readonly failed: string
+  readonly pending: string
+  readonly success: string
+  readonly todo: string
+} {
+  const isWindows = platform === 'win32'
+  return {
+    failed: isWindows ? '\u00D7' : '\u2715',
+    pending: '\u25CB',
+    success: isWindows ? '\u221A' : '\u2713',
+    todo: '\u270E',
+  }
+}
 
-type Format = Parameters<typeof styleText>[0]
-
-/** chalk's styles: `styleText` honours `NO_COLOR`, `FORCE_COLOR` and the terminal as chalk does. */
-function paint(format: Format, text: string): string {
-  return styleText(format, text)
+/** Colours off: each style returns its text. */
+const PLAIN: TextStyle = {
+  bold: (text) => text,
+  dim: (text) => text,
+  red: (text) => text,
+  green: (text) => text,
+  yellow: (text) => text,
+  magenta: (text) => text,
+  inverse: (text) => text,
+  badge: (word) => word,
 }
 
 /** What the reporter reads of the global config. */
@@ -150,6 +173,7 @@ function consoleOutput(
   entries: NonNullable<TestResult['console']>,
   config: ProjectConfig,
   globalConfig: GlobalConfigLike,
+  style: TextStyle,
 ): string {
   const titleIndent = globalConfig.verbose === true ? '  ' : '    '
   const consoleIndent = `${titleIndent}  `
@@ -161,14 +185,14 @@ function consoleOutput(
       .join('\n')
     let typeMessage = `console.${type}`
     if (type === 'warn') {
-      message = paint('yellow', message)
-      typeMessage = paint('yellow', typeMessage)
+      message = style.yellow(message)
+      typeMessage = style.yellow(typeMessage)
     } else if (type === 'error') {
-      message = paint('red', message)
-      typeMessage = paint('red', typeMessage)
+      message = style.red(message)
+      typeMessage = style.red(typeMessage)
     }
     const trace = jestConsoleTrace(origin, type, config, globalConfig)
-    output += `${titleIndent}${paint('dim', typeMessage)}\n${message.trimEnd()}\n${paint('dim', trace.trimEnd())}\n\n`
+    output += `${titleIndent}${style.dim(typeMessage)}\n${message.trimEnd()}\n${style.dim(trace.trimEnd())}\n\n`
   }
   return `${output.trimEnd()}\n`
 }
@@ -179,200 +203,246 @@ function log(message: string): void {
 }
 
 /**
- * The `github-actions` reporter of Jest 30.5.2 (`silent` defaults to `true`, as there).
+ * What `createJestGitHubActionsReporter` takes.
  * @public
  */
-export const jestGitHubActionsReporter: JestReporterClass = class JestGitHubActionsReporter
-  implements JestReporterInstance
-{
-  readonly #globalConfig: GlobalConfigLike
-  readonly #silent: boolean
+export interface JestGitHubActionsOptions {
+  /**
+   * The run's colours (Provino's own colour decision: `--colors`, `--no-color`, the terminal, the
+   * environment). Default: none, as chalk with no colour support.
+   */
+  readonly style?: TextStyle
+  /** `process.platform` for the result marks (`specialChars.ICONS`). Default: this process's. */
+  readonly platform?: string
+}
 
-  constructor(globalConfig: GlobalConfigLike, reporterOptions: { silent?: unknown } = {}) {
-    this.#globalConfig = globalConfig
-    // The constructor, L58-L62.
-    this.#silent = typeof reporterOptions.silent === 'boolean' ? reporterOptions.silent : true
-  }
+/**
+ * The `github-actions` reporter of Jest 30.5.2 (`silent` defaults to `true`, as there), coloured
+ * with `options.style`.
+ * @public
+ */
+export function createJestGitHubActionsReporter(
+  options: JestGitHubActionsOptions = {},
+): JestReporterClass {
+  const style = options.style ?? PLAIN
+  const ICONS = jestResultIcons(options.platform)
+  return class JestGitHubActionsReporter implements JestReporterInstance {
+    readonly #globalConfig: GlobalConfigLike
+    readonly #silent: boolean
 
-  async onTestResult(
-    test: Test,
-    testResult: TestResult,
-    aggregated: AggregatedResult,
-  ): Promise<void> {
-    await this.#annotate(test, testResult)
-    if (!this.#silent) this.#printFullResult(test, testResult)
-    if (this.#isLastTestSuite(aggregated)) {
-      this.#printFailedTestLogs(test, testResult.console, aggregated)
+    constructor(globalConfig: GlobalConfigLike, reporterOptions: { silent?: unknown } = {}) {
+      this.#globalConfig = globalConfig
+      // The constructor, L58-L62.
+      this.#silent = typeof reporterOptions.silent === 'boolean' ? reporterOptions.silent : true
     }
-  }
 
-  /** `printFullResult` (L176-L192). */
-  #printFullResult(test: Test, results: TestResult): void {
-    const config = test.context.config as ProjectConfig
-    const testDir = results.testFilePath.replace(config.rootDir, '').slice(1)
-    const tree = getResultTree(results.testResults, testDir, results.perfStats)
-    this.#printResultTree(tree, config, results.console)
-  }
-
-  /** `printResultTree` (L330-L371). */
-  #printResultTree(
-    tree: ResultTree,
-    config: ProjectConfig,
-    consoleLog: TestResult['console'],
-  ): void {
-    const perfMs = tree.performanceInfo.slow
-      ? ` (${paint(['red', 'inverse'], `${tree.performanceInfo.runtime} ms`)})`
-      : ` (${tree.performanceInfo.runtime} ms)`
-    if (tree.passed) {
-      this.#startGroup(`${paint(['bold', 'green', 'inverse'], 'PASS')} ${tree.name}${perfMs}`)
-      if (consoleLog && !this.#silent && !(config.verbose ?? this.#globalConfig.verbose)) {
-        log(consoleOutput(consoleLog, config, this.#globalConfig))
+    async onTestResult(
+      test: Test,
+      testResult: TestResult,
+      aggregated: AggregatedResult,
+    ): Promise<void> {
+      await this.#annotate(test, testResult)
+      if (!this.#silent) this.#printFullResult(test, testResult)
+      if (this.#isLastTestSuite(aggregated)) {
+        this.#printFailedTestLogs(test, testResult.console, aggregated)
       }
-      for (const child of tree.children) this.#printNode(child, true, 1)
-      this.#endGroup()
-    } else {
-      log(`  ${paint(['bold', 'red', 'inverse'], 'FAIL')} ${tree.name}${perfMs}`)
-      for (const child of tree.children) this.#printNode(child, false, 1)
     }
-  }
 
-  /** `recursivePrintResultTree` (L373-L433). */
-  #printNode(node: ResultTreeNode | ResultTreeLeaf, alreadyGrouped: boolean, depth: number): void {
-    if (node.children.length === 0) {
-      if (!('duration' in node)) throw new Error('Expected a leaf. Got a node.')
-      const spaces = '  '.repeat(alreadyGrouped ? depth : depth + 1)
-      let symbol = ''
-      switch (node.status) {
-        case 'passed':
-          symbol = paint('green', ICONS.success)
-          break
-        case 'failed':
-          symbol = paint('red', ICONS.failed)
-          break
-        case 'todo':
-          symbol = paint('magenta', ICONS.todo)
-          break
-        case 'pending':
-        case 'skipped':
-          symbol = paint('yellow', ICONS.pending)
-          break
-      }
-      log(`${spaces + symbol} ${node.name} (${node.duration} ms)`)
-      return
+    /** `printFullResult` (L176-L192). */
+    #printFullResult(test: Test, results: TestResult): void {
+      const config = test.context.config as ProjectConfig
+      const testDir = results.testFilePath.replace(config.rootDir, '').slice(1)
+      const tree = getResultTree(results.testResults, testDir, results.perfStats)
+      this.#printResultTree(tree, config, results.console)
     }
-    if (!('passed' in node)) throw new Error('Expected a node. Got a leaf')
-    if (node.passed) {
-      if (alreadyGrouped) {
-        log('  '.repeat(depth) + node.name)
-        for (const child of node.children) this.#printNode(child, true, depth + 1)
-      } else {
-        this.#startGroup('  '.repeat(depth) + node.name)
-        for (const child of node.children) this.#printNode(child, true, depth + 1)
+
+    /** `printResultTree` (L330-L371). */
+    #printResultTree(
+      tree: ResultTree,
+      config: ProjectConfig,
+      consoleLog: TestResult['console'],
+    ): void {
+      const perfMs = tree.performanceInfo.slow
+        ? ` (${style.red(style.inverse(`${tree.performanceInfo.runtime} ms`))})`
+        : ` (${tree.performanceInfo.runtime} ms)`
+      if (tree.passed) {
+        this.#startGroup(`${style.bold(style.green(style.inverse('PASS')))} ${tree.name}${perfMs}`)
+        if (
+          consoleLog &&
+          consoleLog.length > 0 &&
+          !this.#silent &&
+          !(config.verbose ?? this.#globalConfig.verbose)
+        ) {
+          log(consoleOutput(consoleLog, config, this.#globalConfig, style))
+        }
+        for (const child of tree.children) this.#printNode(child, true, 1)
         this.#endGroup()
+      } else {
+        log(`  ${style.bold(style.red(style.inverse('FAIL')))} ${tree.name}${perfMs}`)
+        for (const child of tree.children) this.#printNode(child, false, 1)
       }
-    } else {
-      log('  '.repeat(depth + 1) + node.name)
-      for (const child of node.children) this.#printNode(child, false, depth + 1)
     }
-  }
 
-  #startGroup(title: string): void {
-    log(`::group::${title}`)
-  }
+    /** `recursivePrintResultTree` (L373-L433). */
+    #printNode(
+      node: ResultTreeNode | ResultTreeLeaf,
+      alreadyGrouped: boolean,
+      depth: number,
+    ): void {
+      if (node.children.length === 0) {
+        if (!('duration' in node)) throw new Error('Expected a leaf. Got a node.')
+        const spaces = '  '.repeat(alreadyGrouped ? depth : depth + 1)
+        // L387-L405: `resultSymbol` is assigned for these statuses only; any other (`disabled`,
+        // `focused`) leaves it `undefined` and the template prints the word `undefined`.
+        let symbol: string | undefined
+        switch (node.status) {
+          case 'passed':
+            symbol = style.green(ICONS.success)
+            break
+          case 'failed':
+            symbol = style.red(ICONS.failed)
+            break
+          case 'todo':
+            symbol = style.magenta(ICONS.todo)
+            break
+          case 'pending':
+          case 'skipped':
+            symbol = style.yellow(ICONS.pending)
+            break
+        }
+        log(`${spaces + String(symbol)} ${node.name} (${node.duration} ms)`)
+        return
+      }
+      if (!('passed' in node)) throw new Error('Expected a node. Got a leaf')
+      if (node.passed) {
+        if (alreadyGrouped) {
+          log('  '.repeat(depth) + node.name)
+          for (const child of node.children) this.#printNode(child, true, depth + 1)
+        } else {
+          this.#startGroup('  '.repeat(depth) + node.name)
+          for (const child of node.children) this.#printNode(child, true, depth + 1)
+          this.#endGroup()
+        }
+      } else {
+        log('  '.repeat(depth + 1) + node.name)
+        for (const child of node.children) this.#printNode(child, false, depth + 1)
+      }
+    }
 
-  #endGroup(): void {
-    log('::endgroup::')
-  }
+    #startGroup(title: string): void {
+      log(`::group::${title}`)
+    }
 
-  getLastError(): undefined {
-    return undefined
-  }
+    #endGroup(): void {
+      log('::endgroup::')
+    }
 
-  async #annotate(test: Test, { testResults }: TestResult): Promise<void> {
-    const config = test.context.config as ProjectConfigLike
-    for (const result of testResults) {
-      const title = [...result.ancestorTitles, result.title].join(TITLE_SEPARATOR)
-      if (result.retryReasons !== undefined) {
-        for (const [index, reason] of result.retryReasons.entries()) {
+    getLastError(): undefined {
+      return undefined
+    }
+
+    async #annotate(test: Test, { testResults }: TestResult): Promise<void> {
+      const config = test.context.config as ProjectConfigLike
+      for (const result of testResults) {
+        const title = [...result.ancestorTitles, result.title].join(TITLE_SEPARATOR)
+        if (result.retryReasons !== undefined) {
+          for (const [index, reason] of result.retryReasons.entries()) {
+            await this.#annotation({
+              ...(await this.#details(reason, config)),
+              title: `RETRY ${index + 1}: ${title}`,
+              type: 'warning',
+            })
+          }
+        }
+        for (const failure of result.failureMessages) {
           await this.#annotation({
-            ...(await this.#details(reason, config)),
-            title: `RETRY ${index + 1}: ${title}`,
-            type: 'warning',
+            ...(await this.#details(failure, config)),
+            title,
+            type: 'error',
           })
         }
       }
-      for (const failure of result.failureMessages) {
-        await this.#annotation({ ...(await this.#details(failure, config)), title, type: 'error' })
+    }
+
+    async #details(
+      failureMessage: string,
+      config: ProjectConfigLike,
+    ): Promise<{ file: string | undefined; line: number | undefined; message: string }> {
+      const util = await messageUtil()
+      // Jest's own frames fall out in `getStackTraceLines`; ours do the same (D104).
+      const { message, stack } = util.separateMessageFromStack(hideProvinoFrames(failureMessage))
+      const stackLines = util.getStackTraceLines(stack)
+      const topFrame = util.getTopFrame(stackLines)
+      const normalized = stackLines.map((line) =>
+        util.formatPath(line, config as unknown as Parameters<MessageUtil['formatPath']>[1]),
+      )
+      return {
+        file: topFrame?.file,
+        line: topFrame?.line,
+        message: [message, ...normalized].join('\n'),
       }
     }
-  }
 
-  async #details(
-    failureMessage: string,
-    config: ProjectConfigLike,
-  ): Promise<{ file: string | undefined; line: number | undefined; message: string }> {
-    const util = await messageUtil()
-    // Jest's own frames fall out in `getStackTraceLines`; ours do the same (D104).
-    const { message, stack } = util.separateMessageFromStack(hideProvinoFrames(failureMessage))
-    const stackLines = util.getStackTraceLines(stack)
-    const topFrame = util.getTopFrame(stackLines)
-    const normalized = stackLines.map((line) =>
-      util.formatPath(line, config as unknown as Parameters<MessageUtil['formatPath']>[1]),
-    )
-    return {
-      file: topFrame?.file,
-      line: topFrame?.line,
-      message: [message, ...normalized].join('\n'),
+    async #annotation(options: {
+      file: string | undefined
+      line: number | undefined
+      message: string
+      title: string
+      type: 'error' | 'warning'
+    }): Promise<void> {
+      // actions/toolkit `command.ts`' escaping, as Jest copies it.
+      const message = stripVTControlCharacters(
+        options.message.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A'),
+      )
+      log(
+        `\n::${options.type} file=${options.file},line=${options.line},title=${options.title}::${message}`,
+      )
     }
-  }
 
-  async #annotation(options: {
-    file: string | undefined
-    line: number | undefined
-    message: string
-    title: string
-    type: 'error' | 'warning'
-  }): Promise<void> {
-    // actions/toolkit `command.ts`' escaping, as Jest copies it.
-    const message = stripVTControlCharacters(
-      options.message.replaceAll('%', '%25').replaceAll('\r', '%0D').replaceAll('\n', '%0A'),
-    )
-    log(
-      `\n::${options.type} file=${options.file},line=${options.line},title=${options.title}::${message}`,
-    )
-  }
+    #isLastTestSuite(results: AggregatedResult): boolean {
+      const computed = results.numPassedTestSuites + results.numFailedTestSuites
+      if (computed < results.numTotalTestSuites) return false
+      if (computed === results.numTotalTestSuites) return true
+      throw new Error(
+        `Sum(${computed}) of passed (${results.numPassedTestSuites}) and failed (${results.numFailedTestSuites}) test suites is greater than the total number of test suites (${results.numTotalTestSuites}). Please report the bug at https://github.com/jestjs/jest/issues`,
+      )
+    }
 
-  #isLastTestSuite(results: AggregatedResult): boolean {
-    const computed = results.numPassedTestSuites + results.numFailedTestSuites
-    if (computed < results.numTotalTestSuites) return false
-    if (computed === results.numTotalTestSuites) return true
-    throw new Error(
-      `Sum(${computed}) of passed (${results.numPassedTestSuites}) and failed (${results.numFailedTestSuites}) test suites is greater than the total number of test suites (${results.numTotalTestSuites}). Please report the bug at https://github.com/jestjs/jest/issues`,
-    )
-  }
-
-  /** `printFailedTestLogs` (L435-L476). */
-  #printFailedTestLogs(
-    context: Test,
-    consoleLog: TestResult['console'],
-    results: AggregatedResult,
-  ): void {
-    const config = context.context.config as ProjectConfig
-    let written = false
-    for (const result of results.testResults) {
-      const testDir = result.testFilePath.replace(config.rootDir, '').slice(1)
-      if (result.failureMessage) {
-        if (!written) {
-          log('')
-          written = true
+    /** `printFailedTestLogs` (L435-L476). */
+    #printFailedTestLogs(
+      context: Test,
+      consoleLog: TestResult['console'],
+      results: AggregatedResult,
+    ): void {
+      const config = context.context.config as ProjectConfig
+      let written = false
+      for (const result of results.testResults) {
+        const testDir = result.testFilePath.replace(config.rootDir, '').slice(1)
+        if (result.failureMessage) {
+          if (!written) {
+            log('')
+            written = true
+          }
+          this.#startGroup(`Errors thrown in ${testDir}`)
+          // Jest passes the console of the file that reported last, not the failed file's (L435-L476).
+          if (
+            consoleLog &&
+            consoleLog.length > 0 &&
+            !this.#silent &&
+            !(config.verbose ?? this.#globalConfig.verbose)
+          ) {
+            log(consoleOutput(consoleLog, config, this.#globalConfig, style))
+          }
+          log(result.failureMessage)
+          this.#endGroup()
         }
-        this.#startGroup(`Errors thrown in ${testDir}`)
-        if (consoleLog && !this.#silent && !(config.verbose ?? this.#globalConfig.verbose)) {
-          log(consoleOutput(consoleLog, config, this.#globalConfig))
-        }
-        log(result.failureMessage)
-        this.#endGroup()
       }
     }
   }
 }
+
+/**
+ * The reporter with no colour.
+ * @public
+ */
+export const jestGitHubActionsReporter: JestReporterClass = createJestGitHubActionsReporter()

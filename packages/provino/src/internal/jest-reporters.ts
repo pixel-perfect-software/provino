@@ -15,7 +15,12 @@ import {
   jestUpdateCommand,
   loadJestReporters,
 } from '@provino/dialect-jest/node'
-import type { ConsoleEntry, Environment, OutputEnvironment } from '@provino/reporters'
+import {
+  type ConsoleEntry,
+  createStyle,
+  type Environment,
+  type OutputEnvironment,
+} from '@provino/reporters'
 import type { FileInfo, FileResult, Reporter, TextStyle } from '@provino/types'
 import type { ReporterChoice } from '../types.ts'
 import type { TextExtras } from './reporters.ts'
@@ -83,7 +88,8 @@ export async function setUpJestReporters(options: {
   const verbose = globalConfig.verbose === true || configs.some((config) => config.verbose === true)
   let entries: Awaited<ReturnType<typeof loadJestReporters>>
   try {
-    entries = await loadJestReporters(plan)
+    // The run's own colour decision, as the `default` reporter gets it.
+    entries = await loadJestReporters(plan, { style: createStyle(options.output.colour) })
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error))
   }

@@ -148,6 +148,9 @@ export function createEmptyTestResult(): TestResult;
 export function createJestConfigReader(options?: NormalizeOptions): ConfigReader<JestLoadedConfig, JestResolvedConfig>;
 
 // @public
+export function createJestGitHubActionsReporter(options?: JestGitHubActionsOptions): JestReporterClass;
+
+// @public
 export function createJestReporterHost<Config extends ProjectConfigLike>(options: JestReporterHostOptions<Config>): Reporter[];
 
 // @public
@@ -379,6 +382,12 @@ export type JestFilter = (testPaths: readonly string[]) => Promise<readonly stri
 
 // @public
 export const jestFlags: readonly FlagSpec[];
+
+// @public
+export interface JestGitHubActionsOptions {
+    readonly platform?: string;
+    readonly style?: TextStyle;
+}
 
 // @public
 export interface JestGlobalConfig {
@@ -838,6 +847,14 @@ export interface JestResolvedConfig {
 }
 
 // @public
+export function jestResultIcons(platform?: string): {
+    readonly failed: string;
+    readonly pending: string;
+    readonly success: string;
+    readonly todo: string;
+};
+
+// @public
 export interface JestResults<Config extends ProjectConfigLike> {
     aggregated(): AggregatedResult;
     assertionOf(test: TestTask, retried?: {
@@ -902,7 +919,9 @@ export function loadJestFilter(globalConfig: {
 }): JestFilter | undefined;
 
 // @public
-export function loadJestReporters(plan: JestReporterPlan): Promise<JestLoadedReporter[]>;
+export function loadJestReporters(plan: JestReporterPlan, options?: {
+    readonly style?: TextStyle;
+}): Promise<JestLoadedReporter[]>;
 
 // @public
 export function makeCollectedTestResult(testResults: AssertionResult[], options: {
