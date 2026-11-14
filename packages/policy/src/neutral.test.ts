@@ -45,6 +45,15 @@ const pinned: Readonly<Record<string, unknown>> = {
     byEnvironment: { jsdom: 'realm', 'happy-dom': 'realm' },
   },
   'orchestrator.bail': { checkAfter: 'test' },
+  // B23c: no neutral changed-files provider; the lexer reads the graph; a change to the project's
+  // own inputs reruns it; a recorded graph beats a rescan (all ours).
+  'orchestrator.changedFiles': null,
+  'orchestrator.affected': {
+    extractor: null,
+    mockEdges: { dir: '__mocks__', adjacent: true, byName: false },
+    invalidateAll: 'project-inputs',
+    graph: 'recorded-then-static',
+  },
   // B23b: V8 coverage goes through the AST converter (built in B25) and counts no calls.
   'coverage.v8Conversion': 'ast',
   'coverage.v8HitCounts': false,

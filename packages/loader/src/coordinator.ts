@@ -40,6 +40,12 @@ export interface CoordinatorLoader extends Disposable {
    * fails on throws `LOADER_TRANSFORM_FAILED`.
    */
   transformForCoverage(file: string): { readonly code: string; readonly map: SourceMapV3 | null }
+  /**
+   * What `specifier` imported from `from` (an absolute path) resolves to, as a `require` resolves
+   * it under the project's mappers, or `undefined` when it doesn't resolve. For the affected-test
+   * graph (B23c).
+   */
+  resolveDependency(specifier: string, from: string): string | undefined
   /** Forgets every module; further imports start over. */
   dispose(): void
 }
@@ -99,6 +105,12 @@ export async function createCoordinatorLoader(
         throw new LoaderError('LOADER_TRANSFORM_FAILED', `${file}${where}: ${error.message}`)
       }
       return { code: record.code, map: record.map }
+    },
+    resolveDependency: () => {
+      throw new LoaderError(
+        'LOADER_NOT_IMPLEMENTED',
+        'CoordinatorLoader.resolveDependency is not implemented yet (B23c Phase 4).',
+      )
     },
     dispose: () => {
       for (const registry of registries.splice(0)) registry.dispose()

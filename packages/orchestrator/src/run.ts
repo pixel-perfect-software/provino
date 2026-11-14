@@ -7,6 +7,7 @@ import { readIsolatePragma, tierFor } from '@provino/loader'
 import { serializeError } from '@provino/rpc'
 import { resolveUpdateMode } from '@provino/snapshot/node'
 import type {
+  AffectedSelection,
   CoverageSummary,
   FileFilter,
   FileInfo,
@@ -146,6 +147,19 @@ export interface RunProjectOptions {
    * files it did not run.
    */
   readonly fileFilters?: readonly FileFilter[]
+  /**
+   * Run only the tests this selection reaches (`--findRelatedTests`, `-o`), per project after
+   * discovery. When set, `fileFilters` are not applied: Jest ignores path patterns in related
+   * mode. Read from B23c Phase 4 on; until then a run that sets it rejects with
+   * `ORCH_NOT_IMPLEMENTED`.
+   */
+  readonly selection?: AffectedSelection
+  /**
+   * Keep only the files that failed (`--onlyFailures`), after the sort: `'history'` takes them
+   * from the results cache, or a set of absolute paths names them. Read from B23c Phase 4 on; until
+   * then a run that sets it rejects with `ORCH_NOT_IMPLEMENTED`.
+   */
+  readonly onlyFailures?: 'history' | ReadonlySet<string>
   /** Where an exact-path filter that is relative starts. Default: this process's directory. */
   readonly cwd?: string
   /**
@@ -430,6 +444,12 @@ export async function runProjects(
   projects: readonly ResolvedProject[],
   options: RunProjectOptions,
 ): Promise<RunSummary> {
+  if (options.selection !== undefined || options.onlyFailures !== undefined) {
+    throw new OrchestratorError(
+      'ORCH_NOT_IMPLEMENTED',
+      'the selection and onlyFailures options are not supported yet (B23c Phase 4)',
+    )
+  }
   const { bus, signal } = options
   const [first] = projects
   if (first === undefined) {

@@ -38,6 +38,12 @@ const processObjectOf = (g: Golden, prefix: string, isolated = '0'): string => {
   if (values.length === 0) throw new Error(`${g.suite} (${g.runner}) has no test "${prefix}..."`)
   return values.every((value) => value === isolated) ? 'per-file' : 'shared'
 }
+/** A Jest value of B23c's affected-test keys, whose golden Phases 2 and 5 record and compare. */
+const affectedPending = (reason: string) => pending('B23c-P5', reason)
+const affectedVitestPending = pending(
+  'T11.16',
+  "Vitest's `--changed` and its graph are not recorded; the neutral value stands until then",
+)
 /** The default reporter's line naming the failing test. */
 const failureLine = (g: Golden): string => {
   const lines = `${observedOf(g).stdout ?? ''}\n${observedOf(g).stderr ?? ''}`.split('\n')
@@ -219,6 +225,37 @@ export const orchestratorClaims: Claims = {
   'orchestrator.watch.initialRun': pending(
     'T9.11',
     'watch mode is not built, and a recorded run cannot enter it',
+  ),
+  // B23c (D118): changed-file and affected-test selection. Jest's values come from the `changed/*`
+  // goldens, recorded by B23c Phase 2 and compared by Phase 5; Vitest's `--changed` runs other
+  // commands (T11.16). The neutral values are ours and are pinned in `@provino/policy`'s test.
+  'orchestrator.changedFiles': each(
+    affectedPending('the `changed/*` goldens show which files `-o` and `--changedSince` select'),
+    affectedVitestPending,
+  ),
+  'orchestrator.affected.extractor': each(
+    affectedPending('`changed/related-extractor-comments` shows which edges count'),
+    affectedVitestPending,
+  ),
+  'orchestrator.affected.mockEdges.dir': each(
+    affectedPending('`changed/related-mock-adjacent` and `-mock-root`'),
+    affectedVitestPending,
+  ),
+  'orchestrator.affected.mockEdges.adjacent': each(
+    affectedPending('`changed/related-mock-adjacent`'),
+    affectedVitestPending,
+  ),
+  'orchestrator.affected.mockEdges.byName': each(
+    affectedPending('`changed/related-mock-root`'),
+    affectedVitestPending,
+  ),
+  'orchestrator.affected.invalidateAll': each(
+    affectedPending('`changed/related-config-file` and `-setup-file` select nothing'),
+    affectedVitestPending,
+  ),
+  'orchestrator.affected.graph': each(
+    affectedPending('Jest selects by the static graph; `changed/related-*`'),
+    affectedVitestPending,
   ),
   'orchestrator.passWithNoTests': each(
     [golden('orchestrator-no-tests', { read: (g) => exitCode(g) === 0 }), golden('defaults')],
