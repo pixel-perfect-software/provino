@@ -953,6 +953,7 @@ export async function runProjects(
       projects: projects.map((project) => project.name),
       startTime: startedAt,
       watch: false,
+      inBand: kind === 'inline',
     }
     if (found.every((entry) => entry.discovered.length === 0)) {
       announced = true

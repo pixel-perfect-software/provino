@@ -493,6 +493,12 @@ export interface RunInfo {
   readonly startTime: number
   readonly watch: boolean
   readonly shard?: { readonly index: number; readonly count: number }
+  /**
+   * The files run in the coordinator's own process, one at a time (the `inline` pool, chosen by
+   * the policy's `orchestrator.inBand`, asked for, or named): Jest's `runInBand`, which a reporter
+   * reads as `showStatus: false`. Absent when the run doesn't say (a reporter driven by hand).
+   */
+  readonly inBand?: boolean
 }
 
 /**

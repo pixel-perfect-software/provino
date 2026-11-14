@@ -171,3 +171,70 @@ describe('the live parity suites run in the mode Jest runs them in', () => {
     assert.deepEqual(pids, [String(process.pid)])
   })
 })
+
+describe('a reporter that logs in band', () => {
+  it('a custom reporter’s console.log in onTestResult under -i is printed on stdout, as live Jest prints it', async () => {
+    const root = await noting(2)
+    await writeFile(
+      join(root, 'reporter.js'),
+      "module.exports = class {\n  onTestResult(_test, result) {\n    console.log('reporter heard ' + require('node:path').basename(result.testFilePath))\n  }\n}\n",
+    )
+    const config = JSON.parse(await readFile(join(root, 'jest.config.json'), 'utf8')) as object
+    await writeFile(
+      join(root, 'jest.config.json'),
+      JSON.stringify({ ...config, reporters: ['default', '<rootDir>/reporter.js'] }),
+    )
+    // The order of the two files is the sequencer's, not what is held here.
+    const heard = (stdout: string): string[] =>
+      stdout
+        .split('\n')
+        .filter((line) => line.startsWith('reporter heard'))
+        .sort()
+    const jest = spawn(process.execPath, [JEST, '-c', 'jest.config.json', '-i'], {
+      cwd: root,
+      env: noColorEnv(),
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+    let jestOut = ''
+    jest.stdout.on('data', (chunk: Buffer) => {
+      jestOut += chunk.toString()
+    })
+    const [jestCode] = await once(jest, 'close')
+    assert.equal(jestCode, 0)
+    assert.deepEqual(heard(jestOut), ['reporter heard f0.test.js', 'reporter heard f1.test.js'])
+    const ended = await startCli(['jest', '-c', 'jest.config.json', '-i'], { cwd: root }).result()
+    assert.equal(ended.code, 0, ended.stderr)
+    assert.deepEqual(heard(ended.stdout), heard(jestOut))
+  })
+})
+
+describe('showStatus is the run’s own in-band decision', () => {
+  it('a reporter hears showStatus false on the run that goes in band by its fast files, as live Jest’s does', async () => {
+    const root = await noting(3)
+    await writeFile(
+      join(root, 'reporter.js'),
+      `module.exports = class {\n  onRunStart(_results, options) {\n    require('node:fs').appendFileSync(${JSON.stringify(join(root, 'status.txt'))}, String(options.showStatus) + '\\n')\n  }\n}\n`,
+    )
+    const config = JSON.parse(await readFile(join(root, 'jest.config.json'), 'utf8')) as object
+    await writeFile(
+      join(root, 'jest.config.json'),
+      JSON.stringify({ ...config, reporters: ['default', '<rootDir>/reporter.js'] }),
+    )
+    const statuses = async (): Promise<string[]> => {
+      const text = await readFile(join(root, 'status.txt'), 'utf8')
+      await rm(join(root, 'status.txt'))
+      return text.trim().split('\n')
+    }
+    // Two runs each: the first has no timings and runs in workers, the second finds every file fast.
+    const flags = ['-w', '2']
+    assert.equal(await jestRanInBand(root, flags), false)
+    assert.equal(await jestRanInBand(root, flags), true)
+    const jest = await statuses()
+    assert.deepEqual(jest, ['true', 'false'])
+    assert.equal(await ranInBand(root, flags), false)
+    await rm(join(root, 'pids.txt'))
+    assert.equal(await ranInBand(root, flags), true)
+    await rm(join(root, 'pids.txt'))
+    assert.deepEqual(await statuses(), jest)
+  })
+})
