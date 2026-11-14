@@ -78,7 +78,7 @@ describe('the leak warnings', () => {
 
 describe('createLeakCheck (--detectLeaks)', () => {
   /** Makes an object only the returned check can see, so a collection can free it. */
-  function checkOf(keep: unknown[]): () => Promise<boolean> {
+  function checkOf(keep: unknown[]): (signal?: AbortSignal) => Promise<boolean> {
     const target = { big: new Array(1000).fill(0) }
     keep.push(target)
     return createLeakCheck([target])
@@ -96,6 +96,16 @@ describe('createLeakCheck (--detectLeaks)', () => {
     const check = checkOf(holder)
     holder.length = 0
     assert.equal(await check(), false)
+  })
+
+  it('gives up at once, saying nothing is leaking, when its signal aborts', async () => {
+    const holder: unknown[] = []
+    const check = checkOf(holder)
+    const controller = new AbortController()
+    controller.abort()
+    // Held, and still reported as not leaking: a cancelled file is not waited for.
+    assert.equal(await check(controller.signal), false)
+    assert.equal(holder.length, 1)
   })
 
   it('reports one target of several that is still held', async () => {

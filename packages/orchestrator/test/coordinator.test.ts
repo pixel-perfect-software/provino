@@ -504,7 +504,7 @@ describe('runProject over inline workers', () => {
           cache: false,
           stderr: new Collect(),
           pool: { kind: 'inline' },
-          detectLeaks: true,
+          detectLeaks: (project) => project.isolation === 'none',
         },
       ),
       (error: unknown) =>

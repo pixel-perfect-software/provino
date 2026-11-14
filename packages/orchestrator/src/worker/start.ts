@@ -82,7 +82,7 @@ export interface FileOutcome {
    * so it can tell whether anything still holds what the file used. The answer is
    * `fileDone.leaks`. It must hold the file's objects only weakly.
    */
-  readonly isLeaking?: () => Promise<boolean>
+  readonly isLeaking?: (signal: AbortSignal) => Promise<boolean>
   /**
    * The modules the file loaded (absolute paths: its setup files, the test file and what they
    * import), as the loader reports them. They go out as one `deps` event before `fileDone`, for
@@ -273,7 +273,7 @@ export function startWorker(
     let leakedGlobals: readonly string[] = []
     let snapshot: SnapshotFileReport | null = null
     let heapUsedBytes: number | undefined
-    let isLeaking: (() => Promise<boolean>) | undefined
+    let isLeaking: ((signal: AbortSignal) => Promise<boolean>) | undefined
     try {
       if (startFailure !== undefined) throw startFailure.error
       const file = { ...context(), job, signal: controller.signal }
@@ -303,18 +303,18 @@ export function startWorker(
     } catch (error) {
       // The runtime reports test failures as events; a runner that throws is a bug, charged to the file.
       charge(error, job.fileId)
-    } finally {
-      controllers.delete(seq)
     }
     // The leak check runs outside the file's frames, the runner's included (Jest's `runTest` asks
-    // after `runTestInternal` returned, and after a short wait for last-minute cleanup).
+    // after `runTestInternal` returned). The file's controller is still live, so `cancel` ends the wait.
+    // It is part of the file's time (the coordinator's `fileTimeoutMs` runs until `fileDone`): the
+    // check is ten ticks and a collection, and a hung one is what that deadline is for.
     let leaks = false
-    if (isLeaking !== undefined) {
-      try {
-        leaks = await isLeaking()
-      } catch (error) {
-        charge(error, job.fileId)
-      }
+    try {
+      if (isLeaking !== undefined) leaks = await isLeaking(controller.signal)
+    } catch (error) {
+      charge(error, job.fileId)
+    } finally {
+      controllers.delete(seq)
     }
     await settle()
     const memoryBytes = measureMemory(init)

@@ -73,31 +73,40 @@ const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve)
 /**
  * `--detectLeaks` (jest-leak-detector 30.5.2's `isLeaking`, with `LeakDetector`'s finalization
  * registry replaced by `WeakRef`s): a check that holds `targets` only weakly and, when asked,
- * collects garbage and says whether any of them is still reachable. A caller makes it where the
- * targets are in scope and calls it after every frame that held them has returned. It is a
- * function here, not a closure at the call site, so the weak references are the only thing it
- * keeps alive: a closure made inline would share a context with the file's own locals.
- * `collect` is the garbage collector call, a parameter for the tests.
+ * collects garbage, waits ten ticks, and says whether any of them is still reachable. A caller
+ * makes it where the targets are in scope and calls it after every frame that held them has
+ * returned. It is a function here, not a closure at the call site, so the weak references are the
+ * only thing it keeps alive: a closure made inline would share a context with the file's own
+ * locals. The check gives up (`false`) when `signal` aborts, so a cancelled file is not waited
+ * for. `collect` is the garbage collector call, a parameter for the tests.
  */
 export function createLeakCheck(
   targets: readonly object[],
   collect: () => void = runGarbageCollector,
-): () => Promise<boolean> {
+): (signal?: AbortSignal) => Promise<boolean> {
   const refs = targets.map((target) => new WeakRef(target))
-  return async () => {
-    // A little time for last-minute cleanup (Jest waits 100 ms), then ten ticks for the collector.
-    await new Promise((resolve) => setTimeout(resolve, 100))
-    collect()
-    for (let i = 0; i < 10; i++) await tick()
-    let held = refs.some((ref) => ref.deref() !== undefined)
-    if (held) {
-      // As Jest does: a heap snapshot is a harder collection than `gc()`, slow, so only when the
-      // first one leaves something.
-      getHeapSnapshot()
-      for (let i = 0; i < 10; i++) await tick()
-      held = refs.some((ref) => ref.deref() !== undefined)
+  const held = (): boolean => refs.some((ref) => ref.deref() !== undefined)
+  /** Ten ticks for the collector to finish (nodejs/node#34636); `false` when `signal` aborted first. */
+  const settle = async (signal: AbortSignal | undefined): Promise<boolean> => {
+    for (let i = 0; i < 10; i++) {
+      if (signal?.aborted === true) return false
+      await tick()
     }
-    return held
+    return true
+  }
+  return async (signal) => {
+    // A `WeakRef` keeps its target alive until the end of the job that made or read it (the
+    // kept-objects list), and this runs in that job: one turn of the event loop lets it go.
+    if (signal?.aborted === true) return false
+    await tick()
+    collect()
+    if (!(await settle(signal))) return false
+    if (!held()) return false
+    // As Jest does: a heap snapshot is a harder collection than `gc()`, slow, so only when the
+    // first one leaves something. Its stream is never read, so it is destroyed at once.
+    getHeapSnapshot().destroy()
+    if (!(await settle(signal))) return false
+    return held()
   }
 }
 
