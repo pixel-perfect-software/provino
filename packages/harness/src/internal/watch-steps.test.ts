@@ -34,9 +34,11 @@ class FakeSession {
   waitFor(match: PtyMatch, from = 0): Promise<number> {
     if (typeof match !== 'string') throw new Error('the steps wait for text')
     this.waits.push({ match, from })
-    return this.text.indexOf(match, from) === -1
+    // As the real watch does: the index just past the match.
+    const at = this.text.indexOf(match, from)
+    return at === -1
       ? Promise.reject(new HarnessError('HARNESS_WATCH_FAILED', `no ${match}`))
-      : Promise.resolve(this.text.length)
+      : Promise.resolve(at + match.length)
   }
 
   end(exitCode: number): void {
@@ -177,4 +179,18 @@ test('a run log that fails its wait fails the steps there', async () => {
     /a run no step waited for/,
   )
   assert.deepEqual(session.writes, [])
+})
+
+test('two waitTexts that one read answers both pass: each starts where the last match ended', async () => {
+  const session = new FakeSession((written) =>
+    written === 'p' ? '\nPattern Mode Usage\n › Press Esc to exit pattern mode.\n' : '',
+  )
+  await runWatchSteps(
+    [{ key: 'p' }, { waitText: 'Pattern Mode Usage' }, { waitText: 'to exit pattern mode.' }],
+    hostOf(session),
+  )
+  assert.deepEqual(
+    session.waits.map((wait) => wait.from),
+    [0, '\nPattern Mode Usage'.length],
+  )
 })

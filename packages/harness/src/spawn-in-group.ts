@@ -2,6 +2,7 @@ import { type ChildProcess, type StdioOptions, spawn } from 'node:child_process'
 import { constants } from 'node:os'
 import { performance } from 'node:perf_hooks'
 import { errorMessage } from './internal/guards.ts'
+import { sleep } from './internal/sleep.ts'
 
 /**
  * How `spawnInGroup` starts a process. `stdio` is the caller's: the bench reads a spare fd, the
@@ -56,10 +57,6 @@ const KILLED_GROUP_SETTLE_MS = 2_000
 
 function hasCode(error: unknown, code: string): boolean {
   return error instanceof Error && 'code' in error && error.code === code
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /**

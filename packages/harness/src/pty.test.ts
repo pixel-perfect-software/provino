@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { HarnessError } from './errors.ts'
-import { groupExists, type PtyProcess, spawnPiped, spawnPty } from './pty.ts'
+import { exitCodeOf, groupExists, type PtyProcess, spawnPiped, spawnPty } from './pty.ts'
 
 const CHILD = new URL('./internal/pty-echo-child.ts', import.meta.url).pathname
 const base = { cwd: process.cwd(), env: process.env }
@@ -47,7 +47,10 @@ test('the exit code is the child, and waitFor rejects once the child has ended',
 }, async () => {
   const pty = await start()
   try {
-    await pty.waitFor((output) => output.includes('READY'))
+    await pty.waitFor((output) => {
+      const at = output.indexOf('READY')
+      return at === -1 ? -1 : at + 'READY'.length
+    })
     pty.write('q')
     const exit = await pty.exit
     assert.equal(exit.exitCode, 3)
@@ -102,6 +105,31 @@ test('an abort of the deadline ends both groups and a pending waitFor rejects', 
   } finally {
     await finish(pty)
   }
+})
+
+test('the exit settles when the child ends while a grandchild still holds the terminal', {
+  timeout: 20_000,
+}, async () => {
+  const pty = await start('holder')
+  let holder = 0
+  try {
+    await pty.waitFor('READY')
+    holder = Number(/HOLDER (\d+)/.exec(pty.output())?.[1])
+    assert.ok(holder > 0)
+    pty.write('q')
+    // The master stays open (the grandchild has the terminal), so only waitpid can see this.
+    assert.equal((await pty.exit).exitCode, 3)
+  } finally {
+    await finish(pty)
+  }
+  assert.equal(pidAlive(holder), false, 'the grandchild went with the child group')
+})
+
+test('a process a signal ended has 128 plus the signal as its exit code', () => {
+  assert.equal(exitCodeOf({ exitCode: 3, signal: null }), 3)
+  assert.equal(exitCodeOf({ exitCode: null, signal: 'SIGKILL' }), 137)
+  assert.equal(exitCodeOf({ exitCode: null, signal: 'SIGTERM' }), 143)
+  assert.equal(exitCodeOf({ exitCode: null, signal: null }), null)
 })
 
 test('a piped child gets no terminal, one stream for stdout and stderr, and its exit code', {

@@ -7,7 +7,8 @@ import { constants } from 'node:os'
 import { StringDecoder } from 'node:string_decoder'
 import { HarnessError } from './errors.ts'
 import { errorMessage } from './internal/guards.ts'
-import { spawnInGroup } from './spawn-in-group.ts'
+import { sleep } from './internal/sleep.ts'
+import { type GroupExit, spawnInGroup } from './spawn-in-group.ts'
 
 /**
  * The interpreter D120 names: the one every macOS has, and the one Linux images have.
@@ -28,8 +29,12 @@ export const PTY_COLUMNS = 120
  * so its process group is its pid), prints that pid as the first line of its stderr, and then
  * passes its stdin to the terminal and the terminal to its stdout. On SIGTERM or stdin's end it
  * signals the child's group (SIGTERM, then SIGKILL two seconds later) and exits with the child's
- * status (128 plus the signal for a child a signal ended). `-I`: nothing from the working
- * directory (a fixture's `pty.py`) is imported.
+ * status (128 plus the signal for a child a signal ended). The child's end is polled with
+ * `waitpid(WNOHANG)` on every turn of the loop, not read from the master's end of file: a
+ * grandchild that inherited the terminal keeps the master open after the child is gone. Once the
+ * child has ended, what the master holds is drained, the child's group (the grandchild included)
+ * is killed, and the master is closed. `-I`: nothing from the working directory (a fixture's
+ * `pty.py`) is imported.
  */
 const RELAY = `
 import fcntl, os, pty, select, signal, struct, sys, termios, time
@@ -65,6 +70,36 @@ signal.signal(signal.SIGHUP, end)
 
 watching = [0, fd]
 status = None
+
+def reap(block):
+    global status
+    if status is not None:
+        return
+    try:
+        done, code = os.waitpid(pid, 0 if block else os.WNOHANG)
+    except ChildProcessError:
+        return
+    if done == pid:
+        status = code
+
+def drain():
+    # What the child wrote before it ended, read while the master has it; bounded, because a
+    # grandchild that holds the terminal may go on writing.
+    for _ in range(1024):
+        try:
+            ready, _, _ = select.select([fd], [], [], 0)
+        except InterruptedError:
+            continue
+        if not ready:
+            return
+        try:
+            data = os.read(fd, 65536)
+        except OSError:
+            return
+        if not data:
+            return
+        os.write(1, data)
+
 while True:
     if kill_at is not None and time.monotonic() >= kill_at:
         try:
@@ -90,12 +125,19 @@ while True:
         elif data:
             os.write(1, data)
         else:
+            # Every holder of the terminal closed it: the child has ended or is ending.
             watching = [0] if 0 in watching else []
-            status = os.waitpid(pid, 0)[1]
+            reap(True)
+    reap(False)
     if status is not None:
+        drain()
         break
 try:
     os.killpg(pid, signal.SIGKILL)
+except OSError:
+    pass
+try:
+    os.close(fd)
 except OSError:
     pass
 if os.WIFEXITED(status):
@@ -128,10 +170,11 @@ export interface PtyOptions {
 }
 
 /**
- * A match for `waitFor`: text the output holds, or a test of all the output so far.
+ * A match for `waitFor`: text the output holds, or a search of all the output so far that returns
+ * the index just past what it found, or -1 for nothing yet.
  * @public
  */
-export type PtyMatch = string | ((output: string) => boolean)
+export type PtyMatch = string | ((output: string) => number)
 
 /**
  * A child whose output is watched and whose input is typed: on a terminal (`spawnPty`) or on a
@@ -144,9 +187,10 @@ export interface PtyProcess {
   /** Everything the terminal showed so far, as the terminal sent it: escape sequences included. */
   readonly output: () => string
   /**
-   * Resolves once `match` is in the output (text found at or after index `from`, or a predicate
-   * true of the whole output), with the output's length at that moment, so the next wait can start
-   * there. Rejects when the child ends first, or the deadline passes.
+   * Resolves once `match` is in the output (text found at or after index `from`, or a search of
+   * the whole output that finds it), with the index just past the match, so the next wait starts
+   * there and still sees text that came after the match in the same read. Rejects when the child
+   * ends first, or the deadline passes.
    */
   waitFor(match: PtyMatch, from?: number): Promise<number>
   /** Settles when the child has ended and both groups are gone. */
@@ -157,10 +201,6 @@ export interface PtyProcess {
   readonly relayPgid: number
   /** Kills the child's group, then the relay's, and waits until neither has a member left. */
   kill(): Promise<void>
-}
-
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
 /**
@@ -200,7 +240,8 @@ async function untilGone(pgid: number, label: string): Promise<void> {
 }
 
 /** The output of a child as it arrives, and the waits on it. */
-interface OutputWatch {
+/** @internal */
+export interface OutputWatch {
   append(text: string): void
   /** The child has ended: every pending wait that hasn't matched rejects. */
   end(): void
@@ -212,7 +253,8 @@ function matchName(match: PtyMatch): string {
   return typeof match === 'string' ? JSON.stringify(match) : 'what the predicate asked for'
 }
 
-function watchOutput(deadline: AbortSignal | undefined): OutputWatch {
+/** @internal */
+export function watchOutput(deadline: AbortSignal | undefined): OutputWatch {
   let output = ''
   let ended = false
   const listeners = new Set<() => void>()
@@ -231,16 +273,21 @@ function watchOutput(deadline: AbortSignal | undefined): OutputWatch {
     output: () => output,
     waitFor(match, from = 0) {
       return new Promise<number>((resolve, reject) => {
-        const found = (): boolean =>
-          typeof match === 'string' ? output.indexOf(match, from) !== -1 : match(output)
+        // The index just past the match, or -1.
+        const found = (): number => {
+          if (typeof match !== 'string') return match(output)
+          const at = output.indexOf(match, from)
+          return at === -1 ? -1 : at + match.length
+        }
         const settle = (): void => {
           listeners.delete(check)
           deadline?.removeEventListener('abort', onAbort)
         }
         const check = (): boolean => {
-          if (found()) {
+          const end = found()
+          if (end !== -1) {
             settle()
-            resolve(output.length)
+            resolve(end)
             return true
           }
           if (ended) {
@@ -271,6 +318,18 @@ function watchOutput(deadline: AbortSignal | undefined): OutputWatch {
       })
     },
   }
+}
+
+/**
+ * A process's exit code as a shell gives it: its own, or 128 plus the number of the signal that
+ * ended it (the relay passes the child's on the same rule), `null` only when neither is known.
+ * @internal
+ */
+export function exitCodeOf(exit: Pick<GroupExit, 'exitCode' | 'signal'>): number | null {
+  if (exit.exitCode !== null) return exit.exitCode
+  if (exit.signal === null) return null
+  const number = constants.signals[exit.signal]
+  return number === undefined ? null : 128 + number
 }
 
 /** Forwards `deadline` to a controller of the caller's own, which `kill` also aborts. */
@@ -357,7 +416,7 @@ export async function spawnPty(argv: readonly string[], options: PtyOptions): Pr
     watch.append(decoder.end())
     watch.end()
     if (!settled.ok) throw settled.error
-    return { exitCode: settled.value.exitCode, killed: killed || settled.value.timedOut }
+    return { exitCode: exitCodeOf(settled.value), killed: killed || settled.value.timedOut }
   })
   // The exit promise is also the way a failed start is seen.
   exit.catch(() => undefined)
@@ -434,9 +493,7 @@ export async function spawnPiped(
     watch.append(decoder.end())
     watch.end()
     if (!settled.ok) throw settled.error
-    const { exitCode, signal, timedOut } = settled.value
-    const code = exitCode ?? (signal === null ? null : 128 + (constants.signals[signal] ?? 0))
-    return { exitCode: code, killed: killed || timedOut }
+    return { exitCode: exitCodeOf(settled.value), killed: killed || settled.value.timedOut }
   })
   exit.catch(() => undefined)
   return {

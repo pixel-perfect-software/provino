@@ -3,7 +3,14 @@
 //   argv[2] = "stubborn": ignore SIGTERM and start a grandchild in the same group.
 import { spawn } from 'node:child_process'
 
+//   argv[2] = "holder": start a grandchild that inherits the terminal and outlives this process.
 const stubborn = process.argv[2] === 'stubborn'
+if (process.argv[2] === 'holder') {
+  const holder = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
+    stdio: 'inherit',
+  })
+  process.stdout.write(`HOLDER ${holder.pid}\n`)
+}
 if (stubborn) {
   process.on('SIGTERM', () => {})
   const grandchild = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], {
