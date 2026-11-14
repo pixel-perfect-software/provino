@@ -23,6 +23,11 @@ import type { JestGlobalConfig, JestLoadedConfig, JestProjectConfig } from './ty
 
 export * from '@provino/dialect-jest/results'
 export {
+  JEST_NO_SCM_TEXT,
+  jestChangedFilesErrorText,
+  jestChangedNoTestsMessage,
+} from './changed-text.ts'
+export {
   JEST_CLI_OPTIONS,
   type JestCliOption,
   type JestCliSupport,

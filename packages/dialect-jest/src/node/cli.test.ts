@@ -996,7 +996,7 @@ describe('the options table', () => {
   it('classifies every option once, and counts the classes', (t) => {
     const counts = Object.fromEntries(supports)
     t.diagnostic(`support classes: ${JSON.stringify(counts)}`)
-    assert.deepEqual(counts, { request: 16, config: 70, accepted: 6, warn: 3, refuse: 10 })
+    assert.deepEqual(counts, { request: 16, config: 76, accepted: 6, warn: 3, refuse: 4 })
     for (const [name, option] of Object.entries(JEST_CLI_OPTIONS)) {
       const needsOwner = option.support === 'warn' || option.support === 'refuse'
       assert.equal(option.owner !== undefined, needsOwner, name)
@@ -1079,7 +1079,7 @@ describe('diagnostics', () => {
   }
 
   it('gives an error diagnostic for each refused flag, naming the task', () => {
-    assert.equal(Object.keys(REFUSED).length, 10)
+    assert.equal(Object.keys(REFUSED).length, 4)
     for (const [name, owner] of Object.entries(REFUSED)) {
       const { diagnostics } = parseJestCli(lineFor(name))
       assert.deepEqual(
@@ -1101,12 +1101,6 @@ describe('diagnostics', () => {
     const owners: Readonly<Record<string, string>> = {
       watch: 'T9.11',
       watchAll: 'T9.11',
-      onlyChanged: 'Track 9, no task yet',
-      changedSince: 'Track 9, no task yet',
-      changedFilesWithAncestor: 'Track 9, no task yet',
-      lastCommit: 'Track 9, no task yet',
-      findRelatedTests: 'Track 9, no task yet',
-      onlyFailures: 'Track 9, no task yet',
       detectLeaks: 'T2.7',
       showSeed: 'Track 9, no task yet',
     }
@@ -1167,8 +1161,19 @@ describe('diagnostics', () => {
     ])
     assert.deepEqual(
       diagnostics.map((diagnostic) => diagnostic.key),
-      ['--logHeapUsage', '--onlyFailures', '--watch'],
+      ['--logHeapUsage', '--watch'],
     )
+    // --onlyFailures and the changed-file flags (B23c, T9.16) are applied now, so they say nothing.
+    for (const line of [
+      ['--onlyFailures'],
+      ['-o'],
+      ['--changedSince', 'main'],
+      ['--lastCommit'],
+      ['--changedFilesWithAncestor'],
+      ['--findRelatedTests', 'src/a.ts'],
+    ]) {
+      assert.deepEqual(parseJestCli(line).diagnostics, [], line.join(' '))
+    }
     // --coverage (B23b, T8.10) and --shard (T9.6) are applied now, so they say nothing.
     assert.deepEqual(parseJestCli(['--coverage']).diagnostics, [])
     assert.deepEqual(parseJestCli(['--collectCoverage']).diagnostics, [])
@@ -1224,6 +1229,17 @@ describe('the run request', () => {
     )
     assert.deepEqual(request(['--runTestsByPath=false', 'a']).fileFilters, [
       { kind: 'regex', value: 'a' },
+    ])
+  })
+
+  it('makes no filter of the source paths --findRelatedTests takes, unless --runTestsByPath wins', () => {
+    assert.deepEqual(request(['--findRelatedTests', 'src/a.ts', 'src/b.ts']).fileFilters, [])
+    assert.deepEqual(
+      request(['--findRelatedTests', 'src/a.ts', '--testPathPatterns', 'x']).fileFilters,
+      [{ kind: 'regex', value: 'x' }],
+    )
+    assert.deepEqual(request(['--findRelatedTests', '--runTestsByPath', 'a.test.ts']).fileFilters, [
+      { kind: 'path', value: 'a.test.ts' },
     ])
   })
 
