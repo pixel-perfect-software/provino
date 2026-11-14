@@ -2,8 +2,8 @@
 // babel provider wrote for the same project (`coverage/*`, recorded with the recorder's
 // `--ci --json --outputFile`): the exit code, the text reports on stdout byte for byte, lcov and
 // clover byte for byte (clover's timestamps masked), `coverage-summary.json` per file and in
-// total, `coverage-final.json`'s files, paths and counters, and `--json`'s `coverageMap`. The
-// statement, function and branch maps are compared on their own (see the `todo` below).
+// total, `coverage-final.json`'s files, paths, counters and statement, function and branch maps
+// (D116: the TypeScript is stripped in place), and `--json`'s `coverageMap`.
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
@@ -140,9 +140,10 @@ describe('provino jest --coverage writes the reports Jest 30.5.2 wrote (coverage
     assert.deepEqual(counters(results.coverageMap), counters(recorded.coverageMap))
   })
 
-  it('the statement, function and branch maps equal the babel provider’s', {
-    todo: "B23b Phase 4 gap, Tyler's call: Oxc's TypeScript output is remapped through its source map, which has no segment at most end positions (Istanbul writes `column: null`), and istanbul-lib-source-maps drops each function's and branch's `line`; Jest's babel provider instruments position-true code",
-  }, async () => {
+  // D116: the TypeScript is stripped in place on the coverage path, so Istanbul instruments code
+  // whose positions are the source's, as Jest's babel provider does (its recorder strips with
+  // Node's `stripTypeScriptTypes`), and no remap moves an end or drops a `line`.
+  it('the statement, function and branch maps equal the babel provider’s', async () => {
     const ran = await provinoOn('coverage/babel-providers-sample')
     const golden = ran.fixture.golden.observed
     assert.deepEqual(
