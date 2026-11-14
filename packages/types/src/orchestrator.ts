@@ -111,6 +111,13 @@ export interface WorkerInit {
   readonly provided: Readonly<Partial<ProvidedContext>>
   /** The worker's one project. */
   readonly config: SerializedProjectConfig
+  /**
+   * An inline worker (a run in band) installs the console capture on `globalThis.console`, so a
+   * test's `console` calls reach the reporters as events, as a fork's do. It leaves the process's
+   * own stdout and stderr alone: they are the coordinator's, the reporters' included. Forks and
+   * threads always capture; omitted, an inline worker captures nothing.
+   */
+  readonly captureConsole?: true
 }
 
 /**

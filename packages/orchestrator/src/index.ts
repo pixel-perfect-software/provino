@@ -39,6 +39,7 @@ export {
 } from './exit-code.ts'
 export { fileIdOf, relativePosix } from './file-id.ts'
 export { hookFailureReport, type RunGlobalHooks } from './global-setup.ts'
+export { type InBandInput, shouldRunInBand } from './in-band.ts'
 export { sameWorkerKey, type WorkerKeyInput, workerKeyOf } from './key.ts'
 export {
   collectOpenHandles,

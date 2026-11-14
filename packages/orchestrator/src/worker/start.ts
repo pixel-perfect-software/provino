@@ -302,8 +302,11 @@ export function startWorker(
     switch (message.t) {
       case 'start': {
         init = message.init
-        const streams = options.console?.streams
-        const global = options.console?.global ?? init.key.pool !== 'inline'
+        // A run in band captures `console` only: the streams are the coordinator's own, and the
+        // reporters write to them.
+        const inBand = init.captureConsole === true
+        const streams = options.console?.streams ?? (inBand ? discardedStreams() : undefined)
+        const global = options.console?.global ?? (inBand || init.key.pool !== 'inline')
         if (streams !== undefined || global) {
           installed = capture.install(
             streams ?? { stdout: process.stdout, stderr: process.stderr },
@@ -372,4 +375,12 @@ function measureMemory(init: WorkerInit | undefined): number {
   const pool = init?.key.pool ?? (isMainThread ? 'forks' : 'threads')
   if (pool === 'forks') return process.memoryUsage.rss()
   return getHeapStatistics().used_heap_size
+}
+
+/** Stand-ins for stdout and stderr that nothing writes to: the capture patches them and no more. */
+function discardedStreams(): { readonly stdout: WritableLike; readonly stderr: WritableLike } {
+  // `writableLength` 0 is what lets the capture's flush finish without waiting for a callback.
+  const stream = (): WritableLike =>
+    ({ writableLength: 0, write: () => true }) as unknown as WritableLike
+  return { stdout: stream(), stderr: stream() }
 }

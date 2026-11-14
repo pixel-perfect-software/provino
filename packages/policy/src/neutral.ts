@@ -233,7 +233,8 @@ export const neutralPolicy: Policy = deepFreeze({
     environmentPragmas: ['provino-environment'],
     environmentConditions: moduleRef<EnvironmentConditions>(BEHAVIOURS, 'environmentConditions'),
     pool: { default: 'forks' },
-    runInBand: { auto: false },
+    // Ours: a run is in band only when asked.
+    inBand: { single: false, fastFileCount: 0, slowMs: 0 },
     // Ours: no runner to match, so the cheap split that keeps neighbouring files together (P32).
     shard: { fallback: 'path-slice' },
     sequence: { unknownFirst: true },
