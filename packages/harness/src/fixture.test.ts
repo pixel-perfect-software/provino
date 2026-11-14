@@ -869,3 +869,41 @@ test('run keeps maskKeys beside a json: capture and a cwd inside the fixture, an
   bad({ capture: ['stdout'], cwd: '../up' })
   bad({ capture: ['stdout'], cwd: '/abs' })
 })
+
+test('run.exact keeps argv verbatim, for a Jest-only fixture', () => {
+  const run = {
+    exact: true,
+    argv: { jest: ['--config=jest.config.json', '--json', '--outputFile=out.json'] },
+    capture: ['json:out.json'],
+  }
+  const manifest = { ...VALID, runners: ['jest'], run }
+  // A reserved flag is accepted under `exact`, and refused without it.
+  assert.deepEqual(parseFixtureManifest(JSON.stringify(manifest)).run, run)
+  const { exact: _exact, ...inexact } = run
+  assert.throws(
+    () => parseFixtureManifest(JSON.stringify({ ...manifest, run: inexact })),
+    rejects('HARNESS_FIXTURE_BAD_RUN'),
+  )
+})
+
+test('run.exact needs argv and a fixture that runs only Jest', () => {
+  const run = { exact: true, argv: { jest: ['--ci=false'] }, capture: ['exitCode'] }
+  const refused = (manifest: object) =>
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify(manifest)),
+      rejects('HARNESS_FIXTURE_BAD_RUN'),
+    )
+  refused({ ...VALID, runners: ['jest'], run: { exact: true, capture: ['exitCode'] } })
+  refused({ ...VALID, runners: ['jest', 'vitest'], run })
+  refused({ ...VALID, runners: ['vitest'], run: { ...run, argv: { vitest: ['--run'] } } })
+  refused({ ...VALID, runners: ['jest'], run: { ...run, exact: false } })
+})
+
+test('a null in env removes a variable', () => {
+  const env = { NO_COLOR: null, CI: 'false' }
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, env })).env, env)
+  assert.throws(
+    () => parseFixtureManifest(JSON.stringify({ ...VALID, env: { A: 1 } })),
+    rejects('HARNESS_FIXTURE_BAD_ENV'),
+  )
+})

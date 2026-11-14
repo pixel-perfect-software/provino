@@ -50,8 +50,12 @@ export interface FixtureManifest {
   readonly description: string
   /** The runners and profiles it is recorded under. */
   readonly runners: readonly FixtureProfile[]
-  /** Environment variables for the runner process, on top of the recorder's own. */
-  readonly env?: Readonly<Record<string, string>>
+  /**
+   * Environment variables for the runner process, on top of the recorder's own. A `null` removes
+   * a variable the process inherits or the recorder sets (`NO_COLOR`, for an editor that passes
+   * `--colors`).
+   */
+  readonly env?: Readonly<Record<string, string | null>>
   /**
    * Flags for `node` itself, before the runner's bin (`--harmony-temporal`, which `NODE_OPTIONS`
    * refuses). B17a's `policy/timers-temporal` needs a Node with a `Temporal`.
@@ -192,6 +196,14 @@ export type FixtureConfigOverlay = Readonly<
  * @public
  */
 export interface FixtureRun {
+  /**
+   * `true` runs Jest with exactly `argv.jest`: none of the recorder's own flags (`--config`,
+   * `--ci`, `--json`, `--outputFile`), as an editor's command line is. The recorder's config is
+   * written as `jest.config.json` in the work directory, where Jest finds it as it finds a
+   * project's own. The reserved-flag check is skipped, so the result is read from a `json:` or
+   * `file:` capture. Needs `runners: ["jest"]`.
+   */
+  readonly exact?: true
   readonly argv?: Readonly<Partial<Record<FixtureRunner, readonly string[]>>>
   /**
    * `exitCode`, `stdout`, `stderr`, `file:<path>` (the file's text) and `json:<path>` (the file
@@ -566,6 +578,7 @@ const RUN_KEYS: readonly string[] = [
   'capture',
   'cwd',
   'emptyStreams',
+  'exact',
   'keepLines',
   'mask',
   'maskKeys',
@@ -640,6 +653,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     capture,
     cwd,
     emptyStreams,
+    exact,
     keepLines,
     mask,
     maskKeys,
@@ -676,7 +690,15 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     maskKeys?: string[]
     cwd?: string
     raw?: true
+    exact?: true
   } = { capture }
+  if (exact !== undefined) {
+    if (exact !== true) throw bad('"exact" must be true (leave it out for off)')
+    if (argv === undefined || runners.some((profile) => runnerOfProfile(profile) !== 'jest')) {
+      throw bad('"exact" needs "argv" and a fixture that runs only Jest')
+    }
+    out.exact = true
+  }
   if (argv !== undefined) {
     if (!isRecord(argv) || Object.keys(argv).length === 0) {
       throw bad('"argv" must be a non-empty object from a runner to its arguments')
@@ -690,7 +712,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       if (!Array.isArray(args) || !args.every((arg): arg is string => typeof arg === 'string')) {
         throw bad(`"argv" must give "${runner}" an array of strings`)
       }
-      const owned = ownedFlagIn(args)
+      const owned = exact === true ? undefined : ownedFlagIn(args)
       if (owned !== undefined) {
         throw bad(`"argv" gives "${owned}" to ${runner}, which the recorder or "mockCleanup" sets`)
       }
@@ -1169,17 +1191,17 @@ function parseMockCleanup(
   return cleanup
 }
 
-function parseEnv(env: unknown, source: string): Record<string, string> {
-  if (!isRecord(env) || !Object.values(env).every((v) => typeof v === 'string')) {
+function parseEnv(env: unknown, source: string): Record<string, string | null> {
+  if (!isRecord(env) || !Object.values(env).every((v) => typeof v === 'string' || v === null)) {
     throw new HarnessError(
       'HARNESS_FIXTURE_BAD_ENV',
-      `${source}: "env" must be an object of string values`,
+      `${source}: "env" must be an object of string values (or null, to remove a variable)`,
       { path: source },
     )
   }
-  const stringEnv: Record<string, string> = {}
+  const stringEnv: Record<string, string | null> = {}
   for (const [name, entry] of Object.entries(env)) {
-    if (typeof entry === 'string') stringEnv[name] = entry
+    if (typeof entry === 'string' || entry === null) stringEnv[name] = entry
   }
   return stringEnv
 }

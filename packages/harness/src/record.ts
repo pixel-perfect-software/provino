@@ -505,20 +505,28 @@ async function runUnderRunner(
 
   let commandArgs: (extra: readonly string[]) => string[]
   if (runner === 'jest') {
-    const configFile = path.join(outDir, 'jest.config.json')
+    // An exact run has no `--config`: Jest finds this file from the work directory, as it finds a
+    // project's own.
+    const exact = spec?.exact === true
+    const configFile = exact
+      ? path.join(workDir, 'jest.config.json')
+      : path.join(outDir, 'jest.config.json')
     await writeFile(
       configFile,
       `${JSON.stringify(jestConfig(workDir, TRANSFORMER_PATH, setupFile, configOptions), null, 2)}\n`,
     )
-    commandArgs = (extra) => [
-      install.bin,
-      '--ci',
-      '--json',
-      `--outputFile=${outputFile}`,
-      '--config',
-      configFile,
-      ...extra,
-    ]
+    commandArgs = (extra) =>
+      exact
+        ? [install.bin, ...extra]
+        : [
+            install.bin,
+            '--ci',
+            '--json',
+            `--outputFile=${outputFile}`,
+            '--config',
+            configFile,
+            ...extra,
+          ]
   } else {
     const configFile = path.join(workDir, 'vitest.config.ts')
     await writeFile(configFile, vitestConfigSource(workDir, setupFile, profile, configOptions))
@@ -534,11 +542,14 @@ async function runUnderRunner(
   }
   // Git reads nothing from this machine, and a work directory with no repository of its own never
   // finds the checkout's (the ceiling is the work directory's parent).
+  const manifestEnv = Object.entries(fixture.manifest.env ?? {})
   const env = runnerEnv(withoutGitVariables(process.env), {
     ...hermeticGitEnv(path.dirname(paths.realWorkDir)),
-    ...fixture.manifest.env,
+    ...Object.fromEntries(manifestEnv.filter(([, value]) => value !== null)),
     [TRACE_ENV]: traceFile,
   })
+  // `null` in the fixture's `env` removes the variable (`NO_COLOR` for an editor's `--colors`).
+  for (const [name, value] of manifestEnv) if (value === null) delete env[name]
   const scm = fixture.manifest.scm
   if (scm !== undefined) {
     const repo = { dir: workDir, ceiling: path.dirname(paths.realWorkDir) }
