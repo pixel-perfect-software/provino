@@ -77,6 +77,23 @@
     "oxc-parser": "catalog:",
     "prettier": "catalog:",
     "provino": "workspace:*",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "@testing-library/dom": "catalog:",
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
+    "identity-obj-proxy": "catalog:",
+    "jest-axe": "catalog:",
+    "jest-canvas-mock": "catalog:",
+    "jest-extended": "catalog:",
+    "jest-fetch-mock": "catalog:",
+    "jest-image-snapshot": "catalog:",
+    "jest-mock-extended": "catalog:",
+    "jest-styled-components": "catalog:",
+    "jest-when": "catalog:",
+    "msw": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "styled-components": "catalog:"
   }
 }

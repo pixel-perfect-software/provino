@@ -20,6 +20,12 @@
     "istanbul-reports": "hold",
     "@types/istanbul-reports": "hold",
     "v8-to-istanbul": "hold",
-    "@bcoe/v8-coverage": "hold"
+    "@bcoe/v8-coverage": "hold",
+    "@testing-library/*": "hold",
+    "msw": "hold",
+    "react": "hold",
+    "react-dom": "hold",
+    "styled-components": "hold",
+    "identity-obj-proxy": "hold"
   }
 }
