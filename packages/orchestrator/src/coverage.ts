@@ -124,7 +124,8 @@ async function coverUntested(
   if (coverage === undefined) return
   const [{ createCoordinatorLoader }, { istanbulInstrumenter, readInitialCoverage }] =
     await Promise.all([import('@provino/loader'), loadInstrumenter()])
-  using loader = await createCoordinatorLoader(
+  // Node 22.15 (CI's floor) parses no `using`: the loader is disposed by hand.
+  const loader = await createCoordinatorLoader(
     project.rootDir,
     project.config.loader,
     project.policy.module,
@@ -137,14 +138,18 @@ async function coverUntested(
       },
     },
   )
-  for (const path of paths) {
-    try {
-      const { code } = loader.transformForCoverage(path)
-      const initial = readInitialCoverage(code)
-      // `istanbul ignore file`: no coverage, as `generateEmptyCoverage` returns none.
-      if (initial !== null) add(initial.coverageData)
-    } catch (error) {
-      failures.push({ path, error: serializeError(error) })
+  try {
+    for (const path of paths) {
+      try {
+        const { code } = loader.transformForCoverage(path)
+        const initial = readInitialCoverage(code)
+        // `istanbul ignore file`: no coverage, as `generateEmptyCoverage` returns none.
+        if (initial !== null) add(initial.coverageData)
+      } catch (error) {
+        failures.push({ path, error: serializeError(error) })
+      }
     }
+  } finally {
+    loader[Symbol.dispose]()
   }
 }

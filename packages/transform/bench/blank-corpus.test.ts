@@ -16,8 +16,13 @@ import { DEFAULT_ROOT, readSources } from './corpus.ts'
 import { generateFuzzCorpus } from './fuzz-corpus.ts'
 
 function check(files: readonly CorpusFile[], verbatimModuleSyntax: boolean) {
-  using pipelines = blankPipelines({ verbatimModuleSyntax })
-  return checkBlankCorpus(files, pipelines)
+  // Node 22.15 (CI's floor) parses no `using`.
+  const pipelines = blankPipelines({ verbatimModuleSyntax })
+  try {
+    return checkBlankCorpus(files, pipelines)
+  } finally {
+    pipelines[Symbol.dispose]()
+  }
 }
 
 describe('the in-place strip makes the program Oxc makes, file by file', () => {
