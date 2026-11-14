@@ -19,6 +19,9 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   // Loaded by the coordinator (a failing global hook), through a behaviour ref, as the neutral
   // behaviours are: a leaf of its own, so it never pulls the runtime in.
   '@provino/dialect-jest/global-setup': 'worker/jest-global-setup',
+  // Loaded by the coordinator (changed files, the dependency extractor) through behaviour refs
+  // (B23c, D118): a leaf of its own, so it never pulls the runtime in.
+  '@provino/dialect-jest/affected': 'worker/jest-affected',
   '@provino/policy/behaviours': 'worker/policy-behaviours',
   '@provino/env-node': 'worker/env-node',
   '@provino/env-jsdom': 'worker/env-jsdom',
