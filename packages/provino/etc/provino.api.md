@@ -401,6 +401,7 @@ export interface Q {
 
 // @public
 export interface q {
+    readonly coverage?: CoverageSummary;
     // (undocumented)
     readonly durationMs: number;
     // (undocumented)

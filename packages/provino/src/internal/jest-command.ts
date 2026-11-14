@@ -15,6 +15,8 @@ import {
   type JestProjectConfig,
   jestCli,
   jestCollectedText,
+  jestCoverageOptions,
+  jestCoverageTexts,
   jestNodeDialect,
   jestRunGlobalHooks,
   processJestResults,
@@ -24,6 +26,7 @@ import {
   discoverProject,
   ExitCode,
   isProvinoCacheDir,
+  type RunCoverageHooks,
   readTimings,
   type ShardSpec,
   selectFiles,
@@ -34,6 +37,7 @@ import type { TextSink } from '@provino/reporters'
 import type { ConfigSource, Diagnostic, NeutralProject, RunRequest } from '@provino/types'
 import type { ReporterChoice } from '../types.ts'
 import { JEST_BUILT_INS, JEST_ENVIRONMENT, NODE_ENVIRONMENT } from './built-ins.ts'
+import { type CoverageReporter, createCoverageReporter } from './coverage-reporter.ts'
 import { usageMessage } from './describe.ts'
 import { executeProject, timingsOf } from './execute.ts'
 import { setUpJestReporters } from './jest-reporters.ts'
@@ -313,6 +317,52 @@ async function listFiles(
 }
 
 /**
+ * The coverage of a `provino jest` run, when the global config collects it with the babel
+ * provider: Jest's CoverageReporter, and the notice `_addUntestedFiles` writes on a terminal while
+ * the files no test loaded are covered (`RUNNING_TEST_COLOR`, bold dim, then `clearLine`).
+ */
+function coverageFor(
+  globalConfig: JestGlobalConfig,
+  io: {
+    readonly env: Readonly<Record<string, string | undefined>>
+    readonly stdout: TextSink
+    readonly stderr: NodeJS.WritableStream
+  },
+): { readonly reporter: CoverageReporter; readonly hooks: RunCoverageHooks } | undefined {
+  if (!globalConfig.collectCoverage || globalConfig.coverageProvider === 'v8') return undefined
+  const { env, stdout, stderr } = io
+  const columns = (stdout as { columns?: unknown }).columns
+  // Jest's chalk and `istanbul-lib-report`'s console writer follow stdout's colour support.
+  const style = styleFor({ env, stream: stdout, ci: globalConfig.ci })
+  const consoleColour = outputFor({ env, stderr: stdout, ci: globalConfig.ci }).colour
+  const reporter = createCoverageReporter({
+    options: jestCoverageOptions(globalConfig, {
+      env,
+      stdoutColumns: typeof columns === 'number' && columns > 0 ? columns : undefined,
+    }),
+    stdout,
+    stderr,
+    consoleColour,
+    style,
+    texts: jestCoverageTexts,
+  })
+  // jest-util's `isInteractive`: stdout a terminal, not dumb, not CI.
+  const interactive = outputFor({ env, stderr: stdout, ci: globalConfig.ci }).live
+  const hooks: RunCoverageHooks = interactive
+    ? {
+        onUntested: {
+          start: () => stderr.write(style.bold(style.dim(jestCoverageTexts.untestedNotice))),
+          // `clearLine(process.stderr)`: only on a terminal.
+          end: () => {
+            if ((stderr as { isTTY?: unknown }).isTTY === true) stderr.write('\u001b[999D\u001b[K')
+          },
+        },
+      }
+    : {}
+  return { reporter, hooks }
+}
+
+/**
  * Runs one `provino jest` command line and resolves with the exit code. Bad input (a flag Jest
  * refuses or Provino can't run yet, a config Jest refuses, a pattern that isn't a regular
  * expression) is a message on `stderr` and Jest's exit code for it; any other error is a bug and
@@ -446,6 +496,11 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     // that neither writes JSON nor runs a processor keeps its own exit code.
     const reporterResults = results ?? (collecting ? undefined : newResults())
     const env = io.env ?? process.env
+    // `--coverage` (B23b): Jest's CoverageReporter, and the notice on a terminal while the files no
+    // test loaded are covered. A `--collectTests` run collects nothing; v8 is T8.12's (warned).
+    const coverage = collecting
+      ? undefined
+      : coverageFor(read.globalConfig, { env, stdout, stderr })
     const setup =
       collecting || io.reporters !== undefined || reporterResults === undefined
         ? undefined
@@ -464,6 +519,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
             results: reporterResults,
             output: outputFor({ env, stderr, ci: read.globalConfig.ci, colour: request.colour }),
             env,
+            coverage: coverage?.reporter,
           })
     let reporterFailed = false
     const result = await executeProject({
@@ -479,7 +535,10 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       ...(collecting
         ? { reporters: [], collectOnly: true }
         : io.reporters !== undefined
-          ? { reporters: io.reporters }
+          ? {
+              reporters:
+                coverage === undefined ? io.reporters : [...io.reporters, coverage.reporter],
+            }
           : setup === undefined
             ? {}
             : {
@@ -518,6 +577,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       ...(runHooks === undefined ? {} : { globalSetup: runHooks }),
       ...(io.signal === undefined ? {} : { signal: io.signal }),
       ...(io.forceSignal === undefined ? {} : { forceSignal: io.forceSignal }),
+      ...(coverage === undefined ? {} : { coverage: coverage.hooks }),
     })
     if (read.globalConfig.forceExit) {
       if (!read.globalConfig.detectOpenHandles) stderr.write(`${FORCE_EXIT_WARNING}\n`)
@@ -560,6 +620,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
           cwd,
           stdout,
           outputStream: read.globalConfig.json || read.globalConfig.useStderr ? stderr : stdout,
+          ...(coverage === undefined ? {} : { coverageMap: coverage.reporter.coverageMap() }),
         })
       } catch (error) {
         // A processor that throws (or fails to load) ends Jest's `runCLI` with the error: jest-cli
