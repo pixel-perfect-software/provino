@@ -179,6 +179,9 @@ catalogs:
     '@babel/preset-typescript':
       specifier: 7.29.7
       version: 7.29.7
+    '@bcoe/v8-coverage':
+      specifier: 0.2.3
+      version: 0.2.3
     '@biomejs/biome':
       specifier: 2.6.5
       version: 2.6.5
@@ -422,6 +425,9 @@ catalogs:
     typescript-5.9:
       specifier: npm:typescript@5.9.3
       version: 5.9.3
+    v8-to-istanbul:
+      specifier: 9.3.0
+      version: 9.3.0
     vitest:
       specifier: 5.0.5
       version: 5.0.5
@@ -626,6 +632,9 @@ importers:
 
   packages/coverage:
     dependencies:
+      '@bcoe/v8-coverage':
+        specifier: 'catalog:'
+        version: 0.2.3
       '@istanbuljs/schema':
         specifier: 'catalog:'
         version: 0.1.6
@@ -662,6 +671,9 @@ importers:
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.17
+      v8-to-istanbul:
+        specifier: 'catalog:'
+        version: 9.3.0
     devDependencies:
       '@babel/core':
         specifier: 'catalog:'
@@ -870,6 +882,9 @@ importers:
       '@babel/preset-react':
         specifier: 'catalog:'
         version: 7.29.7(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1)
+      '@babel/preset-typescript':
+        specifier: 'catalog:'
+        version: 7.29.7(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1)
       '@jest/globals':
         specifier: 'catalog:'
         version: 30.5.2(supports-color@8.1.1)
@@ -1075,6 +1090,9 @@ importers:
 
   packages/provino:
     dependencies:
+      '@bcoe/v8-coverage':
+        specifier: 'catalog:'
+        version: 0.2.3
       '@istanbuljs/schema':
         specifier: 'catalog:'
         version: 0.1.6
@@ -1150,6 +1168,9 @@ importers:
       tinyglobby:
         specifier: 'catalog:'
         version: 0.2.17
+      v8-to-istanbul:
+        specifier: 'catalog:'
+        version: 9.3.0
     devDependencies:
       '@provino/config':
         specifier: workspace:*

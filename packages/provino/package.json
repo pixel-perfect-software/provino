@@ -79,6 +79,7 @@
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\" \"test/**/*.test.ts\""
   },
   "dependencies": {
+    "@bcoe/v8-coverage": "catalog:",
     "@istanbuljs/schema": "catalog:",
     "@jest/expect-utils": "catalog:",
     "@jest/get-type": "catalog:",
@@ -102,7 +103,8 @@
     "picomatch": "catalog:",
     "pretty-format": "catalog:",
     "pure-rand": "catalog:",
-    "tinyglobby": "catalog:"
+    "tinyglobby": "catalog:",
+    "v8-to-istanbul": "catalog:"
   },
   "publishConfig": {
     "bin": {

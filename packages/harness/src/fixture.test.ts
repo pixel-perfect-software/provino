@@ -508,6 +508,27 @@ test('jestEsm is optional, true only, and needs a fixture that runs Jest', () =>
   )
 })
 
+test("jestTypeScript is optional, 'babel' only, and needs a fixture that runs Jest", () => {
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, jestTypeScript: 'babel' })), {
+    ...VALID,
+    jestTypeScript: 'babel',
+  })
+  assert.equal('jestTypeScript' in parseFixtureManifest(JSON.stringify(VALID)), false)
+  for (const jestTypeScript of [true, 'ts-jest', 1, null]) {
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, jestTypeScript })),
+      rejects('HARNESS_FIXTURE_BAD_JEST_TYPESCRIPT'),
+    )
+  }
+  assert.throws(
+    () =>
+      parseFixtureManifest(
+        JSON.stringify({ ...VALID, runners: ['vitest'], jestTypeScript: 'babel' }),
+      ),
+    rejects('HARNESS_FIXTURE_BAD_JEST_TYPESCRIPT'),
+  )
+})
+
 test('packages keeps plain and scoped packages with their files', () => {
   const packages = {
     left: { 'package.json': '{"main":"index.js"}', 'index.js': 'module.exports = 1' },

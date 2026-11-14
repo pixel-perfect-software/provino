@@ -486,6 +486,7 @@ export interface CoveragePolicy {
         readonly notFound: string;
     };
     readonly v8Conversion: "v8-to-istanbul" | "ast";
+    readonly v8Hashbang: "kept" | "removed";
     readonly v8HitCounts: boolean;
 }
 
@@ -875,10 +876,15 @@ export interface EventSink {
 
 // @public
 export interface ExecutedModuleInfo {
+    readonly code: string;
+    readonly map: SourceMapV3 | null;
     readonly transformKey: string;
     readonly url: string;
     readonly wrapperLength: number;
 }
+
+// @public
+export type ExecutedModuleRef = Omit<ExecutedModuleInfo, "code" | "map">;
 
 // @public
 export interface ExpectMessages {
@@ -2483,7 +2489,7 @@ export type RawCoverage = {
     readonly workerId: number;
     readonly testFile?: string;
     readonly scripts: readonly V8ScriptCoverage[];
-    readonly modules?: readonly ExecutedModuleInfo[];
+    readonly modules?: readonly (ExecutedModuleInfo | ExecutedModuleRef)[];
 } | {
     readonly kind: "istanbul";
     readonly workerId: number;
@@ -3691,6 +3697,7 @@ export type WorkerExit = {
 // @public
 export interface WorkerInit {
     readonly config: SerializedProjectConfig;
+    readonly coverageModules?: readonly string[];
     // (undocumented)
     readonly isolation: IsolationTier;
     // (undocumented)

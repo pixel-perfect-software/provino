@@ -1,0 +1,28 @@
+{
+  "description": "Jest 30.5.2's v8 provider on modules that start with a hashbang (T8.12, B23b Phase 6 review). `src/greet.js` is plain CommonJS JavaScript ending in `module.exports`, which Jest runs untransformed (the recorder's transform names TypeScript only) and both test files import, so Jest's module function counts 2: Provino's CommonJS wrapper and the vm script around it must count nowhere else, at any worker count. `src/cli.ts` goes through babel-jest with `@babel/preset-typescript` (D123) and ends in an interface. Jest's ScriptTransformer removes a hashbang line's text before the code runs (`stripShebang`) while its v8 report reads the file as it is, so every range of `greet.js` sits one hashbang earlier than its code. The JavaScript module is text in `files` (no `.js` is committed, D13). The `json`, `json-summary` and `text` reports are recorded as Jest wrote them (the work directory as `<root>`). Read by `provino`'s `jest-coverage-v8.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "jestTypeScript": "babel",
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "coverageProvider": "v8",
+      "collectCoverageFrom": ["src/**/*.{js,ts}"],
+      "coverageReporters": ["json", "json-summary", "text"]
+    }
+  },
+  "files": {
+    "jest": {
+      "src/greet.js": "#!/usr/bin/env node\n'use strict'\n\nfunction greet(name) {\n  if (name === '') {\n    return 'nobody'\n  }\n  return `hello ${name}`\n}\n\nfunction unused() {\n  return 'never called'\n}\n\nmodule.exports = { greet, unused }\n"
+    }
+  },
+  "run": {
+    "raw": true,
+    "capture": [
+      "exitCode",
+      "stdout",
+      "json:coverage/coverage-final.json",
+      "json:coverage/coverage-summary.json"
+    ]
+  }
+}

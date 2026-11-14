@@ -226,20 +226,38 @@ describe('provino jest --coverage: what a recording can’t hold, against a live
     assert.equal(provino.code, jest.code, provino.stderr)
   })
 
-  // Phase 6 (T8.12) builds Jest's v8 provider. The threshold hook is not tied to a provider (a v8
-  // map is checked as an Istanbul one is), but until the workers collect V8 coverage there is no
-  // map: the run passes and says `coverageProvider` is not applied. This is the target, run as a
-  // `todo` so it can't fail the suite before its owner lands.
-  it('coverageProvider v8: a missed threshold fails the run, as Jest’s does', {
-    todo: 'T8.12: the V8 collector is not wired yet (Phase 6)',
-  }, async () => {
-    const { jest, provino } = await bothOn('coverage/threshold-global', {
+  // The threshold hook is not tied to a provider (T8.12): the v8 map, converted to Istanbul data
+  // in the coordinator, is what `checkThresholds` reads, as Jest's `_checkThreshold` reads the map
+  // `_getCoverageResult` made under either provider.
+  it('coverageProvider v8: a missed threshold fails the run, as Jest’s does', async () => {
+    const { jest, provino, root } = await bothOn('coverage/threshold-global', {
       config: { coverageProvider: 'v8' },
     })
+    const inRoot = (text: string) => observedText(text, { roots: [root] })
+    const expected = thresholdLines(inRoot(jest.stderr))
     assert.equal(jest.code, 1, jest.stderr)
-    assert.ok(thresholdLines(jest.stderr).length > 0, jest.stderr)
+    assert.ok(expected.length > 0, jest.stderr)
+    assert.deepEqual(thresholdLines(inRoot(provino.stderr)), expected)
     assert.equal(provino.code, jest.code, provino.stderr)
-    assert.ok(thresholdLines(provino.stderr).length > 0, provino.stderr)
+    assert.equal(thresholdLines(provino.stdout).length, 0)
+  })
+
+  it('coverageProvider v8 with --passWithNoTests and no test file: the empty map is reported and its thresholds checked, as Jest’s are', async () => {
+    // threshold-no-tests under the v8 provider: Jest's CoverageReporter runs on the empty list as
+    // it does under babel, so the path and glob groups find no data and the run exits 1.
+    const fixture = await loadFixture('coverage/threshold-no-tests')
+    const keepLines = fixture.manifest.run?.keepLines
+    const { jest, provino, root } = await bothOn('coverage/threshold-no-tests', {
+      config: { coverageProvider: 'v8' },
+      args: fixture.manifest.run?.argv?.jest ?? [],
+    })
+    const kept = (text: string) => observedText(text, { roots: [root], keepLines })
+    assert.equal(jest.code, 1, jest.stderr)
+    assert.equal(thresholdLines(kept(jest.stderr)).length, 2, jest.stderr)
+    assert.match(kept(jest.stdout), /^=+ Coverage summary/, jest.stdout)
+    assert.equal(kept(provino.stderr), kept(jest.stderr))
+    assert.equal(kept(provino.stdout), kept(jest.stdout))
+    assert.equal(provino.code, jest.code, provino.stderr)
   })
 
   const cases: readonly {

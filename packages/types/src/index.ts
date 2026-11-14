@@ -41,6 +41,7 @@ export type {
   CoverageThresholds,
   CoverageTotals,
   ExecutedModuleInfo,
+  ExecutedModuleRef,
   IstanbulFileCoverageData,
   IstanbulRange,
   MetricThresholds,

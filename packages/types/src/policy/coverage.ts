@@ -27,6 +27,15 @@ export interface CoveragePolicy {
    * Jest: `true`. Neutral: `false` (it costs memory). research: track-08 F10
    */
   readonly v8HitCounts: boolean
+  /**
+   * What the code V8 counts keeps of a module's hashbang line (`#!...`). `kept`: its text stays
+   * (as a comment), so V8's offsets are the file's own. `removed`: the text goes before the code
+   * runs and the line's newline stays (Jest's ScriptTransformer `stripShebang`), so V8 counts a
+   * module that starts with one at offsets that many characters earlier; Jest's v8 report then
+   * reads them against the file as it is when the code has no source map, and against the text
+   * without the line when it has one. Jest: `removed`. Neutral: `kept`.
+   */
+  readonly v8Hashbang: 'kept' | 'removed'
   /** The global the Istanbul instrumenter counts into. Jest: `__coverage__`. research: track-08 F9 */
   readonly istanbulVariable: string
   /**

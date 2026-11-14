@@ -63,6 +63,7 @@ const config: KnipConfig = {
       ignoreDependencies: [
         '@babel/plugin-transform-modules-commonjs',
         '@babel/preset-react',
+        '@babel/preset-typescript',
         'babel-plugin-jest-hoist',
         'jest',
         'jest-environment-node',

@@ -472,6 +472,14 @@ export const reportClaims: Claims = {
   ),
 }
 
+/** The files of a recorded `coverage-final.json`. */
+const v8FinalOf = (g: Golden): Readonly<Record<string, unknown>> => {
+  const final = observedOf(g).json?.['coverage/coverage-final.json']
+  return typeof final === 'object' && final !== null && !Array.isArray(final)
+    ? (final as Readonly<Record<string, unknown>>)
+    : {}
+}
+
 /**
  * Whether a line of the golden's stderr is the template filled in: `{metric}` a metric's name,
  * `{actual}` and `{threshold}` numbers, `{name}` and `{path}` the group (or the file) as written.
@@ -526,13 +534,50 @@ export const coverageClaims: Claims = {
     pending('B25', "Vitest's coverage is B25's"),
   ),
   'coverage.reportsDirectory': golden('defaults'),
-  // B23b records Jest's values with its coverage goldens (Phases 4-6); B25 records Vitest's.
+  // Every file of Jest's v8 report carries `all`, which only v8-to-istanbul writes (its
+  // `--all` mark): no Istanbul instrumenter and no AST converter puts it there.
   'coverage.v8Conversion': each(
-    pending('B23b', "the goldens that compare Jest's v8 provider record it (T8.12)"),
+    golden('coverage/v8-providers-sample', {
+      read: (g) => {
+        const files = Object.values(v8FinalOf(g))
+        return files.length > 0 &&
+          files.every((file) => typeof file === 'object' && file !== null && 'all' in file)
+          ? 'v8-to-istanbul'
+          : 'ast'
+      },
+    }),
     pending('B25', "Vitest's converter is B25's"),
   ),
+  // A statement counted more than once: V8 counted calls, not only that a range ran.
   'coverage.v8HitCounts': each(
-    pending('B23b', "the goldens that compare Jest's v8 provider record it (T8.12)"),
+    golden('coverage/v8-providers-sample', {
+      read: (g) =>
+        Object.values(v8FinalOf(g)).some(
+          (file) =>
+            typeof file === 'object' &&
+            file !== null &&
+            's' in file &&
+            typeof file.s === 'object' &&
+            file.s !== null &&
+            Object.values(file.s).some((hits) => typeof hits === 'number' && hits > 1),
+        ),
+    }),
+    pending('B25', "Vitest's V8 collection is B25's"),
+  ),
+  // `greet.js` starts with a hashbang and has no map: Jest's module function, which covers the
+  // code V8 ran, ends that many characters before the file does (on line 15 of 16).
+  'coverage.v8Hashbang': each(
+    golden('coverage/v8-commonjs', {
+      read: (g) => {
+        const greet = Object.entries(v8FinalOf(g)).find(([path]) => path.endsWith('/greet.js'))?.[1]
+        const branch =
+          typeof greet === 'object' && greet !== null && 'branchMap' in greet
+            ? (greet.branchMap as Record<string, { loc?: { end?: { line?: number } } }>)['0']
+            : undefined
+        const end = branch?.loc?.end?.line
+        return end === undefined ? undefined : end < 16 ? 'removed' : 'kept'
+      },
+    }),
     pending('B25', "Vitest's V8 collection is B25's"),
   ),
   // Both tests read `globalThis.__coverage__`; they pass only when the counters live there.

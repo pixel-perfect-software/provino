@@ -198,6 +198,7 @@ async function startCoverage(
   policy: Policy,
   workerId: number,
   loader: () => Loader | undefined,
+  known: readonly string[],
 ): Promise<WorkerCoverage | undefined> {
   if (config === undefined) return undefined
   const runtime = await import('@provino/coverage/runtime')
@@ -210,6 +211,7 @@ async function startCoverage(
       },
       include,
       callCount: policy.coverage.v8HitCounts,
+      known: new Set(known),
     })
     await collector.start()
     return { provider: 'v8', collector, project: undefined }
@@ -457,10 +459,15 @@ export function createRuntimeRunner(): WorkerRunner {
       policy,
       context.init.workerId,
       () => coverageLoader,
+      context.init.coverageModules ?? [],
     )
     parts.loader = await createProjectLoader(
       config.rootDir,
-      config.loader,
+      // V8 counts the code it runs, so TypeScript is stripped in place under V8 coverage too
+      // (D116): the code keeps the source's offsets, and only the module-runner rewrite has a map.
+      config.coverage?.provider === 'v8' && config.loader.typescript === 'oxc'
+        ? { ...config.loader, typescript: 'blank' }
+        : config.loader,
       policy.module,
       parts.coverage?.project === undefined ? {} : { coverage: parts.coverage.project },
     )

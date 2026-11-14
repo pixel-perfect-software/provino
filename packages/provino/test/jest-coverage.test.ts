@@ -432,9 +432,9 @@ describe('provino jest --coverage beside a live Jest 30.5.2, case by case', () =
     })
   }
 
-  // Jest's v8 provider is T8.12's: Provino says so and collects nothing (a declared gap, not a
-  // match: Jest writes its v8 reports).
-  it('coverageProvider v8 is not applied yet, and says so (T8.12)', async () => {
+  // Jest's v8 provider is applied (T8.12): no warning, and the reports are written. Its numbers
+  // against Jest's are `jest-coverage-v8.test.ts`'s.
+  it('coverageProvider v8 is applied, with no warning (T8.12)', async () => {
     const spec: LiveCase = {
       name: 'v8',
       config: { collectCoverage: true, coverageProvider: 'v8', coverageReporters: ['json'] },
@@ -445,7 +445,7 @@ describe('provino jest --coverage beside a live Jest 30.5.2, case by case', () =
       env: RECORDER_ENV,
     })
     assert.equal(ran.code, 0, ran.stderr)
-    assert.match(ran.stderr, /coverageProvider[\s\S]*T8\.12/)
-    assert.equal(existsSync(join(root, 'coverage')), false)
+    assert.doesNotMatch(ran.stderr, /coverageProvider/)
+    assert.equal(existsSync(join(root, 'coverage', 'coverage-final.json')), true)
   })
 })

@@ -484,6 +484,16 @@ export async function runProjects(
   const coverageStore = projects.some((project) => project.config.coverage !== undefined)
     ? (await import('./coverage-store.ts')).createRawCoverageStore()
     : undefined
+  /** Keeps a worker's `coverage` event, and hands the take to `onTake`. */
+  const keepCoverage = (
+    workerId: number,
+    event: Extract<WorkerEvent, { readonly type: 'coverage' }>,
+  ): void => {
+    if (coverageStore === undefined) return
+    // Kept first: with no `onTake` the optional call would skip its argument.
+    const take = coverageStore.add(workerId, event)
+    options.coverage?.onTake?.(take)
+  }
 
   const caches = new Map<string, ResultsCache>()
   const cacheFor = (project: ResolvedProject): ResultsCache | undefined => {
@@ -616,6 +626,10 @@ export async function runProjects(
         // What global setup's `provide` collected; a worker starts only once setup has run.
         provided: globalSetup?.provided ?? {},
         config: member.project.config,
+        // A worker started after others sent their V8 modules sends none of those again.
+        ...(coverageStore === undefined || coverageStore.v8Modules.size === 0
+          ? {}
+          : { coverageModules: [...coverageStore.v8Modules] }),
       }
     },
     methods: {
@@ -647,9 +661,7 @@ export async function runProjects(
       bus,
       fileOf: (workerId) => lastFile.get(workerId)?.info,
       onUnhandled: (error) => void unhandled.push(error),
-      ...(coverageStore === undefined
-        ? {}
-        : { onCoverage: (workerId, event) => coverageStore.add(workerId, event) }),
+      ...(coverageStore === undefined ? {} : { onCoverage: keepCoverage }),
     })
     return async (workerId, events) => {
       // A worker is retired once its last file is done, and its stop-time events must still follow
@@ -737,7 +749,7 @@ export async function runProjects(
       onUnhandled: (error) => void unhandled.push(error),
       ...(coverageStore === undefined
         ? {}
-        : { onCoverage: (event) => coverageStore.add(takenBy, event) }),
+        : { onCoverage: (event) => keepCoverage(takenBy, event) }),
       onTestFailed: () => {
         failedInFile++
         if (bailAfter === 'test') countFailed(1)

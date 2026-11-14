@@ -49,7 +49,7 @@ export {
 export { fileIdOf, relativePosix } from './file-id.ts'
 export { hookFailureReport, type RunGlobalHooks } from './global-setup.ts'
 export { sameWorkerKey, type WorkerKeyInput, workerKeyOf } from './key.ts'
-export { loadCoverageStore } from './load-coverage.ts'
+export { loadCoverageStore, loadFinishCoverage } from './load-coverage.ts'
 export {
   collectOpenHandles,
   type OpenHandleOptions,

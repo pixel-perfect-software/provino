@@ -50,10 +50,6 @@ test('takes add up; an untested file joins once and never replaces a tested one'
   assert.deepEqual(totals.statements, { total: 2, covered: 1, pct: 50 })
   // No branches: 100%, where Istanbul writes `Unknown`.
   assert.deepEqual(totals.branches, { total: 0, covered: 0, pct: 100 })
-  assert.throws(
-    () => aggregate.add({ kind: 'v8', workerId: 1, scripts: [] }),
-    (error: unknown) => (error as { code?: unknown }).code === 'COVERAGE_NOT_IMPLEMENTED',
-  )
 })
 
 test('a console report writes to the given stream, a file report to the directory', async () => {

@@ -97,7 +97,7 @@ test('istanbul: once a file has been sent, a take copies no map for it', async (
   }
 })
 
-test('v8: a take keeps the compiled, counted user modules and their wrapper lengths', async () => {
+test('v8: a take keeps the compiled, counted user modules, their wrapper lengths and code', async () => {
   const path = `${process.cwd()}/provino-v8-collector-fixture-a.ts`
   const other = `${process.cwd()}/provino-v8-collector-fixture-b.ts`
   const collector = createV8Collector({
@@ -107,7 +107,7 @@ test('v8: a take keeps the compiled, counted user modules and their wrapper leng
         url === pathToFileURL(path).href || url === pathToFileURL(other).href
           ? {
               path: url === pathToFileURL(path).href ? path : other,
-              code: '',
+              code: `code of ${url}`,
               wrapperLength: 4,
               map: null,
               transformKey: `key:${url}`,
@@ -136,6 +136,9 @@ test('v8: a take keeps the compiled, counted user modules and their wrapper leng
         url: pathToFileURL(path).href,
         wrapperLength: 4,
         transformKey: `key:${pathToFileURL(path).href}`,
+        // The code V8 counted and its map go with it: the coordinator converts from them.
+        code: `code of ${pathToFileURL(path).href}`,
+        map: null,
       },
     ])
   } finally {

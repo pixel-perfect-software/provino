@@ -276,6 +276,8 @@ export const neutralPolicy: Policy = deepFreeze({
     // The faster converter, which B25 builds; until then a run that reaches it is refused.
     v8Conversion: 'ast',
     v8HitCounts: false,
+    // The offsets V8 counted, in the file as it is.
+    v8Hashbang: 'kept',
     istanbulVariable: '__coverage__',
     thresholdMessages: {
       belowMinimum:

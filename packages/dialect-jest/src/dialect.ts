@@ -411,6 +411,9 @@ export const jestPolicy: PolicyOverrides = {
     v8Conversion: 'v8-to-istanbul',
     // research: track-08 F10 (jest-runtime starts precise coverage with `callCount: true`)
     v8HitCounts: true,
+    // Recorded from Jest 30.5.2: `coverage/v8-commonjs` (`greet.js`'s ranges sit one hashbang
+    // before its code; `cli.ts`'s first line is an empty statement)
+    v8Hashbang: 'removed',
     // Recorded from Jest 30.5.2: `coverage/istanbul-variable` (a test reads the counters there)
     istanbulVariable: '__coverage__',
     thresholdMessages: {

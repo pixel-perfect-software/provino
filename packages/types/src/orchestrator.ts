@@ -111,6 +111,12 @@ export interface WorkerInit {
   readonly provided: Readonly<Partial<ProvidedContext>>
   /** The worker's one project. */
   readonly config: SerializedProjectConfig
+  /**
+   * V8 coverage: the `transformKey`s whose code and map the coordinator already holds, from the
+   * workers before this one. The worker sends those modules as an `ExecutedModuleRef`, without
+   * them. Absent: none.
+   */
+  readonly coverageModules?: readonly string[]
 }
 
 /**
