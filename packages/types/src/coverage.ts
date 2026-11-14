@@ -127,6 +127,11 @@ export type RawCoverage =
       readonly workerId: number
       readonly testFile?: string
       readonly scripts: readonly V8ScriptCoverage[]
+      /**
+       * The compiled modules the scripts are of, one per script URL a worker evaluated: what maps
+       * V8's offsets back to a source. Absent from a blob that has none.
+       */
+      readonly modules?: readonly ExecutedModuleInfo[]
     }
   | {
       readonly kind: 'istanbul'
@@ -199,16 +204,28 @@ export interface CoverageInstrumenter {
  */
 export interface SerializedCoverageConfig {
   readonly provider: 'v8' | 'istanbul'
-  /** Absolute; patterns below are relative to it. */
-  readonly root: string
+  /**
+   * Absolute: Jest's `globalRootDir`, the run's root. The include globs match against the path
+   * relative to it, and V8 counts only files whose path begins with it.
+   */
+  readonly globalRoot: string
+  /**
+   * Absolute: this project's `rootDir`. Istanbul instruments no file outside it (Babel's `cwd`).
+   * It differs from `globalRoot` when several projects run in one pool.
+   */
+  readonly projectRoot: string
   /** The include globs (Jest's `collectCoverageFrom`); empty means every file the tests load. */
   readonly include: readonly string[]
   /** Whether the include globs match against the root-relative path. */
   readonly includeRoot: boolean
   /** Files that count even when a test-file or node_modules rule would skip them (`forceCoverageMatch`). */
   readonly force: readonly string[]
-  /** The globs and regular expression sources that make a file a test file (never counted). */
+  /** The globs that make a file a test file (never counted), unless an ignore pattern below matches it. */
   readonly testFiles: readonly string[]
+  /** Regular expression sources that make a file a test file (never counted), unless an ignore pattern matches it. */
+  readonly testRegex: readonly string[]
+  /** Regular expression sources of paths that are never test files, whatever the two above say. */
+  readonly testIgnorePatterns: readonly string[]
   /** Regular expression sources of paths to leave out (`coveragePathIgnorePatterns`). */
   readonly excludePatterns: readonly string[]
   /** Absolute paths to leave out (the config, setup and transform files). */

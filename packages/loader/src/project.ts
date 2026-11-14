@@ -7,12 +7,14 @@ import { createBehaviourLoader } from '@provino/policy'
 import { createNameMapper, createResolver } from '@provino/resolver'
 import { createJestHost, createPipeline, lockfileHash } from '@provino/transform'
 import type {
+  CoverageInstrumenter,
   JestCustomResolver,
   Loader,
   ModuleMapper,
   ModuleMapperFactory,
   ModulePolicy,
   ModuleRef,
+  Pipeline,
   SerializedLoaderConfig,
 } from '@provino/types'
 import { LoaderError } from './errors.ts'
@@ -96,6 +98,25 @@ async function loadCustomResolver(
 }
 
 /**
+ * Coverage for a project's loader (B23b): the Istanbul instrumenter its pipeline calls on a file
+ * requested with `instrument: true`, and which files those are.
+ * @public
+ */
+export interface ProjectCoverage {
+  readonly instrumenter: CoverageInstrumenter
+  /** Whether the user module at this absolute path is instrumented (`createCoverageFilter`). */
+  readonly shouldInstrument: (path: string) => boolean
+}
+
+/**
+ * Options for `createProjectLoader`.
+ * @public
+ */
+export interface ProjectLoaderOptions {
+  readonly coverage?: ProjectCoverage
+}
+
+/**
  * Creates the worker's loader for one project. `config.mappers` are loaded by `ModuleRef` first,
  * which is why this is async. Mock hoisting follows `config.hoist` (the dialect's policy, by
  * value), and every module's wrapper declares `config.moduleScope`'s names. `config.transform`'s
@@ -108,7 +129,21 @@ export async function createProjectLoader(
   root: string,
   config: SerializedLoaderConfig,
   policy: ModulePolicy,
+  options: ProjectLoaderOptions = {},
 ): Promise<Loader> {
+  return (await buildProjectLoader(root, config, policy, options)).loader
+}
+
+/**
+ * A project's loader with the pipeline it transforms through: the coordinator transforms files the
+ * tests never loaded with it, for coverage.
+ */
+export async function buildProjectLoader(
+  root: string,
+  config: SerializedLoaderConfig,
+  policy: ModulePolicy,
+  options: ProjectLoaderOptions,
+): Promise<{ readonly loader: Loader; readonly pipeline: Pipeline }> {
   const tsconfig = tsconfigFor(root, config.tsconfig)
   const behaviours = createBehaviourLoader()
   // In config order: the first mapper to hit wins.
@@ -137,7 +172,18 @@ export async function createProjectLoader(
       : await loadCustomResolver(behaviours, config.resolver)
   // The lexer's WebAssembly build starts here, once per worker, where an `await` is free (B13d Gap 9).
   if (policy.mocksReachShared) await initLexer()
-  return createLoader({
+  const pipeline = createPipeline({
+    root,
+    typescript: config.typescript,
+    tsconfig,
+    hoist: config.hoist,
+    runnerForm: true,
+    cache: config.cacheDir === undefined ? false : { dir: config.cacheDir },
+    ...(config.codeIdentity === undefined ? {} : { codeIdentity: config.codeIdentity }),
+    ...(transformers === undefined ? {} : { transformers }),
+    ...(options.coverage === undefined ? {} : { instrumenter: options.coverage.instrumenter }),
+  })
+  const loader = createLoader({
     root,
     engine: 'runner',
     graphCache: config.cacheDir ?? null,
@@ -154,17 +200,11 @@ export async function createProjectLoader(
       ...(config.modulePaths === undefined ? {} : { modulePaths: config.modulePaths }),
       ...(custom === undefined ? {} : { custom }),
     }),
-    transformer: createPipeline({
-      root,
-      typescript: config.typescript,
-      tsconfig,
-      hoist: config.hoist,
-      runnerForm: true,
-      cache: config.cacheDir === undefined ? false : { dir: config.cacheDir },
-      ...(config.codeIdentity === undefined ? {} : { codeIdentity: config.codeIdentity }),
-      ...(transformers === undefined ? {} : { transformers }),
-    }),
+    transformer: pipeline,
     policy,
+    ...(options.coverage === undefined
+      ? {}
+      : { shouldInstrument: options.coverage.shouldInstrument }),
     conditions: config.conditions,
     ...(config.resolver === undefined ? {} : { resolverName: config.resolver.module }),
     ...(policy.mapperMiss === null
@@ -180,4 +220,5 @@ export async function createProjectLoader(
           },
         }),
   })
+  return { loader, pipeline }
 }

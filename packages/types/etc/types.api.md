@@ -173,7 +173,7 @@ export interface CompiledModuleEvent {
     readonly scriptUrl: string;
     // (undocumented)
     readonly thirdParty: boolean;
-    readonly transformKey?: string;
+    readonly transformKey: string;
     readonly wrapperColumnOffset: number;
 }
 
@@ -1502,6 +1502,7 @@ export interface LoaderOptions {
     readonly resolverName?: string;
     // (undocumented)
     readonly root: string;
+    readonly shouldInstrument?: (path: string) => boolean;
     // (undocumented)
     readonly transformer: ModuleTransformer;
 }
@@ -2279,6 +2280,7 @@ export type RawCoverage = {
     readonly workerId: number;
     readonly testFile?: string;
     readonly scripts: readonly V8ScriptCoverage[];
+    readonly modules?: readonly ExecutedModuleInfo[];
 } | {
     readonly kind: "istanbul";
     readonly workerId: number;
@@ -2736,12 +2738,15 @@ export interface SerializedCoverageConfig {
     readonly excludePaths: readonly string[];
     readonly excludePatterns: readonly string[];
     readonly force: readonly string[];
+    readonly globalRoot: string;
     readonly include: readonly string[];
     readonly includeRoot: boolean;
+    readonly projectRoot: string;
     // (undocumented)
     readonly provider: "v8" | "istanbul";
-    readonly root: string;
     readonly testFiles: readonly string[];
+    readonly testIgnorePatterns: readonly string[];
+    readonly testRegex: readonly string[];
 }
 
 // @public

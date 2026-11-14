@@ -623,13 +623,22 @@ importers:
       oxc-parser:
         specifier: 'catalog:'
         version: 0.157.0
+      picomatch:
+        specifier: 'catalog:'
+        version: 4.0.7
     devDependencies:
       '@babel/core':
         specifier: 'catalog:'
         version: 7.29.7(supports-color@8.1.1)
+      '@jest/transform':
+        specifier: 'catalog:'
+        version: 30.5.2(supports-color@8.1.1)
       '@types/istanbul-lib-coverage':
         specifier: 'catalog:'
         version: 2.0.6
+      '@types/picomatch':
+        specifier: 'catalog:'
+        version: 4.0.3
       babel-plugin-istanbul:
         specifier: 'catalog:'
         version: 8.0.0(supports-color@8.1.1)
@@ -940,6 +949,10 @@ importers:
       es-module-lexer:
         specifier: 'catalog:'
         version: 3.0.4
+    devDependencies:
+      '@jridgewell/trace-mapping':
+        specifier: 'catalog:'
+        version: 0.3.31
 
   packages/mock:
     dependencies:
@@ -959,6 +972,9 @@ importers:
       '@provino/core':
         specifier: workspace:*
         version: link:../core
+      '@provino/coverage':
+        specifier: workspace:*
+        version: link:../coverage
       '@provino/expect':
         specifier: workspace:*
         version: link:../expect

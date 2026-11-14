@@ -13,6 +13,7 @@ import type {
   JsonValue,
   ModuleRef,
   ModuleScopeFactory,
+  SerializedCoverageConfig,
   SerializedLoaderConfig,
   SerializedModuleMapper,
   SerializedPolicy,
@@ -259,6 +260,28 @@ function loaderConfig(value: unknown): SerializedLoaderConfig {
   }
 }
 
+/** The project's coverage settings: the globs and patterns are strings, the paths absolute. */
+function coverageConfig(value: unknown): SerializedCoverageConfig {
+  const coverage = record(value, 'coverage')
+  const { provider } = coverage
+  if (provider !== 'v8' && provider !== 'istanbul')
+    invalid('coverage.provider', "'v8' or 'istanbul'")
+  if (typeof coverage.includeRoot !== 'boolean') invalid('coverage.includeRoot', 'a boolean')
+  return {
+    provider,
+    globalRoot: absolutePath(coverage.globalRoot, 'coverage.globalRoot'),
+    projectRoot: absolutePath(coverage.projectRoot, 'coverage.projectRoot'),
+    include: texts(coverage.include, 'coverage.include'),
+    includeRoot: coverage.includeRoot,
+    force: texts(coverage.force, 'coverage.force'),
+    testFiles: texts(coverage.testFiles, 'coverage.testFiles'),
+    testRegex: texts(coverage.testRegex, 'coverage.testRegex'),
+    testIgnorePatterns: texts(coverage.testIgnorePatterns, 'coverage.testIgnorePatterns'),
+    excludePatterns: texts(coverage.excludePatterns, 'coverage.excludePatterns'),
+    excludePaths: absolutePaths(coverage.excludePaths, 'coverage.excludePaths'),
+  }
+}
+
 /**
  * Checks `value` (a `WorkerInit.config`) and returns it as a `SerializedProjectConfig`. Throws
  * `ORCH_BAD_CONFIG` naming the first key that is missing or of the wrong kind.
@@ -288,5 +311,6 @@ export function parseProjectConfig(value: unknown): SerializedProjectConfig {
     setupFiles: absolutePaths(config.setupFiles, 'setupFiles'),
     setupFilesAfterEnv: absolutePaths(config.setupFilesAfterEnv, 'setupFilesAfterEnv'),
     loader: loaderConfig(config.loader),
+    ...(config.coverage === undefined ? {} : { coverage: coverageConfig(config.coverage) }),
   }
 }

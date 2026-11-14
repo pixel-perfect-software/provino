@@ -127,6 +127,13 @@ const BIN_LIGHT = new RegExp(
 const LOADING =
   /[\\/]packages[\\/](?:transform|resolver|loader)[\\/]src[\\/](?!v8cache[\\/]|cache[\\/]store\.ts$)/
 
+/**
+ * The coverage package (B23b): the Istanbul instrumenter, the collectors and the filter, with the
+ * parser and the code writer they import. A worker loads it only when its project asks for
+ * coverage, so it is a chunk no other code reaches without a dynamic import.
+ */
+const COVERAGE = /[\\/]packages[\\/]coverage[\\/]src[\\/]/
+
 /** The three `@provino/lazy` leaves `provino`'s own `lazy` forwarders import (`import 'provino'`). */
 const LAZY_API = /[\\/]packages[\\/]lazy[\\/]src[\\/](?:errors|slot|runtime[\\/]site)\.ts$/
 
@@ -247,6 +254,13 @@ export function umbrellaConfig(dir: string): UserConfig[] {
               name: 'loading',
               test: LOADING,
               priority: 3,
+              includeDependenciesRecursively: false,
+            },
+            // Taken first: with coverage off, no worker loads it.
+            {
+              name: 'coverage',
+              test: COVERAGE,
+              priority: 4,
               includeDependenciesRecursively: false,
             },
             // What the `lazy` forwarders in `index.js` need (the error, the call-site marker, the

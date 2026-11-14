@@ -42,5 +42,8 @@
     "@provino/transform": "workspace:*",
     "@provino/types": "workspace:*",
     "es-module-lexer": "catalog:"
+  },
+  "devDependencies": {
+    "@jridgewell/trace-mapping": "catalog:"
   }
 }

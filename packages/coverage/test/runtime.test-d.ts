@@ -3,11 +3,12 @@
 import {
   type InitialCoverage,
   type IstanbulInstrumenterOptions,
-  istanbulInstrumenter,
-  readInitialCoverage,
+  loadInstrumenter,
 } from '@provino/coverage/runtime'
 import type { CoverageInstrumenter, IstanbulFileCoverageData, SourceMapV3 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
+
+const { istanbulInstrumenter, readInitialCoverage } = await loadInstrumenter()
 
 expectTypeOf(istanbulInstrumenter).returns.toEqualTypeOf<CoverageInstrumenter>()
 expectTypeOf(istanbulInstrumenter()).toEqualTypeOf<CoverageInstrumenter>()

@@ -6,6 +6,7 @@ export { createCoordinatorLoader } from './coordinator.ts'
 export type { LoaderErrorCode } from './errors.ts'
 export { LoaderError, ModuleNotFoundError } from './errors.ts'
 export { createLoader } from './loader.ts'
+export type { ProjectCoverage, ProjectLoaderOptions } from './project.ts'
 export { createProjectLoader } from './project.ts'
 export { installSourceMappedStacks, type StackOptions } from './stacks.ts'
 export {

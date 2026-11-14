@@ -6,6 +6,8 @@ import {
   createProjectLoader,
   type LoaderError,
   type LoaderErrorCode,
+  type ProjectCoverage,
+  type ProjectLoaderOptions,
 } from '@provino/loader'
 import {
   buildThirdPartyGraph,
@@ -52,8 +54,11 @@ createLoader({ ...options, conditions: undefined })
 // mappers' refs first).
 declare const loaderConfig: SerializedLoaderConfig
 declare const modulePolicy: ModulePolicy
-expectTypeOf(createProjectLoader).parameters.toEqualTypeOf<
-  [root: string, config: SerializedLoaderConfig, policy: ModulePolicy]
+expectTypeOf<Parameters<typeof createProjectLoader>[0]>().toEqualTypeOf<string>()
+expectTypeOf<Parameters<typeof createProjectLoader>[1]>().toEqualTypeOf<SerializedLoaderConfig>()
+expectTypeOf<Parameters<typeof createProjectLoader>[2]>().toEqualTypeOf<ModulePolicy>()
+expectTypeOf<Parameters<typeof createProjectLoader>[3]>().toEqualTypeOf<
+  ProjectLoaderOptions | undefined
 >()
 expectTypeOf(createProjectLoader).returns.toEqualTypeOf<Promise<Loader>>()
 void createProjectLoader('/repo', loaderConfig, modulePolicy)
@@ -100,8 +105,13 @@ importersOf('/a.js', graph)
 
 // The coordinator-mode loader (U5): the same settings as a worker's, a module imported by its
 // absolute path.
-expectTypeOf(createCoordinatorLoader).parameters.toEqualTypeOf<
-  [root: string, config: SerializedLoaderConfig, policy: ModulePolicy]
+expectTypeOf<Parameters<typeof createCoordinatorLoader>[0]>().toEqualTypeOf<string>()
+expectTypeOf<
+  Parameters<typeof createCoordinatorLoader>[1]
+>().toEqualTypeOf<SerializedLoaderConfig>()
+expectTypeOf<Parameters<typeof createCoordinatorLoader>[2]>().toEqualTypeOf<ModulePolicy>()
+expectTypeOf<Parameters<typeof createCoordinatorLoader>[3]>().toEqualTypeOf<
+  { readonly coverage?: ProjectCoverage } | undefined
 >()
 expectTypeOf(createCoordinatorLoader).returns.toEqualTypeOf<Promise<CoordinatorLoader>>()
 declare const coordinator: CoordinatorLoader

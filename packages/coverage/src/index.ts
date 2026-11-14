@@ -2,3 +2,4 @@
 // instrumenter and collectors are `./runtime`, the coordinator's merge, reports and thresholds
 // `./node`. A run loads them only when it turns coverage on.
 export { CoverageError, type CoverageErrorCode } from './errors.ts'
+export { createCoverageFilter } from './filter.ts'
