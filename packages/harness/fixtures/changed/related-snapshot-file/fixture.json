@@ -1,0 +1,16 @@
+{
+  "description": "A .snap file is related to its test file: --findRelatedTests on __snapshots__/foo.test.ts.snap lists foo.test.ts. Jest only.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "__snapshots__/foo.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`foo 1`] = `1`;\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--findRelatedTests", "__snapshots__/foo.test.ts.snap"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

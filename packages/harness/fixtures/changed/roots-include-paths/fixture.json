@@ -1,0 +1,35 @@
+{
+  "description": "The changed files are read from the project roots only (`includePaths`): with roots [src], a change outside them (lib/) selects nothing, a change inside does. Jest only.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "roots": ["<rootDir>/src"],
+      "testMatch": ["**/*.test.ts"],
+      "testPathIgnorePatterns": ["/node_modules/"]
+    }
+  },
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "write": {
+          "src/a.ts": "module.exports = { a: 2 }\n"
+        }
+      },
+      {
+        "write": {
+          "lib/b.ts": "module.exports = { b: 2 }\n"
+        }
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "-o"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

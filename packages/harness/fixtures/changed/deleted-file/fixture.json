@@ -1,0 +1,21 @@
+{
+  "description": "A source that was deleted (removed from the working tree, still tracked) in the change set: what -o lists for the test that required it. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "remove": ["src/bar.ts"]
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "-o"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

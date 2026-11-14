@@ -1,0 +1,29 @@
+{
+  "description": "--changedSince=main with a change no test depends on: `No tests found related to files changed since \"main\".`, exit 0 (the quoted-ref form of getNoTestFoundRelatedToChangedFiles). Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "branch": "feature"
+      },
+      {
+        "write": {
+          "src/unused.ts": "module.exports = {}\n"
+        }
+      },
+      {
+        "commit": "add an unused module"
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["--changedSince=main"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^No tests found"
+  }
+}
