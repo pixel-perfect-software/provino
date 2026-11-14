@@ -12,7 +12,7 @@ export {
   type FileDone,
   type WorkerConnection,
 } from './connect.ts'
-export type { RunCoverageHooks } from './coverage.ts'
+export { finishCoverage, type RunCoverageHooks } from './coverage.ts'
 export { createRawCoverageStore, type RawCoverageStore } from './coverage-store.ts'
 export { createDepsTable, type DepsEvent, type DepsTable } from './deps-table.ts'
 export { type DiscoveredFile, type DiscoverOptions, discoverFiles } from './discover.ts'

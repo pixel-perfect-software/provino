@@ -14,6 +14,7 @@ import { serializeError } from '@provino/rpc'
 import type {
   CoverageSummary,
   IstanbulFileCoverageData,
+  RawCoverage,
   SerializedProjectConfig,
   V8ScriptCoverage,
 } from '@provino/types'
@@ -31,6 +32,13 @@ export interface RunCoverageHooks {
    * matches the include globs.
    */
   readonly onUntested?: { readonly start: () => void; readonly end: () => void }
+  /**
+   * Called with each take a worker sends, decoded, as it arrives: what a run that is one shard of
+   * several keeps, so the shards' takes can be finished together (`finishCoverage`). A V8 run's
+   * shards merge only this way, as Jest's per-file results do (`mergeProcessCovs`): V8 leaves out
+   * a block whose count is its parent's, so two shards' converted maps have different branches.
+   */
+  readonly onTake?: (raw: RawCoverage) => void
 }
 
 /** A project of the run, with its worker config (which holds its coverage config). */
@@ -64,7 +72,7 @@ async function untestedCandidates(project: CoveredProject): Promise<readonly str
  * @public
  */
 export async function finishCoverage(
-  store: RawCoverageStore,
+  store: Pick<RawCoverageStore, 'entries'>,
   projects: readonly CoveredProject[],
   options: RunCoverageHooks = {},
 ): Promise<CoverageSummary> {
