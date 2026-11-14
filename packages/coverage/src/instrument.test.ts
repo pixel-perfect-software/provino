@@ -73,11 +73,10 @@ function babelCoverage(
   return { coverage, code: result?.code ?? '' }
 }
 
-/** The data both instrumenters write, without the fields that name the writer. */
+/** The data both instrumenters write, without the per-file digest and the input map. */
 function essentials(data: IstanbulFileCoverageData | Record<string, unknown>): unknown {
   const copy: Record<string, unknown> = JSON.parse(JSON.stringify(data))
   delete copy.hash
-  delete copy._coverageSchema
   delete copy.inputSourceMap
   return copy
 }
