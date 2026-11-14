@@ -101,7 +101,12 @@ export interface JestResults<Config extends ProjectConfigLike> {
   /** A test's result as `onTestCaseResult` gets it (`parseSingleTestResult`), once the test has ended. */
   assertionOf(
     test: TestTask,
-    retried?: { readonly attempt: number; readonly errors: readonly SerializedError[] },
+    retried?: {
+      readonly attempt: number
+      readonly state: 'pass' | 'fail' | 'skip'
+      readonly errors: readonly SerializedError[]
+      readonly passingAssertions?: number
+    },
   ): AssertionResult | undefined
   /** What `onTestCaseStart` gets for a test that has started (`createTestCaseStartInfo`). */
   startInfoOf(test: TestTask): TestCaseStartInfo
@@ -366,15 +371,17 @@ export function createJestResults<Config extends ProjectConfigLike>(
       const known = file === undefined ? undefined : record(file, test.id)
       if (file === undefined || known === undefined) return undefined
       const config = configOf(file.info)
-      // An attempt that will be retried: jest-circus reports its `test_done` as a failed test whose
-      // `invocations` is the attempts so far (the hook-order recording).
+      // An attempt that is retried: jest-circus reports its `test_done` with what the attempt left,
+      // `invocations` the attempts so far (the hook-order recording). A test's own retry follows a
+      // failure; a dropped describe attempt (`entireDescribe`) is reported for every test in it,
+      // passed or failed, with its passing assertions (`cli/retry-entire-describe-reporter`).
       const shown: TestRecord =
         retried === undefined
           ? known
           : {
               ...known,
               result: {
-                state: 'fail',
+                state: retried.state,
                 durationMs: 0,
                 startTime: 0,
                 errors: retried.errors,
@@ -382,7 +389,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
                 attempts: retried.attempt + 1,
                 repeatIndex: 0,
                 assertions: 0,
-                passingAssertions: 0,
+                passingAssertions: retried.passingAssertions ?? 0,
               },
             }
       return toAssertionResult(shown, {

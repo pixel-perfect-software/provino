@@ -99,8 +99,9 @@ export interface RunFileOptions {
   readonly collectOnly?: true
   /**
    * Shuffle every suite of this file with a generator built from this seed (`CorePolicy.shuffle`:
-   * Jest's `--randomize`). It must be an integer, and the policy must have a `shuffle`; otherwise
-   * the file fails (`CORE_INVALID_ARGUMENT`) before it is imported.
+   * Jest's `--randomize`). It must be a number, taken as it is (the factory decides what a fraction
+   * means), and the policy must have a `shuffle`; otherwise the file fails (`CORE_INVALID_ARGUMENT`)
+   * before it is imported.
    */
   readonly shuffleSeed?: number
   /**
@@ -220,7 +221,8 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   let requestedTimeout: number | undefined
   const processErrors: ProcessErrors = new ProcessErrors({
     lateErrors: policy.errors.lateErrors,
-    emit: (event) => sink.emit(event),
+    // Through the executor: an error charged to a test inside a describe attempt waits with it.
+    emit: (event) => executor.emitCharged(event),
     now,
     frame: () => currentTest.get(),
     runningAttempt: (frame) => executor.attemptFor(frame),
@@ -311,7 +313,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
 
   /**
    * The shuffle of one file, built from its `shuffleSeed`, or `undefined` for the declared order.
-   * A seed that is not an integer, or one given to a policy that cannot shuffle, is refused.
+   * A seed that is not a number, or one given to a policy that cannot shuffle, is refused.
    */
   function shuffleFor(
     relativePath: string,
@@ -321,8 +323,9 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     if (shuffleSeed === undefined) return undefined
     const invalid = (reason: string): CoreError =>
       new CoreError('CORE_INVALID_ARGUMENT', `Invalid shuffleSeed for ${relativePath}: ${reason}`)
-    if (typeof shuffleSeed !== 'number' || !Number.isInteger(shuffleSeed)) {
-      throw invalid(`expected an integer, got ${describeType(shuffleSeed)}`)
+    // Any number: what a fraction or NaN means is the factory's (Jest's pure-rand truncates it).
+    if (typeof shuffleSeed !== 'number') {
+      throw invalid(`expected a number, got ${describeType(shuffleSeed)}`)
     }
     if (shuffleFactory === undefined) {
       throw invalid('this policy has no `shuffle`, so the run cannot be randomized')

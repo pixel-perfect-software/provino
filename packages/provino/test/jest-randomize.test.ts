@@ -81,6 +81,7 @@ describe('provino jest --randomize runs the tests in the order Jest 30.5.2 did',
     ['cli/randomize-seed-flat', '30 top-level tests with --seed=1234'],
     ['cli/randomize-seed-30', 'blocks, nesting, each, concurrent, skip and todo with --seed=1234'],
     ['cli/randomize-seed-negative', '--seed=-7'],
+    ['cli/randomize-seed-fraction', '--seed=1.5, which pure-rand truncates'],
     ['cli/seed-without-randomize', '--seed=42 without --randomize: declared order, getSeed() read'],
   ] as const) {
     it(`${what} (${id})`, async () => {
@@ -126,6 +127,17 @@ describe('provino jest --randomize runs the tests in the order Jest 30.5.2 did',
     } finally {
       await project.dispose()
     }
+  })
+
+  it('prints a fractional seed as it was given (cli/randomize-seed-fraction)', async () => {
+    const run = await provinoOn('cli/randomize-seed-fraction')
+    assert.ok(run.keepLines !== undefined)
+    const expected = keptLines(run.recordedStderr, run.keepLines)
+    assert.ok(
+      expected.some((line) => line.trim() === 'seed 1.5'),
+      'the recording printed the seed',
+    )
+    assert.deepEqual(keptLines(run.stderr, run.keepLines), expected, run.stderr)
   })
 
   it('refuses a seed out of range with Jest’s validation error and runs nothing (cli/seed-out-of-range)', async () => {

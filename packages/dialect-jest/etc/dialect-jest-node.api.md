@@ -812,7 +812,9 @@ export interface JestResults<Config extends ProjectConfigLike> {
     aggregated(): AggregatedResult;
     assertionOf(test: TestTask, retried?: {
         readonly attempt: number;
+        readonly state: "pass" | "fail" | "skip";
         readonly errors: readonly SerializedError[];
+        readonly passingAssertions?: number;
     }): AssertionResult | undefined;
     contexts(): Set<TestContext<Config>>;
     failureTextOf(fileId: TaskId): readonly JestFailureBlock[] | undefined;

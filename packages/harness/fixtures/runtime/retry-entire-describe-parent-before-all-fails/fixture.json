@@ -1,0 +1,4 @@
+{
+  "description": "A describe-level retry under a parent whose `beforeAll` throws (T5.10, B23d): the outer error is on the inner block's tests before the attempt, not one it added (circus's `errorsBeforeAttempt` and `hasErrorsAddedDuringAttempt`), so the retried block runs once, hooks and all, and its test fails with the outer error.",
+  "runners": ["jest"]
+}

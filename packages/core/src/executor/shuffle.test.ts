@@ -121,16 +121,34 @@ describe('shuffle', () => {
     assert.equal(run.file.errors[0]?.code, 'CORE_INVALID_ARGUMENT')
   })
 
-  test('a seed that is not an integer fails the file', async () => {
+  test('a seed that is not a number fails the file', async () => {
     const { factory } = rotating()
-    for (const seed of [1.5, Number.NaN, '7' as unknown as number]) {
+    for (const seed of ['7', null, 7n] as unknown as number[]) {
       const run = await runScript(
         ({ test }) => test('a', () => {}),
         { shuffle: factory },
         { shuffleSeed: seed },
       )
       assert.equal(run.file.state, 'fail', String(seed))
-      assert.match(run.file.errors[0]?.message ?? '', /Invalid shuffleSeed.*expected an integer/)
+      assert.match(run.file.errors[0]?.message ?? '', /Invalid shuffleSeed.*expected a number/)
+    }
+  })
+
+  test('a fractional or NaN seed reaches the factory as it is (Jest accepts both: cli/randomize-seed-fraction)', async () => {
+    for (const seed of [1.5, -7.25, Number.NaN]) {
+      const seen: number[] = []
+      const run = await runScript(
+        ({ test }) => test('a', () => {}),
+        {
+          shuffle: (given: number) => {
+            seen.push(given)
+            return <T>(items: T[]): T[] => items
+          },
+        },
+        { shuffleSeed: seed },
+      )
+      assert.equal(run.file.state, 'pass', String(seed))
+      assert.deepEqual(seen, [seed], String(seed))
     }
   })
 

@@ -48,7 +48,11 @@ export class ProcessErrors {
   /** Tests of the current file that an event charged an error to after they ended. */
   readonly #chargedTests = new Set<TaskId>()
   #chargedFiles = 0
-  /** Errors that no running attempt owned, over the runtime's life (a describe retry compares). */
+  /**
+   * Errors no test owned (the run's, or a hook's outside any test), over the runtime's life: a
+   * describe retry compares it, as circus's `processErrorGeneration`. One charged to an ended test
+   * is that test's, not counted here.
+   */
   #unowned = 0
   /** Whether a file is running: a rejection reported outside one is charged at once. */
   #active = false
@@ -64,9 +68,17 @@ export class ProcessErrors {
     return this.#chargedTests.size > 0 || this.#chargedFiles > 0
   }
 
-  /** How many errors, so far, went to the run, a file or an ended test instead of a running attempt. */
+  /** How many errors, so far, went to the run or to a hook outside any test. */
   get unowned(): number {
     return this.#unowned
+  }
+
+  /**
+   * The errors charged to a test after it ended were dropped with the describe attempt they came
+   * in (`setDescribeRetry`): they no longer fail the file.
+   */
+  forget(testId: TaskId): void {
+    this.#chargedTests.delete(testId)
   }
 
   /** Starts a file: nothing is charged yet. */
@@ -157,7 +169,7 @@ export class ProcessErrors {
     origin: UnhandledErrorOrigin,
     error: unknown,
   ): void {
-    this.#unowned++
+    if (ownerId === null || frame?.test == null) this.#unowned++
     this.#config.emit({
       type: 'unhandled-error',
       ownerId,
