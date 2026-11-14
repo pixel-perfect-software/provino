@@ -65,6 +65,8 @@ const config: KnipConfig = {
         '@babel/preset-react',
         '@babel/preset-typescript',
         'babel-plugin-jest-hoist',
+        // The TSX inline snapshot fixture's Babel config names it (B23d B1).
+        '@babel/preset-typescript',
         'jest',
         'jest-environment-node',
         'jest-html-reporters',
@@ -72,6 +74,8 @@ const config: KnipConfig = {
         'jest-serializer-vue',
         'jest-silent-reporter',
         'jest-sonar-reporter',
+        // The Prettier 3 Jest finds from the recorder's work directory (`snapshot/inline-prettier`).
+        'prettier',
       ],
     },
     'packages/transform': {
@@ -80,7 +84,16 @@ const config: KnipConfig = {
     },
     'packages/dialect-jest': {
       // Environment packages the adapter tests load by name (T8.5).
-      ignoreDependencies: ['jest-environment-jsdom-29', 'jest-fixed-jsdom'],
+      ignoreDependencies: [
+        'jest-environment-jsdom-29',
+        'jest-fixed-jsdom',
+        // The inline snapshot writer resolves Babel by name, from the project first (D122).
+        '@babel/core',
+        '@babel/generator',
+        '@babel/plugin-syntax-jsx',
+        '@babel/plugin-syntax-typescript',
+        'babel-preset-current-node-syntax',
+      ],
     },
     'packages/snapshot': {
       // The oracle for the vendored key order (T7.9), required by a test through `createRequire`.
@@ -126,6 +139,12 @@ const config: KnipConfig = {
         'jest-junit',
         'jest-silent-reporter',
         'jest-sonar-reporter',
+        // What the inline snapshot tests' projects resolve: Prettier 3, and babel-jest with the
+        // presets the TSX fixture's Babel config names (B23d B1).
+        'prettier',
+        'babel-jest',
+        '@babel/preset-react',
+        '@babel/preset-typescript',
       ],
     },
   },

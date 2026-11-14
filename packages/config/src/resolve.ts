@@ -332,6 +332,7 @@ export async function resolveNeutralProject(
       aliases: neutral.aliases,
       globalValues: neutral.globalValues,
       fakeTimers: neutral.fakeTimers,
+      snapshotResolver: neutral.snapshotResolver,
       seed: neutral.seed,
       randomize: neutral.randomize,
       resolution: neutral.resolution,
@@ -390,6 +391,8 @@ interface ProjectInput {
   readonly globalValues?: Readonly<Record<string, JsonValue>> | undefined
   readonly fakeTimers?: Readonly<Record<string, JsonValue>> | undefined
   readonly seed?: number | undefined
+  /** The project's own snapshot resolver module, absolute (Jest's `snapshotResolver`). */
+  readonly snapshotResolver?: string | undefined
   /** Which files count toward coverage (B23b); a neutral project's only, `undefined` for off. */
   readonly coverage?: SerializedCoverageConfig | undefined
   readonly randomize?: true | undefined
@@ -490,6 +493,7 @@ async function finishProject(
     ...(globalValues === undefined ? {} : { globalValues }),
     ...(fakeTimers === undefined ? {} : { fakeTimers }),
     ...(input.seed === undefined ? {} : { seed: input.seed }),
+    ...(input.snapshotResolver === undefined ? {} : { snapshotResolver: input.snapshotResolver }),
     ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
     ...(input.randomize === true ? { randomize: true as const } : {}),
     setupFiles,

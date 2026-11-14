@@ -1,0 +1,20 @@
+{
+  "description": "A `snapshotResolver` written as an ES module with a default export (B23d B1 review): Jest 30.5.2 reads its `default`, writes the new snapshot where it says (`__snaps__/<file>.snap`) and passes.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "snapshotResolver": "<rootDir>/resolver.ts"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:__snaps__/written.test.ts.snap", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]"
+  }
+}

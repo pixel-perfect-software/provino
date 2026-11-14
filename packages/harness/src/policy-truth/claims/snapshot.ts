@@ -111,9 +111,69 @@ export const snapshotClaims: Claims = {
       ])
     },
   }),
-  'snapshot.inline.formatter': pending(
-    'T7.11',
-    'the formatter is Prettier, which Jest finds from the project and Vitest never runs; no fixture here has it, so the inline writer (T7.11) records one with Prettier installed',
+  // Jest formats the file it writes with the project's Prettier (`snapshot/inline-prettier`: double
+  // quotes and no semicolons, from its `.prettierrc`); Vitest's half is T7.11's.
+  'snapshot.inline.formatter': each(
+    golden('snapshot/inline-prettier', {
+      read: (g) => {
+        const text = capturedFile(g, 'inline-prettier.test.ts')
+        return oneOf(text, [
+          ['prettier', text.startsWith('describe("formatted"')],
+          ['none', text.startsWith("describe('formatted'")],
+        ])
+      },
+    }),
+    pending(
+      'T7.11',
+      'Vitest never runs Prettier on an inline snapshot; its writer is T7.11`s Vitest half, which records it',
+    ),
+  ),
+  // Provino's own key (B23d B1): the writer Jest's goldens hold the edits of. Vitest's is T7.11's.
+  'snapshot.inline.writer': each(
+    golden('snapshot/inline-written', {
+      matches: (g, value) =>
+        isModuleRef(value) &&
+        value.export === 'jestInlineSnapshotWriter' &&
+        capturedFile(g, 'inline-written.test.ts').includes('toMatchInlineSnapshot(`'),
+    }),
+    pending('T7.11', 'Vitest writes inline snapshots too; its writer is T7.11`s Vitest half'),
+  ),
+  // Provino's own key: project data the Jest reader fills from `prettierPath`; `null` in both
+  // dialects' own values. The test holds what the writer is handed.
+  'snapshot.inline.prettierPath': each(
+    own(
+      'packages/orchestrator/src/inline-snapshots.test.ts',
+      'prettierPath',
+      null,
+      'project data: the Jest reader resolves `prettierPath`, and the writer is handed what the policy holds',
+    ),
+    own(
+      'packages/orchestrator/src/inline-snapshots.test.ts',
+      'prettierPath',
+      null,
+      'project data, read only by a writer, which Vitest`s slice does not have yet',
+    ),
+  ),
+  // Provino's own key (B23d B1): Jest's resolver factory, the one `snapshot/resolver-custom`'s
+  // snapshots were written and read through.
+  'snapshot.resolverFactory': each(
+    golden('snapshot/resolver-custom', {
+      matches: (g, value) =>
+        isModuleRef(value) &&
+        value.export === 'jestSnapshotResolver' &&
+        typeof observedOf(g).files?.['__snaps__/written.test.ts.snap'] === 'string',
+    }),
+    pending('T11.16', 'Vitest`s `resolveSnapshotPath` comes with its config reader'),
+  ),
+  // Provino's own key (DV96): Jest counts a snapshot file with no test file as removed.
+  'snapshot.obsoleteFiles': each(
+    golden('cli/report-snapshot-obsolete-file', {
+      read: (g) => ((g.snapshots?.counters.filesRemoved ?? 0) > 0 ? 'report' : 'ignore'),
+    }),
+    pending(
+      'T11.16',
+      'what Vitest does with a snapshot file no test file has is recorded with its reader',
+    ),
   ),
   // Provino's own key: the dialect's pretty-format and words. `own` pins the ref and the test that
   // loads it.

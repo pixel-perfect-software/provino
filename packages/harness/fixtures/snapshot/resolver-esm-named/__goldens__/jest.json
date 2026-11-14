@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/resolver-esm-named",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./one.test.ts\n  ● Test suite failed to run\n    TypeError: Cannot read properties of undefined (reading 'resolveSnapshotPath')"
+  }
+}

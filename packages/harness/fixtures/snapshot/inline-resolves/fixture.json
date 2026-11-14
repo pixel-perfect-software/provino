@@ -1,0 +1,19 @@
+{
+  "description": "`await expect(promise).resolves.toMatchInlineSnapshot()` and `.rejects.toThrowErrorMatchingInlineSnapshot()` (B23d B1, T7.11): the frame is the matcher property's, so the snapshot goes into that call. Jest 30.5.2, `prettierPath: null`.",
+  "runners": ["jest"],
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "prettierPath": null
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:inline-resolves.test.ts", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]"
+  }
+}

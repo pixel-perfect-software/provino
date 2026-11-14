@@ -64,6 +64,7 @@ export function openFileSnapshots(options: OpenSnapshotsOptions): {
     policy,
     key: options.key,
     printer: options.printer ?? missingPrinter(),
+    inlineWrites: policy.inline.writer !== null,
   })
   return { state, lifecycle: trackSnapshots(state, { keyJoin: policy.keyJoin }) }
 }

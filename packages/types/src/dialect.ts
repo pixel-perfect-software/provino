@@ -188,6 +188,8 @@ export interface NeutralProject {
   readonly transformHoistedMarkers?: readonly string[]
   /** Absolute paths. */
   readonly snapshotSerializers: readonly string[]
+  /** The project's own snapshot resolver module, an absolute path (Jest's `snapshotResolver`); absent for none. */
+  readonly snapshotResolver?: string
   /** Watch mode's own settings (Jest's `watchPathIgnorePatterns`: regular expressions' sources). */
   readonly watch?: { readonly ignorePatterns: readonly string[] }
   /** Affected-test selection's own settings. */

@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/resolver-esm-default",
+  "files": [
+    {
+      "file": "written.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "written.test.ts",
+            "path": [
+              "written where the resolver says"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 1,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 1,
+      "filesAdded": 1,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snaps__/written.test.ts.snap",
+        "sha256": "30dfd752ac686d6d1a2b418eabaed997ba82bf1eb6ae5221815ebac0cd5a6a49"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "PASS ./written.test.ts\n › 1 snapshot written.\n › 1 snapshot written from 1 test suite.\nTest Suites: 1 passed, 1 total\nTests:       1 passed, 1 total\nSnapshots:   1 written, 1 total",
+    "files": {
+      "__snaps__/written.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`written where the resolver says 1`] = `\n{\n  \"where\": \"esm default\",\n}\n`;\n"
+    }
+  }
+}

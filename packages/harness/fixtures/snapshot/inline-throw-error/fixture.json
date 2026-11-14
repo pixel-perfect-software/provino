@@ -1,0 +1,19 @@
+{
+  "description": "toThrowErrorMatchingInlineSnapshot writes the message (B23d B1, T7.11): a new one, one with a cause, and under `-u` one that differs. Jest 30.5.2, `prettierPath: null`.",
+  "runners": ["jest"],
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "prettierPath": null
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false", "-u"]
+    },
+    "capture": ["exitCode", "file:inline-throw-error.test.ts", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]"
+  }
+}

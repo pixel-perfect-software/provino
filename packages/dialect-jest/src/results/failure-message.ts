@@ -113,6 +113,23 @@ export async function formatTestFailures(
   )
 }
 
+/** A stack line that is a frame. */
+const FRAME_LINE = /^\s*at .*:\d+:\d+\)?$/m
+
+/**
+ * A file error's stack without Provino's frames. `separateMessageFromStack` (jest-message-util
+ * 30.5.1, index.ts L573-L589) takes the message up to the first frame, which in Jest is one of its
+ * own: when every frame was Provino's, a frame that `removeInternalStackEntries` always drops
+ * (`ANONYMOUS_FN_IGNORE`) stands in for them, so a message over several lines is read whole
+ * (`snapshot/resolver-missing-member`).
+ */
+function withoutProvinoFrames(stack: string): string {
+  const hidden = hideProvinoFrames(stack)
+  return FRAME_LINE.test(stack) && !FRAME_LINE.test(hidden)
+    ? `${hidden}\n    at <anonymous>:1:1`
+    : hidden
+}
+
 /**
  * The text Jest prints for an error that ended a file (`formatExecError`).
  * @public
@@ -125,7 +142,9 @@ export async function formatFileError(
 ): Promise<string> {
   const util = await messageUtil()
   return util.formatExecError(
-    typeof error.stack === 'string' ? { ...error, stack: hideProvinoFrames(error.stack) } : error,
+    typeof error.stack === 'string'
+      ? { ...error, stack: withoutProvinoFrames(error.stack) }
+      : error,
     { rootDir: config.rootDir, testMatch: [...config.testMatch] } as Parameters<
       MessageUtil['formatExecError']
     >[1],

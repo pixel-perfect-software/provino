@@ -10,9 +10,15 @@
 // Vitest's snapshot slice over it (see `snapshot-corpus/run-snapshot.ts`). A file that calls `vi`
 // can't run, and a fixture of such files is evidence only.
 //
-// One divergence is declared, and pinned to what Provino does: an inline snapshot with nothing
-// written in it would be written into the test file, which nothing does yet (T7.11), so the test
-// fails naming T7.11 and the source is left as it was.
+// One divergence is declared, and pinned to what Provino does: under the `vitest` profile an
+// inline snapshot with nothing written in it would be written into the test file, and Vitest's
+// slice has no writer yet (T7.11's Vitest half), so the test fails naming T7.11 and the source is
+// left as it was. Under `jest` the Jest dialect's writer writes it (B23d B1).
+//
+// Fixtures whose Jest config a generated `provino.config` can't carry (a preset and `testMatch`, the
+// default `prettierPath` that finds the workspace's Prettier, a `snapshotResolver`) are evidence
+// only here: `provino`'s `jest-inline-snapshots.test.ts` and `jest-snapshots.test.ts` run them
+// through `provino jest` against the same goldens.
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
@@ -41,12 +47,24 @@ const ABORT_MARGIN_MS = 5_000
  * against exactly what Provino does instead, and fails the day it stops differing.
  */
 const DECLARED: Readonly<Record<string, string>> = {
-  'snapshot/inline-written':
-    'an inline snapshot with nothing in it is written into the test file by both runners; nothing writes inline snapshots yet (T7.11), so the test fails naming T7.11 and the source stays',
+  'snapshot/inline-written (vitest)':
+    'an inline snapshot with nothing in it is written into the test file by both runners; Vitest`s slice has no writer yet (T7.11), so the test fails naming T7.11 and the source stays',
+}
+
+/** Fixtures `provino jest` holds instead (see the header), with the config the corpus can't carry. */
+const HELD_BY_PROVINO_JEST: Readonly<Record<string, string>> = {
+  'snapshot/inline-no-frame': 'a package installed under `node_modules`',
+  'snapshot/inline-prettier': 'the default `prettierPath`, the workspace`s Prettier 3',
+  'snapshot/inline-tsx': 'a `preset` transform and a `.tsx` `testMatch`',
+  'snapshot/resolver-custom': '`snapshotResolver`',
+  'snapshot/resolver-esm-default': '`snapshotResolver`',
+  'snapshot/resolver-esm-named': '`snapshotResolver`',
+  'snapshot/resolver-inconsistent': '`snapshotResolver`',
+  'snapshot/resolver-missing-member': '`snapshotResolver`',
 }
 
 /** The pairs the check ran and the snapshot tests in them, pinned so it cannot pass by running nothing. */
-const EXPECTED = { pairs: 42, evidenceOnly: 3, tests: 114 } as const
+const EXPECTED = { pairs: 50, evidenceOnly: 11, tests: 128 } as const
 
 const fixtures: Fixture[] = await Promise.all(
   (await findFixtures(path.join(defaultFixturesRoot(), 'snapshot'))).map((dir) => readFixture(dir)),
@@ -70,7 +88,7 @@ for (const fixture of fixtures) {
     for (const profile of FIXTURE_RUNNERS) {
       if (!fixture.manifest.runners.includes(profile)) continue
       const ran = runnableFiles(fixture, profile)
-      if (ran.length === 0) {
+      if (ran.length === 0 || Object.hasOwn(HELD_BY_PROVINO_JEST, fixture.id)) {
         counted.evidenceOnly++
         continue
       }
@@ -98,8 +116,9 @@ for (const fixture of fixtures) {
         counted.tests += wanted.size
 
         const files = comparedFiles(captured, ran)
-        if (Object.hasOwn(DECLARED, fixture.id)) {
-          declaredSeen.add(fixture.id)
+        const pair = `${fixture.id} (${profile})`
+        if (Object.hasOwn(DECLARED, pair)) {
+          declaredSeen.add(pair)
           assert.equal(result.exitCode, 1, 'the exit code')
           assert.deepEqual([...got.values()], ['failed'], 'the test fails')
           const messages = result.normalized.files.flatMap((f) =>

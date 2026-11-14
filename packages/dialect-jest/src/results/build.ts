@@ -280,7 +280,7 @@ function withPerfStats(result: TestResult, file: FileEvents, options: BuildOptio
  * @public
  */
 export function toTestResult(file: FileEvents, options: BuildOptions): TestResult {
-  if (file.result.workerExit !== undefined) {
+  if (file.result.workerExit !== undefined || file.result.resultsDiscarded === true) {
     // A worker that died takes the file's results with it: Jest's runner fails the whole file
     // (`TestScheduler.ts` `onFailure`, L185-L200), so even tests that ended before the crash
     // leave no counts and no assertion.
@@ -396,6 +396,10 @@ export interface RunEnd {
 export function finishAggregated(aggregated: AggregatedResult, end: RunEnd): void {
   const updateAll = end.snapshots?.update === 'all'
   const { snapshot } = aggregated
+  // The obsolete snapshot files `cleanupSnapshots` found once every file ran (L203-L221).
+  const removed = end.snapshots?.filesRemovedList ?? []
+  snapshot.filesRemoved += removed.length
+  snapshot.filesRemovedList = [...snapshot.filesRemovedList, ...removed]
   snapshot.didUpdate = updateAll
   snapshot.failure = !!(
     !updateAll &&

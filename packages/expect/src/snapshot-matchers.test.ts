@@ -51,6 +51,8 @@ interface Options {
   throwErrorBody?: 'message' | 'error'
   keyJoin?: string
   hintJoin?: string
+  /** The policy has an inline snapshot writer (B23d B1). */
+  inlineWrites?: boolean
 }
 
 interface Setup {
@@ -112,6 +114,7 @@ function setup(options: Options = {}): Setup {
     },
     key: (name, count) => `${name} ${count}`,
     printer,
+    inlineWrites: options.inlineWrites ?? false,
   })
   expect.setState({ snapshotState: state })
   function inRawTest<T>(titlePath: string[], fn: () => T, id = titlePath.join('/')): T {
@@ -474,6 +477,12 @@ describe('toThrowErrorMatchingSnapshot', () => {
   })
 })
 
+/** The line after the caller's (this file's own stack is not source-mapped: Node strips types in place). */
+function nextLine(): number {
+  const frame = new Error().stack?.split('\n')[2] ?? ''
+  return Number(/:(\d+):\d+\)?$/.exec(frame)?.[1]) + 1
+}
+
 describe('inline snapshots', () => {
   test('compare in place: a match passes and a mismatch fails', () => {
     const { expect, inTest } = setup({ update: 'none' })
@@ -492,6 +501,42 @@ describe('inline snapshots', () => {
     assert.throws(() => inTest(['t'], () => expect(1).toMatchInlineSnapshot()), /T7\.11/)
     state.finish()
     assert.equal(existsSync(snapPath), false)
+  })
+
+  test('with a writer, a missing one passes and is recorded at the matcher call (B23d B1)', () => {
+    const { expect, inTest, state } = setup({ inlineWrites: true })
+    const fail = (): never => {
+      throw new Error('no')
+    }
+    const line = nextLine()
+    inTest(['t'], () => expect({ a: 1 }).toMatchInlineSnapshot())
+    inTest(['u'], () => expect(fail).toThrowErrorMatchingInlineSnapshot())
+    const report = state.finish()
+    assert.equal(report.added, 2)
+    const edits = report.inline ?? []
+    assert.deepEqual(
+      edits.map(({ file, line: at, snapshot }) => ({ file, at, snapshot })),
+      [
+        { file: import.meta.filename, at: line, snapshot: '\n{\n  "a": 1\n}\n' },
+        { file: import.meta.filename, at: line + 1, snapshot: '"no"' },
+      ],
+    )
+    // The column is the matcher name's, 0-based: where Jest's writer looks for the call.
+    const source = readFileSync(import.meta.filename, 'utf8').split('\n')
+    for (const edit of edits) {
+      const text = source[edit.line - 1] ?? ''
+      assert.match(text.slice(edit.column), /^toM|^toT/)
+    }
+  })
+
+  test('with a writer, `.resolves` records the call of the matcher property', async () => {
+    const { expect, inTest, state } = setup({ inlineWrites: true })
+    const line = nextLine()
+    await inTest(['t'], () => expect(Promise.resolve(1)).resolves.toMatchInlineSnapshot())
+    const [edit] = state.finish().inline ?? []
+    assert.equal(edit?.line, line)
+    const text = readFileSync(import.meta.filename, 'utf8').split('\n')[line - 1] ?? ''
+    assert.match(text.slice(edit?.column ?? 0), /^toMatchInlineSnapshot/)
   })
 
   test('a missing one under `none` fails as a snapshot that was not written, not as T7.11', () => {

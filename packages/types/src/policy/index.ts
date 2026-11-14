@@ -86,6 +86,10 @@ export type {
 } from './orchestrator.ts'
 export type { ReportPolicy } from './report.ts'
 export type {
+  InlineSnapshotEdit,
+  InlineSnapshotWriteOptions,
+  InlineSnapshotWriter,
+  InlineSnapshotWriterFactory,
   LegacySnapshotSerializer,
   ResolveSnapshotPath,
   SnapshotKey,
@@ -95,6 +99,8 @@ export type {
   SnapshotPolicy,
   SnapshotPrinter,
   SnapshotPrinterFactory,
+  SnapshotResolver,
+  SnapshotResolverFactory,
   SnapshotSerializeOptions,
 } from './snapshot.ts'
 export type { TimersPolicy } from './timers.ts'

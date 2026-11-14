@@ -1,0 +1,16 @@
+{
+  "description": "Inline snapshots under `--ci` (B23d B1, T7.11): a missing one is not written and fails, one that differs fails, one that matches passes, and the source is left as it was. Jest 30.5.2, `prettierPath: null`.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "prettierPath": null
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci"]
+    },
+    "capture": ["exitCode", "file:inline-ci.test.ts", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]"
+  }
+}

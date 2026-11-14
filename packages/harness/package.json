@@ -75,6 +75,7 @@
     "jest-config": "catalog:",
     "jest-serializer-vue": "catalog:",
     "oxc-parser": "catalog:",
+    "prettier": "catalog:",
     "provino": "workspace:*",
     "vitest": "catalog:"
   }

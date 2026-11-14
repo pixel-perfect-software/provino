@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/inline-throw-error",
+  "files": [
+    {
+      "file": "inline-throw-error.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "inline-throw-error.test.ts",
+            "path": [
+              "new thrown messages"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "inline-throw-error.test.ts",
+            "path": [
+              "a message that changed"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 10,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 2,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 1,
+      "unchecked": 0,
+      "total": 3,
+      "filesAdded": 1,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 1
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "PASS ./inline-throw-error.test.ts\n › 2 snapshots written.\n › 1 snapshot updated.\n › 2 snapshots written from 1 test suite.\n › 1 snapshot updated from 1 test suite.\nTest Suites: 1 passed, 1 total\nTests:       2 passed, 2 total\nSnapshots:   1 updated, 2 written, 3 total",
+    "files": {
+      "inline-throw-error.test.ts": "test('new thrown messages', () => {\n  expect(() => {\n  throw new Error('first');\n}).toThrowErrorMatchingInlineSnapshot(`\"first\"`)\n  expect(() => {\n  throw new Error('outer', { cause: new Error('inner') });\n}).toThrowErrorMatchingInlineSnapshot(`\n\"outer\nCause: inner\"\n`)\n})\n\ntest('a message that changed', () => {\n  expect(() => {\n  throw new TypeError('changed');\n}).toThrowErrorMatchingInlineSnapshot(`\"changed\"`)\n})\n"
+    }
+  }
+}

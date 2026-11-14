@@ -45,7 +45,6 @@ const CLAIM_KEYS: ReadonlySet<string> = new Set(Object.keys(CLAIMS))
  */
 const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   // Behaviour another bundle builds; its first fixture records the value.
-  'jest snapshot.inline.formatter': 'T7.11',
   'jest orchestrator.sequence.unknownFirst': 'B21',
   'jest orchestrator.watch.initialRun': 'T9.11',
   'jest orchestrator.inBand.fastFileCount': 'B14',
@@ -63,6 +62,9 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'jest report.resultStatusSkipped': 'T11.8',
   'jest lazy.readInBeforeAll': 'T6.5',
   'vitest snapshot.inline.formatter': 'T7.11',
+  'vitest snapshot.inline.writer': 'T7.11',
+  'vitest snapshot.resolverFactory': 'T11.16',
+  'vitest snapshot.obsoleteFiles': 'T11.16',
   'vitest hoist.messages.HOIST_EXPORTED': 'T11.16',
   'vitest hoist.messages.HOIST_EXPORTED_VALUE': 'T11.16',
   'vitest hoist.messages.HOIST_NESTED': 'T11.16',

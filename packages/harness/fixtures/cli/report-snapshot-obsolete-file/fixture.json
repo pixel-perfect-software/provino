@@ -1,0 +1,27 @@
+{
+  "description": "An obsolete snapshot file (B23d B1, DV96): `__snapshots__/gone.test.ts.snap` has no test file, so Jest 30.5.2 counts it in `filesRemoved` and the Snapshot Summary names it; without `-u` the run fails and the file stays. A `.snap` beside an ignored test path is left out (`testPathIgnorePatterns`). One worker.",
+  "runners": ["jest"],
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "testPathIgnorePatterns": ["/node_modules/", "/__goldens__/", "/ignored/"]
+    }
+  },
+  "files": {
+    "jest": {
+      "__snapshots__/kept.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`kept 1`] = `1`;\n",
+      "__snapshots__/gone.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`gone 1`] = `1`;\n",
+      "ignored/__snapshots__/away.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`away 1`] = `1`;\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/gone.test.ts.snap", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]|^Snapshot Summary$"
+  }
+}

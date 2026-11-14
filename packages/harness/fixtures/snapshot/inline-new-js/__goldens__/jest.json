@@ -1,0 +1,88 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/inline-new-js",
+  "files": [
+    {
+      "file": "inline-new-js.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "inline-new-js.test.ts",
+            "path": [
+              "new inline snapshots",
+              "values of each kind"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 5,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "inline-new-js.test.ts",
+            "path": [
+              "new inline snapshots",
+              "in a nested function"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 11,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "inline-new-js.test.ts",
+            "path": [
+              "at the top level"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 19,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 7,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 7,
+      "filesAdded": 1,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "PASS ./inline-new-js.test.ts\n › 7 snapshots written.\n › 7 snapshots written from 1 test suite.\nTest Suites: 1 passed, 1 total\nTests:       3 passed, 3 total\nSnapshots:   7 written, 7 total",
+    "files": {
+      "inline-new-js.test.ts": "describe('new inline snapshots', () => {\n  test('values of each kind', () => {\n    expect({ a: 1, nested: { list: [1, 'two'] } }).toMatchInlineSnapshot(`\n{\n  \"a\": 1,\n  \"nested\": {\n    \"list\": [\n      1,\n      \"two\",\n    ],\n  },\n}\n`)\n    // biome-ignore lint/suspicious/noTemplateCurlyInString: the snapshot must escape it\n    expect('a `backtick`, a ${dollar} and a \\\\ slash').toMatchInlineSnapshot(`\"a \\`backtick\\`, a \\${dollar} and a \\\\ slash\"`)\n    expect('line one\\nline two').toMatchInlineSnapshot(`\n\"line one\nline two\"\n`)\n    expect(42).toMatchInlineSnapshot(`42`)\n    expect(undefined).toMatchInlineSnapshot(`undefined`)\n  })\n\n  test('in a nested function', () => {\n    const check = (value) => {\n      expect(value).toMatchInlineSnapshot(`\n[\n  1,\n  2,\n]\n`)\n    }\n    check([1, 2])\n  })\n})\n\ntest('at the top level', () => {\n  expect(new Map([['k', 1]])).toMatchInlineSnapshot(`\nMap {\n  \"k\" => 1,\n}\n`)\n})\n"
+    }
+  }
+}

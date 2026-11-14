@@ -12,7 +12,10 @@ import {
   serializeSnapFile,
 } from '@provino/snapshot'
 import {
+  cleanObsoleteSnapshotFiles,
   createSnapshotAggregate,
+  defaultSnapshotTestPath,
+  type ObsoleteSnapshotFilesOptions,
   resolveUpdateMode,
   snapshotRunFails,
 } from '@provino/snapshot/node'
@@ -98,3 +101,24 @@ expectTypeOf(openFileSnapshots).returns.toEqualTypeOf<{
   readonly state: SnapshotState
   readonly lifecycle: SnapshotLifecycle
 }>()
+
+// B23d B1: the inline edits a file reports, and the obsolete-file crawl with its inverse.
+expectTypeOf<NonNullable<SnapshotFileReport['inline']>[number]>().toEqualTypeOf<{
+  readonly file: string
+  readonly line: number
+  readonly column: number
+  readonly snapshot: string
+}>()
+expectTypeOf<MatchOptions['stack']>().toEqualTypeOf<string | undefined>()
+expectTypeOf(
+  defaultSnapshotTestPath('/a/__snapshots__/b.snap', { extension: '.snap' }),
+).toEqualTypeOf<string>()
+expectTypeOf(cleanObsoleteSnapshotFiles).parameters.toEqualTypeOf<[ObsoleteSnapshotFilesOptions]>()
+expectTypeOf(cleanObsoleteSnapshotFiles).returns.toEqualTypeOf<string[]>()
+declare const crawl: ObsoleteSnapshotFilesOptions
+// @ts-expect-error the crawl needs the inverse of the snapshot path
+cleanObsoleteSnapshotFiles({ ...crawl, testPathOf: undefined })
+// @ts-expect-error an unknown update mode
+cleanObsoleteSnapshotFiles({ ...crawl, update: 'sometimes' })
+// @ts-expect-error the inverse needs the extension
+defaultSnapshotTestPath('/a.snap', {})

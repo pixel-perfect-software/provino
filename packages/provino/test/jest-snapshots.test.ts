@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
+import { observedText } from './mask.ts'
 import { loadFixture, materialize } from './recorded.ts'
 import { spawnCli } from './support.ts'
 
@@ -59,6 +60,54 @@ describe('provino jest -u and --ci against Jest 30.5.2', () => {
           const left = await readFile(join(project.root, file), 'utf8').catch(() => null)
           assert.equal(left, bytes, file)
         }
+      } finally {
+        await project.dispose()
+      }
+    })
+  }
+})
+
+// B23d B1: a project's `snapshotResolver` (where snapshots are written and read, Jest's texts for
+// a resolver that lacks a member or doesn't invert itself) and the snapshot files no test file has
+// (DV96: reported, removed under `-u`, through a custom resolver's inverse too). The exit code, the
+// captured files and the kept stderr lines equal the goldens. A broken resolver is the case that
+// shows Jest's order: each file fails with the resolver's error, then `updateSnapshotState` builds
+// the resolver again, throws before `onRunComplete`, and Jest prints the error and no totals; so
+// does `provino jest` (the kept lines are the file failures alone).
+const RESOLVER_AND_OBSOLETE: readonly string[] = [
+  'snapshot/resolver-custom',
+  'snapshot/resolver-esm-default',
+  'snapshot/resolver-esm-named',
+  'snapshot/resolver-inconsistent',
+  'snapshot/resolver-missing-member',
+  'cli/report-snapshot-obsolete-file',
+  'cli/report-snapshot-obsolete-file-update',
+]
+
+describe('provino jest: snapshotResolver and obsolete snapshot files against Jest 30.5.2', () => {
+  for (const id of RESOLVER_AND_OBSOLETE) {
+    it(id, async () => {
+      const fixture = await loadFixture(id)
+      const expected = fixture.golden.observed
+      assert.notEqual(expected?.exitCode, undefined, 'the golden records an exit code')
+      const argv = fixture.manifest.run?.argv?.jest ?? []
+      const project = await materialize(fixture)
+      try {
+        const ended = await spawnCli(
+          ['jest', `--config=${join(project.root, 'jest.config.json')}`, ...argv],
+          { cwd: project.root },
+        )
+        assert.equal(ended.signal, null, 'it exited, it was not killed')
+        assert.equal(ended.code, expected?.exitCode, ended.stderr)
+        for (const [file, bytes] of Object.entries(expected?.files ?? {})) {
+          const left = await readFile(join(project.root, file), 'utf8').catch(() => null)
+          assert.equal(left, bytes, file)
+        }
+        const kept = observedText(ended.stderr, {
+          roots: [project.root],
+          keepLines: fixture.manifest.run?.keepLines,
+        })
+        assert.equal(kept, expected?.stderr, 'the kept stderr lines')
       } finally {
         await project.dispose()
       }

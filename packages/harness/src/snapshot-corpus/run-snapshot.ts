@@ -60,7 +60,8 @@ function optionsOf(fixture: Fixture, profile: SnapshotProfile) {
   const pattern = argv.indexOf('-t')
   argv.forEach((token, index) => {
     const patternValue = pattern !== -1 && index === pattern + 1
-    if (!patternValue && token !== '--ci=false' && token !== '-u' && token !== '-t') {
+    // `--ci` is the recorder's own flag again: the run is CI unless the fixture clears it.
+    if (!patternValue && !['--ci', '--ci=false', '-u', '-t'].includes(token)) {
       throw new Error(`${fixture.id}: the corpus runner doesn't map the argument "${token}"`)
     }
   })

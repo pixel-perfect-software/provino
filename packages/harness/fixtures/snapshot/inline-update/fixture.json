@@ -1,0 +1,19 @@
+{
+  "description": "`-u` rewrites the inline snapshots that differ (B23d B1, T7.11): an indented template, a string literal (which becomes a template), and a thrown error's message; the ones that match keep their text, an indented one too. Jest 30.5.2, `prettierPath: null`.",
+  "runners": ["jest"],
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "prettierPath": null
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false", "-u"]
+    },
+    "capture": ["exitCode", "file:inline-update.test.ts", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]"
+  }
+}

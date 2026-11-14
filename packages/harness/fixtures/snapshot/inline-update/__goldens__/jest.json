@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/inline-update",
+  "files": [
+    {
+      "file": "inline-update.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "inline-update.test.ts",
+            "path": [
+              "rewrites what differs"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 4,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "inline-update.test.ts",
+            "path": [
+              "keeps what matches"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 14,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 2,
+      "unmatched": 0,
+      "updated": 3,
+      "unchecked": 0,
+      "total": 5,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 1
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "PASS ./inline-update.test.ts\n › 3 snapshots updated.\n › 3 snapshots updated from 1 test suite.\nTest Suites: 1 passed, 1 total\nTests:       2 passed, 2 total\nSnapshots:   3 updated, 2 passed, 5 total",
+    "files": {
+      "inline-update.test.ts": "test('rewrites what differs', () => {\n  expect({ a: 2 }).toMatchInlineSnapshot(`\n{\n  \"a\": 2,\n}\n`)\n  expect('new').toMatchInlineSnapshot(`\"new\"`)\n  expect('same').toMatchInlineSnapshot(`\"same\"`)\n  expect(() => {\n  throw new Error('now');\n}).toThrowErrorMatchingInlineSnapshot(`\"now\"`)\n})\n\ntest('keeps what matches', () => {\n  expect([1]).toMatchInlineSnapshot(`\n    [\n      1,\n    ]\n  `)\n})\n"
+    }
+  }
+}

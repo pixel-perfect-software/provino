@@ -159,10 +159,26 @@ test('snapshotSerializers and snapshotFormat go to the snapshot policy, and warn
   })
   const { neutral } = await readNeutral(root)
   const [project] = neutral.value
-  assert.deepEqual(project?.policy.snapshot, {
+  const { inline, ...rest } = project?.policy.snapshot ?? {}
+  assert.deepEqual(rest, {
     serializers: [join(root, 'first.js'), join(root, 'second.js')],
     format: { escapeString: true, printBasicPrototype: false, extra: { indent: 4, maxDepth: 3 } },
   })
+  // The default `prettierPath` (B23d B1): Prettier as Jest's install finds it, absolute.
+  assert.match(String(inline?.prettierPath), /[\\/]prettier[\\/]index\.cjs$/)
+  assert.deepEqual(neutral.diagnostics, [])
+})
+
+test('prettierPath: an explicit null stays null, a path resolves, and snapshotResolver is carried (B23d B1)', async () => {
+  const root = tree({
+    'jest.config.js': `module.exports = { prettierPath: null, snapshotResolver: '<rootDir>/resolver.js' }\n`,
+    'resolver.js': '',
+  })
+  const { neutral } = await readNeutral(root)
+  const [project] = neutral.value
+  assert.equal(project?.policy.snapshot?.inline?.prettierPath, null)
+  assert.equal(project?.snapshotResolver, join(root, 'resolver.js'))
+  // No "not applied" warning for the resolver any more.
   assert.deepEqual(neutral.diagnostics, [])
 })
 

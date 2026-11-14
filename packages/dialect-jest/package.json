@@ -30,6 +30,11 @@
       "types": "./dist/global-setup/index.d.ts",
       "import": "./dist/global-setup/index.js"
     },
+    "./inline-snapshots": {
+      "provino-source": "./src/inline-snapshots/index.ts",
+      "types": "./dist/inline-snapshots/index.d.ts",
+      "import": "./dist/inline-snapshots/index.js"
+    },
     "./node": {
       "provino-source": "./src/node/index.ts",
       "types": "./dist/node/index.d.ts",
@@ -58,6 +63,10 @@
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@babel/core": "catalog:",
+    "@babel/generator": "catalog:",
+    "@babel/plugin-syntax-jsx": "catalog:",
+    "@babel/plugin-syntax-typescript": "catalog:",
     "@jest/expect-utils": "catalog:",
     "@jest/get-type": "catalog:",
     "@provino/config": "workspace:*",
@@ -69,6 +78,7 @@
     "@provino/resolver": "workspace:*",
     "@provino/timers": "workspace:*",
     "@provino/types": "workspace:*",
+    "babel-preset-current-node-syntax": "catalog:",
     "jest-matcher-utils": "catalog:",
     "jest-message-util": "catalog:",
     "jest-util": "catalog:",

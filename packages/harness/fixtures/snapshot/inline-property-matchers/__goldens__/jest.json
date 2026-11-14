@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/inline-property-matchers",
+  "files": [
+    {
+      "file": "inline-property-matchers.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "inline-property-matchers.test.ts",
+            "path": [
+              "property matchers"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "inline-property-matchers.test.ts",
+            "path": [
+              "a call over several lines"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 9,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 3,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 3,
+      "filesAdded": 1,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "PASS ./inline-property-matchers.test.ts\n › 3 snapshots written.\n › 3 snapshots written from 1 test suite.\nTest Suites: 1 passed, 1 total\nTests:       2 passed, 2 total\nSnapshots:   3 written, 3 total",
+    "files": {
+      "inline-property-matchers.test.ts": "test('property matchers', () => {\n  expect({ id: 7, name: 'x' }).toMatchInlineSnapshot({ id: expect.any(Number) }, `\n{\n  \"id\": Any<Number>,\n  \"name\": \"x\",\n}\n`)\n  expect({ id: 8, when: new Date(0) }).toMatchInlineSnapshot({\n  id: expect.any(Number),\n  when: expect.any(Date)\n}, `\n{\n  \"id\": Any<Number>,\n  \"when\": Any<Date>,\n}\n`)\n})\n\ntest('a call over several lines', () => {\n  // biome-ignore format: the call keeps its own layout\n  expect(\n  { spread: [1, 2, 3] }\n).toMatchInlineSnapshot(`\n{\n  \"spread\": [\n    1,\n    2,\n    3,\n  ],\n}\n`) // where the snapshot goes\n})\n"
+    }
+  }
+}

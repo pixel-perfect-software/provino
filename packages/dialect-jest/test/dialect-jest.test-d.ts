@@ -7,6 +7,7 @@ import {
   jestMockPolicy,
   jestPolicy,
 } from '@provino/dialect-jest'
+import { jestInlineSnapshotWriter } from '@provino/dialect-jest/inline-snapshots'
 import {
   type JestGlobals,
   type JestGlobalsHost,
@@ -15,6 +16,7 @@ import {
   jestExpectTable,
   jestGlobals,
   jestModuleScope,
+  jestSnapshotResolver,
 } from '@provino/dialect-jest/runtime'
 import { moduleRef } from '@provino/policy'
 import type {
@@ -24,6 +26,7 @@ import type {
   ExpectTable,
   GlobalsFactory,
   GlobalsHost,
+  InlineSnapshotWriterFactory,
   MatcherTableFactory,
   MockPolicy,
   ModuleRef,
@@ -31,6 +34,7 @@ import type {
   PolicyOverrides,
   ProjectConfig,
   ProvinoConfigInput,
+  SnapshotResolverFactory,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
@@ -178,3 +182,13 @@ moduleJest.mock(42)
 moduleJest.mock('./a', () => ({}), { virtual: 'yes' })
 // @ts-expect-error a factory is a function, not the module itself
 moduleJest.doMock('./a', { a: 1 })
+
+// B23d B1: the inline snapshot writer and the snapshot resolver the policy names.
+expectTypeOf(jestInlineSnapshotWriter).toEqualTypeOf<InlineSnapshotWriterFactory>()
+expectTypeOf(jestInlineSnapshotWriter()).returns.toEqualTypeOf<Promise<readonly string[]>>()
+expectTypeOf(jestSnapshotResolver).toEqualTypeOf<SnapshotResolverFactory>()
+expectTypeOf(jestSnapshotResolver({}, '.snap').resolveTestPath('a')).toEqualTypeOf<string>()
+// @ts-expect-error a writer is handed the project's root and formatter
+void jestInlineSnapshotWriter()([], {})
+// @ts-expect-error the resolver factory needs the snapshot extension
+jestSnapshotResolver({})

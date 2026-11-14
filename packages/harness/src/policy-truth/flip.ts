@@ -67,6 +67,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'snapshot.throwErrorBody': ['message', 'error'],
   'snapshot.inline.indent': ['column0', 'call'],
   'snapshot.inline.formatter': ['prettier', 'none'],
+  'snapshot.obsoleteFiles': ['report', 'ignore'],
   'expect.valueFormatter': ['pretty-format'],
   'expect.errorShape': ['matcher-result', 'assertion-error'],
   'expect.equality.errors': ['message', 'assert'],

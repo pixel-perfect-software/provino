@@ -1,0 +1,27 @@
+{
+  "description": "New inline snapshots in a TSX test (B23d B1, T7.11): the file has JSX (classic runtime, `h` as the pragma) and TypeScript, and Jest 30.5.2 parses it as TSX to write the snapshots; the calls are reprinted with their JSX. The `.tsx` file is transformed by babel-jest from a preset (the recorder's own transform takes `.ts` only). `prettierPath: null`.",
+  "runners": ["jest"],
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "prettierPath": null,
+      "preset": "<rootDir>/tsx-preset/jest-preset.json",
+      "testMatch": ["<rootDir>/**/*.test.tsx"]
+    }
+  },
+  "files": {
+    "jest": {
+      "tsx-preset/jest-preset.json": "{\n  \"transform\": {\n    \"\\\\.tsx$\": \"babel-jest\"\n  }\n}\n",
+      "babel.config.json": "{\n  \"presets\": [\n    [\n      \"@babel/preset-typescript\",\n      {\n        \"isTSX\": true,\n        \"allExtensions\": true\n      }\n    ],\n    [\n      \"@babel/preset-react\",\n      {\n        \"pragma\": \"h\"\n      }\n    ]\n  ]\n}\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:inline-tsx.test.tsx", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]"
+  }
+}

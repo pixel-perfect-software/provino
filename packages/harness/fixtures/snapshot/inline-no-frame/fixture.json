@@ -1,0 +1,25 @@
+{
+  "description": "An inline snapshot that must be written, from a call whose every frame is in node_modules (a package that calls the matcher from a timer): Jest 30.5.2 has no frame to put it at and the test fails with `Jest: Couldn't infer stack frame for inline snapshot.`",
+  "runners": ["jest"],
+  "env": {
+    "CI": ""
+  },
+  "packages": {
+    "frame-free": {
+      "package.json": "{ \"name\": \"frame-free\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.run = () =>\n  new Promise((resolve, reject) => {\n    setImmediate(() => {\n      try {\n        expect(1).toMatchInlineSnapshot()\n        resolve()\n      } catch (error) {\n        reject(error)\n      }\n    })\n  })\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "prettierPath": null
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "stderr", "file:one.test.ts"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]|^ +Jest: "
+  }
+}
