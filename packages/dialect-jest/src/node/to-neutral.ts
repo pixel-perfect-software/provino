@@ -107,15 +107,6 @@ function isJsonArray(value: JsonValue): value is readonly JsonValue[] {
   return Array.isArray(value)
 }
 
-function notApplied(diagnostics: Diagnostic[], key: string, owner: string, detail = ''): void {
-  diagnostics.push({
-    level: 'warning',
-    code: 'JEST_CONFIG_NOT_APPLIED',
-    key,
-    message: `Jest config key "${key}" is read but not applied yet (${owner} builds it)${detail}.`,
-  })
-}
-
 /** The `NODE_PATH` directories, absolute against `cwd`, as jest-resolve reads them. */
 function nodePathEntries(cwd: string, env: NodeJS.ProcessEnv): string[] {
   return (env.NODE_PATH ?? '')
