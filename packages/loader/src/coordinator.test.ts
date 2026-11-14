@@ -182,3 +182,13 @@ test('resolveDependency resolves as a require does: files, extensions, mappers, 
   assert.equal(loader.resolveDependency('node:fs', from), undefined)
   assert.equal(loader.resolveDependency('./missing', from), undefined)
 })
+
+test('invalidateResolution lets a specifier that missed resolve once its file exists', async () => {
+  const dir = writeTree({ 'a.ts': 'export {}\n' })
+  using loader = await createCoordinatorLoader(dir, config(), neutralPolicy.module)
+  const from = join(dir, 'a.ts')
+  assert.equal(loader.resolveDependency('./later', from), undefined)
+  writeFileSync(join(dir, 'later.ts'), 'export {}\n')
+  loader.invalidateResolution([join(dir, 'later.ts')])
+  assert.equal(loader.resolveDependency('./later', from), join(dir, 'later.ts'))
+})

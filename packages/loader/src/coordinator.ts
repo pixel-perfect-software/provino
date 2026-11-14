@@ -45,6 +45,11 @@ export interface CoordinatorLoader extends Disposable {
    * graph (B23c).
    */
   resolveDependency(specifier: string, from: string): string | undefined
+  /**
+   * Drops the resolver's file-system caches (for the given paths, or all of them): call it when
+   * files were added or removed, or a specifier that missed would keep missing.
+   */
+  invalidateResolution(paths?: readonly string[]): void
   /** Forgets every module; further imports start over. */
   dispose(): void
 }
@@ -110,6 +115,9 @@ export async function createCoordinatorLoader(
         conditions: config.conditions,
       })
       return result.type === 'file' ? result.path : undefined
+    },
+    invalidateResolution: (paths) => {
+      resolver.invalidate(paths)
     },
     dispose: () => {
       for (const registry of registries.splice(0)) registry.dispose()
