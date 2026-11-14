@@ -820,3 +820,19 @@ test('run refuses timeKeys without a json: capture, and a bad timeKeys or mask',
   bad({ capture: ['stderr'], mask: ['('] })
   bad({ capture: ['stderr'], mask: [''] })
 })
+
+test('run keeps maskKeys beside a json: capture and a cwd inside the fixture, and refuses bad ones', () => {
+  const run = { capture: ['json:coverage/coverage-final.json'], maskKeys: ['hash'], cwd: 'sub' }
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, run })).run, run)
+  const bad = (spec: unknown): void =>
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, run: spec })),
+      rejects('HARNESS_FIXTURE_BAD_RUN'),
+    )
+  bad({ capture: ['stdout'], maskKeys: ['hash'] })
+  bad({ capture: ['json:a.json'], maskKeys: [] })
+  bad({ capture: ['json:a.json'], maskKeys: ['hash', 'hash'] })
+  bad({ capture: ['stdout'], cwd: '' })
+  bad({ capture: ['stdout'], cwd: '../up' })
+  bad({ capture: ['stdout'], cwd: '/abs' })
+})

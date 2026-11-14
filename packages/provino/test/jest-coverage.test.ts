@@ -72,6 +72,7 @@ async function provinoOn(id: string): Promise<Ran> {
         : normalizedJson(JSON.parse(text) as Json, {
             roots: [root],
             timeKeys: fixture.manifest.run?.timeKeys ?? [],
+            maskKeys: fixture.manifest.run?.maskKeys,
             mask: fixture.manifest.run?.mask,
           })
     },
@@ -90,27 +91,17 @@ function filesOf(value: Json | null | undefined): Readonly<Record<string, FileDa
   return value as Readonly<Record<string, FileData>>
 }
 
-/** Each file's path and counters: what the reports are made of, apart from the maps. */
-function counters(value: Json | null | undefined): Readonly<Record<string, Json>> {
+/**
+ * Each file's whole entry (path, counters, maps, `inputSourceMap`, `_coverageSchema`, every other
+ * field) without `hash`: D111 compares the maps and counters, and `hash` is a digest of the
+ * work directory's path, which the recording masks.
+ */
+function entries(value: Json | null | undefined): Readonly<Record<string, Json>> {
   return Object.fromEntries(
-    Object.entries(filesOf(value)).map(([key, data]) => [
-      key,
-      { path: data.path ?? null, s: data.s ?? null, f: data.f ?? null, b: data.b ?? null },
-    ]),
-  )
-}
-
-/** Each file's statement, function and branch maps. */
-function maps(value: Json | null | undefined): Readonly<Record<string, Json>> {
-  return Object.fromEntries(
-    Object.entries(filesOf(value)).map(([key, data]) => [
-      key,
-      {
-        statementMap: data.statementMap ?? null,
-        fnMap: data.fnMap ?? null,
-        branchMap: data.branchMap ?? null,
-      },
-    ]),
+    Object.entries(filesOf(value)).map(([key, data]) => {
+      const { hash: _hash, ...rest } = data
+      return [key, rest]
+    }),
   )
 }
 
@@ -133,23 +124,14 @@ describe('provino jest --coverage writes the reports Jest 30.5.2 wrote (coverage
     const expected = golden?.json?.['coverage/coverage-final.json']
     // The untested file is there, at zero, with the four that ran.
     assert.equal(Object.keys(filesOf(final)).length, 5)
-    assert.deepEqual(counters(final), counters(expected))
-    // `--json`'s `coverageMap` is the same map.
+    // D116: the TypeScript is stripped in place on the coverage path, so Istanbul instruments
+    // code whose positions are the source's, as Jest's babel provider does (its recorder strips
+    // with Node's `stripTypeScriptTypes`): the maps, counters and every other field are Jest's.
+    assert.deepEqual(entries(final), entries(expected))
+    // `--json`'s `coverageMap` is the same map, entry for entry.
     const results = filesOf(await ran.json('.harness-out/jest.json'))
     const recorded = filesOf(golden?.json?.['.harness-out/jest.json'])
-    assert.deepEqual(counters(results.coverageMap), counters(recorded.coverageMap))
-  })
-
-  // D116: the TypeScript is stripped in place on the coverage path, so Istanbul instruments code
-  // whose positions are the source's, as Jest's babel provider does (its recorder strips with
-  // Node's `stripTypeScriptTypes`), and no remap moves an end or drops a `line`.
-  it('the statement, function and branch maps equal the babel provider’s', async () => {
-    const ran = await provinoOn('coverage/babel-providers-sample')
-    const golden = ran.fixture.golden.observed
-    assert.deepEqual(
-      maps(await ran.json('coverage/coverage-final.json')),
-      maps(golden?.json?.['coverage/coverage-final.json']),
-    )
+    assert.deepEqual(entries(results.coverageMap), entries(recorded.coverageMap))
   })
 
   it('--coverage with the defaults: only the files the tests loaded, json, text, lcov and clover in <rootDir>/coverage (babel-defaults)', async () => {
@@ -163,8 +145,8 @@ describe('provino jest --coverage writes the reports Jest 30.5.2 wrote (coverage
       assert.equal(asRecorded(ran, ours), golden?.files?.[file], file)
     }
     assert.deepEqual(
-      counters(await ran.json('coverage/coverage-final.json')),
-      counters(golden?.json?.['coverage/coverage-final.json']),
+      entries(await ran.json('coverage/coverage-final.json')),
+      entries(golden?.json?.['coverage/coverage-final.json']),
     )
   })
 
