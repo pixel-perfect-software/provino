@@ -41,8 +41,10 @@ export interface RunCoverageHooks {
   readonly onTake?: (raw: RawCoverage) => void
 }
 
-/** A project of the run, with its worker config (which holds its coverage config). */
-type CoveredProject = Omit<ResolvedProject, 'config'> & { readonly config: SerializedProjectConfig }
+/** A project of the run, with the parts of its worker config coverage reads (seeded or not). */
+type CoveredProject = Omit<ResolvedProject, 'config'> & {
+  readonly config: Pick<SerializedProjectConfig, 'coverage' | 'loader'>
+}
 
 /**
  * The files of `project` that its include globs name and its filter counts: the candidates for

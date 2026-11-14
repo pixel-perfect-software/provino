@@ -31,7 +31,7 @@ const FORMAT = [
   'export function label(value: number | null): string {',
   '  return value === null ? "none" : value > 0 ? "positive" : "other"',
   '}',
-  'export const money = (amount: number): string => `€${amount.toFixed(2)}`',
+  "export const money = (amount: number): string => '€' + amount.toFixed(2)",
   '',
 ].join('\n')
 

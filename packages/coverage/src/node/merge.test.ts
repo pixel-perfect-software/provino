@@ -124,7 +124,7 @@ test('two workers’ takes add up, and the wrapper is taken out of the offsets',
 })
 
 test('a file no test loaded is one (empty-report) range over its size in bytes', async () => {
-  const text = '// « € » takes three bytes\nexport const euro = (n: number): string => `${n} €`\n'
+  const text = "// « € » takes three bytes\nexport const euro = (n: number): string => n + ' €'\n"
   const path = await fileIn('never.ts', text)
   const empty = reporting.emptyV8Coverage(path)
   assert.deepEqual(empty.functions, [
