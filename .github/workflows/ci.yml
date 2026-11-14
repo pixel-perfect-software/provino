@@ -183,7 +183,6 @@ jobs:
       - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}
         run: pnpm provino-harness self-test --candidate provino
 
-
   goldens:
     # Split from `suites` (2026-11-14): together they took 19m47s of a 20-minute limit on main, and
     # every branch that added goldens went over. Apart, they run side by side.
