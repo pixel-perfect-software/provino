@@ -17,6 +17,7 @@ import type {
   ProvinoConfigInput,
   ProvinoPlugin,
   SerializedPolicy,
+  ShuffleFactory,
   SnapshotKey,
   SnapshotPolicy,
 } from '@provino/types'
@@ -61,6 +62,9 @@ expectTypeOf<DataOnly<SnapshotPolicy>['key']>().toEqualTypeOf<ModuleRef<Snapshot
 expectTypeOf<SerializedPolicy['core']['formatEachTitle']>().toEqualTypeOf<
   ModuleRef<FormatEachTitle>
 >()
+// A randomized run's shuffle: built from the seed, it reorders an array in place; `null` cannot shuffle.
+expectTypeOf<CorePolicy['shuffle']>().toEqualTypeOf<Behaviour<ShuffleFactory> | null>()
+expectTypeOf<ShuffleFactory>().toEqualTypeOf<(seed: number) => <T>(items: T[]) => T[]>()
 expectTypeOf<SerializedPolicy['core']['orderHooks']>().toEqualTypeOf<ModuleRef<
   NonNullable<CorePolicy['orderHooks']> extends Behaviour<infer F> ? F : never
 > | null>()

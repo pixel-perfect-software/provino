@@ -207,6 +207,7 @@ export interface j {
     readonly seed: number;
     setDefaultRetry(retry: DefaultRetry | undefined): void;
     setDefaultTimeout(ms: number | undefined): void;
+    setDescribeRetry(retry: DescribeRetry): DescribeRetryResult;
     timers(): object;
     readonly timersPolicy: st;
 }
@@ -444,6 +445,7 @@ export interface st {
 
 // @public
 export interface T {
+    readonly childOrder?: readonly nt[];
     // (undocumented)
     readonly durationMs: number;
     // (undocumented)

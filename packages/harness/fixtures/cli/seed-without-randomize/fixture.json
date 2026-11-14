@@ -1,0 +1,16 @@
+{
+  "description": "`--seed=42` without `--randomize` under Jest 30.5.2 (T5.13, B23d): `jest.getSeed()` returns the seed (it is in a test's title) and the tests keep their declared order. One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--seed=42"]
+    },
+    "capture": ["exitCode", "json:.harness-out/jest.json"],
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

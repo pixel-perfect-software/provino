@@ -74,6 +74,12 @@ export type RuntimeEvent =
       readonly state: 'pass' | 'fail' | 'skip'
       readonly errors: readonly SerializedError[]
       readonly willRetry: boolean
+      /**
+       * Of an attempt that is retried: the assertions it made and how many passed, as the worker
+       * counted them (core reports none; a `test-end` carries the counts of the attempt that stood).
+       */
+      readonly assertions?: number
+      readonly passingAssertions?: number
       readonly t: number
     }
   | {

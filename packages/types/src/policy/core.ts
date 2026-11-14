@@ -48,6 +48,14 @@ export type FormatValue = (value: unknown) => string
 export type OrderHooks = <Hook>(hooks: readonly Hook[], kind: HookKind) => readonly Hook[]
 
 /**
+ * Builds the shuffle of one file from the run's seed: the returned function reorders an array in
+ * place (and returns it), drawing from one generator that the file's suites share, in the order
+ * they first run. Used when the run is randomized (Jest's `--randomize`).
+ * @public
+ */
+export type ShuffleFactory = (seed: number) => <T>(items: T[]) => T[]
+
+/**
  * The `core` slice, read by `@provino/core` (Track 5): collection, hooks, timeouts, naming,
  * retries and focus.
  *
@@ -294,4 +302,12 @@ export interface CorePolicy {
   readonly locationFrame: 'caller' | 'test-file'
   /** Custom hook ordering, or `null` to use `hookOrder` (Track 5's optional escape hatch). */
   readonly orderHooks: Behaviour<OrderHooks> | null
+  /**
+   * How a randomized run shuffles a suite's children (Jest's `--randomize`, `--seed`): builds the
+   * shuffle of a file from the run's seed. `null`: the run cannot be randomized, and a file asked
+   * to is refused (`CORE_INVALID_ARGUMENT`). Jest: a ref to `jestShuffle` (jest-circus's
+   * xoroshiro128+ and Fisher-Yates, so a seed gives Jest's order). Provino's own key; the values
+   * are backed by `cli/randomize-*`.
+   */
+  readonly shuffle: Behaviour<ShuffleFactory> | null
 }
