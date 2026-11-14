@@ -162,3 +162,11 @@ test('it installs no hook process-wide: the extension table is as it was, and no
     syncBuiltinESMExports()
   }
 })
+
+test('resolveDependency is a stub until B23c Phase 4', async () => {
+  const dir = writeTree({ 'a.ts': 'export {}\n' })
+  using loader = await createCoordinatorLoader(dir, config(), neutralPolicy.module)
+  assert.throws(() => loader.resolveDependency('./a', join(dir, 'a.ts')), {
+    code: 'LOADER_NOT_IMPLEMENTED',
+  })
+})

@@ -7,6 +7,7 @@ import { readIsolatePragma, tierFor } from '@provino/loader'
 import { serializeError } from '@provino/rpc'
 import { resolveUpdateMode } from '@provino/snapshot/node'
 import type {
+  AffectedSelection,
   FileFilter,
   FileInfo,
   FileJob,
@@ -145,6 +146,17 @@ export interface RunProjectOptions {
    * files it did not run.
    */
   readonly fileFilters?: readonly FileFilter[]
+  /**
+   * Run only the tests this selection reaches (`--findRelatedTests`, `-o`), per project after
+   * discovery. When set, `fileFilters` are not applied: Jest ignores path patterns in related
+   * mode. Read from B23c Phase 4 on; until then it is accepted and has no effect.
+   */
+  readonly selection?: AffectedSelection
+  /**
+   * Keep only the files that failed (`--onlyFailures`), after the sort: `'history'` takes them
+   * from the results cache, or a set of absolute paths names them. Read from B23c Phase 4 on.
+   */
+  readonly onlyFailures?: 'history' | ReadonlySet<string>
   /** Where an exact-path filter that is relative starts. Default: this process's directory. */
   readonly cwd?: string
   /**
