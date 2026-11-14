@@ -53,10 +53,12 @@
     "istanbul-reports": "catalog:",
     "magic-string": "catalog:",
     "oxc-parser": "catalog:",
-    "picomatch": "catalog:"
+    "picomatch": "catalog:",
+    "tinyglobby": "catalog:"
   },
   "devDependencies": {
     "@babel/core": "catalog:",
+    "@jest/reporters": "catalog:",
     "@jest/transform": "catalog:",
     "@types/istanbul-lib-coverage": "catalog:",
     "@types/istanbul-lib-report": "catalog:",
