@@ -196,16 +196,20 @@ test('dependencyExtractor and watchPathIgnorePatterns are carried, and watchman 
   })
   assert.deepEqual(project.watch, { ignorePatterns: ['/fixtures/'] })
   assert.deepEqual(neutral.diagnostics, [])
-  // The resolved project keeps both for the coordinator's affected-test selection.
-  const resolved = await resolveNeutralProject(project, {
-    dialect: jestNodeDialect,
-    environments: { node: { module: join(root, 'env.js'), export: 'env' } },
-    ci: false,
-  })
-  assert.deepEqual(resolved.affected, {
+  // The resolved project keeps the extractor for the coordinator's affected-test selection; the
+  // watch patterns stay on the neutral project for the watch driver (B23c Phase 8).
+  const resolveIt = (from: typeof project) =>
+    resolveNeutralProject(from, {
+      dialect: jestNodeDialect,
+      environments: { node: { module: join(root, 'env.js'), export: 'env' } },
+      ci: false,
+    })
+  assert.deepEqual((await resolveIt(project)).affected, {
     extractor: { module: join(root, 'extractor.js'), export: 'default' },
-    watchIgnorePatterns: ['/fixtures/'],
   })
+  // Watch patterns alone leave `affected` out.
+  const { affected: _dropped, ...watchOnly } = project
+  assert.equal((await resolveIt(watchOnly)).affected, undefined)
 })
 
 test('no RegExp or function, and every path absolute', async () => {

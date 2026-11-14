@@ -109,13 +109,9 @@ export interface ResolvedProject {
   readonly globalSetup?: ResolvedGlobalSetup
   /**
    * What affected-test selection reads of the project itself (T9.12, T9.16): its own dependency
-   * extractor (Jest's `dependencyExtractor`) and the patterns a watch crawl leaves out (Jest's
-   * `watchPathIgnorePatterns`); absent when it sets neither.
+   * extractor (Jest's `dependencyExtractor`); absent when it names none.
    */
-  readonly affected?: {
-    readonly extractor?: ModuleRef
-    readonly watchIgnorePatterns?: readonly string[]
-  }
+  readonly affected?: { readonly extractor: ModuleRef }
 }
 
 /**
@@ -354,21 +350,20 @@ export async function resolveNeutralProject(
 }
 
 /**
+ * The project's own affected-selection settings: its dependency extractor, or `undefined` when it
+ * names none. `watchPathIgnorePatterns` stays on the neutral project (`watch`) for the watch
+ * driver to carry (B23c Phase 8).
+ */
+function affectedOf(neutral: NeutralProject): ResolvedProject['affected'] {
+  const extractor = neutral.affected?.extractor
+  return extractor === undefined ? undefined : { extractor }
+}
+
+/**
  * The project's global hooks, or `undefined` when it has none and no args either: a project with
  * no hook of its own keeps the args when the run has one (Jest's root `globalSetup`), since that
  * hook is called with the config of the first project.
  */
-/** The project's own affected-selection settings, or `undefined` when it sets none. */
-function affectedOf(neutral: NeutralProject): ResolvedProject['affected'] {
-  const extractor = neutral.affected?.extractor
-  const ignore = neutral.watch?.ignorePatterns ?? []
-  if (extractor === undefined && ignore.length === 0) return undefined
-  return {
-    ...(extractor === undefined ? {} : { extractor }),
-    ...(ignore.length === 0 ? {} : { watchIgnorePatterns: ignore }),
-  }
-}
-
 function globalSetupOf(neutral: NeutralProject): ResolvedGlobalSetup | undefined {
   if (
     neutral.globalSetup.length === 0 &&
