@@ -1,0 +1,10 @@
+{
+  "description": "Console output of tests run in band (T9.9): with -i Jest still buffers each file's console and prints it under the file's header, as a worker run does (B23a's `report-console-helper`), not as it is written. Two files. A black-box run.",
+  "runners": ["jest"],
+  "run": {
+    "argv": { "jest": ["-i"] },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^  ● Console$|^ {4,}\\S|^Tests:",
+    "raw": true
+  }
+}

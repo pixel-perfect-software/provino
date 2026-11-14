@@ -1,0 +1,12 @@
+{
+  "description": "What a global setup's globalThis is for one test file (T9.9): given two workers, Jest still runs a single file in band, so the test sees the setup's global. The same project with two files is cli/global-setup-globals. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "globalSetup": "<rootDir>/setup.ts",
+      "globalTeardown": "<rootDir>/teardown.ts",
+      "maxWorkers": 2
+    }
+  },
+  "run": { "capture": ["exitCode", "file:seen.txt"] }
+}

@@ -51,8 +51,9 @@ export function loadJestFilter(globalConfig: {
       const error = await setupError
       if (error) throw error
     }
-    const result = (await raw([...testPaths])) as { readonly filtered?: unknown } | undefined | null
-    const filtered = result?.filtered
+    const result = (await raw([...testPaths])) as { readonly filtered?: unknown }
+    // A result with no object to read it from throws what `filterResult.filtered` does in Jest.
+    const filtered = result.filtered
     if (!Array.isArray(filtered)) {
       throw new TypeError(`Filter ${filterPath} did not return a valid test list`)
     }

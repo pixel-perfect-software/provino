@@ -537,7 +537,13 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
         reporterFailed = failures.length > 0
       },
       others,
-      root: read.globalConfig.rootDir,
+      // Jest prints a file's path from the working directory (`config.cwd`). The global config's
+      // `rootDir` is that directory unless the projects came from `--projects`, when it is the
+      // first project's.
+      root:
+        Array.isArray(parsed.argv.projects) && parsed.argv.projects.length > 0
+          ? cwd
+          : read.globalConfig.rootDir,
       cwd,
       stdout,
       stderr,

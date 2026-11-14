@@ -1,0 +1,31 @@
+{
+  "description": "--debug (T9.9, B23d, D114): Jest prints `{ configs, globalConfig, version }` as JSON before it runs, on stderr here because the recorder passes --json (stdout otherwise). The JSON lines are kept whole; what differs between machines and runs is masked: the cache directory, the config's `id` hash, the seed, the worker count and the resolved paths of Jest's own packages. A black-box run.",
+  "runners": [
+    "jest"
+  ],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": [
+        "--debug"
+      ]
+    },
+    "capture": [
+      "exitCode",
+      "stderr"
+    ],
+    "keepLines": "^( |\\{|\\})",
+    "raw": true,
+    "mask": [
+      "(?<=\"cacheDirectory\": \")[^\"]*",
+      "(?<=\"id\": \")[^\"]*",
+      "(?<=\"seed\": )-?\\d+",
+      "(?<=\")/[^\"]*/node_modules/[^\"]*(?=\")",
+      "(?<=\")/[^\"]*/packages/harness/[^\"]*(?=\")"
+    ]
+  }
+}

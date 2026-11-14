@@ -12,7 +12,8 @@ import { dirname, join, relative, sep } from 'node:path'
 import { Writable } from 'node:stream'
 import { after, describe, it } from 'node:test'
 import { JEST } from './live-jest.ts'
-import { spawnCli, viewOfNormalized } from './support.ts'
+import { loadFixture, materialize } from './recorded.ts'
+import { outputFree, spawnCli, viewOfNormalized } from './support.ts'
 
 /**
  * `runJestCommand`, loaded by URL: the type-test project includes this directory but not the
@@ -106,9 +107,14 @@ function run(
   command: string,
   args: readonly string[],
   cwd: string,
+  env?: NodeJS.ProcessEnv,
 ): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
-    const child = spawn(command, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] })
+    const child = spawn(command, args, {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      ...(env ? { env } : {}),
+    })
     let stdout = ''
     let stderr = ''
     child.stdout.on('data', (chunk: Buffer) => {
@@ -433,10 +439,66 @@ describe('--selectProjects and --ignoreProjects (D69) against Jest 30.5.2', () =
     assert.ok(got.stderr.length > 0)
   })
 
-  it('--projects stays refused', async () => {
-    const dir = await tree(RHF_SHAPED)
-    const got = await provinoWith(dir, ['--projects', 'server'])
+  // `--projects a b` (T9.9): the projects are those paths' configs and the working directory's own
+  // config is not read.
+  const FLAG_SHAPED: Readonly<Record<string, string>> = {
+    'package.json': '{"type":"commonjs"}\n',
+    // Never read: --projects replaces the config found from the working directory.
+    'jest.config.json': JSON.stringify({ testMatch: ['<rootDir>/never/**/*.test.js'] }),
+    'never/x.test.js': fail('must not run'),
+    'server/jest.config.json': JSON.stringify({ displayName: 'server' }),
+    'server/a.test.js': pass('serves') + pass('routes'),
+    'client/jest.config.json': JSON.stringify({ displayName: 'client' }),
+    'client/b.test.js': pass('renders') + fail('breaks'),
+  }
+
+  it('--projects: the projects, the display names, the listing and the exit code are Jest’s', async () => {
+    const dir = await tree(FLAG_SHAPED)
+    const flags = ['--projects', 'server', 'client/jest.config.json']
+    const expected = await run(process.execPath, [JEST, '--no-cache', '--ci', ...flags], dir, {
+      ...outputFree(),
+      NO_COLOR: '1',
+    })
+    const got = await spawnCli(['jest', '--no-cache', '--ci', ...flags], { cwd: dir })
+    assert.equal(got.code, expected.code, got.stderr)
     assert.equal(got.code, 1)
-    assert.match(got.stderr, /--projects is not supported yet/)
+    const headers = (text: string): string[] =>
+      text
+        .split('\n')
+        .filter((line) => /^(PASS|FAIL) |^Ran all test suites|^Tests:/.test(line))
+        .map((line) => line.replace(/ \(\d+(?:\.\d+)? m?s\)$/, ''))
+        .sort()
+    assert.deepEqual(headers(got.stderr), headers(expected.stderr))
+    assert.ok(headers(got.stderr).includes('PASS server server/a.test.js'), got.stderr)
+
+    const listJest = await run(process.execPath, [JEST, '--listTests', ...flags], dir)
+    const listGot = await spawnCli(['jest', '--listTests', ...flags], { cwd: dir })
+    assert.deepEqual(
+      listGot.stdout.trim().split('\n').sort(),
+      listJest.stdout.trim().split('\n').sort(),
+    )
+    assert.equal(listGot.stdout.trim().split('\n').length, 2)
+  })
+
+  it('cli/projects-flag: the kept lines and the exit code are the recorded Jest 30.5.2 run’s', async () => {
+    const fixture = await loadFixture('cli/projects-flag')
+    const project = await materialize(fixture)
+    try {
+      const argv = fixture.manifest.run?.argv?.jest ?? []
+      const ended = await spawnCli(
+        ['jest', `--config=${join(project.root, 'jest.config.json')}`, '--ci', ...argv],
+        { cwd: project.root },
+      )
+      assert.equal(ended.code, fixture.golden.observed?.exitCode, ended.stderr)
+      const keep = new RegExp(fixture.manifest.run?.keepLines ?? '')
+      const lines = (text: string): string[] =>
+        text
+          .split('\n')
+          .filter((line) => keep.test(line))
+          .map((line) => line.replace(/ \(\d+(?:\.\d+)? m?s\)$/, ''))
+      assert.deepEqual(lines(ended.stderr), lines(fixture.golden.observed?.stderr ?? ''))
+    } finally {
+      await project.dispose()
+    }
   })
 })

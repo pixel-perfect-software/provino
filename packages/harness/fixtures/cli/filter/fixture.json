@@ -1,0 +1,25 @@
+{
+  "description": "--filter (T9.9, B23d): the config's `filter` is a CommonJS module loaded in Jest's own process, plain `require`. Its `setup` runs once before the first filtering; the function gets each project's test paths (absolute) and returns `{ filtered }`, the ones that run. Here it drops `skipme.test.ts`. calls.txt records the order setup, then the paths it got (sorted, relative), then the count. A black-box run.",
+  "runners": [
+    "jest"
+  ],
+  "files": {
+    "jest": {
+      "filter.cjs": "const fs = require('node:fs')\nconst path = require('node:path')\nconst log = (line) => fs.appendFileSync(path.join(__dirname, 'calls.txt'), `${line}\\n`)\nmodule.exports = (tests) => {\n  log(`filter got ${tests.length}: ${tests.map((t) => path.relative(__dirname, t)).sort().join(', ')}`)\n  log(`absolute: ${tests.every((t) => path.isAbsolute(t))}`)\n  return { filtered: tests.filter((t) => !t.endsWith('skipme.test.ts')) }\n}\nmodule.exports.setup = async () => {\n  log('setup')\n}\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "filter": "<rootDir>/filter.cjs",
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "capture": [
+      "exitCode",
+      "stderr",
+      "file:calls.txt"
+    ],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests):"
+  }
+}
