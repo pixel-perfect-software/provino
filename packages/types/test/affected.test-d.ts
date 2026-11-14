@@ -8,6 +8,7 @@ import type {
   DependencyExtractor,
   FileJob,
   Loader,
+  ModuleRef,
   NeutralProject,
   OrchestratorPolicy,
 } from '@provino/types'
@@ -56,6 +57,8 @@ expectTypeOf<Loader['dropRecords']>().toEqualTypeOf<(paths: readonly string[]) =
 expectTypeOf<NeutralProject['watch']>().toEqualTypeOf<
   { readonly ignorePatterns: readonly string[] } | undefined
 >()
-expectTypeOf<NonNullable<NeutralProject['affected']>['extractor']>().not.toBeAny()
+expectTypeOf<NonNullable<NeutralProject['affected']>['extractor']>().toEqualTypeOf<
+  ModuleRef | undefined
+>()
 
 void [noPaths, badGraph, fnStale, undefStale]

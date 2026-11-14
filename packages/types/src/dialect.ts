@@ -188,7 +188,12 @@ export interface NeutralProject {
   readonly watch?: { readonly ignorePatterns: readonly string[] }
   /** Affected-test selection's own settings. */
   readonly affected?: {
-    /** The project's own dependency extractor (Jest's `dependencyExtractor`), read before the policy's. */
+    /**
+     * The project's own dependency extractor (Jest's `dependencyExtractor`), read before the
+     * policy's. The module exports an object (with an `extract` method), not a function, so the
+     * behaviour loader's `loadRef` (which requires a function export) cannot load it: B23c Phase 4
+     * loads it with a plain `import()`.
+     */
     readonly extractor?: ModuleRef
   }
   /**
