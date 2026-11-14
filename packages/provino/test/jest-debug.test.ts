@@ -9,7 +9,7 @@ import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { JEST, noColorEnv } from './live-jest.ts'
 import { FIXTURES, loadFixture, materialize } from './recorded.ts'
-import { spawnCli } from './support.ts'
+import { outputFree, spawnCli } from './support.ts'
 
 /** Under the harness package, where Jest is installed, so the project's own Jest is found as in a real project. */
 const PARENT = join(FIXTURES, '..', '.record')
@@ -24,9 +24,11 @@ function jestOn(
   args: readonly string[],
 ): Promise<{ code: number | null; stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
+    // The environment `spawnCli` gives provino: no `CI` (GitHub's runners set it), which would
+    // change `ci` and `updateSnapshot` in Jest's printed config.
     const child = spawn(process.execPath, [JEST, ...args], {
       cwd,
-      env: noColorEnv(),
+      env: outputFree(noColorEnv()),
       stdio: ['ignore', 'pipe', 'pipe'],
     })
     let stdout = ''
