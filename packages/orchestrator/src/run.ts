@@ -1226,6 +1226,7 @@ function resultOf(
             durationMs: end.durationMs,
             errors: end.errors,
             ...(outcome.done.snapshot === undefined ? {} : { snapshot: outcome.done.snapshot }),
+            ...(end.childOrder === undefined ? {} : { childOrder: end.childOrder }),
           }
     default:
       return outcome satisfies never

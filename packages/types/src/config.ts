@@ -234,6 +234,11 @@ export interface SerializedProjectConfig {
   readonly fakeTimers?: Readonly<Record<string, JsonValue>>
   /** The run's random seed (`jest.getSeed()`): the coordinator draws one per run, or takes the project's own (`NeutralProject.seed`). */
   readonly seed: number
+  /**
+   * Shuffle each file's suites with `seed` (`CorePolicy.shuffle`; Jest's `--randomize`). Absent
+   * means the declared order.
+   */
+  readonly randomize?: true
   /** Absolute paths, imported before each test file, first (Jest `setupFiles`). */
   readonly setupFiles: readonly string[]
   /** Absolute paths, imported after `setupFiles` and before each test file (Jest `setupFilesAfterEnv`, Vitest `setupFiles`). */

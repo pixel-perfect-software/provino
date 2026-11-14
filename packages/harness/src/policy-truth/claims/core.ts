@@ -1,10 +1,44 @@
 // The evidence for the `core` and `lazy` slices (T1.7). The runtime corpus (B07) runs Provino's
 // core under each value and compares with goldens recorded from both runners, so a flipped value
 // that changes a run is caught there; `fixtures/policy/core-*` record what it can't tell apart.
+import { isDeepStrictEqual } from 'node:util'
+import { jestShuffle } from '@provino/dialect-jest/runtime'
 import { vitestPolicy } from '@provino/dialect-vitest'
 import { neutralPolicy } from '@provino/policy'
+import type { Golden } from '../../golden.ts'
 import { type Claims, corpus, each, golden, own, pending } from '../evidence.ts'
-import { errorsOf, hasTest, oneOf, statusOf, testOf, timeoutOf } from '../observe.ts'
+import { errorsOf, hasTest, observedOf, oneOf, statusOf, testOf, timeoutOf } from '../observe.ts'
+
+/** The seed `cli/randomize-seed-flat` ran with (`--seed=1234`). */
+const FLAT_SEED = 1234
+
+/**
+ * Whether the ref (the dialect's `core.shuffle`) is jest-circus's shuffle: `cli/randomize-seed-flat`
+ * is 30 plain top-level tests, so the order Jest ran them in is the shuffle of the declared order
+ * (`t01`…`t30`, which sorts as declared) under the seed. A value that is not the dialect's own
+ * `jestShuffle` ref (`null` for no shuffle, a ref to another function) shows nothing of the sort.
+ */
+const shuffleMatches = (g: Golden, value: unknown): boolean => {
+  const ref = value as { readonly module?: unknown; readonly export?: unknown } | null
+  if (
+    ref === null ||
+    ref.export !== 'jestShuffle' ||
+    ref.module !== import.meta.resolve('@provino/dialect-jest/runtime')
+  ) {
+    return false
+  }
+  const results = observedOf(g).json?.['.harness-out/jest.json'] as
+    | {
+        readonly testResults?: readonly {
+          readonly assertionResults?: readonly { title: string }[]
+        }[]
+      }
+    | null
+    | undefined
+  const ran = (results?.testResults?.[0]?.assertionResults ?? []).map((test) => test.title)
+  if (ran.length !== 30) throw new Error(`${g.suite} (${g.runner}) did not run 30 tests`)
+  return isDeepStrictEqual(jestShuffle(FLAT_SEED)(ran.toSorted()), ran)
+}
 
 /** Whether a test that fails every attempt reports the first attempt's error (`core-retry`). */
 const keptByRetryGolden = golden('core-retry', {
@@ -333,6 +367,18 @@ export const coreClaims: Claims = {
       ])
     },
   }),
+  // Jest's `--randomize --seed`: the order of 30 tests under a seed is what jest-circus's shuffle
+  // gives (`cli/randomize-seed-flat`); `null`, the neutral value, shuffles nothing, so it fails.
+  // Vitest's own shuffle (`sequence.shuffle`, its own generator) isn't built.
+  'core.shuffle': each(
+    golden('cli/randomize-seed-flat', { matches: shuffleMatches }),
+    own(
+      'packages/dialect-vitest/src/dialect.test.ts',
+      'core.shuffle',
+      null,
+      "Vitest's `sequence.shuffle` uses its own generator and isn't built (Vitest dialect, T11.16): the neutral `null` stands",
+    ),
+  ),
   'core.orderHooks': own(
     'packages/core/src/executor/executor.test.ts',
     'orderHooks',

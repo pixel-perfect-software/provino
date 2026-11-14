@@ -333,6 +333,7 @@ export async function resolveNeutralProject(
       globalValues: neutral.globalValues,
       fakeTimers: neutral.fakeTimers,
       seed: neutral.seed,
+      randomize: neutral.randomize,
       resolution: neutral.resolution,
       coverage: neutral.coverage,
     },
@@ -391,6 +392,7 @@ interface ProjectInput {
   readonly seed?: number | undefined
   /** Which files count toward coverage (B23b); a neutral project's only, `undefined` for off. */
   readonly coverage?: SerializedCoverageConfig | undefined
+  readonly randomize?: true | undefined
 }
 
 /** `record`, or `undefined` when it has no keys: an empty one is no setting. */
@@ -488,6 +490,7 @@ async function finishProject(
     ...(fakeTimers === undefined ? {} : { fakeTimers }),
     ...(input.seed === undefined ? {} : { seed: input.seed }),
     ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
+    ...(input.randomize === true ? { randomize: true as const } : {}),
     setupFiles,
     setupFilesAfterEnv,
     loader: {

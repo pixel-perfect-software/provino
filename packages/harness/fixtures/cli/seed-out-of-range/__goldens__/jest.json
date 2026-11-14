@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/seed-out-of-range",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "Validation Error:\nseed value must be between `-<addr>` and `<addr>` inclusive - instead it is 4294967296"
+  }
+}

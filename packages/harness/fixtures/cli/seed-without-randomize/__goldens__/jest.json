@@ -1,0 +1,261 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/seed-without-randomize",
+  "files": [
+    {
+      "file": "seed.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "seed.test.ts",
+            "path": [
+              "seed is 42"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "seed.test.ts",
+            "path": [
+              "b"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 2,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "seed.test.ts",
+            "path": [
+              "c"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 3,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "seed.test.ts",
+            "path": [
+              "d",
+              "e"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "seed.test.ts",
+            "path": [
+              "d",
+              "f"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 0,
+        "numFailedTests": 0,
+        "numPassedTestSuites": 1,
+        "numPassedTests": 5,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 1,
+        "numTotalTests": 5,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": true,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "seed is 42",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 1
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "seed is 42",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "b",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 2
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "b",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "c",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 3
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "c",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "d"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "d e",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 5
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "e",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "d"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "d f",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 6
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "f",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/seed.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

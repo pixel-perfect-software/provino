@@ -1,0 +1,4 @@
+{
+  "description": "A describe-level retry (`jest.retryTimes(2, { entireDescribe: true })`, T5.10): while a test below fails, the block's `beforeAll`, every test with its `beforeEach` and `afterEach`, and its `afterAll` run again, the passing tests too; a test outside the block keeps no retry of its own.",
+  "runners": ["jest"]
+}
