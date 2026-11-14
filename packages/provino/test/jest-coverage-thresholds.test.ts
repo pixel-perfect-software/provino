@@ -212,6 +212,20 @@ describe('provino jest --coverage: what a recording can’t hold, against a live
     assert.equal(thresholdLines(jest.stdout).length, 0)
   })
 
+  it('a report that fails to write is printed, and the thresholds are still checked after it', async () => {
+    // `onRunComplete` catches what the reports throw, prints it, and runs `_checkThreshold` anyway.
+    const { jest, provino, root } = await bothOn('coverage/threshold-global', {
+      config: { coverageReporters: ['no-such-reporter'] },
+    })
+    const inRoot = (text: string) => observedText(text, { roots: [root] })
+    const expected = thresholdLines(inRoot(jest.stderr))
+    assert.equal(expected.length, 4, jest.stderr)
+    assert.match(jest.stderr, /Failed to write coverage reports/)
+    assert.match(provino.stderr, /Failed to write coverage reports/)
+    assert.deepEqual(thresholdLines(inRoot(provino.stderr)), expected)
+    assert.equal(provino.code, jest.code, provino.stderr)
+  })
+
   // Phase 6 (T8.12) builds Jest's v8 provider. The threshold hook is not tied to a provider (a v8
   // map is checked as an Istanbul one is), but until the workers collect V8 coverage there is no
   // map: the run passes and says `coverageProvider` is not applied. This is the target, run as a
