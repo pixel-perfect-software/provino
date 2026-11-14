@@ -11,6 +11,7 @@ import type {
   EventSink,
   ImportFile,
   LazyHost,
+  LifecycleListener,
   TaskId,
   TaskNode,
   TaskResult,
@@ -102,6 +103,14 @@ export interface RunFileOptions {
    * the file fails (`CORE_INVALID_ARGUMENT`) before it is imported.
    */
   readonly shuffleSeed?: number
+  /**
+   * Receives this file's lifecycle events (an environment's `onTestEvent`, Jest's
+   * `handleTestEvent`): `file-setup` before the file loads, the definitions as it registers them,
+   * the run's events, and `file-teardown` after a collected file ran. The run waits for what the
+   * listener returns at each run event; with none, nothing is built or awaited. It must be a
+   * function: anything else fails the file (`CORE_INVALID_ARGUMENT`) before it is imported.
+   */
+  readonly lifecycle?: LifecycleListener
 }
 
 /**
@@ -285,6 +294,9 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
         `expected a non-empty string, got ${fileId === '' ? 'an empty string' : describeType(fileId)}`,
       )
     }
+    if (fileOptions.lifecycle !== undefined && typeof fileOptions.lifecycle !== 'function') {
+      throw invalid('lifecycle', `expected a function, got ${describeType(fileOptions.lifecycle)}`)
+    }
     if (collectOnly !== undefined && collectOnly !== true) {
       throw invalid('collectOnly', `expected true, got ${describeType(collectOnly)}`)
     }
@@ -380,6 +392,16 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
         // and still gets its `file-collect-end` and `file-end`.
         const filters = finalizeOptionsFor(relativePath, fileOptions)
         shuffle = shuffleFor(relativePath, fileOptions)
+        file.lifecycle = fileOptions.lifecycle
+        if (file.lifecycle !== undefined) {
+          await file.lifecycle({
+            type: 'file-setup',
+            root: file.root,
+            ...(filters.testNamePattern === undefined
+              ? {}
+              : { testNamePattern: filters.testNamePattern.source }),
+          })
+        }
         collected = await collect(file)
         tasks = finalize(file, filters)
       } catch (error) {
@@ -397,6 +419,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
           outcome = await executor.runFile(file, shuffle)
           childOrder = executor.rootOrder
         }
+        await file.lifecycle?.({ type: 'file-teardown' })
       }
     } catch (error) {
       file.errors.push(error)

@@ -8,6 +8,7 @@ import type {
   Frame,
   JsonValue,
   LazyFrame,
+  LifecycleListener,
   RunMode,
   RuntimeHookKind,
   SkipReason,
@@ -152,6 +153,8 @@ export interface FileState {
   /** `true` once collection is over: later registrations are late. */
   collected: boolean
   readonly onCollected: Array<(file: FileHandle) => void>
+  /** The file's lifecycle listener (an environment's `onTestEvent`), if it has one. */
+  lifecycle: LifecycleListener | undefined
   /** This file's suites by handle (`LazyHost.addHook` finds its suite here). */
   readonly suites: WeakMap<SuiteHandle, SuiteNode>
 }

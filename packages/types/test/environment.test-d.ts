@@ -7,7 +7,7 @@ import type {
   EnvironmentInstance,
   EnvironmentTeardownReport,
   RawCoverage,
-  RuntimeEvent,
+  LifecycleEvent,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
@@ -87,10 +87,10 @@ const report: EnvironmentTeardownReport = { leakedGlobals: ['x'] }
 // @ts-expect-error the report's list is read-only
 report.leakedGlobals.push('y')
 
-// Jest's handleTestEvent sees the runtime's own events.
+// Jest's handleTestEvent sees the lifecycle events.
 expectTypeOf<
   Parameters<NonNullable<EnvironmentInstance['onTestEvent']>>[0]
->().toEqualTypeOf<RuntimeEvent>()
+>().toEqualTypeOf<LifecycleEvent>()
 
 const cov: CoverageOptions = {
   thresholds: {
