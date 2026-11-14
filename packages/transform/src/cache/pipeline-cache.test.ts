@@ -122,6 +122,40 @@ test("changing the tsconfig's jsx misses", () => {
   assert.match(classic.code, /React\.createElement/)
 })
 
+test('D116: an entry stripped in place for coverage is never served without coverage, nor the reverse', () => {
+  const { root, make } = setup()
+  const file = join(root, 'a.ts')
+  const source = 'export const x: number = 1\n'
+  const instrumenter = {
+    name: 'stand-in:cache',
+    instrument: (code: string) => ({ code, map: null }),
+  }
+  const blanked = make({ instrumenter }).transform(request(file, source, { instrument: true }))
+  assert.equal(blanked.code, 'export const x         = 1\n')
+  // Same file, same content, same pipeline options: only the request's `instrument` differs.
+  const plain = make({ instrumenter }).transform(request(file, source))
+  assert.equal(plain.fromCache, false)
+  assert.notEqual(plain.cacheKey, blanked.cacheKey)
+  assert.equal(plain.code, 'export const x = 1;\n')
+  // Each is a hit for its own path afterwards.
+  assert.equal(make({ instrumenter }).transform(request(file, source)).code, plain.code)
+  const again = make({ instrumenter }).transform(request(file, source, { instrument: true }))
+  assert.equal(again.fromCache, true)
+  assert.equal(again.code, blanked.code)
+})
+
+test("`typescript: 'blank'` and `'oxc'` never share an entry", () => {
+  const { root, make } = setup()
+  const file = join(root, 'a.ts')
+  const source = 'export const x: number = 1\n'
+  const blank = make({ typescript: 'blank' }).transform(request(file, source))
+  const oxc = make().transform(request(file, source))
+  assert.equal(oxc.fromCache, false)
+  assert.notEqual(oxc.cacheKey, blank.cacheKey)
+  assert.equal(blank.code, 'export const x         = 1\n')
+  assert.equal(oxc.code, 'export const x = 1;\n')
+})
+
 test('changing the hoist policy misses', () => {
   const { root, make } = setup()
   const file = join(root, 'a.test.ts')

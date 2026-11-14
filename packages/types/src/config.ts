@@ -162,8 +162,11 @@ export interface SerializedLoaderConfig {
   readonly tsconfig: 'auto' | false | string
   /** Mappers in the order they run; the first hit wins. Loaded by `ModuleRef` in the worker (each factory's `module` is absolute). */
   readonly mappers: readonly SerializedModuleMapper[]
-  /** How TypeScript is stripped. */
-  readonly typescript: 'oxc' | 'node-strip' | 'off'
+  /**
+   * How TypeScript is stripped: `oxc` (Oxc's transform; a file instrumented for coverage is
+   * stripped in place, D116), `blank` (every erasable `.ts`, `.mts` and `.cts` file in place).
+   */
+  readonly typescript: 'oxc' | 'blank' | 'node-strip' | 'off'
   /** User transformers (T3.8); absent for none, where every file takes the Oxc pipeline. */
   readonly transform?: SerializedTransformConfig
   /**
