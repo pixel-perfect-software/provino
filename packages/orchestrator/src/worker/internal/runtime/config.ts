@@ -50,10 +50,9 @@ function absoluteRef<Fn extends AnyFunction>(
   return ref
 }
 
+/** Any number: the dialect's reader checked its range, and Jest takes a fraction as it is. */
 function seedOf(value: unknown): number {
-  return typeof value === 'number' && Number.isInteger(value)
-    ? value
-    : invalid('seed', 'an integer')
+  return typeof value === 'number' ? value : invalid('seed', 'a number')
 }
 
 function text(value: unknown, path: string): string {

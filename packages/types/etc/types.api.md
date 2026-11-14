@@ -2657,6 +2657,8 @@ export type RuntimeEvent = {
     readonly state: "pass" | "fail" | "skip";
     readonly errors: readonly SerializedError[];
     readonly willRetry: boolean;
+    readonly assertions?: number;
+    readonly passingAssertions?: number;
     readonly t: number;
 } | {
     readonly type: "test-end";
