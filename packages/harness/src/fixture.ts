@@ -393,6 +393,19 @@ export function parseFixtureManifest(
       { path: source },
     )
   }
+  const parsedFiles = files === undefined ? undefined : parseRunnerFiles(files, runners, source)
+  const parsedRun = run === undefined ? undefined : parseRun(run, runners, source)
+  if (parsedRun?.exact === true) {
+    for (const [file, text] of Object.entries(parsedFiles?.jest ?? {})) {
+      if (isJestConfigFile(file, text)) {
+        throw new HarnessError(
+          'HARNESS_FIXTURE_BAD_RUN',
+          `${source}: "run" is "exact", so the recorder's jest.config.json is the project's Jest config, but "files" gives "${file}", another one`,
+          { path: source },
+        )
+      }
+    }
+  }
   return {
     description,
     runners,
@@ -424,10 +437,31 @@ export function parseFixtureManifest(
             run: run !== undefined,
           }),
         }),
-    ...(files === undefined ? {} : { files: parseRunnerFiles(files, runners, source) }),
-    ...(run === undefined ? {} : { run: parseRun(run, runners, source) }),
+    ...(parsedFiles === undefined ? {} : { files: parsedFiles }),
+    ...(parsedRun === undefined ? {} : { run: parsedRun }),
     ...(scm === undefined ? {} : { scm: parseScm(scm, source) }),
-    ...(before === undefined ? {} : { before: parseBefore(before, runners, source) }),
+    ...(before === undefined
+      ? {}
+      : { before: parseBefore(before, runners, source, parsedRun?.exact === true) }),
+  }
+}
+
+/**
+ * Whether a file of a fixture is a Jest configuration: a `jest.config.*` (found before the
+ * recorder's own `jest.config.json`) or a `package.json` with a `jest` key (Jest reports several
+ * configurations). Under `run.exact` the recorder's config sits where Jest finds it, so a fixture
+ * may not bring another.
+ * @public
+ */
+export function isJestConfigFile(file: string, text: string): boolean {
+  const name = path.posix.normalize(file)
+  if (/^jest\.config\.[^/]+$/.test(name)) return true
+  if (name !== 'package.json') return false
+  try {
+    const parsed: unknown = JSON.parse(text)
+    return isRecord(parsed) && Object.hasOwn(parsed, 'jest')
+  } catch {
+    return false
   }
 }
 
@@ -623,11 +657,17 @@ function optionOf(arg: string): string | undefined {
  */
 const addsTextReporter = (arg: string): boolean => /^--reporter=(?!json$)[a-z-]+$/.test(arg)
 
-/** The first argument that sets an option the recorder owns, if any (`run.argv` and `before`). */
-function ownedFlagIn(args: readonly string[]): string | undefined {
+/**
+ * The first argument that sets an option the recorder owns, if any (`run.argv` and `before`).
+ * Under `run.exact` the recorder passes no flag of its own, so only the cleanup options
+ * `mockCleanup` sets stay owned.
+ */
+function ownedFlagIn(args: readonly string[], exact = false): string | undefined {
   return args.find((arg) => {
     const option = optionOf(arg)
-    return option !== undefined && OWNED_FLAGS.has(option) && !addsTextReporter(arg)
+    if (option === undefined) return false
+    if (exact) return JEST_MOCK_CLEANUP_OPTIONS.includes(option)
+    return OWNED_FLAGS.has(option) && !addsTextReporter(arg)
   })
 }
 
@@ -694,8 +734,11 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
   } = { capture }
   if (exact !== undefined) {
     if (exact !== true) throw bad('"exact" must be true (leave it out for off)')
-    if (argv === undefined || runners.some((profile) => runnerOfProfile(profile) !== 'jest')) {
-      throw bad('"exact" needs "argv" and a fixture that runs only Jest')
+    if (runners.some((profile) => runnerOfProfile(profile) !== 'jest')) {
+      throw bad('"exact" needs a fixture that runs only Jest')
+    }
+    if (!isRecord(argv) || !Array.isArray(argv.jest) || argv.jest.length === 0) {
+      throw bad('"exact" needs a non-empty "argv.jest": the arguments Jest is started with')
     }
     out.exact = true
   }
@@ -712,7 +755,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       if (!Array.isArray(args) || !args.every((arg): arg is string => typeof arg === 'string')) {
         throw bad(`"argv" must give "${runner}" an array of strings`)
       }
-      const owned = exact === true ? undefined : ownedFlagIn(args)
+      const owned = ownedFlagIn(args, exact === true)
       if (owned !== undefined) {
         throw bad(`"argv" gives "${owned}" to ${runner}, which the recorder or "mockCleanup" sets`)
       }
@@ -951,6 +994,7 @@ function parseBefore(
   before: unknown,
   runners: readonly FixtureProfile[],
   source: string,
+  exact: boolean,
 ): FixtureBeforeRun[] {
   const bad = (reason: string): HarnessError =>
     new HarnessError('HARNESS_FIXTURE_BAD_BEFORE', `${source}: "before" ${reason}`, {
@@ -970,7 +1014,7 @@ function parseBefore(
     if (!Array.isArray(argv) || !argv.every((arg): arg is string => typeof arg === 'string')) {
       throw bad(`entry ${index} must give "argv" an array of strings`)
     }
-    const owned = ownedFlagIn(argv)
+    const owned = ownedFlagIn(argv, exact)
     if (owned !== undefined) {
       throw bad(`entry ${index} gives "${owned}", which the recorder or "mockCleanup" sets`)
     }

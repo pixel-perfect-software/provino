@@ -907,3 +907,70 @@ test('a null in env removes a variable', () => {
     rejects('HARNESS_FIXTURE_BAD_ENV'),
   )
 })
+
+test('run.exact still refuses what mockCleanup owns, and wants a non-empty argv.jest', () => {
+  const base = { ...VALID, runners: ['jest'] }
+  const exact = (argv: unknown) => ({
+    ...base,
+    run: { exact: true, argv, capture: ['exitCode'] },
+  })
+  const refused = (manifest: object) =>
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify(manifest)),
+      rejects('HARNESS_FIXTURE_BAD_RUN'),
+    )
+  refused(exact({ jest: [] }))
+  refused(exact({}))
+  refused(exact({ jest: ['--clearMocks'] }))
+  refused(exact({ jest: ['--no-reset-mocks'] }))
+  // The recorder passes none of these under `exact`, so the editor's own are fine.
+  const ok = exact({ jest: ['--config=jest.config.json', '--json', '--outputFile=o.json'] })
+  assert.ok(parseFixtureManifest(JSON.stringify(ok)).run?.exact)
+})
+
+test('before under run.exact takes the editor-style flags the recorder would own', () => {
+  const run = { exact: true, argv: { jest: ['--ci=false'] }, capture: ['exitCode'] }
+  const before = [{ argv: ['--json', '--outputFile=first.json'] }]
+  const manifest = { ...VALID, runners: ['jest'], run, before }
+  assert.deepEqual(parseFixtureManifest(JSON.stringify(manifest)).before, before)
+  assert.throws(
+    () =>
+      parseFixtureManifest(
+        JSON.stringify({ ...manifest, run: { ...run, exact: undefined }, before }),
+      ),
+    rejects('HARNESS_FIXTURE_BAD_BEFORE'),
+  )
+  assert.throws(
+    () =>
+      parseFixtureManifest(JSON.stringify({ ...manifest, before: [{ argv: ['--resetMocks'] }] })),
+    rejects('HARNESS_FIXTURE_BAD_BEFORE'),
+  )
+})
+
+test('run.exact refuses a Jest config of the fixture beside the recorder’s', () => {
+  const run = { exact: true, argv: { jest: ['--ci=false'] }, capture: ['exitCode'] }
+  const withFiles = (files: Record<string, string>) =>
+    JSON.stringify({ ...VALID, runners: ['jest'], run, files: { jest: files } })
+  for (const files of [
+    { 'jest.config.js': 'module.exports = {}' },
+    { 'jest.config.json': '{}' },
+    { 'package.json': '{ "jest": {} }' },
+  ]) {
+    assert.throws(
+      () => parseFixtureManifest(withFiles(files)),
+      rejects('HARNESS_FIXTURE_BAD_RUN'),
+      JSON.stringify(files),
+    )
+  }
+  // A package.json with no `jest` key, or a nested config, is not a second root config.
+  assert.ok(parseFixtureManifest(withFiles({ 'package.json': '{ "type": "commonjs" }' })).run)
+  assert.ok(parseFixtureManifest(withFiles({ 'sub/jest.config.js': '' })).run)
+  // Without `exact` the recorder passes `--config`, so it is no conflict.
+  const inexact = JSON.stringify({
+    ...VALID,
+    runners: ['jest'],
+    run: { argv: { jest: ['--ci=false'] }, capture: ['exitCode'] },
+    files: { jest: { 'jest.config.js': '' } },
+  })
+  assert.ok(parseFixtureManifest(inexact).files)
+})

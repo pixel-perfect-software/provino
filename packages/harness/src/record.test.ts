@@ -3,6 +3,7 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import os from 'node:os'
 import path from 'node:path'
 import { test } from 'node:test'
+import { HarnessError } from './errors.ts'
 import { recordFixture } from './record.ts'
 
 /** A one-test Jest fixture whose `run` is exact: the recorder adds nothing to its argv. */
@@ -45,6 +46,29 @@ test("an exact run gives Jest the fixture's argv and nothing of the recorder's o
     assert.match(text, /"numPassedTests": ?1/)
     // ...and the recorder's `--json --outputFile=.harness-out/jest.json` was never passed.
     assert.match(text, /"\.harness-out\/jest\.json": ?null/)
+  } finally {
+    await rm(root, { recursive: true, force: true })
+  }
+})
+
+test('an exact run refuses a Jest config the fixture brings in its directory', async () => {
+  const root = await realpath(await mkdtemp(path.join(os.tmpdir(), 'exact-record-')))
+  try {
+    for (const [name, text] of [
+      ['jest.config.json', '{}'],
+      ['package.json', '{ "jest": {} }'],
+    ] as const) {
+      const dir = await makeExactFixture(root, ['--ci=false'])
+      await writeFile(path.join(dir, name), text)
+      await assert.rejects(
+        recordFixture(dir, 'jest'),
+        (error: unknown) =>
+          error instanceof HarnessError &&
+          error.code === 'HARNESS_FIXTURE_BAD_RUN' &&
+          error.message.includes(name),
+      )
+      await rm(dir, { recursive: true })
+    }
   } finally {
     await rm(root, { recursive: true, force: true })
   }

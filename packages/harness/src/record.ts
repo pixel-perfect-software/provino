@@ -1,5 +1,14 @@
 import { createHash } from 'node:crypto'
-import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -13,6 +22,7 @@ import {
   type FixtureProfile,
   type FixtureRun,
   type FixtureRunner,
+  isJestConfigFile,
   type JestFixtureConfig,
   type MockCleanup,
   readFixture,
@@ -474,6 +484,24 @@ function mockCleanupOption(fixture: Fixture): { mockCleanup?: MockCleanup } {
   return mockCleanup === undefined ? {} : { mockCleanup }
 }
 
+/**
+ * An exact run finds the recorder's `jest.config.json` from the work directory, so a Jest
+ * configuration of the fixture's own (a `jest.config.*` it would overwrite or sit beside, or a
+ * `package.json` with a `jest` key, which makes Jest report several) is refused.
+ */
+async function assertNoOtherJestConfig(workDir: string, fixture: Fixture): Promise<void> {
+  for (const entry of await readdir(workDir)) {
+    const text = entry === 'package.json' ? await readFile(path.join(workDir, entry), 'utf8') : ''
+    if (isJestConfigFile(entry, text)) {
+      throw new HarnessError(
+        'HARNESS_FIXTURE_BAD_RUN',
+        `${fixture.id}: "run" is "exact", so the recorder's jest.config.json is the project's Jest config, but the fixture has "${entry}", another one`,
+        { path: fixture.dir },
+      )
+    }
+  }
+}
+
 async function runUnderRunner(
   fixture: Fixture,
   profile: FixtureProfile,
@@ -508,6 +536,7 @@ async function runUnderRunner(
     // An exact run has no `--config`: Jest finds this file from the work directory, as it finds a
     // project's own.
     const exact = spec?.exact === true
+    if (exact) await assertNoOtherJestConfig(workDir, fixture)
     const configFile = exact
       ? path.join(workDir, 'jest.config.json')
       : path.join(outDir, 'jest.config.json')
