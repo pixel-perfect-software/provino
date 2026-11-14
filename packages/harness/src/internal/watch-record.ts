@@ -1,7 +1,7 @@
 // A watch fixture's recording (B23c Phase 3): Jest `--watch`/`--watchAll` on a terminal from the
 // pty relay (or on a pipe for `tty: false`), driven by the fixture's steps, kept as its runs (the
 // run-log reporter's lines), its transcript, its exit code and the files it left. Both process
-// groups are killed in `finally`, whatever the steps did.
+// groups are killed after the steps, whatever they did.
 import { readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -12,8 +12,9 @@ import type { GoldenObserved } from '../golden.ts'
 import { type PtyProcess, spawnPiped, spawnPty } from '../pty.ts'
 import { WATCH_DONE_ENV } from '../reporters/jest-watch-done.ts'
 import { WATCH_LOG_ENV } from '../reporters/jest-watch-log.ts'
-import { isNotFound } from './guards.ts'
+import { errorMessage, isNotFound } from './guards.ts'
 import { runScmStep, type ScmRepo } from './scm.ts'
+import { sleep } from './sleep.ts'
 import { runWatchSteps, type WatchHost } from './watch-steps.ts'
 import { maskTimes, renderTranscript } from './watch-transcript.ts'
 
@@ -97,12 +98,25 @@ async function readIfThere(file: string): Promise<string | null> {
 
 const POLL_MS = 25
 
-function lineCount(text: string): number {
-  return text.split('\n').filter((line) => line !== '').length
+/**
+ * The lines of a file another process appends to that are written to their end: non-empty and
+ * followed by a newline. A last line with no newline is still being written, and is not counted.
+ */
+export function completeLines(text: string): number {
+  return text
+    .split('\n')
+    .slice(0, -1)
+    .filter((line) => line !== '').length
 }
 
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms))
+/** `error` with `extra` added to its message, keeping its class, code and stack. */
+function withKillFailure(error: unknown, extra: unknown): unknown {
+  const note = `\n(and killing the session failed too: ${errorMessage(extra)})`
+  if (error instanceof Error) {
+    error.message += note
+    return error
+  }
+  return new AggregateError([error, extra], `${errorMessage(error)}${note}`)
 }
 
 /** What a watch recording needs from the recorder. */
@@ -167,8 +181,10 @@ export async function recordWatchSession(options: WatchRecordOptions): Promise<G
   const spawn = options.spawn ?? defaultSpawn(watch.tty)
   const poll = options.poll ?? (() => sleep(POLL_MS))
   let session: PtyProcess | undefined
-  let runs: number
+  let runs = 0
   let exitCode: number | null | undefined
+  // The steps' error is the one the caller sees; a kill that fails as well is added to it.
+  let failure: { readonly error: unknown } | undefined
   try {
     session = await spawn(options.argv, options.workDir, env, controller.signal)
     let ended = false
@@ -185,8 +201,9 @@ export async function recordWatchSession(options: WatchRecordOptions): Promise<G
       async waitRuns(count) {
         for (;;) {
           // The log grows when the reporters finish, the done file once Jest reads keys again.
-          const seen = parseRunLog((await readIfThere(options.runLog)) ?? '', source).length
-          const done = lineCount((await readIfThere(options.doneLog)) ?? '')
+          // Counted, not parsed: a line may be half written; it is parsed once the session ends.
+          const seen = completeLines((await readIfThere(options.runLog)) ?? '')
+          const done = completeLines((await readIfThere(options.doneLog)) ?? '')
           if (seen > count || done > count) {
             throw new HarnessError(
               'HARNESS_WATCH_FAILED',
@@ -208,9 +225,19 @@ export async function recordWatchSession(options: WatchRecordOptions): Promise<G
     const result = await runWatchSteps(watch.steps, host)
     runs = result.runs
     exitCode = result.exit?.exitCode
-  } finally {
-    clearTimeout(timer)
+  } catch (error) {
+    failure = { error }
+  }
+  clearTimeout(timer)
+  try {
     await session?.kill()
+  } catch (killError) {
+    if (failure === undefined) throw killError
+    throw withKillFailure(failure.error, killError)
+  }
+  if (failure !== undefined) throw failure.error
+  if (session === undefined) {
+    throw new HarnessError('HARNESS_WATCH_FAILED', `${source}: the session never started`)
   }
 
   const entries = parseRunLog((await readIfThere(options.runLog)) ?? '', source)
@@ -225,14 +252,19 @@ export async function recordWatchSession(options: WatchRecordOptions): Promise<G
       (out, pattern) => out.replace(new RegExp(pattern, 'gm'), '<masked>'),
       text,
     )
+  // The longer spelling first: `/private/var/x` holds `/var/x`.
+  const roots = options.roots.toSorted((a, b) => b.length - a.length)
   const rooted = (text: string): string =>
-    options.roots.reduce((out, root) => out.replaceAll(root, '<root>'), text)
+    roots.reduce((out, root) => out.replaceAll(root, '<root>'), text)
   const captured = (name: string): boolean => watch.capture.includes(name)
   const files = watch.capture.filter((entry) => entry.startsWith('file:'))
 
   let transcript: string | undefined
   if (captured('transcript')) {
-    let lines = mask(maskTimes(options.normalize(renderTranscript(session.output())))).split('\n')
+    // The work directory becomes `<root>` in the bytes, before the terminal wraps a row at 120
+    // columns: a path split by the wrap would never be found again, and differs per machine.
+    const rendered = renderTranscript(rooted(session.output()))
+    let lines = mask(maskTimes(options.normalize(rendered))).split('\n')
     if (watch.keepLines !== undefined) {
       const keep = new RegExp(watch.keepLines)
       lines = lines.filter((line) => keep.test(line))

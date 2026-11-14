@@ -24,7 +24,15 @@ import {
  * with 0. `kills` counts `kill()` calls, which the recorder must make whatever happened.
  */
 function fakeSpawn(
-  options: { startRuns?: number; done?: boolean; onWrite?: (text: string) => void } = {},
+  options: {
+    startRuns?: number
+    done?: boolean
+    onWrite?: (text: string) => void
+    /** What `kill()` throws, after it has ended the session (a group left behind). */
+    killError?: Error
+    /** Raw terminal text printed after the start (a path, say), in place of the usual run. */
+    extraOutput?: (cwd: string) => string
+  } = {},
 ) {
   const state = { kills: 0, env: undefined as NodeJS.ProcessEnv | undefined, argv: [] as string[] }
   const spawn: NonNullable<WatchRecordOptions['spawn']> = async (argv, cwd, env) => {
@@ -45,6 +53,7 @@ function fakeSpawn(
       if (options.done !== false) appendFileSync(done, 'done\n')
       output += `\u001b[2J\u001b[3J\u001b[HPASS ${cwd}/a.test.ts\r\nTime:        0.51 s\r\n\r\nWatch Usage\r\n › Press q to quit watch mode.\r\n`
     }
+    output += options.extraOutput?.(cwd) ?? ''
     const session: PtyProcess = {
       write(text) {
         options.onWrite?.(text)
@@ -64,6 +73,7 @@ function fakeSpawn(
       async kill() {
         state.kills += 1
         end({ exitCode: null, killed: true })
+        if (options.killError !== undefined) throw options.killError
       },
     }
     return session
@@ -255,4 +265,79 @@ test('a run is waited for until the done plugin has written it too, not only the
 test('a run log line that is not JSON names its line', () => {
   assert.deepEqual(parseRunLog('{"a":1}\n\n{"b":2}\n', 'x'), [{ a: 1 }, { b: 2 }])
   assert.throws(() => parseRunLog('{"a":1}\nnope\n', 'x'), /line 2 of the run log/)
+})
+
+test('a kill that fails after a failed step keeps the step’s error, with the kill’s added', async () => {
+  await withWorkDir(async (dir) => {
+    const { spawn, state } = fakeSpawn({
+      killError: new HarnessError(
+        'HARNESS_PTY_LEAK',
+        'the terminal child (group 1) still has a process',
+      ),
+    })
+    const watch: FixtureWatch = { ...QUIT, steps: [{ waitText: 'never shown' }], capture: ['runs'] }
+    await assert.rejects(recordWatchSession(optionsFor(dir, watch, spawn)), (error: unknown) => {
+      assert.ok(error instanceof HarnessError)
+      assert.equal(error.code, 'HARNESS_WATCH_FAILED')
+      assert.match(error.message, /never shown/)
+      assert.match(error.message, /still has a process/)
+      return true
+    })
+    assert.equal(state.kills, 1)
+  })
+})
+
+test('a kill that fails after the steps passed is the error', async () => {
+  await withWorkDir(async (dir) => {
+    const { spawn } = fakeSpawn({
+      killError: new HarnessError(
+        'HARNESS_PTY_LEAK',
+        'the pty relay (group 2) still has a process',
+      ),
+    })
+    await assert.rejects(
+      recordWatchSession(optionsFor(dir, QUIT, spawn)),
+      (error: unknown) => error instanceof HarnessError && error.code === 'HARNESS_PTY_LEAK',
+    )
+  })
+})
+
+test('a work directory path that straddles the terminal width is still <root> in the transcript', async () => {
+  await withWorkDir(async (dir) => {
+    // The path starts near column 110, so a 120-column terminal wraps it in the middle.
+    const { spawn } = fakeSpawn({
+      extraOutput: (cwd) => `${'x'.repeat(110)} ${cwd}/deep/file.test.ts\r\n`,
+    })
+    const observed = await recordWatchSession(
+      optionsFor(dir, { ...QUIT, keepLines: 'x{10}|file\\.test' }, spawn),
+    )
+    const transcript = observed.transcript ?? ''
+    assert.ok(!transcript.includes(dir.slice(1, 12)), transcript)
+    assert.match(transcript.replace(/\n/g, ''), /<root>\/deep\/file\.test\.ts/)
+  })
+})
+
+test('a run-log line that is still being written is not a run yet, and is not an error', async () => {
+  await withWorkDir(async (dir) => {
+    const runLog = path.join(dir, 'runs.jsonl')
+    const doneLog = path.join(dir, 'done.txt')
+    // The reporter has written half of run 1's line; the poll is where it finishes.
+    const { spawn } = fakeSpawn({ startRuns: 0 })
+    const halfway: NonNullable<WatchRecordOptions['spawn']> = async (argv, cwd, env, deadline) => {
+      const session = await spawn(argv, cwd, env, deadline)
+      appendFileSync(runLog, '{"files":[],"wasInter')
+      return session
+    }
+    let polls = 0
+    const observed = await recordWatchSession({
+      ...optionsFor(dir, { ...QUIT, capture: ['runs'] }, halfway),
+      poll: async () => {
+        polls += 1
+        appendFileSync(runLog, 'rupted":false}\n')
+        appendFileSync(doneLog, 'done\n')
+      },
+    })
+    assert.equal(polls, 1)
+    assert.deepEqual(observed.runs, [{ files: [], wasInterrupted: false }])
+  })
 })
