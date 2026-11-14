@@ -22,8 +22,6 @@ export interface RecordedManifest {
   readonly packages?: Readonly<Record<string, Readonly<Record<string, string>>>>
   readonly run?: {
     readonly argv?: { readonly jest?: readonly string[] }
-    /** The directory the recorder ran the runner in, relative to the fixture. */
-    readonly cwd?: string
     readonly capture: readonly string[]
     /** The lines of a stream the recording kept: a regular expression's source. */
     readonly keepLines?: string
