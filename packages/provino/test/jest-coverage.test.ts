@@ -6,9 +6,9 @@
 // (D116: the TypeScript is stripped in place), and `--json`'s `coverageMap`.
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { JEST, noColorEnv } from './live-jest.ts'
 import { type Json, normalizedJson, observedText } from './mask.ts'
@@ -233,5 +233,219 @@ describe('provino jest --coverage beside a live Jest 30.5.2', () => {
     const ours = await spawnCli(['jest', '--ci'], { cwd: dir, env: RECORDER_ENV })
     assert.equal(ours.code, jest.code, ours.stderr)
     assert.equal(ours.stdout, jest.stdout)
+  })
+})
+
+/** A project for the live comparisons: two modules, one test that loads one of them. */
+const LIVE_FILES: Readonly<Record<string, string>> = {
+  'package.json': '{"type":"commonjs"}\n',
+  'src/add.js': 'exports.add = (a, b) => (a > 0 ? a + b : b)\nexports.never = () => 0\n',
+  'src/unused.js': 'exports.unused = (x) => (x ? 1 : 2)\n',
+  'src/generated/gen.js': 'exports.gen = () => 1\n',
+  'src/empty.js': '// nothing to count\n',
+  'add.test.js':
+    "const { add } = require('./src/add')\ntest('adds', () => { expect(add(1, 2)).toBe(3) })\n",
+}
+
+interface LiveCase {
+  readonly name: string
+  /** The Jest config, written as `jest.config.json` in the project's root. */
+  readonly config: Readonly<Record<string, unknown>>
+  readonly args?: readonly string[]
+  /** Files over `LIVE_FILES` (a path to `null` leaves it out). */
+  readonly files?: Readonly<Record<string, string | null>>
+  /** The directory both runners start in, from the root (default the root). */
+  readonly cwd?: string
+  /** What of stdout is compared (default all of it). */
+  readonly stdout?: (text: string) => string
+}
+
+interface LiveRun {
+  readonly code: number | null
+  readonly stdout: string
+  /** Every file under the project the run wrote, by its path from the root, sorted. */
+  readonly written: readonly string[]
+  /**
+   * The text reports among them (`.info`, `.txt`) with the root as `<root>`, and the JSON ones
+   * parsed, each file entry without its `hash` (D111: a digest of the absolute path).
+   */
+  readonly reports: Readonly<Record<string, Json>>
+}
+
+/** A JSON report with each coverage entry's `hash` left out, wherever it is. */
+function withoutHashes(value: Json): Json {
+  if (Array.isArray(value)) return value.map(withoutHashes)
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => key !== 'hash')
+        .map(([key, inner]) => [key, withoutHashes(inner)]),
+    )
+  }
+  return value
+}
+
+/** The project's files by their path from `root`, any `node_modules` (the caches) left out. */
+async function filesUnder(root: string): Promise<Set<string>> {
+  const entries = await readdir(root, { recursive: true, withFileTypes: true })
+  return new Set(
+    entries
+      .filter((entry) => entry.isFile())
+      .map((entry) => join(entry.parentPath, entry.name).slice(root.length + 1))
+      .filter((path) => !/(?:^|\/)node_modules\//.test(path)),
+  )
+}
+
+async function liveProject(spec: LiveCase): Promise<string> {
+  // One name for both runners' copies: the text report prints the root directory's name.
+  const parent = await mkdtemp(join(tmpdir(), 'provino-coverage-live-'))
+  disposers.push(() => rm(parent, { recursive: true, force: true }))
+  const dir = join(parent, 'project')
+  const files = { ...LIVE_FILES, ...spec.files }
+  for (const [path, text] of Object.entries(files)) {
+    if (text === null) continue
+    await mkdir(dirname(join(dir, path)), { recursive: true })
+    await writeFile(join(dir, path), text)
+  }
+  await writeFile(join(dir, 'jest.config.json'), JSON.stringify(spec.config))
+  await mkdir(join(dir, spec.cwd ?? '.'), { recursive: true })
+  return dir
+}
+
+/** One runner on a fresh copy of the case's project: exit code, stdout, the files it wrote. */
+async function runLive(spec: LiveCase, runner: 'jest' | 'provino'): Promise<LiveRun> {
+  const root = await liveProject(spec)
+  const before = await filesUnder(root)
+  const cwd = join(root, spec.cwd ?? '.')
+  const args = ['--ci', `--config=${join(root, 'jest.config.json')}`, ...(spec.args ?? [])]
+  let code: number | null
+  let stdout: string
+  if (runner === 'jest') {
+    const { spawn } = await import('node:child_process')
+    ;({ code, stdout } = await new Promise<{ code: number | null; stdout: string }>(
+      (resolve, reject) => {
+        const child = spawn(process.execPath, [JEST, ...args], {
+          cwd,
+          env: { ...noColorEnv(), ...RECORDER_ENV },
+          stdio: ['ignore', 'pipe', 'ignore'],
+        })
+        let text = ''
+        child.stdout.on('data', (chunk: Buffer) => {
+          text += chunk.toString()
+        })
+        child.once('error', reject)
+        child.once('close', (exit) => resolve({ code: exit, stdout: text }))
+      },
+    ))
+  } else {
+    ;({ code, stdout } = await spawnCli(['jest', ...args], { cwd, env: RECORDER_ENV }))
+  }
+  const written = [...(await filesUnder(root))].filter((path) => !before.has(path)).sort()
+  const reports: Record<string, Json> = {}
+  for (const path of written) {
+    if (!/\.(?:json|info|txt)$/.test(path)) continue
+    const text = (await readFile(join(root, path), 'utf8')).replaceAll(root, '<root>')
+    reports[path] = path.endsWith('.json') ? withoutHashes(JSON.parse(text) as Json) : text
+  }
+  const shown = spec.stdout ?? ((text: string) => text)
+  return { code, stdout: shown(stdout.replaceAll(root, '<root>')), written, reports }
+}
+
+/** `--json`'s results, which carry times, left out of stdout: the line that is one JSON object. */
+const withoutJsonLine = (text: string): string =>
+  text
+    .split('\n')
+    .filter((line) => !line.startsWith('{"numFailedTestSuites"'))
+    .join('\n')
+
+const LIVE_CASES: readonly LiveCase[] = [
+  {
+    name: '--coverage=false over collectCoverage: true collects nothing',
+    config: { collectCoverage: true, coverageReporters: ['text-summary', 'json'] },
+    args: ['--coverage=false'],
+  },
+  {
+    name: '--collectTests with coverage on runs no test and writes no report',
+    config: { collectCoverage: true, coverageReporters: ['text-summary', 'json'] },
+    args: ['--collectTests'],
+  },
+  {
+    name: 'reporter option tuples: text with skipEmpty, lcov with projectRoot',
+    config: {
+      collectCoverage: true,
+      collectCoverageFrom: ['src/**/*.js'],
+      coverageReporters: [
+        ['text', { skipEmpty: true }],
+        ['lcov', { projectRoot: '..' }],
+      ],
+    },
+  },
+  {
+    name: 'forceCoverageMatch counts a test file',
+    config: {
+      collectCoverage: true,
+      forceCoverageMatch: ['**/*.test.js'],
+      coverageReporters: ['text', 'json'],
+    },
+  },
+  {
+    name: 'coverageDirectory is relative to rootDir when the cwd differs',
+    config: {
+      collectCoverage: true,
+      coverageDirectory: 'out/cov',
+      coverageReporters: ['json', 'text-summary'],
+      roots: ['<rootDir>/sub'],
+    },
+    files: {
+      'sub/src/add.js': 'exports.add = (a, b) => (a > 0 ? a + b : b)\n',
+      'sub/add.test.js':
+        "const { add } = require('./src/add')\ntest('adds', () => { expect(add(1, 2)).toBe(3) })\n",
+      'add.test.js': null,
+    },
+    cwd: 'sub',
+  },
+  {
+    name: "--json with ['text'] and no --outputFile: the text report and the results on stdout",
+    config: { collectCoverage: true, coverageReporters: ['text'] },
+    args: ['--json'],
+    stdout: withoutJsonLine,
+  },
+  {
+    name: 'collectCoverageFrom negations',
+    config: {
+      collectCoverage: true,
+      collectCoverageFrom: ['src/**/*.js', '!src/generated/**', '!**/unused.js'],
+      coverageReporters: ['text', 'json'],
+    },
+  },
+]
+
+describe('provino jest --coverage beside a live Jest 30.5.2, case by case', () => {
+  for (const spec of LIVE_CASES) {
+    it(spec.name, async () => {
+      const jest = await runLive(spec, 'jest')
+      const ours = await runLive(spec, 'provino')
+      assert.equal(ours.code, jest.code)
+      assert.equal(ours.stdout, jest.stdout)
+      assert.deepEqual(ours.written, jest.written)
+      assert.deepEqual(ours.reports, jest.reports)
+    })
+  }
+
+  // Jest's v8 provider is T8.12's: Provino says so and collects nothing (a declared gap, not a
+  // match: Jest writes its v8 reports).
+  it('coverageProvider v8 is not applied yet, and says so (T8.12)', async () => {
+    const spec: LiveCase = {
+      name: 'v8',
+      config: { collectCoverage: true, coverageProvider: 'v8', coverageReporters: ['json'] },
+    }
+    const root = await liveProject(spec)
+    const ran = await spawnCli(['jest', '--ci', `--config=${join(root, 'jest.config.json')}`], {
+      cwd: root,
+      env: RECORDER_ENV,
+    })
+    assert.equal(ran.code, 0, ran.stderr)
+    assert.match(ran.stderr, /coverageProvider[\s\S]*T8\.12/)
+    assert.equal(existsSync(join(root, 'coverage')), false)
   })
 })
