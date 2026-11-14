@@ -1,0 +1,11 @@
+{
+  "description": "`--watch` in a directory with no git, hg or sl repository: stderr says `--watch is not supported without git/hg, please use --watchAll` and Jest exits 1 (runJest.ts L253-266). Jest only.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--watch"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "not supported without git"
+  }
+}

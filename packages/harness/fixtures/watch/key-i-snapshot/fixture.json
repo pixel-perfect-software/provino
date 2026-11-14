@@ -1,0 +1,57 @@
+{
+  "description": "Interactive snapshot mode over two differing snapshots: `i` runs the first, `u` updates it and the second runs by itself, `s` skips the second (the result screen, no run), `q` leaves the mode. The .snap keeps the second as it was. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      }
+    ]
+  },
+  "files": {
+    "jest": {
+      "__snapshots__/snaps.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`first 1`] = `\"first old\"`;\n\nexports[`second 1`] = `\"second old\"`;\n"
+    }
+  },
+  "watch": {
+    "argv": ["--watchAll"],
+    "tty": true,
+    "steps": [
+      {
+        "waitRun": 1
+      },
+      {
+        "key": "i"
+      },
+      {
+        "waitRun": 2
+      },
+      {
+        "key": "u"
+      },
+      {
+        "waitRun": 4
+      },
+      {
+        "key": "s"
+      },
+      {
+        "waitText": "Interactive Snapshot Result"
+      },
+      {
+        "key": "q"
+      },
+      {
+        "waitRun": 5
+      },
+      {
+        "key": "q"
+      },
+      {
+        "exit": 0
+      }
+    ],
+    "capture": ["runs", "transcript", "exitCode", "file:__snapshots__/snaps.test.ts.snap"],
+    "keepLines": "^(?:<CLEAR>$|Watch Usage| › |Active Filters:|Pattern Mode Usage| pattern ›|Ran all test suites|Test run was interrupted|No tests found|No failed test found|Press `|Run Jest without|Interactive (?:Test|Snapshot)|Pattern matches|Start typing|Tests:|Test Suites:|Snapshots:)"
+  }
+}
