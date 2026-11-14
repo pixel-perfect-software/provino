@@ -27,7 +27,9 @@ interface Runs {
 }
 
 /**
- * Wraps `next`: every event passes through untouched, except `test-end`, whose result gets
+ * Wraps `next`: every event passes through untouched, except a `test-attempt-end` that is
+ * retried, which gets its own attempt's two counts (Jest reports that attempt's `test_done` too),
+ * and `test-end`, whose result gets
  * `assertions` (calls made) and `passingAssertions` from the state of the run that decided the
  * result (Jest counts `numPassingAsserts` for it). That is the latest run that failed for good
  * (state `fail`, no retry following), because a test fails if any repeat does and a later
@@ -46,6 +48,16 @@ export function assertionCountSink(states: RunStates, next: EventSink): EventSin
         seen.latest = run
         if (event.state === 'fail' && !event.willRetry) seen.failed = run
         runs.set(event.id, seen)
+        if (event.willRetry) {
+          // A retried attempt is reported on its own too (Jest's `test_done` for it).
+          const state = states.stateOf(event.id, run)
+          next.emit({
+            ...event,
+            assertions: state?.assertionCalls ?? 0,
+            passingAssertions: state?.numPassingAsserts ?? 0,
+          })
+          return
+        }
       } else if (event.type === 'test-end') {
         const seen = runs.get(event.id)
         runs.delete(event.id)

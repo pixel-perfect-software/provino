@@ -6,6 +6,8 @@ import type { BehaviourLoader } from '@provino/policy'
 import type {
   CorePolicy,
   DefaultRetry,
+  DescribeRetry,
+  DescribeRetryResult,
   EventSink,
   ImportFile,
   LazyHost,
@@ -94,6 +96,13 @@ export interface RunFileOptions {
    * `true` is accepted; any other value fails the file (`CORE_INVALID_ARGUMENT`).
    */
   readonly collectOnly?: true
+  /**
+   * Shuffle every suite of this file with a generator built from this seed (`CorePolicy.shuffle`:
+   * Jest's `--randomize`). It must be a number, taken as it is (the factory decides what a fraction
+   * means), and the policy must have a `shuffle`; otherwise the file fails (`CORE_INVALID_ARGUMENT`)
+   * before it is imported.
+   */
+  readonly shuffleSeed?: number
 }
 
 /**
@@ -150,6 +159,13 @@ export interface Runtime {
    * before it calls; a count below 1 or that is not a finite number is no retry.
    */
   setDefaultRetry(retry: DefaultRetry | undefined): void
+  /**
+   * Sets the retry of the describe block being collected (the file's root at its top level): when a
+   * test below fails, the block's hooks and every test below run again (Jest's `entireDescribe`).
+   * A second call for the same block replaces the first. `started` when no block is open: the
+   * file's run has begun, and a retry can no longer be set.
+   */
+  setDescribeRetry(retry: DescribeRetry): DescribeRetryResult
   /** Runs the worker teardowns (last first); rejects with an `AggregateError` if any failed. */
   dispose(): Promise<void>
 }
@@ -168,6 +184,8 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   const projectName = options.projectName ?? ''
   const formatEachTitle = await options.behaviours.load(policy.formatEachTitle)
   const formatValue = await options.behaviours.load(policy.formatValue)
+  const shuffleFactory =
+    policy.shuffle === null ? undefined : await options.behaviours.load(policy.shuffle)
   const orderHooks =
     policy.orderHooks === null ? undefined : await options.behaviours.load(policy.orderHooks)
   const runs = createRunRegistry()
@@ -194,7 +212,8 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   let requestedTimeout: number | undefined
   const processErrors: ProcessErrors = new ProcessErrors({
     lateErrors: policy.errors.lateErrors,
-    emit: (event) => sink.emit(event),
+    // Through the executor: an error charged to a test inside a describe attempt waits with it.
+    emit: (event) => executor.emitCharged(event),
     now,
     frame: () => currentTest.get(),
     runningAttempt: (frame) => executor.attemptFor(frame),
@@ -281,6 +300,28 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   }
 
   /**
+   * The shuffle of one file, built from its `shuffleSeed`, or `undefined` for the declared order.
+   * A seed that is not a number, or one given to a policy that cannot shuffle, is refused.
+   */
+  function shuffleFor(
+    relativePath: string,
+    fileOptions: RunFileOptions,
+  ): (<T>(items: T[]) => T[]) | undefined {
+    const { shuffleSeed } = fileOptions
+    if (shuffleSeed === undefined) return undefined
+    const invalid = (reason: string): CoreError =>
+      new CoreError('CORE_INVALID_ARGUMENT', `Invalid shuffleSeed for ${relativePath}: ${reason}`)
+    // Any number: what a fraction or NaN means is the factory's (Jest's pure-rand truncates it).
+    if (typeof shuffleSeed !== 'number') {
+      throw invalid(`expected a number, got ${describeType(shuffleSeed)}`)
+    }
+    if (shuffleFactory === undefined) {
+      throw invalid('this policy has no `shuffle`, so the run cannot be randomized')
+    }
+    return shuffleFactory(shuffleSeed)
+  }
+
+  /**
    * Collects a file, then calls the `onCollected` listeners. `false` when either failed: the file
    * then reports no tasks, as both runners do for a collection failure.
    */
@@ -331,14 +372,17 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     processErrors.startFile(fileId)
     sink.emit({ type: 'file-collect-start', fileId, path: relativePath, t: start })
     let outcome: Outcome = 'fail'
+    let childOrder: readonly TaskId[] | undefined
     try {
       let collected = false
       let tasks: TaskNode[] = []
+      let shuffle: (<T>(items: T[]) => T[]) | undefined
       try {
         // The filters are built before the import: an invalid per-file filter skips it. Whatever
         // throws here (that, or `finalize`), the file reports no tasks and the error, is not run,
         // and still gets its `file-collect-end` and `file-end`.
         const filters = finalizeOptionsFor(relativePath, fileOptions)
+        shuffle = shuffleFor(relativePath, fileOptions)
         collected = await collect(file)
         tasks = finalize(file, filters)
       } catch (error) {
@@ -350,10 +394,12 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
       if (collected) {
         // circus's `run_start`: from here a call to `setDefaultTimeout` changes nothing.
         defaults.ms = requestedTimeout
-        outcome =
-          fileOptions.collectOnly === true
-            ? executor.collectFile(file)
-            : await executor.runFile(file)
+        if (fileOptions.collectOnly === true) {
+          outcome = executor.collectFile(file)
+        } else {
+          outcome = await executor.runFile(file, shuffle)
+          childOrder = executor.rootOrder
+        }
       }
     } catch (error) {
       file.errors.push(error)
@@ -370,7 +416,13 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     }
     const failed = file.errors.length > 0 || outcome === 'fail' || processErrors.failsFile
     const end = now()
-    const result = taskResult(failed ? 'fail' : outcome, start, end, file.errors)
+    const result = taskResult(
+      failed ? 'fail' : outcome,
+      start,
+      end,
+      file.errors,
+      childOrder === undefined ? undefined : { childOrder },
+    )
     sink.emit({ type: 'file-end', fileId, result, t: end })
     return result
   }
@@ -388,6 +440,12 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     },
     setDefaultRetry(retry) {
       retryDefaults.value = retry
+    },
+    setDescribeRetry(retry) {
+      const suite = collector.collecting()
+      if (suite === undefined) return 'started'
+      suite.describeRetry = retry
+      return 'set'
     },
     async dispose(): Promise<void> {
       const errors = await deadlines.drain(workerTeardowns)

@@ -112,7 +112,7 @@ export interface JestTimerMembers<J> {
 /**
  * What `jest.retryTimes` takes. `logErrorsBeforeRetry` keeps the errors of the attempts that were
  * retried on the result (Jest prints them above the file's result); `waitBeforeRetry` is
- * milliseconds. `entireDescribe` is not built.
+ * milliseconds. `entireDescribe` retries the whole describe block being collected, not one test.
  * @public
  */
 export interface JestRetryOptions {
@@ -147,7 +147,9 @@ export interface JestObject extends JestTimerMembers<JestObject> {
    * Retries a failed test up to `numRetries` times, after the other tests of its describe unless
    * `retryImmediately` (jest-circus's deferred retries). It sets one value for the whole file, as
    * Jest does: each describe reads it when it starts running, and a later call replaces every
-   * option. `entireDescribe` (a describe-level retry) is refused: it throws, naming the task.
+   * option. `entireDescribe` retries the whole describe block it is called in (the file at its top
+   * level): its hooks and every test below run again while a test fails; it must be called while
+   * the file is collected, and sets no file-wide test retry.
    */
   retryTimes(numRetries: number, options?: JestRetryOptions): JestObject
   /** The run's random seed (`--seed`, else one drawn per run), the same on every call. */
@@ -441,12 +443,22 @@ function sharedMembers<J>(
       return self()
     },
     retryTimes(numRetries, options) {
-      // Describe-level retry (30.5's `entireDescribe`) reruns the block's hooks and every test;
-      // the core retries tests one at a time, so it is refused by name instead.
+      // Describe-level retry (30.5's `entireDescribe`, `JestGlobals.ts` L284-L294) reruns the
+      // block being collected, hooks and every test, and touches none of the file's test retries.
+      // The count is read as circus's `run.ts` reads it (`parseInt(String(…)) || 0`).
       if (options?.entireDescribe) {
-        throw new Error(
-          'jest.retryTimes with `entireDescribe` is not supported yet: Provino retries a test, not a whole describe block (T5.10)',
-        )
+        const result = host.setDescribeRetry({
+          numRetries: Number.parseInt(String(numRetries), 10) || 0,
+          logErrorsBeforeRetry: options.logErrorsBeforeRetry,
+          waitBeforeRetry: Number(options.waitBeforeRetry ?? 0) || 0,
+        })
+        // jestAdapterInit.ts L111-L121: `state.hasStarted`.
+        if (result === 'started') {
+          throw new Error(
+            'Cannot set retry options after tests have started running. Retry options must be set synchronously.',
+          )
+        }
+        return self()
       }
       host.setDefaultRetry(jestDefaultRetry(numRetries, options))
       return self()

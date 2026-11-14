@@ -45,6 +45,13 @@ describe('parseProjectConfig', () => {
     assert.deepEqual(parsed, valid)
   })
 
+  it('accepts any number as the seed: Jest takes a fraction (cli/randomize-seed-fraction)', () => {
+    assert.equal(parseProjectConfig(with_('seed', 1.5)).seed, 1.5)
+    assert.equal(parseProjectConfig(with_('seed', -7)).seed, -7)
+    assert.ok(Number.isNaN(parseProjectConfig(with_('seed', Number.NaN)).seed))
+    assert.throws(() => parseProjectConfig(with_('seed', '1')), { code: 'ORCH_BAD_CONFIG' })
+  })
+
   it('accepts no globals, and a tsconfig of false or a path', () => {
     assert.equal(parseProjectConfig(with_('globals', null)).globals, null)
     assert.equal(parseProjectConfig(with_('loader.tsconfig', false)).loader.tsconfig, false)

@@ -28,6 +28,11 @@ export interface FileRecord {
   readonly late: Map<TaskId, SerializedError[]>
   /** Suites that ended `fail` with errors of their own (an `afterAll` that threw): in no file result. */
   readonly failedSuites: { readonly task: SuiteTask; readonly errors: readonly SerializedError[] }[]
+  /**
+   * The order each suite's children ran in, for a suite a randomized run shuffled (the end event's
+   * `childOrder`); the file's own, from `file:end`, is under the file node's id.
+   */
+  readonly orders: Map<TaskId, readonly TaskId[]>
   /** Real retries per test, counted from `test:attempt-end` events with `willRetry`. */
   readonly retries: Map<TaskId, number>
   /** The file's `console` events, in the order they came. */
@@ -50,10 +55,18 @@ export function newFileRecord(): FileRecord {
     unhandled: [],
     late: new Map(),
     failedSuites: [],
+    orders: new Map(),
     retries: new Map(),
     console: [],
     ended: undefined,
   }
+}
+
+/** Files the order a randomized run gave the file's top-level tasks under the file node's id. */
+export function recordRootOrder(entry: FileRecord, result: FileResult): void {
+  if (result.childOrder === undefined) return
+  const root = entry.tasks.find((task) => task.type === 'file')
+  if (root !== undefined) entry.orders.set(root.id, result.childOrder)
 }
 
 /**
@@ -266,6 +279,8 @@ export function createCollector(options: CollectorOptions = {}): Collector {
       if (task.type === 'suite' && event.type === 'suite-end') {
         // A suite's own failure (an `afterAll`) is in no test and no file result.
         const { state, errors } = event.result
+        if (event.result.childOrder !== undefined)
+          entry.orders.set(task.id, event.result.childOrder)
         if (state === 'fail' && errors.length > 0) entry.failedSuites.push({ task, errors })
         return
       }
@@ -299,7 +314,9 @@ export function createCollector(options: CollectorOptions = {}): Collector {
 
     'file:end'(result) {
       const entry = fileRecord(result.file.fileId)
-      if (entry !== undefined) entry.ended = result
+      if (entry === undefined) return
+      entry.ended = result
+      recordRootOrder(entry, result)
     },
 
     error(error) {

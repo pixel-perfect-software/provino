@@ -69,6 +69,7 @@ export type {
   HookKind,
   HookOrder,
   OrderHooks,
+  ShuffleFactory,
 } from './core.ts'
 export type { CoveragePolicy } from './coverage.ts'
 export type { ExpectPolicy, MatcherTableFactory } from './expect.ts'

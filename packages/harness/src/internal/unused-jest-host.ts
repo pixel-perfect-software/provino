@@ -42,5 +42,6 @@ export function unusedJestHost(
     environmentTornDown: () => false,
     setDefaultTimeout: () => {},
     setDefaultRetry: () => {},
+    setDescribeRetry: () => 'set',
   }
 }
