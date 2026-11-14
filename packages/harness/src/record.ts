@@ -1,5 +1,14 @@
 import { createHash } from 'node:crypto'
-import { copyFile, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+import {
+  copyFile,
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  writeFile,
+} from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -13,6 +22,7 @@ import {
   type FixtureProfile,
   type FixtureRun,
   type FixtureRunner,
+  isJestConfigFile,
   type JestFixtureConfig,
   type MockCleanup,
   readFixture,
@@ -474,6 +484,24 @@ function mockCleanupOption(fixture: Fixture): { mockCleanup?: MockCleanup } {
   return mockCleanup === undefined ? {} : { mockCleanup }
 }
 
+/**
+ * An exact run finds the recorder's `jest.config.json` from the work directory, so a Jest
+ * configuration of the fixture's own (a `jest.config.*` it would overwrite or sit beside, or a
+ * `package.json` with a `jest` key, which makes Jest report several) is refused.
+ */
+async function assertNoOtherJestConfig(workDir: string, fixture: Fixture): Promise<void> {
+  for (const entry of await readdir(workDir)) {
+    const text = entry === 'package.json' ? await readFile(path.join(workDir, entry), 'utf8') : ''
+    if (isJestConfigFile(entry, text)) {
+      throw new HarnessError(
+        'HARNESS_FIXTURE_BAD_RUN',
+        `${fixture.id}: "run" is "exact", so the recorder's jest.config.json is the project's Jest config, but the fixture has "${entry}", another one`,
+        { path: fixture.dir },
+      )
+    }
+  }
+}
+
 async function runUnderRunner(
   fixture: Fixture,
   profile: FixtureProfile,
@@ -505,20 +533,29 @@ async function runUnderRunner(
 
   let commandArgs: (extra: readonly string[]) => string[]
   if (runner === 'jest') {
-    const configFile = path.join(outDir, 'jest.config.json')
+    // An exact run has no `--config`: Jest finds this file from the work directory, as it finds a
+    // project's own.
+    const exact = spec?.exact === true
+    if (exact) await assertNoOtherJestConfig(workDir, fixture)
+    const configFile = exact
+      ? path.join(workDir, 'jest.config.json')
+      : path.join(outDir, 'jest.config.json')
     await writeFile(
       configFile,
       `${JSON.stringify(jestConfig(workDir, TRANSFORMER_PATH, setupFile, configOptions), null, 2)}\n`,
     )
-    commandArgs = (extra) => [
-      install.bin,
-      '--ci',
-      '--json',
-      `--outputFile=${outputFile}`,
-      '--config',
-      configFile,
-      ...extra,
-    ]
+    commandArgs = (extra) =>
+      exact
+        ? [install.bin, ...extra]
+        : [
+            install.bin,
+            '--ci',
+            '--json',
+            `--outputFile=${outputFile}`,
+            '--config',
+            configFile,
+            ...extra,
+          ]
   } else {
     const configFile = path.join(workDir, 'vitest.config.ts')
     await writeFile(configFile, vitestConfigSource(workDir, setupFile, profile, configOptions))
@@ -534,11 +571,14 @@ async function runUnderRunner(
   }
   // Git reads nothing from this machine, and a work directory with no repository of its own never
   // finds the checkout's (the ceiling is the work directory's parent).
+  const manifestEnv = Object.entries(fixture.manifest.env ?? {})
   const env = runnerEnv(withoutGitVariables(process.env), {
     ...hermeticGitEnv(path.dirname(paths.realWorkDir)),
-    ...fixture.manifest.env,
+    ...Object.fromEntries(manifestEnv.filter(([, value]) => value !== null)),
     [TRACE_ENV]: traceFile,
   })
+  // `null` in the fixture's `env` removes the variable (`NO_COLOR` for an editor's `--colors`).
+  for (const [name, value] of manifestEnv) if (value === null) delete env[name]
   const scm = fixture.manifest.scm
   if (scm !== undefined) {
     const repo = { dir: workDir, ceiling: path.dirname(paths.realWorkDir) }

@@ -141,6 +141,26 @@ catalog:
   jest-sonar-reporter: 2.0.0
   jest-serializer-vue: 3.1.0
   jest-util: 30.5.1
+  # B23e, T11.11 (D124): the ecosystem packages the recorded `ecosystem/*` fixtures and
+  # `provino`'s tests run beside Jest, loaded from the fixture project. Dev only, never ours.
+  # Each is the newest version past `minimumReleaseAge` on 2026-11-14 (confirmed with `pnpm why`).
+  "@testing-library/dom": 10.4.2
+  "@testing-library/jest-dom": 7.0.1
+  "@testing-library/react": 16.3.3
+  "@testing-library/user-event": 14.6.8
+  identity-obj-proxy: 3.0.0
+  jest-axe: 11.0.0
+  jest-canvas-mock: 2.5.8
+  jest-extended: 7.0.0
+  jest-fetch-mock: 4.2.0
+  jest-image-snapshot: 6.5.2
+  jest-mock-extended: 4.0.2
+  jest-styled-components: 7.4.1
+  jest-when: 4.0.3
+  msw: 3.0.4
+  react: 19.3.1
+  react-dom: 19.3.1
+  styled-components: 6.6.0
   # jsdom (Track 8's version): the propagation test's DOM rows, later the jsdom environment.
   jsdom: 30.1.3
   # The bottom of the `jsdom` peer range (>=26 <31): env-jsdom's userAgent test runs against it too.
