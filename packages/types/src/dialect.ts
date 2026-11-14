@@ -188,7 +188,12 @@ export interface NeutralProject {
   readonly watch?: { readonly ignorePatterns: readonly string[] }
   /** Affected-test selection's own settings. */
   readonly affected?: {
-    /** The project's own dependency extractor (Jest's `dependencyExtractor`), read before the policy's. */
+    /**
+     * The project's own dependency extractor (Jest's `dependencyExtractor`), read before the
+     * policy's. The module exports an object (`{ extract, cacheKey }`), not a function, so the
+     * coordinator imports it plainly (the ref's export, else `default`) and the behaviour loader,
+     * which loads functions, never sees it.
+     */
     readonly extractor?: ModuleRef
   }
   /**
