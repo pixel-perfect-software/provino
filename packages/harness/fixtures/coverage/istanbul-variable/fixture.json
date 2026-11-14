@@ -1,0 +1,15 @@
+{
+  "description": "Where Jest 30.5.2's babel provider counts (`coverage.istanbulVariable`, T8.10, B23b): a test reads `globalThis.__coverage__`, finds the one instrumented module under its path, and sees a call move its function counter there. Both tests pass only when the global has that name. The text summary is recorded too. Read by `provino`'s `jest-coverage.test.ts` and the policy claim for `coverage.istanbulVariable`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "coverageReporters": ["text-summary"]
+    }
+  },
+  "run": {
+    "raw": true,
+    "capture": ["exitCode", "stdout"]
+  }
+}

@@ -1,0 +1,383 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "coverage/babel-defaults",
+  "files": [
+    {
+      "file": "tests/math.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "tests/math.test.ts",
+            "path": [
+              "clamps below the range"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 3,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "tests/math.test.ts",
+            "path": [
+              "keeps a value inside the range"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 7,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "tests/math.test.ts",
+            "path": [
+              "signs a negative number"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 11,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stdout": "----------|---------|----------|---------|---------|-------------------\nFile      | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s \n----------|---------|----------|---------|---------|-------------------\nAll files |   85.71 |       50 |     100 |     100 |                   \n math.ts  |   85.71 |       50 |     100 |     100 | 3-7               \n----------|---------|----------|---------|---------|-------------------\n",
+    "files": {
+      "coverage/lcov.info": "TN:\nSF:src/math.ts\nFN:1,clamp\nFN:7,(anonymous_1)\nFNF:2\nFNH:2\nFNDA:2,clamp\nFNDA:1,(anonymous_1)\nDA:2,2\nDA:3,1\nDA:4,1\nDA:7,1\nLF:4\nLH:4\nBRDA:2,0,0,1\nBRDA:2,0,1,1\nBRDA:3,1,0,0\nBRDA:3,1,1,1\nBRDA:7,2,0,1\nBRDA:7,2,1,0\nBRDA:7,3,0,0\nBRDA:7,3,1,0\nBRF:8\nBRH:4\nend_of_record\n",
+      "coverage/clover.xml": "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<coverage generated=\"<masked>\" clover=\"3.2.0\">\n  <project timestamp=\"<masked>\" name=\"All files\">\n    <metrics statements=\"4\" coveredstatements=\"4\" conditionals=\"8\" coveredconditionals=\"4\" methods=\"2\" coveredmethods=\"2\" elements=\"14\" coveredelements=\"10\" complexity=\"0\" loc=\"4\" ncloc=\"4\" packages=\"1\" files=\"1\" classes=\"1\"/>\n    <file name=\"math.ts\" path=\"<root>/src/math.ts\">\n      <metrics statements=\"4\" coveredstatements=\"4\" conditionals=\"8\" coveredconditionals=\"4\" methods=\"2\" coveredmethods=\"2\"/>\n      <line num=\"2\" count=\"2\" type=\"cond\" truecount=\"2\" falsecount=\"0\"/>\n      <line num=\"3\" count=\"1\" type=\"cond\" truecount=\"1\" falsecount=\"1\"/>\n      <line num=\"4\" count=\"1\" type=\"stmt\"/>\n      <line num=\"7\" count=\"1\" type=\"cond\" truecount=\"1\" falsecount=\"3\"/>\n    </file>\n  </project>\n</coverage>\n"
+    },
+    "json": {
+      "coverage/coverage-final.json": {
+        "<root>/src/math.ts": {
+          "path": "<root>/src/math.ts",
+          "statementMap": {
+            "0": {
+              "start": {
+                "line": 2,
+                "column": 2
+              },
+              "end": {
+                "line": 2,
+                "column": 29
+              }
+            },
+            "1": {
+              "start": {
+                "line": 2,
+                "column": 19
+              },
+              "end": {
+                "line": 2,
+                "column": 29
+              }
+            },
+            "2": {
+              "start": {
+                "line": 3,
+                "column": 2
+              },
+              "end": {
+                "line": 3,
+                "column": 31
+              }
+            },
+            "3": {
+              "start": {
+                "line": 3,
+                "column": 20
+              },
+              "end": {
+                "line": 3,
+                "column": 31
+              }
+            },
+            "4": {
+              "start": {
+                "line": 4,
+                "column": 2
+              },
+              "end": {
+                "line": 4,
+                "column": 14
+              }
+            },
+            "5": {
+              "start": {
+                "line": 7,
+                "column": 20
+              },
+              "end": {
+                "line": 7,
+                "column": 87
+              }
+            },
+            "6": {
+              "start": {
+                "line": 7,
+                "column": 52
+              },
+              "end": {
+                "line": 7,
+                "column": 86
+              }
+            }
+          },
+          "fnMap": {
+            "0": {
+              "name": "clamp",
+              "decl": {
+                "start": {
+                  "line": 1,
+                  "column": 16
+                },
+                "end": {
+                  "line": 1,
+                  "column": 21
+                }
+              },
+              "loc": {
+                "start": {
+                  "line": 1,
+                  "column": 72
+                },
+                "end": {
+                  "line": 5,
+                  "column": 1
+                }
+              },
+              "line": 1
+            },
+            "1": {
+              "name": "(anonymous_1)",
+              "decl": {
+                "start": {
+                  "line": 7,
+                  "column": 20
+                },
+                "end": {
+                  "line": 7,
+                  "column": 21
+                }
+              },
+              "loc": {
+                "start": {
+                  "line": 7,
+                  "column": 52
+                },
+                "end": {
+                  "line": 7,
+                  "column": 86
+                }
+              },
+              "line": 7
+            }
+          },
+          "branchMap": {
+            "0": {
+              "loc": {
+                "start": {
+                  "line": 2,
+                  "column": 2
+                },
+                "end": {
+                  "line": 2,
+                  "column": 29
+                }
+              },
+              "type": "if",
+              "locations": [
+                {
+                  "start": {
+                    "line": 2,
+                    "column": 2
+                  },
+                  "end": {
+                    "line": 2,
+                    "column": 29
+                  }
+                },
+                {
+                  "start": {},
+                  "end": {}
+                }
+              ],
+              "line": 2
+            },
+            "1": {
+              "loc": {
+                "start": {
+                  "line": 3,
+                  "column": 2
+                },
+                "end": {
+                  "line": 3,
+                  "column": 31
+                }
+              },
+              "type": "if",
+              "locations": [
+                {
+                  "start": {
+                    "line": 3,
+                    "column": 2
+                  },
+                  "end": {
+                    "line": 3,
+                    "column": 31
+                  }
+                },
+                {
+                  "start": {},
+                  "end": {}
+                }
+              ],
+              "line": 3
+            },
+            "2": {
+              "loc": {
+                "start": {
+                  "line": 7,
+                  "column": 52
+                },
+                "end": {
+                  "line": 7,
+                  "column": 86
+                }
+              },
+              "type": "cond-expr",
+              "locations": [
+                {
+                  "start": {
+                    "line": 7,
+                    "column": 64
+                  },
+                  "end": {
+                    "line": 7,
+                    "column": 66
+                  }
+                },
+                {
+                  "start": {
+                    "line": 7,
+                    "column": 69
+                  },
+                  "end": {
+                    "line": 7,
+                    "column": 86
+                  }
+                }
+              ],
+              "line": 7
+            },
+            "3": {
+              "loc": {
+                "start": {
+                  "line": 7,
+                  "column": 69
+                },
+                "end": {
+                  "line": 7,
+                  "column": 86
+                }
+              },
+              "type": "cond-expr",
+              "locations": [
+                {
+                  "start": {
+                    "line": 7,
+                    "column": 81
+                  },
+                  "end": {
+                    "line": 7,
+                    "column": 82
+                  }
+                },
+                {
+                  "start": {
+                    "line": 7,
+                    "column": 85
+                  },
+                  "end": {
+                    "line": 7,
+                    "column": 86
+                  }
+                }
+              ],
+              "line": 7
+            }
+          },
+          "s": {
+            "0": 2,
+            "1": 1,
+            "2": 1,
+            "3": 0,
+            "4": 1,
+            "5": 1,
+            "6": 1
+          },
+          "f": {
+            "0": 2,
+            "1": 1
+          },
+          "b": {
+            "0": [
+              1,
+              1
+            ],
+            "1": [
+              0,
+              1
+            ],
+            "2": [
+              1,
+              0
+            ],
+            "3": [
+              0,
+              0
+            ]
+          },
+          "_coverageSchema": "<masked>",
+          "hash": "<masked>"
+        }
+      }
+    }
+  }
+}

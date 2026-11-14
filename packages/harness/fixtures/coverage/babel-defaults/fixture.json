@@ -1,0 +1,19 @@
+{
+  "description": "`--coverage` with Jest 30.5.2's defaults (T8.10, B23b): no `collectCoverageFrom`, so only the files the tests loaded are reported (`src/unused.ts` is not), the babel provider, the reporters `json`, `text`, `lcov` and `clover` into `<rootDir>/coverage` (`coverage.reportsDirectory`). Recorded as Jest wrote it, clover's timestamps and Istanbul's per-file `hash` (a digest that holds the work directory's path) masked. Read by `provino`'s `jest-coverage.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "run": {
+    "raw": true,
+    "argv": {
+      "jest": ["--coverage"]
+    },
+    "capture": [
+      "exitCode",
+      "stdout",
+      "json:coverage/coverage-final.json",
+      "file:coverage/lcov.info",
+      "file:coverage/clover.xml"
+    ],
+    "mask": ["(?<=(?:generated|timestamp)=\")\\d+", "^[0-9a-f]{40}$"]
+  }
+}
