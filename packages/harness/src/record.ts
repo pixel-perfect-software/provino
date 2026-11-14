@@ -46,6 +46,7 @@ import {
 import { hermeticGitEnv, initRepo, runScmSteps, withoutGitVariables } from './internal/scm.ts'
 import { assertTraceFromOneFile, readTrace } from './internal/trace.ts'
 import { isNodeModules, walkFiles } from './internal/walk.ts'
+import { recordWatchSession, watchJestConfig } from './internal/watch-record.ts'
 import {
   createWorkDirRegistry,
   REMOVE_TREE_OPTIONS,
@@ -502,13 +503,17 @@ async function runUnderRunner(
   await writeRunnerFiles(fixture, runner, workDir)
   const spec = fixture.manifest.run
   const extraArgs = spec?.argv?.[runner] ?? []
+  // A watch session (B23c Phase 3) keeps its runs in a log of its own, written by a reporter.
+  const watch = fixture.manifest.watch
+  const logs = { runLog: path.join(outDir, 'runs.jsonl'), doneLog: path.join(outDir, 'done.txt') }
 
   let commandArgs: (extra: readonly string[]) => string[]
   if (runner === 'jest') {
     const configFile = path.join(outDir, 'jest.config.json')
+    const config = jestConfig(workDir, TRANSFORMER_PATH, setupFile, configOptions)
     await writeFile(
       configFile,
-      `${JSON.stringify(jestConfig(workDir, TRANSFORMER_PATH, setupFile, configOptions), null, 2)}\n`,
+      `${JSON.stringify(watch === undefined ? config : watchJestConfig(config, logs), null, 2)}\n`,
     )
     commandArgs = (extra) => [
       install.bin,
@@ -544,6 +549,39 @@ async function runUnderRunner(
     const repo = { dir: workDir, ceiling: path.dirname(paths.realWorkDir) }
     await initRepo(repo)
     await runScmSteps(repo, scm.steps)
+  }
+  if (watch !== undefined) {
+    // No `--ci`, `--json` or output file: a watch session is interactive, and its runs are in the
+    // log. The manifest refused every flag that would change that.
+    const normalizer = createNormalizer({ rootDir: paths.realWorkDir, extraRoots: [paths.workDir] })
+    const observed = await recordWatchSession({
+      watch,
+      argv: [
+        process.execPath,
+        ...(fixture.manifest.nodeFlags ?? []),
+        install.bin,
+        '--config',
+        path.join(outDir, 'jest.config.json'),
+        ...watch.argv,
+      ],
+      workDir,
+      env,
+      ...logs,
+      repo: { dir: workDir, ceiling: path.dirname(paths.realWorkDir) },
+      normalize: (text) => normalizer.text(text),
+      roots: [paths.realWorkDir, paths.workDir],
+      timeoutMs: TIMEOUT_MS,
+      source: path.join(fixture.dir, 'fixture.json'),
+    })
+    const run: NormalizedRun = {
+      ...EMPTY_RUN,
+      runner,
+      runnerVersion: install.version,
+      suite: fixture.id,
+      env: readRunEnvironment({ [runner]: install.version }),
+      success: observed.exitCode === undefined || observed.exitCode === 0,
+    }
+    return { run, trace: [], observed }
   }
   // A run started below the root (`run.cwd`): the directory need not hold a file of the fixture.
   if (spec?.cwd !== undefined) await mkdir(path.join(workDir, spec.cwd), { recursive: true })
