@@ -251,7 +251,9 @@ export async function runFixture(
         const text = await readText(file)
         files[file] = text === null ? null : recordedFile(text, spec, roots, file)
       } else if (entry.startsWith('json:')) {
-        const text = await readText(file)
+        // `json:stdout` and `json:stderr` are the stream itself (the recorder's `observedOf`).
+        const text =
+          file === 'stdout' ? ended.stdout : file === 'stderr' ? ended.stderr : await readText(file)
         const value = text === null ? null : (JSON.parse(text) as Json)
         raw[file] = value
         json[file] =

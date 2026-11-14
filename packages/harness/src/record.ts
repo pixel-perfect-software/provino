@@ -406,7 +406,10 @@ export function observedOf(
           json: Object.fromEntries(
             parsed.map((entry) => {
               const file = entry.slice('json:'.length)
-              const text = files[file] ?? null
+              // `json:stdout` and `json:stderr` read the stream, for a tool (neotest-jest's
+              // `.each` discovery) that takes Jest's `--json` from stdout.
+              const text =
+                file === 'stdout' || file === 'stderr' ? result[file] : (files[file] ?? null)
               if (text === null) {
                 // A run that wrote no file would record `null` as the truth and fail later, far
                 // from here: refuse it unless the fixture says that is what the run shows.

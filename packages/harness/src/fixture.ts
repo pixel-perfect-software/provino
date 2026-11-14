@@ -208,7 +208,8 @@ export interface FixtureRun {
   /**
    * `exitCode`, `stdout`, `stderr`, `file:<path>` (the file's text) and `json:<path>` (the file
    * parsed as JSON, under `timeKeys`, the work directory's path as `<root>` and each run of stack
-   * frames collapsed to `<frames>`; `null` when the run left none there).
+   * frames collapsed to `<frames>`; `null` when the run left none there). `json:stdout` and
+   * `json:stderr` parse the stream itself (a tool that reads Jest's `--json` from stdout).
    */
   readonly capture: readonly string[]
   readonly emptyStreams?: readonly ('stdout' | 'stderr')[]
