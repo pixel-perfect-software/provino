@@ -10,8 +10,16 @@ export interface StackFrame {
   readonly column: number
 }
 
-/** `at fn (file:line:col)` or `at file:line:col`; `async` and `new` prefixes included. */
-const FRAME = /^\s*at (?:.*? \()?(.+?):(\d+):(\d+)\)?$/
+/**
+ * A frame is `at fn (file:line:col)` or, with no function name, `at file:line:col`, each with an
+ * optional `async` or `new` before the name. The two are told apart by the last character of the
+ * line, not by looking for ` (` anywhere in it: a path may hold one (`My Project (1)`), and a
+ * frame with no name has no parenthesis of its own. (stack-utils's `parseLine`, which Jest uses,
+ * splits at the first ` (` it finds, so it reads such a path wrong and `async` as part of the
+ * file.)
+ */
+const NAMED_FRAME = /^\s*at (?:async |new )?.*? \((.+):(\d+):(\d+)\)$/
+const BARE_FRAME = /^\s*at (?:async )?(.+):(\d+):(\d+)$/
 
 /**
  * The first frame of `stack` with a file outside `node_modules` and Node's own modules, or
@@ -20,7 +28,7 @@ const FRAME = /^\s*at (?:.*? \()?(.+?):(\d+):(\d+)\)?$/
 export function topFrame(stack: string): StackFrame | undefined {
   for (const line of stack.split('\n')) {
     if (line.includes('/node_modules/')) continue
-    const match = FRAME.exec(line)
+    const match = (line.endsWith(')') ? NAMED_FRAME : BARE_FRAME).exec(line)
     if (match === null) continue
     const [, location, lineText, columnText] = match
     if (location === undefined || location.startsWith('node:')) continue
