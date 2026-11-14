@@ -102,6 +102,60 @@ function firstDifference(a: string, b: string): string {
   return 'equal'
 }
 
+/**
+ * Every statement-tail ASI shape, generated exhaustively: a compound statement (`if`, `else`, a
+ * loop, a label, nested) whose last statement ends without `;`, maybe in a blanked tail (`as T`,
+ * `!`, `satisfies T`), then a statement the strip removes (or none), then a line that could
+ * continue the one before (`(`, `[`, `` ` ``, `+`, `-`, `/`, `<`). The fuzz corpus has none of
+ * these (the review of 7b19fdf, finding 8: `if (c) x = a` / `type T = 1` / `(y)` became
+ * `if (c) x = a(y)`), and `fuzz-corpus.ts` stays as it is because `bench:runner-diff` counts it.
+ */
+export function generateAsiCorpus(): CorpusFile[] {
+  const heads = [
+    (s: string) => s,
+    (s: string) => `if (c) ${s}`,
+    (s: string) => `if (c) {} else ${s}`,
+    (s: string) => `if (c) z()\nelse ${s}`,
+    (s: string) => `if (c) if (d) z(); else ${s}`,
+    (s: string) => `while (c) ${s}`,
+    (s: string) => `for (;;) ${s}`,
+    (s: string) => `for (const k of c) ${s}`,
+    (s: string) => `for (const k in c) ${s}`,
+    (s: string) => `l: ${s}`,
+    (s: string) => `if (c) l: ${s}`,
+    (s: string) => `if (c) while (c) ${s}`,
+  ]
+  const bodies: readonly (readonly [string, boolean])[] = [
+    ['x = a', false],
+    ['x = a as T', false],
+    ['x = a!', false],
+    ['x = a satisfies T', false],
+    ['return a', true],
+    ['return a as T', true],
+  ]
+  const removed = [
+    '',
+    'type T = 1\n',
+    'interface I {}\n',
+    'declare const q: number\n',
+    'declare function g(): void\n',
+  ]
+  const next = ['(y)', '[1].map(f)', '`t`', '+y', '-y', '/re/.test(y)', '<T>y']
+  const files: CorpusFile[] = []
+  for (const head of heads) {
+    for (const [body, inFunction] of bodies) {
+      for (const between of removed) {
+        for (const line of next) {
+          const code = `${head(body)}\n${between}${line}\n`
+          const source = inFunction ? `function h() {\n${code}}\n` : `let x, a, c, d\n${code}`
+          files.push({ filename: `/asi/${files.length}.ts`, source })
+        }
+      }
+    }
+  }
+  return files
+}
+
 /** The two pipelines of the check: `typescript: 'blank'` and `'oxc'`, over one tsconfig. */
 export interface BlankPipelines extends Disposable {
   readonly blank: Pipeline

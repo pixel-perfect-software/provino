@@ -1,8 +1,8 @@
 // D116: the in-place TypeScript strip (`typescript: 'blank'`) on the corpora.
 //
-// `check`: for every file of the fuzz corpus (`--files`, seeded) and of the excalidraw corpus
-// (`.refs/excalidraw`, when it is there) that the strip blanks, the blanked text prints as the
-// same JavaScript as Oxc's TypeScript transform gives, and every kept character keeps its offset;
+// `check`: for every file of the fuzz corpus (`--files`, seeded), the statement-tail ASI corpus
+// (`generateAsiCorpus`) and the excalidraw corpus (`.refs/excalidraw`, when it is there) that the
+// strip blanks, the blanked text prints as the same JavaScript as Oxc's TypeScript transform gives, and every kept character keeps its offset;
 // with `verbatimModuleSyntax` off (imports elided) and on. Exit 1 on a difference.
 // `speed`: `createPipeline` with `typescript: 'blank'` against `'oxc'` (no hoisting, no cache: the
 // strip, the source map Oxc makes and the import facts both read), file by file over the excalidraw
@@ -21,6 +21,7 @@ import {
   blankPipelines,
   type CorpusFile,
   checkBlankCorpus,
+  generateAsiCorpus,
 } from './blank-corpus.ts'
 import {
   DEFAULT_ROOT,
@@ -80,6 +81,7 @@ function transformOne(pipeline: Pipeline, file: CorpusFile): void {
 if (args.command === 'check') {
   const corpora: [string, readonly CorpusFile[]][] = [
     [`fuzz (${args.files}, seed ${args.seed})`, generateFuzzCorpus(args.files, args.seed)],
+    ['statement-tail ASI', generateAsiCorpus()],
   ]
   const real = excalidraw()
   if (real === null) process.stdout.write(`excalidraw: skipped, ${args.root} is not there\n`)

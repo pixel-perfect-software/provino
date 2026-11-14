@@ -6,7 +6,12 @@
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { describe, test } from 'node:test'
-import { blankPipelines, type CorpusFile, checkBlankCorpus } from './blank-corpus.ts'
+import {
+  blankPipelines,
+  type CorpusFile,
+  checkBlankCorpus,
+  generateAsiCorpus,
+} from './blank-corpus.ts'
 import { DEFAULT_ROOT, readSources } from './corpus.ts'
 import { generateFuzzCorpus } from './fuzz-corpus.ts'
 
@@ -25,6 +30,18 @@ describe('the in-place strip makes the program Oxc makes, file by file', () => {
       // The generator's own mix (enums, namespaces and parameter properties fall back).
       assert.equal(report.valid, 8770)
       assert.equal(report.blanked, 4262)
+    })
+  }
+
+  const asi = generateAsiCorpus()
+  for (const verbatimModuleSyntax of [false, true]) {
+    test(`the statement-tail ASI corpus (verbatimModuleSyntax: ${verbatimModuleSyntax})`, () => {
+      const report = check(asi, verbatimModuleSyntax)
+      assert.deepEqual(report.different, [])
+      assert.deepEqual(report.moved, [])
+      assert.equal(report.requested, 2520)
+      assert.equal(report.valid, 2448)
+      assert.equal(report.blanked, 2448)
     })
   }
 
