@@ -48,6 +48,10 @@ describe('provino jest --coverage checks coverageThreshold as Jest 30.5.2 does (
   for (const [id, what] of [
     ['threshold-global', 'every metric under a global threshold, in Jest metric order'],
     ['threshold-path-glob', 'a path group on its total, a glob group file by file, and global'],
+    [
+      'threshold-overlap',
+      'a file two groups name counts for each: the glob group reports its miss',
+    ],
     ['threshold-negative', 'a negative threshold caps the uncovered count'],
     ['threshold-not-found', 'a path and a glob that name no covered file'],
     ['threshold-pass', 'thresholds that are met: exit 0, nothing on stderr'],

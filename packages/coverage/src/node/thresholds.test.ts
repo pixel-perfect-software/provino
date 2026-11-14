@@ -23,7 +23,7 @@ after(() => {
 })
 
 const policy: ThresholdPolicy = {
-  thresholdGrouping: 'first-match',
+  thresholdGrouping: 'every-match',
   globThresholdScope: 'per-file',
   thresholdMessages: {
     belowMinimum:

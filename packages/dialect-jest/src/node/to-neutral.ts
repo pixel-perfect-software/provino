@@ -163,7 +163,6 @@ export function jestProjectToNeutral(
   if (collects && v8) {
     notApplied(diagnostics, 'coverageProvider', 'T8.12', '; no coverage is collected')
   }
-  const coverage = collects && !v8 ? jestCoverageFilter(project, globalConfig) : undefined
 
   const aliases: NeutralAlias[] = project.moduleNameMapper.map(([pattern, target]) => ({
     pattern,

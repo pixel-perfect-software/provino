@@ -458,13 +458,18 @@ const thresholdLineMatches = (g: Golden, template: unknown): boolean => {
     .some((text) => line.test(text))
 }
 
-const coverageIsPhase2 = pending(
-  'T8.9',
-  'coverage is Phase 2 (T8.8-T8.10); its fixtures record the threshold rules',
-)
-
 export const coverageClaims: Claims = {
-  'coverage.thresholdGrouping': coverageIsPhase2,
+  // `src/deep/partial.ts` is under a path group it meets and a glob group it misses; Jest reports
+  // the glob group's miss, so a file counts for every group that names it.
+  'coverage.thresholdGrouping': each(
+    golden('coverage/threshold-overlap', {
+      read: (g) =>
+        stderrOf(g).includes('"<root>/src/deep/partial.ts" threshold')
+          ? 'every-match'
+          : 'first-match',
+    }),
+    pending('B25', "Vitest's grouping is B25's"),
+  ),
   // `collectCoverageFrom` names `src/**/*.ts`, and the file no test imports is in the report.
   'coverage.includeUntestedByDefault': each(
     golden('coverage/babel-providers-sample', {

@@ -122,7 +122,7 @@ describe('a run with Istanbul coverage', () => {
     // Jest's grouping and words, as a dialect supplies them; the neutral policy refuses them (B25).
     const jestWords = {
       coverage: {
-        thresholdGrouping: 'first-match',
+        thresholdGrouping: 'every-match',
         globThresholdScope: 'per-file',
         thresholdMessages: {
           belowMinimum:

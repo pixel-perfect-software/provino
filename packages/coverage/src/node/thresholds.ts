@@ -97,7 +97,7 @@ export function checkThresholds(
   policy: ThresholdPolicy,
   options: CheckThresholdsOptions,
 ): readonly string[] {
-  if (policy.thresholdGrouping !== 'first-match' || policy.globThresholdScope !== 'per-file') {
+  if (policy.thresholdGrouping !== 'every-match' || policy.globThresholdScope !== 'per-file') {
     throw new CoverageError(
       'COVERAGE_NOT_IMPLEMENTED',
       `Coverage thresholds with grouping "${policy.thresholdGrouping}" and glob scope "${policy.globThresholdScope}" are not built yet (B25).`,
