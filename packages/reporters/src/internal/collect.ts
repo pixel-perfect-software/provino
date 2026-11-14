@@ -62,6 +62,13 @@ export function newFileRecord(): FileRecord {
   }
 }
 
+/** Files the order a randomized run gave the file's top-level tasks under the file node's id. */
+export function recordRootOrder(entry: FileRecord, result: FileResult): void {
+  if (result.childOrder === undefined) return
+  const root = entry.tasks.find((task) => task.type === 'file')
+  if (root !== undefined) entry.orders.set(root.id, result.childOrder)
+}
+
 /**
  * The tests of a collected tree in declaration order: a walk down from the file node, children in
  * order. The array is "parents before children", which is not necessarily declaration order.
@@ -309,10 +316,7 @@ export function createCollector(options: CollectorOptions = {}): Collector {
       const entry = fileRecord(result.file.fileId)
       if (entry === undefined) return
       entry.ended = result
-      const root = entry.tasks.find((task) => task.type === 'file')
-      if (root !== undefined && result.childOrder !== undefined) {
-        entry.orders.set(root.id, result.childOrder)
-      }
+      recordRootOrder(entry, result)
     },
 
     error(error) {

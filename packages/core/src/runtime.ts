@@ -439,9 +439,13 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     }
     const failed = file.errors.length > 0 || outcome === 'fail' || processErrors.failsFile
     const end = now()
-    const result = taskResult(failed ? 'fail' : outcome, start, end, file.errors, {
-      ...(childOrder === undefined ? {} : { childOrder }),
-    })
+    const result = taskResult(
+      failed ? 'fail' : outcome,
+      start,
+      end,
+      file.errors,
+      childOrder === undefined ? undefined : { childOrder },
+    )
     sink.emit({ type: 'file-end', fileId, result, t: end })
     return result
   }

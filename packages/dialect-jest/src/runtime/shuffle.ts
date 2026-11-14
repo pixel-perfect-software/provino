@@ -14,7 +14,6 @@ export function jestShuffle(seed: number): <T>(items: T[]) => T[] {
   const generator = xoroshiro128plus(seed)
   return <T>(items: T[]): T[] => {
     const length = items.length
-    if (length === 0) return items
     for (let i = 0; i < length; i++) {
       const n = unsafeUniformIntDistribution(i, length - 1, generator)
       const value = items[i] as T
