@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "coverage/threshold-no-tests",
+  "files": [],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stdout": "=============================== Coverage summary ===============================\nStatements   : Unknown% ( 0/0 )\nBranches     : Unknown% ( 0/0 )\nFunctions    : Unknown% ( 0/0 )\nLines        : Unknown% ( 0/0 )",
+    "stderr": "Jest: Coverage data for ./src/ was not found.\nJest: Coverage data for ./src/**/*.ts was not found.",
+    "files": {
+      "coverage/coverage-summary.json": "{\"total\": {\"lines\":{\"total\":0,\"covered\":0,\"skipped\":0,\"pct\":\"Unknown\"},\"statements\":{\"total\":0,\"covered\":0,\"skipped\":0,\"pct\":\"Unknown\"},\"functions\":{\"total\":0,\"covered\":0,\"skipped\":0,\"pct\":\"Unknown\"},\"branches\":{\"total\":0,\"covered\":0,\"skipped\":0,\"pct\":\"Unknown\"},\"branchesTrue\":{\"total\":0,\"covered\":0,\"skipped\":0,\"pct\":\"Unknown\"}}\n}\n"
+    }
+  }
+}

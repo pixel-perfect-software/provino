@@ -46,6 +46,8 @@ catalog:
   # Jest 30.5 and Vitest 5.0: subjects of the dev packages (harness, bench), never our runner.
   "@edge-runtime/jest-environment": 4.0.0
   "@jest/globals": 30.5.2
+  # Coverage thresholds (B23b, T8.11): the oracle is `CoverageReporter._checkThreshold` itself, run in-process by `@provino/coverage`'s tests (dev only).
+  "@jest/reporters": 30.5.2
   "@jest/test-result": 30.5.2
   # The Spike A loader fixture's Jest baseline uses @swc/jest (Track 2, bench-e2e).
   "@swc/core": 1.16.22

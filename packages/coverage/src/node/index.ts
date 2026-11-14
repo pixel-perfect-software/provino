@@ -1,7 +1,7 @@
 // @provino/coverage/node: what runs in the coordinator. The entry itself stays light (a run without
 // coverage imports it for the store's types and the filter); the merge, the remap and the reports
 // load through `loadCoverageReporting`, and the instrumenter through `loadInstrumenter`. The
-// thresholds arrive with B23b's Phase 5.
+// thresholds sit in that module too.
 export { CoverageError, type CoverageErrorCode } from '@provino/coverage'
 export { createCoverageFilter } from '../filter.ts'
 export { loadInstrumenter } from '../load-instrumenter.ts'

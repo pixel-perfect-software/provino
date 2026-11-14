@@ -86,7 +86,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'orchestrator.globalSetup.signature': ['global-and-project-config', 'project-with-teardown'],
   'orchestrator.globalSetup.teardownOrder': ['in-order', 'reverse'],
   'report.resultStatusSkipped': ['pending', 'skipped'],
-  'coverage.thresholdGrouping': ['first-match', 'all-files'],
+  'coverage.thresholdGrouping': ['every-match', 'all-files'],
   'coverage.globThresholdScope': ['per-file', 'aggregate'],
   'coverage.v8Conversion': ['v8-to-istanbul', 'ast'],
   'hoist.placement': ['enclosing-block', 'top-level-only'],

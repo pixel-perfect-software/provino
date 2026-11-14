@@ -479,7 +479,7 @@ export interface CoveragePolicy {
     readonly includeUntestedByDefault: boolean;
     readonly istanbulVariable: string;
     readonly reportsDirectory: string;
-    readonly thresholdGrouping: "first-match" | "all-files";
+    readonly thresholdGrouping: "every-match" | "all-files";
     readonly thresholdMessages: {
         readonly belowMinimum: string;
         readonly aboveMaximumUncovered: string;

@@ -97,6 +97,22 @@ describe('exitCodeFor', () => {
     )
   })
 
+  it('is the policy’s failure code when the run’s coverage missed a threshold, ahead of an unhandled error', () => {
+    const totals = { total: 1, covered: 1, pct: 100 }
+    const coverage = {
+      totals: { statements: totals, branches: totals, functions: totals, lines: totals },
+      thresholdFailures: ['missed'],
+      map: {},
+    }
+    assert.equal(exitCodeFor(summary({ coverage }), { policy }), 7)
+    const withUnhandled = summary({ coverage, unhandled: [{ name: 'Error', message: 'x' }] })
+    assert.equal(exitCodeFor(withUnhandled, { policy }), 7)
+    assert.equal(
+      exitCodeFor(summary({ coverage: { ...coverage, thresholdFailures: [] } }), { policy }),
+      0,
+    )
+  })
+
   it('is the policy’s unhandled code for an unhandled error under fail-run', () => {
     const run = summary({ reason: 'failed', unhandled: [{ name: 'Error', message: 'x' }] })
     assert.equal(exitCodeFor(run, { policy }), 9)
