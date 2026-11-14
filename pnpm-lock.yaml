@@ -1172,6 +1172,9 @@ importers:
       '@provino/types':
         specifier: workspace:*
         version: link:../types
+      jest-environment-node:
+        specifier: 'catalog:'
+        version: 30.5.2
       jest-html-reporters:
         specifier: 'catalog:'
         version: 3.1.7

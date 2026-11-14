@@ -87,6 +87,7 @@ export function newFileState(path: string, relativePath: string, signal: AbortSi
     errors: [],
     collected: false,
     onCollected: [],
+    lifecycle: undefined,
     suites: new WeakMap(),
   }
   const root = newSuiteNode({

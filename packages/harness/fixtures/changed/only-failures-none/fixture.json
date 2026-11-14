@@ -1,0 +1,17 @@
+{
+  "description": "--onlyFailures after a run where everything passed: `No failed test found.` and exit 1 (passWithNoTests is not implied). Jest only.",
+  "runners": ["jest"],
+  "before": [
+    {
+      "argv": []
+    }
+  ],
+  "run": {
+    "argv": {
+      "jest": ["--onlyFailures"]
+    },
+    "capture": ["exitCode", "stdout", "stderr"],
+    "keepLines": "^(?!\\s*$)",
+    "emptyStreams": ["stdout", "stderr"]
+  }
+}

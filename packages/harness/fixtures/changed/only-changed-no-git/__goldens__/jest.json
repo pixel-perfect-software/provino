@@ -1,0 +1,28 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "changed/only-changed-no-git",
+  "files": [],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "Jest can only find uncommitted changed files in a git or hg repository. If you make your project a git or hg repository (`git init` or `hg init`), Jest will be able to only run tests related to files changed since the last commit.\nNo tests found related to files changed since last commit."
+  }
+}

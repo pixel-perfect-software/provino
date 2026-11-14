@@ -1,0 +1,18 @@
+{
+  "description": "--changedSince with a ref git does not know: the error is printed (Jest 30.5.2 filters lines containing `Command failed:`, but git's own `Command failed with exit code 128:` has no colon after `failed`, so it stays) and Jest exits 1 (getChangedFilesPromise.ts). Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["--changedSince=nope"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "Test suite failed to run|Command failed|bad revision"
+  }
+}

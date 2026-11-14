@@ -1,0 +1,31 @@
+{
+  "description": "--lastCommit selects from the files of HEAD (`git show --name-only HEAD`) and not from the working tree: a later uncommitted change to another source is left out. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "write": {
+          "src/foo.ts": "module.exports = { foo: 2 }\n"
+        }
+      },
+      {
+        "commit": "change foo"
+      },
+      {
+        "write": {
+          "src/bar.ts": "module.exports = { bar: 3 }\n"
+        }
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--lastCommit"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "description": "--onlyFailures after a run with one failing file: only that file is listed (Jest reads the failed tests of the previous run from its cache). `before` is the earlier full run. Jest only.",
+  "runners": ["jest"],
+  "before": [
+    {
+      "argv": []
+    }
+  ],
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--onlyFailures"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  }
+}

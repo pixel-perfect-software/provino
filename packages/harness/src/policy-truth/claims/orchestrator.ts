@@ -257,6 +257,12 @@ export const orchestratorClaims: Claims = {
     affectedPending('Jest selects by the static graph; `changed/related-*`'),
     affectedVitestPending,
   ),
+  'orchestrator.affected.conditions': each(
+    affectedPending(
+      '`changed/related-exports-conditions`: an edge resolves `require`, not `import`',
+    ),
+    affectedVitestPending,
+  ),
   'orchestrator.passWithNoTests': each(
     [golden('orchestrator-no-tests', { read: (g) => exitCode(g) === 0 }), golden('defaults')],
     golden('orchestrator-no-tests', { read: (g) => exitCode(g) === 0 }),

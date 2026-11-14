@@ -163,14 +163,99 @@ test('it installs no hook process-wide: the extension table is as it was, and no
   }
 })
 
-test('resolveDependency is a stub until B23c Phase 4', async () => {
-  const dir = writeTree({ 'a.ts': 'export {}\n' })
+test('resolveDependency resolves as a require does: files, extensions, mappers, and nothing for a builtin or a miss', async () => {
+  const dir = writeTree({
+    'a.ts': 'export {}\n',
+    'lib/index.ts': 'export {}\n',
+    'data.json': '{}\n',
+  })
   // No `using`: Node 22.15, the floor, cannot parse it.
+  const loader = await createCoordinatorLoader(
+    dir,
+    config({ aliases: [{ pattern: '^@lib$', targets: ['<rootDir>/lib/index.ts'] }] }),
+    neutralPolicy.module,
+  )
+  try {
+    const from = join(dir, 'a.ts')
+    assert.equal(loader.resolveDependency('./a', join(dir, 'b.ts')), from)
+    assert.equal(loader.resolveDependency('./lib', from), join(dir, 'lib/index.ts'))
+    assert.equal(loader.resolveDependency('./data.json', from), join(dir, 'data.json'))
+    assert.equal(loader.resolveDependency('@lib', from), join(dir, 'lib/index.ts'))
+    assert.equal(loader.resolveDependency('node:fs', from), undefined)
+    assert.equal(loader.resolveDependency('./missing', from), undefined)
+  } finally {
+    loader[Symbol.dispose]()
+  }
+})
+
+test('invalidateResolution lets a specifier that missed resolve once its file exists', async () => {
+  const dir = writeTree({ 'a.ts': 'export {}\n' })
   const loader = await createCoordinatorLoader(dir, config(), neutralPolicy.module)
   try {
-    assert.throws(() => loader.resolveDependency('./a', join(dir, 'a.ts')), {
-      code: 'LOADER_NOT_IMPLEMENTED',
-    })
+    const from = join(dir, 'a.ts')
+    assert.equal(loader.resolveDependency('./later', from), undefined)
+    writeFileSync(join(dir, 'later.ts'), 'export {}\n')
+    loader.invalidateResolution([join(dir, 'later.ts')])
+    assert.equal(loader.resolveDependency('./later', from), join(dir, 'later.ts'))
+  } finally {
+    loader[Symbol.dispose]()
+  }
+})
+
+test('resolveDependency under skipNodeResolution: a bare name resolves only through a mapper, a path as before', async () => {
+  const dir = writeTree({
+    'a.ts': 'export {}\n',
+    'lib.ts': 'export {}\n',
+    'node_modules/pkg/package.json': '{ "name": "pkg", "main": "index.js" }\n',
+    'node_modules/pkg/index.js': 'module.exports = {}\n',
+  })
+  const aliases = [{ pattern: '^mapped$', targets: ['<rootDir>/lib.ts'] }]
+  const from = join(dir, 'a.ts')
+  const plain = await createCoordinatorLoader(dir, config({ aliases }), neutralPolicy.module)
+  try {
+    assert.equal(plain.resolveDependency('pkg', from), join(dir, 'node_modules/pkg/index.js'))
+  } finally {
+    plain[Symbol.dispose]()
+  }
+  const skipping = await createCoordinatorLoader(
+    dir,
+    config({ aliases, skipNodeResolution: true }),
+    neutralPolicy.module,
+  )
+  try {
+    assert.equal(skipping.resolveDependency('pkg', from), undefined)
+    assert.equal(skipping.resolveDependency('mapped', from), join(dir, 'lib.ts'))
+    assert.equal(skipping.resolveDependency('./lib', from), join(dir, 'lib.ts'))
+    assert.equal(
+      skipping.resolveDependency('pkg/index.js', from),
+      join(dir, 'node_modules/pkg/index.js'),
+    )
+  } finally {
+    skipping[Symbol.dispose]()
+  }
+})
+
+test('resolveDependency takes the conditions a caller gives in place of the project’s', async () => {
+  const dir = writeTree({
+    'package.json': JSON.stringify({
+      imports: { '#dep': { browser: './browser.ts', default: './main.ts' } },
+    }),
+    'browser.ts': 'export {}\n',
+    'main.ts': 'export {}\n',
+    'a.ts': 'export {}\n',
+  })
+  const loader = await createCoordinatorLoader(
+    dir,
+    config({ conditions: ['browser'] }),
+    neutralPolicy.module,
+  )
+  try {
+    const from = join(dir, 'a.ts')
+    assert.equal(loader.resolveDependency('#dep', from), join(dir, 'browser.ts'))
+    assert.equal(
+      loader.resolveDependency('#dep', from, { conditions: ['require', 'node', 'default'] }),
+      join(dir, 'main.ts'),
+    )
   } finally {
     loader[Symbol.dispose]()
   }

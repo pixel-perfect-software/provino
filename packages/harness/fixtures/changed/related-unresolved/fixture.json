@@ -1,0 +1,16 @@
+{
+  "description": "A require that resolves to nothing is no edge and no error: a test with one unresolved and one resolved require is still related to the resolved file, and a path that is no file at all selects nothing. Jest only.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--listTests", "--findRelatedTests", "src/foo.ts", "src/gone.ts"]
+    },
+    "capture": ["exitCode", "file:.harness-out/jest.json"],
+    "sortStdout": "json"
+  },
+  "files": {
+    "jest": {
+      "mixed.test.ts": "test('mixed', () => {\n  const missing = require('./missing.ts') as unknown\n  const foo = require('./src/foo.ts') as unknown\n\n  expect([missing, foo]).toBeDefined()\n})\n"
+    }
+  }
+}

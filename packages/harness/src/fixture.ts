@@ -122,6 +122,49 @@ export interface FixtureManifest {
    * apply.
    */
   readonly run?: FixtureRun
+  /**
+   * A git repository for the run (B23c): `git init` in the work directory after the files are
+   * written, then `steps` in order, all under a hermetic git environment (`internal/scm.ts`). For
+   * the changed-file flags, which read git. The repository's `.git` is never captured.
+   */
+  readonly scm?: FixtureScm
+  /**
+   * Runs of the runner before the captured one, each with its own extra arguments, output
+   * discarded (B23c): `--onlyFailures` reads the failures an earlier run left in Jest's cache. A
+   * Jest-only field. The arguments go through the same checks as `run.argv`.
+   */
+  readonly before?: readonly FixtureBeforeRun[]
+}
+
+/**
+ * One step of a fixture's `scm`, run in the work directory. Exactly one key:
+ * `git` (any git command's arguments), `commit` (`add -A`, then a commit with this message),
+ * `branch` (`checkout -b`), `checkout`, `write` (files, relative path to text) and `remove`
+ * (files). A step runner can be reused by any field that lists steps (B23c Phase 3's `watch`).
+ * @public
+ */
+export type ScmStep =
+  | { readonly git: readonly string[] }
+  | { readonly commit: string }
+  | { readonly branch: string }
+  | { readonly checkout: string }
+  | { readonly write: Readonly<Record<string, string>> }
+  | { readonly remove: readonly string[] }
+
+/**
+ * A fixture's `scm` field.
+ * @public
+ */
+export interface FixtureScm {
+  readonly steps: readonly ScmStep[]
+}
+
+/**
+ * One entry of a fixture's `before`.
+ * @public
+ */
+export interface FixtureBeforeRun {
+  readonly argv: readonly string[]
 }
 
 /**
@@ -251,6 +294,8 @@ const KNOWN_KEYS: ReadonlySet<string> = new Set([
   'config',
   'files',
   'run',
+  'scm',
+  'before',
 ])
 
 function isFixtureProfile(value: unknown): value is FixtureProfile {
@@ -284,7 +329,7 @@ export function parseFixtureManifest(
     if (!KNOWN_KEYS.has(key)) {
       throw new HarnessError(
         'HARNESS_FIXTURE_UNKNOWN_KEY',
-        `${source}: unknown key "${key}" (expected description, runners, env, nodeFlags, nodeMajors, expectCrash, mockCleanup, packages, jestEsm, jestConfig, config, files, run)`,
+        `${source}: unknown key "${key}" (expected description, runners, env, nodeFlags, nodeMajors, expectCrash, mockCleanup, packages, jestEsm, jestConfig, config, files, run, scm, before)`,
         { path: source },
       )
     }
@@ -303,6 +348,8 @@ export function parseFixtureManifest(
     config,
     files,
     run,
+    scm,
+    before,
   } = value
   if (typeof description !== 'string' || description.trim() === '') {
     throw new HarnessError(
@@ -355,6 +402,8 @@ export function parseFixtureManifest(
         }),
     ...(files === undefined ? {} : { files: parseRunnerFiles(files, runners, source) }),
     ...(run === undefined ? {} : { run: parseRun(run, runners, source) }),
+    ...(scm === undefined ? {} : { scm: parseScm(scm, source) }),
+    ...(before === undefined ? {} : { before: parseBefore(before, runners, source) }),
   }
 }
 
@@ -549,6 +598,14 @@ function optionOf(arg: string): string | undefined {
  */
 const addsTextReporter = (arg: string): boolean => /^--reporter=(?!json$)[a-z-]+$/.test(arg)
 
+/** The first argument that sets an option the recorder owns, if any (`run.argv` and `before`). */
+function ownedFlagIn(args: readonly string[]): string | undefined {
+  return args.find((arg) => {
+    const option = optionOf(arg)
+    return option !== undefined && OWNED_FLAGS.has(option) && !addsTextReporter(arg)
+  })
+}
+
 /**
  * `run` is `{ capture, argv?, keepLines?, emptyStreams?, sortStdout?, timeKeys?, mask? }`:
  * `capture` a non-empty list of `exitCode`, `stdout`, `stderr`, `file:<relative path>` and
@@ -621,10 +678,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       if (!Array.isArray(args) || !args.every((arg): arg is string => typeof arg === 'string')) {
         throw bad(`"argv" must give "${runner}" an array of strings`)
       }
-      const owned = args.find((arg) => {
-        const option = optionOf(arg)
-        return option !== undefined && OWNED_FLAGS.has(option) && !addsTextReporter(arg)
-      })
+      const owned = ownedFlagIn(args)
       if (owned !== undefined) {
         throw bad(`"argv" gives "${owned}" to ${runner}, which the recorder or "mockCleanup" sets`)
       }
@@ -744,6 +798,150 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     out.cwd = path.posix.normalize(cwd)
   }
   return out
+}
+
+const SCM_KEYS: readonly string[] = ['git', 'commit', 'branch', 'checkout', 'write', 'remove']
+/** Git's own global options: they would replace the hermetic ones, so a `git` step may not open with one. */
+const GIT_GLOBAL_OPTIONS: ReadonlySet<string> = new Set([
+  '-c',
+  '-C',
+  '--git-dir',
+  '--work-tree',
+  '--exec-path',
+  '--config-env',
+  '--namespace',
+])
+
+/** Whether a relative path is inside the work directory and outside its `.git`. */
+function isWorkPath(file: string): boolean {
+  return staysInside(file) && path.posix.normalize(file).split('/')[0]?.toLowerCase() !== '.git'
+}
+
+/**
+ * `scm` is `{ steps: [...] }`; each step has exactly one of `git` (a non-empty list of strings that
+ * doesn't open with a git global option), `commit` (a message), `branch` or `checkout` (a ref name,
+ * not an option), `write` (a non-empty object from relative paths to text) and `remove` (a
+ * non-empty list of relative paths). No path may be in `.git`. Anything else is
+ * `HARNESS_FIXTURE_BAD_SCM`.
+ * @public
+ */
+export function parseScm(scm: unknown, source: string): FixtureScm {
+  const bad = (reason: string): HarnessError =>
+    new HarnessError('HARNESS_FIXTURE_BAD_SCM', `${source}: "scm" ${reason}`, { path: source })
+  if (!isRecord(scm)) throw bad('must be an object with "steps"')
+  for (const key of Object.keys(scm)) {
+    if (key !== 'steps') throw bad(`has the unknown key "${key}" (expected steps)`)
+  }
+  return { steps: parseScmSteps(scm.steps, source, 'scm.steps') }
+}
+
+/** The steps of an `scm`-style list: see `parseScm`. `field` names the list in errors. */
+export function parseScmSteps(steps: unknown, source: string, field: string): ScmStep[] {
+  const bad = (reason: string): HarnessError =>
+    new HarnessError('HARNESS_FIXTURE_BAD_SCM', `${source}: "${field}" ${reason}`, {
+      path: source,
+    })
+  if (!Array.isArray(steps)) throw bad('must be an array of steps')
+  const ref = (value: unknown, kind: string): string => {
+    if (typeof value !== 'string' || value === '' || value.startsWith('-')) {
+      throw bad(`"${kind}" must be a non-empty name that doesn't start with "-"`)
+    }
+    return value
+  }
+  const paths = (list: readonly unknown[], kind: string): string[] =>
+    list.map((file) => {
+      if (typeof file !== 'string' || !isWorkPath(file)) {
+        throw bad(`"${kind}" gives ${JSON.stringify(file)}, which is not a relative path inside it`)
+      }
+      return path.posix.normalize(file)
+    })
+  return steps.map((step, index): ScmStep => {
+    if (!isRecord(step)) throw bad(`step ${index} must be an object`)
+    const keys = Object.keys(step)
+    const [key] = keys
+    if (keys.length !== 1 || key === undefined || !SCM_KEYS.includes(key)) {
+      throw bad(`step ${index} must have exactly one key of ${SCM_KEYS.join(', ')}`)
+    }
+    const value = step[key]
+    switch (key) {
+      case 'git': {
+        if (
+          !Array.isArray(value) ||
+          value.length === 0 ||
+          !value.every((arg): arg is string => typeof arg === 'string')
+        ) {
+          throw bad('"git" must be a non-empty array of strings')
+        }
+        const [first] = value
+        if (first !== undefined && GIT_GLOBAL_OPTIONS.has(first.split('=')[0] ?? first)) {
+          throw bad(`"git" opens with "${first}", a git option the hermetic environment owns`)
+        }
+        return { git: value }
+      }
+      case 'commit': {
+        if (typeof value !== 'string' || value === '') throw bad('"commit" must be a message')
+        return { commit: value }
+      }
+      case 'branch':
+        return { branch: ref(value, 'branch') }
+      case 'checkout':
+        return { checkout: ref(value, 'checkout') }
+      case 'write': {
+        if (!isRecord(value) || Object.keys(value).length === 0) {
+          throw bad('"write" must be a non-empty object from relative paths to text')
+        }
+        const written: Record<string, string> = {}
+        for (const [file, text] of Object.entries(value)) {
+          const [normalized] = paths([file], 'write')
+          if (normalized === undefined) throw bad('"write" gives an empty path')
+          if (typeof text !== 'string') throw bad(`"write" must give "${file}" its text`)
+          written[normalized] = text
+        }
+        return { write: written }
+      }
+      default: {
+        if (!Array.isArray(value) || value.length === 0) {
+          throw bad('"remove" must be a non-empty array of relative paths')
+        }
+        return { remove: paths(value, 'remove') }
+      }
+    }
+  })
+}
+
+/**
+ * `before` is a non-empty array of `{ argv }` (arrays of strings that set no option the recorder
+ * owns), for a fixture that runs only Jest.
+ */
+function parseBefore(
+  before: unknown,
+  runners: readonly FixtureProfile[],
+  source: string,
+): FixtureBeforeRun[] {
+  const bad = (reason: string): HarnessError =>
+    new HarnessError('HARNESS_FIXTURE_BAD_BEFORE', `${source}: "before" ${reason}`, {
+      path: source,
+    })
+  if (runners.some((profile) => runnerOfProfile(profile) !== 'jest')) {
+    throw bad('is Jest-only, but "runners" lists another runner')
+  }
+  if (!Array.isArray(before) || before.length === 0) {
+    throw bad('must be a non-empty array of { "argv": [...] }')
+  }
+  return before.map((entry, index) => {
+    if (!isRecord(entry) || Object.keys(entry).length !== 1 || !('argv' in entry)) {
+      throw bad(`entry ${index} must be { "argv": [...] }`)
+    }
+    const { argv } = entry
+    if (!Array.isArray(argv) || !argv.every((arg): arg is string => typeof arg === 'string')) {
+      throw bad(`entry ${index} must give "argv" an array of strings`)
+    }
+    const owned = ownedFlagIn(argv)
+    if (owned !== undefined) {
+      throw bad(`entry ${index} gives "${owned}", which the recorder or "mockCleanup" sets`)
+    }
+    return { argv }
+  })
 }
 
 /**
