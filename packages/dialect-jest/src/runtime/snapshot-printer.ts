@@ -74,14 +74,39 @@ function hintOf(info: SnapshotMessageInfo, updatable: boolean): string {
 // are not vendored. A snapshot's diff is `jest-diff`'s, labelled `Snapshot` and `Received` as
 // theirs is, without their colouring of the changed parts; properties use `printDiffOrStringify`.
 // DIVERGENCES lists it; the corpus compares `.snap` bytes and exit codes, not this text.
+/**
+ * `printSnapshotAndReceived`'s first branch (printSnapshot.ts L261-L291): a one-line string
+ * against a one-line string snapshot in pretty-format's default form is two labelled lines, not a
+ * diff (B23d B1, `snapshot/inline-ci`). The labels are the same width, so no padding; the changed
+ * parts are not coloured.
+ */
+function oneLineStrings(info: SnapshotMessageInfo): string | undefined {
+  const a = info.expected ?? ''
+  const b = info.actual
+  if (
+    typeof info.received !== 'string' ||
+    a.length < 2 ||
+    !a.startsWith('"') ||
+    !a.endsWith('"') ||
+    b !== format(info.received) ||
+    a.includes('\n') ||
+    b.includes('\n')
+  ) {
+    return undefined
+  }
+  return `Snapshot: ${a}\nReceived: ${b}`
+}
+
 const messages: SnapshotMessages = {
   mismatch(info): string {
     const difference =
+      oneLineStrings(info) ??
       diff(info.expected ?? '', info.actual, {
         aAnnotation: 'Snapshot',
         bAnnotation: 'Received',
         expand: info.expand,
-      }) ?? ''
+      }) ??
+      ''
     return `${hintOf(info, true)}\n\n${snapshotName(info)}\n\n${difference}`
   },
   notWritten(info): string {

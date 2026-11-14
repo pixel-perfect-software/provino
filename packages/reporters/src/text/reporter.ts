@@ -371,6 +371,13 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
     async 'file:end'(result) {
       const { fileId } = result.file
       tally(files, result.state)
+      // A file failed whole after its tests ended (its inline snapshots could not be written):
+      // none of its tests count, as Jest's summary has it.
+      if (result.resultsDiscarded === true) {
+        for (const ended of record.files.get(fileId)?.results.values() ?? []) {
+          untally(tests, ended.state)
+        }
+      }
       const text = fileText(result, record.files.get(fileId))
       release(fileId)
       lastFailed = result.state === 'fail'
@@ -500,6 +507,15 @@ function suitePath(tasks: readonly TaskNode[], suite: TaskNode): readonly string
 }
 
 /** One more finished file or test in `state`'s bucket. */
+/** Takes back what `tally` added for `state`. */
+function untally(counts: Counts, state: TaskState): void {
+  const before = { ...counts }
+  tally(before, state)
+  for (const key of Object.keys(counts) as (keyof Counts)[]) {
+    counts[key] -= before[key] - counts[key]
+  }
+}
+
 function tally(counts: Counts, state: TaskState): void {
   switch (state) {
     case 'pass':

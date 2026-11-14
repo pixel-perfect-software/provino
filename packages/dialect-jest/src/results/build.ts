@@ -265,7 +265,7 @@ function withPerfStats(result: TestResult, file: FileEvents, options: BuildOptio
  * @public
  */
 export function toTestResult(file: FileEvents, options: BuildOptions): TestResult {
-  if (file.result.workerExit !== undefined) {
+  if (file.result.workerExit !== undefined || file.result.resultsDiscarded === true) {
     // A worker that died takes the file's results with it: Jest's runner fails the whole file
     // (`TestScheduler.ts` `onFailure`, L185-L200), so even tests that ended before the crash
     // leave no counts and no assertion.

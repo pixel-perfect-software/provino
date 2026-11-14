@@ -772,10 +772,13 @@ export async function runProjects(
         entry.member.snapshots.aggregate.add(outcome.done.snapshot, entry.file.path)
       }
       const elapsedMs = takenAt === undefined ? 0 : performance.now() - takenAt
-      const result = resultOf(entry.info, outcome, dispatch.result, elapsedMs, {
+      const reported = resultOf(entry.info, outcome, dispatch.result, elapsedMs, {
         ended: dispatch.todo,
         todoOnlyFile: member.project.policy.orchestrator.todoOnlyFile,
       })
+      // The worker finished the file and the inline snapshot write failed it.
+      const result: FileResult =
+        outcome !== polled ? { ...reported, resultsDiscarded: true } : reported
       // A start failure or an interruption says nothing about the file; a skipped file isn't
       // remembered (as Jest's).
       if (

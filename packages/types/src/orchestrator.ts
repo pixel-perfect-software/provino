@@ -500,6 +500,12 @@ export interface FileResult {
   readonly durationMs: number
   /** Set when the worker died owning this file. */
   readonly workerExit?: WorkerExit
+  /**
+   * The file's tests ran, and what came after them failed it whole (its inline snapshots could not
+   * be written): a reader that follows Jest counts none of its tests, as `TestScheduler`'s
+   * `onFailure` does for an error that escapes `runTest`.
+   */
+  readonly resultsDiscarded?: true
   readonly errors: readonly SerializedError[]
   /**
    * What the file's snapshot state ended with (the worker's `fileDone.snapshot`); absent when the
