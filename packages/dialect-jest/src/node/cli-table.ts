@@ -178,8 +178,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
   debug: {
     type: 'boolean',
     description: 'Print debugging info about your jest config.',
-    support: 'warn',
-    owner: 'T9.7',
+    support: 'accepted',
   },
   detectLeaks: {
     type: 'boolean',
@@ -210,8 +209,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     requiresArg: true,
     description:
       'Path to a module exporting a filtering function. This method receives a list of tests which can be manipulated to exclude tests from running. Especially useful when used in conjunction with a testing infrastructure to filter known broken tests.',
-    support: 'refuse',
-    owner: 'no task yet',
+    support: 'config',
   },
   findRelatedTests: {
     type: 'boolean',
@@ -414,8 +412,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     string: true,
     description:
       'A list of projects that use Jest to run all tests of all projects in a single instance of Jest.',
-    support: 'refuse',
-    owner: 'the --projects flag, no task yet (a config `projects` runs)',
+    support: 'config',
   },
   randomize: {
     type: 'boolean',

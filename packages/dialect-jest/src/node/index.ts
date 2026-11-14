@@ -38,12 +38,14 @@ export {
   jestCoverageOptions,
   jestCoverageTexts,
 } from './coverage.ts'
+export { jestDebugText } from './debug.ts'
 export {
   JestCliError,
   type JestCliErrorCode,
   JestConfigError,
   type JestConfigErrorCode,
 } from './errors.ts'
+export { type JestFilter, loadJestFilter } from './filter.ts'
 export {
   findJestConfig,
   isJSONString,

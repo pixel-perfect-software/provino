@@ -4,6 +4,7 @@
 // events and output always arrive first. The runtime that actually runs a file is the runner's
 // (U1, B10); this file knows nothing about tests. On `stop` it lets the runner tear down, then
 // sends `stopped`.
+import { AsyncLocalStorage } from 'node:async_hooks'
 import { getHeapStatistics } from 'node:v8'
 import { isMainThread } from 'node:worker_threads'
 import { createRpc, type RpcOptions, serializeError } from '@provino/rpc'
@@ -181,11 +182,27 @@ export function startWorker(
     for (const controller of controllers.values()) controller.abort(reason)
   }
 
+  /**
+   * In band, what runs inside a file (its imports, tests, hooks and the work they leave behind)
+   * carries this store, and a console call without it is the coordinator's own (a reporter's):
+   * it goes to the console the capture replaced.
+   */
+  const inFile = new AsyncLocalStorage<true>()
+
   /** Nothing is left to report to: aborts every file, keeps queued ones from starting, restores the console. */
   const finish = (): void => {
     if (finished) return
     finished = true
     abortAll(new Error('The coordinator went away'))
+    installed?.restore()
+  }
+
+  /**
+   * Once the runner has stopped: the console is given back for good. A file that was still running
+   * when `finish` restored it ends with its environment's teardown, which puts back the console it
+   * found (the capture's); this undoes that.
+   */
+  const releaseConsole = (): void => {
     installed?.restore()
     installed = undefined
   }
@@ -246,7 +263,10 @@ export function startWorker(
     let snapshot: SnapshotFileReport | null = null
     try {
       if (startFailure !== undefined) throw startFailure.error
-      const outcome = await runner.runFile({ ...context(), job, signal: controller.signal })
+      const file = { ...context(), job, signal: controller.signal }
+      const outcome = await (init?.captureConsole === true
+        ? inFile.run(true, () => runner.runFile(file))
+        : runner.runFile(file))
       leakedHandles = outcome?.leakedHandles ?? 0
       leakedGlobals = outcome?.leakedGlobals ?? []
       snapshot = outcome?.snapshot ?? null
@@ -290,24 +310,33 @@ export function startWorker(
     // be sent now. But an inline worker lives in the coordinator's process, so the slot, the loader
     // and the environment it installed must not outlive it (the next worker would find the matcher
     // slot taken): without a `stop` of its own the runner gets a best-effort one, and `done` waits
-    // for it, because that is when this worker has ended. Errors have nowhere to go.
+    // for it, because that is when this worker has ended. The file still running ends with its
+    // environment's teardown, which puts the capture's console back on the global, so the console
+    // is given back again once the runner has stopped. Errors have nowhere to go.
     finish()
     if (!stopQueued) {
       stopQueued = true
       enqueue(() => stopRunner(() => {}))
     }
-    void runnerStopped.then(resolveDone)
+    void runnerStopped.then(() => {
+      releaseConsole()
+      resolveDone()
+    })
   })
   port.onMessage((message) => {
     switch (message.t) {
       case 'start': {
         init = message.init
-        const streams = options.console?.streams
-        const global = options.console?.global ?? init.key.pool !== 'inline'
+        // A run in band captures `console` only: the streams are the coordinator's own, and the
+        // reporters write to them.
+        const inBand = init.captureConsole === true
+        const streams = options.console?.streams ?? (inBand ? discardedStreams() : undefined)
+        const global = options.console?.global ?? (inBand || init.key.pool !== 'inline')
         if (streams !== undefined || global) {
           installed = capture.install(
             streams ?? { stdout: process.stdout, stderr: process.stderr },
             global ? (globalThis as { console: Console }) : undefined,
+            inBand ? { passThrough: () => inFile.getStore() !== true } : {},
           )
         }
         enqueue(async () => {
@@ -346,6 +375,7 @@ export function startWorker(
           await stopped
           port.close()
           finish()
+          releaseConsole()
           resolveDone()
         })
         return
@@ -372,4 +402,12 @@ function measureMemory(init: WorkerInit | undefined): number {
   const pool = init?.key.pool ?? (isMainThread ? 'forks' : 'threads')
   if (pool === 'forks') return process.memoryUsage.rss()
   return getHeapStatistics().used_heap_size
+}
+
+/** Stand-ins for stdout and stderr that nothing writes to: the capture patches them and no more. */
+function discardedStreams(): { readonly stdout: WritableLike; readonly stderr: WritableLike } {
+  // `writableLength` 0 is what lets the capture's flush finish without waiting for a callback.
+  const stream = (): WritableLike =>
+    ({ writableLength: 0, write: () => true }) as unknown as WritableLike
+  return { stdout: stream(), stderr: stream() }
 }

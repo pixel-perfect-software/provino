@@ -370,9 +370,20 @@ export const orchestratorClaims: Claims = {
     ],
     golden('orchestrator-pool', { read: (g) => titleAfter(g, 'file a runs in: ') }),
   ),
-  'orchestrator.runInBand.auto': golden('orchestrator-run-in-band', {
+  // Jest 30.5.2, given two workers, ran a single file inline (`policy/orchestrator-run-in-band`):
+  // `single`. Vitest forked it. The 20-files and 1000 ms numbers are read from
+  // `testSchedulerHelper.ts` (L10, L76); showing them needs a warm timings cache.
+  'orchestrator.inBand.single': golden('orchestrator-run-in-band', {
     read: (g) => titleAfter(g, 'the only file runs in: ') === 'inline',
   }),
+  'orchestrator.inBand.fastFileCount': pending(
+    'B14',
+    'jest-core testSchedulerHelper.ts L76 (`tests.length <= 20`): no fixture warms the timings cache',
+  ),
+  'orchestrator.inBand.slowMs': pending(
+    'B14',
+    'jest-core testSchedulerHelper.ts L10 (`SLOW_TEST_TIME`): no fixture warms the timings cache',
+  ),
   // Jest 30.5.2's `--shard=i/3` over 8 files (`cli/shard-1-of-3` to `-3-of-3`): each shard ran the
   // slice of the sha1 order of the paths (3, 3, 2 files), which a path-sorted slice would not give.
   // Vitest 5.0.5's `BaseSequencer.shard` sorts by sha1 too (read from its source, not recorded).
