@@ -70,6 +70,7 @@ export interface ct {
     dim(text: string): string;
     // (undocumented)
     green(text: string): string;
+    inverse(text: string): string;
     // (undocumented)
     magenta(text: string): string;
     // (undocumented)
