@@ -3,8 +3,9 @@
 // (`env/handle-test-event*`); these hold what a handler can read of the state and the objects.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { createRuntime, type RuntimeApi } from '@provino/core'
+import { createRuntime, type RunFileOptions, type Runtime, type RuntimeApi } from '@provino/core'
 import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
+import { jestPolicy } from '../dialect.ts'
 import { type CircusConfig, createCircusMirror, type HandleTestEvent } from './circus-mirror.ts'
 
 interface Seen {
@@ -16,12 +17,13 @@ interface Seen {
 
 /** Runs one file under the Jest dialect's core policy; returns what a handler saw. */
 async function observe(
-  register: (api: RuntimeApi) => void,
+  register: (api: RuntimeApi, runtime: Runtime) => void,
   config: CircusConfig = {},
   handler?: (
     event: Record<string, unknown>,
     state: Record<string, unknown>,
   ) => void | Promise<void>,
+  fileOptions: RunFileOptions = {},
 ): Promise<Seen[]> {
   const seen: Seen[] = []
   const handle = (event: Record<string, unknown>, state: Record<string, unknown>) => {
@@ -34,14 +36,14 @@ async function observe(
   }
   const mirror = createCircusMirror(handle as unknown as HandleTestEvent, config)
   const runtime = await createRuntime({
-    policy: resolvePolicy({ core: { hooks: { beforeAllError: 'attach-to-tests' } } }).core,
+    policy: resolvePolicy(jestPolicy).core,
     behaviours: createBehaviourLoader(),
     sink: { emit: () => undefined },
-    importFile: async () => register(runtime.api),
+    importFile: async () => register(runtime.api, runtime),
     rootDir: '/mirror',
   })
   try {
-    await runtime.runFile('/mirror/a.test.ts', { lifecycle: mirror })
+    await runtime.runFile('/mirror/a.test.ts', { ...fileOptions, lifecycle: mirror })
   } finally {
     await runtime.dispose()
   }
@@ -249,6 +251,124 @@ describe('the circus mirror', () => {
     assert.equal(retry.retryReasons.length, 1)
     const starts = seen.filter((entry) => entry.name === 'test_start')
     assert.equal(starts.length, 2)
+  })
+
+  // An eager lazy value's hook (`LazyHost.addHook`) is no hook circus knows: the handler never
+  // hears of it, and the hooks the file declared keep their own events.
+  test("a lazy value's hook is invisible to the handler and shifts no declared hook", async () => {
+    const declared: unknown[] = []
+    const seen = await observe(({ test, beforeEach }, runtime) => {
+      const first = (): void => undefined
+      const second = (): void => {
+        throw new Error('b boom')
+      }
+      declared.push(first, second)
+      beforeEach(first)
+      const suite = runtime.lazyHost.collecting()
+      assert.ok(suite !== undefined)
+      runtime.lazyHost.addHook(suite, 'beforeEach', () => undefined)
+      beforeEach(second)
+      test('t', () => undefined)
+    })
+    const hooks = seen
+      .filter((entry) => /^hook_/.test(entry.name))
+      .map((entry) => [entry.name, (entry.event.hook as { fn: unknown }).fn])
+    // The adapter's own root `beforeEach` first, then the two the file declared.
+    assert.deepEqual(hooks.slice(2), [
+      ['hook_start', declared[0]],
+      ['hook_success', declared[0]],
+      ['hook_start', declared[1]],
+      ['hook_failure', declared[1]],
+    ])
+  })
+
+  // circus's `getEachHooksForTest` gives a concurrent test no each-hooks (`utils.ts` L142-L146),
+  // so the adapter's root `beforeEach` never runs for one.
+  test("a concurrent test gets no hook_start for the adapter's beforeEach", async () => {
+    const seen = await observe(({ test }) => {
+      test.concurrent('a', () => undefined)
+    })
+    const run = names(seen).slice(names(seen).indexOf('test_started'))
+    assert.deepEqual(run.slice(0, 3), ['test_started', 'test_fn_start', 'test_fn_success'])
+  })
+
+  // `clearTestErrors` (`run.ts` L179-L190) keeps the errors a test had before the attempt: an
+  // outer `beforeAll`'s stays, and only what the attempt added becomes a retry reason.
+  test('describe_retry clears only the errors the attempt added', async () => {
+    let calls = 0
+    const messages = (list: unknown[]): string[] =>
+      list.map((entry) => ((Array.isArray(entry) ? entry[0] : entry) as Error).message)
+    let atRetry: { errors: string[]; retryReasons: string[] } | undefined
+    await observe(
+      ({ describe, test, beforeAll, afterEach }, runtime) => {
+        describe('outer', () => {
+          beforeAll(() => {
+            throw new Error('outer boom')
+          })
+          describe('inner', () => {
+            runtime.setDescribeRetry({ numRetries: 1, logErrorsBeforeRetry: true })
+            afterEach(() => {
+              if (++calls === 1) throw new Error('after boom')
+            })
+            test('a', () => undefined)
+          })
+        })
+      },
+      {},
+      (event) => {
+        if (event.name !== 'describe_retry') return
+        const block = event.describeBlock as {
+          children: Array<{ errors: unknown[]; retryReasons: unknown[] }>
+        }
+        const a = block.children[0]
+        assert.ok(a !== undefined)
+        // Read as the handler hears it: the objects go on changing after.
+        atRetry = { errors: messages(a.errors), retryReasons: messages(a.retryReasons) }
+      },
+    )
+    assert.deepEqual(atRetry, { errors: ['outer boom'], retryReasons: ['after boom'] })
+  })
+
+  test('a hook in a describe with no tests is an unhandled error once the block is defined', async () => {
+    const seen = await observe(({ describe, test, beforeAll }) => {
+      describe('empty', () => {
+        beforeAll(() => undefined)
+      })
+      test('a', () => undefined)
+    })
+    const finished = seen.find((entry) => entry.name === 'finish_describe_definition')
+    assert.equal(finished?.state.unhandledErrors, 1)
+    const hook = seen.find(
+      (entry) => entry.name === 'add_hook' && entry.event.hookType === 'beforeAll',
+    )
+    assert.ok(hook !== undefined)
+    assert.equal(
+      (hook.event.asyncError as Error).message,
+      'Invalid: beforeAll() may not be used in a describe block containing no tests.',
+    )
+  })
+
+  test("setup carries the name pattern's text as given, and the process's error listeners", async () => {
+    const seen = await observe(({ test }) => test('a/b', () => undefined), {}, undefined, {
+      testNamePattern: 'a/b',
+    })
+    const setup = seen.find((entry) => entry.name === 'setup')
+    assert.equal(setup?.event.testNamePattern, 'a/b')
+    assert.ok(Object.hasOwn(setup?.event ?? {}, 'testNamePattern'))
+    assert.equal(String(setup?.state.testNamePattern), '/a\\/b/i')
+    const handlers = setup?.state.originalGlobalErrorHandlers as Record<string, unknown[]>
+    assert.deepEqual(Object.keys(handlers).sort(), [
+      'rejectionHandled',
+      'uncaughtException',
+      'unhandledRejection',
+    ])
+  })
+
+  test("a testTimeout of 0 keeps circus's 5000; any other is the state's", async () => {
+    const zero = await observe(({ test }) => test('a', () => undefined), { testTimeout: 0 })
+    assert.equal(zero[0]?.state.testTimeout, 5000)
+    const set = await observe(({ test }) => test('a', () => undefined), { testTimeout: 1234 })
+    assert.equal(set[0]?.state.testTimeout, 1234)
   })
 
   test('an async handler is awaited at the run events', async () => {

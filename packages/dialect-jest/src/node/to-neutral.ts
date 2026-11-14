@@ -285,6 +285,8 @@ export function jestProjectToNeutral(
           expand: globalConfig.expand,
           seed: globalConfig.seed,
           ...(globalConfig.randomize === true ? { randomize: true } : {}),
+          // circus reads it only when truthy (`jestAdapterInit.ts` L79-L81).
+          ...(globalConfig.testTimeout ? { testTimeout: globalConfig.testTimeout } : {}),
         },
         projectConfig: {
           rootDir: project.rootDir,

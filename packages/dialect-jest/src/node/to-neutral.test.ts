@@ -115,6 +115,19 @@ test('testFailureExitCode is what a failed run and an unhandled error exit with'
   assert.equal(policy.orchestrator.exitCodes.noTests, 1)
 })
 
+// `jestAdapterInit.ts` L79-L81: `if (globalConfig.testTimeout) state.testTimeout = ...`, so the
+// circus state a `handleTestEvent` reads holds the project's timeout from `setup` on.
+test("testTimeout reaches the environment's globalConfig; Jest's default and 0 leave it out", async () => {
+  const globalOf = async (config: string): Promise<Record<string, unknown>> => {
+    const [project] = (await readNeutral(tree({ 'jest.config.js': config }))).neutral.value
+    assert.ok(project !== undefined)
+    return project.environment.options.globalConfig as Record<string, unknown>
+  }
+  assert.equal((await globalOf('module.exports = { testTimeout: 1234 }\n')).testTimeout, 1234)
+  assert.equal('testTimeout' in (await globalOf('module.exports = { testTimeout: 0 }\n')), false)
+  assert.equal('testTimeout' in (await globalOf('module.exports = {}\n')), false)
+})
+
 test('a cache directory inside the root is not crawled, as jest-runtime builds the ignore pattern', async () => {
   const root = tree({
     'jest.config.js':
