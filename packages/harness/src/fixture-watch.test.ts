@@ -185,3 +185,29 @@ test('capture names runs, transcript, exitCode and files inside the fixture, eac
   bad({ ...WATCH, mask: ['('] })
   bad({ ...WATCH, mask: [''] })
 })
+
+test('watch.argv refuses the watch options the recorder sets in the config, in every spelling', () => {
+  // `--watchPlugins` would replace the done plugin, `--watchPathIgnorePatterns` the ignored
+  // directories: a fixture's plugins and patterns go in `config.jest`, which the recorder adds to.
+  for (const arg of [
+    '--watchPlugins=./p.cjs',
+    '--watchPlugins',
+    '--watch-plugins=./p.cjs',
+    '--no-watchPlugins',
+    '--watchPathIgnorePatterns=/tmp/',
+    '--watch-path-ignore-patterns',
+    '--no-watch-path-ignore-patterns',
+  ]) {
+    assert.throws(
+      () => parse({ ...WATCH, argv: ['--watch', arg] }),
+      (error: unknown) =>
+        error instanceof HarnessError &&
+        error.code === 'HARNESS_FIXTURE_BAD_WATCH' &&
+        error.message.includes('the recorder sets'),
+      arg,
+    )
+  }
+  assert.ok(
+    parse(WATCH, { config: { jest: { watchPathIgnorePatterns: ['<rootDir>/tmp/'] } } }).watch,
+  )
+})

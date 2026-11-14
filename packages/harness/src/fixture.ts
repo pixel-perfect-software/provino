@@ -1102,6 +1102,17 @@ function parseWatch(
   }
   const owned = ownedFlagIn(argv)
   if (owned !== undefined) throw bad(`"argv" gives "${owned}", which the recorder sets`)
+  // The recorder puts its done plugin and its ignored directories in the config; a flag would
+  // replace them. A fixture's own go in `config.jest`, which the recorder adds to.
+  const watchOwned = argv.find((arg) => {
+    const option = optionOf(arg)
+    return option === 'watchPlugins' || option === 'watchPathIgnorePatterns'
+  })
+  if (watchOwned !== undefined) {
+    throw bad(
+      `"argv" gives "${watchOwned}", which the recorder sets (put plugins and patterns in "config.jest")`,
+    )
+  }
   const ci = argv.find((arg) => optionOf(arg) === 'ci')
   if (ci !== undefined) {
     throw bad(`"argv" gives "${ci}": a watch session is never a CI run (Jest reads no keys there)`)
