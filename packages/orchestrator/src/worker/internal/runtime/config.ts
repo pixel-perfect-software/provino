@@ -312,5 +312,8 @@ export function parseProjectConfig(value: unknown): SerializedProjectConfig {
     setupFilesAfterEnv: absolutePaths(config.setupFilesAfterEnv, 'setupFilesAfterEnv'),
     loader: loaderConfig(config.loader),
     ...(config.coverage === undefined ? {} : { coverage: coverageConfig(config.coverage) }),
+    ...(config.snapshotResolver === undefined
+      ? {}
+      : { snapshotResolver: absolutePath(config.snapshotResolver, 'snapshotResolver') }),
   }
 }

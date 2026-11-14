@@ -50,6 +50,7 @@ import {
 import { createBehaviourLoader } from '@provino/policy'
 import {
   openFileSnapshots,
+  SnapshotError,
   type SnapshotLifecycle,
   type SnapshotState,
 } from '@provino/snapshot/runtime'
@@ -80,6 +81,7 @@ import type {
   SnapshotKey,
   SnapshotPlugin,
   SnapshotPrinter,
+  SnapshotResolverFactory,
   TaskId,
   WorkerEvent,
 } from '@provino/types'
@@ -248,6 +250,34 @@ interface SnapshotBehaviours {
   readonly printer: SnapshotPrinter | null
   /** `null`: the default layout beside the test file. */
   readonly resolvePath: ResolveSnapshotPath | null
+  /** The project's own resolver module (`SerializedProjectConfig.snapshotResolver`), if any. */
+  readonly customResolver?: {
+    readonly module: string
+    /** `null`: the policy has no `resolverFactory`, and the project is refused. */
+    readonly factory: SnapshotResolverFactory | null
+  }
+}
+
+/**
+ * Where a file's snapshots go: the policy's resolver or layout, or the project's own resolver
+ * module, imported through the file's registry so the project's transform applies (Jest's
+ * `createTranspilingRequire`) and handed to `snapshot.resolverFactory`, which checks it.
+ */
+async function snapshotPaths(
+  snapshots: SnapshotBehaviours,
+  registry: { import(path: string): Promise<unknown> },
+  extension: string,
+): Promise<ResolveSnapshotPath | null> {
+  const custom = snapshots.customResolver
+  if (custom === undefined) return snapshots.resolvePath
+  if (custom.factory === null) {
+    throw new SnapshotError(
+      'SNAPSHOT_NO_RESOLVER',
+      `The project names a snapshot resolver (${custom.module}), and its dialect has no way to load one (\`snapshot.resolverFactory\`)`,
+    )
+  }
+  const resolver = custom.factory(await registry.import(custom.module), extension)
+  return (testPath) => resolver.resolveSnapshotPath(testPath)
 }
 
 /** What every file's module-mock registry shares: the policy slices, the roots and the root mocks. */
@@ -426,6 +456,12 @@ export function createRuntimeRunner(): WorkerRunner {
   let fallback: FileScope | undefined
   /** The snapshots of the file running now; the runtime's events pass through its lifecycle. */
   let openSnapshots: OpenSnapshots | undefined
+  /**
+   * Opens the file's snapshots when its collection starts (`importFile`), for a project with its
+   * own snapshot resolver: loading and checking that is part of the file's run, so a resolver
+   * that throws fails the file to run, as in Jest (jestAdapterInit builds it).
+   */
+  let openSnapshotsLater: (() => Promise<OpenSnapshots>) | undefined
 
   const activeScope = (): FileScope => {
     const found = fileScope.getStore() ?? fallback
@@ -512,6 +548,11 @@ export function createRuntimeRunner(): WorkerRunner {
     // Setup files run inside core's collection, so the hooks they register belong to the file.
     const importFile = async (path: string): Promise<unknown> => {
       const files = activeRegistry()
+      const later = openSnapshotsLater
+      if (later !== undefined) {
+        openSnapshotsLater = undefined
+        openSnapshots = await later()
+      }
       // Under `none` one registry serves every file of the worker, so a module it already
       // evaluated is cached: the setup files and the test file itself (queued twice, or imported
       // by an earlier file) are dropped and evaluated again, while their dependencies stay shared.
@@ -610,6 +651,17 @@ export function createRuntimeRunner(): WorkerRunner {
       printer: printerFactory === null ? null : printerFactory(),
       resolvePath:
         snapshot.resolvePath === null ? null : await behaviours.load(snapshot.resolvePath),
+      ...(config.snapshotResolver === undefined
+        ? {}
+        : {
+            customResolver: {
+              module: config.snapshotResolver,
+              factory:
+                snapshot.resolverFactory === null
+                  ? null
+                  : await behaviours.load(snapshot.resolverFactory),
+            },
+          }),
     }
 
     parts.environment = await prepareEnvironment(config.environment)
@@ -872,26 +924,38 @@ export function createRuntimeRunner(): WorkerRunner {
         worker.source.startFile(job.file)
         // The file's snapshots: the state is where the matchers find it (Jest's
         // `setState({ snapshotState, testPath })`), and the lifecycle follows the file's events.
-        const snapshots = openFileSnapshots({
-          testPath: job.file,
-          update: job.updateSnapshots,
-          expand: worker.modules.policy.expect.expand,
-          policy: worker.modules.policy.snapshot,
-          ...worker.snapshots,
-        })
-        openSnapshots = snapshots
-        Object.assign(worker.source.file(), { snapshotState: snapshots.state })
+        const { key, printer } = worker.snapshots
+        const open = async (): Promise<OpenSnapshots> => {
+          const snapshots = openFileSnapshots({
+            testPath: job.file,
+            update: job.updateSnapshots,
+            expand: worker.modules.policy.expect.expand,
+            policy: worker.modules.policy.snapshot,
+            key,
+            printer,
+            resolvePath: await snapshotPaths(
+              worker.snapshots,
+              registry,
+              worker.modules.policy.snapshot.extension,
+            ),
+          })
+          Object.assign(worker.source.file(), { snapshotState: snapshots.state })
+          return snapshots
+        }
+        if (worker.snapshots.customResolver === undefined) openSnapshots = await open()
+        else openSnapshotsLater = open
         // The coordinator's id for the file (D23), so every event carries the id it expects.
         await fileScope.run(thisFile, () =>
           worker.runtime.runFile(job.file, { fileId: job.fileId, ...filtersOf(job) }),
         )
         // A collect-only file ran no test: `finish` would save the file and report every stored
-        // snapshot as unchecked.
-        if (job.collectOnly !== true) snapshotReport = snapshots.lifecycle.finish()
+        // snapshot as unchecked. A file whose snapshots never opened reports none.
+        if (job.collectOnly !== true) snapshotReport = openSnapshots?.lifecycle.finish() ?? null
       } catch (error) {
         errors.push(error)
       } finally {
         openSnapshots = undefined
+        openSnapshotsLater = undefined
       }
 
       // Teardown, always, in this order. A step that throws doesn't stop the next ones. The mock

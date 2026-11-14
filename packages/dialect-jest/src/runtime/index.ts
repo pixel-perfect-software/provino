@@ -26,3 +26,4 @@ export {
   jestEnvironmentFor,
 } from './jest-environment.ts'
 export { jestSnapshotPrinter } from './snapshot-printer.ts'
+export { jestSnapshotResolver } from './snapshot-resolver.ts'
