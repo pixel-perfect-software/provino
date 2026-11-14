@@ -458,7 +458,11 @@ export function createRuntimeRunner(): WorkerRunner {
     )
     parts.loader = await createProjectLoader(
       config.rootDir,
-      config.loader,
+      // V8 counts the code it runs, so TypeScript is stripped in place under V8 coverage too
+      // (D116): the code keeps the source's offsets, and only the module-runner rewrite has a map.
+      config.coverage?.provider === 'v8' && config.loader.typescript === 'oxc'
+        ? { ...config.loader, typescript: 'blank' }
+        : config.loader,
       policy.module,
       parts.coverage?.project === undefined ? {} : { coverage: parts.coverage.project },
     )

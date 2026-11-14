@@ -1,7 +1,9 @@
 // T8.10, the coordinator's end of a coverage run: what the workers sent, merged; the files no test
 // loaded, added with their initial coverage (Jest's CoverageReporter `_addUntestedFiles`); the
-// whole map moved back to the sources (`_getCoverageResult`). The reports and thresholds read the
-// result (`RunSummary.coverage`). Everything here loads only when a project collects coverage.
+// whole map moved back to the sources (`_getCoverageResult`). Under V8 (T8.12) the takes and the
+// files no test loaded are converted to Istanbul data instead, by the first project's
+// `coverage.v8Conversion`. The reports and thresholds read the result (`RunSummary.coverage`).
+// Everything here loads only when a project collects coverage.
 import type { ResolvedProject } from '@provino/config'
 import {
   createCoverageFilter,
@@ -13,6 +15,7 @@ import type {
   CoverageSummary,
   IstanbulFileCoverageData,
   SerializedProjectConfig,
+  V8ScriptCoverage,
 } from '@provino/types'
 import type { RawCoverageStore } from './coverage-store.ts'
 import { crawlFiles } from './discover-rules.ts'
@@ -69,6 +72,9 @@ export async function finishCoverage(
   const aggregate = reporting.createCoverageAggregate()
   for (const raw of store.entries) aggregate.add(raw)
 
+  // The provider is the run's (Jest's is a global option): every project has the same one.
+  const v8 = projects[0]?.config.coverage?.provider === 'v8'
+  const emptyV8: V8ScriptCoverage[] = []
   const untestedFailures: { path: string; error: ReturnType<typeof serializeError> }[] = []
   const candidates = await Promise.all(projects.map((project) => untestedCandidates(project)))
   const total = candidates.reduce((sum, list) => sum + list.length, 0)
@@ -83,6 +89,17 @@ export async function finishCoverage(
           return true
         })
         if (paths.length === 0) continue
+        if (v8) {
+          // Jest's `generateEmptyCoverage` under the v8 provider: no transform, the file's size.
+          for (const path of paths) {
+            try {
+              emptyV8.push(reporting.emptyV8Coverage(path))
+            } catch (error) {
+              untestedFailures.push({ path, error: serializeError(error) })
+            }
+          }
+          continue
+        }
         await coverUntested(project, paths, aggregate.addUntested, untestedFailures)
       }
     } finally {
@@ -90,7 +107,13 @@ export async function finishCoverage(
     }
   }
 
-  const remapped = await reporting.remapCoverage(aggregate.map)
+  const first = projects[0]
+  const remapped =
+    v8 && first !== undefined
+      ? await reporting.convertV8Coverage(aggregate.v8, emptyV8, {
+          conversion: first.policy.coverage.v8Conversion,
+        })
+      : await reporting.remapCoverage(aggregate.map)
   // Each file's plain data (a `CoverageMap`'s own `toJSON` keeps its `FileCoverage` objects).
   const map = Object.fromEntries(
     remapped.map
