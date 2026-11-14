@@ -25,6 +25,10 @@
     "./reporters/vitest": {
       "provino-source": "./src/reporters/vitest.ts",
       "types": "./dist/reporters/vitest.d.ts"
+    },
+    "./reporters/jest-watch-log": {
+      "provino-source": "./src/reporters/jest-watch-log.ts",
+      "types": "./dist/reporters/jest-watch-log.d.ts"
     }
   },
   "bin": {
@@ -74,6 +78,7 @@
     "jest-sonar-reporter": "catalog:",
     "jest-config": "catalog:",
     "jest-serializer-vue": "catalog:",
+    "jest-watch-typeahead": "catalog:",
     "oxc-parser": "catalog:",
     "prettier": "catalog:",
     "provino": "workspace:*",
