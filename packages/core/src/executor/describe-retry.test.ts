@@ -5,10 +5,20 @@
 // and a test below gets none of its own retries. `@provino/harness`'s `runtime/retry-entire-*`
 // fixtures hold the recorded order.
 import assert from 'node:assert/strict'
+import { EventEmitter } from 'node:events'
 import { describe, test } from 'node:test'
 import type { DescribeRetry, ShuffleFactory } from '@provino/types'
 import FakeTimers from '@sinonjs/fake-timers'
-import { clockOptions, eventLog, runScript, type Script } from '../internal/test-support.ts'
+import {
+  clockOptions,
+  eventLog,
+  eventsOf,
+  runScript,
+  type Script,
+} from '../internal/test-support.ts'
+
+/** Errors raised outside a running test are charged to the test whose context raised them. */
+const owner = { errors: { lateErrors: 'fail-owner', hasAssertionsWhenFailed: 'skip' } } as const
 
 /** A test that fails its first `failures` calls, tracing each call as `<name>#<call>`. */
 function flaky(
@@ -66,7 +76,7 @@ describe('describe retry', () => {
     assert.equal(run.file.state, 'pass')
   })
 
-  test('the events show each task start once, one attempt per describe attempt, and one end', async () => {
+  test('the events show each task start once, one attempt per describe attempt (a dropped one as retried), and one end', async () => {
     const run = await runScript(({ describe }, step, runtime) => {
       describe('block', () => {
         runtime.setDescribeRetry(retry(1))
@@ -81,7 +91,7 @@ describe('describe retry', () => {
         'suite-start block',
         'test-start block > a',
         'attempt-start block > a 0/0',
-        'attempt-end block > a 0/0 fail',
+        'attempt-end block > a 0/0 fail will-retry',
         'attempt-start block > a 1/0',
         'attempt-end block > a 1/0 pass',
         'test-end block > a pass',
@@ -259,6 +269,208 @@ describe('describe retry', () => {
     assert.deepEqual(run.trace, ['b#1', 'a', 'b#2', 'a'])
     // The file's children (one block), then the block's.
     assert.deepEqual(calls, [1, 2])
+  })
+
+  test('concurrent sibling blocks keep their own attempts, and a test beside one keeps its retries', async () => {
+    // `concurrency.grouping: 'consecutive'` runs the three blocks side by side. `b` ends while `a`'s
+    // block is still open; `a` fails once and its block runs again. `c` is in no describe retry, so
+    // the file default retry is its own.
+    let releaseB: () => void = () => {}
+    const bDone = new Promise<void>((resolve) => {
+      releaseB = resolve
+    })
+    let releaseC: () => void = () => {}
+    const cDone = new Promise<void>((resolve) => {
+      releaseC = resolve
+    })
+    let aCalls = 0
+    let cCalls = 0
+    const run = await runScript(({ describe }, step, runtime) => {
+      runtime.setDefaultRetry({ count: 1, delay: 0 })
+      describe.concurrent('A', () => {
+        runtime.setDescribeRetry(retry(1))
+        runtime.api.test('a', async () => {
+          aCalls++
+          step(`a#${aCalls}`)
+          await bDone
+          await cDone
+          if (aCalls === 1) throw new Error('a fails once')
+        })
+      })
+      describe.concurrent('B', () => {
+        runtime.setDescribeRetry(retry(1))
+        runtime.api.test('b', () => {
+          step('b')
+          releaseB()
+        })
+      })
+      describe.concurrent('C', () => {
+        runtime.api.test('c', () => {
+          cCalls++
+          step(`c#${cCalls}`)
+          if (cCalls === 1) throw new Error('c fails once')
+          releaseC()
+        })
+      })
+    })
+    assert.deepEqual(run.states, { 'A > a': 'pass', 'B > b': 'pass', 'C > c': 'pass' })
+    assert.equal(run.results['A > a']?.attempts, 2)
+    assert.equal(run.results['B > b']?.attempts, 1)
+    assert.equal(run.results['C > c']?.attempts, 2, 'c keeps the file default retry')
+    const log = eventLog(run)
+    for (const task of ['A', 'B', 'C', 'A > a', 'B > b', 'C > c']) {
+      const kind = task.includes('>') ? 'test' : 'suite'
+      assert.equal(
+        log.filter((line) => line.startsWith(`${kind}-start ${task}`)).length,
+        1,
+        `${task} starts once`,
+      )
+      assert.equal(
+        log.filter((line) => line.startsWith(`${kind}-end ${task} `)).length,
+        1,
+        `${task} ends once`,
+      )
+    }
+    assert.equal(run.file.state, 'pass')
+  })
+
+  test('an error a test had before the attempt (a parent beforeAll) runs the block once', async () => {
+    // circus counts only the errors an attempt added (`errorsBeforeAttempt`): the outer error is
+    // already on the test, so `runtime/retry-entire-describe-parent-before-all-fails` runs once.
+    const run = await runScript(
+      ({ describe }, step, runtime) => {
+        describe('outer', () => {
+          runtime.api.beforeAll(() => {
+            throw new Error('outer beforeAll')
+          })
+          describe('inner', () => {
+            runtime.setDescribeRetry(retry(2))
+            runtime.api.beforeAll(() => step('inner beforeAll'))
+            runtime.api.afterAll(() => step('inner afterAll'))
+            runtime.api.test('a', () => step('a'))
+          })
+        })
+      },
+      {
+        hooks: {
+          beforeAllError: 'attach-to-tests',
+          nestedHooksAfterBeforeAllError: 'run',
+          afterAllError: 'unhandled',
+        },
+      },
+    )
+    assert.deepEqual(run.trace, ['inner beforeAll', 'inner afterAll'])
+    assert.equal(run.results['outer > inner > a']?.attempts, 1)
+    assert.equal(run.states['outer > inner > a'], 'fail')
+  })
+
+  test('a beforeAll of the retried block itself that fails is an error the attempt added', async () => {
+    let calls = 0
+    const run = await runScript(
+      ({ describe }, step, runtime) => {
+        describe('block', () => {
+          runtime.setDescribeRetry(retry(2))
+          runtime.api.beforeAll(() => {
+            calls++
+            step(`beforeAll#${calls}`)
+            if (calls === 1) throw new Error('beforeAll fails once')
+          })
+          runtime.api.test('a', () => step('a'))
+        })
+      },
+      {
+        hooks: {
+          beforeAllError: 'attach-to-tests',
+          nestedHooksAfterBeforeAllError: 'run',
+          afterAllError: 'unhandled',
+        },
+      },
+    )
+    assert.deepEqual(run.trace, ['beforeAll#1', 'beforeAll#2', 'a'])
+    assert.equal(run.states['block > a'], 'pass')
+  })
+
+  test('an error charged late to an ended test of the block retries it, and is dropped with the attempt', async () => {
+    // circus pushes it to `context.test.errors` (`eventHandler.ts` L308), which the attempt added; it
+    // is not an error nobody owns, so it doesn't end the retries.
+    const process = new EventEmitter()
+    let release: () => void = () => {}
+    const late = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    let calls = 0
+    const run = await runScript(({ describe }, step, runtime) => {
+      runtime.captureProcessErrors(process)
+      describe('block', () => {
+        runtime.setDescribeRetry(retry(2))
+        runtime.api.test('a', () => {
+          calls++
+          step(`a#${calls}`)
+          if (calls === 1) {
+            setImmediate(() => {
+              process.emit('uncaughtException', new Error('late'), 'uncaughtException')
+              release()
+            })
+          }
+        })
+        runtime.api.test('b', async () => {
+          step('b')
+          await late
+        })
+      })
+    }, owner)
+    assert.deepEqual(run.trace, ['a#1', 'b', 'a#2', 'b'])
+    assert.deepEqual(run.states, { 'block > a': 'pass', 'block > b': 'pass' })
+    assert.deepEqual(eventsOf(run.events, 'unhandled-error'), [], 'dropped with its attempt')
+    assert.equal(run.file.state, 'pass')
+  })
+
+  test('an error charged late to a test of the last attempt stays, and fails the file', async () => {
+    const process = new EventEmitter()
+    let release: () => void = () => {}
+    const late = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    const run = await runScript(({ describe }, step, runtime) => {
+      runtime.captureProcessErrors(process)
+      describe('block', () => {
+        runtime.setDescribeRetry(retry(0, { logErrorsBeforeRetry: true }))
+        runtime.api.test('a', () => {
+          step('a')
+          setImmediate(() => {
+            process.emit('uncaughtException', new Error('late'), 'uncaughtException')
+            release()
+          })
+        })
+        runtime.api.test('b', () => late)
+      })
+    }, owner)
+    assert.deepEqual(run.trace, ['a'])
+    const [event, ...rest] = eventsOf(run.events, 'unhandled-error')
+    assert.equal(rest.length, 0)
+    assert.equal(event?.error.message, 'late')
+    assert.equal(run.file.state, 'fail')
+  })
+
+  test('a blocked suite inside a retried block starts each task once', async () => {
+    const run = await runScript(
+      ({ describe }, _step, runtime) => {
+        describe('block', () => {
+          runtime.setDescribeRetry(retry(1))
+          runtime.api.test.only('a', () => {})
+          runtime.api.describe.only('only', () => {
+            runtime.api.test('c', () => {})
+          })
+        })
+      },
+      {},
+      { ci: true },
+    )
+    const log = eventLog(run)
+    for (const line of ['suite-start block', 'test-start block > a', 'suite-start block > only']) {
+      assert.equal(log.filter((entry) => entry === line).length, 1, line)
+    }
+    assert.equal(log.filter((entry) => entry === 'test-start block > only > c').length, 1)
   })
 
   test('setDescribeRetry says started once no block is being collected', async () => {
