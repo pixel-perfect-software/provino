@@ -317,8 +317,7 @@ async function listFiles(
 }
 
 /**
- * The coverage of a `provino jest` run, when the global config collects it with the babel
- * provider: Jest's CoverageReporter, and the notice `_addUntestedFiles` writes on a terminal while
+ * The coverage of a `provino jest` run, when the global config collects it (either provider): Jest's CoverageReporter, and the notice `_addUntestedFiles` writes on a terminal while
  * the files no test loaded are covered (`RUNNING_TEST_COLOR`, bold dim, then `clearLine`).
  */
 function coverageFor(
@@ -329,7 +328,7 @@ function coverageFor(
     readonly stderr: NodeJS.WritableStream
   },
 ): { readonly reporter: CoverageReporter; readonly hooks: RunCoverageHooks } | undefined {
-  if (!globalConfig.collectCoverage || globalConfig.coverageProvider === 'v8') return undefined
+  if (!globalConfig.collectCoverage) return undefined
   const { env, stdout, stderr } = io
   const columns = (stdout as { columns?: unknown }).columns
   // Jest's chalk and `istanbul-lib-report`'s console writer follow stdout's colour support.

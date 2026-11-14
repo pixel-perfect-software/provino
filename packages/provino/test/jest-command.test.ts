@@ -82,19 +82,25 @@ describe('what provino jest does not run is said, not ignored', () => {
   it('warns, naming the task, for a config key it reads and does not apply', async () => {
     const config = JSON.stringify({
       testMatch: ['<rootDir>/tests/**/*.test.js'],
-      // Istanbul coverage is applied (B23b); Jest's v8 provider is T8.12's.
-      collectCoverage: true,
-      coverageProvider: 'v8',
+      // Snapshots stay beside the test file until a later bundle reads the resolver.
+      snapshotResolver: '<rootDir>/resolver.js',
     })
     const dir = await tree({
       'jest.config.json': config,
       'tests/a.test.js': passing('a'),
-      'src/x.js': '',
+      'resolver.js': [
+        'module.exports = {',
+        '  resolveSnapshotPath: (test, ext) => test + ext,',
+        '  resolveTestPath: (snap, ext) => snap.slice(0, -ext.length),',
+        "  testPathForConsistencyCheck: 'some/a.test.js',",
+        '}',
+        '',
+      ].join('\n'),
     })
     const ended = await provino([], dir)
     assert.equal(ended.code, 0, ended.stderr)
-    assert.match(ended.stderr, /coverageProvider/)
-    assert.match(ended.stderr, /T8\.12/)
+    assert.match(ended.stderr, /snapshotResolver/)
+    assert.match(ended.stderr, /a later bundle/)
   })
 
   it('runs several projects (D29), and lists the files of all of them', async () => {

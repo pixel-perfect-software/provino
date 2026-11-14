@@ -156,17 +156,13 @@ export function jestProjectToNeutral(
       '; snapshots stay beside the test file',
     )
   }
-  // `--coverage` (or the key): the files that count, as `shouldInstrument` decides (B23b). A
-  // `--collectTests` run executes nothing, so it collects nothing. Jest's v8 provider is T8.12's.
+  // `--coverage` (or the key): the files that count, as `shouldInstrument` decides (B23b), under
+  // either provider (T8.12). A `--collectTests` run executes nothing, so it collects nothing.
   const collects = globalConfig.collectCoverage && !globalConfig.collectTests
-  const v8 = globalConfig.coverageProvider === 'v8'
-  if (collects && v8) {
-    notApplied(diagnostics, 'coverageProvider', 'T8.12', '; no coverage is collected')
-  }
   if (collects && globalConfig.coverageThreshold !== undefined) {
     notApplied(diagnostics, 'coverageThreshold', 'T8.11')
   }
-  const coverage = collects && !v8 ? jestCoverageFilter(project, globalConfig) : undefined
+  const coverage = collects ? jestCoverageFilter(project, globalConfig) : undefined
 
   const aliases: NeutralAlias[] = project.moduleNameMapper.map(([pattern, target]) => ({
     pattern,
