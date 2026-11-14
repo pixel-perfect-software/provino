@@ -1,0 +1,738 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "coverage/v8-untested",
+  "files": [
+    {
+      "file": "tests/used.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "tests/used.test.ts",
+            "path": [
+              "clamp",
+              "keeps a value inside the range"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "tests/used.test.ts",
+            "path": [
+              "clamp",
+              "raises a value below the range"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stdout": "---------------|---------|----------|---------|---------|-------------------\nFile           | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s \n---------------|---------|----------|---------|---------|-------------------\nAll files      |   33.33 |       50 |      25 |   33.33 |                   \n never.ts      |       0 |        0 |       0 |       0 | 1-6               \n types-only.ts |       0 |        0 |       0 |       0 | 1-6               \n used.ts       |   77.77 |       75 |      50 |   77.77 | 8-9               \n---------------|---------|----------|---------|---------|-------------------\n",
+    "json": {
+      "coverage/coverage-final.json": {
+        "<root>/src/never.ts": {
+          "path": "<root>/src/never.ts",
+          "all": true,
+          "statementMap": {
+            "0": {
+              "start": {
+                "line": 1,
+                "column": 0
+              },
+              "end": {
+                "line": 1,
+                "column": 67
+              }
+            },
+            "1": {
+              "start": {
+                "line": 2,
+                "column": 0
+              },
+              "end": {
+                "line": 2,
+                "column": 47
+              }
+            },
+            "2": {
+              "start": {
+                "line": 3,
+                "column": 0
+              },
+              "end": {
+                "line": 3,
+                "column": 41
+              }
+            },
+            "3": {
+              "start": {
+                "line": 4,
+                "column": 0
+              },
+              "end": {
+                "line": 4,
+                "column": 1
+              }
+            },
+            "4": {
+              "start": {
+                "line": 5,
+                "column": 0
+              },
+              "end": {
+                "line": 5,
+                "column": 0
+              }
+            },
+            "5": {
+              "start": {
+                "line": 6,
+                "column": 0
+              },
+              "end": {
+                "line": 6,
+                "column": 62
+              }
+            }
+          },
+          "s": {
+            "0": 0,
+            "1": 0,
+            "2": 0,
+            "3": 0,
+            "4": 0,
+            "5": 0
+          },
+          "branchMap": {
+            "0": {
+              "type": "branch",
+              "line": 1,
+              "loc": {
+                "start": {
+                  "line": 1,
+                  "column": 0
+                },
+                "end": {
+                  "line": 6,
+                  "column": 62
+                }
+              },
+              "locations": [
+                {
+                  "start": {
+                    "line": 1,
+                    "column": 0
+                  },
+                  "end": {
+                    "line": 6,
+                    "column": 62
+                  }
+                }
+              ]
+            }
+          },
+          "b": {
+            "0": [
+              0
+            ]
+          },
+          "fnMap": {
+            "0": {
+              "name": "(empty-report)",
+              "decl": {
+                "start": {
+                  "line": 1,
+                  "column": 0
+                },
+                "end": {
+                  "line": 6,
+                  "column": 62
+                }
+              },
+              "loc": {
+                "start": {
+                  "line": 1,
+                  "column": 0
+                },
+                "end": {
+                  "line": 6,
+                  "column": 62
+                }
+              },
+              "line": 1
+            }
+          },
+          "f": {
+            "0": 0
+          }
+        },
+        "<root>/src/types-only.ts": {
+          "path": "<root>/src/types-only.ts",
+          "all": true,
+          "statementMap": {
+            "0": {
+              "start": {
+                "line": 1,
+                "column": 0
+              },
+              "end": {
+                "line": 1,
+                "column": 36
+              }
+            },
+            "1": {
+              "start": {
+                "line": 2,
+                "column": 0
+              },
+              "end": {
+                "line": 2,
+                "column": 0
+              }
+            },
+            "2": {
+              "start": {
+                "line": 3,
+                "column": 0
+              },
+              "end": {
+                "line": 3,
+                "column": 24
+              }
+            },
+            "3": {
+              "start": {
+                "line": 4,
+                "column": 0
+              },
+              "end": {
+                "line": 4,
+                "column": 25
+              }
+            },
+            "4": {
+              "start": {
+                "line": 5,
+                "column": 0
+              },
+              "end": {
+                "line": 5,
+                "column": 29
+              }
+            },
+            "5": {
+              "start": {
+                "line": 6,
+                "column": 0
+              },
+              "end": {
+                "line": 6,
+                "column": 1
+              }
+            }
+          },
+          "s": {
+            "0": 0,
+            "1": 0,
+            "2": 0,
+            "3": 0,
+            "4": 0,
+            "5": 0
+          },
+          "branchMap": {
+            "0": {
+              "type": "branch",
+              "line": 1,
+              "loc": {
+                "start": {
+                  "line": 1,
+                  "column": 0
+                },
+                "end": {
+                  "line": 6,
+                  "column": 1
+                }
+              },
+              "locations": [
+                {
+                  "start": {
+                    "line": 1,
+                    "column": 0
+                  },
+                  "end": {
+                    "line": 6,
+                    "column": 1
+                  }
+                }
+              ]
+            }
+          },
+          "b": {
+            "0": [
+              0
+            ]
+          },
+          "fnMap": {
+            "0": {
+              "name": "(empty-report)",
+              "decl": {
+                "start": {
+                  "line": 1,
+                  "column": 0
+                },
+                "end": {
+                  "line": 6,
+                  "column": 1
+                }
+              },
+              "loc": {
+                "start": {
+                  "line": 1,
+                  "column": 0
+                },
+                "end": {
+                  "line": 6,
+                  "column": 1
+                }
+              },
+              "line": 1
+            }
+          },
+          "f": {
+            "0": 0
+          }
+        },
+        "<root>/src/used.ts": {
+          "path": "<root>/src/used.ts",
+          "all": false,
+          "statementMap": {
+            "0": {
+              "start": {
+                "line": 1,
+                "column": 0
+              },
+              "end": {
+                "line": 1,
+                "column": 73
+              }
+            },
+            "1": {
+              "start": {
+                "line": 2,
+                "column": 0
+              },
+              "end": {
+                "line": 2,
+                "column": 29
+              }
+            },
+            "2": {
+              "start": {
+                "line": 3,
+                "column": 0
+              },
+              "end": {
+                "line": 3,
+                "column": 31
+              }
+            },
+            "3": {
+              "start": {
+                "line": 4,
+                "column": 0
+              },
+              "end": {
+                "line": 4,
+                "column": 14
+              }
+            },
+            "4": {
+              "start": {
+                "line": 5,
+                "column": 0
+              },
+              "end": {
+                "line": 5,
+                "column": 1
+              }
+            },
+            "5": {
+              "start": {
+                "line": 6,
+                "column": 0
+              },
+              "end": {
+                "line": 6,
+                "column": 0
+              }
+            },
+            "6": {
+              "start": {
+                "line": 7,
+                "column": 0
+              },
+              "end": {
+                "line": 7,
+                "column": 34
+              }
+            },
+            "7": {
+              "start": {
+                "line": 8,
+                "column": 0
+              },
+              "end": {
+                "line": 8,
+                "column": 21
+              }
+            },
+            "8": {
+              "start": {
+                "line": 9,
+                "column": 0
+              },
+              "end": {
+                "line": 9,
+                "column": 1
+              }
+            }
+          },
+          "s": {
+            "0": 1,
+            "1": 2,
+            "2": 2,
+            "3": 1,
+            "4": 1,
+            "5": 1,
+            "6": 1,
+            "7": 0,
+            "8": 0
+          },
+          "branchMap": {
+            "0": {
+              "type": "branch",
+              "line": 1,
+              "loc": {
+                "start": {
+                  "line": 1,
+                  "column": 7
+                },
+                "end": {
+                  "line": 5,
+                  "column": 1
+                }
+              },
+              "locations": [
+                {
+                  "start": {
+                    "line": 1,
+                    "column": 7
+                  },
+                  "end": {
+                    "line": 5,
+                    "column": 1
+                  }
+                }
+              ]
+            },
+            "1": {
+              "type": "branch",
+              "line": 2,
+              "loc": {
+                "start": {
+                  "line": 2,
+                  "column": 19
+                },
+                "end": {
+                  "line": 3,
+                  "column": 20
+                }
+              },
+              "locations": [
+                {
+                  "start": {
+                    "line": 2,
+                    "column": 19
+                  },
+                  "end": {
+                    "line": 3,
+                    "column": 20
+                  }
+                }
+              ]
+            },
+            "2": {
+              "type": "branch",
+              "line": 3,
+              "loc": {
+                "start": {
+                  "line": 3,
+                  "column": 20
+                },
+                "end": {
+                  "line": 3,
+                  "column": 31
+                }
+              },
+              "locations": [
+                {
+                  "start": {
+                    "line": 3,
+                    "column": 20
+                  },
+                  "end": {
+                    "line": 3,
+                    "column": 31
+                  }
+                }
+              ]
+            },
+            "3": {
+              "type": "branch",
+              "line": 4,
+              "loc": {
+                "start": {
+                  "line": 4,
+                  "column": -1
+                },
+                "end": {
+                  "line": 5,
+                  "column": 1
+                }
+              },
+              "locations": [
+                {
+                  "start": {
+                    "line": 4,
+                    "column": -1
+                  },
+                  "end": {
+                    "line": 5,
+                    "column": 1
+                  }
+                }
+              ]
+            }
+          },
+          "b": {
+            "0": [
+              2
+            ],
+            "1": [
+              1
+            ],
+            "2": [
+              0
+            ],
+            "3": [
+              1
+            ]
+          },
+          "fnMap": {
+            "0": {
+              "name": "clamp",
+              "decl": {
+                "start": {
+                  "line": 1,
+                  "column": 7
+                },
+                "end": {
+                  "line": 5,
+                  "column": 1
+                }
+              },
+              "loc": {
+                "start": {
+                  "line": 1,
+                  "column": 7
+                },
+                "end": {
+                  "line": 5,
+                  "column": 1
+                }
+              },
+              "line": 1
+            },
+            "1": {
+              "name": "unused",
+              "decl": {
+                "start": {
+                  "line": 7,
+                  "column": 7
+                },
+                "end": {
+                  "line": 9,
+                  "column": 1
+                }
+              },
+              "loc": {
+                "start": {
+                  "line": 7,
+                  "column": 7
+                },
+                "end": {
+                  "line": 9,
+                  "column": 1
+                }
+              },
+              "line": 7
+            }
+          },
+          "f": {
+            "0": 2,
+            "1": 0
+          }
+        }
+      },
+      "coverage/coverage-summary.json": {
+        "total": {
+          "lines": {
+            "total": 21,
+            "covered": 7,
+            "skipped": 0,
+            "pct": 33.33
+          },
+          "statements": {
+            "total": 21,
+            "covered": 7,
+            "skipped": 0,
+            "pct": 33.33
+          },
+          "functions": {
+            "total": 4,
+            "covered": 1,
+            "skipped": 0,
+            "pct": 25
+          },
+          "branches": {
+            "total": 6,
+            "covered": 3,
+            "skipped": 0,
+            "pct": 50
+          },
+          "branchesTrue": {
+            "total": 0,
+            "covered": 0,
+            "skipped": 0,
+            "pct": "Unknown"
+          }
+        },
+        "<root>/src/never.ts": {
+          "lines": {
+            "total": 6,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "functions": {
+            "total": 1,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "statements": {
+            "total": 6,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "branches": {
+            "total": 1,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          }
+        },
+        "<root>/src/types-only.ts": {
+          "lines": {
+            "total": 6,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "functions": {
+            "total": 1,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "statements": {
+            "total": 6,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "branches": {
+            "total": 1,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          }
+        },
+        "<root>/src/used.ts": {
+          "lines": {
+            "total": 9,
+            "covered": 7,
+            "skipped": 0,
+            "pct": 77.77
+          },
+          "functions": {
+            "total": 2,
+            "covered": 1,
+            "skipped": 0,
+            "pct": 50
+          },
+          "statements": {
+            "total": 9,
+            "covered": 7,
+            "skipped": 0,
+            "pct": 77.77
+          },
+          "branches": {
+            "total": 4,
+            "covered": 3,
+            "skipped": 0,
+            "pct": 75
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "description": "Jest 30.5.2's v8 provider on the files no test loads (T8.12, B23b): `collectCoverageFrom: ['src/**/*.ts']` names three files and the one test file imports only `src/used.ts`, which ends in an interface and has a function no test calls. `src/never.ts` holds characters of two and three bytes, so `generateEmptyCoverage`'s `(empty-report)` range, which ends at the file's size in bytes, runs past its last character; `src/types-only.ts` has nothing but types. The `json`, `json-summary` and `text` reports are recorded as Jest wrote them (the work directory as `<root>`). Read by `provino`'s `jest-coverage-v8.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "coverageProvider": "v8",
+      "collectCoverageFrom": ["src/**/*.ts"],
+      "coverageReporters": ["json", "json-summary", "text"]
+    }
+  },
+  "run": {
+    "raw": true,
+    "capture": [
+      "exitCode",
+      "stdout",
+      "json:coverage/coverage-final.json",
+      "json:coverage/coverage-summary.json"
+    ]
+  }
+}

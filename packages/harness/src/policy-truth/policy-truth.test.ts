@@ -52,8 +52,6 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'jest coverage.globThresholdScope': 'T8.9',
   'jest coverage.thresholdGrouping': 'T8.9',
   'jest lazy.readInBeforeAll': 'T6.5',
-  'jest coverage.v8Conversion': 'B23b',
-  'jest coverage.v8HitCounts': 'B23b',
   'jest coverage.thresholdMessages.aboveMaximumUncovered': 'B23b',
   'jest coverage.thresholdMessages.belowMinimum': 'B23b',
   'jest coverage.thresholdMessages.notFound': 'B23b',

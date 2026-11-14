@@ -1,0 +1,24 @@
+{
+  "description": "Jest 30.5.2's v8 coverage provider on the same rebuilt sample as `babel-providers-sample` (T8.12, B23b): five modules under src/ (edge.ts with a `return -1` after a call that always throws, default parameters and `istanbul ignore` hints, which the v8 provider does not read; untested.ts, which no test imports and Jest reports from its `(empty-report)` range; pricing.ts, cart.ts and format.ts) and 17 tests in tests/. `coverageProvider: 'v8'`, `collectCoverageFrom: ['src/**/*.ts']`. The `json`, `json-summary` and `text` reports are recorded as Jest wrote them (the work directory as `<root>`), and so is `--json`'s `coverageMap`. Read by `provino`'s `jest-coverage-v8.test.ts` and the policy claims for `coverage.v8Conversion` and `coverage.v8HitCounts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "coverageProvider": "v8",
+      "collectCoverageFrom": ["src/**/*.ts"],
+      "coverageReporters": ["json", "json-summary", "text"]
+    }
+  },
+  "run": {
+    "raw": true,
+    "capture": [
+      "exitCode",
+      "stdout",
+      "json:coverage/coverage-final.json",
+      "json:coverage/coverage-summary.json",
+      "json:.harness-out/jest.json"
+    ],
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
