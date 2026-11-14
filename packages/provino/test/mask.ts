@@ -1,8 +1,10 @@
 // How a `json:` capture is recorded (`@provino/harness` `record.ts` `normalizedJson`), for the
 // Provino side of a comparison. A copy, like `sweep.ts`: `provino` may not import the harness.
 // Every string has each root as `<root>`, each run of stack frames as `\n<frames>` and each mask
-// match as `<masked>`; every number under a time key is `"<time>"`. A key has each root as `<root>` too, and an object keyed by paths
-// under a root (an Istanbul map) has its keys sorted.
+// match as `<masked>`; every number under a time key is `"<time>"`, and every string under a mask
+// key (Istanbul's `hash`) is `"<masked>"`. A key has each root as `<root>` too. The one reordering:
+// an object keyed by paths under a root (an Istanbul coverage map, in the order its files
+// finished) has its keys sorted; nothing else is canonicalised.
 export type Json =
   | string
   | number
@@ -63,9 +65,11 @@ export function normalizedJson(
   options: {
     readonly roots: readonly string[]
     readonly timeKeys: readonly string[]
+    readonly maskKeys?: readonly string[] | undefined
     readonly mask?: readonly string[] | undefined
   },
 ): Json {
+  const maskKeys = options.maskKeys ?? []
   const expressions = (options.mask ?? []).map((source) => new RegExp(source, 'gm'))
   const rooted = (raw: string): string => {
     let out = raw
@@ -77,7 +81,9 @@ export function normalizedJson(
     return expressions.reduce((masked, expression) => masked.replace(expression, '<masked>'), out)
   }
   const walk = (node: Json, key: string | undefined): Json => {
-    if (typeof node === 'string') return text(node)
+    if (typeof node === 'string') {
+      return key !== undefined && maskKeys.includes(key) ? '<masked>' : text(node)
+    }
     if (typeof node === 'number') {
       return key !== undefined && options.timeKeys.includes(key) ? '<time>' : node
     }

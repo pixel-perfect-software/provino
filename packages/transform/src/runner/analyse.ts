@@ -372,6 +372,15 @@ export function walkProgram(
           // Type syntax refers to no value; only the expression an assertion wraps stays.
           if (TS_EXPRESSIONS.has(node.type))
             visit((node as { readonly expression: Node }).expression)
+          // Oxc counts an enum member's initializer as a use of an import, a `declare` enum's
+          // too (`declare enum E { X = a }` keeps `import { a }`).
+          if (node.type === 'TSEnumDeclaration') {
+            for (const member of node.body.members) {
+              if (member.initializer !== null && member.initializer !== undefined) {
+                visit(member.initializer)
+              }
+            }
+          }
           return
         }
         visitChildren(node)

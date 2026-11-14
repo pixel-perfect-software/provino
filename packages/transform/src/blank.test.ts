@@ -211,6 +211,60 @@ describe('blankTypeScript: the text, and the program Oxc makes', () => {
   }
 })
 
+// A removed or blanked statement after a compound statement: the `;` rule follows `if`/`else`,
+// loops, labels and `with` to the statement they end with (review of 7b19fdf, finding 8). Each line
+// before the fix joined the next onto the body: `if (c) x = a(y)`.
+const COMPOUND_TAIL_CASES: readonly string[] = [
+  'let x, a, c\nif (c) x = a\ntype T = 1\n(y)',
+  'let x, a, c\nif (c) x = 1\nelse x = a\ninterface I {}\n(y)',
+  'let x, a, c\nif (c) x = a as T\n(y)',
+  'let x, a, c\nif (c) x = a\ntype T = 1\n[1].map(f)',
+  'let x, a, c\nif (c) x = a\ndeclare const q: number\n`t`',
+  'let x, a, c\nwhile (c) x = a\ntype T = 1\n(y)',
+  'let x, a, c\nfor (;;) x = a\ntype T = 1\n(y)',
+  'let x, a, c\nfor (const k of c) x = a\ntype T = 1\n(y)',
+  'let x, a, c\nfor (const k in c) x = a\ntype T = 1\n(y)',
+  'let x, a\nl: x = a\ntype T = 1\n(y)',
+  'let x, a, c, d\nif (c) if (d) x = 1; else x = a\ntype T = 1\n(y)',
+  'let x, a, c\nif (c) l: while (c) x = a\ntype T = 1\n(y)',
+  'function f() {\n  if (c) return a\n  type T = 1\n  (y)\n}',
+]
+
+describe('ASI after a compound statement: the `;` goes where its tail needs one', () => {
+  for (const source of COMPOUND_TAIL_CASES) {
+    test(JSON.stringify(source), () => {
+      assertSameProgram(source, blanked(source), ELIDE)
+    })
+  }
+
+  test('`with` (sloppy CommonJS)', () => {
+    const source = 'var x, a, o\nwith (o) x = a\ntype T = 1\n(y)'
+    const options: BlankOptions = { ...ELIDE, sourceType: 'commonjs' }
+    const result = blankTypeScript('/f.ts', source, options)
+    assert.ok(result.ok, result.ok ? '' : result.reason)
+    assert.match(result.code, /x = a\n;/)
+  })
+})
+
+describe('more shapes Oxc reads one way and a naive strip another', () => {
+  const cases: readonly string[] = [
+    // Finding 11: an enum initializer is a use of an import, a `declare` enum's too.
+    "import { a } from './a'\ndeclare enum E { X = a }",
+    "import { a } from './a'\nexport declare enum E { X = a }",
+    // Finding 12: an optional binding pattern's `?` goes.
+    'function f([a]?) { return a }',
+    'const g = ({ a }?: { a: number }) => a',
+    'function h([a = 1]?: number[], { b }?) {}',
+    // A type assertion with no line break after it stays on the strip.
+    'function k() { return <number>/* c */ 42 }',
+  ]
+  for (const source of cases) {
+    test(JSON.stringify(source), () => {
+      assertSameProgram(source, blanked(source), ELIDE)
+    })
+  }
+})
+
 describe('under `verbatimModuleSyntax`, only `type` imports go (Oxc’s `onlyRemoveTypeImports`)', () => {
   const cases: readonly (readonly [string, string])[] = [
     ["import { A } from 'a'\nlet x: A", "import { A } from 'a'\nlet x   "],
@@ -240,6 +294,22 @@ describe('syntax with runtime meaning falls back to Oxc’s transform, with the 
     ['@dec class A {}', 'a decorator under `experimentalDecorators`', { legacyDecorators: true }],
     ['class A { x = 1 }', 'useDefineForClassFields: false', { defineClassFields: false }],
     ['function f() {\n  return <\n    T>b\n}', 'a type assertion spans lines'],
+    // Finding 10: a break after the `>` is one after `return`, `throw` or `yield`.
+    ['function f() {\n  return <number>\n    42\n}', 'a type assertion spans lines'],
+    ['function f(e) {\n  throw <Error>\n    e\n}', 'a type assertion spans lines'],
+    ['function* f() {\n  yield <number>\n    1\n}', 'a type assertion spans lines'],
+    ['function f() {\n  return <number>/*\n*/ 42\n}', 'a type assertion spans lines'],
+    // Finding 9: a decorated `declare` field is still decorated under legacy decorators.
+    [
+      'class A { @Attr() declare x: string }',
+      'a decorator under `experimentalDecorators`',
+      { legacyDecorators: true },
+    ],
+    [
+      'class A { @Attr() abstract x: string }',
+      'a decorator under `experimentalDecorators`',
+      { legacyDecorators: true },
+    ],
     ['const f = async <\n  T,\n>(a: T) => a', 'async arrow function span lines'],
     ['const = ;', 'parse errors'],
   ]

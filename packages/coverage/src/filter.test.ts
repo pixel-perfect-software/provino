@@ -173,3 +173,13 @@ test('several projects: the globs are relative to the global root, Istanbul keep
   const v8 = createCoverageFilter({ ...config, provider: 'v8', include: ['packages/b/src/**'] })
   assert.equal(v8(sibling), true)
 })
+
+test('an instrument root below the project root (babel-jest cwd) leaves the rest of the project out', () => {
+  const filter = createCoverageFilter({ ...CONFIG, instrumentRoot: `${ROOT}/sub` })
+  assert.equal(filter(`${ROOT}/sub/inside.ts`), true)
+  assert.equal(filter(`${ROOT}/src/add.ts`), false)
+  assert.equal(filter(`${ROOT}/sub/node_modules/dep/index.js`), false)
+  // V8 has no such step: the global root decides.
+  const v8 = createCoverageFilter({ ...CONFIG, provider: 'v8', instrumentRoot: `${ROOT}/sub` })
+  assert.equal(v8(`${ROOT}/src/add.ts`), true)
+})

@@ -162,7 +162,6 @@ export function jestProjectToNeutral(
   if (collects && globalConfig.coverageThreshold !== undefined) {
     notApplied(diagnostics, 'coverageThreshold', 'T8.11')
   }
-  const coverage = collects ? jestCoverageFilter(project, globalConfig) : undefined
 
   const aliases: NeutralAlias[] = project.moduleNameMapper.map(([pattern, target]) => ({
     pattern,
@@ -189,6 +188,14 @@ export function jestProjectToNeutral(
     })
   }
   const skipImplicit = implicit && !(withBabel && babelJestResolved)
+  // Jest's default babel-jest instruments what it transforms, with the process's cwd as Babel's
+  // (the files outside it are not instrumented): the Oxc path stands in for it, so it keeps that
+  // root too. A transform the config names goes through Jest's ScriptTransformer, under `rootDir`.
+  // Under the v8 provider nothing is instrumented, so only `shouldInstrument` decides.
+  const babelInstruments = implicit && globalConfig.coverageProvider !== 'v8'
+  const coverage = collects
+    ? jestCoverageFilter(project, globalConfig, { babelInstruments })
+    : undefined
   const transforms: NeutralTransform[] = skipImplicit
     ? []
     : project.transform.map(([pattern, module, options]) => ({

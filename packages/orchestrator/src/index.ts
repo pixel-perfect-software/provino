@@ -12,8 +12,8 @@ export {
   type FileDone,
   type WorkerConnection,
 } from './connect.ts'
-export { finishCoverage, type RunCoverageHooks } from './coverage.ts'
-export { createRawCoverageStore, type RawCoverageStore } from './coverage-store.ts'
+export type { RunCoverageHooks } from './coverage.ts'
+export type { RawCoverageStore } from './coverage-store.ts'
 export { createDepsTable, type DepsEvent, type DepsTable } from './deps-table.ts'
 export { type DiscoveredFile, type DiscoverOptions, discoverFiles } from './discover.ts'
 export {
@@ -41,6 +41,7 @@ export {
 export { fileIdOf, relativePosix } from './file-id.ts'
 export { hookFailureReport, type RunGlobalHooks } from './global-setup.ts'
 export { sameWorkerKey, type WorkerKeyInput, workerKeyOf } from './key.ts'
+export { loadCoverageStore, loadFinishCoverage } from './load-coverage.ts'
 export {
   collectOpenHandles,
   type OpenHandleOptions,

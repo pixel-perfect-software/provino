@@ -172,5 +172,6 @@ export async function convertV8Coverage(
     converter.applyCoverage(script.functions)
     map.merge(converter.toIstanbul())
   }
-  return { map, sourceFinder: (path) => readFileSync(path, 'utf8') }
+  // Jest's v8 report context reads every source from disk: no text to carry.
+  return { map, sources: {} }
 }

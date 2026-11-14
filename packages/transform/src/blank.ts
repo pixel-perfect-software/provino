@@ -281,8 +281,14 @@ function blankProgram(source: string, program: Program, options: BlankOptions): 
   function visitList(items: readonly Node[], members: boolean): void {
     lists.push({ items, members })
     for (const item of items) {
-      if (members ? memberTypeOnly(item) : typeOnly(item)) remove(item)
-      else if (members) visitMember(item)
+      if (members ? memberTypeOnly(item) : typeOnly(item)) {
+        // Oxc's legacy decorators still call a decorator of what has no runtime form
+        // (`@Attr() declare x` is `_decorate([Attr()], A.prototype, "x", void 0)`).
+        if (options.legacyDecorators && hasDecorators(item)) {
+          fail('a decorator under `experimentalDecorators`')
+        }
+        remove(item)
+      } else if (members) visitMember(item)
       else visitStatement(item)
     }
   }
@@ -431,8 +437,11 @@ function blankProgram(source: string, program: Program, options: BlankOptions): 
       case 'TSTypeAssertion': {
         const close = skipTrivia(source, node.typeAnnotation.end)
         if (source[close] !== '>') fail('no `>` after a type assertion’s type')
-        // `return <T>\n x` would return nothing.
-        if (hasLineBreak(source, node.start, close)) fail('a type assertion spans lines')
+        // `return <T>\n x` (or `return <T>/*\n*/ x`) would return nothing: a line break anywhere
+        // before the expression's first token, comments included, is one after `return`.
+        if (hasLineBreak(source, node.start, skipTrivia(source, close + 1))) {
+          fail('a type assertion spans lines')
+        }
         blank(node.start, close + 1)
         visit(node.expression)
         return
@@ -454,6 +463,16 @@ function blankProgram(source: string, program: Program, options: BlankOptions): 
         visitDecorators(node)
         return
       }
+      case 'ObjectPattern':
+      case 'ArrayPattern':
+        // `function f([a]?: T) {}`: the `?` goes with the annotation, as an identifier's does. Oxc's
+        // types say a pattern is never optional; its parser sets the flag on a parameter's.
+        if ((node as { readonly optional?: boolean }).optional === true) {
+          const annotation = (node as { readonly typeAnnotation?: Span | null }).typeAnnotation
+          blankLastMarker(node.start, annotation?.start ?? node.end, '?')
+        }
+        visitChildren(node)
+        return
       case 'VariableDeclarator': {
         const id = node.id
         if (node.definite === true) {
@@ -770,8 +789,39 @@ function rangeAt(ranges: readonly Span[], offset: number): Span | undefined {
   return undefined
 }
 
-/** Statements and members that end at a `;` the language may insert. */
-function needsTerminator(node: Node): boolean {
+/**
+ * The statement a compound statement ends with: `if (c) x = a` ends with `x = a`, so a removed
+ * statement after it can let the next line continue `a` just as after a bare `x = a`.
+ */
+function tail(node: Node): Node {
+  let at = node
+  for (;;) {
+    switch (at.type) {
+      case 'IfStatement':
+        at = at.alternate ?? at.consequent
+        break
+      case 'WhileStatement':
+      case 'ForStatement':
+      case 'ForInStatement':
+      case 'ForOfStatement':
+      case 'LabeledStatement':
+      case 'WithStatement':
+        at = at.body
+        break
+      default:
+        return at
+    }
+  }
+}
+
+function hasDecorators(node: Node): boolean {
+  const decorators = (node as { readonly decorators?: readonly Node[] }).decorators
+  return decorators !== undefined && decorators.length > 0
+}
+
+/** Statements and members that end at a `;` the language may insert, followed to their tail. */
+function needsTerminator(statement: Node): boolean {
+  const node = tail(statement)
   switch (node.type) {
     case 'ExpressionStatement':
     case 'VariableDeclaration':

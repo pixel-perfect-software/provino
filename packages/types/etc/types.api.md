@@ -470,6 +470,7 @@ export interface CoverageProvider {
 // @beta
 export interface CoverageSummary {
     readonly map: Readonly<Record<string, IstanbulFileCoverageData>>;
+    readonly sources?: Readonly<Record<string, string>>;
     // (undocumented)
     readonly thresholdFailures: readonly string[];
     // (undocumented)
@@ -2748,6 +2749,7 @@ export interface SerializedCoverageConfig {
     readonly globalRoot: string;
     readonly include: readonly string[];
     readonly includeRoot: boolean;
+    readonly instrumentRoot?: string;
     readonly projectRoot: string;
     // (undocumented)
     readonly provider: "v8" | "istanbul";

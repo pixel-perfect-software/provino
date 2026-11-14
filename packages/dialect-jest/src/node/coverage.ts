@@ -9,17 +9,26 @@ import type { JestGlobalConfig, JestProjectConfig } from './types.ts'
  * Which files of `project` count toward coverage, as `shouldInstrument` decides with Jest's
  * options: `forceCoverageMatch`, the test files (`testMatch`, `testRegex`, unless
  * `testPathIgnorePatterns` matches), `collectCoverageFrom` relative to the run's `rootDir`,
- * `coveragePathIgnorePatterns`, and the setup and global hook files.
+ * `coveragePathIgnorePatterns`, and the setup and global hook files. With `babelInstruments` (the
+ * project's transform is Jest's default babel-jest, which instruments its own output), the files
+ * outside the process's working directory are left out too: babel-jest gives
+ * `babel-plugin-istanbul` `cwd: config.cwd` (babel-jest 30.5.2 `src/index.ts` L69-L70), where
+ * the ScriptTransformer path gives it `rootDir` (`ScriptTransformer.ts` L389). Recorded:
+ * `coverage/babel-cwd-below-root`.
  * @public
  */
 export function jestCoverageFilter(
   project: JestProjectConfig,
   globalConfig: JestGlobalConfig,
+  options: { readonly babelInstruments?: boolean } = {},
 ): SerializedCoverageConfig {
+  const instrumentRoot =
+    options.babelInstruments === true && project.cwd !== project.rootDir ? project.cwd : undefined
   return {
     provider: globalConfig.coverageProvider === 'v8' ? 'v8' : 'istanbul',
     globalRoot: globalConfig.rootDir,
     projectRoot: project.rootDir,
+    ...(instrumentRoot === undefined ? {} : { instrumentRoot }),
     include: [...globalConfig.collectCoverageFrom],
     includeRoot: true,
     force: [...project.forceCoverageMatch],

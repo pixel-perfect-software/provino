@@ -6,10 +6,11 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
-import { finishCoverage } from '@provino/orchestrator'
+import { loadFinishCoverage } from '@provino/orchestrator'
 import type { RawCoverage, SerializedCoverageConfig } from '@provino/types'
 import { run, runtimeProject, trackedProjects } from './support.ts'
 
+const { finishCoverage } = await loadFinishCoverage()
 const project = trackedProjects()
 
 const PRICING = [

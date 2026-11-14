@@ -4,8 +4,8 @@
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { test } from 'node:test'
-import { jestCoverageOptions, jestCoverageTexts } from './coverage.ts'
-import type { JestGlobalConfig } from './types.ts'
+import { jestCoverageFilter, jestCoverageOptions, jestCoverageTexts } from './coverage.ts'
+import type { JestGlobalConfig, JestProjectConfig } from './types.ts'
 
 /** The global config keys `jestCoverageOptions` reads; the rest never matter to it. */
 function globalConfig(overrides: Partial<JestGlobalConfig> = {}): JestGlobalConfig {
@@ -116,4 +116,28 @@ test("the texts around the reports are CoverageReporter's", () => {
     jestCoverageTexts.reportFailure('Error: no', 'Error: no\n    at y'),
     '\n        Failed to write coverage reports:\n        ERROR: Error: no\n        STACK: Error: no\n    at y\n      ',
   )
+})
+
+test('under the default babel-jest the instrument root is the process cwd, else the project root', () => {
+  const project = {
+    rootDir: '/repo',
+    cwd: '/repo/packages/a',
+    forceCoverageMatch: [],
+    testMatch: [],
+    testRegex: [],
+    testPathIgnorePatterns: [],
+    coveragePathIgnorePatterns: [],
+    setupFiles: [],
+    setupFilesAfterEnv: [],
+  } as unknown as JestProjectConfig
+  const global = {
+    ...globalConfig(),
+    rootDir: '/repo',
+    collectCoverageFrom: [],
+  } as JestGlobalConfig
+  const babel = { babelInstruments: true }
+  assert.equal(jestCoverageFilter(project, global, babel).instrumentRoot, '/repo/packages/a')
+  assert.equal('instrumentRoot' in jestCoverageFilter(project, global), false)
+  const atRoot = { ...project, cwd: '/repo' } as JestProjectConfig
+  assert.equal('instrumentRoot' in jestCoverageFilter(atRoot, global, babel), false)
 })

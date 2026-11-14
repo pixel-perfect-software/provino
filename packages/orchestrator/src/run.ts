@@ -32,8 +32,7 @@ import type {
   WorkerKey,
 } from '@provino/types'
 import { cacheDirectories, createResultsCache, type ResultsCache } from './cache.ts'
-import { finishCoverage, type RunCoverageHooks } from './coverage.ts'
-import { createRawCoverageStore } from './coverage-store.ts'
+import type { RunCoverageHooks } from './coverage.ts'
 import { createDepsTable, type DepsTable } from './deps-table.ts'
 import { type DiscoveredFile, discoverFiles } from './discover.ts'
 import { discoverByRules } from './discover-rules.ts'
@@ -463,9 +462,10 @@ export async function runProjects(
   }
 
   // Coverage is the projects' own (their worker config says which files count); the run keeps
-  // what the workers send.
+  // what the workers send. Its modules (and `@provino/coverage/node` behind them) load only when a
+  // project collects (T1.10, T7.12): a run without coverage imports none of them.
   const coverageStore = projects.some((project) => project.config.coverage !== undefined)
-    ? createRawCoverageStore()
+    ? (await import('./coverage-store.ts')).createRawCoverageStore()
     : undefined
   /** Keeps a worker's `coverage` event, and hands the take to `onTake`. */
   const keepCoverage = (
@@ -985,7 +985,7 @@ export async function runProjects(
     const coverage =
       coverageStore === undefined || cut
         ? undefined
-        : await finishCoverage(
+        : await (await import('./coverage.ts')).finishCoverage(
             coverageStore,
             found
               .filter((entry) => entry.discovered.length > 0)

@@ -308,3 +308,42 @@ describe('a built worker (T1.10)', () => {
     }
   })
 })
+
+describe('the coordinator without coverage (T1.10, T7.12)', () => {
+  /** The `@provino/coverage` source files the coordinator process of a source run loaded. */
+  async function coverageLoaded(args: readonly string[]): Promise<readonly string[]> {
+    const dir = await builtProject()
+    const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
+    after(() => rm(logs, { recursive: true, force: true }))
+    const bin = join(PACKAGE, 'src', 'cli.ts')
+    const result = spawnSync(
+      process.execPath,
+      ['--conditions=provino-source', bin, 'jest', '--ci', ...args],
+      {
+        cwd: dir,
+        encoding: 'utf8',
+        env: childEnv(['load-recorder'], { PROVINO_LOAD_LOG: logs }),
+        timeout: 120_000,
+      },
+    )
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
+    return readdirSync(logs)
+      .flatMap((file) => readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean))
+      .map((line) => line.split('\t'))
+      .filter(([main]) => main === bin)
+      .map(([, url]) => url ?? '')
+      .filter((url) => url.includes('/packages/coverage/src/'))
+  }
+
+  test('a run with coverage off loads no module of @provino/coverage (its /node entry included)', async () => {
+    assert.deepEqual(await coverageLoaded([]), [])
+  })
+
+  test('a run with --coverage loads @provino/coverage/node (the control)', async () => {
+    const loaded = await coverageLoaded(['--coverage', '--coverageReporters=text-summary'])
+    assert.ok(
+      loaded.some((url) => url.endsWith('/packages/coverage/src/node/index.ts')),
+      loaded.join('\n'),
+    )
+  })
+})

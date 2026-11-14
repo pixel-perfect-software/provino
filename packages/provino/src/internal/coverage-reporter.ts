@@ -66,6 +66,7 @@ export function createCoverageReporter(options: CoverageReporterOptions): Covera
           watermarks: options.options.watermarks,
           stdout: options.stdout,
           colour: options.consoleColour,
+          ...(coverage.sources === undefined ? {} : { sources: coverage.sources }),
         })
         written = map
       } catch (error) {

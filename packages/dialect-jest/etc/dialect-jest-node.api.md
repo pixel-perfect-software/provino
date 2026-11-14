@@ -337,7 +337,9 @@ export interface JestCoverageEnvironment {
 }
 
 // @public
-export function jestCoverageFilter(project: JestProjectConfig, globalConfig: JestGlobalConfig): SerializedCoverageConfig;
+export function jestCoverageFilter(project: JestProjectConfig, globalConfig: JestGlobalConfig, options?: {
+    readonly babelInstruments?: boolean;
+}): SerializedCoverageConfig;
 
 // @public
 export function jestCoverageOptions(globalConfig: JestGlobalConfig, environment: JestCoverageEnvironment): RunCoverageOptions;
