@@ -1,0 +1,16 @@
+{
+  "description": "`--showSeed --seed=42` under Jest 30.5.2 (B23d A4): the summary gains a `Seed:        42` line before `Test Suites:`, with no `--randomize` (the order is kept). One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--showSeed", "--seed=42"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(Seed|Test Suites|Tests):"
+  }
+}
