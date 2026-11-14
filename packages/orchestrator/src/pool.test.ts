@@ -51,6 +51,8 @@ interface Fake {
   readonly ran: Map<number, string[]>
   /** Ends a worker that `unkillable` kept alive, as the operating system eventually would. */
   readonly end: (workerId: number) => void
+  /** Every job a worker was sent, with the id of that worker. */
+  readonly jobs: { readonly workerId: number; readonly job: FileJob }[]
 }
 
 function fake(
@@ -74,6 +76,7 @@ function fake(
   const started: number[] = []
   const exited = new Set<number>()
   const ran = new Map<number, string[]>()
+  const jobs: Fake['jobs'] = []
   const enders = new Map<number, () => void>()
   let attempts = 0
   let running = 0
@@ -126,6 +129,7 @@ function fake(
           running++
           peak = Math.max(peak, running)
           ran.set(init.workerId, [...(ran.get(init.workerId) ?? []), job.file])
+          jobs.push({ workerId: init.workerId, job })
           const behaviour = plan(job.file)
           if (behaviour === 'done-while-killed') {
             finishInFlight = () => {
@@ -195,7 +199,15 @@ function fake(
       return transport
     },
   }
-  return { factory, started, exited, peak: () => peak, ran, end: (id) => enders.get(id)?.() }
+  return {
+    factory,
+    started,
+    exited,
+    peak: () => peak,
+    ran,
+    end: (id) => enders.get(id)?.(),
+    jobs,
+  }
 }
 
 const consoleEvent = (file: string): WorkerEvent => ({
@@ -1068,5 +1080,87 @@ describe('cancelling and forcing', () => {
     assert.deepEqual(await pool.run(request('a')), { type: 'aborted' })
     await pool.close()
     assert.deepEqual(f.started, [])
+  })
+})
+
+describe('a pool kept across runs (B23c, watch)', () => {
+  it('interrupt gives up the waiting files, kills the running one, and keeps the pool open', async () => {
+    const f = fake((file) => (file === 'slow' ? 'hang' : 'ok'))
+    const pool = createPool(options(2), deps(f))
+    assert.equal((await pool.run(request('warm'))).type, 'done')
+    const slow = pool.run(request('slow'))
+    await until(() => f.ran.get(1)?.includes('slow') === true, 'the slow file starting')
+    const waiting = [pool.run(request('b')), pool.run(request('c'))]
+    await until(() => f.started.length === 2, 'a second worker taking b')
+    pool.interrupt()
+    assert.deepEqual(await slow, { type: 'aborted' }, 'a killed file is given up, not crashed')
+    const outcomes = await Promise.all(waiting)
+    assert.ok(
+      outcomes.some((outcome) => outcome.type === 'aborted'),
+      'c never started',
+    )
+    await until(() => f.exited.has(1), 'the worker running slow being killed')
+    // The next run still has a pool: the worker that was idle (or a new one) takes the file.
+    const next = await pool.run(request('d'))
+    assert.equal(next.type, 'done')
+    assert.ok(!f.exited.has(next.type === 'done' ? next.workerId : 0))
+    await pool.close()
+  })
+
+  it('interrupt gives up a file whose worker is still starting, and keeps that worker', async () => {
+    const f = fake(() => 'ok', undefined, { createMs: 20 })
+    const pool = createPool(options(1), deps(f))
+    const first = pool.run(request('a'))
+    pool.interrupt()
+    assert.deepEqual(await first, { type: 'aborted' })
+    const next = await pool.run(request('b'))
+    assert.deepEqual(
+      next.type === 'done' ? next.workerId : next.type,
+      1,
+      'the started worker serves the next run',
+    )
+    assert.deepEqual(f.ran.get(1), ['b'], 'a was never sent')
+    await pool.close()
+  })
+
+  it('retire stops the idle workers it picks now, and a busy one after its file', async () => {
+    const f = fake((file) => (file === 'slow' ? 'hang' : 'ok'))
+    const pool = createPool(options(3), deps(f))
+    await Promise.all([pool.run(request('a')), pool.run(request('o', { key: otherKey }))])
+    assert.deepEqual([...f.started].sort(), [1, 2])
+    const otherId = f.ran.get(1)?.includes('o') === true ? 1 : 2
+    const keptId = otherId === 1 ? 2 : 1
+    pool.retire((workerKey) => workerKey.environment === 'jsdom')
+    await until(() => f.exited.has(otherId), 'the picked idle worker stopping')
+    assert.equal(f.exited.has(keptId), false, 'the other key is kept')
+    const again = await pool.run(request('b'))
+    assert.deepEqual(again.type === 'done' ? again.workerId : again.type, keptId)
+    // A busy worker finishes its file first.
+    const outcome = pool.run(request('c'))
+    pool.retire(() => true)
+    assert.equal((await outcome).type, 'done')
+    await until(() => f.exited.has(keptId), 'the busy worker stopping after its file')
+    await pool.close()
+  })
+
+  it('sends the stale modules asked for when a worker takes a file, and none when the list is empty', async () => {
+    const f = fake(() => 'ok')
+    const pool = createPool(options(1), deps(f))
+    const asked: number[] = []
+    await pool.run(
+      request('a', {
+        staleModules: (workerId) => {
+          asked.push(workerId)
+          return ['/p/b.ts']
+        },
+      }),
+    )
+    await pool.run(request('b', { staleModules: () => [] }))
+    await pool.close()
+    assert.deepEqual(asked, [1])
+    assert.deepEqual(
+      f.jobs.map(({ job }) => job.staleModules),
+      [['/p/b.ts'], undefined],
+    )
   })
 })

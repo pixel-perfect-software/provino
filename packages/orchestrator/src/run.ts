@@ -28,6 +28,7 @@ import type {
   TaskResult,
   TaskState,
   TimingsFile,
+  TransportFactory,
   WorkerEvent,
   WorkerExit,
   WorkerKey,
@@ -50,7 +51,13 @@ import { createInlineSnapshotWrites, withInlineSnapshots } from './inline-snapsh
 import { configHash, hashOf, type WorkerKeyInput, workerKeyOf } from './key.ts'
 import { prepareObsoleteSnapshotCleanup } from './obsolete-snapshots.ts'
 import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
-import { createPool, defaultMaxWorkers, type Pool, type PoolOutcome } from './pool.ts'
+import {
+  createPool,
+  defaultMaxWorkers,
+  type Pool,
+  type PoolDeps,
+  type PoolOutcome,
+} from './pool.ts'
 import { selectFiles } from './select.ts'
 import { createHistorySequencer } from './sequencer.ts'
 import { checkShard, type ShardSpec, shardFiles } from './shard.ts'
@@ -439,6 +446,92 @@ interface Member {
 }
 
 /**
+ * What a watch session lends each of its runs (B23c, T9.11): its pool, which outlives the run, and
+ * what must stay the same from one run to the next for a warm worker to serve it.
+ * @internal
+ */
+export interface RunHost {
+  /**
+   * The session's pool, bound to this run's callbacks until the run ends. What the run does with
+   * it: `drain` does nothing (the workers stay for the next run), `cancelQueued` and `close` give up
+   * what this run asked for and kill its running files (`Pool.interrupt`), and the run's `signal`
+   * does the same.
+   */
+  readonly attach: (deps: RunPoolDeps) => Pool
+  /** The pool kind of every run of the session, decided once: a watch run is never put in band by itself. */
+  readonly kind: PoolKind
+  /** The session's pool is `inline` because the caller asked to run in band: its console is captured. */
+  readonly inBand: boolean
+  /** The seed a project with none gets, the same for every run: a warm worker keeps the one it booted with. */
+  readonly seed: number
+  /** The results caches by directory, made once for the session. */
+  readonly caches: Map<string, ResultsCache>
+  /** Each lockfile's hash by path, read once for the session. */
+  readonly lockfileHashes: Map<string, string>
+  /** The files `selection` reaches in a project, from the session's own affected index. */
+  readonly selectAffected: (
+    projectIndex: number,
+    everything: readonly DiscoveredFile[],
+    selection: AffectedSelection,
+  ) => Promise<readonly DiscoveredFile[]>
+  /** The changed paths a worker has not been told about, which go with its next file. */
+  readonly staleModules: (workerId: number) => readonly string[]
+}
+
+/**
+ * What a run gives the pool it runs on: `PoolDeps` without the transport, which a session's pool
+ * already has.
+ * @internal
+ */
+export type RunPoolDeps = Omit<PoolDeps, 'transport'>
+
+/**
+ * The transport factory and the pool's options a run's settings ask for, for `kind`: what
+ * `runProjects` makes its pool from, and a watch session its one pool.
+ * @internal
+ */
+export function poolSettings(
+  options: Pick<RunProjectOptions, 'pool' | 'entry' | 'stdout' | 'stderr'>,
+  kind: PoolKind,
+): { readonly factory: TransportFactory; readonly poolOptions: PoolOptions } {
+  const startTimeoutMs = options.pool?.startTimeoutMs ?? START_TIMEOUT_MS
+  const teardownTimeoutMs = options.pool?.teardownTimeoutMs ?? TEARDOWN_TIMEOUT_MS
+  const execArgv = options.pool?.execArgv
+  const factory = transportFor(kind, {
+    entry: options.entry ?? import.meta.resolve('@provino/orchestrator/worker/main'),
+    startTimeoutMs,
+    teardownTimeoutMs,
+    ...(options.stdout === undefined ? {} : { stdout: options.stdout }),
+    ...(options.stderr === undefined ? {} : { stderr: options.stderr }),
+    ...(execArgv === undefined ? {} : { execArgv }),
+    ...(options.pool?.startupEnv === undefined ? {} : { startupEnv: options.pool.startupEnv }),
+    ...(options.pool?.heapLimitMb === undefined ? {} : { memoryLimitMb: options.pool.heapLimitMb }),
+  })
+  // The transport can cap the workers, whatever is asked for: an inline pool runs one.
+  const maxWorkers = Math.min(
+    options.pool?.maxWorkers ?? defaultMaxWorkers(),
+    factory.maxWorkers ?? Number.POSITIVE_INFINITY,
+  )
+  const recycle: RecyclePolicy = {
+    ...options.pool?.recycle,
+    memoryLimitBytes:
+      options.pool?.recycle?.memoryLimitBytes ?? defaultWorkerMemoryLimit(maxWorkers),
+  }
+  const fileTimeoutMs = options.pool?.fileTimeoutMs
+  return {
+    factory,
+    poolOptions: {
+      kind,
+      maxWorkers,
+      recycle,
+      teardownTimeoutMs,
+      startTimeoutMs,
+      ...(fileTimeoutMs === undefined ? {} : { fileTimeoutMs }),
+    },
+  }
+}
+
+/**
  * Runs a project's test files and reports to the bus, and resolves with the summary: `runProjects`
  * over one project.
  *
@@ -478,9 +571,23 @@ export function runProject(
  * policy and the snapshot summary's mode.
  * @public
  */
-export async function runProjects(
+export function runProjects(
   projects: readonly ResolvedProject[],
   options: RunProjectOptions,
+): Promise<RunSummary> {
+  return runProjectsOn(projects, options, undefined)
+}
+
+/**
+ * `runProjects`, on a watch session's pool when `host` is given (B23c): the pool is the session's,
+ * kept warm after the run, and the run is never put in band by itself (Jest's `shouldRunInBand`
+ * says no under `--watch`, testSchedulerHelper.ts L36-38).
+ * @internal
+ */
+export async function runProjectsOn(
+  projects: readonly ResolvedProject[],
+  options: RunProjectOptions,
+  host: RunHost | undefined,
 ): Promise<RunSummary> {
   const { bus, signal } = options
   const [first] = projects
@@ -494,9 +601,9 @@ export async function runProjects(
   // The pool kind the options and the policy ask for. A run that goes in band is decided once the
   // files are known (below): `kind` is then `inline`, the pool is made again, and the workers' keys
   // are made against it.
-  let kind: PoolKind = options.pool?.kind ?? orchestrator.pool.default
+  let kind: PoolKind = host?.kind ?? options.pool?.kind ?? orchestrator.pool.default
   /** The run is in band by choice (not an `inline` pool a caller asked for): its console is captured. */
-  let inBandChosen = false
+  let inBandChosen = host?.inBand ?? false
   const execArgv = options.pool?.execArgv
   const { bail } = options
   if (bail !== undefined && !(Number.isSafeInteger(bail.count) && bail.count >= 1)) {
@@ -531,7 +638,7 @@ export async function runProjects(
     options.coverage?.onTake?.(take)
   }
 
-  const caches = new Map<string, ResultsCache>()
+  const caches = host?.caches ?? new Map<string, ResultsCache>()
   const cacheFor = (project: ResolvedProject): ResultsCache | undefined => {
     if (options.cache === false) return undefined
     if (options.cache !== undefined) return options.cache
@@ -545,9 +652,9 @@ export async function runProjects(
   }
   // One seed for the run (`jest.getSeed()`): a project that gives none takes this one, so every
   // worker of every such project reports the same value, as Jest's single `globalConfig.seed`.
-  const runSeed = Math.floor(0x1_0000_0000 * Math.random()) - 0x8000_0000
+  const runSeed = host?.seed ?? Math.floor(0x1_0000_0000 * Math.random()) - 0x8000_0000
   /** Each lockfile's hash by path, so projects that share a lockfile read it once. */
-  const lockfileHashes = new Map<string, string>()
+  const lockfileHashes = host?.lockfileHashes ?? new Map<string, string>()
   // Two projects can share a name, yet differ in discovery, environment, transform or setup files;
   // each still needs a worker key, a file-id namespace and a results history of its own.
   const takenIdentities = new Set<string>()
@@ -605,8 +712,6 @@ export async function runProjects(
 
   const startedAt = performance.now()
   const stderr = options.stderr ?? process.stderr
-  const startTimeoutMs = options.pool?.startTimeoutMs ?? START_TIMEOUT_MS
-  const teardownTimeoutMs = options.pool?.teardownTimeoutMs ?? TEARDOWN_TIMEOUT_MS
   const unhandled: SerializedError[] = []
   /** Global setup, once it has run (T9.15): its teardown comes after the run, whatever ends it. */
   let globalSetup: GlobalSetupRun | undefined
@@ -618,42 +723,18 @@ export async function runProjects(
   const depsTables = new Map<number, DepsTable>()
   // Nothing starts until a file is run, but this is where a bad option throws (`recycle`, the
   // transport's own entry), so it comes before `run:start`. A run that then goes in band makes the
-  // pool again, as an inline one: the first has started nothing.
+  // pool again, as an inline one: the first has started nothing. A watch session's run binds the
+  // session's pool instead.
   function makePool(poolKind: PoolKind): Pool {
-    const factory = transportFor(poolKind, {
-      entry: options.entry ?? import.meta.resolve('@provino/orchestrator/worker/main'),
-      startTimeoutMs,
-      teardownTimeoutMs,
-      ...(options.stdout === undefined ? {} : { stdout: options.stdout }),
-      ...(options.stderr === undefined ? {} : { stderr: options.stderr }),
-      ...(execArgv === undefined ? {} : { execArgv }),
-      ...(options.pool?.startupEnv === undefined ? {} : { startupEnv: options.pool.startupEnv }),
-      ...(options.pool?.heapLimitMb === undefined
-        ? {}
-        : { memoryLimitMb: options.pool.heapLimitMb }),
-    })
-    // The transport can cap the workers, whatever is asked for: an inline pool runs one.
-    const maxWorkers = Math.min(
-      options.pool?.maxWorkers ?? defaultMaxWorkers(),
-      factory.maxWorkers ?? Number.POSITIVE_INFINITY,
-    )
-    const recycle: RecyclePolicy = {
-      ...options.pool?.recycle,
-      memoryLimitBytes:
-        options.pool?.recycle?.memoryLimitBytes ?? defaultWorkerMemoryLimit(maxWorkers),
-    }
-    const fileTimeoutMs = options.pool?.fileTimeoutMs
-    const poolOptions: PoolOptions = {
-      kind: poolKind,
-      maxWorkers,
-      recycle,
-      teardownTimeoutMs,
-      startTimeoutMs,
-      ...(fileTimeoutMs === undefined ? {} : { fileTimeoutMs }),
-    }
+    const deps = poolDeps(poolKind)
+    if (host !== undefined) return host.attach(deps)
+    const { factory, poolOptions } = poolSettings(options, poolKind)
+    return createPool(poolOptions, { ...deps, transport: () => factory })
+  }
 
-    return createPool(poolOptions, {
-      transport: () => factory,
+  /** What the pool asks of this run: a worker's init, the coordinator methods, the run's signals. */
+  function poolDeps(poolKind: PoolKind): RunPoolDeps {
+    return {
       init: (workerKey, workerId) => {
         // A worker is bound to the project its key names, for its whole life.
         const member = byIdentity.get(workerKey.project)
@@ -695,7 +776,7 @@ export async function runProjects(
       },
       ...(signal === undefined ? {} : { signal }),
       ...(options.forceSignal === undefined ? {} : { forceSignal: options.forceSignal }),
-    })
+    }
   }
   let pool = makePool(kind)
 
@@ -834,6 +915,7 @@ export async function runProjects(
           await bus.emit('file:start', entry.info, workerId)
         },
         onEvents: dispatch.handle,
+        ...(host === undefined ? {} : { staleModules: host.staleModules }),
         // Jest's rule counts a file's failed tests when the file ends: before its worker takes
         // another file, or `--bail` would start one it is about to give up.
         onDone: () => {
@@ -995,13 +1077,15 @@ export async function runProjects(
                 rootDir: member.project.rootDir,
                 cwd,
               })
-            : await selectAffected(
-                member,
-                everything,
-                options.selection,
-                affectedCacheDir(member),
-                recordedGraphs.get(member),
-              )
+            : host !== undefined
+              ? await host.selectAffected(member.projectIndex, everything, options.selection)
+              : await selectAffected(
+                  member,
+                  everything,
+                  options.selection,
+                  affectedCacheDir(member),
+                  recordedGraphs.get(member),
+                )
         // The project's own filter (`--filter`) takes either, as Jest filters the tests it found.
         const own = projects[member.projectIndex]
         const discovered =
@@ -1050,6 +1134,7 @@ export async function runProjects(
           : NO_AUTOMATIC_IN_BAND,
       ...(options.runInBand === true ? { runInBand: true } : {}),
       ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
+      ...(host === undefined ? {} : { watch: true }),
       workerMemoryLimit: options.pool?.recycle?.memoryLimitBytes !== undefined,
       maxWorkers: options.pool?.maxWorkers ?? defaultMaxWorkers(),
       fileCount: found.reduce((sum, entry) => sum + entry.discovered.length, 0),
@@ -1060,7 +1145,8 @@ export async function runProjects(
         }),
       ),
     })
-    if (inBand && kind !== 'inline') {
+    // A session's pool is its own for every run: its kind was decided when it was made.
+    if (inBand && kind !== 'inline' && host === undefined) {
       await pool.close()
       kind = 'inline'
       inBandChosen = true
@@ -1082,7 +1168,7 @@ export async function runProjects(
       root: runRoot,
       projects: projects.map((project) => project.name),
       startTime: startedAt,
-      watch: false,
+      watch: host !== undefined,
       inBand: kind === 'inline',
     }
     if (found.every((entry) => entry.discovered.length === 0)) {
