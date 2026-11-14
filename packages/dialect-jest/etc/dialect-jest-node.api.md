@@ -731,7 +731,7 @@ export interface JestReporterHostOptions<Config extends ProjectConfigLike> {
     readonly globalConfig: unknown;
     readonly results: JestResults<Config>;
     readonly serial?: boolean;
-    readonly showStatus: boolean;
+    readonly showStatus?: boolean;
 }
 
 // @public

@@ -2520,6 +2520,7 @@ export interface RunEnvironment {
 
 // @beta
 export interface RunInfo {
+    readonly inBand?: boolean;
     // (undocumented)
     readonly projects: readonly string[];
     // (undocumented)
