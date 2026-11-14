@@ -35,9 +35,16 @@ const Runtime = (
   }
 ).default
 
+/**
+ * Where the haste map persists itself. jest-cli creates `cacheDirectory` before it builds the map;
+ * `createHasteMap` alone does not, and Jest's default (`/tmp/jest_<x>`) need not exist (CI).
+ */
+const CACHE = mkdtempSync(join(tmpdir(), 'provino-haste-cache-'))
+after(() => rmSync(CACHE, { recursive: true, force: true }))
+
 /** The `.snap` files Jest's haste map has for `config`, sorted. */
 async function hasteSnapFiles(config: Record<string, unknown>): Promise<string[]> {
-  const { options } = await normalize(config, {})
+  const { options } = await normalize({ cacheDirectory: CACHE, ...config }, {})
   const map = await Runtime.createHasteMap(options, { watchman: false })
   const { hasteFS } = await map.build()
   return hasteFS.matchFiles('\\.snap$').sort()
