@@ -1,0 +1,16 @@
+{
+  "description": "`--randomize --seed=1234` on 30 plain top-level tests (T5.13, B23d): the run order is jest-circus's `shuffleArray` over pure-rand's xoroshiro128+ applied to the declared order, which `core.shuffle`'s claim reads. One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--randomize", "--seed=1234"]
+    },
+    "capture": ["exitCode", "json:.harness-out/jest.json"],
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

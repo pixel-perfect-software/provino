@@ -111,6 +111,8 @@ const NULL_FLIPS: Readonly<Record<string, unknown>> = {
 const REF_FLIPS: Readonly<Record<string, readonly unknown[]>> = {
   'core.formatEachTitle': [neutralPolicy.core.formatEachTitle],
   'core.formatValue': [neutralPolicy.core.formatValue],
+  // `--randomize --seed` on 30 tests: no shuffle keeps the declared order, which the recording isn't.
+  'core.shuffle': [neutralPolicy.core.shuffle],
   // The four `cli/global-setup-throws*` recordings word a failing hook as Jest's behaviour does; the
   // neutral wording must fail them (the claim calls the ref it is given).
   'orchestrator.globalSetup.failure': [neutralPolicy.orchestrator.globalSetup.failure],

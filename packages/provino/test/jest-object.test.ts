@@ -1,7 +1,7 @@
 // T11.10: the module `jest` object against real Jest 30.5.2. Its own keys (and their order) are
 // the ones the recorder read off the real object (`mocking/api-surface`), and `retryTimes` (T5.10)
-// runs a failed test again in the order and as many times as Jest does; its `entireDescribe` is
-// refused by name.
+// runs a failed test again in the order and as many times as Jest does, and its `entireDescribe`
+// reruns the block's hooks and every test below as Jest does (T5.10).
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -31,20 +31,6 @@ describe('the module jest object', () => {
     const project = await makeProject({
       'jest.config.json': JEST_CONFIG,
       'tests/keys.test.js': `test('keys', () => { expect(Object.keys(jest)).toEqual(${JSON.stringify(keys)}) })\n`,
-    })
-    const ended = await spawnCli(['jest', '--ci', '-c', 'jest.config.json'], { cwd: project.dir })
-    assert.equal(ended.code, 0, ended.stderr)
-  })
-
-  it('refuses retryTimes with entireDescribe by name, with the task that builds it', async () => {
-    const project = await makeProject({
-      'jest.config.json': JEST_CONFIG,
-      'tests/retry.test.js': [
-        "test('entireDescribe is refused', () => {",
-        '  expect(() => jest.retryTimes(2, { entireDescribe: true })).toThrow(/entireDescribe.*T5\\.10/)',
-        '})',
-        '',
-      ].join('\n'),
     })
     const ended = await spawnCli(['jest', '--ci', '-c', 'jest.config.json'], { cwd: project.dir })
     assert.equal(ended.code, 0, ended.stderr)
@@ -105,4 +91,78 @@ describe('jest.retryTimes against real Jest 30.5.2', () => {
       assert.equal(await logOf(provino.dir), await logOf(live.dir))
     })
   }
+})
+
+/**
+ * A test file whose describe blocks retry as a whole: every call, hook and test, goes to
+ * `attempts.log`, so the order comes from the file itself, whichever runner ran it.
+ */
+function describeRetryFile(options: string): string {
+  return [
+    "const fs = require('node:fs')",
+    "const log = (line) => fs.appendFileSync(require('node:path').join(__dirname, '..', 'attempts.log'), line + '\\n')",
+    'const calls = {}',
+    'const flaky = (name, failures) => () => {',
+    '  calls[name] = (calls[name] || 0) + 1',
+    "  log(name + ' #' + calls[name])",
+    "  if (calls[name] <= failures) throw new Error(name + ' failed #' + calls[name])",
+    '}',
+    "test('before the block', flaky('before', 1))",
+    "describe('whole', () => {",
+    `  jest.retryTimes(2, { entireDescribe: true, ${options} })`,
+    "  beforeAll(() => log('beforeAll'))",
+    "  afterAll(() => log('afterAll'))",
+    "  beforeEach(() => log('beforeEach'))",
+    "  afterEach(() => log('afterEach'))",
+    "  test('a fails once', flaky('a', 1))",
+    "  test('b passes', () => log('b'))",
+    "  describe('inner', () => {",
+    "    test('c fails twice', flaky('c', 2))",
+    '  })',
+    "  test('d fails every time', flaky('d', 99))",
+    '})',
+    "test('after the block', flaky('after', 1))",
+    '',
+  ].join('\n')
+}
+
+describe('jest.retryTimes with entireDescribe against real Jest 30.5.2', () => {
+  for (const [name, options] of [
+    ['reruns the block, its hooks and every test, the last attempt standing', ''],
+    [
+      'waits and logs the dropped attempts with the same calls',
+      'waitBeforeRetry: 30, logErrorsBeforeRetry: true',
+    ],
+  ] as const) {
+    it(name, async () => {
+      const files = {
+        'jest.config.json': JEST_CONFIG,
+        'tests/describe-retry.test.js': describeRetryFile(options),
+      }
+      const live = await makeProject(files)
+      const provino = await makeProject(files)
+      const jestStatuses = await liveJest(live.dir)
+      const ran = await provinoRun(provino.dir)
+      assert.deepEqual(sorted(ran.statuses), sorted(jestStatuses))
+      assert.ok([...ran.statuses.values()].includes('failed'), 'one test fails every attempt')
+      const logOf = (dir: string): Promise<string> => readFile(join(dir, 'attempts.log'), 'utf8')
+      assert.equal(await logOf(provino.dir), await logOf(live.dir))
+    })
+  }
+
+  it("throws jest-circus's error when it is called once the tests are running", async () => {
+    const project = await makeProject({
+      'jest.config.json': JEST_CONFIG,
+      'tests/late.test.js': [
+        "test('too late', () => {",
+        '  expect(() => jest.retryTimes(1, { entireDescribe: true })).toThrow(',
+        "    'Cannot set retry options after tests have started running. Retry options must be set synchronously.',",
+        '  )',
+        '})',
+        '',
+      ].join('\n'),
+    })
+    const ended = await spawnCli(['jest', '--ci', '-c', 'jest.config.json'], { cwd: project.dir })
+    assert.equal(ended.code, 0, ended.stderr)
+  })
 })

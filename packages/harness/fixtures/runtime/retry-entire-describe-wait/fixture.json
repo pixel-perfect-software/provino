@@ -1,0 +1,4 @@
+{
+  "description": "The wait before a describe retry (`waitBeforeRetry`, T5.10): one test records whether its second run started at least 100 ms after the first, with a 120 ms wait, and one that never fails.",
+  "runners": ["jest"]
+}

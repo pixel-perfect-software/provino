@@ -1,0 +1,17 @@
+{
+  "description": "`--randomize --seed=1.5` under Jest 30.5.2 (T5.13, B23d): what Jest does with a fractional seed (jest-config's range check, `jest.getSeed()`, and pure-rand's `xoroshiro128plus`, whose `seed | 0` truncates it). One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--randomize", "--seed=1.5"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^\\s+seed |Validation Error|seed",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

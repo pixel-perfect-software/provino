@@ -85,6 +85,10 @@ test('a few divergences from the neutral policy are Vitest`s', () => {
     a: 'call',
     b: 'ignore-warn',
   })
+  // Vitest's own shuffle (`sequence.shuffle`) isn't built: `core.shuffle` stays the neutral `null`,
+  // while Jest's is a ref to jest-circus's.
+  assert.equal(row('core.shuffle'), undefined)
+  assert.equal(resolved.core.shuffle, null)
   // The words core prints after naming the test (`The function given as the retry.condition of
   // "<test>" is not called: `): Provino's own text, which names the runner, so it is the dialect's.
   assert.equal(

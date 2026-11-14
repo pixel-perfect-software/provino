@@ -1,0 +1,4 @@
+{
+  "description": "Describe-level retries in nested blocks (T5.10): an inner block with its own `entireDescribe` retry runs again on its own first, inside each attempt of the outer block, so the inner tests run once per outer attempt times its own attempts.",
+  "runners": ["jest"]
+}

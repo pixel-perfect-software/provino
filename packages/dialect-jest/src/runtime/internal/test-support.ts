@@ -11,7 +11,14 @@ import {
 } from '@provino/expect'
 import { createBehaviourLoader, neutralPolicy, resolvePolicy } from '@provino/policy'
 import { createFakeClock, type FakeClock, type FakeClockOptions } from '@provino/timers'
-import type { DefaultRetry, ExpectStatic, RuntimeEvent, TimersPolicy } from '@provino/types'
+import type {
+  DefaultRetry,
+  DescribeRetry,
+  DescribeRetryResult,
+  ExpectStatic,
+  RuntimeEvent,
+  TimersPolicy,
+} from '@provino/types'
 import { jestPolicy } from '../../dialect.ts'
 import { jestExpectPolicy } from '../../expect-policy.ts'
 import { jestExpectTable } from '../expect-table.ts'
@@ -197,6 +204,7 @@ export function timerHost(
   environmentTornDown: () => boolean
   setDefaultTimeout: (ms: number | undefined) => void
   setDefaultRetry: (retry: DefaultRetry | undefined) => void
+  setDescribeRetry: (retry: DescribeRetry) => DescribeRetryResult
 } {
   const timersPolicy = resolvePolicy(jestPolicy).timers
   const clock = createFakeClock(global, timersPolicy, options)
@@ -207,5 +215,6 @@ export function timerHost(
     environmentTornDown: () => false,
     setDefaultTimeout: () => {},
     setDefaultRetry: () => {},
+    setDescribeRetry: () => 'set',
   }
 }

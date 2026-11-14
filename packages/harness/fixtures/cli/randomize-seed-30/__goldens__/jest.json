@@ -1,0 +1,1206 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/randomize-seed-30",
+  "files": [
+    {
+      "file": "shuffled.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "r05"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 49,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "alpha",
+              "a1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 12,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "alpha",
+              "a4"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 15,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "alpha",
+              "a3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 14,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "alpha",
+              "a2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 13,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "epsilon",
+              "e3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 46,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "epsilon",
+              "e1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 44,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "epsilon",
+              "e2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 45,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "delta",
+              "d2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 39,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "delta",
+              "d1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 38,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "r01"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 4,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "r03 skipped"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 6
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "beta",
+              "beta inner",
+              "i1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "beta",
+              "beta inner",
+              "i2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 23,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "beta",
+              "beta inner",
+              "i3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "beta",
+              "b3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 26,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "beta",
+              "b2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "beta",
+              "b1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 19,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "c1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 8,
+            "column": 6
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "r04 todo"
+            ],
+            "dupIndex": 0
+          },
+          "status": "todo",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 6
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "r06"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 50,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "gamma",
+              "g5"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 32,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "gamma",
+              "gamma each 3"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 30,
+            "column": 23
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "gamma",
+              "gc2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 34,
+            "column": 8
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "gamma",
+              "gamma each 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 30,
+            "column": 23
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "gamma",
+              "gc1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 33,
+            "column": 8
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "gamma",
+              "g4"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 31,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "gamma",
+              "gamma each 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 30,
+            "column": 23
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "r02"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "shuffled.test.ts",
+            "path": [
+              "c2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 9,
+            "column": 6
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "  ✓ r05 (<dur>)\n  ✓ r01 (<dur>)\n  ✓ c1 (<dur>)\n  ✓ r06 (<dur>)\n  ✓ r02 (<dur>)\n  ✓ c2 (<dur>)\n  ○ skipped r03 skipped\n  ✎ todo r04 todo\n  alpha\n    ✓ a1 (<dur>)\n    ✓ a4 (<dur>)\n    ✓ a3 (<dur>)\n    ✓ a2 (<dur>)\n  epsilon\n    ✓ e3 (<dur>)\n    ✓ e1 (<dur>)\n    ✓ e2 (<dur>)\n  delta\n    ○ skipped d2\n    ○ skipped d1\n  beta\n    ✓ b3 (<dur>)\n    ✓ b2 (<dur>)\n    ✓ b1 (<dur>)\n    beta inner\n      ✓ i1 (<dur>)\n      ✓ i2 (<dur>)\n      ✓ i3 (<dur>)\n  gamma\n    ✓ g5 (<dur>)\n    ✓ gamma each 3 (<dur>)\n    ✓ gc2 (<dur>)\n    ✓ gamma each 2 (<dur>)\n    ✓ gc1 (<dur>)\n    ✓ g4 (<dur>)\n    ✓ gamma each 1 (<dur>)\nTest Suites: 1 passed, 1 total\nTests:       3 skipped, 1 todo, 26 passed, 30 total",
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 0,
+        "numFailedTests": 0,
+        "numPassedTestSuites": 1,
+        "numPassedTests": 26,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 3,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 1,
+        "numTotalTestSuites": 1,
+        "numTotalTests": 30,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": true,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "r05",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 49
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "r05",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "alpha"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "alpha a1",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 12
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "a1",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "alpha"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "alpha a4",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 15
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "a4",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "alpha"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "alpha a3",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 14
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "a3",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "alpha"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "alpha a2",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 13
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "a2",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "epsilon"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "epsilon e3",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 46
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "e3",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "epsilon"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "epsilon e1",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 44
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "e1",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "epsilon"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "epsilon e2",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 45
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "e2",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "delta"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "delta d2",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 39
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "d2",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "delta"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "delta d1",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 38
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "d1",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "r01",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 4
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "r01",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "r03 skipped",
+                "invocations": 1,
+                "location": {
+                  "column": 6,
+                  "line": 6
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "r03 skipped",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "beta",
+                  "beta inner"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "beta beta inner i1",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 22
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "i1",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "beta",
+                  "beta inner"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "beta beta inner i2",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 23
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "i2",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "beta",
+                  "beta inner"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "beta beta inner i3",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 24
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "i3",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "beta"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "beta b3",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 26
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "b3",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "beta"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "beta b2",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 20
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "b2",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "beta"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "beta b1",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 19
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "b1",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "c1",
+                "invocations": 1,
+                "location": {
+                  "column": 6,
+                  "line": 8
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "c1",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "r04 todo",
+                "invocations": 1,
+                "location": {
+                  "column": 6,
+                  "line": 7
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "todo",
+                "title": "r04 todo",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "r06",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 50
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "r06",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "gamma"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "gamma g5",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 32
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "g5",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "gamma"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "gamma gamma each 3",
+                "invocations": 1,
+                "location": {
+                  "column": 23,
+                  "line": 30
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "gamma each 3",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "gamma"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "gamma gc2",
+                "invocations": 1,
+                "location": {
+                  "column": 8,
+                  "line": 34
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "gc2",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "gamma"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "gamma gamma each 2",
+                "invocations": 1,
+                "location": {
+                  "column": 23,
+                  "line": 30
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "gamma each 2",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "gamma"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "gamma gc1",
+                "invocations": 1,
+                "location": {
+                  "column": 8,
+                  "line": 33
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "gc1",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "gamma"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "gamma g4",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 31
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "g4",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "gamma"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "gamma gamma each 1",
+                "invocations": 1,
+                "location": {
+                  "column": 23,
+                  "line": 30
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "gamma each 1",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "r02",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 5
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "r02",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "c2",
+                "invocations": 1,
+                "location": {
+                  "column": 6,
+                  "line": 9
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "c2",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/shuffled.test.ts",
+            "startTime": "<time>",
+            "status": "focused",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}
