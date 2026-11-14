@@ -215,6 +215,13 @@ export interface SerializedCoverageConfig {
    * It differs from `globalRoot` when several projects run in one pool.
    */
   readonly projectRoot: string
+  /**
+   * Absolute: the root Istanbul instruments within, when it is not `projectRoot` (Babel's `cwd`
+   * for a transform that instruments its own output: Jest's babel-jest passes the process's
+   * working directory, so a file outside it is left uninstrumented although it is under the
+   * project's root). Absent: `projectRoot`.
+   */
+  readonly instrumentRoot?: string
   /** The include globs (Jest's `collectCoverageFrom`); empty means every file the tests load. */
   readonly include: readonly string[]
   /** Whether the include globs match against the root-relative path. */
@@ -280,6 +287,12 @@ export interface CoverageSummary {
    * `coverageMap` is made of).
    */
   readonly map: Readonly<Record<string, IstanbulFileCoverageData>>
+  /**
+   * The original text of each source in `map` that is not on disk at its path (a generated or
+   * virtual file whose map carried `sourcesContent`), by absolute path: the reports read it before
+   * the disk. Absent when every source is on disk.
+   */
+  readonly sources?: Readonly<Record<string, string>>
   /** The files no test loaded whose coverage could not be made, each with why. Absent when none. */
   readonly untestedFailures?: readonly {
     readonly path: string

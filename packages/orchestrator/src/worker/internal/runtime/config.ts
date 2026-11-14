@@ -23,7 +23,7 @@ import type {
 import { WorkerError } from '../../errors.ts'
 import { isRecord, isStringArray } from './guards.ts'
 
-const TYPESCRIPT_MODES: readonly unknown[] = ['oxc', 'node-strip', 'off']
+const TYPESCRIPT_MODES: readonly unknown[] = ['oxc', 'blank', 'node-strip', 'off']
 
 function invalid(path: string, expected: string): never {
   throw new WorkerError(
@@ -239,7 +239,7 @@ function loaderConfig(value: unknown): SerializedLoaderConfig {
     absolutePath(tsconfig, 'loader.tsconfig')
   }
   if (!TYPESCRIPT_MODES.includes(typescript)) {
-    invalid('loader.typescript', "'oxc', 'node-strip' or 'off'")
+    invalid('loader.typescript', "'oxc', 'blank', 'node-strip' or 'off'")
   }
   return {
     ...resolverKeys(loader),
@@ -271,6 +271,9 @@ function coverageConfig(value: unknown): SerializedCoverageConfig {
     provider,
     globalRoot: absolutePath(coverage.globalRoot, 'coverage.globalRoot'),
     projectRoot: absolutePath(coverage.projectRoot, 'coverage.projectRoot'),
+    ...(coverage.instrumentRoot === undefined
+      ? {}
+      : { instrumentRoot: absolutePath(coverage.instrumentRoot, 'coverage.instrumentRoot') }),
     include: texts(coverage.include, 'coverage.include'),
     includeRoot: coverage.includeRoot,
     force: texts(coverage.force, 'coverage.force'),

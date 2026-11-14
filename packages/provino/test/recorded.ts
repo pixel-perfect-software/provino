@@ -29,6 +29,10 @@ export interface RecordedManifest {
     readonly timeKeys?: readonly string[]
     /** Regular-expression sources the recording replaced with `<masked>`. */
     readonly mask?: readonly string[]
+    /** JSON keys whose strings the recording replaced with `<masked>` (Istanbul's `hash`). */
+    readonly maskKeys?: readonly string[]
+    /** The directory, relative to the root, the runner was started in. */
+    readonly cwd?: string
   }
 }
 

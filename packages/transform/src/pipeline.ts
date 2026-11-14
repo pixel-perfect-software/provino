@@ -16,6 +16,7 @@ import type {
   TransformRequest,
 } from '@provino/types'
 import { type JsxOptions, type OxcError, type TransformOptions, transformSync } from 'oxc-transform'
+import { blankTypeScript } from './blank.ts'
 import { ownCodeIdentity } from './cache/code-identity.ts'
 import { hashParts, pipelineFingerprint, stableJson } from './cache/fingerprint.ts'
 import { createTransformCache } from './cache/store.ts'
@@ -52,8 +53,16 @@ export interface PipelineJsxOptions {
  */
 export interface PipelineOptions {
   readonly root: string
-  /** How TypeScript is stripped. Only `oxc` is implemented; `node-strip` is T3.10. */
-  readonly typescript: 'oxc' | 'node-strip' | 'off'
+  /**
+   * How TypeScript is stripped. `oxc`: Oxc's transform, with a source map; a `.ts`, `.mts` or
+   * `.cts` file requested with `instrument: true` is stripped in place instead (D116). `blank`:
+   * every such file is stripped in place: type syntax becomes spaces, so every token keeps its
+   * offset and there is no map; a file with syntax that has runtime meaning (an enum, a namespace
+   * with values, a parameter property, `import x =`, `export =`, a decorator under
+   * `experimentalDecorators`, a class field under `useDefineForClassFields: false`) or a parse
+   * error, and every file when `define` is set, takes Oxc's transform. `node-strip` is T3.10.
+   */
+  readonly typescript: 'oxc' | 'blank' | 'node-strip' | 'off'
   /** `auto`: the nearest tsconfig.json; a path: that file; `false`: none. */
   readonly tsconfig: 'auto' | false | string
   readonly jsx?: PipelineJsxOptions
@@ -202,10 +211,10 @@ export function transformCodeIdentity(): string {
  * @public
  */
 export const createPipeline: CreatePipeline = (options) => {
-  if (options.typescript !== 'oxc') {
+  if (options.typescript !== 'oxc' && options.typescript !== 'blank') {
     throw new TransformError(
       'TRANSFORM_OPTION_UNSUPPORTED',
-      `typescript: '${options.typescript}' is not supported yet (only 'oxc'; 'node-strip' is T3.10).`,
+      `typescript: '${options.typescript}' is not supported yet (only 'oxc' and 'blank'; 'node-strip' is T3.10).`,
     )
   }
   const findTsconfig = createTsconfigFinder()
@@ -486,13 +495,20 @@ export const createPipeline: CreatePipeline = (options) => {
     const { filename, source } = request
     const config = found.lang === 'js' ? NO_CONFIG : configFor(filename)
     const { oxc, text: oxcText } = oxcFor(found, config)
-    const runOxc = found.lang !== 'js' || options.define !== undefined
+    // D116: in place on the coverage path, so Istanbul's positions are the TypeScript file's.
+    // `define` is a replacement, not an erasure, so it keeps Oxc's transform.
+    const blankMode =
+      found.lang === 'ts' &&
+      options.define === undefined &&
+      (options.typescript === 'blank' || request.instrument)
     const cacheKey = hashParts([
       fingerprint,
       filename,
       oxcText,
       request.role,
       request.instrument ? 'instrument' : 'plain',
+      // The strip that made the code: an entry of one is never served to the other.
+      blankMode ? 'blank' : 'oxc',
       source,
     ])
     const hit = cache?.get(cacheKey)
@@ -505,7 +521,18 @@ export const createPipeline: CreatePipeline = (options) => {
       code: 'TSCONFIG_EXTENDS_NOT_FOUND',
       message,
     }))
-    if (runOxc) {
+    const blanked = blankMode
+      ? blankTypeScript(filename, source, {
+          onlyRemoveTypeImports: config.emit.verbatimModuleSyntax === true,
+          legacyDecorators: config.emit.experimentalDecorators === true,
+          defineClassFields: useDefineForClassFields(config.emit),
+          sourceType: found.sourceType === 'commonjs' ? 'commonjs' : 'module',
+        })
+      : null
+    if (blanked?.ok === true) {
+      // Positions are the source's: no map for this step.
+      code = blanked.code
+    } else if (found.lang !== 'js' || options.define !== undefined) {
       const result = transformSync(filename, source, oxc)
       code = result.code
       maps.push(result.map === undefined ? null : toSourceMapV3(result.map))
@@ -517,7 +544,8 @@ export const createPipeline: CreatePipeline = (options) => {
     code = hoisted.code
     const { staticMocks, lateDeps } = hoisted
 
-    const facts = moduleFacts(filename, source, found.lang, found.sourceType)
+    // The strip parsed the source with the options the facts need: no second parse.
+    const facts = moduleFacts(filename, source, found.lang, found.sourceType, blanked?.parsed)
     const format =
       found.sourceType === 'commonjs' ? 'cjs' : formatOf(facts, /\.m[jt]s$/.test(filename))
     return stored(cacheKey, filename, {

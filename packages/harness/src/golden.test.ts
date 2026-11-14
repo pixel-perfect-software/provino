@@ -449,3 +449,18 @@ test('a json capture has the root in its keys too, and an Istanbul map sorted by
     total: { lines: 1 },
   })
 })
+
+test('maskKeys masks the strings under those keys only (the hash, not _coverageSchema)', () => {
+  const sha = '1a1c01bbd47fc00a2c39e90264f33305004495a9'
+  const value = normalizedJson(
+    {
+      '/work/a.ts': { path: '/work/a.ts', hash: 'f'.repeat(40), _coverageSchema: sha },
+      note: sha,
+    },
+    { roots: ['/work'], timeKeys: [], maskKeys: ['hash'], mask: (text) => text },
+  )
+  assert.deepEqual(value, {
+    '<root>/a.ts': { path: '<root>/a.ts', hash: '<masked>', _coverageSchema: sha },
+    note: sha,
+  })
+})

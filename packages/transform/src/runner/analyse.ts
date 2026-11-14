@@ -58,16 +58,52 @@ function isNode(value: unknown): value is Node {
   return typeof value === 'object' && value !== null && typeof (value as Node).type === 'string'
 }
 
+/** Options of `walkProgram`. */
+export interface WalkOptions {
+  /**
+   * The program is TypeScript (the in-place strip's import elision, D116): type syntax holds no
+   * reference (a type annotation, `typeof x` in a type, a `declare` declaration or field), the
+   * expression inside `as`, `satisfies`, `!`, `<T>x` and `f<T>` does, and so do decorators, which
+   * Oxc's TypeScript transform counts as uses of an import.
+   */
+  readonly typescript?: boolean
+}
+
+/** TypeScript nodes that wrap an expression which stays in the output. */
+const TS_EXPRESSIONS: ReadonlySet<string> = new Set([
+  'TSAsExpression',
+  'TSSatisfiesExpression',
+  'TSNonNullExpression',
+  'TSTypeAssertion',
+  'TSInstantiationExpression',
+])
+
 /**
  * Walks `program` (module declarations included, only where they hold code) and collects what
  * `apply.ts` needs. `imports` maps local names to their bindings; when it is empty only `import()`
  * and `import.meta` are looked for.
  */
-export function walkProgram(program: Program, imports: ReadonlyMap<string, ImportBinding>): Walked {
+export function walkProgram(
+  program: Program,
+  imports: ReadonlyMap<string, ImportBinding>,
+  options: WalkOptions = {},
+): Walked {
   const references: Reference[] = []
   const dynamicImports: DynamicImport[] = []
   const metas: { start: number; end: number }[] = []
   const track = imports.size > 0
+  const typescript = options.typescript === true
+
+  /** A TypeScript program's decorators (JavaScript's are left as the runner always left them). */
+  function visitDecorators(node: object): void {
+    if (!typescript) return
+    const decorators = (node as { readonly decorators?: readonly Node[] }).decorators
+    if (decorators !== undefined) for (const decorator of decorators) visit(decorator)
+  }
+
+  function isDeclared(node: object): boolean {
+    return typescript && (node as { readonly declare?: boolean }).declare === true
+  }
 
   const top: Scope = { parent: null, names: null }
   let scope: Scope = top
@@ -94,6 +130,8 @@ export function walkProgram(program: Program, imports: ReadonlyMap<string, Impor
     switch (pattern.type) {
       case 'Identifier':
         if (into !== null && track) declare(pattern.name, into)
+        // An assignment to an import's name is a use of it to Oxc's TypeScript transform.
+        else if (into === null && typescript) reference(pattern, 'plain')
         break
       case 'ObjectPattern':
         for (const property of pattern.properties) {
@@ -139,7 +177,10 @@ export function walkProgram(program: Program, imports: ReadonlyMap<string, Impor
   }
 
   function visitChildren(node: Node): void {
-    for (const [key, value] of Object.entries(node)) {
+    // `for…in` rather than `Object.entries`: the nodes are plain objects, and it allocates nothing.
+    const fields = node as unknown as Readonly<Record<string, unknown>>
+    for (const key in fields) {
+      const value = fields[key]
       if (SKIP_KEYS.has(key) || typeof value !== 'object' || value === null) continue
       if (Array.isArray(value)) {
         for (const item of value) if (isNode(item)) visit(item)
@@ -167,7 +208,10 @@ export function walkProgram(program: Program, imports: ReadonlyMap<string, Impor
     }
     // The parameters' scope.
     scope = { parent: scope, names: null }
-    for (const param of node.params) bindPattern(param, scope)
+    for (const param of node.params) {
+      visitDecorators(param)
+      bindPattern(param, scope)
+    }
     const body = node.body
     if (body !== null && body !== undefined) {
       if (body.type === 'BlockStatement') {
@@ -185,7 +229,9 @@ export function walkProgram(program: Program, imports: ReadonlyMap<string, Impor
   }
 
   function visitClass(node: Extract<Node, { type: 'ClassDeclaration' | 'ClassExpression' }>): void {
+    if (isDeclared(node)) return
     const saved = scope
+    visitDecorators(node)
     if (node.type === 'ClassDeclaration' && node.id !== null) declare(node.id.name, scope)
     scope = { parent: scope, names: null }
     if (node.id !== null) declare(node.id.name, scope)
@@ -195,6 +241,7 @@ export function walkProgram(program: Program, imports: ReadonlyMap<string, Impor
   }
 
   function visitVariable(node: Extract<Node, { type: 'VariableDeclaration' }>): void {
+    if (isDeclared(node)) return
     const into = node.kind === 'var' ? varScope : scope
     for (const declarator of node.declarations) {
       bindPattern(declarator.id, into)
@@ -229,6 +276,8 @@ export function walkProgram(program: Program, imports: ReadonlyMap<string, Impor
       case 'MethodDefinition':
       case 'PropertyDefinition':
       case 'AccessorProperty':
+        if (isDeclared(node)) return
+        visitDecorators(node)
         if (node.computed) visit(node.key)
         if (node.value !== null && node.value !== undefined) visit(node.value)
         return
@@ -296,7 +345,7 @@ export function walkProgram(program: Program, imports: ReadonlyMap<string, Impor
         visit(node.right)
         return
       case 'UpdateExpression':
-        if (node.argument.type !== 'Identifier') visit(node.argument)
+        if (node.argument.type !== 'Identifier' || typescript) visit(node.argument)
         return
       case 'ObjectPattern':
       case 'ArrayPattern':
@@ -319,6 +368,21 @@ export function walkProgram(program: Program, imports: ReadonlyMap<string, Impor
         return
       }
       default:
+        if (typescript && node.type.startsWith('TS')) {
+          // Type syntax refers to no value; only the expression an assertion wraps stays.
+          if (TS_EXPRESSIONS.has(node.type))
+            visit((node as { readonly expression: Node }).expression)
+          // Oxc counts an enum member's initializer as a use of an import, a `declare` enum's
+          // too (`declare enum E { X = a }` keeps `import { a }`).
+          if (node.type === 'TSEnumDeclaration') {
+            for (const member of node.body.members) {
+              if (member.initializer !== null && member.initializer !== undefined) {
+                visit(member.initializer)
+              }
+            }
+          }
+          return
+        }
         visitChildren(node)
     }
   }

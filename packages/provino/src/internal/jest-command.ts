@@ -37,7 +37,7 @@ import type { TextSink } from '@provino/reporters'
 import type { ConfigSource, Diagnostic, NeutralProject, RunRequest } from '@provino/types'
 import type { ReporterChoice } from '../types.ts'
 import { JEST_BUILT_INS, JEST_ENVIRONMENT, NODE_ENVIRONMENT } from './built-ins.ts'
-import { type CoverageReporter, createCoverageReporter } from './coverage-reporter.ts'
+import type { CoverageReporter } from './coverage-reporter.ts'
 import { usageMessage } from './describe.ts'
 import { executeProject, timingsOf } from './execute.ts'
 import { setUpJestReporters } from './jest-reporters.ts'
@@ -321,7 +321,7 @@ async function listFiles(
  * provider: Jest's CoverageReporter, and the notice `_addUntestedFiles` writes on a terminal while
  * the files no test loaded are covered (`RUNNING_TEST_COLOR`, bold dim, then `clearLine`).
  */
-function coverageFor(
+async function coverageFor(
   globalConfig: JestGlobalConfig,
   io: {
     readonly cwd: string
@@ -329,8 +329,10 @@ function coverageFor(
     readonly stdout: TextSink
     readonly stderr: NodeJS.WritableStream
   },
-): { readonly reporter: CoverageReporter; readonly hooks: RunCoverageHooks } | undefined {
+): Promise<{ readonly reporter: CoverageReporter; readonly hooks: RunCoverageHooks } | undefined> {
   if (!globalConfig.collectCoverage || globalConfig.coverageProvider === 'v8') return undefined
+  // The reporter brings `@provino/coverage/node`: loaded only when the run collects (T1.10).
+  const { createCoverageReporter } = await import('./coverage-reporter.ts')
   const { env, stdout, stderr } = io
   const columns = (stdout as { columns?: unknown }).columns
   // Jest's chalk and `istanbul-lib-report`'s console writer follow stdout's colour support.
@@ -509,7 +511,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     // test loaded are covered. A `--collectTests` run collects nothing; v8 is T8.12's (warned).
     const coverage = collecting
       ? undefined
-      : coverageFor(read.globalConfig, { cwd, env, stdout, stderr })
+      : await coverageFor(read.globalConfig, { cwd, env, stdout, stderr })
     const setup =
       collecting || io.reporters !== undefined || reporterResults === undefined
         ? undefined

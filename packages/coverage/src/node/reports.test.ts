@@ -118,3 +118,39 @@ test('a report that throws is COVERAGE_REPORT_FAILED, with what it threw as the 
       (error as { cause?: unknown }).cause instanceof Error,
   )
 })
+
+test('a source that is not on disk: the remap keeps its text, and the html report reads it', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'provino-coverage-'))
+  dirs.push(dir)
+  const original = '/virtual/generated/orig.ts'
+  const text = 'export const x = 1 + 1\n'
+  const generated = {
+    ...fileData('/virtual/generated/out.js', 1),
+    inputSourceMap: {
+      version: 3,
+      sources: [original],
+      sourcesContent: [text],
+      names: [],
+      mappings: 'AAAA,UAAU',
+    },
+  } as IstanbulFileCoverageData
+  const remapped = await reporting.remapCoverage(
+    reporting.createCoverageMap({ '/virtual/generated/out.js': generated }),
+  )
+  assert.deepEqual(remapped.map.files(), [original])
+  assert.deepEqual(remapped.sources, { [original]: text })
+  const options = {
+    reporters: ['html'],
+    directory: dir,
+    watermarks: WATERMARKS,
+    stdout: { write: () => undefined },
+    colour: false,
+  }
+  // Without the text the html report looks on disk and prints the lookup error in the page.
+  await reporting.writeCoverageReports(remapped.map, options)
+  assert.match(await readFile(join(dir, 'orig.ts.html'), 'utf8'), /Unable to lookup source/)
+  await reporting.writeCoverageReports(remapped.map, { ...options, sources: remapped.sources })
+  const page = await readFile(join(dir, 'orig.ts.html'), 'utf8')
+  assert.match(page, /export const x = 1 \+ 1/)
+  assert.doesNotMatch(page, /Unable to lookup source/)
+})

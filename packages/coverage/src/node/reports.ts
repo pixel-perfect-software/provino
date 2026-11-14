@@ -3,6 +3,7 @@
 // `maxCols` first and its own options over it). A report that writes to the console (`text`,
 // `text-summary`, any report given no file) writes to the stream the caller names, not to
 // `process.stdout`, so a caller decides where the text goes.
+import { readFileSync } from 'node:fs'
 import type { CoverageMetric } from '@provino/types'
 import type libCoverage from 'istanbul-lib-coverage'
 import libReport from 'istanbul-lib-report'
@@ -31,8 +32,16 @@ export interface WriteReportsOptions {
   readonly stdout: ReportStream
   /** Whether a console report colours its numbers by watermark. */
   readonly colour: boolean
-  /** The source of a file (default: read from disk). */
-  readonly sourceFinder?: (path: string) => string
+  /**
+   * The original text of sources that are not on disk (`RemappedCoverage.sources`), read before
+   * the disk, as Jest's report context reads its source-map store first.
+   */
+  readonly sources?: Readonly<Record<string, string>>
+}
+
+/** A report's source lookup: the text a map carried, else the file on disk. */
+function sourceFinderOf(sources: Readonly<Record<string, string>>): (path: string) => string {
+  return (path) => sources[path] ?? readFileSync(path, 'utf8')
 }
 
 /** ANSI codes `istanbul-lib-report`'s `ConsoleWriter` colours with, by watermark class. */
@@ -95,7 +104,9 @@ export async function writeCoverageReports(
       branches: [...options.watermarks.branches],
       lines: [...options.watermarks.lines],
     },
-    ...(options.sourceFinder === undefined ? {} : { sourceFinder: options.sourceFinder }),
+    ...(options.sources === undefined || Object.keys(options.sources).length === 0
+      ? {}
+      : { sourceFinder: sourceFinderOf(options.sources) }),
   })
   const buffer = { text: '' }
   // The context makes its writer on first read and keeps it in `data`; this one goes there first.
