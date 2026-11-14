@@ -40,6 +40,11 @@ export interface ConsoleCaptureOptions {
 export interface InstalledCapture {
   /** Writes `''` through each stream's own `write` and waits for its callback (Vitest's flush). */
   flush(): Promise<void>
+  /**
+   * Gives the streams and the console back. Called again, it only puts the replaced console back
+   * if something has put the capture's console on the target since (an environment's teardown
+   * that restores the console it found): the streams are restored once.
+   */
   restore(): void
 }
 
@@ -57,12 +62,27 @@ export interface ConsoleCapture {
   reset(): void
   /**
    * Replaces `target.console` with the capture's console (when `target` is given) and patches
-   * `write` on the given streams, so direct writes become `level: null` events.
+   * `write` on the given streams, so direct writes become `level: null` events. A console call for
+   * which `options.passThrough` says `true` goes to the console it replaced instead, uncaptured.
    */
   install(
     streams: { readonly stdout: WritableLike; readonly stderr: WritableLike },
     target?: { console: Console },
+    options?: InstallOptions,
   ): InstalledCapture
+}
+
+/**
+ * Options for `ConsoleCapture.install`.
+ * @public
+ */
+export interface InstallOptions {
+  /**
+   * Asked at each console call made through the front (not one a method makes through another):
+   * `true` sends it to the console `install` replaced, as if no capture were there. An in-band
+   * worker shares `globalThis.console` with the coordinator, whose reporters must still print.
+   */
+  readonly passThrough?: () => boolean
 }
 
 /**
@@ -110,6 +130,8 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
   let inner = fresh() as unknown as Methods
   /** Whether a method ran since the last reset: a file that never logs keeps its console. */
   let used = false
+  /** While installed with `passThrough`: the console it replaced, and when a call goes to it. */
+  let forward: { readonly to: Methods; readonly when: () => boolean } | undefined
   // The console handed out is a stable front whose methods call the current inner Console. The
   // inner methods that print through others (`count`, `table`, `assert`, `trace`, `group`) call
   // the inner instance's own, unwrapped ones, so they keep the front method's level. A call that
@@ -119,6 +141,10 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
   for (const [name, method] of Object.entries(inner)) {
     if (typeof method !== 'function') continue
     const call = (...args: unknown[]): unknown => {
+      if (level === null && forward !== undefined && forward.when()) {
+        const passed = forward.to[name]
+        if (typeof passed === 'function') return Reflect.apply(passed, forward.to, args)
+      }
       const outer = level
       const outerSite = site
       level = name
@@ -144,21 +170,37 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
       inner = fresh() as unknown as Methods
       used = false
     },
-    install(streams, target) {
+    install(streams, target, installOptions) {
       const previousConsole = target?.console
       if (target !== undefined) target.console = front
+      const passThrough = installOptions?.passThrough
+      const installedForward =
+        previousConsole === undefined || passThrough === undefined
+          ? undefined
+          : { to: previousConsole as unknown as Methods, when: passThrough }
+      forward = installedForward
+      let restored = false
       const patched = [
         patch(streams.stdout, 'stdout', record),
         patch(streams.stderr, 'stderr', record),
       ]
       return {
         flush: async () => {
+          // Restored, the streams are their own again: nothing of the capture's is left to flush.
+          if (restored) return
           await Promise.all(patched.map((stream) => stream.flush()))
         },
         restore() {
-          for (const stream of patched) stream.restore()
-          if (target !== undefined && previousConsole !== undefined)
+          // `forward` stays: code that kept the front (a module that took `console` at load) still
+          // reaches the console it replaced, until another install says otherwise.
+          if (!restored) {
+            restored = true
+            for (const stream of patched) stream.restore()
+            if (target !== undefined && previousConsole !== undefined)
+              target.console = previousConsole
+          } else if (target?.console === front && previousConsole !== undefined) {
             target.console = previousConsole
+          }
         },
       }
     },

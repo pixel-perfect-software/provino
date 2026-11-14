@@ -1,0 +1,14 @@
+{
+  "description": "--filter that returns no `filtered` array (T9.9, B23d): SearchSource throws a TypeError, `Filter <path> did not return a valid test list`, jest-cli prints its stack and exits 1 before any test runs. Only the first line of the message is kept. A black-box run.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "filter.cjs": "module.exports = () => ({})\n"
+    }
+  },
+  "config": { "jest": { "filter": "<rootDir>/filter.cjs", "maxWorkers": 1 } },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^TypeError: |^(PASS|FAIL) "
+  }
+}

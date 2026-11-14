@@ -2331,6 +2331,11 @@ export interface OrchestratorPolicy {
         readonly failure: Behaviour<GlobalSetupFailure>;
     };
     readonly globMatchesOn: "absolute-path" | "root-relative-path";
+    readonly inBand: {
+        readonly single: boolean;
+        readonly fastFileCount: number;
+        readonly slowMs: number;
+    };
     readonly include: readonly string[];
     readonly isolationDefault: {
         readonly default: IsolationTier;
@@ -2341,9 +2346,6 @@ export interface OrchestratorPolicy {
         readonly default: PoolKind;
     };
     readonly processObject: ProcessObject;
-    readonly runInBand: {
-        readonly auto: boolean;
-    };
     readonly sequence: {
         readonly unknownFirst: boolean;
     };
@@ -2721,6 +2723,7 @@ export interface RunEnvironment {
 
 // @beta
 export interface RunInfo {
+    readonly inBand?: boolean;
     // (undocumented)
     readonly projects: readonly string[];
     // (undocumented)
@@ -3690,6 +3693,7 @@ export type WorkerExit = {
 
 // @public
 export interface WorkerInit {
+    readonly captureConsole?: true;
     readonly config: SerializedProjectConfig;
     // (undocumented)
     readonly isolation: IsolationTier;

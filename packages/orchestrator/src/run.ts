@@ -45,9 +45,10 @@ import { OrchestratorError } from './errors.ts'
 import { isRunSignal, RUN_SIGNALS } from './exit-code.ts'
 import { fileIdOf, relativePosix } from './file-id.ts'
 import { type GlobalSetupRun, type RunGlobalHooks, runGlobalSetup } from './global-setup.ts'
+import { shouldRunInBand } from './in-band.ts'
 import { configHash, hashOf, type WorkerKeyInput, workerKeyOf } from './key.ts'
 import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
-import { createPool, defaultMaxWorkers, type PoolOutcome } from './pool.ts'
+import { createPool, defaultMaxWorkers, type Pool, type PoolOutcome } from './pool.ts'
 import { selectFiles } from './select.ts'
 import { createHistorySequencer } from './sequencer.ts'
 import { checkShard, type ShardSpec, shardFiles } from './shard.ts'
@@ -62,6 +63,9 @@ import { transportFor } from './transport/for-kind.ts'
 import { describeExit } from './transport/shared.ts'
 import { BATCH, mapInBatches, messageOf } from './util.ts'
 
+/** `orchestrator.inBand` that never puts a run in band by itself. */
+const NO_AUTOMATIC_IN_BAND = { single: false, fastFileCount: 0, slowMs: 0 } as const
+
 /** Track 9: how long a worker may take to say `ready`, and to stop before it is killed. */
 const START_TIMEOUT_MS = 30_000
 const TEARDOWN_TIMEOUT_MS = 10_000
@@ -71,8 +75,19 @@ const TEARDOWN_TIMEOUT_MS = 10_000
  * @public
  */
 export interface RunPoolOptions {
-  /** Default `policy.orchestrator.pool.default`. */
+  /**
+   * Default `policy.orchestrator.pool.default`. Naming a kind also turns off the policy's automatic
+   * choice to run in band (`orchestrator.inBand`): the caller has chosen, unless
+   * `automaticInBand` says otherwise. `runInBand` and `detectOpenHandles` still run in band.
+   */
   readonly kind?: PoolKind
+  /**
+   * Whether the policy's `orchestrator.inBand` may still put the run in band. Default: only when
+   * no `kind` is named. `true` makes `kind` the pool to use when the run is not in band (Jest's
+   * `--workerThreads`, which `shouldRunInBand` never reads); `false` turns the choice off even
+   * without a `kind`.
+   */
+  readonly automaticInBand?: boolean
   /**
    * Default `defaultMaxWorkers()`. The transport can cap it: an `inline` pool ignores it and runs
    * exactly one worker (`--runInBand`; see `TransportFactory.maxWorkers`).
@@ -150,6 +165,24 @@ export interface RunProjectOptions {
    * files it did not run.
    */
   readonly fileFilters?: readonly FileFilter[]
+  /**
+   * A project's own say over which of its files run, after `fileFilters` and before the shard
+   * (Jest's `--filter`): it gets the project (the object the caller passed, so it can key what it
+   * remembers by it) and the files the filters kept, with their absolute paths, and returns the
+   * ones that run. It is called once per project. It decides nothing about the history, which is
+   * still pruned against the whole discovered set. A rejection ends the run before anything starts.
+   */
+  readonly fileFilter?: (
+    project: ResolvedProject,
+    files: readonly DiscoveredFile[],
+  ) => Promise<readonly DiscoveredFile[]> | readonly DiscoveredFile[]
+  /**
+   * Run in band: the files run one at a time in this process (the `inline` pool), and a test's
+   * `console` still reaches the reporters as events (Jest's `-i`, `--runInBand`). The policy's
+   * `orchestrator.inBand` can also put a small run in band by itself, and `detectOpenHandles`
+   * always does.
+   */
+  readonly runInBand?: boolean
   /**
    * Run only the tests this selection reaches (`--findRelatedTests`, `-o`), per project after
    * discovery. When set, `fileFilters` are not applied: Jest ignores path patterns in related
@@ -398,7 +431,7 @@ interface Member {
   readonly snapshots: SnapshotMember
   readonly cache: ResultsCache | undefined
   /** What the project's workers are keyed by, before the isolation tier of a file is added. */
-  readonly keyInput: Omit<WorkerKeyInput, 'isolation'>
+  keyInput: Omit<WorkerKeyInput, 'isolation'>
   /** The worker key of each tier a file of this project runs at. */
   readonly keys: Map<IsolationTier, WorkerKey>
 }
@@ -456,11 +489,12 @@ export async function runProjects(
   for (const project of projects) {
     checkPattern(options.testNamePattern, project.policy.core.testNamePatternFlags)
   }
-  // Open handles are found with `async_hooks` in this process, so the files run in it.
-  const kind: PoolKind =
-    options.detectOpenHandles === true
-      ? 'inline'
-      : (options.pool?.kind ?? orchestrator.pool.default)
+  // The pool kind the options and the policy ask for. A run that goes in band is decided once the
+  // files are known (below): `kind` is then `inline`, the pool is made again, and the workers' keys
+  // are made against it.
+  let kind: PoolKind = options.pool?.kind ?? orchestrator.pool.default
+  /** The run is in band by choice (not an `inline` pool a caller asked for): its console is captured. */
+  let inBandChosen = false
   const execArgv = options.pool?.execArgv
   const { bail } = options
   if (bail !== undefined && !(Number.isSafeInteger(bail.count) && bail.count >= 1)) {
@@ -560,36 +594,6 @@ export async function runProjects(
   const stderr = options.stderr ?? process.stderr
   const startTimeoutMs = options.pool?.startTimeoutMs ?? START_TIMEOUT_MS
   const teardownTimeoutMs = options.pool?.teardownTimeoutMs ?? TEARDOWN_TIMEOUT_MS
-  const factory = transportFor(kind, {
-    entry: options.entry ?? import.meta.resolve('@provino/orchestrator/worker/main'),
-    startTimeoutMs,
-    teardownTimeoutMs,
-    ...(options.stdout === undefined ? {} : { stdout: options.stdout }),
-    ...(options.stderr === undefined ? {} : { stderr: options.stderr }),
-    ...(execArgv === undefined ? {} : { execArgv }),
-    ...(options.pool?.startupEnv === undefined ? {} : { startupEnv: options.pool.startupEnv }),
-    ...(options.pool?.heapLimitMb === undefined ? {} : { memoryLimitMb: options.pool.heapLimitMb }),
-  })
-  // The transport can cap the workers, whatever is asked for: an inline pool runs one.
-  const maxWorkers = Math.min(
-    options.pool?.maxWorkers ?? defaultMaxWorkers(),
-    factory.maxWorkers ?? Number.POSITIVE_INFINITY,
-  )
-  const recycle: RecyclePolicy = {
-    ...options.pool?.recycle,
-    memoryLimitBytes:
-      options.pool?.recycle?.memoryLimitBytes ?? defaultWorkerMemoryLimit(maxWorkers),
-  }
-  const fileTimeoutMs = options.pool?.fileTimeoutMs
-  const poolOptions: PoolOptions = {
-    kind,
-    maxWorkers,
-    recycle,
-    teardownTimeoutMs,
-    startTimeoutMs,
-    ...(fileTimeoutMs === undefined ? {} : { fileTimeoutMs }),
-  }
-
   const unhandled: SerializedError[] = []
   /** Global setup, once it has run (T9.15): its teardown comes after the run, whatever ends it. */
   let globalSetup: GlobalSetupRun | undefined
@@ -600,46 +604,83 @@ export async function runProjects(
   /** Per worker, the module paths its `deps` events have named: the ids are the worker's for its life. */
   const depsTables = new Map<number, DepsTable>()
   // Nothing starts until a file is run, but this is where a bad option throws (`recycle`, the
-  // transport's own entry), so it comes before `run:start`.
-  const pool = createPool(poolOptions, {
-    transport: () => factory,
-    init: (workerKey, workerId) => {
-      // A worker is bound to the project its key names, for its whole life.
-      const member = byIdentity.get(workerKey.project)
-      if (member === undefined) {
-        throw new Error(`no project of this run is called ${JSON.stringify(workerKey.project)}`)
-      }
-      return {
-        key: workerKey,
-        workerId,
-        isolation: workerKey.isolation,
-        // What global setup's `provide` collected; a worker starts only once setup has run.
-        provided: globalSetup?.provided ?? {},
-        config: member.project.config,
-      }
-    },
-    methods: {
-      readTimings: (file) => {
-        for (const member of members) {
-          const duration = member.cache?.get(
-            member.cacheProject,
-            relativePosix(member.project.rootDir, resolve(member.project.rootDir, file)),
-          )?.durationMs
-          if (duration !== undefined) return duration
+  // transport's own entry), so it comes before `run:start`. A run that then goes in band makes the
+  // pool again, as an inline one: the first has started nothing.
+  function makePool(poolKind: PoolKind): Pool {
+    const factory = transportFor(poolKind, {
+      entry: options.entry ?? import.meta.resolve('@provino/orchestrator/worker/main'),
+      startTimeoutMs,
+      teardownTimeoutMs,
+      ...(options.stdout === undefined ? {} : { stdout: options.stdout }),
+      ...(options.stderr === undefined ? {} : { stderr: options.stderr }),
+      ...(execArgv === undefined ? {} : { execArgv }),
+      ...(options.pool?.startupEnv === undefined ? {} : { startupEnv: options.pool.startupEnv }),
+      ...(options.pool?.heapLimitMb === undefined
+        ? {}
+        : { memoryLimitMb: options.pool.heapLimitMb }),
+    })
+    // The transport can cap the workers, whatever is asked for: an inline pool runs one.
+    const maxWorkers = Math.min(
+      options.pool?.maxWorkers ?? defaultMaxWorkers(),
+      factory.maxWorkers ?? Number.POSITIVE_INFINITY,
+    )
+    const recycle: RecyclePolicy = {
+      ...options.pool?.recycle,
+      memoryLimitBytes:
+        options.pool?.recycle?.memoryLimitBytes ?? defaultWorkerMemoryLimit(maxWorkers),
+    }
+    const fileTimeoutMs = options.pool?.fileTimeoutMs
+    const poolOptions: PoolOptions = {
+      kind: poolKind,
+      maxWorkers,
+      recycle,
+      teardownTimeoutMs,
+      startTimeoutMs,
+      ...(fileTimeoutMs === undefined ? {} : { fileTimeoutMs }),
+    }
+
+    return createPool(poolOptions, {
+      transport: () => factory,
+      init: (workerKey, workerId) => {
+        // A worker is bound to the project its key names, for its whole life.
+        const member = byIdentity.get(workerKey.project)
+        if (member === undefined) {
+          throw new Error(`no project of this run is called ${JSON.stringify(workerKey.project)}`)
         }
-        return undefined
+        return {
+          key: workerKey,
+          workerId,
+          isolation: workerKey.isolation,
+          // What global setup's `provide` collected; a worker starts only once setup has run.
+          provided: globalSetup?.provided ?? {},
+          config: member.project.config,
+          ...(poolKind === 'inline' && inBandChosen ? { captureConsole: true as const } : {}),
+        }
       },
-    },
-    onIdleEvents: idleEvents(),
-    onError: (error, errorKind) => {
-      // Late output that couldn't be handed to the bus, or a worker that ended badly with no file
-      // to blame: errors of the run, not of a file (a lost worker also fails the run).
-      if (errorKind === 'worker-lost') unhandled.push(serializeError(error))
-      void bus.emit('error', serializeError(error), 'coordinator')
-    },
-    ...(signal === undefined ? {} : { signal }),
-    ...(options.forceSignal === undefined ? {} : { forceSignal: options.forceSignal }),
-  })
+      methods: {
+        readTimings: (file) => {
+          for (const member of members) {
+            const duration = member.cache?.get(
+              member.cacheProject,
+              relativePosix(member.project.rootDir, resolve(member.project.rootDir, file)),
+            )?.durationMs
+            if (duration !== undefined) return duration
+          }
+          return undefined
+        },
+      },
+      onIdleEvents: idleEvents(),
+      onError: (error, errorKind) => {
+        // Late output that couldn't be handed to the bus, or a worker that ended badly with no file
+        // to blame: errors of the run, not of a file (a lost worker also fails the run).
+        if (errorKind === 'worker-lost') unhandled.push(serializeError(error))
+        void bus.emit('error', serializeError(error), 'coordinator')
+      },
+      ...(signal === undefined ? {} : { signal }),
+      ...(options.forceSignal === undefined ? {} : { forceSignal: options.forceSignal }),
+    })
+  }
+  let pool = makePool(kind)
 
   /** What a worker sends while it stops reaches the bus under its last file, after that file's `file:end`. */
   function idleEvents(): (workerId: number, events: readonly WorkerEvent[]) => Promise<void> {
@@ -917,7 +958,7 @@ export async function runProjects(
       members.map(async (member) => {
         const everything = await discoverProject(member.project)
         // A selection takes the place of the file filters (Jest ignores path patterns in related mode).
-        const discovered =
+        const selected =
           options.selection === undefined
             ? selectFiles(everything, options.fileFilters ?? [], {
                 rootDir: member.project.rootDir,
@@ -930,6 +971,12 @@ export async function runProjects(
                 affectedCacheDir(member),
                 recordedGraphs.get(member),
               )
+        // The project's own filter (`--filter`) takes either, as Jest filters the tests it found.
+        const own = projects[member.projectIndex]
+        const discovered =
+          options.fileFilter === undefined || own === undefined
+            ? selected
+            : await options.fileFilter(own, selected)
         return { member, everything, discovered }
       }),
     )
@@ -961,6 +1008,39 @@ export async function runProjects(
         new Set(everything.map((file) => join(member.project.rootDir, file.relativePath))),
       )
     }
+    // Whether the files run in this process, now that the run's files are known (Jest's
+    // `shouldRunInBand`, from the policy's numbers): the pool is made again as an inline one.
+    const inBand = shouldRunInBand({
+      // A caller that names `forks` or `threads` has chosen, unless it says the kind is only for a
+      // run that is not in band: only `runInBand` and `detectOpenHandles` move it into this process.
+      policy:
+        (options.pool?.automaticInBand ?? options.pool?.kind === undefined)
+          ? orchestrator.inBand
+          : NO_AUTOMATIC_IN_BAND,
+      ...(options.runInBand === true ? { runInBand: true } : {}),
+      ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
+      workerMemoryLimit: options.pool?.recycle?.memoryLimitBytes !== undefined,
+      maxWorkers: options.pool?.maxWorkers ?? defaultMaxWorkers(),
+      fileCount: found.reduce((sum, entry) => sum + entry.discovered.length, 0),
+      timingsMs: found.flatMap(({ member, discovered }) =>
+        discovered.flatMap((file) => {
+          const time = member.cache?.get(member.cacheProject, file.relativePath)?.durationMs
+          return time === undefined || time === 0 ? [] : [time]
+        }),
+      ),
+    })
+    if (inBand && kind !== 'inline') {
+      await pool.close()
+      kind = 'inline'
+      inBandChosen = true
+      pool = makePool(kind)
+      for (const member of members) {
+        member.keyInput = { ...member.keyInput, pool: kind }
+        member.keys.clear()
+      }
+    } else if (inBand) {
+      inBandChosen = options.runInBand === true || options.detectOpenHandles === true
+    }
     // Each file's worker key: its project's at the tier its docblock or history asks for (T2.11).
     const keys = await Promise.all(
       found.map(({ member, discovered }) =>
@@ -972,6 +1052,7 @@ export async function runProjects(
       projects: projects.map((project) => project.name),
       startTime: startedAt,
       watch: false,
+      inBand: kind === 'inline',
     }
     if (found.every((entry) => entry.discovered.length === 0)) {
       announced = true

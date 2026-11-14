@@ -99,8 +99,11 @@ export interface JestReporterHostOptions<Config extends ProjectConfigLike> {
   readonly globalConfig: unknown
   readonly entries: readonly JestLoadedReporter[]
   readonly context?: JestReporterContext
-  /** `showStatus` of `onRunStart` (Jest: not `--runInBand`). */
-  readonly showStatus: boolean
+  /**
+   * `showStatus` of `onRunStart` (Jest: not in band). Default: not `RunInfo.inBand`, the run's own
+   * decision, read at `run:start`.
+   */
+  readonly showStatus?: boolean
   /**
    * Hear one file at a time, as Jest does in band: a file's start and its events wait until the
    * file before it has had its result. Default: `showStatus` is false.
@@ -113,12 +116,14 @@ export interface JestReporterHostOptions<Config extends ProjectConfigLike> {
  * the one before has ended (`runInBand` in Jest runs one file at a time, and the pool here hands a
  * worker its next file before the last one has ended).
  */
-function createGate(serial: boolean): {
-  reset(): void
+function createGate(): {
+  /** Starts a run: nothing held, and one file at a time when `serial`. */
+  reset(serial: boolean): void
   start(id: TaskId, work: () => Promise<void>): Promise<void>
   run(id: TaskId, work: () => Promise<void>): Promise<void>
   end(id: TaskId, work: () => Promise<void>): Promise<void>
 } {
+  let serial = false
   let active: TaskId | undefined
   let queue: TaskId[] = []
   let held = new Map<TaskId, (() => Promise<void>)[]>()
@@ -137,7 +142,8 @@ function createGate(serial: boolean): {
   }
 
   return {
-    reset() {
+    reset(serialRun) {
+      serial = serialRun
       active = undefined
       queue = []
       held = new Map()
@@ -195,20 +201,20 @@ export function createJestReporterHost<Config extends ProjectConfigLike>(
   const { results } = options
   const context = options.context ?? { firstRun: true, previousSuccess: true }
   const infos = new Map<TaskId, FileInfo>()
-  const serial = options.serial ?? !options.showStatus
 
   const wrapped = options.entries.map((entry): Reporter => {
     let instance: JestReporterInstance | undefined
-    const gate = createGate(serial)
+    const gate = createGate()
     const testOf = (fileId: TaskId): Test | undefined => {
       const info = infos.get(fileId)
       return info === undefined ? undefined : (results.testOf(info) as Test)
     }
     return {
       name: `jest-reporter:${entry.path}`,
-      async 'run:start'() {
+      async 'run:start'(info) {
+        const showStatus = options.showStatus ?? info.inBand !== true
         infos.clear()
-        gate.reset()
+        gate.reset(options.serial ?? !showStatus)
         try {
           instance = new entry.Class(options.globalConfig as never, entry.options, context)
         } catch (error) {
@@ -221,7 +227,7 @@ export function createJestReporterHost<Config extends ProjectConfigLike>(
         }
         await instance.onRunStart?.(results.aggregated(), {
           estimatedTime: 0,
-          showStatus: options.showStatus,
+          showStatus,
         })
       },
       async 'file:start'(file) {

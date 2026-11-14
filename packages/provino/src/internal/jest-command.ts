@@ -1,7 +1,7 @@
 // `provino jest <jest arguments>` (T11.13, U3): the Jest command line, parsed by the Jest dialect's
 // own parser, layered over the project Jest's config reader finds, run by the same coordinator
 // as `provino run`, and ended with Jest's exit codes.
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
 import { type ResolvedProject, resolveNeutralProject } from '@provino/config'
@@ -11,15 +11,19 @@ import {
   type JestArgv,
   JestCliError,
   JestConfigError,
+  type JestFilter,
   type JestGlobalConfig,
   type JestProjectConfig,
   jestCli,
   jestCollectedText,
   jestCoverageOptions,
   jestCoverageTexts,
+  jestDebugText,
   jestNodeDialect,
   jestRunGlobalHooks,
+  loadJestFilter,
   processJestResults,
+  readJestConfigs,
 } from '@provino/dialect-jest/node'
 import {
   defaultCacheDir,
@@ -199,14 +203,30 @@ async function readProjects(
   readonly diagnostics: readonly Diagnostic[]
 }> {
   const reader = createJestConfigReader({ argv, cwd })
-  // No config file: Jest runs with its defaults over the working directory.
-  const source: ConfigSource = (await reader.find(cwd, request.configPath)) ?? {
-    kind: 'inline',
-    path: cwd,
-    text: '{}',
+  // `--projects a b`: Jest reads those paths' configs and looks for none from the working
+  // directory (`getProjectListFromCLIArgs`, then `readConfigs(argv, projects)`).
+  const projectPaths = Array.isArray(argv.projects) ? argv.projects.map(String) : []
+  let resolved: Awaited<ReturnType<typeof reader.resolve>>
+  if (projectPaths.length > 0) {
+    const read = await readJestConfigs(projectPaths, { argv, cwd })
+    resolved = {
+      value: {
+        globalConfig: read.globalConfig,
+        configs: read.configs,
+        cacheDirectorySet: read.cacheDirectorySet,
+      },
+      diagnostics: read.diagnostics,
+    }
+  } else {
+    // No config file: Jest runs with its defaults over the working directory.
+    const source: ConfigSource = (await reader.find(cwd, request.configPath)) ?? {
+      kind: 'inline',
+      path: cwd,
+      text: '{}',
+    }
+    const raw = await reader.load(source)
+    resolved = await reader.resolve(raw, source)
   }
-  const raw = await reader.load(source)
-  const resolved = await reader.resolve(raw, source)
   const neutral = reader.toNeutral(resolved.value)
   return {
     neutral: neutral.value,
@@ -270,20 +290,60 @@ function takeTimingsFlags(args: readonly string[]): {
   return { rest, timingsFile, updateTimings }
 }
 
-/** Each project's selected test files (the filters applied, then the shard), one list per project. */
+/** The real path of the working directory, as jest-config's `normalize` keeps it (`tryRealpath`). */
+function realCwd(cwd: string): string {
+  try {
+    return realpathSync(cwd)
+  } catch {
+    return cwd
+  }
+}
+
+/**
+ * A project's files that `--filter` keeps: the filter is called with their absolute paths once per
+ * project, as Jest's `runJest` calls it, however often the run asks (the reporters' file count and
+ * the run itself both do), and its answer is kept for that project.
+ */
+type ProjectFilter = <T extends { readonly path: string }>(
+  project: ResolvedProject,
+  files: readonly T[],
+) => Promise<readonly T[]>
+
+function oncePerProject(filter: JestFilter): ProjectFilter {
+  const kept = new Map<ResolvedProject, Promise<ReadonlySet<string>>>()
+  return async (project, files) => {
+    let paths = kept.get(project)
+    if (paths === undefined) {
+      paths = filter(files.map((file) => file.path)).then((list) => new Set(list))
+      kept.set(project, paths)
+    }
+    const keep = await paths
+    return files.filter((file) => keep.has(file.path))
+  }
+}
+
+/**
+ * Each project's selected test files (the filters applied, then `--filter`, then the shard), one
+ * list per project.
+ */
 async function selectedPerProject(
   projects: readonly ResolvedProject[],
   request: RunRequest,
   cwd: string,
-  sharding: ShardRequest & { readonly runRoot: string },
+  sharding: ShardRequest & {
+    readonly runRoot: string
+    readonly filter?: ProjectFilter | undefined
+  },
 ): Promise<readonly (readonly { readonly path: string }[])[]> {
+  const { filter } = sharding
   const selected = await Promise.all(
-    projects.map(async (project) =>
-      selectFiles(await discoverProject(project), request.fileFilters, {
+    projects.map(async (project) => {
+      const files = selectFiles(await discoverProject(project), request.fileFilters, {
         rootDir: project.rootDir,
         cwd,
-      }),
-    ),
+      })
+      return filter === undefined ? files : filter(project, files)
+    }),
   )
   const [first] = projects
   const { shard } = sharding
@@ -310,7 +370,10 @@ async function listFiles(
   projects: readonly ResolvedProject[],
   request: RunRequest,
   cwd: string,
-  sharding: ShardRequest & { readonly runRoot: string },
+  sharding: ShardRequest & {
+    readonly runRoot: string
+    readonly filter?: ProjectFilter | undefined
+  },
 ): Promise<readonly string[]> {
   const perProject = await selectedPerProject(projects, request, cwd, sharding)
   return [...new Set(perProject.flatMap((files) => files.map((file) => file.path)))].sort()
@@ -374,6 +437,8 @@ async function coverageFor(
 export async function runJestCommand(args: readonly string[], io: JestCommandIo): Promise<number> {
   const { stdout, stderr, cwd } = io
   const usage = jestExitCode('usage', ExitCode.UsageError)
+  /** What `--filter` threw (loading it, its `setup`, or a bad result): Jest ends with that error's stack. */
+  let filterError: unknown
   try {
     const { rest, timingsFile, updateTimings } = takeTimingsFlags(args)
     const parsed = jestCli.parse(rest)
@@ -381,6 +446,13 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     const request = jestCli.toRunRequest(parsed.argv)
     const read = await readProjects(parsed.argv, request, cwd)
     if (report(read.diagnostics, stderr)) return usage
+
+    // `--debug` (`runCLI`): the config as JSON, before anything else, on the output stream.
+    if (parsed.argv.debug === true) {
+      const text = jestDebugText(read.globalConfig, read.configs, JEST_VERSION)
+      if (parsed.argv.json === true || parsed.argv.useStderr === true) stderr.write(text)
+      else await stdout.write(text)
+    }
 
     if (request.mode === 'show-config') {
       await stdout.write(
@@ -431,11 +503,32 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       }
       return ExitCode.Pass
     }
+    // `--filter`: loaded as `runCLI` does, once the run or the listing is certain (the exits above
+    // come first), and a failure to load, set up or use it ends the run with its stack.
+    let filter: JestFilter | undefined
+    try {
+      filter = loadJestFilter(read.globalConfig)
+    } catch (error) {
+      filterError = error
+      throw error
+    }
+    const guardedFilter: ProjectFilter | undefined =
+      filter === undefined
+        ? undefined
+        : oncePerProject(async (paths) => {
+            try {
+              return await filter(paths)
+            } catch (error) {
+              filterError = error
+              throw error
+            }
+          })
     if (request.mode === 'list-files') {
       const sharding = {
         shard: shardOf(read.globalConfig),
         timingsFile,
         runRoot: read.globalConfig.rootDir,
+        filter: guardedFilter,
       }
       const files = await listFiles(projects, request, cwd, sharding)
       if (!request.json) {
@@ -515,6 +608,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
                 shard: shardOf(read.globalConfig),
                 timingsFile,
                 runRoot: read.globalConfig.rootDir,
+                filter: guardedFilter,
               })
               return files.map((list) => list.length)
             },
@@ -530,7 +624,9 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
         reporterFailed = failures.length > 0
       },
       others,
-      root: read.globalConfig.rootDir,
+      // Jest prints a file's path from the working directory (`config.cwd`, the real path of
+      // `process.cwd()`, jest-reporters `relativePath`), whatever the config's `rootDir` is.
+      root: realCwd(cwd),
       cwd,
       stdout,
       stderr,
@@ -560,7 +656,11 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
         request,
       ),
       pool: {
-        ...(request.workerThreads === true ? { kind: 'threads' as const } : {}),
+        // `--workerThreads` is the pool for a run that is not in band: Jest's `shouldRunInBand`
+        // never reads it, so a single file still runs in this process.
+        ...(request.workerThreads === true
+          ? { kind: 'threads' as const, automaticInBand: true }
+          : {}),
         maxWorkers: read.globalConfig.maxWorkers,
         ...workerRecycle(read.globalConfig.workerIdleMemoryLimit),
       },
@@ -568,6 +668,12 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       testNamePattern: read.globalConfig.testNamePattern,
       update: request.update,
       fileFilters: request.fileFilters,
+      ...(guardedFilter === undefined
+        ? {}
+        : { fileFilter: (filtered, files) => guardedFilter(filtered, files) }),
+      // `-i`: the files run in this process. Jest also goes in band by itself for a small run: the
+      // policy's `orchestrator.inBand`, decided once the files are known.
+      ...(read.globalConfig.runInBand ? { runInBand: true } : {}),
       // The merged global config, not the command line alone: `bail` also comes from the config
       // (and `--bail=2` is false, as in Jest 30.5.2, so a count is always the config's).
       ...(read.globalConfig.bail > 0 ? { bail: { count: read.globalConfig.bail } } : {}),
@@ -639,6 +745,11 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     }
     return result.exitCode
   } catch (error) {
+    if (filterError !== undefined && error === filterError) {
+      // jest-cli prints the stack of the error that ended `runCLI`, and exits 1.
+      stderr.write(`${error instanceof Error ? (error.stack ?? String(error)) : String(error)}\n`)
+      return ExitCode.TestFailure
+    }
     if (error instanceof JestCliError || error instanceof JestConfigError) {
       // Jest's own text, as Jest prints it.
       stderr.write(`${error.message}\n`)
