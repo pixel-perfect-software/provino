@@ -37,7 +37,6 @@ if (!isOracle(oracle)) throw new Error('istanbul-lib-instrument has no createIns
 function essentials(data: unknown): unknown {
   const copy: Record<string, unknown> = JSON.parse(JSON.stringify(data))
   delete copy.hash
-  delete copy._coverageSchema
   return copy
 }
 

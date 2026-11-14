@@ -424,7 +424,8 @@ export const jestPolicy: PolicyOverrides = {
     thresholdGrouping: 'first-match',
     // research: track-08 L518
     globThresholdScope: 'per-file',
-    // research: track-08 L521 (when `collectCoverageFrom` is set)
+    // Recorded from Jest 30.5.2: `coverage/babel-providers-sample` (with `collectCoverageFrom`,
+    // the file no test imports is reported at zero)
     includeUntestedByDefault: true,
     // research: track-08 L520
     reportsDirectory: 'coverage',
@@ -432,7 +433,7 @@ export const jestPolicy: PolicyOverrides = {
     v8Conversion: 'v8-to-istanbul',
     // research: track-08 F10 (jest-runtime starts precise coverage with `callCount: true`)
     v8HitCounts: true,
-    // research: track-08 F9 (babel-plugin-istanbul's default `coverageVariable`)
+    // Recorded from Jest 30.5.2: `coverage/istanbul-variable` (a test reads the counters there)
     istanbulVariable: '__coverage__',
     thresholdMessages: {
       // research: track-08 F11 (jest-reporters CoverageReporter.ts L271)

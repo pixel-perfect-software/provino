@@ -16,6 +16,7 @@ import type {
   PolicyOverrides,
 } from '@provino/types'
 import { hasBabelConfig } from './babel-config.ts'
+import { jestCoverageFilter } from './coverage.ts'
 import { jestHookArgs, jestRunGlobalHooks, list } from './global-hooks.ts'
 import { type JestRequireResolve, projectJestRequireResolve } from './resolution.ts'
 import type { JestGlobalConfig, JestProjectConfig } from './types.ts'
@@ -168,7 +169,16 @@ export function jestProjectToNeutral(
   // adapter (`jestEnvironment`), so the DOM is the one Jest would build.
   const isNode = neutralEnvironmentName(project.testEnvironment) === 'node'
   const environment = isNode ? 'node' : project.testEnvironment
-  if (globalConfig.collectCoverage) notApplied(diagnostics, 'collectCoverage', 'T8.8')
+  // `--coverage` (or the key): the files that count, as `shouldInstrument` decides (B23b). A
+  // `--collectTests` run executes nothing, so it collects nothing. Jest's v8 provider is T8.12's.
+  const collects = globalConfig.collectCoverage && !globalConfig.collectTests
+  const v8 = globalConfig.coverageProvider === 'v8'
+  if (collects && v8) {
+    notApplied(diagnostics, 'coverageProvider', 'T8.12', '; no coverage is collected')
+  }
+  if (collects && globalConfig.coverageThreshold !== undefined) {
+    notApplied(diagnostics, 'coverageThreshold', 'T8.11')
+  }
 
   const aliases: NeutralAlias[] = project.moduleNameMapper.map(([pattern, target]) => ({
     pattern,
@@ -195,6 +205,13 @@ export function jestProjectToNeutral(
     })
   }
   const skipImplicit = implicit && !(withBabel && babelJestResolved)
+  // Jest's default babel-jest instruments what it transforms, with the process's cwd as Babel's
+  // (the files outside it are not instrumented): the Oxc path stands in for it, so it keeps that
+  // root too. A transform the config names goes through Jest's ScriptTransformer, under `rootDir`.
+  const coverage =
+    collects && !v8
+      ? jestCoverageFilter(project, globalConfig, { babelInstruments: implicit })
+      : undefined
   const transforms: NeutralTransform[] = skipImplicit
     ? []
     : project.transform.map(([pattern, module, options]) => ({
@@ -322,6 +339,7 @@ export function jestProjectToNeutral(
       Object.entries(fakeTimers).filter(([key]) => key !== 'enableGlobally'),
     ),
     seed: globalConfig.seed,
+    ...(coverage === undefined ? {} : { coverage }),
     ...(globalConfig.randomize === true ? { randomize: true as const } : {}),
     resolution: {
       moduleDirectories: [...project.moduleDirectories],

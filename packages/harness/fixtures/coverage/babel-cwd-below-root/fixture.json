@@ -1,0 +1,17 @@
+{
+  "description": "babel-jest instruments only the files under the process's working directory (`cwd: transformOptions.config.cwd`, babel-jest 30.5.2 `src/index.ts` L69-L70: \"files outside `cwd` will not be instrumented\"), not those under `rootDir` (T8.10, B23b): the runner starts in `sub/`, below the root, as `cd packages/a && jest` with `rootDir: '../..'` does. `sub/inside.ts` is counted; `src/add.ts`, which the same test loads, is not. The `json` and `text-summary` reports, as Jest wrote them (Istanbul's per-file `hash`, a digest that holds the work directory's path, masked by key). Read by `provino`'s `jest-coverage.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "coverageReporters": ["json", "text-summary"]
+    }
+  },
+  "run": {
+    "raw": true,
+    "cwd": "sub",
+    "capture": ["exitCode", "stdout", "json:coverage/coverage-final.json"],
+    "maskKeys": ["hash"]
+  }
+}

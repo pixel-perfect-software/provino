@@ -74,6 +74,8 @@ export async function setUpJestReporters(options: {
   readonly results: JestResults<JestProjectConfig>
   readonly output: OutputEnvironment
   readonly env: Environment
+  /** The coverage reporter, when the run collects coverage: Jest adds it after the others, before the summary. */
+  readonly coverage?: Reporter | undefined
 }): Promise<JestReporterSetup> {
   const { globalConfig, results } = options
   const environment = {
@@ -138,6 +140,8 @@ export async function setUpJestReporters(options: {
   }
   // After every hosted class has seen a file, its console buffer is freed.
   if (release !== undefined) reporters.push(release)
+  // `_setupReporters`: the CoverageReporter after the config's reporters, before the summary.
+  if (options.coverage !== undefined) reporters.push(options.coverage)
   const announceThrown = !reporters.some(
     (reporter) => typeof reporter === 'string' && TEXT_REPORTERS.has(reporter),
   )

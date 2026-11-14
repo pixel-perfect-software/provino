@@ -223,6 +223,18 @@ export interface FixtureRun {
    * a run writes that differs between runs and isn't a time (a pid, a timestamp).
    */
   readonly mask?: readonly string[]
+  /**
+   * JSON keys whose string values a `json:` capture records as `"<masked>"`, wherever they are:
+   * Istanbul's per-file `hash` (a digest of the file's coverage, which holds the work directory's
+   * path). Anchored to the key, so no other string that happens to look alike is hidden.
+   */
+  readonly maskKeys?: readonly string[]
+  /**
+   * The directory, relative to the work directory, the runner is started in (default: the work
+   * directory itself, which is the config's `rootDir`). For a run whose process cwd is below the
+   * root, as `cd packages/a && jest` with `rootDir: '../..'` is.
+   */
+  readonly cwd?: string
 }
 
 /**
@@ -540,9 +552,11 @@ const RUN_STREAMS: readonly string[] = ['exitCode', 'stdout', 'stderr']
 const RUN_KEYS: readonly string[] = [
   'argv',
   'capture',
+  'cwd',
   'emptyStreams',
   'keepLines',
   'mask',
+  'maskKeys',
   'missingJson',
   'raw',
   'sortStdout',
@@ -609,8 +623,19 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       throw bad(`has the unknown key "${key}" (expected ${RUN_KEYS.join(', ')})`)
     }
   }
-  const { argv, capture, emptyStreams, keepLines, mask, missingJson, raw, sortStdout, timeKeys } =
-    run
+  const {
+    argv,
+    capture,
+    cwd,
+    emptyStreams,
+    keepLines,
+    mask,
+    maskKeys,
+    missingJson,
+    raw,
+    sortStdout,
+    timeKeys,
+  } = run
   if (
     !Array.isArray(capture) ||
     capture.length === 0 ||
@@ -636,6 +661,8 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     sortStdout?: true | 'json'
     timeKeys?: string[]
     mask?: string[]
+    maskKeys?: string[]
+    cwd?: string
     raw?: true
   } = { capture }
   if (argv !== undefined) {
@@ -749,6 +776,26 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       }
     }
     out.mask = mask
+  }
+  if (maskKeys !== undefined) {
+    if (
+      !capture.some((entry) => entry.startsWith('json:')) ||
+      !Array.isArray(maskKeys) ||
+      maskKeys.length === 0 ||
+      new Set(maskKeys).size !== maskKeys.length ||
+      !maskKeys.every((key): key is string => typeof key === 'string' && key !== '')
+    ) {
+      throw bad(
+        '"maskKeys" must be a non-empty list of distinct key names, beside a "json:" capture',
+      )
+    }
+    out.maskKeys = maskKeys
+  }
+  if (cwd !== undefined) {
+    if (typeof cwd !== 'string' || cwd === '' || !staysInside(cwd)) {
+      throw bad('"cwd" must be a relative directory inside the fixture')
+    }
+    out.cwd = path.posix.normalize(cwd)
   }
   return out
 }

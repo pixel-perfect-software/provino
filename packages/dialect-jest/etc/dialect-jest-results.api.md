@@ -19,6 +19,7 @@ export function addResult(aggregated: AggregatedResult, testResult: TestResult):
 
 // @public
 export interface AggregatedResult {
+    coverageMap?: unknown;
     // (undocumented)
     numFailedTests: number;
     // (undocumented)

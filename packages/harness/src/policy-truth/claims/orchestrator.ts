@@ -480,7 +480,18 @@ const coverageIsPhase2 = pending(
 export const coverageClaims: Claims = {
   'coverage.thresholdGrouping': coverageIsPhase2,
   'coverage.globThresholdScope': coverageIsPhase2,
-  'coverage.includeUntestedByDefault': coverageIsPhase2,
+  // `collectCoverageFrom` names `src/**/*.ts`, and the file no test imports is in the report.
+  'coverage.includeUntestedByDefault': each(
+    golden('coverage/babel-providers-sample', {
+      read: (g) => {
+        const final = observedOf(g).json?.['coverage/coverage-final.json']
+        return typeof final === 'object' && final !== null
+          ? Object.keys(final).some((path) => path.endsWith('/src/untested.ts'))
+          : undefined
+      },
+    }),
+    pending('B25', "Vitest's coverage is B25's"),
+  ),
   'coverage.reportsDirectory': golden('defaults'),
   // B23b records Jest's values with its coverage goldens (Phases 4-6); B25 records Vitest's.
   'coverage.v8Conversion': each(
@@ -491,8 +502,15 @@ export const coverageClaims: Claims = {
     pending('B23b', "the goldens that compare Jest's v8 provider record it (T8.12)"),
     pending('B25', "Vitest's V8 collection is B25's"),
   ),
+  // Both tests read `globalThis.__coverage__`; they pass only when the counters live there.
   'coverage.istanbulVariable': each(
-    pending('B23b', 'the golden `coverage/istanbul-variable` records it (T8.10)'),
+    golden('coverage/istanbul-variable', {
+      read: (g) =>
+        statusOf(g, 'the counters live in globalThis.__coverage__, keyed by the module path') ===
+          'passed' && statusOf(g, 'a call moves its function counter in that global') === 'passed'
+          ? '__coverage__'
+          : undefined,
+    }),
     pending('B25', "Vitest's Istanbul provider is B25's"),
   ),
   'coverage.thresholdMessages': each(

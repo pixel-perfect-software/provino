@@ -4,9 +4,11 @@ import type {
   CloneSafe,
   CoverageInstrumenter,
   CoveragePolicy,
+  CoverageSummary,
   CoverageThresholdGroup,
   IstanbulFileCoverageData,
   RunCoverageOptions,
+  RunSummary,
   SerializedCoverageConfig,
   SerializedProjectConfig,
   TaskId,
@@ -63,3 +65,20 @@ export const legacy: CoveragePolicy['v8Conversion'] = 'legacy'
 export const group: CoverageThresholdGroup = { name: 'global', lines: 80 }
 // @ts-expect-error a group without a name
 export const unnamed: CoverageThresholdGroup = { lines: 80 }
+
+// A run that collected coverage ends with it (B23b Phase 4); a summary with none leaves it out.
+expectTypeOf<RunSummary['coverage']>().toEqualTypeOf<CoverageSummary | undefined>()
+const totals = { total: 1, covered: 1, pct: 100 }
+export const summary: CoverageSummary = {
+  totals: { statements: totals, branches: totals, functions: totals, lines: totals },
+  thresholdFailures: [],
+  map: {},
+  untestedFailures: [{ path: '/repo/src/a.ts', error: { name: 'Error', message: 'boom' } }],
+}
+export const noReason: CoverageSummary = {
+  ...summary,
+  // @ts-expect-error a file no test loaded fails with its error
+  untestedFailures: [{ path: '/repo/src/a.ts' }],
+}
+// @ts-expect-error a reporter's options are JSON: a function is not
+export const reporterFunction: RunCoverageOptions['reporters'] = [['text', { file: () => 'x' }]]

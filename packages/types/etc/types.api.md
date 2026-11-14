@@ -504,10 +504,15 @@ export interface CoverageProvider {
 // @beta
 export interface CoverageSummary {
     readonly map: Readonly<Record<string, IstanbulFileCoverageData>>;
+    readonly sources?: Readonly<Record<string, string>>;
     // (undocumented)
     readonly thresholdFailures: readonly string[];
     // (undocumented)
     readonly totals: { readonly [M in CoverageMetric]: CoverageTotals; };
+    readonly untestedFailures?: readonly {
+        readonly path: string;
+        readonly error: SerializedError;
+    }[];
 }
 
 // @public
@@ -2812,6 +2817,7 @@ export type RunsIn = "worker" | "coordinator" | "both";
 
 // @public
 export interface RunSummary {
+    readonly coverage?: CoverageSummary;
     // (undocumented)
     readonly durationMs: number;
     // (undocumented)
@@ -2964,6 +2970,7 @@ export interface SerializedCoverageConfig {
     readonly globalRoot: string;
     readonly include: readonly string[];
     readonly includeRoot: boolean;
+    readonly instrumentRoot?: string;
     readonly projectRoot: string;
     // (undocumented)
     readonly provider: "v8" | "istanbul";
@@ -3018,7 +3025,7 @@ export interface SerializedLoaderConfig {
     readonly skipNodeResolution?: boolean;
     readonly transform?: SerializedTransformConfig;
     readonly tsconfig: "auto" | false | string;
-    readonly typescript: "oxc" | "node-strip" | "off";
+    readonly typescript: "oxc" | "blank" | "node-strip" | "off";
 }
 
 // @public

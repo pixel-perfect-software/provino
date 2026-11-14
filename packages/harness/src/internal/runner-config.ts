@@ -15,6 +15,9 @@ const INHERITED_NOISE: ReadonlySet<string> = new Set([
   'NODE_ENV',
   'JEST_WORKER_ID',
   'VITEST',
+  // Istanbul's text report is as wide as Jest's `getMaxCols` says, which reads `COLUMNS` when
+  // stdout is not a terminal: a terminal's width would change a coverage golden.
+  'COLUMNS',
   // std-env (Vitest's) reads these as "an agent runs this" or "GitHub Actions runs this", and
   // Vitest's defaults follow (`reporters`, `watch`): a golden would differ between a terminal, an
   // agent's shell and CI. The list is std-env 4's `detectAgent` and the GitHub provider.

@@ -61,6 +61,34 @@ describe('processJestResults', () => {
     assert.equal((JSON.parse(stdout.text) as { success: boolean }).success, true)
   })
 
+  it('puts the coverage map on the results, last, before --json writes them (B23b)', async () => {
+    const aggregated = makeEmptyAggregatedTestResult()
+    const stdout = new Sink()
+    // A stand-in with Istanbul's `toJSON`, as a `CoverageMap` serializes to its data.
+    const coverageMap = { toJSON: () => ({ '/p/a.ts': { path: '/p/a.ts' } }) }
+    await processJestResults({
+      aggregated,
+      globalConfig: { ...globalConfig, json: true },
+      cwd: '/',
+      stdout,
+      outputStream: new Sink(),
+      coverageMap,
+    })
+    assert.equal(aggregated.coverageMap, coverageMap)
+    const written = JSON.parse(stdout.text) as Record<string, unknown>
+    assert.equal(Object.keys(written).at(-1), 'coverageMap')
+    assert.deepEqual(written.coverageMap, { '/p/a.ts': { path: '/p/a.ts' } })
+    const without = new Sink()
+    await processJestResults({
+      aggregated: makeEmptyAggregatedTestResult(),
+      globalConfig: { ...globalConfig, json: true },
+      cwd: '/',
+      stdout: without,
+      outputStream: new Sink(),
+    })
+    assert.equal('coverageMap' in (JSON.parse(without.text) as object), false)
+  })
+
   it('writes the output file against the working directory and says where, relative to it', async () => {
     await inTempDir(async (dir) => {
       const outputStream = new Sink()

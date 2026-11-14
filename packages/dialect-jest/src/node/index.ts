@@ -33,6 +33,12 @@ export {
   parseJestCli,
 } from './cli.ts'
 export {
+  type JestCoverageEnvironment,
+  jestCoverageFilter,
+  jestCoverageOptions,
+  jestCoverageTexts,
+} from './coverage.ts'
+export {
   JestCliError,
   type JestCliErrorCode,
   JestConfigError,

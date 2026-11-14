@@ -1,0 +1,67 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "coverage/istanbul-variable",
+  "files": [
+    {
+      "file": "tests/counter.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "tests/counter.test.ts",
+            "path": [
+              "the counters live in globalThis.__coverage__, keyed by the module path"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 8,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "tests/counter.test.ts",
+            "path": [
+              "a call moves its function counter in that global"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 14,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stdout": "\n=============================== Coverage summary ===============================\nStatements   : 100% ( 3/3 )\nBranches     : 100% ( 0/0 )\nFunctions    : 100% ( 1/1 )\nLines        : 100% ( 3/3 )\n================================================================================\n"
+  }
+}

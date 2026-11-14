@@ -18,6 +18,7 @@ import type {
   Policy,
   PolicyOverrides,
   ProvinoConfigInput,
+  SerializedCoverageConfig,
   SerializedLoaderConfig,
   SerializedProjectConfig,
   SerializedTransformConfig,
@@ -335,6 +336,7 @@ export async function resolveNeutralProject(
       seed: neutral.seed,
       randomize: neutral.randomize,
       resolution: neutral.resolution,
+      coverage: neutral.coverage,
     },
     { environments: options.environments, ci: options.ci },
   )
@@ -391,6 +393,8 @@ interface ProjectInput {
   readonly seed?: number | undefined
   /** The project's own snapshot resolver module, absolute (Jest's `snapshotResolver`). */
   readonly snapshotResolver?: string | undefined
+  /** Which files count toward coverage (B23b); a neutral project's only, `undefined` for off. */
+  readonly coverage?: SerializedCoverageConfig | undefined
   readonly randomize?: true | undefined
 }
 
@@ -490,6 +494,7 @@ async function finishProject(
     ...(fakeTimers === undefined ? {} : { fakeTimers }),
     ...(input.seed === undefined ? {} : { seed: input.seed }),
     ...(input.snapshotResolver === undefined ? {} : { snapshotResolver: input.snapshotResolver }),
+    ...(input.coverage === undefined ? {} : { coverage: input.coverage }),
     ...(input.randomize === true ? { randomize: true as const } : {}),
     setupFiles,
     setupFilesAfterEnv,

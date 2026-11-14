@@ -162,12 +162,21 @@ test('runnerEnv makes the run quiet, UTC and CI-style, and drops what a parent r
     NODE_TEST_CONTEXT: 'child-v8',
     JEST_WORKER_ID: '3',
     VITEST: 'true',
+    COLUMNS: '200',
   })
   assert.equal(env.PATH, '/usr/bin')
   assert.equal(env.CI, '1')
   assert.equal(env.NO_COLOR, '1')
   assert.equal(env.TZ, 'UTC')
-  for (const name of ['FORCE_COLOR', 'NODE_ENV', 'NODE_TEST_CONTEXT', 'JEST_WORKER_ID', 'VITEST']) {
+  // `COLUMNS` sets the width of Istanbul's text report when stdout is no terminal.
+  for (const name of [
+    'FORCE_COLOR',
+    'NODE_ENV',
+    'NODE_TEST_CONTEXT',
+    'JEST_WORKER_ID',
+    'VITEST',
+    'COLUMNS',
+  ]) {
     assert.equal(name in env, false, name)
   }
 })

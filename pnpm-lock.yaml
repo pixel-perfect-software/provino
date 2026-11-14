@@ -245,6 +245,15 @@ catalogs:
     '@types/istanbul-lib-coverage':
       specifier: 2.0.6
       version: 2.0.6
+    '@types/istanbul-lib-report':
+      specifier: 3.0.3
+      version: 3.0.3
+    '@types/istanbul-lib-source-maps':
+      specifier: 4.0.4
+      version: 4.0.4
+    '@types/istanbul-reports':
+      specifier: 3.0.4
+      version: 3.0.4
     '@types/jsdom':
       specifier: 30.0.0
       version: 30.0.0
@@ -305,6 +314,15 @@ catalogs:
     istanbul-lib-instrument:
       specifier: 6.0.3
       version: 6.0.3
+    istanbul-lib-report:
+      specifier: 3.0.1
+      version: 3.0.1
+    istanbul-lib-source-maps:
+      specifier: 5.0.6
+      version: 5.0.6
+    istanbul-reports:
+      specifier: 3.2.0
+      version: 3.2.0
     jest:
       specifier: 30.5.2
       version: 30.5.2
@@ -635,6 +653,15 @@ importers:
       istanbul-lib-coverage:
         specifier: 'catalog:'
         version: 3.2.2
+      istanbul-lib-report:
+        specifier: 'catalog:'
+        version: 3.0.1
+      istanbul-lib-source-maps:
+        specifier: 'catalog:'
+        version: 5.0.6(supports-color@8.1.1)
+      istanbul-reports:
+        specifier: 'catalog:'
+        version: 3.2.0
       magic-string:
         specifier: 'catalog:'
         version: 1.4.5
@@ -654,6 +681,15 @@ importers:
       '@types/istanbul-lib-coverage':
         specifier: 'catalog:'
         version: 2.0.6
+      '@types/istanbul-lib-report':
+        specifier: 'catalog:'
+        version: 3.0.3
+      '@types/istanbul-lib-source-maps':
+        specifier: 'catalog:'
+        version: 4.0.4
+      '@types/istanbul-reports':
+        specifier: 'catalog:'
+        version: 3.0.4
       '@types/picomatch':
         specifier: 'catalog:'
         version: 4.0.3
@@ -1108,6 +1144,15 @@ importers:
       istanbul-lib-coverage:
         specifier: 'catalog:'
         version: 3.2.2
+      istanbul-lib-report:
+        specifier: 'catalog:'
+        version: 3.0.1
+      istanbul-lib-source-maps:
+        specifier: 'catalog:'
+        version: 5.0.6(supports-color@8.1.1)
+      istanbul-reports:
+        specifier: 'catalog:'
+        version: 3.2.0
       jest-matcher-utils:
         specifier: 'catalog:'
         version: 30.5.2
@@ -3120,6 +3165,9 @@ packages:
 
   '@types/istanbul-lib-report@3.0.3':
     resolution: {integrity: sha512-NQn7AHQnk/RSLOxrBbGyJM/aVQ+pjj5HCgasFxc0K/KhoATfQ/47AyUl15I2yBUpihjmas+a+VJBOqecrFH+uA==}
+
+  '@types/istanbul-lib-source-maps@4.0.4':
+    resolution: {integrity: sha512-p+nSH0hBMLvuqgnT0rbBnDcfO3IuOZrLU+Yf4x0BhGVmXynB+gm9D35gAvWeMuk+riik5Rj12NBQm8rnzIPH3g==}
 
   '@types/istanbul-reports@3.0.4':
     resolution: {integrity: sha512-pk2B1NWalF9toCRu6gjBzR69syFjP4Od8WRAX+0mmf9lAjCRicLOWc+ZrxZHx/0XRjotgkF9t6iaMJ+aXcOdZQ==}
@@ -7342,6 +7390,11 @@ snapshots:
   '@types/istanbul-lib-report@3.0.3':
     dependencies:
       '@types/istanbul-lib-coverage': 2.0.6
+
+  '@types/istanbul-lib-source-maps@4.0.4':
+    dependencies:
+      '@types/istanbul-lib-coverage': 2.0.6
+      source-map: 0.6.1
 
   '@types/istanbul-reports@3.0.4':
     dependencies:

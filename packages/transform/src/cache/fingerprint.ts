@@ -42,7 +42,7 @@ export interface FingerprintInputs {
     readonly oxcTransform: string
     readonly oxcParser: string
   }
-  readonly typescript: 'oxc' | 'node-strip' | 'off'
+  readonly typescript: 'oxc' | 'blank' | 'node-strip' | 'off'
   /** `process.version`. Part of the fingerprint only under `node-strip`, where Node does the work. */
   readonly nodeVersion: string
   readonly tsconfig: 'auto' | false | string

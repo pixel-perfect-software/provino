@@ -16,6 +16,8 @@
     "istanbul-lib-*": "hold",
     "@istanbuljs/*": "hold",
     "@types/istanbul-lib-*": "hold",
-    "babel-plugin-istanbul": "hold"
+    "babel-plugin-istanbul": "hold",
+    "istanbul-reports": "hold",
+    "@types/istanbul-reports": "hold"
   }
 }

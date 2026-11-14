@@ -551,6 +551,7 @@ export interface w {
 
 // @public
 export interface X {
+    readonly coverage?: CoverageSummary;
     // (undocumented)
     readonly durationMs: number;
     // (undocumented)

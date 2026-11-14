@@ -73,6 +73,10 @@ catalog:
   "@standard-schema/spec": 1.1.0
   # istanbul-lib-coverage ships no types; the version @jest/test-result uses.
   "@types/istanbul-lib-coverage": 2.0.6
+  # The report, source-map and reports libraries ship no types; the versions @jest/reporters uses.
+  "@types/istanbul-lib-report": 3.0.3
+  "@types/istanbul-lib-source-maps": 4.0.4
+  "@types/istanbul-reports": 3.0.4
   "@types/jsdom": 30.0.0
   # Node 22.15 is the floor, so type against the 22.x API.
   "@types/node": 22.20.5
@@ -140,6 +144,11 @@ catalog:
   istanbul-lib-coverage: 3.2.2
   # The initial-coverage oracle (B23b, T8.10): what Jest's CoverageReporter runs on untested files.
   istanbul-lib-instrument: 6.0.3
+  # Coverage reports (B23b, T8.10, D109): the report context, Istanbul's reporters and the remap of
+  # an instrumented file's input map, at the versions Jest 30.5.2's reporters install.
+  istanbul-lib-report: 3.0.1
+  istanbul-lib-source-maps: 5.0.6
+  istanbul-reports: 3.2.0
   # T1.6: unused files, exports and dependencies.
   knip: 6.44.1
   # T8.2's second window: happy-dom's `GlobalWindow`, populated and restored by env-shared.
