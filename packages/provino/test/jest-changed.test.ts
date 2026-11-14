@@ -6,10 +6,10 @@
 // kept lines and the exit code are Jest's. This is the evidence for the Jest dialect's
 // `orchestrator.changedFiles` (T1.7): only Jest's provider passes it.
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { describe, it } from 'node:test'
+import { commitAll, git, gitEnv, initRepo } from './hermetic-git.ts'
 import { FIXTURES, loadFixture, materialize, type RecordedFixture, underRoot } from './recorded.ts'
 import { spawnCli, withoutNodeNoise } from './support.ts'
 
@@ -33,71 +33,12 @@ interface ChangedManifest {
   }
 }
 
-/** The harness's hermetic git (`internal/scm.ts`): the `-c` pairs, and as `GIT_CONFIG_*` for the bin. */
-const GIT_CONFIG: readonly (readonly [string, string])[] = [
-  ['user.name', 'provino'],
-  ['user.email', 'provino@example.invalid'],
-  ['commit.gpgsign', 'false'],
-  ['tag.gpgsign', 'false'],
-  ['init.defaultBranch', 'main'],
-  ['core.excludesFile', '/dev/null'],
-  ['core.hooksPath', '/dev/null'],
-]
-
-function gitEnv(ceiling: string): Record<string, string> {
-  return {
-    GIT_CONFIG_GLOBAL: '/dev/null',
-    GIT_CONFIG_NOSYSTEM: '1',
-    GIT_AUTHOR_DATE: '2026-01-01T00:00:00Z',
-    GIT_COMMITTER_DATE: '2026-01-01T00:00:00Z',
-    GIT_CEILING_DIRECTORIES: ceiling,
-    GIT_TERMINAL_PROMPT: '0',
-    GIT_CONFIG_COUNT: String(GIT_CONFIG.length),
-    ...Object.fromEntries(
-      GIT_CONFIG.flatMap(([key, value], index) => [
-        [`GIT_CONFIG_KEY_${index}`, key],
-        [`GIT_CONFIG_VALUE_${index}`, value],
-      ]),
-    ),
-  }
-}
-
-function git(root: string, args: readonly string[]): void {
-  const env: NodeJS.ProcessEnv = Object.fromEntries(
-    Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')),
-  )
-  execFileSync(
-    'git',
-    [...GIT_CONFIG.flatMap(([key, value]) => ['-c', `${key}=${value}`]), ...args],
-    {
-      cwd: root,
-      env: { ...env, ...gitEnv(dirname(root)) },
-      stdio: 'ignore',
-    },
-  )
-}
-
 async function runScm(root: string, steps: readonly ScmStep[]): Promise<void> {
-  git(root, ['init', '-q', '--template='])
-  await mkdir(join(root, '.git', 'info'), { recursive: true })
-  await writeFile(
-    join(root, '.git', 'info', 'exclude'),
-    '.harness-out/\n.jest-cache/\n.vite/\nnode_modules/\n',
-  )
+  await initRepo(root)
   for (const step of steps) {
     if ('git' in step) git(root, step.git)
-    else if ('commit' in step) {
-      git(root, ['add', '-A'])
-      git(root, [
-        'commit',
-        '-q',
-        '--allow-empty',
-        '--no-verify',
-        '--no-gpg-sign',
-        '-m',
-        step.commit,
-      ])
-    } else if ('branch' in step) git(root, ['checkout', '-q', '-b', step.branch])
+    else if ('commit' in step) commitAll(root, step.commit)
+    else if ('branch' in step) git(root, ['checkout', '-q', '-b', step.branch])
     else if ('checkout' in step) git(root, ['checkout', '-q', step.checkout])
     else if ('write' in step) {
       for (const [file, text] of Object.entries(step.write)) {

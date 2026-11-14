@@ -34,7 +34,7 @@ describe('what provino jest does not run is said, not ignored', () => {
     // A refusal names the flag by its long name, whatever alias was typed (`-o` was the aliased
     // case until B23c built it; no refused flag left has an alias).
     for (const [flag, task, named] of [
-      ['--detectLeaks', 'T2.7'],
+      ['--watchAll', 'T9.11'],
       ['--watch', 'T9.11'],
     ] as readonly (readonly [string, string, string?])[]) {
       const ended = await provino([flag], dir)

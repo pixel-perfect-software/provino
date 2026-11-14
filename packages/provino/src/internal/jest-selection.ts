@@ -110,7 +110,9 @@ export async function selectProjectFiles(
 
 /**
  * `--onlyFailures` over a project's files once they are sharded and sorted (`runJest.ts`
- * L300-L308): the files whose last run failed, from the results cache.
+ * L300-L308): the files whose last run failed, from the results cache. Under `--no-cache` there is
+ * no history to read, so none is kept: jest-test-sequencer reads its perf cache only when
+ * `config.cache` is on (`_getCache`, L67-L79), and `allFailedTests` finds nothing.
  * @internal
  */
 export function keepFailedFiles<T extends DiscoveredFile>(
@@ -118,15 +120,29 @@ export function keepFailedFiles<T extends DiscoveredFile>(
   files: readonly T[],
   cache: boolean,
 ): readonly T[] {
+  if (!cache) return []
   const kept = keepFailed(
     {
       project,
       cacheProject: projectCacheKey(project),
-      cache: cache ? createResultsCache(cacheDirectories(project).results) : undefined,
+      cache: createResultsCache(cacheDirectories(project).results),
     },
     files,
     'history',
   )
   const keep = new Set(kept)
   return files.filter((file) => keep.has(file))
+}
+
+/**
+ * Whether an error is a command the changed-files provider ran that failed (`exec.ts`'s
+ * `JEST_SCM_COMMAND_FAILED`): what Jest prints in red, with no stack, and exits 1 for
+ * (`getChangedFilesPromise.ts` L28-L37). Any other error is internal and keeps its stack.
+ * @internal
+ */
+export function isScmCommandFailure(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error as { readonly code?: unknown }).code === 'JEST_SCM_COMMAND_FAILED'
+  )
 }
