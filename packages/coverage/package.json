@@ -43,6 +43,7 @@
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@bcoe/v8-coverage": "catalog:",
     "@istanbuljs/schema": "catalog:",
     "@jridgewell/remapping": "catalog:",
     "@jridgewell/trace-mapping": "catalog:",
@@ -53,7 +54,8 @@
     "istanbul-reports": "catalog:",
     "magic-string": "catalog:",
     "oxc-parser": "catalog:",
-    "picomatch": "catalog:"
+    "picomatch": "catalog:",
+    "v8-to-istanbul": "catalog:"
   },
   "devDependencies": {
     "@babel/core": "catalog:",
