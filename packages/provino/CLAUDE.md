@@ -96,4 +96,8 @@ Flow: check `config` and `maxWorkers` → `loadProject(config against cwd, { dia
 ## Not built yet
 
 - The rest of `provino/node` (`createProvino()`, `resolveConfig()`, event types, a `provino/node` form of `provino jest`), `/plugin` and `/vitest`, `defineConfig` and `defineProject` in `/config` (T1.4), the rest of the neutral API in `.` (`fn`, `spyOn`, `mock`, `timers`; the Jest facade has them as `jest.*`; the lazy variables are built, below), and `provino vitest` (T11.16).
-- `blob` (T9.8); `--watch`, `--coverage`, `--findRelatedTests`, `--onlyChanged` (refused by name, with their tasks).
+- `blob` (T9.8); `--watch`, `--findRelatedTests`, `--onlyChanged` (refused by name, with their tasks).
+
+## Coverage (B23b)
+
+`provino jest --coverage` (or `--collectCoverage`, or the config key): `jest-command.ts` `coverageFor` builds `RunCoverageOptions` from the dialect's `jestCoverageOptions` and imports `internal/coverage-reporter.ts` only then (T1.10), so a run without coverage loads no coverage file. The reporter, placed after custom reporters and before `summary` in `jest-reporters.ts`, writes the reports at `run:end` (text reports to stdout, `Failed to write coverage reports:` block) and then the threshold lines to stderr. `--collectTests` keeps coverage off. In the bundle, `coverage.js`, `coverage2.js`, `coverage-store.js`, `coverage-reporter.js`, `instrument.js`, `initial-coverage.js`, `reporting.js` and `runtime.js` are reached by dynamic import only; `test/exports-coverage.test.ts` runs the built package with `load-recorder` and asserts that no process of a run without coverage loads one of them and that `--coverage` loads `coverage.js` in the coordinator and the workers. Tests: `jest-coverage.test.ts`, `jest-coverage-thresholds.test.ts`, `jest-coverage-v8.test.ts`, `jest-coverage-transformers.test.ts` (live Jest beside Provino under babel-jest, ts-jest and @swc/jest). `--merge-reports` and coverage under `provino run` are not built.
