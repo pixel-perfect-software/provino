@@ -3013,6 +3013,7 @@ export interface SnapshotMessageInfo {
 // @public
 export interface SnapshotMessages {
     mismatch(info: SnapshotMessageInfo): string;
+    noInlineFrame?(): Error;
     notWritten(info: SnapshotMessageInfo): string;
     propertiesMismatch(info: SnapshotMessageInfo): string;
 }
