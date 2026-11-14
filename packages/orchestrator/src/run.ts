@@ -979,7 +979,9 @@ export async function runProjects(
         ? undefined
         : await finishCoverage(
             coverageStore,
-            found.filter((entry) => entry.discovered.length > 0).map((entry) => entry.member.project),
+            found
+              .filter((entry) => entry.discovered.length > 0)
+              .map((entry) => entry.member.project),
             options.coverage,
           )
     const summary = summarize(

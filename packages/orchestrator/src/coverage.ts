@@ -91,7 +91,15 @@ export async function finishCoverage(
   }
 
   const remapped = await reporting.remapCoverage(aggregate.map)
-  const map = remapped.map.toJSON() as unknown as Record<string, IstanbulFileCoverageData>
+  // Each file's plain data (a `CoverageMap`'s own `toJSON` keeps its `FileCoverage` objects).
+  const map = Object.fromEntries(
+    remapped.map
+      .files()
+      .map((path) => [
+        path,
+        remapped.map.fileCoverageFor(path).toJSON() as unknown as IstanbulFileCoverageData,
+      ]),
+  )
   return {
     totals: reporting.coverageTotals(remapped.map),
     thresholdFailures: [],
