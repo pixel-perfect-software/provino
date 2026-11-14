@@ -157,9 +157,10 @@ export interface Pool {
    * Ends what has been asked for so far and leaves the pool open (a watch session's interrupt): the
    * files still waiting, or waiting for a worker that is starting, resolve `aborted`, and a running
    * file's worker is killed at once (its file resolves `aborted`). Idle workers, and a worker that
-   * finishes starting, are kept for the next file.
+   * finishes starting, are kept for the next file. `keepRunning` leaves the running files alone
+   * (`cancelQueued` without its lasting effect: a file asked for afterwards still runs).
    */
-  interrupt(): void
+  interrupt(options?: { readonly keepRunning?: boolean }): void
   /**
    * Replaces the workers whose key `which` picks (a watch session's added or removed file, whose
    * resolution or shared instances a worker may hold): an idle one is stopped now, a busy one once
@@ -700,12 +701,13 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
       draining = true
       pump()
     },
-    interrupt() {
+    interrupt(options) {
       settleWaiters({ type: 'aborted' })
       for (const waiter of starting.values()) {
         givenUp.add(waiter)
         waiter.resolve({ type: 'aborted' })
       }
+      if (options?.keepRunning === true) return
       for (const slot of slots) if (slot.state === 'busy') kill(slot, 'abort')
     },
     retire(which) {

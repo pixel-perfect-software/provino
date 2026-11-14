@@ -468,12 +468,21 @@ export interface RunHost {
   readonly caches: Map<string, ResultsCache>
   /** Each lockfile's hash by path, read once for the session. */
   readonly lockfileHashes: Map<string, string>
+  /**
+   * Each worker's table of the module paths its `deps` events named: a worker names a path once in
+   * its life, so a warm worker's table must outlive the run. The session drops a table when its
+   * worker exits.
+   */
+  readonly depsTables: Map<number, DepsTable>
   /** The files `selection` reaches in a project, from the session's own affected index. */
   readonly selectAffected: (
-    projectIndex: number,
+    project: { readonly projectIndex: number; readonly cacheProject: string },
     everything: readonly DiscoveredFile[],
     selection: AffectedSelection,
+    recorded: RecordedGraph | undefined,
   ) => Promise<readonly DiscoveredFile[]>
+  /** The recorded graph at `path`, opened once for the session, so its affected index reads the one each run writes. */
+  readonly openRecordedGraph: (path: string) => Promise<RecordedGraph>
   /** The changed paths a worker has not been told about, which go with its next file. */
   readonly staleModules: (workerId: number) => readonly string[]
 }
@@ -720,7 +729,7 @@ export async function runProjectsOn(
   /** Per worker, the file it ran last and when that file's `file:end` has been emitted. */
   const lastFile = new Map<number, { readonly info: FileInfo; readonly ended: Promise<void> }>()
   /** Per worker, the module paths its `deps` events have named: the ids are the worker's for its life. */
-  const depsTables = new Map<number, DepsTable>()
+  const depsTables = host?.depsTables ?? new Map<number, DepsTable>()
   // Nothing starts until a file is run, but this is where a bad option throws (`recycle`, the
   // transport's own entry), so it comes before `run:start`. A run that then goes in band makes the
   // pool again, as an inline one: the first has started nothing. A watch session's run binds the
@@ -1062,7 +1071,9 @@ export async function runProjectsOn(
       ) {
         recordedGraphs.set(
           member,
-          await openRecordedGraph(affectedCachePaths(cacheDir, member.cacheProject).deps),
+          await (host?.openRecordedGraph ?? openRecordedGraph)(
+            affectedCachePaths(cacheDir, member.cacheProject).deps,
+          ),
         )
       }
     }
@@ -1078,7 +1089,12 @@ export async function runProjectsOn(
                 cwd,
               })
             : host !== undefined
-              ? await host.selectAffected(member.projectIndex, everything, options.selection)
+              ? await host.selectAffected(
+                  member,
+                  everything,
+                  options.selection,
+                  recordedGraphs.get(member),
+                )
               : await selectAffected(
                   member,
                   everything,
