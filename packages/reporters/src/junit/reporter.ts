@@ -94,7 +94,10 @@ function suiteOf(
   entry: FileRecord | undefined,
   options: { readonly report: ReportPolicy; readonly timestamp: string },
 ): SuiteElement {
-  const tests = entry === undefined ? [] : [...entry.tests.values()]
+  // A file failed whole after its tests ended (a leak, an inline snapshot that could not be
+  // written) lists none of them, as `normalized-json` and the text totals have it.
+  const tests =
+    entry === undefined || result?.resultsDiscarded === true ? [] : [...entry.tests.values()]
   const grouped = entry === undefined ? undefined : groupConsole(entry)
 
   let failures = 0

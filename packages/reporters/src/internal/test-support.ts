@@ -126,6 +126,8 @@ export interface FileSpec {
     readonly errors: readonly SerializedError[]
   }[]
   readonly durationMs?: number
+  /** The file failed whole after its tests ended (a leak, an inline snapshot that could not be written): none of them counts. */
+  readonly resultsDiscarded?: true
   /** `--logHeapUsage`: the heap the file ended with. */
   readonly heapUsedBytes?: number
   readonly workerExit?: WorkerExit
@@ -250,6 +252,7 @@ export function buildFile(spec: FileSpec): BuiltFile {
       durationMs: spec.durationMs ?? 5,
       ...(spec.workerExit === undefined ? {} : { workerExit: spec.workerExit }),
       ...(spec.heapUsedBytes === undefined ? {} : { heapUsedBytes: spec.heapUsedBytes }),
+      ...(spec.resultsDiscarded === true ? { resultsDiscarded: true as const } : {}),
       errors: spec.errors ?? [],
     },
   }
