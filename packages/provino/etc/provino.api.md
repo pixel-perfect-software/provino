@@ -331,7 +331,7 @@ export type P = (received: never, ...expected: never[]) => MatcherResult | Promi
 export interface p<G extends object = typeof globalThis> {
     readonly context?: Context;
     readonly global: G;
-    onTestEvent?(event: RuntimeEvent): void | Promise<void>;
+    onTestEvent?(event: LifecycleEvent): void | Promise<void>;
     teardown(): void | y | Promise<void | y>;
 }
 

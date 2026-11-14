@@ -278,6 +278,16 @@ export function jestProjectToNeutral(
       // what a Jest environment class reads of `projectConfig`.
       options: {
         ...(isNode ? {} : { module: project.testEnvironment }),
+        // What the class's constructor and `handleTestEvent`'s state read of Jest's `globalConfig`.
+        globalConfig: {
+          testLocationInResults: project.testLocationInResults,
+          maxConcurrency: globalConfig.maxConcurrency,
+          expand: globalConfig.expand,
+          seed: globalConfig.seed,
+          ...(globalConfig.randomize === true ? { randomize: true } : {}),
+          // circus reads it only when truthy (`jestAdapterInit.ts` L79-L81).
+          ...(globalConfig.testTimeout ? { testTimeout: globalConfig.testTimeout } : {}),
+        },
         projectConfig: {
           rootDir: project.rootDir,
           cwd: project.cwd,

@@ -6,8 +6,13 @@ import type {
   EnvironmentHelper,
   EnvironmentInstance,
   EnvironmentTeardownReport,
+  LifecycleEvent,
+  LifecycleHookKind,
+  LifecycleHookRef,
+  LifecycleListener,
+  LifecycleMode,
+  LifecycleRef,
   RawCoverage,
-  RuntimeEvent,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
@@ -87,10 +92,10 @@ const report: EnvironmentTeardownReport = { leakedGlobals: ['x'] }
 // @ts-expect-error the report's list is read-only
 report.leakedGlobals.push('y')
 
-// Jest's handleTestEvent sees the runtime's own events.
+// Jest's handleTestEvent sees the lifecycle events.
 expectTypeOf<
   Parameters<NonNullable<EnvironmentInstance['onTestEvent']>>[0]
->().toEqualTypeOf<RuntimeEvent>()
+>().toEqualTypeOf<LifecycleEvent>()
 
 const cov: CoverageOptions = {
   thresholds: {
@@ -118,3 +123,49 @@ export {
   wrongShape,
   wrongShapeLater,
 }
+
+// The lifecycle events are a closed union over `type`, with nodes by identity (`LifecycleRef`).
+declare const ref: LifecycleRef
+const listener: LifecycleListener = (event) => {
+  if (event.type === 'fn-end') {
+    expectTypeOf(event.failed).toEqualTypeOf<boolean>()
+    expectTypeOf(event.error).toEqualTypeOf<unknown>()
+  }
+  if (event.type === 'define-test') {
+    expectTypeOf(event.mode).toEqualTypeOf<LifecycleMode>()
+    expectTypeOf(event.concurrent).toEqualTypeOf<boolean>()
+  }
+  if (event.type === 'test-done') expectTypeOf(event.errors).toEqualTypeOf<readonly unknown[]>()
+  // A hook's events name it by identity, the same object `define-hook` carried; no ordinal.
+  if (event.type === 'define-hook' || event.type === 'hook-start' || event.type === 'hook-end') {
+    expectTypeOf(event.hook).toEqualTypeOf<LifecycleHookRef>()
+    expectTypeOf(event.kind).toEqualTypeOf<LifecycleHookKind>()
+  }
+  // @ts-expect-error the hook events carry the hook, not an ordinal
+  if (event.type === 'hook-start') void event.ordinal
+  // @ts-expect-error no such event
+  if (event.type === 'test-exploded') return
+}
+const retryEvent: LifecycleEvent = { type: 'test-retry', ref, keepEarlierErrors: true }
+// @ts-expect-error a retry says whether it keeps the errors
+const badRetry: LifecycleEvent = { type: 'test-retry', ref }
+// @ts-expect-error a node is `file`, `suite` or `test`
+const badRef: LifecycleRef = { type: 'hook', name: 'x' }
+declare const hook: LifecycleHookRef
+// @ts-expect-error a teardown or a callback is not a lifecycle hook
+const badHook: LifecycleHookRef = { kind: 'teardown' }
+// @ts-expect-error `hook-start` names its hook
+const unnamedHook: LifecycleEvent = {
+  type: 'hook-start',
+  owner: ref,
+  kind: 'beforeEach',
+  test: undefined,
+}
+const namedHook: LifecycleEvent = {
+  type: 'hook-start',
+  hook,
+  owner: ref,
+  kind: 'beforeEach',
+  test: undefined,
+}
+void [listener, retryEvent, badRetry, badRef, badHook, unnamedHook, namedHook]
