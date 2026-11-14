@@ -70,7 +70,7 @@ const MOCKS = /[\\/]__mocks__[\\/]/
  * pattern matches it) does not; with include globs the path must match one (relative to the global root under
  * `includeRoot`); then the excluded patterns and paths, `__mocks__` and JSON files. With no
  * include globs every file the tests load counts, and only such a file is ever asked about. Last,
- * with the Istanbul provider as `babel-plugin-istanbul` does, a file outside the project root or under `node_modules` never counts; with V8, a file whose path does not start with the global root never does.
+ * with the Istanbul provider as `babel-plugin-istanbul` does, a file outside the instrument root (`instrumentRoot`, else the project root) or under `node_modules` never counts; with V8, a file whose path does not start with the global root never does.
  * @public
  */
 export function createCoverageFilter(config: SerializedCoverageConfig): (path: string) => boolean {
@@ -104,14 +104,11 @@ export function createCoverageFilter(config: SerializedCoverageConfig): (path: s
     // root is out; there is no `node_modules` step for V8.
     return (path) => path.startsWith(config.globalRoot) && counted(path)
   }
-  // babel-plugin-istanbul runs after `shouldInstrument` with `cwd` the project's root and
-  // `excludeNodeModules` (test-exclude): a file outside the project root or under node_modules is
-  // left uninstrumented even when `shouldInstrument` passed it, a forced file too.
-  const rootPrefix = config.projectRoot.endsWith(sep)
-    ? config.projectRoot
-    : `${config.projectRoot}${sep}`
+  // babel-plugin-istanbul runs after `shouldInstrument` with its `cwd` (the instrument root, else
+  // the project's root) and `excludeNodeModules` (test-exclude): a file outside that root or under
+  // node_modules is left uninstrumented even when `shouldInstrument` passed it, a forced file too.
+  const root = config.instrumentRoot ?? config.projectRoot
+  const rootPrefix = root.endsWith(sep) ? root : `${root}${sep}`
   return (path) =>
-    path.startsWith(rootPrefix) &&
-    !NODE_MODULES.test(relative(config.projectRoot, path)) &&
-    counted(path)
+    path.startsWith(rootPrefix) && !NODE_MODULES.test(relative(root, path)) && counted(path)
 }

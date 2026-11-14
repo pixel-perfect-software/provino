@@ -271,6 +271,9 @@ function coverageConfig(value: unknown): SerializedCoverageConfig {
     provider,
     globalRoot: absolutePath(coverage.globalRoot, 'coverage.globalRoot'),
     projectRoot: absolutePath(coverage.projectRoot, 'coverage.projectRoot'),
+    ...(coverage.instrumentRoot === undefined
+      ? {}
+      : { instrumentRoot: absolutePath(coverage.instrumentRoot, 'coverage.instrumentRoot') }),
     include: texts(coverage.include, 'coverage.include'),
     includeRoot: coverage.includeRoot,
     force: texts(coverage.force, 'coverage.force'),

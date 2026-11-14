@@ -45,6 +45,9 @@ async function provinoOn(id: string): Promise<Ran> {
   disposers.push(project.dispose)
   const { root } = project
   await mkdir(join(root, '.harness-out'), { recursive: true })
+  // The recorder starts the runner in `run.cwd` when the fixture names one (below the root).
+  const cwd = fixture.manifest.run?.cwd === undefined ? root : join(root, fixture.manifest.run.cwd)
+  await mkdir(cwd, { recursive: true })
   const ended = await spawnCli(
     [
       'jest',
@@ -54,7 +57,7 @@ async function provinoOn(id: string): Promise<Ran> {
       `--outputFile=${join(root, '.harness-out', 'jest.json')}`,
       ...(fixture.manifest.run?.argv?.jest ?? []),
     ],
-    { cwd: root, env: RECORDER_ENV },
+    { cwd, env: RECORDER_ENV },
   )
   const read = async (path: string): Promise<string | null> =>
     existsSync(join(root, path)) ? readFile(join(root, path), 'utf8') : null
@@ -144,6 +147,17 @@ describe('provino jest --coverage writes the reports Jest 30.5.2 wrote (coverage
       assert.ok(ours !== null, `${file} was written`)
       assert.equal(asRecorded(ran, ours), golden?.files?.[file], file)
     }
+    assert.deepEqual(
+      entries(await ran.json('coverage/coverage-final.json')),
+      entries(golden?.json?.['coverage/coverage-final.json']),
+    )
+  })
+
+  it('babel-jest instruments only under the process cwd: a run below the root leaves a loaded file out (babel-cwd-below-root)', async () => {
+    const ran = await provinoOn('coverage/babel-cwd-below-root')
+    const golden = ran.fixture.golden.observed
+    assert.equal(ran.code, golden?.exitCode, ran.stderr)
+    assert.equal(asRecorded(ran, ran.stdout), golden?.stdout)
     assert.deepEqual(
       entries(await ran.json('coverage/coverage-final.json')),
       entries(golden?.json?.['coverage/coverage-final.json']),

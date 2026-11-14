@@ -215,6 +215,13 @@ export interface SerializedCoverageConfig {
    * It differs from `globalRoot` when several projects run in one pool.
    */
   readonly projectRoot: string
+  /**
+   * Absolute: the root Istanbul instruments within, when it is not `projectRoot` (Babel's `cwd`
+   * for a transform that instruments its own output: Jest's babel-jest passes the process's
+   * working directory, so a file outside it is left uninstrumented although it is under the
+   * project's root). Absent: `projectRoot`.
+   */
+  readonly instrumentRoot?: string
   /** The include globs (Jest's `collectCoverageFrom`); empty means every file the tests load. */
   readonly include: readonly string[]
   /** Whether the include globs match against the root-relative path. */
