@@ -124,7 +124,9 @@ describe('provino jest --debug against Jest 30.5.2', () => {
         text: string,
       ): { configs: unknown[]; globalConfig: unknown; version: string } =>
         JSON.parse(
-          text.slice(text.indexOf('{'), text.indexOf('\n}\n') + 2).replaceAll('<masked>', '0'),
+          // The JSON ends at its first line that is a closing brace alone: the recording keeps
+          // nothing after it, the run prints the tests' report after it.
+          text.slice(text.indexOf('{'), text.search(/^\}$/m) + 1).replaceAll('<masked>', '0'),
         )
       const ours = jsonOf(ended.stderr)
       const recorded = jsonOf(fixture.golden.observed?.stderr ?? '')
