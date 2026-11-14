@@ -3,16 +3,24 @@
 // small relay in Python's standard library (`pty.fork`, on every macOS and Linux image) is passed
 // to `/usr/bin/python3 -c` as a string, as D72's sandbox profile is. No `.py` file: the harness is
 // TypeScript only.
+import { constants } from 'node:os'
 import { StringDecoder } from 'node:string_decoder'
 import { HarnessError } from './errors.ts'
 import { errorMessage } from './internal/guards.ts'
 import { spawnInGroup } from './spawn-in-group.ts'
 
-/** The interpreter D120 names: the one every macOS has, and the one Linux images have. */
+/**
+ * The interpreter D120 names: the one every macOS has, and the one Linux images have.
+ * @public
+ */
 export const PTY_PYTHON = '/usr/bin/python3'
 
-/** The window the child sees: 40 rows by 120 columns (Jest's usage text wraps by it). */
+/**
+ * The window the child sees: 40 rows by 120 columns (Jest's usage text wraps by it).
+ * @public
+ */
 export const PTY_ROWS = 40
+/** @public */
 export const PTY_COLUMNS = 120
 
 /**
@@ -95,7 +103,10 @@ if os.WIFEXITED(status):
 sys.exit(128 + os.WTERMSIG(status))
 `
 
-/** How a terminal child ended. */
+/**
+ * How a terminal child ended.
+ * @public
+ */
 export interface PtyExit {
   /** The child's exit code, or 128 plus the signal that ended it. */
   readonly exitCode: number | null
@@ -103,7 +114,10 @@ export interface PtyExit {
   readonly killed: boolean
 }
 
-/** What `spawnPty` takes. */
+/**
+ * What `spawnPty` and `spawnPiped` take.
+ * @public
+ */
 export interface PtyOptions {
   readonly cwd: string
   readonly env: NodeJS.ProcessEnv
@@ -113,10 +127,17 @@ export interface PtyOptions {
   readonly python?: string
 }
 
-/** A match for `waitFor`: text the output holds, or a test of all the output so far. */
+/**
+ * A match for `waitFor`: text the output holds, or a test of all the output so far.
+ * @public
+ */
 export type PtyMatch = string | ((output: string) => boolean)
 
-/** A child on a terminal. */
+/**
+ * A child whose output is watched and whose input is typed: on a terminal (`spawnPty`) or on a
+ * pipe (`spawnPiped`).
+ * @public
+ */
 export interface PtyProcess {
   /** Types `text` at the child (its stdin, which is the terminal). */
   write(text: string): void
@@ -132,7 +153,7 @@ export interface PtyProcess {
   readonly exit: Promise<PtyExit>
   /** The child's process group (its pid: a session leader). */
   readonly childPgid: number
-  /** The relay's process group. */
+  /** The relay's process group (the child's own for `spawnPiped`, which has no relay). */
   readonly relayPgid: number
   /** Kills the child's group, then the relay's, and waits until neither has a member left. */
   kill(): Promise<void>
@@ -142,7 +163,10 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-/** Whether process group `pgid` has a member (`kill(-pgid, 0)`; EPERM means it exists). */
+/**
+ * Whether process group `pgid` has a member (`kill(-pgid, 0)`; EPERM means it exists).
+ * @public
+ */
 export function groupExists(pgid: number): boolean {
   try {
     process.kill(-pgid, 0)
@@ -175,17 +199,112 @@ async function untilGone(pgid: number, label: string): Promise<void> {
   }
 }
 
+/** The output of a child as it arrives, and the waits on it. */
+interface OutputWatch {
+  append(text: string): void
+  /** The child has ended: every pending wait that hasn't matched rejects. */
+  end(): void
+  readonly output: () => string
+  waitFor(match: PtyMatch, from?: number): Promise<number>
+}
+
+function matchName(match: PtyMatch): string {
+  return typeof match === 'string' ? JSON.stringify(match) : 'what the predicate asked for'
+}
+
+function watchOutput(deadline: AbortSignal | undefined): OutputWatch {
+  let output = ''
+  let ended = false
+  const listeners = new Set<() => void>()
+  const changed = (): void => {
+    for (const listener of [...listeners]) listener()
+  }
+  return {
+    append(text) {
+      output += text
+      changed()
+    },
+    end() {
+      ended = true
+      changed()
+    },
+    output: () => output,
+    waitFor(match, from = 0) {
+      return new Promise<number>((resolve, reject) => {
+        const found = (): boolean =>
+          typeof match === 'string' ? output.indexOf(match, from) !== -1 : match(output)
+        const settle = (): void => {
+          listeners.delete(check)
+          deadline?.removeEventListener('abort', onAbort)
+        }
+        const check = (): boolean => {
+          if (found()) {
+            settle()
+            resolve(output.length)
+            return true
+          }
+          if (ended) {
+            settle()
+            reject(
+              new HarnessError(
+                'HARNESS_WATCH_FAILED',
+                `the child ended before its output had ${matchName(match)}. Output tail:\n${output.slice(-2000)}`,
+              ),
+            )
+            return true
+          }
+          return false
+        }
+        const onAbort = (): void => {
+          settle()
+          reject(
+            new HarnessError(
+              'HARNESS_WATCH_FAILED',
+              `the deadline passed waiting for ${matchName(match)}. Output tail:\n${output.slice(-2000)}`,
+            ),
+          )
+        }
+        if (check()) return
+        listeners.add(check)
+        if (deadline?.aborted === true) onAbort()
+        else deadline?.addEventListener('abort', onAbort, { once: true })
+      })
+    },
+  }
+}
+
+/** Forwards `deadline` to a controller of the caller's own, which `kill` also aborts. */
+function linkedStop(deadline: AbortSignal | undefined): {
+  readonly stop: AbortController
+  readonly unlink: () => void
+} {
+  const stop = new AbortController()
+  const abort = (): void => stop.abort()
+  deadline?.addEventListener('abort', abort, { once: true })
+  if (deadline?.aborted === true) abort()
+  return { stop, unlink: () => deadline?.removeEventListener('abort', abort) }
+}
+
+type Settled<T> =
+  | { readonly ok: true; readonly value: T }
+  | { readonly ok: false; readonly error: unknown }
+
+function settledOf<T>(promise: Promise<T>): Promise<Settled<T>> {
+  return promise.then(
+    (value) => ({ ok: true as const, value }),
+    (error: unknown) => ({ ok: false as const, error }),
+  )
+}
+
 /**
  * Starts `argv` on a pseudo-terminal of 40 by 120. The relay (its own process group, by
  * `spawnInGroup`) and the child (a session leader) are both killed by `kill()`, and by `deadline`.
  * `HARNESS_PTY_UNAVAILABLE` when there is no `python3`, or no terminal to open.
+ * @public
  */
 export async function spawnPty(argv: readonly string[], options: PtyOptions): Promise<PtyProcess> {
   const python = options.python ?? PTY_PYTHON
-  const stop = new AbortController()
-  const abort = (): void => stop.abort()
-  options.deadline?.addEventListener('abort', abort, { once: true })
-  if (options.deadline?.aborted) abort()
+  const { stop, unlink } = linkedStop(options.deadline)
   const { child, exited } = spawnInGroup(
     python,
     ['-I', '-c', RELAY, String(PTY_ROWS), String(PTY_COLUMNS), ...argv],
@@ -199,13 +318,10 @@ export async function spawnPty(argv: readonly string[], options: PtyOptions): Pr
   )
   // `spawnInGroup` rejects `exited` when the interpreter can't start; hold it so a rejection
   // before anyone awaits isn't unhandled.
-  const exitedSettled = exited.then(
-    (value) => ({ ok: true as const, value }),
-    (error: unknown) => ({ ok: false as const, error }),
-  )
+  const exitedSettled = settledOf(exited)
   const relayPgid = child.pid
   if (relayPgid === undefined) {
-    options.deadline?.removeEventListener('abort', abort)
+    unlink()
     const settled = await exitedSettled
     throw new HarnessError(
       'HARNESS_PTY_UNAVAILABLE',
@@ -213,19 +329,11 @@ export async function spawnPty(argv: readonly string[], options: PtyOptions): Pr
     )
   }
 
-  let output = ''
+  const watch = watchOutput(options.deadline)
   let errorText = ''
-  let childEnded = false
   let killed = false
   const decoder = new StringDecoder('utf8')
-  const listeners = new Set<() => void>()
-  const changed = (): void => {
-    for (const listener of [...listeners]) listener()
-  }
-  child.stdout?.on('data', (chunk: Buffer) => {
-    output += decoder.write(chunk)
-    changed()
-  })
+  child.stdout?.on('data', (chunk: Buffer) => watch.append(decoder.write(chunk)))
   // stderr: the child's pid on its first line, then the relay's own complaints.
   let resolvePid: (pid: number) => void = () => {}
   const pidLine = new Promise<number>((resolve) => {
@@ -244,11 +352,10 @@ export async function spawnPty(argv: readonly string[], options: PtyOptions): Pr
     // The relay ended while a key was being written: the exit says why.
   })
 
-  const exit = exitedSettled.then(async (settled): Promise<PtyExit> => {
-    childEnded = true
-    options.deadline?.removeEventListener('abort', abort)
-    output += decoder.end()
-    changed()
+  const exit = exitedSettled.then((settled): PtyExit => {
+    unlink()
+    watch.append(decoder.end())
+    watch.end()
     if (!settled.ok) throw settled.error
     return { exitCode: settled.value.exitCode, killed: killed || settled.value.timedOut }
   })
@@ -265,63 +372,88 @@ export async function spawnPty(argv: readonly string[], options: PtyOptions): Pr
   }
   const childPgid = started
 
-  const kill = async (): Promise<void> => {
-    killed = true
-    // The child's group first, by its own pgid, then the relay's through the deadline's path.
-    signalGroup(childPgid, 'SIGKILL')
-    stop.abort()
-    await exitedSettled
-    await untilGone(childPgid, 'the terminal child')
-    await untilGone(relayPgid, 'the pty relay')
-  }
-
   return {
     write(text) {
       if (child.stdin?.writable === true) child.stdin.write(text)
     },
-    output: () => output,
-    waitFor(match, from = 0) {
-      return new Promise<number>((resolve, reject) => {
-        const found = (): boolean =>
-          typeof match === 'string' ? output.indexOf(match, from) !== -1 : match(output)
-        const check = (): boolean => {
-          if (found()) {
-            listeners.delete(check)
-            options.deadline?.removeEventListener('abort', onAbort)
-            resolve(output.length)
-            return true
-          }
-          if (childEnded) {
-            listeners.delete(check)
-            options.deadline?.removeEventListener('abort', onAbort)
-            reject(
-              new HarnessError(
-                'HARNESS_WATCH_FAILED',
-                `the terminal child ended before its output had ${typeof match === 'string' ? JSON.stringify(match) : 'what the predicate asked for'}. Output tail:\n${output.slice(-2000)}`,
-              ),
-            )
-            return true
-          }
-          return false
-        }
-        const onAbort = (): void => {
-          listeners.delete(check)
-          reject(
-            new HarnessError(
-              'HARNESS_WATCH_FAILED',
-              `the deadline passed waiting for ${typeof match === 'string' ? JSON.stringify(match) : 'the predicate'}. Output tail:\n${output.slice(-2000)}`,
-            ),
-          )
-        }
-        if (check()) return
-        listeners.add(check)
-        if (options.deadline?.aborted) onAbort()
-        else options.deadline?.addEventListener('abort', onAbort, { once: true })
-      })
-    },
+    output: watch.output,
+    waitFor: watch.waitFor,
     exit,
     childPgid,
     relayPgid,
-    kill,
+    async kill() {
+      killed = true
+      // The child's group first, by its own pgid, then the relay's through the deadline's path.
+      signalGroup(childPgid, 'SIGKILL')
+      stop.abort()
+      await exitedSettled
+      await untilGone(childPgid, 'the terminal child')
+      await untilGone(relayPgid, 'the pty relay')
+    },
+  }
+}
+
+/**
+ * Starts `argv` with no terminal (a watch fixture's `tty: false`): stdin a pipe that stays open,
+ * stdout and stderr one pipe (`/bin/sh -c 'exec "$@" 2>&1'`), so the order of the two streams is
+ * the order the child wrote them in. One process group, the child's own, which `kill()` and
+ * `deadline` end.
+ * @public
+ */
+export async function spawnPiped(
+  argv: readonly string[],
+  options: Omit<PtyOptions, 'python'>,
+): Promise<PtyProcess> {
+  const { stop, unlink } = linkedStop(options.deadline)
+  const { child, exited } = spawnInGroup('/bin/sh', ['-c', 'exec "$@" 2>&1', 'sh', ...argv], {
+    cwd: options.cwd,
+    env: options.env,
+    stdio: ['pipe', 'pipe', 'ignore'],
+    deadline: stop.signal,
+    killGraceMs: 3_000,
+  })
+  const exitedSettled = settledOf(exited)
+  const pgid = child.pid
+  if (pgid === undefined) {
+    unlink()
+    const settled = await exitedSettled
+    throw new HarnessError(
+      'HARNESS_WATCH_FAILED',
+      `/bin/sh could not be started${settled.ok ? '' : `: ${errorMessage(settled.error)}`}`,
+    )
+  }
+  const watch = watchOutput(options.deadline)
+  let killed = false
+  const decoder = new StringDecoder('utf8')
+  child.stdout?.on('data', (chunk: Buffer) => watch.append(decoder.write(chunk)))
+  child.stdin?.on('error', () => {
+    // The child ended while text was written: the exit says why.
+  })
+  const exit = exitedSettled.then((settled): PtyExit => {
+    unlink()
+    watch.append(decoder.end())
+    watch.end()
+    if (!settled.ok) throw settled.error
+    const { exitCode, signal, timedOut } = settled.value
+    const code = exitCode ?? (signal === null ? null : 128 + (constants.signals[signal] ?? 0))
+    return { exitCode: code, killed: killed || timedOut }
+  })
+  exit.catch(() => undefined)
+  return {
+    write(text) {
+      if (child.stdin?.writable === true) child.stdin.write(text)
+    },
+    output: watch.output,
+    waitFor: watch.waitFor,
+    exit,
+    childPgid: pgid,
+    relayPgid: pgid,
+    async kill() {
+      killed = true
+      signalGroup(pgid, 'SIGKILL')
+      stop.abort()
+      await exitedSettled
+      await untilGone(pgid, 'the piped child')
+    },
   }
 }

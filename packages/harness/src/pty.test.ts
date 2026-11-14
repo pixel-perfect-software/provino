@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { HarnessError } from './errors.ts'
-import { groupExists, type PtyProcess, spawnPty } from './pty.ts'
+import { groupExists, type PtyProcess, spawnPiped, spawnPty } from './pty.ts'
 
 const CHILD = new URL('./internal/pty-echo-child.ts', import.meta.url).pathname
 const base = { cwd: process.cwd(), env: process.env }
@@ -102,6 +102,38 @@ test('an abort of the deadline ends both groups and a pending waitFor rejects', 
   } finally {
     await finish(pty)
   }
+})
+
+test('a piped child gets no terminal, one stream for stdout and stderr, and its exit code', {
+  timeout: 20_000,
+}, async () => {
+  const pty = await spawnPiped([process.execPath, CHILD], base)
+  try {
+    await pty.waitFor('READY tty=false')
+    pty.write('q')
+    const exit = await pty.exit
+    assert.equal(exit.exitCode, 3)
+    assert.match(pty.output(), /key:"q"/)
+  } finally {
+    await finish(pty)
+  }
+})
+
+test('kill ends a piped child that ignores SIGTERM, and its grandchild', {
+  timeout: 20_000,
+}, async () => {
+  const pty = await spawnPiped([process.execPath, CHILD, 'stubborn'], base)
+  let grandchild = 0
+  try {
+    await pty.waitFor('READY')
+    grandchild = Number(/GRANDCHILD (\d+)/.exec(pty.output())?.[1])
+    assert.ok(grandchild > 0)
+    assert.equal(pty.childPgid, pty.relayPgid, 'one group: there is no relay')
+  } finally {
+    await finish(pty)
+  }
+  assert.equal((await pty.exit).killed, true)
+  assert.equal(pidAlive(grandchild), false, 'the grandchild is gone')
 })
 
 test('no python3 is HARNESS_PTY_UNAVAILABLE, not a skip', { timeout: 10_000 }, async () => {
