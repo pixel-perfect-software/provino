@@ -448,6 +448,11 @@ function jestEsmOption(fixture: Fixture): { jestEsm?: true } {
   return fixture.manifest.jestEsm === true ? { jestEsm: true } : {}
 }
 
+function jestTypeScriptOption(fixture: Fixture): { jestTypeScript?: 'babel' } {
+  const { jestTypeScript } = fixture.manifest
+  return jestTypeScript === undefined ? {} : { jestTypeScript }
+}
+
 function jestConfigOption(fixture: Fixture): { jestConfig?: JestFixtureConfig } {
   const { jestConfig } = fixture.manifest
   return jestConfig === undefined ? {} : { jestConfig }
@@ -479,6 +484,7 @@ async function runUnderRunner(
     observeSetupFile,
     ...mockCleanupOption(fixture),
     ...jestEsmOption(fixture),
+    ...jestTypeScriptOption(fixture),
     ...jestConfigOption(fixture),
     ...(overlay === undefined ? {} : { overlay }),
   }
