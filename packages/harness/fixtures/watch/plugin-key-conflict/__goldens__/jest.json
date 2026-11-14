@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "watch/plugin-key-conflict",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "runs": [],
+    "transcript": "Watch plugin configuration error:\nWatch plugin ClaimsU attempted to register key <u>,\n  that is reserved internally for updating snapshots.\n  Please change the configuration key for this plugin."
+  }
+}
