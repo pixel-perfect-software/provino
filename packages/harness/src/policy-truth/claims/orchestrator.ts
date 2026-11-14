@@ -74,7 +74,7 @@ const extractorMatches = (g: Golden, value: unknown): boolean => {
     ref.export === 'jestDependencyExtractor'
   ) {
     const extractor = jestDependencyExtractor()
-    extract = (code) => [...extractor.extract(code, '', () => [])]
+    extract = (code) => [...extractor.extract(code, '', () => new Set<string>())]
   } else return false
   const dir = path.join(defaultFixturesRoot(), g.suite)
   const predicted = readdirSync(dir)

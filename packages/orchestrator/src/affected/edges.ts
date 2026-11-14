@@ -59,9 +59,14 @@ export function customExtractor(
     fallback === undefined
       ? lexerSpecifiers
       : (text: string, path: string): readonly string[] => fallback.extract(text, path)
+  // jest-haste-map's worker calls `extractor.extract(content, filePath, defaultExtract)`, where the
+  // default takes the code alone and returns a fresh `Set<string>`: an extractor may `.add` to it
+  // (`const deps = defaultExtract(code); deps.add('x'); return deps`).
   return {
     identity: `custom:${source}:${code}:${extractor.cacheKey ?? ''}:${fallback?.identity ?? ''}:${engineIdentity()}`,
-    extract: (text, path) => [...extractor.extract(text, path, (inner) => defaults(inner, path))],
+    extract: (text, path) => [
+      ...extractor.extract(text, path, (inner) => new Set(defaults(inner, path))),
+    ],
   }
 }
 

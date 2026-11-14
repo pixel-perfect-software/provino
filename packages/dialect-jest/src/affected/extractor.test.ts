@@ -76,7 +76,7 @@ test('the extractor reads the specifiers jest-haste-map reads, in its order', ()
   for (const source of SOURCES) {
     const expected: string[] = [...oracle(source)]
     found += expected.length
-    const got = [...ours.extract(source, '/x.ts', () => [])]
+    const got = [...ours.extract(source, '/x.ts', () => new Set<string>())]
     assert.deepEqual(got, expected, source)
   }
   // The oracle read edges at all, so equal lists can't be two empty ones.
