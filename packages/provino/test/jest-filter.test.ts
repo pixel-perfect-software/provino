@@ -171,6 +171,42 @@ describe('provino jest --filter against a live Jest 30.5.2', () => {
     assert.doesNotMatch(provino.stderr, /^PASS /m)
   })
 
+  it('the filter is called once per project, as Jest calls it, even when the reporters need a file count', async () => {
+    // One project is verbose and the other is not, so the reporters count each project's files
+    // before the run (Jest reads `verbose` from the projects that have a test).
+    const project = (name: string, verbose: boolean): string =>
+      JSON.stringify({ displayName: name, testMatch: ['<rootDir>/*.test.js'], verbose })
+    const root = await tree({
+      'package.json': '{"type":"commonjs"}\n',
+      'jest.config.json': JSON.stringify({
+        projects: ['<rootDir>/p1', '<rootDir>/p2'],
+        reporters: ['default', '<rootDir>/reporter.cjs'],
+      }),
+      'p1/jest.config.json': project('p1', true),
+      'p2/jest.config.json': project('p2', false),
+      'p1/a.test.js': "test('a', () => {})\n",
+      'p2/b.test.js': "test('b', () => {})\n",
+      'reporter.cjs': 'module.exports = class {}\n',
+      // Notes each call: the base names of the paths it was given.
+      'count.cjs':
+        "module.exports = (tests) => {\n  require('node:fs').appendFileSync(__dirname + '/calls.txt', tests.map((t) => require('node:path').basename(t)).join(',') + '\\n')\n  return { filtered: tests }\n}\n",
+    })
+    const calls = async (): Promise<string[]> => {
+      const text = await readFile(join(root, 'calls.txt'), 'utf8')
+      await rm(join(root, 'calls.txt'))
+      return text.trim().split('\n').sort()
+    }
+    const jest = await stdoutOf([JEST, '--filter', join(root, 'count.cjs'), '-w', '2'], root)
+    assert.equal(jest.code, 0, jest.stderr)
+    const jestCalls = await calls()
+    assert.deepEqual(jestCalls, ['a.test.js', 'b.test.js'])
+    const provino = await spawnCli(['jest', '--filter', join(root, 'count.cjs'), '-w', '2'], {
+      cwd: root,
+    })
+    assert.equal(provino.code, 0, provino.stderr)
+    assert.deepEqual(await calls(), jestCalls)
+  })
+
   it('a filter that returns nothing usable is Jest`s TypeError', async () => {
     const root = await tree(FILES)
     const jest = await stdoutOf([JEST, '--filter', './no-such-list.cjs'], root)

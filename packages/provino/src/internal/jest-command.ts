@@ -286,13 +286,27 @@ function takeTimingsFlags(args: readonly string[]): {
   return { rest, timingsFile, updateTimings }
 }
 
-/** The files `filter` keeps of a project's (it gets their absolute paths, once per project). */
-async function filterFiles<T extends { readonly path: string }>(
-  filter: JestFilter,
+/**
+ * A project's files that `--filter` keeps: the filter is called with their absolute paths once per
+ * project, as Jest's `runJest` calls it, however often the run asks (the reporters' file count and
+ * the run itself both do), and its answer is kept for that project.
+ */
+type ProjectFilter = <T extends { readonly path: string }>(
+  project: ResolvedProject,
   files: readonly T[],
-): Promise<readonly T[]> {
-  const kept = new Set(await filter(files.map((file) => file.path)))
-  return files.filter((file) => kept.has(file.path))
+) => Promise<readonly T[]>
+
+function oncePerProject(filter: JestFilter): ProjectFilter {
+  const kept = new Map<ResolvedProject, Promise<ReadonlySet<string>>>()
+  return async (project, files) => {
+    let paths = kept.get(project)
+    if (paths === undefined) {
+      paths = filter(files.map((file) => file.path)).then((list) => new Set(list))
+      kept.set(project, paths)
+    }
+    const keep = await paths
+    return files.filter((file) => keep.has(file.path))
+  }
 }
 
 /**
@@ -303,7 +317,10 @@ async function selectedPerProject(
   projects: readonly ResolvedProject[],
   request: RunRequest,
   cwd: string,
-  sharding: ShardRequest & { readonly runRoot: string; readonly filter?: JestFilter | undefined },
+  sharding: ShardRequest & {
+    readonly runRoot: string
+    readonly filter?: ProjectFilter | undefined
+  },
 ): Promise<readonly (readonly { readonly path: string }[])[]> {
   const { filter } = sharding
   const selected = await Promise.all(
@@ -312,7 +329,7 @@ async function selectedPerProject(
         rootDir: project.rootDir,
         cwd,
       })
-      return filter === undefined ? files : filterFiles(filter, files)
+      return filter === undefined ? files : filter(project, files)
     }),
   )
   const [first] = projects
@@ -340,7 +357,10 @@ async function listFiles(
   projects: readonly ResolvedProject[],
   request: RunRequest,
   cwd: string,
-  sharding: ShardRequest & { readonly runRoot: string; readonly filter?: JestFilter | undefined },
+  sharding: ShardRequest & {
+    readonly runRoot: string
+    readonly filter?: ProjectFilter | undefined
+  },
 ): Promise<readonly string[]> {
   const perProject = await selectedPerProject(projects, request, cwd, sharding)
   return [...new Set(perProject.flatMap((files) => files.map((file) => file.path)))].sort()
@@ -431,17 +451,17 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       filterError = error
       throw error
     }
-    const guardedFilter: JestFilter | undefined =
+    const guardedFilter: ProjectFilter | undefined =
       filter === undefined
         ? undefined
-        : async (paths) => {
+        : oncePerProject(async (paths) => {
             try {
               return await filter(paths)
             } catch (error) {
               filterError = error
               throw error
             }
-          }
+          })
     if (request.mode === 'list-files') {
       const sharding = {
         shard: shardOf(read.globalConfig),
@@ -584,7 +604,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       fileFilters: request.fileFilters,
       ...(guardedFilter === undefined
         ? {}
-        : { fileFilter: (_project, files) => filterFiles(guardedFilter, files) }),
+        : { fileFilter: (filtered, files) => guardedFilter(filtered, files) }),
       // `-i`: the files run in this process. Jest also goes in band by itself for a small run: the
       // policy's `orchestrator.inBand`, decided once the files are known.
       ...(read.globalConfig.runInBand ? { runInBand: true } : {}),

@@ -162,9 +162,10 @@ export interface RunProjectOptions {
   readonly fileFilters?: readonly FileFilter[]
   /**
    * A project's own say over which of its files run, after `fileFilters` and before the shard
-   * (Jest's `--filter`): it gets the files the filters kept, with their absolute paths, and
-   * returns the ones that run. It decides nothing about the history, which is still pruned
-   * against the whole discovered set. A rejection ends the run before anything starts.
+   * (Jest's `--filter`): it gets the project (the object the caller passed, so it can key what it
+   * remembers by it) and the files the filters kept, with their absolute paths, and returns the
+   * ones that run. It is called once per project. It decides nothing about the history, which is
+   * still pruned against the whole discovered set. A rejection ends the run before anything starts.
    */
   readonly fileFilter?: (
     project: ResolvedProject,
@@ -887,10 +888,11 @@ export async function runProjects(
           rootDir: member.project.rootDir,
           cwd,
         })
+        const own = projects[member.projectIndex]
         const discovered =
-          options.fileFilter === undefined
+          options.fileFilter === undefined || own === undefined
             ? selected
-            : await options.fileFilter(member.project, selected)
+            : await options.fileFilter(own, selected)
         return { member, everything, discovered }
       }),
     )
