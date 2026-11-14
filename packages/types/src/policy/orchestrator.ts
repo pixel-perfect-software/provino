@@ -208,8 +208,20 @@ export interface OrchestratorPolicy {
   readonly environmentConditions: Behaviour<EnvironmentConditions>
   /** Default pool. Jest: `forks` (`threads` with `workerThreads`). Vitest: `forks`. research: track-09 L555 */
   readonly pool: { readonly default: PoolKind }
-  /** Whether small runs go in band automatically. Jest: `true` (≤20 fast files). Vitest: `false`. research: track-09 L556 */
-  readonly runInBand: { readonly auto: boolean }
+  /**
+   * Whether a small run goes in band (in the coordinator's own process, the `inline` pool) without
+   * being asked, and when: `single` (one file, or at most one worker), and up to `fastFileCount`
+   * files when some file has a time in the results cache and every cached time is under `slowMs`.
+   * `single: false` and `fastFileCount: 0`: a run is in band only when asked (`runInBand`,
+   * `detectOpenHandles`). Jest's `shouldRunInBand`: `{ single: true, fastFileCount: 20, slowMs: 1000 }`
+   * (recorded: a single file runs inline, `policy/orchestrator-run-in-band`). Vitest and neutral:
+   * `{ single: false, fastFileCount: 0, slowMs: 0 }`.
+   */
+  readonly inBand: {
+    readonly single: boolean
+    readonly fastFileCount: number
+    readonly slowMs: number
+  }
   /**
    * How `--shard=i/n` splits the files when no file has a time in the timings file. `sha1-slice`:
    * the files sorted by the sha1 of their path, then contiguous slices by count (Jest's, and

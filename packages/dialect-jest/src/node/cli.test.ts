@@ -996,7 +996,7 @@ describe('the options table', () => {
   it('classifies every option once, and counts the classes', (t) => {
     const counts = Object.fromEntries(supports)
     t.diagnostic(`support classes: ${JSON.stringify(counts)}`)
-    assert.deepEqual(counts, { request: 16, config: 68, accepted: 5, warn: 4, refuse: 12 })
+    assert.deepEqual(counts, { request: 16, config: 70, accepted: 6, warn: 3, refuse: 10 })
     for (const [name, option] of Object.entries(JEST_CLI_OPTIONS)) {
       const needsOwner = option.support === 'warn' || option.support === 'refuse'
       assert.equal(option.owner !== undefined, needsOwner, name)
@@ -1032,12 +1032,13 @@ describe('the options table', () => {
     )
     assert.deepEqual(named('accepted'), [
       'all',
+      'debug',
       'ignoreProjects',
       'selectProjects',
       'skipFilter',
       'watchman',
     ])
-    assert.deepEqual(named('warn'), ['debug', 'logHeapUsage', 'notify', 'notifyMode'].sort())
+    assert.deepEqual(named('warn'), ['logHeapUsage', 'notify', 'notifyMode'].sort())
   })
 
   it('makes one FlagSpec per option', () => {
@@ -1078,7 +1079,7 @@ describe('diagnostics', () => {
   }
 
   it('gives an error diagnostic for each refused flag, naming the task', () => {
-    assert.equal(Object.keys(REFUSED).length, 12)
+    assert.equal(Object.keys(REFUSED).length, 10)
     for (const [name, owner] of Object.entries(REFUSED)) {
       const { diagnostics } = parseJestCli(lineFor(name))
       assert.deepEqual(
@@ -1107,15 +1108,13 @@ describe('diagnostics', () => {
       findRelatedTests: 'Track 9, no task yet',
       onlyFailures: 'Track 9, no task yet',
       detectLeaks: 'T2.7',
-      projects: 'the --projects flag, no task yet (a config `projects` runs)',
       showSeed: 'Track 9, no task yet',
-      filter: 'no task yet',
     }
     assert.deepEqual(REFUSED, owners)
   })
 
   it('gives a warning for each flag it reads but does not apply', () => {
-    for (const name of ['debug', 'logHeapUsage', 'notify']) {
+    for (const name of ['logHeapUsage', 'notify']) {
       const { diagnostics } = parseJestCli([`--${name}`])
       assert.deepEqual(diagnostics, [
         {

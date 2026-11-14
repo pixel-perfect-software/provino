@@ -56,6 +56,10 @@ export interface ExecuteOptions {
   /** Rewrite the snapshots that differ (`-u`). */
   readonly update?: boolean | undefined
   readonly fileFilters?: readonly FileFilter[]
+  /** A project's own filter over the files the file filters kept (Jest's `--filter`). */
+  readonly fileFilter?: RunProjectOptions['fileFilter']
+  /** Run in band: in this process, one file at a time, `console` still captured (`-i`). */
+  readonly runInBand?: boolean
   readonly passWithNoTests?: boolean | undefined
   readonly signal?: AbortSignal | undefined
   /** The second Ctrl+C: kills the workers at once. */
@@ -185,6 +189,8 @@ function run(
     ...(options.update === true ? { update: true } : {}),
     ...(options.collectOnly === true ? { collectOnly: true } : {}),
     ...(options.fileFilters === undefined ? {} : { fileFilters: options.fileFilters }),
+    ...(options.fileFilter === undefined ? {} : { fileFilter: options.fileFilter }),
+    ...(options.runInBand === true ? { runInBand: true } : {}),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.forceSignal === undefined ? {} : { forceSignal: options.forceSignal }),
     ...(options.bail === undefined ? {} : { bail: options.bail }),

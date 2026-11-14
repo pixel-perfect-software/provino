@@ -8,6 +8,7 @@ import {
   type JestCliSupport,
   JestConfigError,
   type JestConfigErrorCode,
+  type JestFilter,
   type JestGlobalConfig,
   type JestLoadedConfig,
   type JestProjectConfig,
@@ -17,10 +18,12 @@ import {
   jestArgvToRunRequest,
   jestCli,
   jestConfigReader,
+  jestDebugText,
   jestFlags,
   jestNodeDialect,
   jestProjectToNeutral,
   loadJestConfig,
+  loadJestFilter,
   parseJestArgv,
   parseJestCli,
   readJestConfig,
@@ -141,3 +144,15 @@ expectTypeOf(loadJestReporters).returns.resolves.toEqualTypeOf<JestLoadedReporte
 expectTypeOf(createJestReporterHost).returns.toEqualTypeOf<Reporter[]>()
 // @ts-expect-error the plan needs to know whether an agent or GitHub Actions runs the process
 jestReporterPlan({ reporters: undefined }, [{}])
+
+// `--filter` and `--debug` (B23d, T9.9).
+expectTypeOf(loadJestFilter).returns.toEqualTypeOf<JestFilter | undefined>()
+expectTypeOf<JestFilter>().toEqualTypeOf<
+  (testPaths: readonly string[]) => Promise<readonly string[]>
+>()
+expectTypeOf(jestDebugText).returns.toBeString()
+expectTypeOf(jestDebugText).parameters.toEqualTypeOf<
+  [JestGlobalConfig, readonly JestProjectConfig[], string]
+>()
+// @ts-expect-error a filter's paths are strings, not files
+loadJestFilter({ filter: 1, skipFilter: false })

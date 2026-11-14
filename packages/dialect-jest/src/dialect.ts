@@ -363,8 +363,10 @@ export const jestPolicy: PolicyOverrides = {
     environmentPragmas: ['jest-environment'],
     // research: track-09 L555 (`threads` with `workerThreads`)
     pool: { default: 'forks' },
-    // research: track-09 L556 (Jest's "20 fast files" rule)
-    runInBand: { auto: true },
+    // Jest 30.5.2's `shouldRunInBand` (jest-core `testSchedulerHelper.ts`: `SLOW_TEST_TIME` 1000,
+    // `tests.length <= 20`). A single file runs inline: `policy/orchestrator-run-in-band`.
+    // `fastFileCount` and `slowMs` are read from testSchedulerHelper.ts L10 and L76 (claims pending B14).
+    inBand: { single: true, fastFileCount: 20, slowMs: 1000 },
     // Recorded from Jest 30.5.2: `cli/shard-1-of-3`, `-2-of-3` and `-3-of-3` (jest-test-sequencer's
     // `shard`: the sha1 of the root-relative path, then slices by count).
     shard: { fallback: 'sha1-slice' },

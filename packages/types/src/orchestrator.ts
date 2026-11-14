@@ -111,6 +111,13 @@ export interface WorkerInit {
   readonly provided: Readonly<Partial<ProvidedContext>>
   /** The worker's one project. */
   readonly config: SerializedProjectConfig
+  /**
+   * An inline worker (a run in band) installs the console capture on `globalThis.console`, so a
+   * test's `console` calls reach the reporters as events, as a fork's do. It leaves the process's
+   * own stdout and stderr alone: they are the coordinator's, the reporters' included. Forks and
+   * threads always capture; omitted, an inline worker captures nothing.
+   */
+  readonly captureConsole?: true
 }
 
 /**
@@ -492,6 +499,12 @@ export interface RunInfo {
   readonly startTime: number
   readonly watch: boolean
   readonly shard?: { readonly index: number; readonly count: number }
+  /**
+   * The files run in the coordinator's own process, one at a time (the `inline` pool, chosen by
+   * the policy's `orchestrator.inBand`, asked for, or named): Jest's `runInBand`, which a reporter
+   * reads as `showStatus: false`. Absent when the run doesn't say (a reporter driven by hand).
+   */
+  readonly inBand?: boolean
 }
 
 /**

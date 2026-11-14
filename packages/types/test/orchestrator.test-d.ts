@@ -128,6 +128,7 @@ expectTypeOf<WorkerEvent>().toExtend<CloneSafe<WorkerEvent>>()
 expectTypeOf<CoordinatorToWorker>().toExtend<CloneSafe<CoordinatorToWorker>>()
 expectTypeOf<WorkerToCoordinator>().toExtend<CloneSafe<WorkerToCoordinator>>()
 expectTypeOf<WorkerInit>().toExtend<CloneSafe<WorkerInit>>()
+expectTypeOf<WorkerInit['captureConsole']>().toEqualTypeOf<true | undefined>()
 
 // The RPC schemas: both method sets are clone-safe; a callback or a class result is not.
 expectTypeOf<CoordinatorMethods>().toExtend<RpcSchema<CoordinatorMethods>>()

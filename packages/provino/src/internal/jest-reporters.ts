@@ -41,21 +41,6 @@ export interface JestReporterSetup {
 /** The built-ins that print what a reporter threw (they hear it as an `error` event). */
 const TEXT_REPORTERS: ReadonlySet<string> = new Set(['default', 'verbose', 'agent', 'dot'])
 
-/**
- * `shouldRunInBand` (jest-core `testSchedulerHelper.ts`): `-i` and `--detectOpenHandles` run in
- * band, `workerIdleMemoryLimit` forces workers, and otherwise one worker or one file does. The
- * rule for up to 20 files that ran fast last time needs Jest's timings cache, which Provino has
- * not: a first Jest run has none either (DIVERGENCES).
- */
-function runsInBand(globalConfig: JestGlobalConfig, fileCount: number | undefined): boolean {
-  if (globalConfig.runInBand || globalConfig.detectOpenHandles) return true
-  if (globalConfig.watch || globalConfig.watchAll) return false
-  return (
-    globalConfig.workerIdleMemoryLimit === undefined &&
-    (globalConfig.maxWorkers <= 1 || (fileCount !== undefined && fileCount <= 1))
-  )
-}
-
 /** Jest's default `summaryThreshold` (`SummaryReporter.ts`). */
 const DEFAULT_SUMMARY_THRESHOLD = 20
 
@@ -84,19 +69,14 @@ export async function setUpJestReporters(options: {
   }
   let configs = options.configs
   let plan = jestReporterPlan(globalConfig, configs, environment)
-  // Jest reads `verbose` from the projects that have a test, and `onRunStart`'s `showStatus` from
-  // `shouldRunInBand`; finding the files costs a discovery, so it is done only when a class hears
-  // `showStatus` or the projects disagree on `verbose`.
+  // Jest reads `verbose` from the projects that have a test; finding the files costs a discovery,
+  // so it is done only when the projects disagree on `verbose`. `onRunStart`'s `showStatus` is the
+  // run's own in-band decision (`RunInfo.inBand`), which the host reads at `run:start`.
   const mixedVerbose =
     configs.some((config) => config.verbose === true) &&
     !configs.every((config) => config.verbose === true)
-  const hostsClasses = plan.steps.some(
-    (step) => step.kind === 'custom' || step.name === 'github-actions',
-  )
-  let fileCount: number | undefined
-  if (mixedVerbose || hostsClasses) {
+  if (mixedVerbose) {
     const counts = await options.filesPerProject()
-    fileCount = counts.reduce((sum, count) => sum + count, 0)
     configs = configs.filter((_, index) => (counts[index] ?? 0) > 0)
     plan = jestReporterPlan(globalConfig, configs, environment)
   }
@@ -111,7 +91,6 @@ export async function setUpJestReporters(options: {
     results,
     globalConfig,
     entries,
-    showStatus: !runsInBand(globalConfig, fileCount),
   })
   const afterUpdate = globalConfig.updateSnapshot === 'all'
   const noteHooks = {
