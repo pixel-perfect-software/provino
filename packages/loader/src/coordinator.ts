@@ -16,10 +16,10 @@ import type {
   Loader,
   ModulePolicy,
   Pipeline,
+  Resolver,
   SerializedLoaderConfig,
   SourceMapV3,
 } from '@provino/types'
-import { LoaderError } from './errors.ts'
 import { buildProjectLoader, type ProjectCoverage } from './project.ts'
 
 /**
@@ -72,13 +72,17 @@ export async function createCoordinatorLoader(
   options: { readonly coverage?: ProjectCoverage } = {},
 ): Promise<CoordinatorLoader> {
   // With no mocks there is nothing for the inlining walk to find, so the lexer and the graph stay off.
-  const built: { readonly loader: Loader; readonly pipeline: Pipeline } = await buildProjectLoader(
+  const built: {
+    readonly loader: Loader
+    readonly pipeline: Pipeline
+    readonly resolver: Resolver
+  } = await buildProjectLoader(
     root,
     withoutMocks(config),
     { ...policy, mocksReachShared: false },
     options,
   )
-  const { loader, pipeline } = built
+  const { loader, pipeline, resolver } = built
   const registries: FileRegistry[] = []
   const coordinator: CoordinatorLoader = {
     import: <T>(file: string) => {
@@ -99,11 +103,13 @@ export async function createCoordinatorLoader(
       })
       return { code: record.code, map: record.map }
     },
-    resolveDependency: () => {
-      throw new LoaderError(
-        'LOADER_NOT_IMPLEMENTED',
-        'CoordinatorLoader.resolveDependency is not implemented yet (B23c Phase 4).',
-      )
+    resolveDependency: (specifier, from) => {
+      const result = resolver.resolve(specifier, {
+        importer: from,
+        kind: 'require',
+        conditions: config.conditions,
+      })
+      return result.type === 'file' ? result.path : undefined
     },
     dispose: () => {
       for (const registry of registries.splice(0)) registry.dispose()

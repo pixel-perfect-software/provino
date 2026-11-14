@@ -887,3 +887,29 @@ test('loadedModules: reading a file’s closure resolves nothing: the edges are 
   ])
   assert.equal(counting.resolves(), beforeRead, 'no specifier was resolved again')
 })
+
+test('dropRecords: the next registry reads the new code of a dropped module and shares the others', async () => {
+  const root = writeTree({
+    'a.ts': 'export const a = 1\n',
+    'b.ts': "export const value = 'one'\n",
+  })
+  const loader = loaderFor(root)
+  const compiled: string[] = []
+  loader.onModuleCompiled((event) => compiled.push(event.id))
+  const load = <T>(name: string) =>
+    loader
+      .createFileRegistry(join(root, 'x.test.ts'), { tier: 'registry' })
+      .import<T>(join(root, name))
+  assert.equal((await load<{ value: string }>('b.ts')).value, 'one')
+  await load('a.ts')
+  writeFileSync(join(root, 'b.ts'), "export const value = 'two'\n")
+  assert.equal(
+    (await load<{ value: string }>('b.ts')).value,
+    'one',
+    'records are kept until dropped',
+  )
+  loader.dropRecords([join(root, 'b.ts'), join(root, 'never-loaded.ts')])
+  assert.equal((await load<{ value: string }>('b.ts')).value, 'two')
+  await load('a.ts')
+  assert.equal(compiled.filter((path) => path.endsWith('a.ts')).length, 1, 'a is compiled once')
+})

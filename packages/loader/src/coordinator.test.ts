@@ -163,10 +163,22 @@ test('it installs no hook process-wide: the extension table is as it was, and no
   }
 })
 
-test('resolveDependency is a stub until B23c Phase 4', async () => {
-  const dir = writeTree({ 'a.ts': 'export {}\n' })
-  using loader = await createCoordinatorLoader(dir, config(), neutralPolicy.module)
-  assert.throws(() => loader.resolveDependency('./a', join(dir, 'a.ts')), {
-    code: 'LOADER_NOT_IMPLEMENTED',
+test('resolveDependency resolves as a require does: files, extensions, mappers, and nothing for a builtin or a miss', async () => {
+  const dir = writeTree({
+    'a.ts': 'export {}\n',
+    'lib/index.ts': 'export {}\n',
+    'data.json': '{}\n',
   })
+  using loader = await createCoordinatorLoader(
+    dir,
+    config({ aliases: [{ pattern: '^@lib$', targets: ['<rootDir>/lib/index.ts'] }] }),
+    neutralPolicy.module,
+  )
+  const from = join(dir, 'a.ts')
+  assert.equal(loader.resolveDependency('./a', join(dir, 'b.ts')), from)
+  assert.equal(loader.resolveDependency('./lib', from), join(dir, 'lib/index.ts'))
+  assert.equal(loader.resolveDependency('./data.json', from), join(dir, 'data.json'))
+  assert.equal(loader.resolveDependency('@lib', from), join(dir, 'lib/index.ts'))
+  assert.equal(loader.resolveDependency('node:fs', from), undefined)
+  assert.equal(loader.resolveDependency('./missing', from), undefined)
 })
