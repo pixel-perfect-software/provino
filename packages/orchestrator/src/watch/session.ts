@@ -5,8 +5,9 @@
 // file goes with its next one (`stale.ts`). Which files a run selects, and when one starts, is the
 // caller's: Jest's driver lives in `@provino/dialect-jest/node` and reaches this through `provino`.
 import { basename, resolve, sep } from 'node:path'
+import { serialize } from 'node:v8'
 import type { ResolvedProject } from '@provino/config'
-import type { PoolKind, RunSummary, Transport, TransportFactory } from '@provino/types'
+import type { PoolKind, RunSummary, Transport, TransportFactory, WorkerEvent } from '@provino/types'
 import { type AffectedIndex, createAffectedIndex } from '../affected/index.ts'
 import { openRecordedGraph, type RecordedGraph } from '../affected/recorded.ts'
 import { cacheDirectories, type ResultsCache } from '../cache.ts'
@@ -129,9 +130,18 @@ export async function createWatchSession(
     throw new OrchestratorError('ORCH_NO_PROJECTS', 'A watch session needs at least one project.')
   }
   const stderr = options.stderr ?? process.stderr
-  const reportError =
-    options.onError ??
-    ((error: unknown) => void stderr.write(`Provino: the watcher failed: ${messageOf(error)}\n`))
+  /** A change source's failure, or anything else of the session's own; never throws. */
+  const reportError = (error: unknown): void => {
+    try {
+      if (options.onError !== undefined) {
+        options.onError(error)
+        return
+      }
+    } catch (handlerError) {
+      stderr.write(`Provino: the watch session's onError failed: ${messageOf(handlerError)}\n`)
+    }
+    stderr.write(`Provino: watch mode: ${messageOf(error)}\n`)
+  }
   const inBand = options.runInBand === true
   const kind: PoolKind = inBand
     ? 'inline'
@@ -161,6 +171,17 @@ export async function createWatchSession(
 
   /** The run the pool serves now: its callbacks, until it ends. */
   let current: RunPoolDeps | undefined
+  /**
+   * The workers that were alive when the current run began and have not taken one of its files: what
+   * they send while they stop (a retirement during this run) is an earlier run's, not this one's.
+   */
+  const inherited = new Set<number>()
+  /** What a worker no run owns sends: its errors are lines on stderr, the rest is dropped. */
+  function betweenRuns(events: readonly WorkerEvent[]): void {
+    for (const event of events) {
+      if (event.type === 'unhandled-error') stderr.write(`Provino: ${event.error.message}\n`)
+    }
+  }
   const pool = createPool(poolOptions, {
     transport: () => tracked,
     init: (key, workerId) => {
@@ -170,9 +191,13 @@ export async function createWatchSession(
       return current.init(key, workerId)
     },
     methods: { readTimings: (file) => current?.methods.readTimings(file) },
-    onIdleEvents: (workerId, events) => current?.onIdleEvents?.(workerId, events),
-    onError: (error, errorKind) => {
-      if (current?.onError !== undefined) current.onError(error, errorKind)
+    onIdleEvents: (workerId, events) => {
+      if (current === undefined || inherited.has(workerId)) betweenRuns(events)
+      else return current.onIdleEvents?.(workerId, events)
+    },
+    onError: (error, errorKind, workerId) => {
+      const owned = workerId === undefined || !inherited.has(workerId)
+      if (owned && current?.onError !== undefined) current.onError(error, errorKind)
       else stderr.write(`Provino: ${messageOf(error)}\n`)
     },
     ...(options.forceSignal === undefined ? {} : { forceSignal: options.forceSignal }),
@@ -181,6 +206,10 @@ export async function createWatchSession(
   /** Binds the session's pool to one run; what the run does to it ends with the run. */
   function attach(deps: RunPoolDeps): Pool {
     current = deps
+    inherited.clear()
+    for (const workerId of stale.workers()) inherited.add(workerId)
+    // A key whose starts failed in an earlier run is tried again in this one.
+    pool.resetFailures()
     let done = false
     const { signal } = deps
     const interruptRun = (): void => pool.interrupt()
@@ -208,6 +237,7 @@ export async function createWatchSession(
       },
       interrupt: (interruptOptions) => pool.interrupt(interruptOptions),
       retire: (which) => pool.retire(which),
+      resetFailures: () => pool.resetFailures(),
     }
   }
 
@@ -223,6 +253,17 @@ export async function createWatchSession(
   >()
   /** The changes applied to the indexes so far: a run waits for them. */
   let applied: Promise<void> = Promise.resolve()
+  /** Runs `work` after every index update and lookup before it: one at a time, never rejecting the chain. */
+  function serialized<T>(work: () => Promise<T>): Promise<T> {
+    const next = applied.then(work)
+    applied = next.then(
+      () => {},
+      () => {},
+    )
+    return next
+  }
+  /** The global setup's `provided` the workers alive now booted with. */
+  let provided: Buffer | undefined
 
   function indexOf(
     projectIndex: number,
@@ -233,24 +274,34 @@ export async function createWatchSession(
     if (made === undefined) {
       const project = projects[projectIndex]
       if (project === undefined) throw new Error(`no project at ${projectIndex}`)
-      made = (async () => {
+      const making = (async () => {
         const { createCoordinatorLoader } = await import('@provino/loader')
         const loader = await createCoordinatorLoader(
           project.rootDir,
           project.config.loader,
           project.policy.module,
         )
-        const index = await createAffectedIndex(project, {
-          cacheDir: options.cache === false ? null : cacheDirectories(project).results,
-          projectKey: cacheProject,
-          loader,
-          ...(recorded === undefined ? {} : { recorded }),
-          ...(options.ignorePatterns === undefined
-            ? {}
-            : { ignorePatterns: options.ignorePatterns }),
-        })
-        return { index, loader }
+        try {
+          const index = await createAffectedIndex(project, {
+            cacheDir: options.cache === false ? null : cacheDirectories(project).results,
+            projectKey: cacheProject,
+            loader,
+            ...(recorded === undefined ? {} : { recorded }),
+            ...(options.ignorePatterns === undefined
+              ? {}
+              : { ignorePatterns: options.ignorePatterns }),
+          })
+          return { index, loader }
+        } catch (error) {
+          loader[Symbol.dispose]()
+          throw error
+        }
       })()
+      // An index that couldn't be made is made again on its next use.
+      making.catch(() => {
+        if (indexes.get(projectIndex) === making) indexes.delete(projectIndex)
+      })
+      made = making
       indexes.set(projectIndex, made)
     }
     return made
@@ -264,7 +315,17 @@ export async function createWatchSession(
     caches,
     lockfileHashes,
     depsTables,
-    staleModules: (workerId) => stale.take(workerId),
+    staleModules: (workerId) => {
+      // The pool asks as the worker takes one of this run's files: from now on it is this run's.
+      inherited.delete(workerId)
+      return stale.take(workerId)
+    },
+    onProvided: (values) => {
+      // A warm worker keeps what the setup provided when it booted: new values need new workers.
+      const bytes = serialize(values)
+      if (provided !== undefined && !bytes.equals(provided)) pool.retire(() => true)
+      provided = bytes
+    },
     openRecordedGraph: (path) => {
       let graph = graphs.get(path)
       if (graph === undefined) {
@@ -278,13 +339,17 @@ export async function createWatchSession(
       if (project === undefined) return []
       const paths = selection.kind === 'related' ? selection.paths : selection.changed.changedFiles
       if (paths.length === 0) return []
-      const { index } = await indexOf(member.projectIndex, member.cacheProject, recorded)
-      const related = new Set(index.related(paths))
-      try {
-        await index.save()
-      } catch {
-        // The edge cache is a convenience: an unwritable directory costs the next start its warmth.
-      }
+      // After every update so far, and before any batch that comes while it reads.
+      const related = await serialized(async () => {
+        const { index } = await indexOf(member.projectIndex, member.cacheProject, recorded)
+        const reached = new Set(index.related(paths))
+        try {
+          await index.save()
+        } catch {
+          // The edge cache is a convenience: an unwritable directory costs the next start its warmth.
+        }
+        return reached
+      })
       return everything.filter((file) => related.has(resolve(project.rootDir, file.relativePath)))
     },
   }
@@ -295,7 +360,7 @@ export async function createWatchSession(
     const which = retirementFor(batch)
     if (which !== undefined) pool.retire(which)
     const made = [...indexes.values()]
-    applied = applied.then(async () => {
+    void serialized(async () => {
       for (const entry of made) {
         try {
           await (await entry).index.update(batch)
@@ -304,7 +369,14 @@ export async function createWatchSession(
         }
       }
     })
-    for (const listener of listeners) listener(batch)
+    for (const listener of listeners) {
+      // One listener that throws must not keep the others from the batch, nor escape the timer.
+      try {
+        listener(batch)
+      } catch (error) {
+        reportError(error)
+      }
+    }
   }
 
   const coalescer = createCoalescer({
@@ -372,11 +444,19 @@ export async function createWatchSession(
     },
     close() {
       closing ??= (async () => {
-        watching.close()
-        coalescer.close()
-        controller?.abort()
-        await running?.catch(() => {})
-        await pool.close()
+        try {
+          try {
+            watching.close()
+          } finally {
+            coalescer.close()
+            listeners.clear()
+            controller?.abort()
+            await running?.catch(() => {})
+          }
+        } finally {
+          // Whatever the change source did, no worker outlives the session.
+          await pool.close()
+        }
         await applied
         for (const made of indexes.values()) {
           try {

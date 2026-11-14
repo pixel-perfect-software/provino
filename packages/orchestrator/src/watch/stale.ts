@@ -21,6 +21,8 @@ export interface StaleModules {
   take(workerId: number): readonly string[]
   /** How many workers it tracks (a test reads it). */
   readonly size: () => number
+  /** The ids of the workers it tracks: the ones alive or starting. */
+  readonly workers: () => readonly number[]
 }
 
 /** @internal */
@@ -45,6 +47,7 @@ export function createStaleModules(): StaleModules {
       return paths
     },
     size: () => byWorker.size,
+    workers: () => [...byWorker.keys()],
   }
 }
 

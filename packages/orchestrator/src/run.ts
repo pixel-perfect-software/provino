@@ -485,6 +485,11 @@ export interface RunHost {
   readonly openRecordedGraph: (path: string) => Promise<RecordedGraph>
   /** The changed paths a worker has not been told about, which go with its next file. */
   readonly staleModules: (workerId: number) => readonly string[]
+  /**
+   * What this run's global setup provided (`{}` with none), before any file is asked for: a warm
+   * worker booted with an earlier run's values, so the session replaces the workers when they differ.
+   */
+  readonly onProvided: (provided: Readonly<Record<string, unknown>>) => void
 }
 
 /**
@@ -849,6 +854,8 @@ export async function runProjectsOn(
     if (bailAfter === 'file') void pool.close()
   }
   let handles: OpenHandleTracker | undefined
+  /** Each queued file's run, once every file has been asked for. */
+  let running: readonly Promise<void>[] = []
 
   /** The files that have a result, in queue order. */
   const finishedFiles = (): FileResult[] => queue.flatMap((entry) => results.get(entry) ?? [])
@@ -1233,6 +1240,7 @@ export async function runProjectsOn(
         forceSignal: options.forceSignal,
       })
     }
+    host?.onProvided(globalSetup?.provided ?? {})
 
     announced = true
     await bus.emit(
@@ -1247,7 +1255,7 @@ export async function runProjectsOn(
     if (options.detectOpenHandles === true) {
       handles = collectOpenHandles({ roots: members.map((m) => m.project.rootDir) })
     }
-    const running = queue.map((entry) => runFile(entry))
+    running = queue.map((entry) => runFile(entry))
     pool.drain()
     await Promise.all(running)
     // The history is complete; writing it overlaps the workers' shutdown.
@@ -1343,6 +1351,9 @@ export async function runProjectsOn(
   } catch (error) {
     thrown = true
     await pool.close()
+    // A session's pool doesn't wait for the files it killed: each still ends (its `file:end`)
+    // before the reporters hear the run ended, and none reaches the session's next run.
+    if (host !== undefined) await Promise.allSettled(running)
     // The hook that tracks resources is process-wide: it must not outlive the run.
     handles?.dispose()
     // Reporters that heard `run:start` hear how it ended, whatever threw.
