@@ -22,14 +22,17 @@ export interface WatchLogTest {
 }
 
 /**
- * A test file as the run log keeps it: its path relative to the root (POSIX separators), how it
- * ended (`crashed` for a file that failed outside a test, `failed`, `skipped` or `passed`), and its
+ * A test file as the run log keeps it: its path relative to the root (POSIX separators), its
+ * status as Jest counts it (`@jest/test-result` `addResult`: `skipped` for a skipped file, then
+ * `failed` for a failing test or an error running the file, else `passed`; the failure message
+ * decides nothing), `execError` when the file failed to run (Jest's `testExecError`), and its
  * tests in Jest's order (the order they were declared).
  * @public
  */
 export interface WatchLogFile {
   readonly path: string
-  readonly status: 'crashed' | 'failed' | 'skipped' | 'passed'
+  readonly status: 'failed' | 'skipped' | 'passed'
+  readonly execError?: true
   readonly tests: readonly WatchLogTest[]
 }
 
@@ -58,7 +61,6 @@ export interface WatchLogResults {
     readonly numFailingTests: number
     readonly skipped: boolean
     readonly testExecError?: unknown
-    readonly failureMessage?: string | null
     readonly testResults: readonly WatchLogTest[]
   }[]
   readonly snapshot: {
@@ -79,17 +81,16 @@ function byPath(a: WatchLogFile, b: WatchLogFile): number {
  */
 export function watchLogEntry(results: WatchLogResults, rootDir: string): WatchLogEntry {
   const files = results.testResults.map((file): WatchLogFile => {
-    const failedOutside =
-      file.testExecError !== undefined && file.testExecError !== null && file.numFailingTests === 0
+    // Jest tests `testExecError` for truth (`addResult`, `getResultHeader`).
+    const execError = file.testExecError !== undefined && file.testExecError !== null
     return {
       path: path.relative(rootDir, file.testFilePath).split(path.sep).join('/'),
-      status: failedOutside
-        ? 'crashed'
-        : file.numFailingTests > 0
+      status: file.skipped
+        ? 'skipped'
+        : file.numFailingTests > 0 || execError
           ? 'failed'
-          : file.skipped
-            ? 'skipped'
-            : 'passed',
+          : 'passed',
+      ...(execError ? { execError: true as const } : {}),
       tests: file.testResults.map((test) => ({ fullName: test.fullName, status: test.status })),
     }
   })

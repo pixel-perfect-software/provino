@@ -65,7 +65,7 @@ test('an entry lists each file by root-relative path, sorted, with its tests in 
   })
 })
 
-test('a file is crashed, failed, skipped or passed, and the snapshot and interrupt state are kept', () => {
+test('a file is failed, skipped or passed, and the snapshot and interrupt state are kept', () => {
   const entry = watchLogEntry(
     results(
       [
@@ -83,7 +83,7 @@ test('a file is crashed, failed, skipped or passed, and the snapshot and interru
   assert.deepEqual(
     entry.files.map((one) => [one.path, one.status]),
     [
-      ['crash.test.ts', 'crashed'],
+      ['crash.test.ts', 'failed'],
       ['fail.test.ts', 'failed'],
       ['pass.test.ts', 'passed'],
       ['skip.test.ts', 'skipped'],
@@ -139,4 +139,31 @@ test('the file comes from the options, else the environment, and a reporter with
     else process.env[WATCH_LOG_ENV] = saved
     await rm(dir, { recursive: true, force: true })
   }
+})
+
+test("a file's status is Jest's own: skipped first, then failed for a failing test or an exec error", () => {
+  // `@jest/test-result` addResult and `getResultHeader`: a skipped file counts as skipped even
+  // with an error, an exec error with no failing test is a failure, and `failureMessage` decides
+  // nothing.
+  // A result as Jest gives it carries more fields than the log reads.
+  const messageOnly = {
+    ...file('message-only.test.ts', [{ fullName: 'a', status: 'passed' }]),
+    failureMessage: 'printed, but no test failed',
+  }
+  const entry = watchLogEntry(
+    results([
+      file('skipped-error.test.ts', [], { skipped: true, testExecError: { message: 'x' } }),
+      file('exec-error.test.ts', [], { testExecError: { message: 'boom' } }),
+      messageOnly,
+    ]),
+    ROOT,
+  )
+  assert.deepEqual(
+    entry.files.map((one) => [one.path, one.status, one.execError === true]),
+    [
+      ['exec-error.test.ts', 'failed', true],
+      ['message-only.test.ts', 'passed', false],
+      ['skipped-error.test.ts', 'skipped', true],
+    ],
+  )
 })
