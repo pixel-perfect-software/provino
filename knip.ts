@@ -74,6 +74,8 @@ const config: KnipConfig = {
         'jest-serializer-vue',
         'jest-silent-reporter',
         'jest-sonar-reporter',
+        // The watch plugins `watch/plugin-typeahead-*` name in their Jest config (B23c, D120).
+        'jest-watch-typeahead',
         // The Prettier 3 Jest finds from the recorder's work directory (`snapshot/inline-prettier`).
         'prettier',
       ],

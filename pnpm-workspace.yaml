@@ -141,6 +141,9 @@ catalog:
   jest-sonar-reporter: 2.0.0
   jest-serializer-vue: 3.1.0
   jest-util: 30.5.1
+  # B23c, D120: the watch goldens' `watchPlugins` (`jest-watch-typeahead/filename` and `/testname`),
+  # loaded from the project as Jest loads them. Its `jest-watcher` is held with Jest's (D77).
+  jest-watch-typeahead: 3.0.1
   # jsdom (Track 8's version): the propagation test's DOM rows, later the jsdom environment.
   jsdom: 30.1.3
   # The bottom of the `jsdom` peer range (>=26 <31): env-jsdom's userAgent test runs against it too.

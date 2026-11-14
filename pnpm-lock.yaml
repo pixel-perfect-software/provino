@@ -377,6 +377,9 @@ catalogs:
     jest-util:
       specifier: 30.5.1
       version: 30.5.1
+    jest-watch-typeahead:
+      specifier: 3.0.1
+      version: 3.0.1
     jsdom:
       specifier: 30.1.3
       version: 30.1.3
@@ -999,6 +1002,9 @@ importers:
       jest-sonar-reporter:
         specifier: 'catalog:'
         version: 2.0.0
+      jest-watch-typeahead:
+        specifier: 'catalog:'
+        version: 3.0.1(jest@30.5.2(@types/node@22.20.5)(supports-color@8.1.1))
       jsdom:
         specifier: 'catalog:'
         version: 30.1.3
@@ -4551,6 +4557,12 @@ packages:
     resolution: {integrity: sha512-i/buJ56wTpxihE93hQYNMfdOThS87+HGvLZzZJmU4xggPcdTYQq051iwALLCHp3q+SkCGH+EFejQZz5EbBSkkg==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
 
+  jest-watch-typeahead@3.0.1:
+    resolution: {integrity: sha512-SFmHcvdueTswZlVhPCWfLXMazvwZlA2UZTrcE7MC3NwEVeWvEcOx6HUe+igMbnmA6qowuBSW4in8iC6J2EYsgQ==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      jest: ^30.0.0
+
   jest-watcher@30.5.2:
     resolution: {integrity: sha512-rqRgg4R11GA9m1UsEZwQeixHsgZReCn6TOHAHtIH33yXrIvoX0OGPA20Yzzjkz7X40fZvcRSxEpQppYPcWzmcQ==}
     engines: {node: ^18.14.0 || ^20.0.0 || ^22.0.0 || >=24.0.0}
@@ -5190,6 +5202,10 @@ packages:
     resolution: {integrity: sha512-g9Q1haeby36OSStwb4ntCGGGaKsaVSjQ68fBxoQcutl5fS1vuY18H3wSt3jFyFtrkx+Kz0V1G85A4MyAdDMi2Q==}
     engines: {node: '>=8'}
 
+  slash@5.1.0:
+    resolution: {integrity: sha512-ZA6oR3T/pEyuqwMgAKT0/hAv8oAXckzbkmR0UkUosQ+Mc4RxGoJkRmwHgHufaenlyAgE1Mxgpdcrf75y6XcnDg==}
+    engines: {node: '>=14.16'}
+
   smol-toml@1.9.1:
     resolution: {integrity: sha512-j7WyPdf0CJoutMzMoPLF/bVXHtKZIT9Rb4eGeEbWw8X2t5oirjPgpL+OpaENZrILYaXqYwnVH+qgUwVbl+pUJQ==}
     engines: {node: '>= 18'}
@@ -5219,6 +5235,10 @@ packages:
   string-length@4.0.2:
     resolution: {integrity: sha512-+l6rNN5fYHNhZZy41RXsYptCjA2Igmq4EG7kZAYFQI1E1VTXarr6ZPXBg6eq7Y6eK4FEhY6AJlyuFIb/v/S0VQ==}
     engines: {node: '>=10'}
+
+  string-length@6.0.0:
+    resolution: {integrity: sha512-1U361pxZHEQ+FeSjzqRpV+cu2vTzYeWeafXFLykiFlv4Vc0n3njgU8HrMbyik5uwm77naWMuVG8fhEF+Ovb1Kg==}
+    engines: {node: '>=16'}
 
   string-width@4.2.3:
     resolution: {integrity: sha512-wKyQRQpjJ0sIp62ErSZdGsjMJWsap5oRNihHhu6G7JVO/9jIB6UyevL+tXuOqrng8j/cxKTWyWUwvSTriiZz/g==}
@@ -8865,6 +8885,17 @@ snapshots:
       leven: 3.1.0
       pretty-format: 30.5.1
 
+  jest-watch-typeahead@3.0.1(jest@30.5.2(@types/node@22.20.5)(supports-color@8.1.1)):
+    dependencies:
+      ansi-escapes: 7.3.0
+      chalk: 5.6.2
+      jest: 30.5.2(@types/node@22.20.5)(supports-color@8.1.1)
+      jest-regex-util: 30.5.0
+      jest-watcher: 30.5.2
+      slash: 5.1.0
+      string-length: 6.0.0
+      strip-ansi: 7.2.0
+
   jest-watcher@30.5.2:
     dependencies:
       '@jest/test-result': 30.5.2
@@ -9560,6 +9591,8 @@ snapshots:
 
   slash@3.0.0: {}
 
+  slash@5.1.0: {}
+
   smol-toml@1.9.1: {}
 
   source-map-js@1.2.2: {}
@@ -9580,6 +9613,10 @@ snapshots:
     dependencies:
       char-regex: 1.0.2
       strip-ansi: 6.0.1
+
+  string-length@6.0.0:
+    dependencies:
+      strip-ansi: 7.2.0
 
   string-width@4.2.3:
     dependencies:
