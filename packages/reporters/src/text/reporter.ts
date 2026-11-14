@@ -12,7 +12,12 @@ import type {
   TextStyle,
 } from '@provino/types'
 import { DEFAULT_COLUMNS } from '../environment.ts'
-import { createCollector, type FileRecord, outcomeOf } from '../internal/collect.ts'
+import {
+  createCollector,
+  type FileRecord,
+  outcomeOf,
+  recordRootOrder,
+} from '../internal/collect.ts'
 import type { TextSink } from '../sink.ts'
 import { createStyle } from '../style.ts'
 import { type ConsoleEntry, consoleBlock, consoleEntries } from './console.ts'
@@ -376,10 +381,7 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       const { fileId } = result.file
       tally(files, result.state)
       const entry = record.files.get(fileId)
-      const top = entry?.tasks.find((task) => task.type === 'file')
-      if (entry !== undefined && top !== undefined && result.childOrder !== undefined) {
-        entry.orders.set(top.id, result.childOrder)
-      }
+      if (entry !== undefined) recordRootOrder(entry, result)
       const text = fileText(result, entry)
       release(fileId)
       lastFailed = result.state === 'fail'
