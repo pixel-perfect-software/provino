@@ -177,7 +177,10 @@ function normalizeFile(
   unhandledErrors: UnhandledErrors,
 ): NormalizedFile {
   const console = consoleOf(record)
-  const tests = [...record.tests.values()].map((test) =>
+  // A file failed whole after its tests ended (its inline snapshots could not be written) reports
+  // none of them, as the Jest result it stands for has none.
+  const kept = result.resultsDiscarded === true ? [] : [...record.tests.values()]
+  const tests = kept.map((test) =>
     normalizeTest(
       info,
       test,
