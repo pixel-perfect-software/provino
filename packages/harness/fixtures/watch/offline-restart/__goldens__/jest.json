@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "watch/offline-restart",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "runs": [
+      {
+        "files": [
+          {
+            "path": "a.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "a",
+                "status": "passed"
+              }
+            ]
+          },
+          {
+            "path": "b.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "b",
+                "status": "passed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      }
+    ],
+    "transcript": "<CLEAR>\nTest Suites: 2 passed, 2 total\nTests:       2 passed, 2 total\nSnapshots:   0 total\nRan all test suites related to changed files.\nWatch Usage\n › Press a to run all tests.\n › Press f to run only failed tests.\n › Press p to filter by a filename regex pattern.\n › Press t to filter by a test name regex pattern.\n › Press q to quit watch mode.\n › Press Enter to trigger a test run."
+  }
+}

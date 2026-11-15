@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "watch/non-interactive",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "runs": [
+      {
+        "files": [
+          {
+            "path": "a.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "a passes",
+                "status": "passed"
+              }
+            ]
+          },
+          {
+            "path": "b.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "b passes",
+                "status": "passed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [
+          {
+            "path": "a.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "a passes",
+                "status": "passed"
+              },
+              {
+                "fullName": "a saved",
+                "status": "passed"
+              }
+            ]
+          },
+          {
+            "path": "b.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "b passes",
+                "status": "passed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      }
+    ],
+    "transcript": "Test Suites: 2 passed, 2 total\nTests:       2 passed, 2 total\nRan all test suites.\nTest Suites: 2 passed, 2 total\nTests:       3 passed, 3 total\nRan all test suites."
+  }
+}

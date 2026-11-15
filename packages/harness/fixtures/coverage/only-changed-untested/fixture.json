@@ -1,0 +1,40 @@
+{
+  "description": "`-o --coverage` with `collectCoverageFrom: ['src/**/*.ts']` (CoverageReporter.ts L193-L199 hands `changedFiles` and `sourcesRelatedToTestsInChangedFiles` to the untested-file worker, which asks `shouldInstrument`): of the files no test loads, `src/untested-changed.ts` is changed and is reported with zero counters, while `src/untested.ts` and `src/other.ts` are left out. Jest only. Read by `provino`'s `jest-coverage-changed.test.ts`.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "coverageProvider": "babel",
+      "coverageReporters": ["json", "json-summary", "text"],
+      "maxWorkers": 1,
+      "collectCoverageFrom": ["src/**/*.ts"]
+    }
+  },
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "write": {
+          "src/changed.ts": "function double(n) {\n  if (n < 0) {\n    return 0\n  }\n  return n * 2 // edited\n}\nmodule.exports = { double }\n",
+          "tests/edited.test.ts": "const { add } = require('../src/related.ts')\n\ntest('adds', () => {\n  expect(add(1, 2)).toBe(3)\n})\n\ntest('adds again', () => {\n  expect(add(2, 2)).toBe(4)\n})\n",
+          "src/untested-changed.ts": "function nobody() {\n  return 'nobody!'\n}\nmodule.exports = { nobody }\n"
+        }
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["-o"]
+    },
+    "raw": true,
+    "maskKeys": ["hash"],
+    "capture": [
+      "exitCode",
+      "stdout",
+      "json:coverage/coverage-final.json",
+      "json:coverage/coverage-summary.json"
+    ]
+  }
+}

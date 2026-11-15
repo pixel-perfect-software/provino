@@ -1,0 +1,51 @@
+{
+  "description": "A third-party CommonJS watch plugin from `watchPlugins`: its usage row, its key `x` (run, then a rerun because it resolves true), shouldRunTestSuite leaving skipped.test.ts out of every run, and onFileChange at the start. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      }
+    ]
+  },
+  "files": {
+    "jest": {
+      "plugin.cjs": "const fs = require('node:fs')\nconst path = require('node:path')\n\n// A third-party watch plugin: a key of its own, a run that asks for a rerun, a filter on which\n// test files run, and a file-change hook. It writes what it saw to plugin.jsonl beside itself.\nclass CustomPlugin {\n  constructor({ config }) {\n    this.log = path.join(__dirname, 'plugin.jsonl')\n    this.skip = (config && config.skip) || 'skipped'\n  }\n\n  write(entry) {\n    fs.appendFileSync(this.log, `${JSON.stringify(entry)}\\n`)\n  }\n\n  apply(hooks) {\n    hooks.shouldRunTestSuite(({ testPath }) => !path.basename(testPath).startsWith(this.skip))\n    hooks.onFileChange(({ projects }) => {\n      const files = projects.flatMap((project) =>\n        project.testPaths.map((file) => path.relative(project.config.rootDir, file)),\n      )\n      this.write({ onFileChange: files.sort() })\n    })\n  }\n\n  getUsageInfo() {\n    return { key: 'x', prompt: 'run the custom plugin' }\n  }\n\n  run() {\n    this.write({ run: true })\n    return Promise.resolve(true)\n  }\n}\n\nmodule.exports = CustomPlugin\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "watchPlugins": [
+        [
+          "<rootDir>/plugin.cjs",
+          {
+            "skip": "skipped"
+          }
+        ]
+      ]
+    }
+  },
+  "watch": {
+    "argv": ["--watchAll"],
+    "tty": true,
+    "steps": [
+      {
+        "waitRun": 1
+      },
+      {
+        "key": "x"
+      },
+      {
+        "waitRun": 2
+      },
+      {
+        "key": "q"
+      },
+      {
+        "exit": 0
+      }
+    ],
+    "capture": ["runs", "transcript", "exitCode", "file:plugin.jsonl"],
+    "keepLines": "^(?:<CLEAR>$|Watch Usage| › |Active Filters:|Pattern Mode Usage| pattern ›|Ran all test suites|Test run was interrupted|No tests found|No failed test found|Press `|Run Jest without|Interactive (?:Test|Snapshot)|Pattern matches|Start typing|Tests:|Test Suites:|Snapshots:)"
+  }
+}

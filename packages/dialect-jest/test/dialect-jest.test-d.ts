@@ -13,10 +13,12 @@ import {
   type JestGlobalsHost,
   type JestModuleObject,
   type JestObject,
+  type JestSnapshotStateView,
   jestExpectTable,
   jestGlobals,
   jestModuleScope,
   jestSnapshotResolver,
+  jestSnapshotStateView,
 } from '@provino/dialect-jest/runtime'
 import { moduleRef } from '@provino/policy'
 import type {
@@ -34,6 +36,8 @@ import type {
   PolicyOverrides,
   ProjectConfig,
   ProvinoConfigInput,
+  SnapshotContextSource,
+  SnapshotContextViewFactory,
   SnapshotResolverFactory,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
@@ -192,3 +196,24 @@ expectTypeOf(jestSnapshotResolver({}, '.snap').resolveTestPath('a')).toEqualType
 void jestInlineSnapshotWriter()([], {})
 // @ts-expect-error the resolver factory needs the snapshot extension
 jestSnapshotResolver({})
+
+// B23e (D128): Jest's `this.snapshotState` over the file's state, behind `snapshot.contextView`.
+expectTypeOf(jestSnapshotStateView).toExtend<SnapshotContextViewFactory>()
+expectTypeOf(jestSnapshotStateView).parameters.toEqualTypeOf<[SnapshotContextSource]>()
+expectTypeOf(jestSnapshotStateView).returns.toEqualTypeOf<JestSnapshotStateView>()
+expectTypeOf<JestSnapshotStateView['_counters']>().toEqualTypeOf<Map<string, number>>()
+expectTypeOf<JestSnapshotStateView['_updateSnapshot']>().toEqualTypeOf<'all' | 'new' | 'none'>()
+expectTypeOf<JestSnapshotStateView['added']>().toEqualTypeOf<number>()
+expectTypeOf(jestPolicy.snapshot?.contextView).toEqualTypeOf<
+  ModuleRef<SnapshotContextViewFactory> | SnapshotContextViewFactory | null | undefined
+>()
+declare const view: JestSnapshotStateView
+view.added += 1
+// @ts-expect-error `_counters` is the state's live map: it can't be replaced
+view._counters = new Map()
+// @ts-expect-error the update mode is the run's
+view._updateSnapshot = 'all'
+// @ts-expect-error a count is a number
+view.matched = '1'
+// @ts-expect-error the view is built over the file's state
+jestSnapshotStateView({ added: 0 })

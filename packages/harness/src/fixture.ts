@@ -145,6 +145,65 @@ export interface FixtureManifest {
    * Jest-only field. The arguments go through the same checks as `run.argv`.
    */
   readonly before?: readonly FixtureBeforeRun[]
+  /**
+   * A watch session (B23c Phase 3): Jest started with `--watch` or `--watchAll` on a terminal (or,
+   * with `tty: false`, on a pipe), driven by `steps`, and recorded as its runs, its transcript, its
+   * exit code and the files it left. Jest-only, and never beside `run` or `before`.
+   */
+  readonly watch?: FixtureWatch
+}
+
+/**
+ * The keys a watch step's `key` names, and the bytes a terminal sends for them. Any other `key` is
+ * one printable character, sent as it is.
+ * @public
+ */
+export const WATCH_KEYS: Readonly<Record<string, string>> = {
+  '<enter>': '\r',
+  '<esc>': '\u001b',
+  '<backspace>': '\u007f',
+  '<up>': '\u001b[A',
+  '<down>': '\u001b[B',
+  '<ctrl-c>': '\u0003',
+  '<ctrl-d>': '\u0004',
+}
+
+/**
+ * One step of a watch session, run in order. Exactly one key:
+ * - `waitRun`: the run log holds `n` runs (and, on a terminal, Jest has printed its usage after the
+ *   last one, so it reads keys again);
+ * - `waitText`: the terminal shows this text after everything an earlier step waited for;
+ * - `key`: one key (`WATCH_KEYS`, or one printable character);
+ * - `type`: text typed into a pattern prompt, one character per write, each written once the
+ *   prompt line shows the text so far (` pattern › ` and the text);
+ * - `write`, `remove`, `scm`: a change to the work directory, as a fixture's `scm` steps make it;
+ * - `exit`: the session ends with this exit code (the last step).
+ * @public
+ */
+export type WatchStep =
+  | { readonly waitRun: number }
+  | { readonly waitText: string }
+  | { readonly key: string }
+  | { readonly type: string }
+  | { readonly write: Readonly<Record<string, string>> }
+  | { readonly remove: readonly string[] }
+  | { readonly scm: readonly ScmStep[] }
+  | { readonly exit: number }
+
+/**
+ * A fixture's `watch` field. `argv` is added to Jest's command line and holds `--watch` or
+ * `--watchAll`; `capture` lists `runs` (the run log, one entry per run), `transcript` (the terminal
+ * as it was left, normalized and cut to `keepLines`), `exitCode` (needs an `exit` step) and
+ * `file:<relative path>`. `mask` is `run.mask`'s, over the transcript and the files.
+ * @public
+ */
+export interface FixtureWatch {
+  readonly argv: readonly string[]
+  readonly tty: boolean
+  readonly steps: readonly WatchStep[]
+  readonly capture: readonly string[]
+  readonly keepLines?: string
+  readonly mask?: readonly string[]
 }
 
 /**
@@ -317,6 +376,7 @@ const KNOWN_KEYS: ReadonlySet<string> = new Set([
   'run',
   'scm',
   'before',
+  'watch',
 ])
 
 function isFixtureProfile(value: unknown): value is FixtureProfile {
@@ -350,7 +410,7 @@ export function parseFixtureManifest(
     if (!KNOWN_KEYS.has(key)) {
       throw new HarnessError(
         'HARNESS_FIXTURE_UNKNOWN_KEY',
-        `${source}: unknown key "${key}" (expected description, runners, env, nodeFlags, nodeMajors, expectCrash, mockCleanup, packages, jestEsm, jestTypeScript, jestConfig, config, files, run, scm, before)`,
+        `${source}: unknown key "${key}" (expected description, runners, env, nodeFlags, nodeMajors, expectCrash, mockCleanup, packages, jestEsm, jestTypeScript, jestConfig, config, files, run, scm, before, watch)`,
         { path: source },
       )
     }
@@ -372,6 +432,7 @@ export function parseFixtureManifest(
     run,
     scm,
     before,
+    watch,
   } = value
   if (typeof description !== 'string' || description.trim() === '') {
     throw new HarnessError(
@@ -444,6 +505,16 @@ export function parseFixtureManifest(
     ...(before === undefined
       ? {}
       : { before: parseBefore(before, runners, source, parsedRun?.exact === true) }),
+    ...(watch === undefined
+      ? {}
+      : {
+          watch: parseWatch(watch, runners, source, {
+            run: run !== undefined,
+            before: before !== undefined,
+            scm: scm !== undefined,
+            reporters: isRecord(config) && isRecord(config.jest) && 'reporters' in config.jest,
+          }),
+        }),
   }
 }
 
@@ -1021,6 +1092,242 @@ function parseBefore(
     }
     return { argv }
   })
+}
+
+const WATCH_FIELDS: readonly string[] = ['argv', 'capture', 'keepLines', 'mask', 'steps', 'tty']
+const WATCH_STEP_KEYS: readonly string[] = [
+  'waitRun',
+  'waitText',
+  'key',
+  'type',
+  'write',
+  'remove',
+  'scm',
+  'exit',
+]
+/** What `watch.capture` may name besides `file:<path>`. */
+const WATCH_CAPTURES: readonly string[] = ['runs', 'transcript', 'exitCode']
+
+/** Whether a `key` step names a key: one of `WATCH_KEYS`, or one printable character. */
+function isWatchKey(value: string): boolean {
+  return Object.hasOwn(WATCH_KEYS, value) || /^[\p{L}\p{N}\p{P}\p{S} ]$/u.test(value)
+}
+
+function isRegExpSource(pattern: string, flags: string): boolean {
+  try {
+    new RegExp(pattern, flags)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
+ * `watch` is `{ argv, tty, steps, capture, keepLines?, mask? }` (see `FixtureWatch`), in a fixture
+ * whose `runners` is `["jest"]` and that has no `run` or `before`. `argv` holds `--watch` or
+ * `--watchAll` once and no option the recorder owns, nor `--ci` in any spelling: Jest reads keys
+ * only on an interactive terminal, which a CI run is not. On `tty: false` no step types. A `key` is
+ * followed by a wait or the end (two keys in one write reach Jest as one keypress), `waitRun` only
+ * counts up, `exit` is the last step, an `scm` step needs the fixture's `scm` (its repository),
+ * and `exitCode` is captured only after an `exit`. Anything else is `HARNESS_FIXTURE_BAD_WATCH`.
+ */
+function parseWatch(
+  watch: unknown,
+  runners: readonly FixtureProfile[],
+  source: string,
+  others: {
+    readonly run: boolean
+    readonly before: boolean
+    readonly scm: boolean
+    readonly reporters: boolean
+  },
+): FixtureWatch {
+  const bad = (reason: string): HarnessError =>
+    new HarnessError('HARNESS_FIXTURE_BAD_WATCH', `${source}: "watch" ${reason}`, {
+      path: source,
+    })
+  if (runners.length !== 1 || runners[0] !== 'jest') {
+    throw bad('is Jest-only: "runners" must be ["jest"]')
+  }
+  if (others.run) throw bad('records a session of its own and cannot sit beside "run"')
+  if (others.before) throw bad('cannot sit beside "before"')
+  // The recorder sets the reporters: the default one and the run log beside it.
+  if (others.reporters)
+    throw bad('cannot sit beside a "config.jest.reporters" (the recorder sets them)')
+  if (!isRecord(watch)) throw bad('must be an object with "argv", "tty", "steps" and "capture"')
+  for (const key of Object.keys(watch)) {
+    if (!WATCH_FIELDS.includes(key)) {
+      throw bad(`has the unknown key "${key}" (expected ${WATCH_FIELDS.join(', ')})`)
+    }
+  }
+  const { argv, tty, steps, capture, keepLines, mask } = watch
+  if (
+    !Array.isArray(argv) ||
+    !argv.every((arg): arg is string => typeof arg === 'string') ||
+    argv.filter((arg) => arg === '--watch' || arg === '--watchAll').length !== 1
+  ) {
+    throw bad('"argv" must be an array of strings with "--watch" or "--watchAll" once')
+  }
+  const owned = ownedFlagIn(argv)
+  if (owned !== undefined) throw bad(`"argv" gives "${owned}", which the recorder sets`)
+  // The recorder puts its done plugin and its ignored directories in the config; a flag would
+  // replace them. A fixture's own go in `config.jest`, which the recorder adds to.
+  const watchOwned = argv.find((arg) => {
+    const option = optionOf(arg)
+    return option === 'watchPlugins' || option === 'watchPathIgnorePatterns'
+  })
+  if (watchOwned !== undefined) {
+    throw bad(
+      `"argv" gives "${watchOwned}", which the recorder sets (put plugins and patterns in "config.jest")`,
+    )
+  }
+  const ci = argv.find((arg) => optionOf(arg) === 'ci')
+  if (ci !== undefined) {
+    throw bad(`"argv" gives "${ci}": a watch session is never a CI run (Jest reads no keys there)`)
+  }
+  if (typeof tty !== 'boolean') throw bad('"tty" must be true or false')
+  if (!Array.isArray(steps) || steps.length === 0) throw bad('"steps" must be a non-empty array')
+  const parsed = steps.map((step, index) => parseWatchStep(step, index, source, bad))
+  let runs = 0
+  parsed.forEach((step, index) => {
+    const next = parsed[index + 1]
+    if (('key' in step || 'type' in step) && !tty) {
+      throw bad(`step ${index} types at a session with "tty": false, which reads no keys`)
+    }
+    if ('key' in step && next !== undefined && ('key' in next || 'type' in next)) {
+      throw bad(`step ${index} is a key followed by another key: wait for what it shows first`)
+    }
+    if ('waitRun' in step) {
+      if (step.waitRun < runs) {
+        throw bad(`step ${index} waits for run ${step.waitRun} after run ${runs}`)
+      }
+      runs = step.waitRun
+    }
+    if ('exit' in step && next !== undefined) {
+      throw bad(`step ${index} is "exit", which must be the last step`)
+    }
+    if ('scm' in step && !others.scm) {
+      throw bad(`step ${index} is "scm", but the fixture has no "scm" (no repository)`)
+    }
+  })
+  const last = parsed.at(-1)
+  const exits = last !== undefined && 'exit' in last
+  if (
+    !Array.isArray(capture) ||
+    capture.length === 0 ||
+    !capture.every((entry): entry is string => typeof entry === 'string')
+  ) {
+    throw bad('"capture" must be a non-empty array of strings')
+  }
+  for (const entry of capture) {
+    const file = entry.startsWith('file:') ? entry.slice('file:'.length) : undefined
+    if (file === undefined ? !WATCH_CAPTURES.includes(entry) : !staysInside(file)) {
+      throw bad(
+        `"capture" lists "${entry}" (expected runs, transcript, exitCode or file:<relative path>)`,
+      )
+    }
+  }
+  if (new Set(capture).size !== capture.length) throw bad('"capture" lists an entry twice')
+  if (capture.includes('exitCode') && !exits) {
+    throw bad('captures "exitCode", but the steps do not end with "exit" (the session is killed)')
+  }
+  const out: {
+    argv: string[]
+    tty: boolean
+    steps: WatchStep[]
+    capture: string[]
+    keepLines?: string
+    mask?: string[]
+  } = { argv, tty, steps: parsed, capture }
+  if (keepLines !== undefined) {
+    if (typeof keepLines !== 'string' || keepLines === '' || !isRegExpSource(keepLines, '')) {
+      throw bad('"keepLines" must be a non-empty regular-expression source')
+    }
+    if (!capture.includes('transcript')) throw bad('"keepLines" needs "transcript" in "capture"')
+    out.keepLines = keepLines
+  }
+  if (mask !== undefined) {
+    if (
+      !Array.isArray(mask) ||
+      mask.length === 0 ||
+      !mask.every(
+        (pattern): pattern is string =>
+          typeof pattern === 'string' && pattern !== '' && isRegExpSource(pattern, 'gm'),
+      )
+    ) {
+      throw bad('"mask" must be a non-empty list of regular-expression sources')
+    }
+    out.mask = mask
+  }
+  return out
+}
+
+/** One step of `watch.steps`: see `WatchStep`. */
+function parseWatchStep(
+  step: unknown,
+  index: number,
+  source: string,
+  bad: (reason: string) => HarnessError,
+): WatchStep {
+  if (!isRecord(step)) throw bad(`step ${index} must be an object`)
+  const keys = Object.keys(step)
+  const [key] = keys
+  if (keys.length !== 1 || key === undefined || !WATCH_STEP_KEYS.includes(key)) {
+    throw bad(`step ${index} must have exactly one key of ${WATCH_STEP_KEYS.join(', ')}`)
+  }
+  const value = step[key]
+  const count = (min: number): number => {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < min || value > 255) {
+      throw bad(`step ${index}: "${key}" must be an integer from ${min} to 255`)
+    }
+    return value
+  }
+  const text = (): string => {
+    if (typeof value !== 'string' || value === '') {
+      throw bad(`step ${index}: "${key}" must be non-empty text`)
+    }
+    return value
+  }
+  switch (key) {
+    case 'waitRun':
+      return { waitRun: count(1) }
+    case 'exit':
+      return { exit: count(0) }
+    case 'waitText':
+      return { waitText: text() }
+    case 'type': {
+      const typed = text()
+      // A pattern prompt starts empty and a `type` step only adds characters: that is what lets
+      // the recorder tell the prompt's line for the text so far from an earlier, longer one.
+      // Backspace, DEL, Escape, Enter and line feed edit or leave the prompt: `key` steps.
+      const control = /\p{Cc}/u.exec(typed)
+      if (control !== null) {
+        throw bad(
+          `step ${index}: "type" holds the control character U+${control[0].codePointAt(0)?.toString(16).toUpperCase().padStart(4, '0')}, which a "key" step sends ("<backspace>", "<esc>", "<enter>"): "type" only adds characters to a pattern prompt`,
+        )
+      }
+      return { type: typed }
+    }
+    case 'key': {
+      const name = text()
+      if (!isWatchKey(name)) {
+        throw bad(
+          `step ${index}: "key" must be one printable character or one of ${Object.keys(WATCH_KEYS).join(', ')}`,
+        )
+      }
+      return { key: name }
+    }
+    case 'scm':
+      return { scm: parseScmSteps(value, source, `watch.steps[${index}].scm`) }
+    default: {
+      // `write` and `remove` are the `scm` steps of the same name, which need no repository.
+      const [change] = parseScmSteps([{ [key]: value }], source, `watch.steps[${index}]`)
+      if (change === undefined || !('write' in change || 'remove' in change)) {
+        throw bad(`step ${index}: "${key}" is not a change to the work directory`)
+      }
+      return change
+    }
+  }
 }
 
 /**

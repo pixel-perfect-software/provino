@@ -1,0 +1,32 @@
+{
+  "description": "A watch plugin that claims `u`: Jest refuses it before any run, with its \"reserved internally for updating snapshots\" text, and exits 1. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      }
+    ]
+  },
+  "files": {
+    "jest": {
+      "claims-u.cjs": "// A watch plugin that claims `u`, which Jest reserves for updating snapshots.\nclass ClaimsU {\n  getUsageInfo() {\n    return { key: 'u', prompt: 'do something else' }\n  }\n}\n\nmodule.exports = ClaimsU\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "watchPlugins": ["<rootDir>/claims-u.cjs"]
+    }
+  },
+  "watch": {
+    "argv": ["--watchAll"],
+    "tty": true,
+    "steps": [
+      {
+        "exit": 1
+      }
+    ],
+    "capture": ["runs", "transcript", "exitCode"],
+    "keepLines": "Watch plugin|attempted to register|reserved internally|Please change"
+  }
+}

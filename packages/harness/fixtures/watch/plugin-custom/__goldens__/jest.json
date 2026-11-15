@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "watch/plugin-custom",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      "plugin.jsonl": "{\"onFileChange\":[\"a.test.ts\",\"skipped.test.ts\"]}\n{\"run\":true}\n"
+    },
+    "runs": [
+      {
+        "files": [
+          {
+            "path": "a.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "a passes",
+                "status": "passed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [
+          {
+            "path": "a.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "a passes",
+                "status": "passed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      }
+    ],
+    "transcript": "<CLEAR>\nTest Suites: 1 passed, 1 total\nTests:       1 passed, 1 total\nSnapshots:   0 total\nRan all test suites.\nWatch Usage\n › Press f to run only failed tests.\n › Press o to only run tests related to changed files.\n › Press p to filter by a filename regex pattern.\n › Press t to filter by a test name regex pattern.\n › Press q to quit watch mode.\n › Press x to run the custom plugin.\n › Press Enter to trigger a test run.\n<CLEAR>\nTest Suites: 1 passed, 1 total\nTests:       1 passed, 1 total\nSnapshots:   0 total\nRan all test suites.\nWatch Usage: Press w to show more."
+  }
+}

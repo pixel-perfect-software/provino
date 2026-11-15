@@ -1,0 +1,19 @@
+{
+  "description": "@testing-library/react on jest-environment-jsdom (T11.11): importing it registers afterEach(cleanup), so each test after the first starts with an empty document.body. Two files on one worker, each importing RTL, so the second file shows whether the import-time hook was registered again for it. A failing screen.getByText pins RTL's error with its DOM dump, cut by DEBUG_PRINT_LIMIT.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "env": { "DEBUG_PRINT_LIMIT": "120" },
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]|^Snapshot Summary$",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

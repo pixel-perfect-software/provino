@@ -1,0 +1,124 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "watch/key-f",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "runs": [
+      {
+        "files": [
+          {
+            "path": "fail.test.ts",
+            "status": "failed",
+            "tests": [
+              {
+                "fullName": "fails until fixed",
+                "status": "failed"
+              }
+            ]
+          },
+          {
+            "path": "pass.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "passes",
+                "status": "passed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [
+          {
+            "path": "fail.test.ts",
+            "status": "failed",
+            "tests": [
+              {
+                "fullName": "fails until fixed",
+                "status": "failed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [
+          {
+            "path": "fail.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "fails until fixed",
+                "status": "passed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [
+          {
+            "path": "fail.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "fails until fixed",
+                "status": "passed"
+              }
+            ]
+          },
+          {
+            "path": "pass.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "passes",
+                "status": "passed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      }
+    ],
+    "transcript": "<CLEAR>\nTest Suites: 1 failed, 1 passed, 2 total\nTests:       1 failed, 1 passed, 2 total\nSnapshots:   0 total\nRan all test suites.\nWatch Usage\n › Press f to run only failed tests.\n › Press o to only run tests related to changed files.\n › Press p to filter by a filename regex pattern.\n › Press t to filter by a test name regex pattern.\n › Press q to quit watch mode.\n › Press i to run failing tests interactively.\n › Press Enter to trigger a test run.\n<CLEAR>\nTest Suites: 1 failed, 1 total\nTests:       1 failed, 1 total\nSnapshots:   0 total\nRan all test suites.\nWatch Usage: Press w to show more.\n<CLEAR>\nTest Suites: 1 passed, 1 total\nTests:       1 passed, 1 total\nSnapshots:   0 total\nRan all test suites.\nWatch Usage: Press w to show more.\n<CLEAR>\nNo failed test found.\nRun Jest without `--onlyFailures` or with `--all` to run all tests.\nWatch Usage\n › Press f to quit \"only failed tests\" mode.\n › Press o to only run tests related to changed files.\n › Press p to filter by a filename regex pattern.\n › Press t to filter by a test name regex pattern.\n › Press q to quit watch mode.\n › Press Enter to trigger a test run.\n<CLEAR>\nTest Suites: 2 passed, 2 total\nTests:       2 passed, 2 total\nSnapshots:   0 total\nRan all test suites.\nWatch Usage: Press w to show more."
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "watch/key-i-failed",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "runs": [
+      {
+        "files": [
+          {
+            "path": "fail.test.ts",
+            "status": "failed",
+            "tests": [
+              {
+                "fullName": "first fails",
+                "status": "failed"
+              },
+              {
+                "fullName": "passes",
+                "status": "passed"
+              },
+              {
+                "fullName": "second fails",
+                "status": "failed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [
+          {
+            "path": "fail.test.ts",
+            "status": "failed",
+            "tests": [
+              {
+                "fullName": "first fails",
+                "status": "failed"
+              },
+              {
+                "fullName": "passes",
+                "status": "pending"
+              },
+              {
+                "fullName": "second fails",
+                "status": "pending"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [
+          {
+            "path": "fail.test.ts",
+            "status": "failed",
+            "tests": [
+              {
+                "fullName": "first fails",
+                "status": "pending"
+              },
+              {
+                "fullName": "passes",
+                "status": "pending"
+              },
+              {
+                "fullName": "second fails",
+                "status": "failed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      }
+    ],
+    "transcript": "<CLEAR>\nTest Suites: 1 failed, 1 total\nTests:       2 failed, 1 passed, 3 total\nSnapshots:   0 total\nRan all test suites.\nWatch Usage\n › Press f to run only failed tests.\n › Press o to only run tests related to changed files.\n › Press p to filter by a filename regex pattern.\n › Press t to filter by a test name regex pattern.\n › Press q to quit watch mode.\n › Press i to run failing tests interactively.\n › Press Enter to trigger a test run.\n<CLEAR>\nInteractive Test Progress\n › 2 tests remaining\nWatch Usage\n › Press s to skip the current test.\n › Press q to quit Interactive Mode.\n › Press Enter to return to watch mode.\nWatch Usage: Press w to show more.\n<CLEAR>\nInteractive Test Progress\n › 1 test remaining, 1 test skipped\nWatch Usage\n › Press s to skip the current test.\n › Press q to quit Interactive Mode.\n › Press Enter to return to watch mode.\nWatch Usage: Press w to show more.\n<CLEAR>\nNo tests found related to files changed since last commit.\nPress `a` to run all tests, or run Jest with `--watchAll`.\nWatch Usage: Press w to show more."
+  }
+}

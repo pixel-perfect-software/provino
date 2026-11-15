@@ -1,0 +1,30 @@
+{
+  "description": "Watch mode on a pipe (not a terminal): no screen clear, no usage text, a newline after each run, and a saved test file still reruns. The session is ended by the recorder. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      }
+    ]
+  },
+  "watch": {
+    "argv": ["--watchAll"],
+    "tty": false,
+    "steps": [
+      {
+        "waitRun": 1
+      },
+      {
+        "write": {
+          "a.test.ts": "test('a passes', () => {\n  expect(1).toBe(1)\n})\ntest('a saved', () => {\n  expect(1).toBe(1)\n})\n"
+        }
+      },
+      {
+        "waitRun": 2
+      }
+    ],
+    "capture": ["runs", "transcript"],
+    "keepLines": "^(?:Tests:|Test Suites:|Ran all test suites|Watch Usage|<CLEAR>)"
+  }
+}

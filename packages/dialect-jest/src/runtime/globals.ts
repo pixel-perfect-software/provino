@@ -355,6 +355,21 @@ function jestDefaultRetry(numRetries: number, options: JestRetryOptions | undefi
   }
 }
 
+/**
+ * The four globals jest-runtime 30.5.2 leaves on the environment's global for a file's test retry
+ * (`JestGlobals.ts` L295-L301), as they were given. Core takes the retry from `setDefaultRetry`;
+ * these are for code outside the runner that reads them: jest-image-snapshot 6.5.2 reads
+ * `Symbol.for('RETRY_TIMES')` (`parseInt(..., 10) || 0`) to refuse a retried image with no
+ * `customSnapshotIdentifier` and to count a mismatch once (`ecosystem/image-snapshot-retry`). The
+ * environment's restore removes them when the file ends, as it removes any key a file added.
+ */
+function publishRetryGlobals(numRetries: number, options: JestRetryOptions | undefined): void {
+  Reflect.set(globalThis, Symbol.for('RETRY_TIMES'), numRetries)
+  Reflect.set(globalThis, Symbol.for('LOG_ERRORS_BEFORE_RETRY'), options?.logErrorsBeforeRetry)
+  Reflect.set(globalThis, Symbol.for('WAIT_BEFORE_RETRY'), options?.waitBeforeRetry)
+  Reflect.set(globalThis, Symbol.for('RETRY_IMMEDIATELY'), options?.retryImmediately)
+}
+
 /** `jest`'s timer members over the clock of the file running now. */
 function timerMembers<J>(host: JestGlobalsHost, self: () => J): JestTimerMembers<J> {
   const all = createTimerMembers(() => host.timers(), host.timersPolicy, self)
@@ -461,6 +476,7 @@ function sharedMembers<J>(
         return self()
       }
       host.setDefaultRetry(jestDefaultRetry(numRetries, options))
+      publishRetryGlobals(numRetries, options)
       return self()
     },
     getSeed: () => host.seed,
