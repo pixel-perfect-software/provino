@@ -84,12 +84,13 @@ describe('provino jest', () => {
     assert.doesNotMatch(exact.stderr, /b\.test\.js/)
   })
 
-  it('refuses a flag it can’t run yet by name, with Jest’s usage exit code', async () => {
+  it('runs --watch as Jest does: outside a repository it says so and exits 1 (B23c Phase 8)', async () => {
     const dir = await tree(JEST_PROJECT)
-    const refused = await provino(['jest', '--watch'], dir)
-    assert.equal(refused.code, 1)
-    assert.match(refused.stderr, /--watch is not supported yet \(T9\.11\)/)
-    assert.equal(refused.stdout, '')
+    const ended = await provino(['jest', '--watch'], dir)
+    assert.equal(ended.code, 1)
+    // runJest.ts L253-L266
+    assert.match(ended.stderr, /--watch is not supported without git\/hg, please use --watchAll/)
+    assert.doesNotMatch(ended.stderr, /not supported yet/)
   })
 
   it('exits 2 for a command it does not know', async () => {

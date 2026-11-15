@@ -148,20 +148,15 @@ test('every package manager is pinned to an exact version, so no install falls b
 })
 
 test('provinoRefuses is what provino jest itself refuses on the subject, by the parser', async () => {
+  // No flag is refused by name any more (--watch and --watchAll were the last, B23c Phase 8), so
+  // the parser lists none, and an entry naming one is wrong.
   rejects(
     await edited((draft) => {
-      // Any flag provino jest still refuses (--coverage was, until B23b).
-      subjectOf(draft, 'mobx').argv.push('--watchAll')
+      const subject = subjectOf(draft, 'mobx')
+      subject.argv.push('--watchAll')
+      subject.provinoRefuses = [{ flag: '--watchAll', reason: 'no watch mode yet' }]
     }),
-    /must list --watchAll: provino jest refuses it/,
-  )
-  // A flag is named as the parser names it, with its value split off (`--changedSince=main` was
-  // the case until B23c built it; `--watch` is a refused flag given a value).
-  rejects(
-    await edited((draft) => {
-      subjectOf(draft, 'mobx').argv.push('--watch=true')
-    }),
-    /must list --watch:/,
+    /lists --watchAll, which provino jest does not refuse for this argv/,
   )
   rejects(
     await edited((draft) => {
@@ -170,12 +165,6 @@ test('provinoRefuses is what provino jest itself refuses on the subject, by the 
     }),
     /lists --maxWorkers, which provino jest does not refuse for this argv/,
   )
-  const accepted = await edited((draft) => {
-    const subject = subjectOf(draft, 'mobx')
-    subject.argv.push('--watchAll')
-    subject.provinoRefuses = [{ flag: '--watchAll', reason: 'no watch mode yet' }]
-  })
-  assert.doesNotThrow(() => parseCorpusManifest(accepted, 'manifest.json'))
 })
 
 test('the pilot repositories commit a lockfile their own package manager can freeze', async () => {
@@ -245,12 +234,6 @@ test('the parser refuses an argv the harness cannot use', async () => {
       subjectOf(draft, 'swr').argv.push('--json')
     }),
     /--json/,
-  )
-  rejects(
-    await edited((draft) => {
-      subjectOf(draft, 'swr').argv.push('--watch')
-    }),
-    /must list --watch/,
   )
   rejects(
     await edited((draft) => {

@@ -31,6 +31,7 @@ import {
 } from '@provino/dialect-jest/node'
 import {
   type AffectedLookupOptions,
+  type ChangeSource,
   type DiscoveredFile,
   defaultCacheDir,
   discoverProject,
@@ -48,7 +49,7 @@ import type { ReporterChoice } from '../types.ts'
 import { JEST_BUILT_INS, JEST_ENVIRONMENT, NODE_ENVIRONMENT } from './built-ins.ts'
 import type { CoverageReporter } from './coverage-reporter.ts'
 import { usageMessage } from './describe.ts'
-import { executeProject, timingsOf } from './execute.ts'
+import { type ExecuteOptions, executeProject, timingsOf } from './execute.ts'
 import { setUpJestReporters } from './jest-reporters.ts'
 import {
   isScmCommandFailure,
@@ -58,6 +59,7 @@ import {
   selectProjectFiles,
   withChangedCoverage,
 } from './jest-selection.ts'
+import { type JestWatchInput, runJestWatch } from './jest-watch.ts'
 import { type DisplayOptions, outputFor, styleFor } from './reporters.ts'
 import {
   chooseProjects,
@@ -92,6 +94,10 @@ export interface JestCommandIo {
    * exits from it; this module never calls `process.exit`.
    */
   readonly onForceExit?: () => void
+  /** Where `--watch` reads keys (default `process.stdin`). */
+  readonly stdin?: JestWatchInput
+  /** Where `--watch` hears of changes, in place of the file watcher (a test's). */
+  readonly watchChanges?: ChangeSource
   /** The seam a test counts affected-index builds through (`createIndex`). */
   readonly affectedLookup?: AffectedLookupOptions
 }
@@ -193,6 +199,19 @@ function selectedVerbose(
   configs: readonly JestProjectConfig[],
 ): boolean {
   return globalConfig.verbose === true || configs.some((config) => config.verbose === true)
+}
+
+/**
+ * The pool a `provino jest` run asks for: `--workerThreads` is the pool for a run that is not in
+ * band (Jest's `shouldRunInBand` never reads it, so a single file still runs in this process), the
+ * worker count as Jest normalized it, and `workerIdleMemoryLimit`.
+ */
+function poolFor(globalConfig: JestGlobalConfig, request: RunRequest): ExecuteOptions['pool'] {
+  return {
+    ...(request.workerThreads === true ? { kind: 'threads' as const, automaticInBand: true } : {}),
+    maxWorkers: globalConfig.maxWorkers,
+    ...workerRecycle(globalConfig.workerIdleMemoryLimit),
+  }
 }
 
 /** The shard the global config holds (`--shard`), as the coordinator takes it. */
@@ -571,6 +590,41 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       return config === undefined ? [] : [config]
     })
     const env = io.env ?? process.env
+    // `--watch` / `--watchAll` (B23c Phase 8): Jest's watch loop on a watch session, which selects
+    // every run's files itself. A static import: a chunk of its own would share the dialect's
+    // `/node` with the bin's and move it into the chunk the worker loads.
+    if (request.mode === 'run' && (read.globalConfig.watch || read.globalConfig.watchAll)) {
+      let watchFilter: JestFilter | undefined
+      try {
+        watchFilter = loadJestFilter(read.globalConfig)
+      } catch (error) {
+        filterError = error
+        throw error
+      }
+      const hooks = jestRunGlobalHooks(read.globalConfig)
+      return await runJestWatch({
+        globalConfig: read.globalConfig,
+        projects,
+        configs: selectedConfigs,
+        request,
+        cwd,
+        stdout,
+        stderr,
+        env,
+        pool: poolFor(read.globalConfig, request),
+        display: (globalConfig, verbose) =>
+          presentation(
+            { verbose: verbose || selectedVerbose(globalConfig, selectedConfigs), globalConfig },
+            request,
+          ),
+        ...(watchFilter === undefined ? {} : { filter: watchFilter }),
+        ...(hooks === undefined ? {} : { globalSetup: hooks }),
+        ...(io.stdin === undefined ? {} : { stdin: io.stdin }),
+        ...(io.signal === undefined ? {} : { signal: io.signal }),
+        ...(io.forceSignal === undefined ? {} : { forceSignal: io.forceSignal }),
+        ...(io.watchChanges === undefined ? {} : { changes: io.watchChanges }),
+      })
+    }
     let fileSelection: JestSelection
     try {
       fileSelection = await jestSelection(
@@ -824,15 +878,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
         },
         request,
       ),
-      pool: {
-        // `--workerThreads` is the pool for a run that is not in band: Jest's `shouldRunInBand`
-        // never reads it, so a single file still runs in this process.
-        ...(request.workerThreads === true
-          ? { kind: 'threads' as const, automaticInBand: true }
-          : {}),
-        maxWorkers: read.globalConfig.maxWorkers,
-        ...workerRecycle(read.globalConfig.workerIdleMemoryLimit),
-      },
+      pool: poolFor(read.globalConfig, request),
       ...(request.cache === false || !read.cache ? { cache: false } : {}),
       testNamePattern: read.globalConfig.testNamePattern,
       update: request.update,

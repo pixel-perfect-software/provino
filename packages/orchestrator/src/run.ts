@@ -1013,6 +1013,10 @@ export async function runProjectsOn(
         // came too is the stronger reason.
         if (bailed && signal?.aborted !== true) return
         interrupted = true
+        // A watch run's interrupt (a key during it: the session's signal) and the policy's `drop`:
+        // the killed file reports no result, as Jest's watcher ignores one once it is interrupted
+        // (it keeps its `file:start`: a reporter drops it at the next `run:start`, see CLAUDE.md).
+        if (host !== undefined && orchestrator.watch.interruptedFiles === 'drop') return
         // A file that never started was never announced as started: nothing to end.
         if (takenAt === undefined) return
       }

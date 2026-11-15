@@ -216,7 +216,7 @@ export const neutralPolicy: Policy = deepFreeze({
     exclude: ['**/node_modules/**', '**/dist/**'],
     bail: { checkAfter: 'test' },
     watchDefault: 'never',
-    watch: { initialRun: 'all' },
+    watch: { initialRun: 'all', interruptedFiles: 'report' },
     // Ours: no neutral provider yet; a selection by changed files is refused (T11.16).
     changedFiles: null,
     affected: {

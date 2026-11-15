@@ -2405,6 +2405,7 @@ export interface OrchestratorPolicy {
     readonly unhandledErrors: "fail-run" | "ignore";
     readonly watch: {
         readonly initialRun: "changed" | "all";
+        readonly interruptedFiles: "report" | "drop";
     };
     readonly watchDefault: "never" | "tty-not-ci";
 }

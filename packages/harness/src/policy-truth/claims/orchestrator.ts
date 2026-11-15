@@ -268,6 +268,23 @@ export const orchestratorClaims: Claims = {
     'T9.11',
     'watch mode is not built, and a recorded run cannot enter it',
   ),
+  // A key during a run (`watch/key-during-run`): Jest's run log has the interrupted run with no
+  // file, the one it killed left out. `provino`'s `jest-watch.test.ts` holds the bin to it.
+  'orchestrator.watch.interruptedFiles': each(
+    golden('watch/key-during-run', {
+      read: (g) => {
+        const runs = (observedOf(g) as { readonly runs?: unknown }).runs
+        const [run] = Array.isArray(runs)
+          ? (runs as { files?: unknown; wasInterrupted?: unknown }[])
+          : []
+        if (run?.wasInterrupted !== true || !Array.isArray(run.files)) {
+          throw new Error(`${g.suite} (${g.runner}) has no interrupted run`)
+        }
+        return run.files.length === 0 ? 'drop' : 'report'
+      },
+    }),
+    pending('T11.16', "Vitest's watch mode (its rerun on a key) is T11.16's"),
+  ),
   // B23c (D118): changed-file and affected-test selection. Jest's values come from the `changed/*`
   // goldens, recorded by B23c Phase 2 and compared by Phase 5; Vitest's `--changed` runs other
   // commands (T11.16). The neutral values are ours and are pinned in `@provino/policy`'s test.
