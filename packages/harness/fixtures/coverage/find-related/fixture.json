@@ -22,6 +22,7 @@
       "jest": ["--findRelatedTests", "src/changed.ts"]
     },
     "raw": true,
+    "maskKeys": ["hash"],
     "capture": [
       "exitCode",
       "stdout",

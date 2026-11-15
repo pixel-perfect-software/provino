@@ -27,6 +27,7 @@
       "jest": ["-o"]
     },
     "raw": true,
+    "maskKeys": ["hash"],
     "capture": [
       "exitCode",
       "stdout",
