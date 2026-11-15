@@ -258,6 +258,36 @@ export function servedReach(
   return false
 }
 
+/**
+ * Whether `path` is an external evaluated per file (`active`, D127), or its static closure reaches
+ * one. Loaded natively, such an external would `require` Node's one cached copy of what it
+ * reaches, while the file's own code and inlined externals get the file's copy: two instances of
+ * a singleton (`react` under a component library, an "Invalid hook call"). So it is inlined too.
+ * The verdict is kept in `known` until `active` grows (the caller clears it); a negative one holds
+ * for every node_modules file the walk covered.
+ */
+export function reevaluatedReach(
+  state: InlineState,
+  options: LoaderOptions,
+  path: string,
+  active: ReadonlySet<string>,
+  known: Map<string, boolean>,
+  userEdges: UserEdges,
+): boolean {
+  if (active.has(path)) return true
+  const cached = known.get(path)
+  if (cached !== undefined) return cached
+  const takes = (edge: GraphEdge): string | null =>
+    edge.target !== null && active.has(edge.target) ? edge.target : null
+  const { found, done } = walkClosure(state, options, path, takes, userEdges)
+  if (found !== null) {
+    known.set(path, true)
+    return true
+  }
+  for (const member of done) if (inGraph(member)) known.set(member, false)
+  return false
+}
+
 /** Whether the file at `path` itself requests one of `served`: a text test, then the scan. */
 function requestsDirectly(path: string, served: readonly string[]): boolean {
   let source: string

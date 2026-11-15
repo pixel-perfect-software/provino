@@ -17,12 +17,30 @@ export interface ReevaluateState {
   /** Learned while the file running now loaded them: active from the next file on. */
   readonly pending: Set<string>
   readonly watchers: Set<ExternalLoadWatcher>
+  /**
+   * Whether each node_modules file is in `active` or its closure reaches one (`reevaluatedReach`),
+   * per worker; cleared whenever `active` grows.
+   */
+  readonly reach: Map<string, boolean>
   /** Whether a watched load is running: a load inside it is part of it, never a window of its own. */
   watching: boolean
 }
 
 export function createReevaluateState(): ReevaluateState {
-  return { active: new Set(), pending: new Set(), watchers: new Set(), watching: false }
+  return {
+    active: new Set(),
+    pending: new Set(),
+    watchers: new Set(),
+    reach: new Map(),
+    watching: false,
+  }
+}
+
+/** Makes `paths` active (an earlier run's set), and drops the reach verdicts they may change. */
+export function activate(state: ReevaluateState, paths: Iterable<string>): void {
+  const size = state.active.size
+  for (const path of paths) state.active.add(path)
+  if (state.active.size !== size) state.reach.clear()
 }
 
 /** Node's own module cache: what a native `require` adds an entry to, in load order. */
@@ -93,6 +111,6 @@ export function watchedLoad<T>(
 /** Makes what the last file learned active: called as a file's registry is created. */
 export function promoteLearned(state: ReevaluateState): void {
   if (state.pending.size === 0) return
-  for (const path of state.pending) state.active.add(path)
+  activate(state, state.pending)
   state.pending.clear()
 }
