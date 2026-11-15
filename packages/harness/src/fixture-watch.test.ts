@@ -211,3 +211,19 @@ test('watch.argv refuses the watch options the recorder sets in the config, in e
     parse(WATCH, { config: { jest: { watchPathIgnorePatterns: ['<rootDir>/tmp/'] } } }).watch,
   )
 })
+
+test('a type step with a control character is refused, naming the step', () => {
+  for (const typed of ['a\bb', 'ab\u007f', 'a\u001b', 'foo\r', 'foo\n', '\tx']) {
+    assert.throws(
+      () => parse({ ...WATCH, steps: [{ waitRun: 1 }, { type: typed }, { exit: 0 }] }),
+      (error: unknown) =>
+        error instanceof HarnessError &&
+        error.code === 'HARNESS_FIXTURE_BAD_WATCH' &&
+        error.message.includes('step 1') &&
+        error.message.includes('"type"') &&
+        error.message.includes('control character'),
+      JSON.stringify(typed),
+    )
+  }
+  assert.ok(parse({ ...WATCH, steps: [{ waitRun: 1 }, { type: 'foo bar' }, { exit: 0 }] }).watch)
+})

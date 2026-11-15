@@ -79,7 +79,16 @@ export async function runWatchSteps(
       for (let index = 0; index < chars.length; index += 1) {
         const from = session.output().length
         session.write(chars[index] ?? '')
-        mark = await session.waitFor(`${PATTERN_CARET}${chars.slice(0, index + 1).join('')}`, from)
+        const line = `${PATTERN_CARET}${chars.slice(0, index + 1).join('')}`
+        try {
+          mark = await session.waitFor(line, from)
+        } catch (error) {
+          throw new HarnessError(
+            'HARNESS_WATCH_FAILED',
+            `the prompt never drew ${JSON.stringify(line)} after the "type" step wrote ${JSON.stringify(chars[index])} (character ${index + 1} of ${chars.length}): "type" works only in a pattern prompt (\`p\` or \`t\`, or a watch plugin's). ${error instanceof Error ? error.message : String(error)}`,
+            { cause: error },
+          )
+        }
       }
     } else if ('scm' in step) {
       for (const inner of step.scm) await host.change(inner)

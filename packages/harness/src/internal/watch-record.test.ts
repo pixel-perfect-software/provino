@@ -382,3 +382,37 @@ test('a deadline that kills the session mid-wait is reported as the deadline, no
     )
   })
 })
+
+test('a session that ended on its own just before the deadline is reported as an end', async () => {
+  await withWorkDir(async (dir) => {
+    // The mirror of the test above: a Jest crash, then the deadline passes before the poll looks.
+    // The end came first (its handler runs before the zero-delay timer), so it is the cause.
+    let deadline: AbortSignal | undefined
+    const { spawn } = fakeSpawn()
+    const crashing: NonNullable<WatchRecordOptions['spawn']> = async (argv, cwd, env, signal) => {
+      const session = await spawn(argv, cwd, env, signal)
+      deadline = signal
+      return { ...session, exit: Promise.resolve({ exitCode: 1, killed: false }) }
+    }
+    const watch: FixtureWatch = { ...QUIT, steps: [{ waitRun: 2 }, { key: 'q' }, { exit: 0 }] }
+    await assert.rejects(
+      recordWatchSession({
+        ...optionsFor(dir, watch, crashing),
+        timeoutMs: 0,
+        poll: async () => {
+          const signal = deadline
+          if (signal !== undefined && !signal.aborted) {
+            await new Promise((resolve) =>
+              signal.addEventListener('abort', resolve, { once: true }),
+            )
+          }
+          await new Promise((resolve) => setImmediate(resolve))
+        },
+      }),
+      (error: unknown) =>
+        error instanceof HarnessError &&
+        error.code === 'HARNESS_WATCH_FAILED' &&
+        /the session ended with 1 of 2 runs/.test(error.message),
+    )
+  })
+})

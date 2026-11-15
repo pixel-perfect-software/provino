@@ -181,19 +181,28 @@ export async function recordWatchSession(options: WatchRecordOptions): Promise<G
   const spawn = options.spawn ?? defaultSpawn(watch.tty)
   const poll = options.poll ?? (() => sleep(POLL_MS))
   let session: PtyProcess | undefined
+  let cause: 'the deadline passed' | 'the session ended' | undefined
   let runs = 0
   let exitCode: number | null | undefined
   // The steps' error is the one the caller sees; a kill that fails as well is added to it.
   let failure: { readonly error: unknown } | undefined
   try {
     session = await spawn(options.argv, options.workDir, env, controller.signal)
-    let ended = false
+    // The first of the two ends is the cause: the deadline terminates the session's group, so
+    // by the poll's next look both have usually happened, and the later one says nothing.
+    controller.signal.addEventListener(
+      'abort',
+      () => {
+        cause ??= 'the deadline passed'
+      },
+      { once: true },
+    )
     void session.exit.then(
       () => {
-        ended = true
+        cause ??= 'the session ended'
       },
       () => {
-        ended = true
+        cause ??= 'the session ended'
       },
     )
     const host: WatchHost = {
@@ -211,12 +220,10 @@ export async function recordWatchSession(options: WatchRecordOptions): Promise<G
             )
           }
           if (seen === count && done === count) return
-          if (ended || controller.signal.aborted) {
-            // The deadline first: it ends the session too (the group is terminated), and by the
-            // next look the session has often ended as well.
+          if (cause !== undefined) {
             throw new HarnessError(
               'HARNESS_WATCH_FAILED',
-              `${source}: ${controller.signal.aborted ? 'the deadline passed' : 'the session ended'} with ${seen} of ${count} runs. Output tail:\n${session?.output().slice(-2000) ?? ''}`,
+              `${source}: ${cause} with ${seen} of ${count} runs. Output tail:\n${session?.output().slice(-2000) ?? ''}`,
             )
           }
           await poll()
