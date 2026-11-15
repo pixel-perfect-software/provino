@@ -208,6 +208,15 @@ async function load(file: string): Promise<Contents> {
   }
 }
 
+/**
+ * Whether a project key's externals are still wanted: the key has file history, or this run
+ * learned for it. A key whose project was removed, or whose globs (part of the key) changed, has
+ * neither, and its externals would otherwise be carried forever.
+ */
+function hasOwner(projects: Projects, learned: Externals, project: string): boolean {
+  return (projects.get(project)?.size ?? 0) > 0 || (learned.get(project)?.size ?? 0) > 0
+}
+
 /** Adds `entries` to the project's files in `externals`. */
 function addExternals(
   externals: Externals,
@@ -314,7 +323,9 @@ export function createResultsCache(dir: string): ResultsCache {
           : {
               externals: Object.fromEntries(
                 [...disk.externals]
-                  .filter(([, entries]) => entries.size > 0)
+                  .filter(
+                    ([project, entries]) => entries.size > 0 && hasOwner(merged, learned, project),
+                  )
                   .map(([project, entries]) => [project, Object.fromEntries(entries)]),
               ),
             }),

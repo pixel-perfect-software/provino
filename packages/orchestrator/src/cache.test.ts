@@ -133,6 +133,33 @@ describe('createResultsCache', () => {
     )
   })
 
+  it('drops the externals of a project key with no history when it writes (a project removed, or its globs changed)', async () => {
+    const dir = await scratch()
+    await mkdir(dir, { recursive: true })
+    await writeFile(
+      join(dir, 'results.json'),
+      JSON.stringify({
+        version: 3,
+        projects: { p: { 'a.test.js': history(5) }, emptied: { 'b.test.js': history(5) } },
+        externals: {
+          p: { 'node_modules/a/index.js': '1.0.0' },
+          gone: { 'node_modules/b/index.js': '1.0.0' },
+          emptied: { 'node_modules/c/index.js': '1.0.0' },
+        },
+      }),
+    )
+    const cache = createResultsCache(dir)
+    cache.prune('emptied', new Set())
+    cache.learnExternals('fresh', [['node_modules/d/index.js', '1.0.0']])
+    await cache.write()
+    const reread = createResultsCache(dir)
+    assert.deepEqual(
+      ['p', 'gone', 'emptied', 'fresh'].map((project) => [...reread.externals(project).keys()]),
+      [['node_modules/a/index.js'], [], [], ['node_modules/d/index.js']],
+      'kept for a project with history or one this run learned for, dropped for the others',
+    )
+  })
+
   it('reads no externals from an entry that is not a record of versions', async () => {
     const dir = await scratch()
     await mkdir(dir, { recursive: true })
