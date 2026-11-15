@@ -1,0 +1,25 @@
+{
+  "description": "`--notify` on a failing run under Jest 30.5.2 (B23d A4): the title is `<package> - <n>% Failed` and the message `<failed> of <total> tests failed`. The project's `node_modules/node-notifier/index.js` is a fake that appends each call's options (without the check or stop sign Jest puts before the message on macOS only) to `notify.json`; the icon path is masked. One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "env": {
+    "NODE_PATH": "node_modules"
+  },
+  "files": {
+    "jest": {
+      "node_modules/node-notifier/index.js": "const fs = require('node:fs')\nconst path = require('node:path')\nconst file = path.join(process.cwd(), 'notify.json')\nlet calls = []\ntry {\n  calls = JSON.parse(fs.readFileSync(file, 'utf8'))\n} catch {}\nmodule.exports = {\n  notify(options, callback) {\n    calls.push({ ...options, message: options.message.replace(/^(\\u2705|\\u26D4\\uFE0F) /, '') })\n    fs.writeFileSync(file, JSON.stringify(calls))\n    if (callback) callback(null, '', {})\n  },\n}\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--notify"]
+    },
+    "capture": ["exitCode", "json:notify.json"],
+    "maskKeys": ["icon"],
+    "missingJson": ["json:notify.json"]
+  }
+}

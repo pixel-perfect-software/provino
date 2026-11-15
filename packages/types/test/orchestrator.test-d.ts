@@ -7,6 +7,7 @@ import type {
   DefineReporter,
   FileHistory,
   FileInfo,
+  FileJob,
   FileResult,
   GlobalSetupContext,
   Inject,
@@ -23,6 +24,7 @@ import type {
   RuntimeEvent,
   RuntimeEventOf,
   SuiteTask,
+  TaskId,
   TaskState,
   TestTask,
   Transport,
@@ -178,6 +180,22 @@ const fileDoneWithout: FileDoneMessage = { t: 'fileDone', seq: 0, memoryBytes: 1
 // @ts-expect-error the keys are strings
 const fileDoneSymbols: FileDoneMessage = { ...fileDoneClean, leakedGlobals: [Symbol('x')] }
 
+// `--detectLeaks` and `--logHeapUsage` (B23d A4): optional flags on the job, answered on `fileDone`.
+const fileDoneLeaks: FileDoneMessage = { ...fileDoneClean, leaks: true, heapUsedBytes: 1024 }
+// @ts-expect-error `leaks` is only ever `true`: absent means it did not
+const fileDoneNotLeaking: FileDoneMessage = { ...fileDoneClean, leaks: false }
+// @ts-expect-error the heap is a number of bytes
+const fileDoneHeapText: FileDoneMessage = { ...fileDoneClean, heapUsedBytes: '12 MB' }
+const jobWithChecks: FileJob = {
+  file: '/a.test.ts',
+  fileId: 'f' as TaskId,
+  updateSnapshots: 'none',
+  detectLeaks: true,
+  logHeapUsage: true,
+}
+// @ts-expect-error the flags are only ever `true`
+const jobWithoutChecks: FileJob = { ...jobWithChecks, detectLeaks: false }
+
 // A worker's port is the mirror of the transport.
 expectTypeOf<Parameters<WorkerPort['send']>[0]>().toEqualTypeOf<WorkerToCoordinator>()
 expectTypeOf<
@@ -305,9 +323,14 @@ export {
   badTerminate,
   badTier,
   fileDoneClean,
+  fileDoneHeapText,
+  fileDoneLeaks,
+  fileDoneNotLeaking,
   fileDoneSymbols,
   fileDoneWithout,
   fullHistory,
+  jobWithChecks,
+  jobWithoutChecks,
   keyWithoutTier,
   noFrames,
   noLimit,

@@ -364,7 +364,8 @@ function maxWorkersOf(value: unknown): number | `${number}%` | undefined {
 
 /**
  * The `RunRequest` a parsed Jest command line asks for. Positionals and `--testPathPatterns` are
- * regex file filters (positionals are exact paths with `--runTestsByPath`). When several of
+ * regex file filters (positionals are exact paths with `--runTestsByPath`, and no filter under
+ * `--findRelatedTests`, whose source paths they are). When several of
  * `--showConfig`, `--clearCache` and `--listTests` are given, the mode is the one Jest acts on
  * first (`jest-core` `cli/index.ts` L62 and L67, then `runJest.ts` L310). Throws a `JestCliError`
  * for a `--maxWorkers` that is neither a count nor a percentage.
@@ -372,8 +373,12 @@ function maxWorkersOf(value: unknown): number | `${number}%` | undefined {
  */
 export function jestArgvToRunRequest(argv: JestArgv): RunRequest {
   const byPath = argv.runTestsByPath === true
+  // `--findRelatedTests` takes the positionals as source paths, not patterns: `provino jest` reads
+  // them from the global config's `nonFlagArgs` (SearchSource L291-L297), and `--runTestsByPath`
+  // wins over it.
+  const related = argv.findRelatedTests === true && !byPath
   const fileFilters: FileFilter[] = [
-    ...(argv._ ?? []).map(
+    ...(related ? [] : (argv._ ?? [])).map(
       (value): FileFilter => ({
         kind: byPath ? 'path' : 'regex',
         value: String(value),

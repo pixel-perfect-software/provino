@@ -7,6 +7,13 @@ export {
 } from './affected/index.ts'
 export { openRecordedGraph, type RecordedGraph } from './affected/recorded.ts'
 export {
+  type AffectedMember,
+  findChangedFiles,
+  hasScm,
+  keepFailed,
+  selectAffected,
+} from './affected/select.ts'
+export {
   cacheDirectories,
   createResultsCache,
   defaultCacheDir,
@@ -99,3 +106,26 @@ export { type ForksTransportOptions, forksTransport } from './transport/forks.ts
 export { type InlineTransportOptions, inlineTransport } from './transport/inline.ts'
 export { describeExit, type TransportOptions } from './transport/shared.ts'
 export { type ThreadsTransportOptions, threadsTransport } from './transport/threads.ts'
+export {
+  COALESCE_WINDOW_MS,
+  type CoalesceClock,
+  type CoalesceOptions,
+  type Coalescer,
+  createCoalescer,
+  type WatchEvent,
+} from './watch/coalesce.ts'
+export {
+  type ChangeSource,
+  createWatchSession,
+  type WatchRunOptions,
+  type WatchSession,
+  type WatchSessionOptions,
+  type WatchSessionRunSettings,
+} from './watch/session.ts'
+export {
+  createWatcher,
+  nodeWatch,
+  type Watcher,
+  type WatcherOptions,
+  type WatchFunction,
+} from './watch/watcher.ts'

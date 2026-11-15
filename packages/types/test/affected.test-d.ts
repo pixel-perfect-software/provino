@@ -25,9 +25,19 @@ expectTypeOf<ChangedFiles['repos']>().toEqualTypeOf<{
   readonly sl: readonly string[]
 }>()
 expectTypeOf<ChangedFilesOptions['roots']>().toEqualTypeOf<readonly string[]>()
+// The fallback is jest-haste-map's default extractor: a fresh Set an extractor may add to.
 expectTypeOf<DependencyExtractor['extract']>().parameters.toEqualTypeOf<
-  [string, string, (code: string) => Iterable<string>]
+  [string, string, (code: string) => Set<string>]
 >()
+const adds: DependencyExtractor = {
+  extract: (code, _path, fallback) => fallback(code).add('./extra'),
+}
+expectTypeOf(adds).toExtend<DependencyExtractor>()
+const fallbackIsNoArray: DependencyExtractor = {
+  // @ts-expect-error the fallback returns a Set, which has no `push`
+  extract: (code, _path, fallback) => fallback(code).push('./extra'),
+}
+expectTypeOf(fallbackIsNoArray).toExtend<DependencyExtractor>()
 declare const changed: ChangedFiles
 const related: AffectedSelection = { kind: 'related', paths: ['/a.ts'] }
 const byChange: AffectedSelection = { kind: 'changed', changed }

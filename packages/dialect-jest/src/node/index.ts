@@ -23,6 +23,11 @@ import type { JestGlobalConfig, JestLoadedConfig, JestProjectConfig } from './ty
 
 export * from '@provino/dialect-jest/results'
 export {
+  JEST_NO_SCM_TEXT,
+  jestChangedFilesErrorText,
+  jestChangedNoTestsMessage,
+} from './changed-text.ts'
+export {
   JEST_CLI_OPTIONS,
   type JestCliOption,
   type JestCliSupport,
@@ -73,6 +78,11 @@ export { setupPreset } from './preset.ts'
 export { type CollectedTextStyle, jestCollectedText } from './reporters/collected-text.ts'
 export { jestConsoleTrace } from './reporters/console-trace.ts'
 export {
+  createJestGitHubActionsReporter,
+  type JestGitHubActionsOptions,
+  jestResultIcons,
+} from './reporters/github-actions.ts'
+export {
   createJestReporterHost,
   type JestLoadedReporter,
   type JestReporterClass,
@@ -82,6 +92,14 @@ export {
   type JestReporterOnStartOptions,
 } from './reporters/host.ts'
 export { loadJestReporters } from './reporters/load.ts'
+export {
+  createNotifyReporter,
+  type JestNotifier,
+  type JestNotifierLoad,
+  JestNotifierMissingError,
+  type JestNotifyConfig,
+  loadJestNotifier,
+} from './reporters/notify.ts'
 export {
   type JestReporterEnvironment,
   type JestReporterPlan,

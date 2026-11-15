@@ -1,0 +1,23 @@
+{
+  "description": "The github-actions reporter with `silent: false` under Jest 30.5.2 (B23d A4, DV90) and no other reporter: per file the result tree, a passing file in a `::group::` block with its console output under the PASS line, a failing file's lines ungrouped under FAIL, nested describes at their depth, skipped and todo marks, then the last file's `Errors thrown in` group. Annotations and the failure text are left out of the kept lines (their stacks are Jest's own); durations are masked. `GITHUB_ACTIONS=true`, one worker, `--ci`. A black-box run; the kept lines are the ones `provino jest` is held to (`provino`'s `jest-github-actions.test.ts`).",
+  "runners": ["jest"],
+  "env": {
+    "GITHUB_ACTIONS": "true"
+  },
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "reporters": [["github-actions", { "silent": false }]]
+    }
+  },
+  "run": {
+    "raw": true,
+    "capture": ["exitCode", "stderr", "stdout"],
+    "emptyStreams": ["stdout"],
+    "keepLines": "^(::group::|::endgroup::)| +FAIL |^ *(✓|✕|○|✎) |^ {2,}(suite|inner)-|^ {4}console\\.|^ {6}msg-|^ {6}at Object\\.(log|warn) ",
+    "mask": ["\\(\\d+ ms\\)"],
+    "argv": {
+      "jest": ["--ci"]
+    }
+  }
+}
