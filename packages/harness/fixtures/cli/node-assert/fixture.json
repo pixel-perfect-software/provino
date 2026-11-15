@@ -1,0 +1,12 @@
+{
+  "description": "Jest 30.5.2's own text for a test that fails with a node:assert AssertionError (jest-circus `formatNodeAssertErrors`): equal, notEqual, strictEqual, deepStrictEqual, deepEqual, ok, throws, doesNotThrow, match, rejects and fail, a custom message, an assert inside a describe and in a hook, and an error that only carries code ERR_ASSERTION. Kept: every stderr line that is not a stack frame, a test list line (those carry durations), a time, a count line or runner noise. The results file's failureMessages are captured with each run of frames as <frames>. A black-box run, read by `provino`'s `jest-node-assert.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["--useStderr", "--testLocationInResults"] },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(?!\\s+at )(?!ERROR: failed)(?!\\(node:)(?!\\(Use )(?!\\s+✕)(?!\\s+(?:inside a describe|nested)$)(?!\\s+>?\\s*\\d+ \\|)(?!\\s+\\| +\\^)(?!Time:)(?!Ran all)(?!Test Suites:)(?!Tests:)(?!Snapshots:)(?!Test results)(?!\\s*$)",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

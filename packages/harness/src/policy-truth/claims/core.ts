@@ -1,8 +1,9 @@
 // The evidence for the `core` and `lazy` slices (T1.7). The runtime corpus (B07) runs Provino's
 // core under each value and compares with goldens recorded from both runners, so a flipped value
 // that changes a run is caught there; `fixtures/policy/core-*` record what it can't tell apart.
-import { isDeepStrictEqual } from 'node:util'
-import { jestShuffle } from '@provino/dialect-jest/runtime'
+import { equal as assertEqual } from 'node:assert'
+import { isDeepStrictEqual, stripVTControlCharacters } from 'node:util'
+import { jestShuffle, shapeTestError } from '@provino/dialect-jest/runtime'
 import { vitestPolicy } from '@provino/dialect-vitest'
 import { neutralPolicy } from '@provino/policy'
 import type { Golden } from '../../golden.ts'
@@ -38,6 +39,46 @@ const shuffleMatches = (g: Golden, value: unknown): boolean => {
   const ran = (results?.testResults?.[0]?.assertionResults ?? []).map((test) => test.title)
   if (ran.length !== 30) throw new Error(`${g.suite} (${g.runner}) did not run 30 tests`)
   return isDeepStrictEqual(jestShuffle(FLAT_SEED)(ran.toSorted()), ran)
+}
+
+/**
+ * Whether the ref (the dialect's `core.shapeTestError`) is what turns a failed `node:assert` call
+ * into Jest's text: it is the dialect's own `shapeTestError` ref, and what that function makes of a
+ * real `assert.equal(1, 2)` failure is the first failure message `cli/node-assert` recorded, up to
+ * its stack frames (`null`, or a ref to another function, leaves Node's own text).
+ */
+const nodeAssertMatches = (g: Golden, value: unknown): boolean => {
+  const ref = value as { readonly module?: unknown; readonly export?: unknown } | null
+  if (
+    ref === null ||
+    ref.export !== 'shapeTestError' ||
+    ref.module !== import.meta.resolve('@provino/dialect-jest/runtime')
+  ) {
+    return false
+  }
+  const recorded = (
+    observedOf(g).json?.['.harness-out/jest.json'] as
+      | {
+          readonly testResults?: readonly {
+            readonly assertionResults?: readonly { readonly failureMessages: readonly string[] }[]
+          }[]
+        }
+      | null
+      | undefined
+  )?.testResults?.[0]?.assertionResults?.[0]?.failureMessages[0]
+  if (recorded === undefined) throw new Error(`${g.suite} (${g.runner}) recorded no failure`)
+  let thrown: unknown
+  try {
+    assertEqual(1, 2)
+  } catch (error) {
+    thrown = error
+  }
+  const shaped = shapeTestError(thrown, { expand: false }) as { readonly message: string }
+  // Colour is the terminal's and FORCE_COLOR's, not the claim's: compare the plain text.
+  return (
+    stripVTControlCharacters(shaped.message).split(/\n\s+at /)[0] ===
+    stripVTControlCharacters(recorded).split('\n<frames>')[0]
+  )
 }
 
 /** Whether a test that fails every attempt reports the first attempt's error (`core-retry`). */
@@ -377,6 +418,17 @@ export const coreClaims: Claims = {
       'core.shuffle',
       null,
       "Vitest's `sequence.shuffle` uses its own generator and isn't built (Vitest dialect, T11.16): the neutral `null` stands",
+    ),
+  ),
+  // A test that fails with `node:assert` reads as jest-circus's `formatNodeAssertErrors` has it
+  // (`cli/node-assert`); `null`, the neutral value, leaves Node's `AssertionError [ERR_ASSERTION]`.
+  'core.shapeTestError': each(
+    golden('cli/node-assert', { matches: nodeAssertMatches }),
+    own(
+      'packages/dialect-vitest/src/dialect.test.ts',
+      'core.shapeTestError',
+      null,
+      'Vitest reports a node:assert AssertionError as thrown: the neutral `null` stands',
     ),
   ),
   'core.orderHooks': own(

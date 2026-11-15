@@ -8,6 +8,8 @@ This file is the license notice for that code. Source files keep the license hea
 
 `packages/dialect-jest/src/runtime/vendor/jest-expect/` is copied from Jest v30.5.2 (https://github.com/jestjs/jest).
 
+`packages/dialect-jest/src/runtime/vendor/jest-circus/` is copied from Jest v30.5.2 (`jest-circus`'s `src/formatNodeAssertErrors.ts`).
+
 `packages/dialect-jest/src/each/vendor/jest-each/` is copied from Jest v30.5.2 (`jest-each`'s `table/array.ts` and `table/interpolation.ts`, and one function of `jest-regex-util`).
 
 `packages/dialect-jest/src/runtime/vendor/jest-snapshot/` and `packages/snapshot/src/vendor/deep-merge.ts` are copied from Jest v30.5.2, `packages/jest-snapshot/src/mockSerializer.ts` and `utils.ts`.
@@ -191,7 +193,7 @@ THE SOFTWARE.
 
 ## vscode-jest
 
-`packages/harness/fixtures/cli/reporters-twenty/fixture.json` holds, as the text of a file, the reporter vscode-jest 6.4.4 ships (`extension/out/reporter.js`, from the `vscode-jest-6.4.4.vsix` release asset of the jest-community/vscode-jest repository, tag `v6.4.4`), unmodified; `UPSTREAM.md` beside it has the asset's checksum. A test fixture: it is not part of any published package. The extension's license:
+`packages/harness/fixtures/cli/reporters-twenty/fixture.json` holds, as the text of a file, the reporter vscode-jest 6.4.4 ships (`extension/out/reporter.js`, from the `vscode-jest-6.4.4.vsix` release asset of the jest-community/vscode-jest repository, tag `v6.4.4`), unmodified; `UPSTREAM.md` beside it has the asset's checksum. The same reporter, unmodified, is the `fixture.json` of each IDE-replay fixture in `packages/harness/fixtures/ide/vscode-jest-all`, `packages/harness/fixtures/ide/vscode-jest-dashed`, `packages/harness/fixtures/ide/vscode-jest-file`, `packages/harness/fixtures/ide/vscode-jest-pattern`, `packages/harness/fixtures/ide/vscode-jest-test-pattern`, `packages/harness/fixtures/ide/vscode-jest-test`, `packages/harness/fixtures/ide/vscode-jest-update-snapshot`, with an `UPSTREAM.md` beside each. All of these are test fixtures: none is part of any published package. The extension's license:
 
 ```
 MIT License

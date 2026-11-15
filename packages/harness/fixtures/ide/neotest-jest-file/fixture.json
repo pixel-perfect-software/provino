@@ -1,0 +1,29 @@
+{
+  "description": "neotest-jest's file run (neotest-jest 0e7979d, init.lua:516-621): the whole file, --testNamePattern=.* and the file last, with the results file read as neotest reads it. Stderr keeps the PASS/FAIL header, the verbose test lines and Jest's `Force exiting Jest` warning.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "__snapshots__/sum.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`sum matches a stored snapshot 1`] = `\"stored\"`;\n"
+    }
+  },
+  "run": {
+    "exact": true,
+    "argv": {
+      "jest": [
+        "--config=jest.config.json",
+        "--no-coverage",
+        "--verbose",
+        "--json",
+        "--outputFile=.harness-out/neotest.json",
+        "--testNamePattern=.*",
+        "--forceExit",
+        "--testLocationInResults",
+        "sum.test.ts"
+      ]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/neotest.json"],
+    "keepLines": "^(PASS|FAIL) |^\\s+(✓|✕|○|✎) |^Force exiting Jest",
+    "mask": ["\\((?:<dur>|\\d+ ms)\\)"],
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

@@ -100,6 +100,7 @@ export const neutralPolicy: Policy = deepFreeze({
     locationFrame: 'test-file',
     orderHooks: null,
     shuffle: null,
+    shapeTestError: null,
   },
   lazy: { readInBeforeAll: 'error' },
   mock: {

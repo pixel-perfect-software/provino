@@ -175,6 +175,8 @@ export class ProcessErrors {
       ownerId,
       lastTestId: frame?.test?.id ?? this.#config.lastTestId(),
       origin,
+      // Not shaped, even when a test owns it: this is an error charged after the test's `test_done`,
+      // which jest-circus's `formatNodeAssertErrors` has already run for (`cli/node-assert-unhandled`).
       error: serializeError(error),
       t: this.#config.now(),
     })

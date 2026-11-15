@@ -1,0 +1,917 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/node-assert",
+  "files": [
+    {
+      "file": "assert.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "equal"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.equal(received, expected)\n\nExpected value to be equal to:\n  2\nReceived:\n  1",
+              "userFrame": "<root>/assert.test.ts:7:10"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "notEqual"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.notEqual(received, expected)\n\nExpected value to not be equal to:\n  1\nReceived:\n  1",
+              "userFrame": "<root>/assert.test.ts:11:10"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "strictEqual"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.strictEqual(received, expected)\n\nExpected value to strictly be equal to:\n  \"b\"\nReceived:\n  \"a\"\n\nDifference:\n\n- Expected\n+ Received\n\n- b\n+ a",
+              "userFrame": "<root>/assert.test.ts:15:10"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 14,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "deepStrictEqual of objects"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.deepStrictEqual(received, expected)\n\nExpected value to deeply and strictly equal to:\n  {\"a\": 1, \"b\": [1, 2, 4], \"c\": \"y\"}\nReceived:\n  {\"a\": 1, \"b\": [1, 2, 3], \"c\": \"x\"}\n\nDifference:\n\n- Expected\n+ Received\n\n  Object {\n    \"a\": 1,\n    \"b\": Array [\n      1,\n      2,\n-     4,\n+     3,\n    ],\n-   \"c\": \"y\",\n+   \"c\": \"x\",\n  }",
+              "userFrame": "<root>/assert.test.ts:19:10"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 18,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "deepEqual"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.deepEqual(received, expected)\n\nExpected value to deeply equal to:\n  [1, 3]\nReceived:\n  [1, 2]\n\nDifference:\n\n- Expected\n+ Received\n\n  Array [\n    1,\n-   3,\n+   2,\n  ]",
+              "userFrame": "<root>/assert.test.ts:23:10"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 22,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "ok"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert(received)\n\nExpected value to be equal to:\n  true\nReceived:\n  false",
+              "userFrame": "<root>/assert.test.ts:27:10"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 26,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "throws without a throw"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.throws(function)\n\nExpected the function to throw an error.\nBut it didn't throw anything.\n\nMessage:\n  Missing expected exception.",
+              "userFrame": "<root>/assert.test.ts:31:10"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 30,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "throws with the wrong error"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.throws(function)\n\nThe input did not match the regular expression /other/. Input:\n\n'Error: boom'",
+              "userFrame": "<root>/assert.test.ts:35:10"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 34,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "doesNotThrow"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.doesNotThrow(function)\n\nExpected the function not to throw an error.\nInstead, it threw:\n  [Error: boom]\n\nMessage:\n  Got unwanted exception.\nActual message: \"boom\"",
+              "userFrame": "<root>/assert.test.ts:41:10"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 40,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "match"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.match(received, expected)\n\nExpected value match to:\n  /x/\nReceived:\n  \"abc\"\n\nDifference:\n\n  Comparing two different types of values. Expected regexp but received string.",
+              "userFrame": "<root>/assert.test.ts:47:10"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 46,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "fail with a message"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.fail(received, expected)\n\nMessage:\n  gave up",
+              "userFrame": "<root>/assert.test.ts:51:10"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 50,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "fail without a message"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.fail(received, expected)",
+              "userFrame": "<root>/assert.test.ts:55:10"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 54,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "custom message"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.strictEqual(received, expected)\n\nExpected value to strictly be equal to:\n  2\nReceived:\n  1\n\nMessage:\n  one is not two\n\n1 !== 2",
+              "userFrame": "<root>/assert.test.ts:59:10"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 58,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "an AssertionError built by hand"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.strictEqual(received, expected)\n\nExpected value to strictly be equal to:\n  2\nReceived:\n  1\n\nMessage:\n  by hand\n\n1 !== 2\n\n    at new",
+              "userFrame": "<root>/assert.test.ts:63:9"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 62,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "rejects"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.rejects(received, expected)\n\nExpected value rejects to:\n  undefined\nReceived:\n  undefined\n\nMessage:\n  Missing expected rejection.\n\nDifference:\n\nCompared values have no visual difference.",
+              "userFrame": "<root>/assert.test.ts:72:3"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 71,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "an error that only carries the code"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.equal(received, expected)\n\nExpected value to be equal to:\n  2\nReceived:\n  1\n\nMessage:\n  looks like oneError:",
+              "userFrame": "<root>/assert.test.ts:76:23"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 75,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "inside a describe",
+              "strictEqual"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.strictEqual(received, expected)\n\nExpected value to strictly be equal to:\n  \"y\"\nReceived:\n  \"x\"\n\nDifference:\n\n- Expected\n+ Received\n\n- y\n+ x",
+              "userFrame": "<root>/assert.test.ts:86:12"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 85,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "assert.test.ts",
+            "path": [
+              "inside a describe",
+              "nested",
+              "never runs"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "assert.notStrictEqual(received, expected)\n\nExpected value not be strictly equal to:\n  1\nReceived:\n  1",
+              "userFrame": "<root>/assert.test.ts:91:14"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 93,
+            "column": 5
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./assert.test.ts\n  ● equal\n    assert.equal(received, expected)\n    Expected value to be equal to:\n      2\n    Received:\n      1\n  ● notEqual\n    assert.notEqual(received, expected)\n    Expected value to not be equal to:\n      1\n    Received:\n      1\n  ● strictEqual\n    assert.strictEqual(received, expected)\n    Expected value to strictly be equal to:\n      \"b\"\n    Received:\n      \"a\"\n    Difference:\n    - Expected\n    + Received\n    - b\n    + a\n  ● deepStrictEqual of objects\n    assert.deepStrictEqual(received, expected)\n    Expected value to deeply and strictly equal to:\n      {\"a\": 1, \"b\": [1, 2, 4], \"c\": \"y\"}\n    Received:\n      {\"a\": 1, \"b\": [1, 2, 3], \"c\": \"x\"}\n    Difference:\n    - Expected\n    + Received\n      Object {\n        \"a\": 1,\n        \"b\": Array [\n          1,\n          2,\n    -     4,\n    +     3,\n        ],\n    -   \"c\": \"y\",\n    +   \"c\": \"x\",\n      }\n  ● deepEqual\n    assert.deepEqual(received, expected)\n    Expected value to deeply equal to:\n      [1, 3]\n    Received:\n      [1, 2]\n    Difference:\n    - Expected\n    + Received\n      Array [\n        1,\n    -   3,\n    +   2,\n      ]\n  ● ok\n    assert(received)\n    Expected value to be equal to:\n      true\n    Received:\n      false\n  ● throws without a throw\n    assert.throws(function)\n    Expected the function to throw an error.\n    But it didn't throw anything.\n    Message:\n      Missing expected exception.\n  ● throws with the wrong error\n    assert.throws(function)\n    The input did not match the regular expression /other/. Input:\n    'Error: boom'\n  ● doesNotThrow\n    assert.doesNotThrow(function)\n    Expected the function not to throw an error.\n    Instead, it threw:\n      [Error: boom]\n    Message:\n      Got unwanted exception.\n    Actual message: \"boom\"\n  ● match\n    assert.match(received, expected)\n    Expected value match to:\n      /x/\n    Received:\n      \"abc\"\n    Difference:\n      Comparing two different types of values. Expected regexp but received string.\n  ● fail with a message\n    assert.fail(received, expected)\n    Message:\n      gave up\n  ● fail without a message\n    assert.fail(received, expected)\n  ● custom message\n    assert.strictEqual(received, expected)\n    Expected value to strictly be equal to:\n      2\n    Received:\n      1\n    Message:\n      one is not two\n    1 !== 2\n  ● an AssertionError built by hand\n    assert.strictEqual(received, expected)\n    Expected value to strictly be equal to:\n      2\n    Received:\n      1\n    Message:\n      by hand\n    1 !== 2\n  ● rejects\n    assert.rejects(received, expected)\n    Expected value rejects to:\n      undefined\n    Received:\n      undefined\n    Message:\n      Missing expected rejection.\n    Difference:\n    Compared values have no visual difference.\n  ● an error that only carries the code\n    assert.equal(received, expected)\n    Expected value to be equal to:\n      2\n    Received:\n      1\n    Message:\n      looks like oneError:\n  ● inside a describe › strictEqual\n    assert.strictEqual(received, expected)\n    Expected value to strictly be equal to:\n      \"y\"\n    Received:\n      \"x\"\n    Difference:\n    - Expected\n    + Received\n    - y\n    + x\n  ● inside a describe › nested › never runs\n    assert.notStrictEqual(received, expected)\n    Expected value not be strictly equal to:\n      1\n    Received:\n      1",
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 1,
+        "numFailedTests": 18,
+        "numPassedTestSuites": 0,
+        "numPassedTests": 0,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 1,
+        "numTotalTests": 18,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.equal(received, expected)\n\nExpected value to be equal to:\n  2\nReceived:\n  1\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.equal(received, expected)\n\nExpected value to be equal to:\n  2\nReceived:\n  1\n<frames>"
+                ],
+                "fullName": "equal",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 6
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "equal",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.notEqual(received, expected)\n\nExpected value to not be equal to:\n  1\nReceived:\n  1\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.notEqual(received, expected)\n\nExpected value to not be equal to:\n  1\nReceived:\n  1\n<frames>"
+                ],
+                "fullName": "notEqual",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 10
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "notEqual",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.strictEqual(received, expected)\n\nExpected value to strictly be equal to:\n  \"b\"\nReceived:\n  \"a\"\n\nDifference:\n\n- Expected\n+ Received\n\n- b\n+ a\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.strictEqual(received, expected)\n\nExpected value to strictly be equal to:\n  \"b\"\nReceived:\n  \"a\"\n\nDifference:\n\n- Expected\n+ Received\n\n- b\n+ a\n<frames>"
+                ],
+                "fullName": "strictEqual",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 14
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "strictEqual",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.deepStrictEqual(received, expected)\n\nExpected value to deeply and strictly equal to:\n  {\"a\": 1, \"b\": [1, 2, 4], \"c\": \"y\"}\nReceived:\n  {\"a\": 1, \"b\": [1, 2, 3], \"c\": \"x\"}\n\nDifference:\n\n- Expected\n+ Received\n\n  Object {\n    \"a\": 1,\n    \"b\": Array [\n      1,\n      2,\n-     4,\n+     3,\n    ],\n-   \"c\": \"y\",\n+   \"c\": \"x\",\n  }\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.deepStrictEqual(received, expected)\n\nExpected value to deeply and strictly equal to:\n  {\"a\": 1, \"b\": [1, 2, 4], \"c\": \"y\"}\nReceived:\n  {\"a\": 1, \"b\": [1, 2, 3], \"c\": \"x\"}\n\nDifference:\n\n- Expected\n+ Received\n\n  Object {\n    \"a\": 1,\n    \"b\": Array [\n      1,\n      2,\n-     4,\n+     3,\n    ],\n-   \"c\": \"y\",\n+   \"c\": \"x\",\n  }\n<frames>"
+                ],
+                "fullName": "deepStrictEqual of objects",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 18
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "deepStrictEqual of objects",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.deepEqual(received, expected)\n\nExpected value to deeply equal to:\n  [1, 3]\nReceived:\n  [1, 2]\n\nDifference:\n\n- Expected\n+ Received\n\n  Array [\n    1,\n-   3,\n+   2,\n  ]\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.deepEqual(received, expected)\n\nExpected value to deeply equal to:\n  [1, 3]\nReceived:\n  [1, 2]\n\nDifference:\n\n- Expected\n+ Received\n\n  Array [\n    1,\n-   3,\n+   2,\n  ]\n<frames>"
+                ],
+                "fullName": "deepEqual",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 22
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "deepEqual",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert(received)\n\nExpected value to be equal to:\n  true\nReceived:\n  false\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert(received)\n\nExpected value to be equal to:\n  true\nReceived:\n  false\n<frames>"
+                ],
+                "fullName": "ok",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 26
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "ok",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.throws(function)\n\nExpected the function to throw an error.\nBut it didn't throw anything.\n\nMessage:\n  Missing expected exception.\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.throws(function)\n\nExpected the function to throw an error.\nBut it didn't throw anything.\n\nMessage:\n  Missing expected exception.\n<frames>"
+                ],
+                "fullName": "throws without a throw",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 30
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "throws without a throw",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.throws(function)\n\nThe input did not match the regular expression /other/. Input:\n\n'Error: boom'\n\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.throws(function)\n\nThe input did not match the regular expression /other/. Input:\n\n'Error: boom'\n\n<frames>"
+                ],
+                "fullName": "throws with the wrong error",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 34
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "throws with the wrong error",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.doesNotThrow(function)\n\nExpected the function not to throw an error.\nInstead, it threw:\n  [Error: boom]\n\nMessage:\n  Got unwanted exception.\nActual message: \"boom\"\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.doesNotThrow(function)\n\nExpected the function not to throw an error.\nInstead, it threw:\n  [Error: boom]\n\nMessage:\n  Got unwanted exception.\nActual message: \"boom\"\n<frames>"
+                ],
+                "fullName": "doesNotThrow",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 40
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "doesNotThrow",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.match(received, expected)\n\nExpected value match to:\n  /x/\nReceived:\n  \"abc\"\n\nDifference:\n\n  Comparing two different types of values. Expected regexp but received string.\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.match(received, expected)\n\nExpected value match to:\n  /x/\nReceived:\n  \"abc\"\n\nDifference:\n\n  Comparing two different types of values. Expected regexp but received string.\n<frames>"
+                ],
+                "fullName": "match",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 46
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "match",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.fail(received, expected)\n\nMessage:\n  gave up\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.fail(received, expected)\n\nMessage:\n  gave up\n<frames>"
+                ],
+                "fullName": "fail with a message",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 50
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fail with a message",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.fail(received, expected)\n\n\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.fail(received, expected)\n\n\n<frames>"
+                ],
+                "fullName": "fail without a message",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 54
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fail without a message",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.strictEqual(received, expected)\n\nExpected value to strictly be equal to:\n  2\nReceived:\n  1\n\nMessage:\n  one is not two\n\n1 !== 2\n\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.strictEqual(received, expected)\n\nExpected value to strictly be equal to:\n  2\nReceived:\n  1\n\nMessage:\n  one is not two\n\n1 !== 2\n\n<frames>"
+                ],
+                "fullName": "custom message",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 58
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "custom message",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.strictEqual(received, expected)\n\nExpected value to strictly be equal to:\n  2\nReceived:\n  1\n\nMessage:\n  by hand\n\n1 !== 2\n\n    at new \n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.strictEqual(received, expected)\n\nExpected value to strictly be equal to:\n  2\nReceived:\n  1\n\nMessage:\n  by hand\n\n1 !== 2\n\n    at new \n<frames>"
+                ],
+                "fullName": "an AssertionError built by hand",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 62
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "an AssertionError built by hand",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.rejects(received, expected)\n\nExpected value rejects to:\n  undefined\nReceived:\n  undefined\n\nMessage:\n  Missing expected rejection.\n\nDifference:\n\nCompared values have no visual difference.\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.rejects(received, expected)\n\nExpected value rejects to:\n  undefined\nReceived:\n  undefined\n\nMessage:\n  Missing expected rejection.\n\nDifference:\n\nCompared values have no visual difference.\n<frames>"
+                ],
+                "fullName": "rejects",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 71
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "rejects",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.equal(received, expected)\n\nExpected value to be equal to:\n  2\nReceived:\n  1\n\nMessage:\n  looks like oneError: \n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.equal(received, expected)\n\nExpected value to be equal to:\n  2\nReceived:\n  1\n\nMessage:\n  looks like oneError: \n<frames>"
+                ],
+                "fullName": "an error that only carries the code",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 75
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "an error that only carries the code",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "inside a describe"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.strictEqual(received, expected)\n\nExpected value to strictly be equal to:\n  \"y\"\nReceived:\n  \"x\"\n\nDifference:\n\n- Expected\n+ Received\n\n- y\n+ x\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.strictEqual(received, expected)\n\nExpected value to strictly be equal to:\n  \"y\"\nReceived:\n  \"x\"\n\nDifference:\n\n- Expected\n+ Received\n\n- y\n+ x\n<frames>"
+                ],
+                "fullName": "inside a describe strictEqual",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 85
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "strictEqual",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "inside a describe",
+                  "nested"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "message": "assert.notStrictEqual(received, expected)\n\nExpected value not be strictly equal to:\n  1\nReceived:\n  1\n<frames>"
+                  }
+                ],
+                "failureMessages": [
+                  "assert.notStrictEqual(received, expected)\n\nExpected value not be strictly equal to:\n  1\nReceived:\n  1\n<frames>"
+                ],
+                "fullName": "inside a describe nested never runs",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 93
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "never runs",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● equal\n\n    assert.equal(received, expected)\n\n    Expected value to be equal to:\n      2\n    Received:\n      1\n\n       5 |\n       6 | it('equal', () => {\n    >  7 |   assert.equal(1, 2)\n         |          ^\n       8 | })\n       9 |\n      10 | it('notEqual', () => {\n\n<frames>\n\n  ● notEqual\n\n    assert.notEqual(received, expected)\n\n    Expected value to not be equal to:\n      1\n    Received:\n      1\n\n       9 |\n      10 | it('notEqual', () => {\n    > 11 |   assert.notEqual(1, 1)\n         |          ^\n      12 | })\n      13 |\n      14 | it('strictEqual', () => {\n\n<frames>\n\n  ● strictEqual\n\n    assert.strictEqual(received, expected)\n\n    Expected value to strictly be equal to:\n      \"b\"\n    Received:\n      \"a\"\n\n    Difference:\n\n    - Expected\n    + Received\n\n    - b\n    + a\n\n      13 |\n      14 | it('strictEqual', () => {\n    > 15 |   assert.strictEqual('a', 'b')\n         |          ^\n      16 | })\n      17 |\n      18 | it('deepStrictEqual of objects', () => {\n\n<frames>\n\n  ● deepStrictEqual of objects\n\n    assert.deepStrictEqual(received, expected)\n\n    Expected value to deeply and strictly equal to:\n      {\"a\": 1, \"b\": [1, 2, 4], \"c\": \"y\"}\n    Received:\n      {\"a\": 1, \"b\": [1, 2, 3], \"c\": \"x\"}\n\n    Difference:\n\n    - Expected\n    + Received\n\n      Object {\n        \"a\": 1,\n        \"b\": Array [\n          1,\n          2,\n    -     4,\n    +     3,\n        ],\n    -   \"c\": \"y\",\n    +   \"c\": \"x\",\n      }\n\n      17 |\n      18 | it('deepStrictEqual of objects', () => {\n    > 19 |   assert.deepStrictEqual(received, expected)\n         |          ^\n      20 | })\n      21 |\n      22 | it('deepEqual', () => {\n\n<frames>\n\n  ● deepEqual\n\n    assert.deepEqual(received, expected)\n\n    Expected value to deeply equal to:\n      [1, 3]\n    Received:\n      [1, 2]\n\n    Difference:\n\n    - Expected\n    + Received\n\n      Array [\n        1,\n    -   3,\n    +   2,\n      ]\n\n      21 |\n      22 | it('deepEqual', () => {\n    > 23 |   assert.deepEqual([1, 2], [1, 3])\n         |          ^\n      24 | })\n      25 |\n      26 | it('ok', () => {\n\n<frames>\n\n  ● ok\n\n    assert(received)\n\n    Expected value to be equal to:\n      true\n    Received:\n      false\n\n      25 |\n      26 | it('ok', () => {\n    > 27 |   assert.ok(false)\n         |          ^\n      28 | })\n      29 |\n      30 | it('throws without a throw', () => {\n\n<frames>\n\n  ● throws without a throw\n\n    assert.throws(function)\n\n    Expected the function to throw an error.\n    But it didn't throw anything.\n\n    Message:\n      Missing expected exception.\n\n      29 |\n      30 | it('throws without a throw', () => {\n    > 31 |   assert.throws(() => {})\n         |          ^\n      32 | })\n      33 |\n      34 | it('throws with the wrong error', () => {\n\n<frames>\n\n  ● throws with the wrong error\n\n    assert.throws(function)\n\n    The input did not match the regular expression /other/. Input:\n\n    'Error: boom'\n\n      33 |\n      34 | it('throws with the wrong error', () => {\n    > 35 |   assert.throws(() => {\n         |          ^\n      36 |     throw new Error('boom')\n      37 |   }, /other/)\n      38 | })\n\n<frames>\n\n  ● doesNotThrow\n\n    assert.doesNotThrow(function)\n\n    Expected the function not to throw an error.\n    Instead, it threw:\n      [Error: boom]\n\n    Message:\n      Got unwanted exception.\n    Actual message: \"boom\"\n\n      39 |\n      40 | it('doesNotThrow', () => {\n    > 41 |   assert.doesNotThrow(() => {\n         |          ^\n      42 |     throw new Error('boom')\n      43 |   })\n      44 | })\n\n<frames>\n\n  ● match\n\n    assert.match(received, expected)\n\n    Expected value match to:\n      /x/\n    Received:\n      \"abc\"\n\n    Difference:\n\n      Comparing two different types of values. Expected regexp but received string.\n\n      45 |\n      46 | it('match', () => {\n    > 47 |   assert.match('abc', /x/)\n         |          ^\n      48 | })\n      49 |\n      50 | it('fail with a message', () => {\n\n<frames>\n\n  ● fail with a message\n\n    assert.fail(received, expected)\n\n    Message:\n      gave up\n\n      49 |\n      50 | it('fail with a message', () => {\n    > 51 |   assert.fail('gave up')\n         |          ^\n      52 | })\n      53 |\n      54 | it('fail without a message', () => {\n\n<frames>\n\n  ● fail without a message\n\n    assert.fail(received, expected)\n\n      53 |\n      54 | it('fail without a message', () => {\n    > 55 |   assert.fail()\n         |          ^\n      56 | })\n      57 |\n      58 | it('custom message', () => {\n\n<frames>\n\n  ● custom message\n\n    assert.strictEqual(received, expected)\n\n    Expected value to strictly be equal to:\n      2\n    Received:\n      1\n\n    Message:\n      one is not two\n\n    1 !== 2\n\n      57 |\n      58 | it('custom message', () => {\n    > 59 |   assert.strictEqual(1, 2, 'one is not two')\n         |          ^\n      60 | })\n      61 |\n      62 | it('an AssertionError built by hand', () => {\n\n<frames>\n\n  ● an AssertionError built by hand\n\n    assert.strictEqual(received, expected)\n\n    Expected value to strictly be equal to:\n      2\n    Received:\n      1\n\n    Message:\n      by hand\n\n    1 !== 2\n\n        at new\n\n      61 |\n      62 | it('an AssertionError built by hand', () => {\n    > 63 |   throw new assert.AssertionError({\n         |         ^\n      64 |     message: 'by hand',\n      65 |     actual: 1,\n      66 |     expected: 2,\n\n<frames>\n\n  ● rejects\n\n    assert.rejects(received, expected)\n\n    Expected value rejects to:\n      undefined\n    Received:\n      undefined\n\n    Message:\n      Missing expected rejection.\n\n    Difference:\n\n    Compared values have no visual difference.\n\n      70 |\n      71 | it('rejects', async () => {\n    > 72 |   await assert.rejects(Promise.resolve(1))\n         |   ^\n      73 | })\n      74 |\n      75 | it('an error that only carries the code', () => {\n\n<frames>\n\n  ● an error that only carries the code\n\n    assert.equal(received, expected)\n\n    Expected value to be equal to:\n      2\n    Received:\n      1\n\n    Message:\n      looks like oneError:\n\n      74 |\n      75 | it('an error that only carries the code', () => {\n    > 76 |   throw Object.assign(new Error('looks like one'), {\n         |                       ^\n      77 |     code: 'ERR_ASSERTION',\n      78 |     actual: 1,\n      79 |     expected: 2,\n\n<frames>\n\n  ● inside a describe › strictEqual\n\n    assert.strictEqual(received, expected)\n\n    Expected value to strictly be equal to:\n      \"y\"\n    Received:\n      \"x\"\n\n    Difference:\n\n    - Expected\n    + Received\n\n    - y\n    + x\n\n      84 | describe('inside a describe', () => {\n      85 |   it('strictEqual', () => {\n    > 86 |     assert.strictEqual(received.c, expected.c)\n         |            ^\n      87 |   })\n      88 |\n      89 |   describe('nested', () => {\n\n<frames>\n\n  ● inside a describe › nested › never runs\n\n    assert.notStrictEqual(received, expected)\n\n    Expected value not be strictly equal to:\n      1\n    Received:\n      1\n\n      89 |   describe('nested', () => {\n      90 |     beforeEach(() => {\n    > 91 |       assert.notStrictEqual(1, 1)\n         |              ^\n      92 |     })\n      93 |     it('never runs', () => {})\n      94 |   })\n\n<frames>\n",
+            "name": "<root>/assert.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

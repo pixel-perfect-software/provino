@@ -1,7 +1,7 @@
 // jest-core `plugins/Quit.ts` L11-L34: `q` leaves raw mode, writes a newline and ends with 0.
 // Jest calls `process.exit(0)`; here the host's `exit` ends the session and the command returns 0.
 import type { JestWatchTerminal } from './context.ts'
-import type { JestWatchPlugin } from './plugin.ts'
+import { type JestWatchPlugin, nameJestWatchPlugin } from './plugin.ts'
 
 /**
  * The terminal's input as watch mode reads it: raw mode when it is a terminal, `utf8` chunks.
@@ -25,7 +25,7 @@ export function jestQuitPlugin(
   stdin: JestWatchStdin,
   exit: (code: number) => void,
 ): JestWatchPlugin {
-  return {
+  return nameJestWatchPlugin('QuitPlugin', {
     isInternal: true,
     getUsageInfo: () => ({ key: 'q', prompt: 'quit watch mode' }),
     run: async () => {
@@ -33,5 +33,5 @@ export function jestQuitPlugin(
       terminal.out.write('\n')
       exit(0)
     },
-  }
+  })
 }

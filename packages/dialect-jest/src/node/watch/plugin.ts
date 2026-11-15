@@ -34,6 +34,27 @@ export interface JestWatchPlugin {
   run?(globalConfig: JestGlobalConfig, updateConfigAndRun: JestUpdateConfigAndRun): Promise<unknown>
 }
 
+/** A built-in plugin's class name for `getPluginIdentifier`: Jest's are classes, ours object literals. */
+const identifiers = new WeakMap<JestWatchPlugin, string>()
+
+/**
+ * Names a plugin as `getPluginIdentifier` reads a class (`constructor.displayName` or `name`),
+ * for the conflict text. Returns the plugin.
+ * @internal
+ */
+export function nameJestWatchPlugin<T extends JestWatchPlugin>(name: string, plugin: T): T {
+  identifiers.set(plugin, name)
+  return plugin
+}
+
+/**
+ * The name `nameJestWatchPlugin` gave a plugin, if any.
+ * @internal
+ */
+export function namedJestWatchPlugin(plugin: JestWatchPlugin): string | undefined {
+  return identifiers.get(plugin)
+}
+
 function usageOf(plugin: JestWatchPlugin, globalConfig: JestGlobalConfig): JestUsageData | null {
   return plugin.getUsageInfo?.(globalConfig) ?? null
 }

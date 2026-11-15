@@ -105,6 +105,19 @@ export const INVERTED_COLOR: typeof MatcherUtils.INVERTED_COLOR = lazyChalk('INV
 export const RECEIVED_COLOR: typeof MatcherUtils.RECEIVED_COLOR = lazyChalk('RECEIVED_COLOR')
 /** @internal */
 export const diff: typeof MatcherUtils.diff = matcher('diff')
+
+/** The Chalk `jest-matcher-utils` colours with, loaded on first use. */
+const chalkOfMatcherUtilsInstance: () => { readonly reset: (text: string) => string } = once(() =>
+  createRequire(matcherUtilsPath)('chalk'),
+)
+
+/**
+ * `chalk.reset`, from the Chalk `jest-matcher-utils` uses, so it has the colour level of
+ * `RECEIVED_COLOR` (jest-circus's `formatNodeAssertErrors` wraps its plain text in it).
+ * @internal
+ */
+export const RESET = (text: string): string => chalkOfMatcherUtilsInstance().reset(text)
+
 // The three `ensure*` checks run on passing assertions (`toBeDefined`, `toBeTruthy`, `toBeGreaterThan`,
 // `toHaveLength`, `toHaveBeenCalled`, `toHaveReturned`, and the `*Times` forms), so loading
 // `jest-matcher-utils` for them would put it, and its Chalk, in every worker of nearly every suite

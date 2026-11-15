@@ -446,12 +446,29 @@ describe('the driver', () => {
       [{ path: '/root/fail.test.ts' }],
     )
     t.clearOutput()
+    // `i` runs the failure alone, then draws the progress over the run's summary.
     await t.press('i')
-    assert.match(
+    assert.equal(t.runs.length, 2)
+    assert.equal(t.last().config.testNamePattern, '^/root/fail.test.ts fails$')
+    assert.deepEqual(t.last().config.testPathPatterns, ['/root/fail.test.ts'])
+    assert.equal(t.last().config.watch, true)
+    await t.last().settle(complete(results(['/root/fail.test.ts'])))
+    assert.ok(
+      t
+        .output()
+        .includes(
+          `${ESC.cursorUp(6)}${ESC.eraseDown}\nInteractive Test Progress\n › 1 test remaining\n\n\nWatch Usage\n › Press s to skip the current test.`,
+        ),
       t.output(),
-      /Provino: watch mode's interactive failed-tests mode \(`i`\) is not supported yet \(B23c Phase 9\)\./,
     )
-    assert.equal(t.runs.length, 1)
+    // The mode has every key: `q` leaves it with the filters cleared, and the driver has them again.
+    await t.press('q')
+    assert.equal(t.runs.length, 3)
+    assert.equal(t.last().config.testNamePattern, '')
+    assert.deepEqual(t.last().config.testPathPatterns, [])
+    await t.last().settle(complete())
+    await t.press('\r')
+    assert.equal(t.runs.length, 4)
     t.watch.dispose()
   })
 
@@ -462,8 +479,13 @@ describe('the driver', () => {
       t.output(),
       / › Press t to filter by a test name regex pattern\.\n › Press u to update failing snapshots\.\n › Press i to update failing snapshots interactively\.\n › Press q to quit watch mode\./,
     )
+    // `u` runs once with every snapshot updated; the config after it is back to `new`.
     await t.press('u')
-    assert.match(t.output(), /snapshot update \(`u`\) is not supported yet/)
+    assert.equal(t.runs.length, 2)
+    assert.equal(t.last().config.updateSnapshot, 'all')
+    await t.last().settle(complete())
+    await t.press('\r')
+    assert.equal(t.last().config.updateSnapshot, 'new')
     t.watch.dispose()
   })
 
