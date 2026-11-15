@@ -1,0 +1,331 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ecosystem/rtl-cleanup",
+  "files": [
+    {
+      "file": "first.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "first.test.ts",
+            "path": [
+              "first: the first render"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 5,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "first.test.ts",
+            "path": [
+              "first: a second test starts on an empty body"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 10,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "first.test.ts",
+            "path": [
+              "first: getByText fails with the DOM dump"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TestingLibraryElementError",
+              "message": "TestingLibraryElementError: Unable to find an element with the text: not on the page. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\nIgnored nodes: comments, script, style\n<body>\n  <div>\n    <ul\n      data-file=\"first\"\n    >\n      \u001b...",
+              "userFrame": "<root>/first.test.ts:25:10"
+            }
+          ],
+          "passingAssertions": 1,
+          "location": {
+            "line": 15,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "second.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "second.test.ts",
+            "path": [
+              "second: the first render"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 5,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "second.test.ts",
+            "path": [
+              "second: a second test starts on an empty body"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 10,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "second.test.ts",
+            "path": [
+              "second: getByText fails with the DOM dump"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "TestingLibraryElementError",
+              "message": "TestingLibraryElementError: Unable to find an element with the text: not on the page. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\nIgnored nodes: comments, script, style\n<body>\n  <div>\n    <ul\n      data-file=\"second\"\n    >\n      ...",
+              "userFrame": "<root>/second.test.ts:25:10"
+            }
+          ],
+          "passingAssertions": 1,
+          "location": {
+            "line": 15,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./second.test.ts\n  ● second: getByText fails with the DOM dump\n    TestingLibraryElementError: Unable to find an element with the text: not on the page. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n    Ignored nodes: comments, script, style\nFAIL ./first.test.ts\n  ● first: getByText fails with the DOM dump\n    TestingLibraryElementError: Unable to find an element with the text: not on the page. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n    Ignored nodes: comments, script, style\nTest Suites: 2 failed, 2 total\nTests:       2 failed, 4 passed, 6 total\nSnapshots:   0 total",
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 2,
+        "numFailedTests": 2,
+        "numPassedTestSuites": 0,
+        "numPassedTests": 4,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 2,
+        "numTotalTests": 6,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "first: the first render",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 5
+                },
+                "numPassingAsserts": 2,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "first: the first render",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "first: a second test starts on an empty body",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 10
+                },
+                "numPassingAsserts": 2,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "first: a second test starts on an empty body",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "name": "TestingLibraryElementError"
+                  }
+                ],
+                "failureMessages": [
+                  "TestingLibraryElementError: Unable to find an element with the text: not on the page. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\nIgnored nodes: comments, script, style\n\u001b[36m<body>\u001b[39m\n  \u001b[36m<div>\u001b[39m\n    \u001b[36m<ul\u001b[39m\n      \u001b[33mdata-file\u001b[39m=\u001b[32m\"first\"\u001b[39m\n    \u001b[36m>\u001b[39m\n      \u001b...\n<frames>"
+                ],
+                "fullName": "first: getByText fails with the DOM dump",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 15
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "first: getByText fails with the DOM dump",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● first: getByText fails with the DOM dump\n\n    TestingLibraryElementError: Unable to find an element with the text: not on the page. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\n    Ignored nodes: comments, script, style\n    \u001b[36m<body>\u001b[39m\n      \u001b[36m<div>\u001b[39m\n        \u001b[36m<ul\u001b[39m\n          \u001b[33mdata-file\u001b[39m=\u001b[32m\"first\"\u001b[39m\n        \u001b[36m>\u001b[39m\n          \u001b...\n\n      23 |     ),\n      24 |   )\n    > 25 |   screen.getByText('not on the page')\n         |          ^\n      26 | })\n      27 |\n\n<frames>\n",
+            "name": "<root>/first.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "second: the first render",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 5
+                },
+                "numPassingAsserts": 2,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "second: the first render",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "second: a second test starts on an empty body",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 10
+                },
+                "numPassingAsserts": 2,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "second: a second test starts on an empty body",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "name": "TestingLibraryElementError"
+                  }
+                ],
+                "failureMessages": [
+                  "TestingLibraryElementError: Unable to find an element with the text: not on the page. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\nIgnored nodes: comments, script, style\n\u001b[36m<body>\u001b[39m\n  \u001b[36m<div>\u001b[39m\n    \u001b[36m<ul\u001b[39m\n      \u001b[33mdata-file\u001b[39m=\u001b[32m\"second\"\u001b[39m\n    \u001b[36m>\u001b[39m\n      ...\n<frames>"
+                ],
+                "fullName": "second: getByText fails with the DOM dump",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 15
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "second: getByText fails with the DOM dump",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● second: getByText fails with the DOM dump\n\n    TestingLibraryElementError: Unable to find an element with the text: not on the page. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\n    Ignored nodes: comments, script, style\n    \u001b[36m<body>\u001b[39m\n      \u001b[36m<div>\u001b[39m\n        \u001b[36m<ul\u001b[39m\n          \u001b[33mdata-file\u001b[39m=\u001b[32m\"second\"\u001b[39m\n        \u001b[36m>\u001b[39m\n          ...\n\n      23 |     ),\n      24 |   )\n    > 25 |   screen.getByText('not on the page')\n         |          ^\n      26 | })\n      27 |\n\n<frames>\n",
+            "name": "<root>/second.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

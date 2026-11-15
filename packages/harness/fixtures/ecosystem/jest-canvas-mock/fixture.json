@@ -1,0 +1,25 @@
+{
+  "description": "jest-canvas-mock as a setupFiles module on jest-environment-jsdom (T11.11): drawing calls on a 2d context, ctx.__getEvents() and __getDrawCalls() to toMatchSnapshot, and the context's jest.fn methods asserted on. The second file re-sets up in a beforeEach with jest.resetAllMocks() and setupJestCanvasMock(), the package's documented re-setup after a reset, in place of a project-wide resetMocks: true: the recorder's mockCleanup would set it for both files, and this keeps the first file under Jest's defaults while the second shows the re-setup. Runs with --ci=false, because under the recorder's CI Jest writes no new snapshot; the .snap files are captured. Two files on one worker.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom",
+      "setupFiles": ["jest-canvas-mock"]
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1", "--ci=false"]
+    },
+    "capture": [
+      "exitCode",
+      "stderr",
+      "json:.harness-out/jest.json",
+      "file:__snapshots__/drawing.test.ts.snap",
+      "file:__snapshots__/reset.test.ts.snap"
+    ],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]|^Snapshot Summary$",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
