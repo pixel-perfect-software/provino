@@ -147,6 +147,12 @@ export interface SerializedError {
    * Only the top-level error carries it, not its causes.
    */
   readonly details?: JsonValue
+  /**
+   * Which of `name`, `message` and `stack` were own enumerable properties of the thrown value
+   * (`this.name = …` in a constructor), so `--json` shows them as Jest's JSON of the error does.
+   * Set beside `details` only, and absent when none was.
+   */
+  readonly enumerableFields?: readonly ('name' | 'message' | 'stack')[]
   readonly location?: SourceLocation
 }
 

@@ -219,6 +219,7 @@ describe('toAssertionResult', () => {
     const thrown: SerializedError = {
       ...failure('not found', { name: 'TestingLibraryElementError' }),
       name: 'TestingLibraryElementError',
+      enumerableFields: ['name'],
     }
     const built = toAssertionResult(
       {
@@ -231,6 +232,20 @@ describe('toAssertionResult', () => {
     assert.equal(JSON.stringify(built.failureDetails), '[{"name":"TestingLibraryElementError"}]')
     const [detail] = built.failureDetails as [{ message: string }]
     assert.equal(detail.message, 'not found')
+  })
+
+  it('keeps a name hidden that only the thrown value’s JSON had, not the value itself', () => {
+    // `details` holds `name` because the value's `toJSON` wrote it; the error's own is not enumerable.
+    const thrown: SerializedError = failure('m', { name: 'FromJson', code: 1 })
+    const built = toAssertionResult(
+      {
+        task: test('t', 'file'),
+        result: result('fail', { errors: [thrown] }),
+        startedAt: 1,
+      },
+      OPTIONS,
+    )
+    assert.equal(JSON.stringify(built.failureDetails), '[{"code":1}]')
   })
 })
 

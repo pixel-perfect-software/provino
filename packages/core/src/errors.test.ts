@@ -162,6 +162,24 @@ describe('serializeError details (Jest’s failureDetails)', () => {
     assert.deepEqual(serializeError({ message: 'm', code: 3 }).details, { message: 'm', code: 3 })
   })
 
+  test('names which of name, message and stack the thrown value had as own enumerable fields', () => {
+    class Named extends Error {
+      constructor(message: string) {
+        super(message)
+        this.name = 'Named'
+      }
+    }
+    const named = serializeError(Object.assign(new Named('m'), { extra: 1 }))
+    assert.deepEqual(named.enumerableFields, ['name'])
+    // A `toJSON` that writes `name` and `message` makes them own keys of the JSON, not of the error.
+    const shaped = Object.assign(new Error('m'), {
+      toJSON: () => ({ name: 'Shown', message: 'shown' }),
+    })
+    const serialized = serializeError(shaped)
+    assert.deepEqual(serialized.details, { name: 'Shown', message: 'shown' })
+    assert.equal('enumerableFields' in serialized, false)
+  })
+
   test('only the top-level error has them, not a cause', () => {
     const cause = Object.assign(new Error('inner'), { extra: 1 })
     const serialized = serializeError(new Error('outer', { cause }))

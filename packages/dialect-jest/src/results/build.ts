@@ -450,12 +450,13 @@ function failureDetailOf(error: SerializedError): unknown {
   const detail: Record<string, unknown> = { ...details }
   // A key the thrown value had as its own enumerable property (`this.name = …` in a constructor,
   // as dom-testing-library's `TestingLibraryElementError` sets it) stays enumerable: Jest's JSON
-  // of the error keeps it.
-  const field = (key: string, value: unknown): void => {
+  // of the error keeps it. The worker says which (`enumerableFields`): an own key of `details`
+  // may come from the value's `toJSON` instead.
+  const field = (key: 'name' | 'message' | 'stack', value: unknown): void => {
     Object.defineProperty(detail, key, {
       writable: true,
       configurable: true,
-      enumerable: Object.hasOwn(details, key),
+      enumerable: error.enumerableFields?.includes(key) === true,
       value,
     })
   }
