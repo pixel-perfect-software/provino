@@ -338,7 +338,9 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
 
     ...collect,
 
-    'run:start'(info, announced) {
+    async 'run:start'(info, announced) {
+      // A file the last run started and never ended (an interrupted one under `drop`) leaves the block.
+      await out.close()
       collect['run:start'](info, announced)
       Object.assign(files, zeroCounts())
       Object.assign(tests, zeroCounts())

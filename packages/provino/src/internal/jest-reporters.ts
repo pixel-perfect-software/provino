@@ -7,6 +7,7 @@ import {
   createNotifyReporter,
   type JestGlobalConfig,
   type JestProjectConfig,
+  type JestReporterContext,
   type JestResults,
   jestConsoleTrace,
   jestReporterPlan,
@@ -68,6 +69,11 @@ export async function setUpJestReporters(options: {
   readonly env: Environment
   /** The coverage reporter, when the run collects coverage: Jest adds it after the others, before the summary. */
   readonly coverage?: Reporter | undefined
+  /**
+   * What the config's reporter classes are constructed with (`ReporterContext`): watch mode keeps
+   * one for the session, with its `startRun`. Default: a first run's.
+   */
+  readonly context?: JestReporterContext
 }): Promise<JestReporterSetup> {
   const { globalConfig, results } = options
   const environment = {
@@ -99,6 +105,7 @@ export async function setUpJestReporters(options: {
     results,
     globalConfig,
     entries,
+    ...(options.context === undefined ? {} : { context: options.context }),
   })
   const afterUpdate = globalConfig.updateSnapshot === 'all'
   // `getSummary`: the seed line when `showSeed` is on (`randomize` turns it on in the config reader).
