@@ -731,10 +731,11 @@ describe('the live view', () => {
       [{ path: 'a.test.ts', tests: [{ path: ['t'] }] }],
       live,
     )
+    // Jest pads RUNS whatever the colour support (`Status.ts` L23-L24): ` RUNS ` and a space.
     assert.equal(
       text,
       [
-        'RUNS ./a.test.ts\n',
+        ' RUNS  ./a.test.ts\n',
         `${ESC}[1F${ESC}[0JPASS ./a.test.ts\n`,
         `\nTest Suites: 1 passed, 1 total\nTests:       1 passed, 1 total\nTime:        1.234 s\n`,
       ].join(''),
@@ -806,7 +807,7 @@ describe('the live view', () => {
     assert.equal(after.length, 1, 'one write for the text and the redraw')
     assert.equal(
       after[0],
-      `${ESC}[3F${ESC}[0JPASS ./a.test.ts\nRUNS ./b.test.ts\nRUNS ./c.test.ts\n`,
+      `${ESC}[3F${ESC}[0JPASS ./a.test.ts\n RUNS  ./b.test.ts\n RUNS  ./c.test.ts\n`,
     )
     // A file with no text that was never drawn changes nothing on the screen: no write.
     const quiet = out.writes().length

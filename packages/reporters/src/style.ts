@@ -48,7 +48,9 @@ export function createStyle(enabled: boolean): Style {
       yellow: same,
       magenta: same,
       inverse: same,
-      badge: (word) => word,
+      // PASS and FAIL are bare words with colour off (jest-reporters `getResultHeader.ts` L19-L27),
+      // but RUNS keeps its padding (`Status.ts` L23-L24 pads it whatever the colour support).
+      badge: (word) => (word === 'RUNS' ? ' RUNS ' : word),
     }
   }
   const bold = wrap(1, 22)
