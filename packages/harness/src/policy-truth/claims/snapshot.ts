@@ -189,8 +189,11 @@ export const snapshotClaims: Claims = {
   // jest-snapshot's `SnapshotState` shape, which jest-image-snapshot 6.5.2 reads and writes:
   // `_counters` shared with `toMatchSnapshot` (`add`: the image is the test's second snapshot,
   // the .snap holds `counter 1` and `counter 3`), `_updateSnapshot` (`ci`: `none` refuses a new
-  // image; `update`: `all` rewrites it), and the four counts Jest's totals add up. The flip is the
-  // neutral `null` (`REF_FLIPS`), which every one of the five must reject.
+  // image; `update`: `all` rewrites it), and the four counts Jest's totals add up. `retry`: the
+  // writes are no attempt's, so a retry keeps them (each first attempt's image is `added`, the
+  // retry `matched` on it: 7 and 3), and a counter `toMatchSnapshot` touched first goes back to
+  // the image's count (`image then snapshot 3`). The flip is the neutral `null` (`REF_FLIPS`),
+  // which every one of the six must reject.
   'snapshot.contextView': each(
     [
       imageSnapshot('add', (g) => {
@@ -218,6 +221,17 @@ export const snapshotClaims: Claims = {
           capturedFile(g, 'image-hashes.txt') === '' &&
           String(observedOf(g).stderr).includes('New snapshot was not written.'),
       ),
+      imageSnapshot('retry', (g) => {
+        const snap = capturedFile(g, '__snapshots__/images.test.ts.snap')
+        return (
+          g.snapshots?.counters.added === 7 &&
+          g.snapshots.counters.matched === 3 &&
+          snap.includes('exports[`image then snapshot 3`]') &&
+          snap.includes('exports[`snapshot then image 1`]') &&
+          snap.includes('exports[`snapshot then image 3`]') &&
+          capturedFile(g, 'image-hashes.txt').includes('retry-mixed.png ')
+        )
+      }),
     ],
     pending('T7.6', 'what Vitest`s matchers read of `this.snapshotState` comes with its table'),
   ),
