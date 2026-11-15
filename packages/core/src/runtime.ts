@@ -54,6 +54,8 @@ export interface RuntimeOptions {
   readonly projectName?: string
   /** Whether this is a CI run (`allowOnly: 'not-in-ci'`). Default `false`. */
   readonly ci?: boolean
+  /** Whether diffs print in full (Jest's `--expand`), as `policy.shapeTestError` is told. Default `false`. */
+  readonly expand?: boolean
   /** Capture task and hook locations. Default `true`. */
   readonly locations?: boolean
   /** `-t`: tests whose joined full name doesn't match are skipped. */
@@ -197,6 +199,10 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     policy.shuffle === null ? undefined : await options.behaviours.load(policy.shuffle)
   const orderHooks =
     policy.orderHooks === null ? undefined : await options.behaviours.load(policy.orderHooks)
+  const shapeTestError =
+    policy.shapeTestError === null
+      ? undefined
+      : await options.behaviours.load(policy.shapeTestError)
   const runs = createRunRegistry()
   const workerTeardowns: Array<() => unknown> = []
   const collector = new Collector({
@@ -231,6 +237,8 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   const executor: Executor = new Executor({
     policy,
     orderHooks,
+    shapeTestError,
+    expand: options.expand ?? false,
     sink,
     deadlines,
     timers,
@@ -442,7 +450,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
       failed ? 'fail' : outcome,
       start,
       end,
-      file.errors,
+      file.errors.map(serializeError),
       childOrder === undefined ? undefined : { childOrder },
     )
     sink.emit({ type: 'file-end', fileId, result, t: end })

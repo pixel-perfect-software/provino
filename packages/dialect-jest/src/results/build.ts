@@ -438,6 +438,36 @@ export function finishAggregated(aggregated: AggregatedResult, end: RunEnd): voi
 }
 
 /**
+ * Whether the error is what the dialect's `shapeTestError` made of a failed `node:assert` call: a
+ * `{ message }` object (jest-circus's `formatNodeAssertErrors`) that keeps the assertion error's own
+ * `name` or `code`. Only that object enumerates a `message` (an `Error`'s is not enumerable), so it
+ * is the one value whose `details` holds it: the serialized error carries no other mark, and every
+ * other error's `failureDetails` stays as it was.
+ */
+function isShapedAssertion(error: SerializedError, details: object): boolean {
+  const keys = Object.keys(details)
+  return (
+    keys.length === 1 &&
+    keys[0] === 'message' &&
+    (error.name === 'AssertionError' || error.code === 'ERR_ASSERTION') &&
+    (details as { message?: unknown }).message === error.message
+  )
+}
+
+/**
+ * `failureDetails[i]` of a shaped assertion error: Jest's `{ message }` plain object, whose
+ * `message` `--json` writes. Our frames stay out of its text, as of every message here (D104).
+ */
+function shapedFailureDetailOf(error: SerializedError, details: object): unknown {
+  const message = hideProvinoFrames(error.message)
+  const detail: Record<string, unknown> = { ...details, message }
+  const hidden = { writable: true, configurable: true, enumerable: false }
+  Object.defineProperty(detail, 'name', { ...hidden, value: error.name })
+  Object.defineProperty(detail, 'stack', { ...hidden, value: message })
+  return detail
+}
+
+/**
  * What a reporter finds in `failureDetails[i]`: Jest hands it the error itself, so a hook reads
  * `detail.message` (jest-junit's `noStackTrace` does). `--json` writes only the own enumerable keys
  * (`details`, the JSON of the thrown value: only an assertion error keeps `matcherResult`), since
@@ -447,6 +477,7 @@ export function finishAggregated(aggregated: AggregatedResult, end: RunEnd): voi
 function failureDetailOf(error: SerializedError): unknown {
   const details = error.details ?? {}
   if (typeof details !== 'object' || details === null || Array.isArray(details)) return details
+  if (isShapedAssertion(error, details)) return shapedFailureDetailOf(error, details)
   const detail: Record<string, unknown> = { ...details }
   const hidden = { writable: true, configurable: true, enumerable: false }
   Object.defineProperty(detail, 'name', { ...hidden, value: error.name })

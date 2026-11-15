@@ -69,6 +69,7 @@ export type {
   HookKind,
   HookOrder,
   OrderHooks,
+  ShapeTestError,
   ShuffleFactory,
 } from './core.ts'
 export type { CoveragePolicy } from './coverage.ts'

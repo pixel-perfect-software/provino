@@ -8,6 +8,8 @@ This file is the license notice for that code. Source files keep the license hea
 
 `packages/dialect-jest/src/runtime/vendor/jest-expect/` is copied from Jest v30.5.2 (https://github.com/jestjs/jest).
 
+`packages/dialect-jest/src/runtime/vendor/jest-circus/` is copied from Jest v30.5.2 (`jest-circus`'s `src/formatNodeAssertErrors.ts`).
+
 `packages/dialect-jest/src/each/vendor/jest-each/` is copied from Jest v30.5.2 (`jest-each`'s `table/array.ts` and `table/interpolation.ts`, and one function of `jest-regex-util`).
 
 `packages/dialect-jest/src/runtime/vendor/jest-snapshot/` and `packages/snapshot/src/vendor/deep-merge.ts` are copied from Jest v30.5.2, `packages/jest-snapshot/src/mockSerializer.ts` and `utils.ts`.
