@@ -282,6 +282,43 @@ describe('toAssertionResult', () => {
       assert.deepEqual(Object.keys(other), [])
       assert.equal(other.message, 'thrown')
     })
+
+    it('keeps the thrown value’s own message as thrown, not the serializer’s text (cli/json-thrown-values)', () => {
+      // `throw { message: 'boom' }`: the value is not error-like, so the serializer's message is
+      // its description; Jest's JSON is the value's own keys.
+      const thrown = details({
+        name: 'Error',
+        message: '[object Object]',
+        details: { message: 'boom' },
+        enumerableFields: ['message'],
+      })
+      assert.equal(JSON.stringify(thrown), '{"message":"boom"}')
+    })
+
+    it('keeps a non-string own message as thrown', () => {
+      const thrown = details({
+        name: 'Error',
+        message: '42',
+        details: { message: 42, code: 'E' },
+        enumerableFields: ['message'],
+      })
+      assert.equal(JSON.stringify(thrown), '{"message":42,"code":"E"}')
+    })
+
+    it('hides our frames in an own enumerable stack', () => {
+      const stack = `Error: own\n    at t (/a.test.ts:1:1)\n${provinoFrame}`
+      const thrown = details({
+        name: 'Error',
+        message: 'own',
+        stack,
+        details: { stack },
+        enumerableFields: ['stack'],
+      })
+      assert.equal(
+        JSON.stringify(thrown),
+        JSON.stringify({ stack: 'Error: own\n    at t (/a.test.ts:1:1)' }),
+      )
+    })
   })
 })
 

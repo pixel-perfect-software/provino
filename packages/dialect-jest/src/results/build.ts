@@ -481,21 +481,26 @@ function failureDetailOf(error: SerializedError): unknown {
   // assertion), whatever `enumerableFields` says; every other error follows its own fields below.
   if (isShapedAssertion(error, details)) return shapedFailureDetailOf(error, details)
   const detail: Record<string, unknown> = { ...details }
+  const own = details as Record<string, unknown>
   // A key the thrown value had as its own enumerable property (`this.name = …` in a constructor,
   // as dom-testing-library's `TestingLibraryElementError` sets it) stays enumerable: Jest's JSON
-  // of the error keeps it. The worker says which (`enumerableFields`): an own key of `details`
-  // may come from the value's `toJSON` instead.
+  // of the error keeps it, with the value as thrown (`details`, the JSON of the value: a thrown
+  // `{ message: 'boom' }` is `{"message":"boom"}`, not the serializer's text for it). The worker
+  // says which (`enumerableFields`): an own key of `details` may come from the value's `toJSON`
+  // instead, and is then hidden, with the serializer's value.
   const field = (key: 'name' | 'message' | 'stack', value: unknown): void => {
+    const enumerable = error.enumerableFields?.includes(key) === true
+    const kept = enumerable && Object.hasOwn(own, key) ? own[key] : value
     Object.defineProperty(detail, key, {
       writable: true,
       configurable: true,
-      enumerable: error.enumerableFields?.includes(key) === true,
-      value,
+      enumerable,
+      // A message or stack can carry frames (`toThrow` prints the thrown error's); ours stay out (D104).
+      value: key !== 'name' && typeof kept === 'string' ? hideProvinoFrames(kept) : kept,
     })
   }
   field('name', error.name)
-  // A message can carry a stack of its own (`toThrow` prints the thrown error's); ours stay out (D104).
-  field('message', hideProvinoFrames(error.message))
+  field('message', error.message)
   if (error.stack !== undefined) field('stack', error.stack)
   return detail
 }
