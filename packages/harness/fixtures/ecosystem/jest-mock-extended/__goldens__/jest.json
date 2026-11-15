@@ -1,0 +1,393 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ecosystem/jest-mock-extended",
+  "files": [
+    {
+      "file": "deep.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "deep.test.ts",
+            "path": [
+              "mockDeep and the resets",
+              "answers a nested calledWith"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "deep.test.ts",
+            "path": [
+              "mockDeep and the resets",
+              "mockReset drops the calledWith answers and the calls"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 3,
+          "location": {
+            "line": 17,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "deep.test.ts",
+            "path": [
+              "mockDeep and the resets",
+              "mockClear drops the calls and keeps the answers"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 26,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "deep.test.ts",
+            "path": [
+              "mockDeep and the resets",
+              "fails toHaveBeenCalledTimes on a nested member"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)\n\nExpected number of calls: 2\nReceived number of calls: 1",
+              "userFrame": "<root>/deep.test.ts:38:35"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 35,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "members.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "members.test.ts",
+            "path": [
+              "mock<T>()",
+              "answers calledWith on a literal and nothing else"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 3,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "members.test.ts",
+            "path": [
+              "mock<T>()",
+              "answers calledWith on any() and anyString()"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 18,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "members.test.ts",
+            "path": [
+              "mock<T>()",
+              "fails toHaveBeenCalledWith on a member"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)\n\nExpected: \"a\", 2\nReceived: \"a\", 1\n\nNumber of calls: 1",
+              "userFrame": "<root>/members.test.ts:30:23"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 27,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./deep.test.ts\n  ● mockDeep and the resets › fails toHaveBeenCalledTimes on a nested member\n    expect(jest.fn()).toHaveBeenCalledTimes(expected)\n    Expected number of calls: 2\n    Received number of calls: 1\nFAIL ./members.test.ts\n  ● mock<T>() › fails toHaveBeenCalledWith on a member\n    expect(jest.fn()).toHaveBeenCalledWith(...expected)\n    Expected: \"a\", 2\n    Received: \"a\", 1\n    Number of calls: 1\nTest Suites: 2 failed, 2 total\nTests:       2 failed, 5 passed, 7 total\nSnapshots:   0 total\nRan all test suites.\nTest results written to: .harness-out/jest.json",
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 2,
+        "numFailedTests": 2,
+        "numPassedTestSuites": 0,
+        "numPassedTests": 5,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 2,
+        "numTotalTests": 7,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [
+                  "mockDeep and the resets"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "mockDeep and the resets answers a nested calledWith",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 10
+                },
+                "numPassingAsserts": 2,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "answers a nested calledWith",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "mockDeep and the resets"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "mockDeep and the resets mockReset drops the calledWith answers and the calls",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 17
+                },
+                "numPassingAsserts": 3,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "mockReset drops the calledWith answers and the calls",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "mockDeep and the resets"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "mockDeep and the resets mockClear drops the calls and keeps the answers",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 26
+                },
+                "numPassingAsserts": 2,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "mockClear drops the calls and keeps the answers",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "mockDeep and the resets"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "message": "expect(jest.fn()).toHaveBeenCalledTimes(expected)\n\nExpected number of calls: 2\nReceived number of calls: 1",
+                      "pass": false
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)\n\nExpected number of calls: 2\nReceived number of calls: 1\n<frames>"
+                ],
+                "fullName": "mockDeep and the resets fails toHaveBeenCalledTimes on a nested member",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 35
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fails toHaveBeenCalledTimes on a nested member",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● mockDeep and the resets › fails toHaveBeenCalledTimes on a nested member\n\n    expect(jest.fn()).toHaveBeenCalledTimes(expected)\n\n    Expected number of calls: 2\n    Received number of calls: 1\n\n      36 |     const service = mockDeep<Service>()\n      37 |     service.db.users.find(1)\n    > 38 |     expect(service.db.users.find).toHaveBeenCalledTimes(2)\n         |                                   ^\n      39 |   })\n      40 | })\n      41 |\n\n<frames>\n",
+            "name": "<root>/deep.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [
+                  "mock<T>()"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "mock<T>() answers calledWith on a literal and nothing else",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 10
+                },
+                "numPassingAsserts": 3,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "answers calledWith on a literal and nothing else",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "mock<T>()"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "mock<T>() answers calledWith on any() and anyString()",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 18
+                },
+                "numPassingAsserts": 2,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "answers calledWith on any() and anyString()",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "mock<T>()"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "message": "expect(jest.fn()).toHaveBeenCalledWith(...expected)\n\nExpected: \"a\", 2\nReceived: \"a\", 1\n\nNumber of calls: 1",
+                      "pass": false
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(jest.fn()).toHaveBeenCalledWith(...expected)\n\nExpected: \"a\", 2\nReceived: \"a\", 1\n\nNumber of calls: 1\n<frames>"
+                ],
+                "fullName": "mock<T>() fails toHaveBeenCalledWith on a member",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 27
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fails toHaveBeenCalledWith on a member",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● mock<T>() › fails toHaveBeenCalledWith on a member\n\n    expect(jest.fn()).toHaveBeenCalledWith(...expected)\n\n    Expected: \"a\", 2\n    Received: \"a\", 1\n\n    Number of calls: 1\n\n      28 |     const store = mock<Store>()\n      29 |     store.put('a', 1)\n    > 30 |     expect(store.put).toHaveBeenCalledWith('a', 2)\n         |                       ^\n      31 |   })\n      32 | })\n      33 |\n\n<frames>\n",
+            "name": "<root>/members.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "description": "expect-type 1 inside Jest test files (T7.16), on two files under one worker: `expectTypeOf(…).toEqualTypeOf<…>()`, `toMatchTypeOf`, `.parameter(0)` and `.returns`. Every call is a runtime no-op that returns more of the same, so this is a load-and-pass smoke: the package loads in the test file's registry and no call throws. Read by `provino`'s `ecosystem-matchers.test.ts`.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^ {2,}(?!at )\\S|^(Test Suites|Tests|Snapshots):|^Ran all test suites|^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

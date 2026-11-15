@@ -1,0 +1,12 @@
+{
+  "description": "jest-mock-extended 4 (T11.11, T4.11's Jest half), on two files under one worker so the second file sees a package the worker loaded for the first. It builds its mocks from `@jest/globals`' `jest.fn` (a served module) and reads `jest-mock`'s types: `mock<T>()` with `calledWith` on literals, `any()` and `anyString()`, `mockDeep` with a nested `calledWith`, `mockReset`, `mockClear`, and failing `toHaveBeenCalledWith` and `toHaveBeenCalledTimes` on a mock's member. Read by `provino`'s `ecosystem-matchers.test.ts`.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^ {2,}(?!at )\\S|^(Test Suites|Tests|Snapshots):|^Ran all test suites|^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
