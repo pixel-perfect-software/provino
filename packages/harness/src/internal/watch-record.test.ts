@@ -341,3 +341,44 @@ test('a run-log line that is still being written is not a run yet, and is not an
     assert.deepEqual(observed.runs, [{ files: [], wasInterrupted: false }])
   })
 })
+
+test('a deadline that kills the session mid-wait is reported as the deadline, not as an end', async () => {
+  await withWorkDir(async (dir) => {
+    // watch/plugin-typeahead-filename, 2026-11-14: run 2 never came, the deadline killed the
+    // session, and the error read "the session ended with 1 of 2 runs".
+    let deadline: AbortSignal | undefined
+    const { spawn } = fakeSpawn()
+    const ending: NonNullable<WatchRecordOptions['spawn']> = async (argv, cwd, env, signal) => {
+      const session = await spawn(argv, cwd, env, signal)
+      deadline = signal
+      // As `spawnInGroup` does: the deadline terminates the group, and the session ends.
+      const exit = new Promise<PtyExit>((resolve) => {
+        signal.addEventListener('abort', () => resolve({ exitCode: 143, killed: true }), {
+          once: true,
+        })
+      })
+      return { ...session, exit }
+    }
+    const watch: FixtureWatch = { ...QUIT, steps: [{ waitRun: 2 }, { key: 'q' }, { exit: 0 }] }
+    await assert.rejects(
+      recordWatchSession({
+        ...optionsFor(dir, watch, ending),
+        timeoutMs: 0,
+        // The poll returns once the deadline has passed and the session it killed has ended.
+        poll: async () => {
+          const signal = deadline
+          if (signal !== undefined && !signal.aborted) {
+            await new Promise((resolve) =>
+              signal.addEventListener('abort', resolve, { once: true }),
+            )
+          }
+          await new Promise((resolve) => setImmediate(resolve))
+        },
+      }),
+      (error: unknown) =>
+        error instanceof HarnessError &&
+        error.code === 'HARNESS_WATCH_FAILED' &&
+        /the deadline passed with 1 of 2 runs/.test(error.message),
+    )
+  })
+})

@@ -212,9 +212,11 @@ export async function recordWatchSession(options: WatchRecordOptions): Promise<G
           }
           if (seen === count && done === count) return
           if (ended || controller.signal.aborted) {
+            // The deadline first: it ends the session too (the group is terminated), and by the
+            // next look the session has often ended as well.
             throw new HarnessError(
               'HARNESS_WATCH_FAILED',
-              `${source}: ${ended ? 'the session ended' : 'the deadline passed'} with ${seen} of ${count} runs. Output tail:\n${session?.output().slice(-2000) ?? ''}`,
+              `${source}: ${controller.signal.aborted ? 'the deadline passed' : 'the session ended'} with ${seen} of ${count} runs. Output tail:\n${session?.output().slice(-2000) ?? ''}`,
             )
           }
           await poll()
