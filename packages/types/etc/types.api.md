@@ -3098,7 +3098,9 @@ export interface SerializedTransformConfig {
 }
 
 // @public
-export type ShapeTestError = (error: unknown) => unknown;
+export type ShapeTestError = (error: unknown, options: {
+    readonly expand: boolean;
+}) => unknown;
 
 // @public
 export type ShuffleFactory = (seed: number) => <T>(items: T[]) => T[];

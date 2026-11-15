@@ -231,6 +231,9 @@ export function jestProjectToNeutral(
           }),
     },
     mock,
+    // `--expand` is `globalConfig.expand`: Jest's `jestExpect.setState({ expand })` and circus's
+    // `state.expand` (a failed `node:assert` call's diff) both read it.
+    ...(globalConfig.expand ? { expect: { expand: true } } : {}),
     // jest-circus installs the fake clock for every file when `fakeTimers.enableGlobally` is set.
     ...(project.fakeTimers.enableGlobally === true ? { timers: { enableGlobally: true } } : {}),
     orchestrator: {

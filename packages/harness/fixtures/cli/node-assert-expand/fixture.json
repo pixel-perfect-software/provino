@@ -1,0 +1,12 @@
+{
+  "description": "Jest 30.5.2's text for a node:assert deepStrictEqual and deepEqual under --expand (jest-circus `formatNodeAssertErrors` reads `state.expand`): the whole diff, not the changed lines with context. The objects are long enough that the two differ. Kept: every stderr line that is not a stack frame, a test list line (those carry durations), a time, a count line or runner noise. A black-box run, read by `provino`'s `jest-node-assert.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["--useStderr", "--testLocationInResults", "--expand"] },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(?!\\s+at )(?!ERROR: failed)(?!\\(node:)(?!\\(Use )(?!\\s+✕)(?!\\s+(?:inside a describe|nested)$)(?!\\s+>?\\s*\\d+ \\|)(?!\\s+\\| +\\^)(?!Time:)(?!Ran all)(?!Test Suites:)(?!Tests:)(?!Snapshots:)(?!Test results)(?!\\s*$)",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

@@ -42,10 +42,11 @@ export type FormatValue = (value: unknown) => string
 
 /**
  * Replaces the error of a failed test with the value to report in its place, or returns it as it
- * is. Called once per error of a test, as the result is built, with the thrown value itself.
+ * is. Called once per error attached to a test, when it is attached to the test's result, with the
+ * thrown value itself and the run's `expand` (what its diffs print in full).
  * @public
  */
-export type ShapeTestError = (error: unknown) => unknown
+export type ShapeTestError = (error: unknown, options: { readonly expand: boolean }) => unknown
 
 /**
  * The escape hatch for an ordering no `HookOrder` describes: returns the hooks of one kind in

@@ -2,7 +2,7 @@
 // core under each value and compares with goldens recorded from both runners, so a flipped value
 // that changes a run is caught there; `fixtures/policy/core-*` record what it can't tell apart.
 import { equal as assertEqual } from 'node:assert'
-import { isDeepStrictEqual } from 'node:util'
+import { isDeepStrictEqual, stripVTControlCharacters } from 'node:util'
 import { jestShuffle, shapeTestError } from '@provino/dialect-jest/runtime'
 import { vitestPolicy } from '@provino/dialect-vitest'
 import { neutralPolicy } from '@provino/policy'
@@ -73,8 +73,12 @@ const nodeAssertMatches = (g: Golden, value: unknown): boolean => {
   } catch (error) {
     thrown = error
   }
-  const shaped = shapeTestError(thrown) as { readonly message: string }
-  return shaped.message.split(/\n\s+at /)[0] === recorded.split('\n<frames>')[0]
+  const shaped = shapeTestError(thrown, { expand: false }) as { readonly message: string }
+  // Colour is the terminal's and FORCE_COLOR's, not the claim's: compare the plain text.
+  return (
+    stripVTControlCharacters(shaped.message).split(/\n\s+at /)[0] ===
+    stripVTControlCharacters(recorded).split('\n<frames>')[0]
+  )
 }
 
 /** Whether a test that fails every attempt reports the first attempt's error (`core-retry`). */

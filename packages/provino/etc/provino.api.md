@@ -8,7 +8,9 @@ import { Context } from 'node:vm';
 import { StandardSchemaV1 } from '@standard-schema/spec';
 
 // @public
-export type $ = (error: unknown) => unknown;
+export type $ = (error: unknown, options: {
+    readonly expand: boolean;
+}) => unknown;
 
 // @public
 export type _ = "file" | "worker";

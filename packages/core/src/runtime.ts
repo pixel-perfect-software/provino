@@ -54,6 +54,8 @@ export interface RuntimeOptions {
   readonly projectName?: string
   /** Whether this is a CI run (`allowOnly: 'not-in-ci'`). Default `false`. */
   readonly ci?: boolean
+  /** Whether diffs print in full (Jest's `--expand`), as `policy.shapeTestError` is told. Default `false`. */
+  readonly expand?: boolean
   /** Capture task and hook locations. Default `true`. */
   readonly locations?: boolean
   /** `-t`: tests whose joined full name doesn't match are skipped. */
@@ -236,6 +238,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     policy,
     orderHooks,
     shapeTestError,
+    expand: options.expand ?? false,
     sink,
     deadlines,
     timers,
@@ -447,7 +450,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
       failed ? 'fail' : outcome,
       start,
       end,
-      file.errors,
+      file.errors.map(serializeError),
       childOrder === undefined ? undefined : { childOrder },
     )
     sink.emit({ type: 'file-end', fileId, result, t: end })

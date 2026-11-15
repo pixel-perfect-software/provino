@@ -63,6 +63,8 @@ export interface ExecutorConfig {
   readonly orderHooks: OrderHooks | undefined
   /** `CorePolicy.shapeTestError`, loaded: replaces a failed test's error before it is reported. */
   readonly shapeTestError: ShapeTestError | undefined
+  /** The run's `--expand`, handed to `shapeTestError`. */
+  readonly expand: boolean
   readonly sink: EventSink
   /** Every user call's deadline. */
   readonly deadlines: Deadlines
@@ -304,6 +306,8 @@ export class Executor {
   #rootOrder: readonly TaskId[] | undefined
   /** The test that started last. */
   #lastTestId: TaskId | null = null
+  /** The errors shaped so far in this file, so each is shaped once (`serializeTestError`). */
+  readonly #shaped = new Map<unknown, SerializedError>()
   /** The path of the file running now, for the location of a `ctx.annotate` call. */
   #filePath: string | undefined
   /** The file's lifecycle listener (an environment's `onTestEvent`); `undefined` costs nothing. */
@@ -352,6 +356,7 @@ export class Executor {
     this.#filePath = file.path
     this.#heldTests.clear()
     this.#describeAttempts.clear()
+    this.#shaped.clear()
     const life = file.lifecycle
     this.#life = life
     this.#aborted = undefined
@@ -505,7 +510,7 @@ export class Executor {
         suite.id,
         outcome,
         start,
-        errors,
+        errors.map(serializeError),
         childOrder === undefined ? undefined : { childOrder },
       )
     }
@@ -816,14 +821,24 @@ export class Executor {
     const outcomes: Outcome[] = []
     for (const child of suite.children) {
       const t = this.#now()
-      const errors = child.blocked === undefined ? [] : [child.blocked]
+      const blocked = child.blocked === undefined ? [] : [child.blocked]
       if (child.type !== 'test') {
         this.#start(hold, 'suite-start', child.id, t)
         this.#skipBelow(child, hold)
-        this.#endTask(hold, 'suite-end', child.id, 'skip', t, errors)
+        this.#endTask(hold, 'suite-end', child.id, 'skip', t, blocked.map(serializeError))
       } else {
         this.#start(hold, 'test-start', child.id, t)
-        this.#endTask(hold, 'test-end', child.id, 'skip', t, errors, { skipReason: 'unknown' })
+        this.#endTask(
+          hold,
+          'test-end',
+          child.id,
+          'skip',
+          t,
+          blocked.map(this.#serializeTestError),
+          {
+            skipReason: 'unknown',
+          },
+        )
       }
       outcomes.push('skip')
     }
@@ -853,7 +868,9 @@ export class Executor {
     }
     if (test.blocked !== undefined) {
       hold?.failures.push(test.blocked)
-      this.#endTask(hold, 'test-end', test.id, 'fail', start, [test.blocked])
+      this.#endTask(hold, 'test-end', test.id, 'fail', start, [
+        this.#serializeTestError(test.blocked),
+      ])
       return 'fail'
     }
     if (hold !== undefined) this.#heldTests.set(test.id, hold)
@@ -1052,12 +1069,20 @@ export class Executor {
     }
     const outcome: Outcome = failures.length > 0 ? 'fail' : 'pass'
     hold?.failures.push(...failures)
-    this.#endTask(hold, 'test-end', test.id, outcome, start, failures, {
-      retryErrors,
-      attempts,
-      repeatIndex,
-      parkedMs,
-    })
+    this.#endTask(
+      hold,
+      'test-end',
+      test.id,
+      outcome,
+      start,
+      failures.map(this.#serializeTestError),
+      {
+        retryErrors: retryErrors.map(this.#serializeTestError),
+        attempts,
+        repeatIndex,
+        parkedMs,
+      },
+    )
     return outcome
   }
 
@@ -1823,17 +1848,26 @@ export class Executor {
   }
 
   /**
-   * A failed test's error as it is reported: through the policy's `shapeTestError` when it has one
-   * (a shaper that throws leaves the error as thrown).
+   * An error attached to a test, as it is reported: the one place every such error passes through,
+   * whatever route attached it (a failed attempt, a blocked test, an error charged to it late). It
+   * goes through the policy's `shapeTestError` when there is one, and once: the value an attempt
+   * ended with is the one its test's end reports.
    */
   readonly #serializeTestError = (error: unknown): SerializedError => {
     const shape = this.#config.shapeTestError
     if (shape === undefined) return serializeError(error)
+    const known = this.#shaped.get(error)
+    if (known !== undefined) return known
+    let serialized: SerializedError
     try {
-      return serializeError(shape(error))
+      serialized = serializeError(shape(error, { expand: this.#config.expand }))
     } catch {
-      return serializeError(error)
+      // A shaper that throws must not turn a test's failure into the shaper's: the error is
+      // reported as thrown, which is what the neutral policy does with every error.
+      serialized = serializeError(error)
     }
+    this.#shaped.set(error, serialized)
+    return serialized
   }
 
   /** Emits a task's end event, its result and the event timed now. */
@@ -1843,26 +1877,11 @@ export class Executor {
     id: TaskId,
     state: TaskState,
     start: number,
-    errors: readonly unknown[],
+    errors: readonly SerializedError[],
     extra?: ResultExtra,
   ): void {
     const t = this.#now()
-    this.#emit(
-      {
-        type,
-        id,
-        result: taskResult(
-          state,
-          start,
-          t,
-          errors,
-          extra,
-          type === 'test-end' ? this.#serializeTestError : serializeError,
-        ),
-        t,
-      },
-      hold,
-    )
+    this.#emit({ type, id, result: taskResult(state, start, t, errors, extra), t }, hold)
   }
 }
 
@@ -1890,7 +1909,7 @@ function withDropped(
 export interface ResultExtra {
   readonly skipReason?: SkipReason
   readonly note?: string
-  readonly retryErrors?: readonly unknown[]
+  readonly retryErrors?: readonly SerializedError[]
   readonly attempts?: number
   readonly repeatIndex?: number
   /**
@@ -1902,21 +1921,20 @@ export interface ResultExtra {
   readonly childOrder?: readonly TaskId[]
 }
 
-/** A task's (or a file's) result, its errors serialized. */
+/** A task's (or a file's) result, from errors already serialized. */
 export function taskResult(
   state: TaskState,
   start: number,
   end: number,
-  errors: readonly unknown[],
+  errors: readonly SerializedError[],
   extra: ResultExtra = {},
-  serialize: (error: unknown) => SerializedError = serializeError,
 ): TaskResult {
   return {
     state,
     durationMs: end - start - (extra.parkedMs ?? 0),
     startTime: start,
-    errors: errors.map(serialize),
-    retryErrors: (extra.retryErrors ?? []).map(serialize),
+    errors: [...errors],
+    retryErrors: [...(extra.retryErrors ?? [])],
     attempts: extra.attempts ?? 0,
     repeatIndex: extra.repeatIndex ?? 0,
     assertions: 0,
