@@ -8,7 +8,7 @@
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { leakReport, populateGlobal, snapshotProperties } from '@provino/env-shared'
+import { leakReport, type Populated, populateGlobal, snapshotProperties } from '@provino/env-shared'
 import type {
   Environment,
   EnvironmentConditions,
@@ -122,11 +122,12 @@ async function setUpJest(
     { globalConfig, projectConfig },
     { console: context.console, docblockPragmas: context.pragmas, testPath: context.testPath },
   )
+  let populated: Populated | undefined
   try {
     await environment.setup()
     // Only a window stands in for the global: a Node or edge environment's code must not see one.
     const isWindow = 'document' in environment.global
-    populateGlobal(globalThis, environment.global, { selfReferences: isWindow })
+    populated = populateGlobal(globalThis, environment.global, { selfReferences: isWindow })
     // Jest's environments give each file a copy of `process` (jest-util's `installCommonGlobals`),
     // which `populateGlobal` doesn't carry over: the worker already has a `process`. Through the
     // snapshot's wrapped setter, so teardown puts the worker's back.
@@ -159,6 +160,8 @@ async function setUpJest(
       : undefined
   return {
     global: globalThis,
+    // The populated accessors say when they are read, so the worker's probe redefines none (D127).
+    ...(populated === undefined ? {} : { globalReads: populated }),
     ...(listener === undefined ? {} : { onTestEvent: listener }),
     async teardown(): Promise<EnvironmentTeardownReport | undefined> {
       let failure: { readonly error: unknown } | undefined

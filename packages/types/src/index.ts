@@ -90,6 +90,7 @@ export type {
   EnvironmentScope,
   EnvironmentSetupContext,
   EnvironmentTeardownReport,
+  GlobalReadWatch,
   Pragmas,
   ProcessObject,
 } from './environment.ts'

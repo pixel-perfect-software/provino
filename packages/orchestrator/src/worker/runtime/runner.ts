@@ -436,6 +436,8 @@ interface FileScope {
   clock: FakeClock | undefined
   /** True once the file's teardown has run: its environment is gone. */
   tornDown: boolean
+  /** The file's environment once it is set up: whose `globalReads` the external probe hears. */
+  environment: EnvironmentInstance | undefined
 }
 
 /**
@@ -616,8 +618,8 @@ export function createRuntimeRunner(): WorkerRunner {
       const baseline = readGlobalBaseline()
       parts.loader.watchExternalLoads(() =>
         fallback === undefined || fallback.tornDown
-          ? () => false
-          : watchPerFileGlobals(globalThis, baseline),
+          ? null
+          : watchPerFileGlobals(globalThis, baseline, fallback.environment?.globalReads),
       )
     }
 
@@ -995,6 +997,7 @@ export function createRuntimeRunner(): WorkerRunner {
         },
         clock: undefined,
         tornDown: false,
+        environment: undefined,
       }
       fallback = thisFile
       let environmentName = worker.environment.environment.name
@@ -1003,6 +1006,7 @@ export function createRuntimeRunner(): WorkerRunner {
       try {
         const set = await setUpEnvironment(worker, context)
         instance = set.instance
+        thisFile.environment = instance
         environmentName = set.name
         // The fake clock of this file, on the environment's global (the registry tier keeps one
         // global per file): each callback it schedules runs as the test that scheduled it.
@@ -1116,6 +1120,8 @@ export function createRuntimeRunner(): WorkerRunner {
         )),
       )
       thisFile.tornDown = true
+      // Async frames the file left behind keep this scope alive: not its environment too.
+      thisFile.environment = undefined
       fallback = undefined
       // `--detectLeaks`: nothing the file's async frames hold may reach what is checked below. A
       // callback the file left behind finds disposed registries, as it does without the flag.

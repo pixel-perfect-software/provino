@@ -175,12 +175,14 @@ export const jsdomEnvironment: Environment<'jsdom', JsdomEnvironmentOptions> = {
     }
 
     const snapshot = snapshotProperties(globalThis)
-    populateGlobal(globalThis, win, { bindFunctions: true })
+    const populated = populateGlobal(globalThis, win, { bindFunctions: true })
     // After the snapshot, so the assignment goes through its wrapped setter and teardown puts the
     // worker's `process` back.
     if (context.processObject === 'per-file') globalThis.process = createFileProcess()
     return {
       global: globalThis,
+      // The populated accessors say when they are read, so the worker's probe redefines none (D127).
+      globalReads: populated,
       teardown(): EnvironmentTeardownReport | undefined {
         let leaked: readonly (string | symbol)[] = []
         try {

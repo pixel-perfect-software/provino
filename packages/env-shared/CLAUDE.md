@@ -8,6 +8,8 @@ Vitest 5.0.5's `populateGlobal`: the keys copied are the built-in list (`src/ven
 
 It captures **descriptors, never values** (reading `localStorage` can warn), for every own key it redefines. `restore()` deletes every populated key and defines each original descriptor again, so the global's own names and every descriptor are as they were. Two differences from Vitest: `window`, `self`, `top`, `parent` and `global` are captured too, and any own key about to be redefined is captured, not only listed ones.
 
+**Reads it can report (`GlobalReadWatch`, D127).** The result also `covers(key, descriptor)` (the key is one it copied and its accessor is still the one installed) and `watch(onRead)` (one listener, called on each read or write of a copied key until the returned stop). Each accessor checks the listener for `null` first, so an unwatched access pays one check. The worker's external probe uses it instead of redefining the populated keys per load; an environment hands it on as `EnvironmentInstance.globalReads`.
+
 The check is `src/populate.test.ts`: a jsdom window and a happy-dom `GlobalWindow` populated onto a fresh vm global that has data, accessor and symbol keys, restored, and the names and descriptors deep-equal.
 
 ## `snapshotProperties(target)` (D71)
