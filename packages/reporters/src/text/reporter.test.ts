@@ -216,6 +216,40 @@ describe('a slow file', () => {
   })
 })
 
+describe('the heap size (`--logHeapUsage`)', () => {
+  test('ends the header in whole megabytes, after a slow file’s time, as getResultHeader does', async () => {
+    const text = await written(defaultReporter, [
+      { path: 'a.test.ts', heapUsedBytes: 52_428_800 + 1023, tests: [{ path: ['t'] }] },
+      {
+        path: 'slow.test.ts',
+        durationMs: 7234,
+        heapUsedBytes: 3 * 1024 * 1024,
+        tests: [{ path: ['t'] }],
+      },
+      {
+        path: 'f.test.ts',
+        heapUsedBytes: 1024 * 1024,
+        tests: [{ path: ['t'], state: 'fail', errors: [error('x')] }],
+      },
+      { path: 'none.test.ts', tests: [{ path: ['t'] }] },
+    ])
+    assert.match(text, /^PASS \.\/a\.test\.ts \(50 MB heap size\)$/m)
+    assert.match(text, /^PASS \.\/slow\.test\.ts \(7\.234 s, 3 MB heap size\)$/m)
+    assert.match(text, /^FAIL \.\/f\.test\.ts \(1 MB heap size\)$/m)
+    assert.match(text, /^PASS \.\/none\.test\.ts$/m)
+  })
+})
+
+describe('the seed (`--showSeed`)', () => {
+  test('puts Seed: first in the totals, and leaves it out with no seed', async () => {
+    const files: FileSpec[] = [{ path: 'a.test.ts', tests: [{ path: ['t'] }] }]
+    const shown = await written(defaultReporter, files, { seed: 1234 })
+    assert.match(shown, /^Seed: {8}1234\nTest Suites: 1 passed, 1 total\nTests: /m)
+    const hidden = await written(defaultReporter, files)
+    assert.doesNotMatch(hidden, /Seed:/)
+  })
+})
+
 describe('the file label', () => {
   test('puts ./ before a file in the project’s own directory only, as Jest’s formatTestPath', async () => {
     const text = await written(defaultReporter, [

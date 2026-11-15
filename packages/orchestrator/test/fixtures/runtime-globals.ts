@@ -57,6 +57,25 @@ export function testGlobals(host: GlobalsHost): Probe {
         if (throws) throw new Error('mock dispose failed')
       }
     },
+    /**
+     * Leaves a callback behind that, `ms` later and so after the file has ended, asks the host for
+     * the file's registries and traces what it found (or the code it was refused with). It writes
+     * to the trace the file had, which the test may have given up by then.
+     */
+    leaveCallback: (ms = 20) => {
+      const sink = Reflect.get(globalThis, '__trace') as string[] | undefined
+      setTimeout(() => {
+        try {
+          const registry = host.registry()
+          const mocks = host.mocks() as { dispose(): void }
+          mocks.dispose()
+          const modules = typeof host.moduleMocks().dispose
+          sink?.push(`late file=${registry.file} mocks=${typeof mocks.dispose} modules=${modules}`)
+        } catch (error) {
+          sink?.push(`late threw ${(error as { code?: string }).code}`)
+        }
+      }, ms)
+    },
     /** The mock policy the host carries, as its `defaultName`: a probe that it arrived. */
     mockPolicyName: () => host.mockPolicy.defaultName,
   }

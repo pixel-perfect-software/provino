@@ -539,6 +539,23 @@ describe('extractors', () => {
     assert.deepEqual(names(p, index.related([p.path('hidden.ts')])), ['a.test.ts'])
   })
 
+  it('the project’s own extractor is handed the policy’s as its fallback (haste hands it its own)', async () => {
+    const p = await makeProject({
+      'extractor.ts':
+        'export default { extract: (code: string, _path: string, fallback: (c: string) => Iterable<string>) => [...fallback(code)] }\n',
+      'policy-only.ts': 'export const x = 1\n',
+      'a.test.ts': "test('a', () => {})\n",
+    })
+    // The policy's extractor sees an edge the lexer can't: the fallback must be it, not the lexer.
+    const { index } = await build(p, {
+      affected: {
+        extractor: () => ({ extract: () => ['./policy-only'] }),
+      },
+      index: { projectExtractor: { module: p.path('extractor.ts'), export: 'default' } },
+    })
+    assert.deepEqual(names(p, index.related([p.path('policy-only.ts')])), ['a.test.ts'])
+  })
+
   it('a module that exports no extractor is ORCH_BAD_OPTION', async () => {
     const p = await makeProject({ 'extractor.ts': 'export default 1\n', 'a.test.ts': '' })
     await assert.rejects(

@@ -66,19 +66,38 @@ export function projectLabel(file: FileInfo, path: string): string {
   return file.project === '' ? path : `${file.project} ${path}`
 }
 
-/** `(7.2 s)`, for a slow file, as Jest's `formatTime(runtime, 0)` writes it; `''` for any other. */
-function slowDetail(durationMs: number, style: Style): string {
-  if (durationMs <= SLOW_FILE_MS) return ''
-  return ` (${style.red(`${Number(seconds(durationMs))} s`)})`
+/**
+ * What a file's header says after its path, as Jest's `getResultHeader` has it: `(7.2 s)` for a slow
+ * file (`formatTime(runtime, 0)`), then `<n> MB heap size` when the run logged the heap
+ * (`--logHeapUsage`), in whole megabytes, joined by commas in one pair of parentheses; `''` for none.
+ */
+function headerDetail(durationMs: number, heapUsedBytes: number | undefined, style: Style): string {
+  const parts: string[] = []
+  if (durationMs > SLOW_FILE_MS) parts.push(style.red(`${Number(seconds(durationMs))} s`))
+  // Jest tests the number for truth: a file that reports 0 bytes has no heap size.
+  if (heapUsedBytes !== undefined && heapUsedBytes > 0) {
+    parts.push(`${Math.floor(heapUsedBytes / 1024 / 1024)} MB heap size`)
+  }
+  return parts.length === 0 ? '' : ` (${parts.join(', ')})`
 }
 
 /** A file's pass line, as Jest's: no timing unless the file was slow. */
-export function passLine(path: string, durationMs: number, style: Style): string {
-  return `${style.badge('PASS', 'green')} ${path}${slowDetail(durationMs, style)}`
+export function passLine(
+  path: string,
+  durationMs: number,
+  style: Style,
+  heapUsedBytes?: number,
+): string {
+  return `${style.badge('PASS', 'green')} ${path}${headerDetail(durationMs, heapUsedBytes, style)}`
 }
 
-export function failLine(path: string, durationMs: number, style: Style): string {
-  return `${style.badge('FAIL', 'red')} ${path}${slowDetail(durationMs, style)}`
+export function failLine(
+  path: string,
+  durationMs: number,
+  style: Style,
+  heapUsedBytes?: number,
+): string {
+  return `${style.badge('FAIL', 'red')} ${path}${headerDetail(durationMs, heapUsedBytes, style)}`
 }
 
 /**
@@ -334,6 +353,7 @@ export function summaryLines(
   snapshots: string | undefined,
   queued: number,
   style: Style,
+  seed?: number,
 ): string {
   const bold = (text: string): string => style.bold(text)
   const counts = (count: number, label: string, colour: (text: string) => string): string =>
@@ -354,6 +374,8 @@ export function summaryLines(
     part(tests.total, 'total'),
   ]
   return [
+    // Jest's `getSummary` puts the seed first, when `showSeed` is on.
+    ...(seed === undefined ? [] : [`${bold('Seed:        ')}${seed}`]),
     `${bold('Test Suites:')} ${suites.join(', ')}`,
     `${bold('Tests:')}       ${counted.join(', ')}`,
     ...(snapshots === undefined ? [] : [snapshots]),

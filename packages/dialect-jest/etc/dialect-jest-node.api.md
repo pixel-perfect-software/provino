@@ -148,6 +148,9 @@ export function createEmptyTestResult(): TestResult;
 export function createJestConfigReader(options?: NormalizeOptions): ConfigReader<JestLoadedConfig, JestResolvedConfig>;
 
 // @public
+export function createJestGitHubActionsReporter(options?: JestGitHubActionsOptions): JestReporterClass;
+
+// @public
 export function createJestReporterHost<Config extends ProjectConfigLike>(options: JestReporterHostOptions<Config>): Reporter[];
 
 // @public
@@ -155,6 +158,13 @@ export function createJestResolution(requireResolve: JestRequireResolve): JestRe
 
 // @public
 export function createJestResults<Config extends ProjectConfigLike>(options: JestResultsOptions<Config>): JestResults<Config>;
+
+// @public
+export function createNotifyReporter(options: {
+    readonly globalConfig: JestNotifyConfig;
+    readonly loaded: JestNotifierLoad;
+    readonly aggregated: () => AggregatedResult;
+}): Reporter;
 
 // @public
 export interface DisplayName {
@@ -267,12 +277,30 @@ export const JEST_CONFIG_CANDIDATES: readonly string[];
 export const JEST_CONFIG_EXT_ORDER: readonly string[];
 
 // @public
+export const JEST_NO_SCM_TEXT: string;
+
+// @public
 export type JestArgv = Readonly<Record<string, unknown>> & {
     readonly _?: readonly (string | number)[];
 };
 
 // @public
 export function jestArgvToRunRequest(argv: JestArgv): RunRequest;
+
+// @public
+export function jestChangedFilesErrorText(error: unknown, projectConfig: {
+    readonly rootDir: string;
+    readonly testMatch: readonly string[];
+}, style: Pick<TextStyle, "red">): string;
+
+// @public
+export function jestChangedNoTestsMessage(globalConfig: Pick<JestGlobalConfig, "passWithNoTests" | "lastCommit" | "onlyChanged" | "onlyFailures" | "changedSince" | "watch">, options: {
+    readonly interactive: boolean;
+    readonly style: TextStyle;
+}): {
+    readonly exitWith0: boolean;
+    readonly message: string;
+} | undefined;
 
 // @public
 export const jestCli: CliDialect<JestArgv>;
@@ -379,6 +407,12 @@ export type JestFilter = (testPaths: readonly string[]) => Promise<readonly stri
 
 // @public
 export const jestFlags: readonly FlagSpec[];
+
+// @public
+export interface JestGitHubActionsOptions {
+    readonly platform?: string;
+    readonly style?: TextStyle;
+}
 
 // @public
 export interface JestGlobalConfig {
@@ -548,6 +582,32 @@ export type JestMapperEntry = readonly [pattern: string, target: string | readon
 
 // @public
 export const jestNodeDialect: Dialect<"jest">;
+
+// @public
+export interface JestNotifier {
+    // (undocumented)
+    notify(options: Readonly<Record<string, unknown>>): void;
+}
+
+// @public
+export interface JestNotifierLoad {
+    readonly icon?: string;
+    // (undocumented)
+    readonly notifier: JestNotifier;
+}
+
+// @public
+export class JestNotifierMissingError extends Error {
+    constructor(options?: ErrorOptions);
+}
+
+// @public
+export interface JestNotifyConfig {
+    // (undocumented)
+    readonly notifyMode: string;
+    // (undocumented)
+    readonly rootDir: string;
+}
 
 // @public
 export interface JestProjectConfig {
@@ -838,6 +898,14 @@ export interface JestResolvedConfig {
 }
 
 // @public
+export function jestResultIcons(platform?: string): {
+    readonly failed: string;
+    readonly pending: string;
+    readonly success: string;
+    readonly todo: string;
+};
+
+// @public
 export interface JestResults<Config extends ProjectConfigLike> {
     aggregated(): AggregatedResult;
     assertionOf(test: TestTask, retried?: {
@@ -890,6 +958,9 @@ export type JestTransformEntry = readonly [pattern: string, path: string, option
 export function jestUpdateCommand(env: Readonly<Record<string, string | undefined>>, watch: boolean): string;
 
 // @public
+export const LEAK_MESSAGE: string;
+
+// @public
 export function loadJestConfig(source: ConfigSource): Promise<{
     readonly options: JestInitialOptions;
     readonly configPath: string | null;
@@ -902,7 +973,12 @@ export function loadJestFilter(globalConfig: {
 }): JestFilter | undefined;
 
 // @public
-export function loadJestReporters(plan: JestReporterPlan): Promise<JestLoadedReporter[]>;
+export function loadJestNotifier(rootDir: string): JestNotifierLoad;
+
+// @public
+export function loadJestReporters(plan: JestReporterPlan, options?: {
+    readonly style?: TextStyle;
+}): Promise<JestLoadedReporter[]>;
 
 // @public
 export function makeCollectedTestResult(testResults: AssertionResult[], options: {

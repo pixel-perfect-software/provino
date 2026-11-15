@@ -182,6 +182,36 @@ test('prettierPath: an explicit null stays null, a path resolves, and snapshotRe
   assert.deepEqual(neutral.diagnostics, [])
 })
 
+test('dependencyExtractor and watchPathIgnorePatterns are carried, and watchman warns about nothing (B23c)', async () => {
+  const root = tree({
+    'jest.config.js': `module.exports = { dependencyExtractor: '<rootDir>/extractor.js', watchPathIgnorePatterns: ['/fixtures/'], watchman: true }\n`,
+    'extractor.js': 'module.exports = { extract: () => [] }\n',
+    'env.js': 'export const env = {}\n',
+  })
+  const { neutral } = await readNeutral(root)
+  const [project] = neutral.value
+  assert.ok(project !== undefined)
+  assert.deepEqual(project.affected, {
+    extractor: { module: join(root, 'extractor.js'), export: 'default' },
+  })
+  assert.deepEqual(project.watch, { ignorePatterns: ['/fixtures/'] })
+  assert.deepEqual(neutral.diagnostics, [])
+  // The resolved project keeps the extractor for the coordinator's affected-test selection; the
+  // watch patterns stay on the neutral project for the watch driver (B23c Phase 8).
+  const resolveIt = (from: typeof project) =>
+    resolveNeutralProject(from, {
+      dialect: jestNodeDialect,
+      environments: { node: { module: join(root, 'env.js'), export: 'env' } },
+      ci: false,
+    })
+  assert.deepEqual((await resolveIt(project)).affected, {
+    extractor: { module: join(root, 'extractor.js'), export: 'default' },
+  })
+  // Watch patterns alone leave `affected` out.
+  const { affected: _dropped, ...watchOnly } = project
+  assert.equal((await resolveIt(watchOnly)).affected, undefined)
+})
+
 test('no RegExp or function, and every path absolute', async () => {
   const root = tree({
     'jest.config.js': `module.exports = {

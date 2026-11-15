@@ -94,7 +94,13 @@ import {
 } from '../internal/runtime/environment.ts'
 import { installGlobals, splitGlobals } from '../internal/runtime/globals.ts'
 import { lazyReportSink } from '../internal/runtime/lazy-sink.ts'
-import { fileLeakEvent, leakedGlobalsOf, workerLeakEvent } from '../internal/runtime/leaks.ts'
+import {
+  createLeakCheck,
+  fileLeakEvent,
+  heapUsedBytes,
+  leakedGlobalsOf,
+  workerLeakEvent,
+} from '../internal/runtime/leaks.ts'
 import { pragmaValue, readPragmas } from '../internal/runtime/pragmas.ts'
 import { assertionCountSink } from '../internal/runtime/sink.ts'
 import type { FileContext, FileOutcome, WorkerContext, WorkerRunner } from '../start.ts'
@@ -307,6 +313,84 @@ const BUILT = [
   'snapshots',
 ] as const satisfies readonly (keyof Booted)[]
 
+/**
+ * The file's registry and its module-mock registry, built by the loader's call with the loader's
+ * own `loadActual` and resolver; the module-mock registry needs the mock slice and `forMocks`,
+ * which the loader never reads. Module-level on purpose: a closure made inside `runFile` would
+ * share its context, and so keep the file's registry and environment alive.
+ */
+function openRegistries(
+  worker: Booted,
+  job: FileJob,
+  forMocks: MockRegistry,
+): { registry: FileRegistry; moduleMocks: ModuleMockRegistry } {
+  const built: { moduleMocks?: ModuleMockRegistry } = {}
+  const buildModuleMocks: ModuleMocksFactory = (loaderContext) => {
+    const { policy, roots, extensions, rootMocks } = worker.modules
+    built.moduleMocks = createModuleMockRegistry({
+      policy: policy.module,
+      mockPolicy: policy.mock,
+      mocks: forMocks,
+      resolver: loaderContext.resolver,
+      roots,
+      extensions,
+      conditions: loaderContext.conditions,
+      loadActual: loaderContext.loadActual,
+      rootMocks,
+    })
+    return built.moduleMocks
+  }
+  const opened = worker.loader.createFileRegistry(job.file, {
+    tier: worker.tier,
+    moduleMocks: buildModuleMocks,
+    ...(worker.moduleScope === undefined ? {} : { moduleScope: worker.moduleScope }),
+  })
+  if (built.moduleMocks === undefined) {
+    opened.dispose()
+    throw new WorkerError('ORCH_NOT_STARTED', 'The loader built no module-mock registry')
+  }
+  return { registry: opened, moduleMocks: built.moduleMocks }
+}
+
+const noop = (): void => {}
+
+/**
+ * What a file scope holds after `--detectLeaks` let go of the file's own: fresh registries, a
+ * clock and a no-op for the late globals, all disposed as the file's are after its teardown, so a
+ * callback the file left behind meets the same thing with or without the flag. Module-level, as
+ * `openRegistries` is, so it keeps nothing of the file alive.
+ */
+function disposedScope(
+  worker: Booted,
+  job: FileJob,
+): Pick<FileScope, 'registry' | 'mocks' | 'moduleMocks' | 'installLateGlobals' | 'clock'> {
+  const mocks = createMockRegistry()
+  const { registry, moduleMocks } = openRegistries(worker, job, mocks)
+  moduleMocks.dispose()
+  mocks.dispose()
+  registry.dispose()
+  // The worker's own timers on a scratch global: nothing of the file's environment.
+  const clock = createFakeClock(
+    {
+      Date,
+      setTimeout,
+      clearTimeout,
+      setInterval,
+      clearInterval,
+      setImmediate,
+      clearImmediate,
+      performance,
+    },
+    worker.modules.policy.timers,
+    {
+      bind: currentTest.bind,
+      defaults: worker.fakeTimers as FakeTimersConfig | undefined,
+    },
+  )
+  clock.dispose()
+  return { registry, mocks, moduleMocks, installLateGlobals: noop, clock }
+}
+
 function isBooted(parts: Partial<Booted>): parts is Booted {
   return BUILT.every((key) => parts[key] !== undefined)
 }
@@ -332,12 +416,18 @@ export interface RuntimeGlobalsHost extends GlobalsHost {
 
 /** What a file's code finds through the host: its own registries, whoever runs when it asks. */
 interface FileScope {
-  readonly registry: FileRegistry
-  readonly mocks: MockRegistry
+  /**
+   * The file's registries. Not `readonly`: this object is the value of an `AsyncLocalStorage`, and
+   * any timer or promise made while the file ran (Node's own `clearBuffersCache` timer, say) keeps
+   * the async frame, and so this object, alive for as long as it lives. `--detectLeaks` therefore
+   * swaps them for disposed stand-ins once the file is over (`disposedScope`).
+   */
+  registry: FileRegistry
+  mocks: MockRegistry
   /** The file's module-mock registry: one per file in every tier (B13c Gap 9). */
-  readonly moduleMocks: ModuleMockRegistry
+  moduleMocks: ModuleMockRegistry
   /** Installs the globals that wait for `setupFiles` (`core.globalsBeforeSetupFiles`). */
-  readonly installLateGlobals: () => void
+  installLateGlobals: () => void
   /** The file's fake clock, made once its environment exists. */
   clock: FakeClock | undefined
   /** True once the file's teardown has run: its environment is gone. */
@@ -861,39 +951,16 @@ export function createRuntimeRunner(): WorkerRunner {
       const worker = parts
       const { job } = context
       if (!(await writableUnlessAborted(context.sink, context.signal))) return {}
+      // Watch mode: modules that changed since this worker's last file are read and compiled again.
+      if (job.staleModules !== undefined && job.staleModules.length > 0) {
+        worker.loader.dropRecords(job.staleModules)
+      }
 
       // The worker owns the mock registry, not core: a new one per file, or (isolation `none`, where
       // everything is kept) the worker's own, made for the first file and disposed in `stop`.
       const mocks = worker.workerMocks ?? createMockRegistry()
-      // The file's module-mock registry, built by the loader's call with the loader's own
-      // `loadActual` and resolver; it needs the mock slice and `mocks`, which the loader never reads.
-      const built: { moduleMocks?: ModuleMockRegistry } = {}
-      const buildModuleMocks: ModuleMocksFactory = (loaderContext) => {
-        const { policy, roots, extensions, rootMocks } = worker.modules
-        built.moduleMocks = createModuleMockRegistry({
-          policy: policy.module,
-          mockPolicy: policy.mock,
-          mocks,
-          resolver: loaderContext.resolver,
-          roots,
-          extensions,
-          conditions: loaderContext.conditions,
-          loadActual: loaderContext.loadActual,
-          rootMocks,
-        })
-        return built.moduleMocks
-      }
       // Throws for the tier `realm` (the loader's LOADER_NOT_IMPLEMENTED), with nothing set up yet.
-      const registry = worker.loader.createFileRegistry(job.file, {
-        tier: worker.tier,
-        moduleMocks: buildModuleMocks,
-        ...(worker.moduleScope === undefined ? {} : { moduleScope: worker.moduleScope }),
-      })
-      const { moduleMocks } = built
-      if (moduleMocks === undefined) {
-        registry.dispose()
-        throw new WorkerError('ORCH_NOT_STARTED', 'The loader built no module-mock registry')
-      }
+      const { registry, moduleMocks } = openRegistries(worker, job, mocks)
       if (worker.scope === 'worker') worker.workerMocks = mocks
       let instance: EnvironmentInstance | undefined
       const { globals } = worker
@@ -978,6 +1045,8 @@ export function createRuntimeRunner(): WorkerRunner {
         openSnapshotsLater = undefined
       }
 
+      // `--logHeapUsage` measures after the file ran and before its environment goes (`runTest.ts`).
+      const heap = job.logHeapUsage === true ? heapUsedBytes() : undefined
       // Teardown, always, in this order. A step that throws doesn't stop the next ones. The mock
       // registry goes first, while the environment is alive: a spy on a global (`Math.random`) is
       // put back before the environment's own check of the global, and before the next file. With
@@ -1026,12 +1095,27 @@ export function createRuntimeRunner(): WorkerRunner {
       )
       thisFile.tornDown = true
       fallback = undefined
+      // `--detectLeaks`: nothing the file's async frames hold may reach what is checked below. A
+      // callback the file left behind finds disposed registries, as it does without the flag.
+      if (job.detectLeaks === true) Object.assign(thisFile, disposedScope(worker, job))
       // A warning, before the file finishes: through the same sink as the file's own events, so it
       // arrives after them and before `fileDone`. It has no task: the file's tasks have ended.
       if (leaked.length > 0) context.sink.emit(fileLeakEvent(job.file, leaked))
       rethrow(errors, `Tearing down ${job.file} failed`)
+      // `--detectLeaks`: the file's registry and environment, held weakly. The check runs after this
+      // function has returned (`startWorker`), when nothing here still names them.
+      const isLeaking =
+        job.detectLeaks === true
+          ? createLeakCheck([
+              registry,
+              ...(registry.leakTargets?.() ?? []),
+              ...(instance === undefined ? [] : [instance]),
+            ])
+          : undefined
       return {
         deps,
+        ...(heap === undefined ? {} : { heapUsedBytes: heap }),
+        ...(isLeaking === undefined ? {} : { isLeaking }),
         ...(leaked.length > 0 ? { leakedGlobals: leaked } : {}),
         ...(snapshotReport === null || isEmptyReport(snapshotReport)
           ? {}

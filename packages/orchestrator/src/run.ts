@@ -28,6 +28,7 @@ import type {
   TaskResult,
   TaskState,
   TimingsFile,
+  TransportFactory,
   WorkerEvent,
   WorkerExit,
   WorkerKey,
@@ -50,7 +51,13 @@ import { createInlineSnapshotWrites, withInlineSnapshots } from './inline-snapsh
 import { configHash, hashOf, type WorkerKeyInput, workerKeyOf } from './key.ts'
 import { prepareObsoleteSnapshotCleanup } from './obsolete-snapshots.ts'
 import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
-import { createPool, defaultMaxWorkers, type Pool, type PoolOutcome } from './pool.ts'
+import {
+  createPool,
+  defaultMaxWorkers,
+  type Pool,
+  type PoolDeps,
+  type PoolOutcome,
+} from './pool.ts'
 import { selectFiles } from './select.ts'
 import { createHistorySequencer } from './sequencer.ts'
 import { checkShard, type ShardSpec, shardFiles } from './shard.ts'
@@ -289,6 +296,15 @@ export interface RunProjectOptions {
    * results cache and the timings file are left as they were.
    */
   readonly collectOnly?: boolean
+  /**
+   * Which projects check, after each of their files, that its environment can be collected (Jest's
+   * `detectLeaks`, a project key): a file that holds it fails whole (`FileResult.leaks`, its
+   * tests discarded). A project it names with isolation `none`, whose files share one registry
+   * for the worker's life, is refused (`ORCH_BAD_OPTION`); the others are not asked.
+   */
+  readonly detectLeaks?: (project: ResolvedProject) => boolean
+  /** Report each file's heap after it ran (Jest's `--logHeapUsage`): `FileResult.heapUsedBytes`. */
+  readonly logHeapUsage?: boolean
 }
 
 /**
@@ -429,6 +445,8 @@ interface Member {
   readonly identity: string
   /** The project's place in the run's `projects` (0-based): what a reporter keys its config by. */
   readonly projectIndex: number
+  /** The project asks for the leak check after each of its files (`RunProjectOptions.detectLeaks`). */
+  readonly detectLeaks: boolean
   /** What the project's files reported, its update mode and its policy. */
   readonly snapshots: SnapshotMember
   readonly cache: ResultsCache | undefined
@@ -436,6 +454,106 @@ interface Member {
   keyInput: Omit<WorkerKeyInput, 'isolation'>
   /** The worker key of each tier a file of this project runs at. */
   readonly keys: Map<IsolationTier, WorkerKey>
+}
+
+/**
+ * What a watch session lends each of its runs (B23c, T9.11): its pool, which outlives the run, and
+ * what must stay the same from one run to the next for a warm worker to serve it.
+ * @internal
+ */
+export interface RunHost {
+  /**
+   * The session's pool, bound to this run's callbacks until the run ends. What the run does with
+   * it: `drain` does nothing (the workers stay for the next run), `cancelQueued` and `close` give up
+   * what this run asked for and kill its running files (`Pool.interrupt`), and the run's `signal`
+   * does the same.
+   */
+  readonly attach: (deps: RunPoolDeps) => Pool
+  /** The pool kind of every run of the session, decided once: a watch run is never put in band by itself. */
+  readonly kind: PoolKind
+  /** The session's pool is `inline` because the caller asked to run in band: its console is captured. */
+  readonly inBand: boolean
+  /** The seed a project with none gets, the same for every run: a warm worker keeps the one it booted with. */
+  readonly seed: number
+  /** The results caches by directory, made once for the session. */
+  readonly caches: Map<string, ResultsCache>
+  /** Each lockfile's hash by path, read once for the session. */
+  readonly lockfileHashes: Map<string, string>
+  /**
+   * Each worker's table of the module paths its `deps` events named: a worker names a path once in
+   * its life, so a warm worker's table must outlive the run. The session drops a table when its
+   * worker exits.
+   */
+  readonly depsTables: Map<number, DepsTable>
+  /** The files `selection` reaches in a project, from the session's own affected index. */
+  readonly selectAffected: (
+    project: { readonly projectIndex: number; readonly cacheProject: string },
+    everything: readonly DiscoveredFile[],
+    selection: AffectedSelection,
+    recorded: RecordedGraph | undefined,
+  ) => Promise<readonly DiscoveredFile[]>
+  /** The recorded graph at `path`, opened once for the session, so its affected index reads the one each run writes. */
+  readonly openRecordedGraph: (path: string) => Promise<RecordedGraph>
+  /** The changed paths a worker has not been told about, which go with its next file. */
+  readonly staleModules: (workerId: number) => readonly string[]
+  /**
+   * What this run's global setup provided (`{}` with none), before any file is asked for: a warm
+   * worker booted with an earlier run's values, so the session replaces the workers when they differ.
+   */
+  readonly onProvided: (provided: Readonly<Record<string, unknown>>) => void
+}
+
+/**
+ * What a run gives the pool it runs on: `PoolDeps` without the transport, which a session's pool
+ * already has.
+ * @internal
+ */
+export type RunPoolDeps = Omit<PoolDeps, 'transport'>
+
+/**
+ * The transport factory and the pool's options a run's settings ask for, for `kind`: what
+ * `runProjects` makes its pool from, and a watch session its one pool.
+ * @internal
+ */
+export function poolSettings(
+  options: Pick<RunProjectOptions, 'pool' | 'entry' | 'stdout' | 'stderr'>,
+  kind: PoolKind,
+): { readonly factory: TransportFactory; readonly poolOptions: PoolOptions } {
+  const startTimeoutMs = options.pool?.startTimeoutMs ?? START_TIMEOUT_MS
+  const teardownTimeoutMs = options.pool?.teardownTimeoutMs ?? TEARDOWN_TIMEOUT_MS
+  const execArgv = options.pool?.execArgv
+  const factory = transportFor(kind, {
+    entry: options.entry ?? import.meta.resolve('@provino/orchestrator/worker/main'),
+    startTimeoutMs,
+    teardownTimeoutMs,
+    ...(options.stdout === undefined ? {} : { stdout: options.stdout }),
+    ...(options.stderr === undefined ? {} : { stderr: options.stderr }),
+    ...(execArgv === undefined ? {} : { execArgv }),
+    ...(options.pool?.startupEnv === undefined ? {} : { startupEnv: options.pool.startupEnv }),
+    ...(options.pool?.heapLimitMb === undefined ? {} : { memoryLimitMb: options.pool.heapLimitMb }),
+  })
+  // The transport can cap the workers, whatever is asked for: an inline pool runs one.
+  const maxWorkers = Math.min(
+    options.pool?.maxWorkers ?? defaultMaxWorkers(),
+    factory.maxWorkers ?? Number.POSITIVE_INFINITY,
+  )
+  const recycle: RecyclePolicy = {
+    ...options.pool?.recycle,
+    memoryLimitBytes:
+      options.pool?.recycle?.memoryLimitBytes ?? defaultWorkerMemoryLimit(maxWorkers),
+  }
+  const fileTimeoutMs = options.pool?.fileTimeoutMs
+  return {
+    factory,
+    poolOptions: {
+      kind,
+      maxWorkers,
+      recycle,
+      teardownTimeoutMs,
+      startTimeoutMs,
+      ...(fileTimeoutMs === undefined ? {} : { fileTimeoutMs }),
+    },
+  }
 }
 
 /**
@@ -478,9 +596,23 @@ export function runProject(
  * policy and the snapshot summary's mode.
  * @public
  */
-export async function runProjects(
+export function runProjects(
   projects: readonly ResolvedProject[],
   options: RunProjectOptions,
+): Promise<RunSummary> {
+  return runProjectsOn(projects, options, undefined)
+}
+
+/**
+ * `runProjects`, on a watch session's pool when `host` is given (B23c): the pool is the session's,
+ * kept warm after the run, and the run is never put in band by itself (Jest's `shouldRunInBand`
+ * says no under `--watch`, testSchedulerHelper.ts L36-38).
+ * @internal
+ */
+export async function runProjectsOn(
+  projects: readonly ResolvedProject[],
+  options: RunProjectOptions,
+  host: RunHost | undefined,
 ): Promise<RunSummary> {
   const { bus, signal } = options
   const [first] = projects
@@ -494,9 +626,9 @@ export async function runProjects(
   // The pool kind the options and the policy ask for. A run that goes in band is decided once the
   // files are known (below): `kind` is then `inline`, the pool is made again, and the workers' keys
   // are made against it.
-  let kind: PoolKind = options.pool?.kind ?? orchestrator.pool.default
+  let kind: PoolKind = host?.kind ?? options.pool?.kind ?? orchestrator.pool.default
   /** The run is in band by choice (not an `inline` pool a caller asked for): its console is captured. */
-  let inBandChosen = false
+  let inBandChosen = host?.inBand ?? false
   const execArgv = options.pool?.execArgv
   const { bail } = options
   if (bail !== undefined && !(Number.isSafeInteger(bail.count) && bail.count >= 1)) {
@@ -511,6 +643,14 @@ export async function runProjects(
     throw new OrchestratorError(
       'ORCH_BAD_OPTION',
       '--update-timings can’t be used together with --shard: shards that run one after another in one checkout would read the timings the last one wrote, cut the files differently, and run some twice and some never. Refresh the timings file on an unsharded run',
+    )
+  }
+
+  const { detectLeaks } = options
+  if (detectLeaks !== undefined && projects.some((p) => p.isolation === 'none' && detectLeaks(p))) {
+    throw new OrchestratorError(
+      'ORCH_BAD_OPTION',
+      'detectLeaks can’t be used with isolation `none`: its files share one module registry and one environment for the worker’s life, so nothing is released after a file to check. Use isolation `registry` or `process`',
     )
   }
 
@@ -531,7 +671,7 @@ export async function runProjects(
     options.coverage?.onTake?.(take)
   }
 
-  const caches = new Map<string, ResultsCache>()
+  const caches = host?.caches ?? new Map<string, ResultsCache>()
   const cacheFor = (project: ResolvedProject): ResultsCache | undefined => {
     if (options.cache === false) return undefined
     if (options.cache !== undefined) return options.cache
@@ -545,9 +685,9 @@ export async function runProjects(
   }
   // One seed for the run (`jest.getSeed()`): a project that gives none takes this one, so every
   // worker of every such project reports the same value, as Jest's single `globalConfig.seed`.
-  const runSeed = Math.floor(0x1_0000_0000 * Math.random()) - 0x8000_0000
+  const runSeed = host?.seed ?? Math.floor(0x1_0000_0000 * Math.random()) - 0x8000_0000
   /** Each lockfile's hash by path, so projects that share a lockfile read it once. */
-  const lockfileHashes = new Map<string, string>()
+  const lockfileHashes = host?.lockfileHashes ?? new Map<string, string>()
   // Two projects can share a name, yet differ in discovery, environment, transform or setup files;
   // each still needs a worker key, a file-id namespace and a results history of its own.
   const takenIdentities = new Set<string>()
@@ -578,6 +718,8 @@ export async function runProjects(
       cacheProject: cacheKeyCounts.get(cacheKey)?.length === 1 ? cacheKey : identity,
       identity,
       projectIndex: index,
+      // Asked of the project the caller gave: `project` above is a copy of it.
+      detectLeaks: options.detectLeaks?.(resolved) === true,
       // What every file does with its snapshots (build-plan §6: the worker writes the `.snap` files).
       snapshots: snapshotMember(
         resolveUpdateMode({
@@ -605,8 +747,6 @@ export async function runProjects(
 
   const startedAt = performance.now()
   const stderr = options.stderr ?? process.stderr
-  const startTimeoutMs = options.pool?.startTimeoutMs ?? START_TIMEOUT_MS
-  const teardownTimeoutMs = options.pool?.teardownTimeoutMs ?? TEARDOWN_TIMEOUT_MS
   const unhandled: SerializedError[] = []
   /** Global setup, once it has run (T9.15): its teardown comes after the run, whatever ends it. */
   let globalSetup: GlobalSetupRun | undefined
@@ -615,45 +755,21 @@ export async function runProjects(
   /** Per worker, the file it ran last and when that file's `file:end` has been emitted. */
   const lastFile = new Map<number, { readonly info: FileInfo; readonly ended: Promise<void> }>()
   /** Per worker, the module paths its `deps` events have named: the ids are the worker's for its life. */
-  const depsTables = new Map<number, DepsTable>()
+  const depsTables = host?.depsTables ?? new Map<number, DepsTable>()
   // Nothing starts until a file is run, but this is where a bad option throws (`recycle`, the
   // transport's own entry), so it comes before `run:start`. A run that then goes in band makes the
-  // pool again, as an inline one: the first has started nothing.
+  // pool again, as an inline one: the first has started nothing. A watch session's run binds the
+  // session's pool instead.
   function makePool(poolKind: PoolKind): Pool {
-    const factory = transportFor(poolKind, {
-      entry: options.entry ?? import.meta.resolve('@provino/orchestrator/worker/main'),
-      startTimeoutMs,
-      teardownTimeoutMs,
-      ...(options.stdout === undefined ? {} : { stdout: options.stdout }),
-      ...(options.stderr === undefined ? {} : { stderr: options.stderr }),
-      ...(execArgv === undefined ? {} : { execArgv }),
-      ...(options.pool?.startupEnv === undefined ? {} : { startupEnv: options.pool.startupEnv }),
-      ...(options.pool?.heapLimitMb === undefined
-        ? {}
-        : { memoryLimitMb: options.pool.heapLimitMb }),
-    })
-    // The transport can cap the workers, whatever is asked for: an inline pool runs one.
-    const maxWorkers = Math.min(
-      options.pool?.maxWorkers ?? defaultMaxWorkers(),
-      factory.maxWorkers ?? Number.POSITIVE_INFINITY,
-    )
-    const recycle: RecyclePolicy = {
-      ...options.pool?.recycle,
-      memoryLimitBytes:
-        options.pool?.recycle?.memoryLimitBytes ?? defaultWorkerMemoryLimit(maxWorkers),
-    }
-    const fileTimeoutMs = options.pool?.fileTimeoutMs
-    const poolOptions: PoolOptions = {
-      kind: poolKind,
-      maxWorkers,
-      recycle,
-      teardownTimeoutMs,
-      startTimeoutMs,
-      ...(fileTimeoutMs === undefined ? {} : { fileTimeoutMs }),
-    }
+    const deps = poolDeps(poolKind)
+    if (host !== undefined) return host.attach(deps)
+    const { factory, poolOptions } = poolSettings(options, poolKind)
+    return createPool(poolOptions, { ...deps, transport: () => factory })
+  }
 
-    return createPool(poolOptions, {
-      transport: () => factory,
+  /** What the pool asks of this run: a worker's init, the coordinator methods, the run's signals. */
+  function poolDeps(poolKind: PoolKind): RunPoolDeps {
+    return {
       init: (workerKey, workerId) => {
         // A worker is bound to the project its key names, for its whole life.
         const member = byIdentity.get(workerKey.project)
@@ -695,7 +811,7 @@ export async function runProjects(
       },
       ...(signal === undefined ? {} : { signal }),
       ...(options.forceSignal === undefined ? {} : { forceSignal: options.forceSignal }),
-    })
+    }
   }
   let pool = makePool(kind)
 
@@ -759,6 +875,8 @@ export async function runProjects(
     if (bailAfter === 'file') void pool.close()
   }
   let handles: OpenHandleTracker | undefined
+  /** Each queued file's run, once every file has been asked for. */
+  let running: readonly Promise<void>[] = []
 
   /** The files that have a result, in queue order. */
   const finishedFiles = (): FileResult[] => queue.flatMap((entry) => results.get(entry) ?? [])
@@ -814,6 +932,8 @@ export async function runProjects(
       fileId: entry.info.fileId,
       updateSnapshots: member.snapshots.update,
       ...(options.collectOnly === true ? { collectOnly: true as const } : {}),
+      ...(member.detectLeaks ? { detectLeaks: true as const } : {}),
+      ...(options.logHeapUsage === true ? { logHeapUsage: true as const } : {}),
       ...(options.testNamePattern === undefined
         ? {}
         : { testNamePattern: options.testNamePattern }),
@@ -834,10 +954,13 @@ export async function runProjects(
           await bus.emit('file:start', entry.info, workerId)
         },
         onEvents: dispatch.handle,
+        ...(host === undefined ? {} : { staleModules: host.staleModules }),
         // Jest's rule counts a file's failed tests when the file ends: before its worker takes
         // another file, or `--bail` would start one it is about to give up.
-        onDone: () => {
-          if (bailAfter === 'file') countFailed(failedInFile)
+        // A file the worker found leaking is failed whole and its tests are discarded (Jest's
+        // `onFailure`, which adds no failed test and never checks `bail`), so they count for none.
+        onDone: (done) => {
+          if (bailAfter === 'file') countFailed(done.leaks === true ? 0 : failedInFile)
         },
       })
       // The file's inline snapshots go into the source before it is reported (D113).
@@ -875,7 +998,11 @@ export async function runProjects(
       })
       // The worker finished the file and the inline snapshot write failed it.
       const result: FileResult =
-        outcome !== polled ? { ...reported, resultsDiscarded: true } : reported
+        outcome.type === 'done' && outcome.done.leaks === true
+          ? leakedResult(reported)
+          : outcome !== polled
+            ? { ...reported, resultsDiscarded: true }
+            : reported
       // A start failure or an interruption says nothing about the file; a skipped file isn't
       // remembered (as Jest's).
       if (
@@ -980,7 +1107,9 @@ export async function runProjects(
       ) {
         recordedGraphs.set(
           member,
-          await openRecordedGraph(affectedCachePaths(cacheDir, member.cacheProject).deps),
+          await (host?.openRecordedGraph ?? openRecordedGraph)(
+            affectedCachePaths(cacheDir, member.cacheProject).deps,
+          ),
         )
       }
     }
@@ -995,13 +1124,20 @@ export async function runProjects(
                 rootDir: member.project.rootDir,
                 cwd,
               })
-            : await selectAffected(
-                member,
-                everything,
-                options.selection,
-                affectedCacheDir(member),
-                recordedGraphs.get(member),
-              )
+            : host !== undefined
+              ? await host.selectAffected(
+                  member,
+                  everything,
+                  options.selection,
+                  recordedGraphs.get(member),
+                )
+              : await selectAffected(
+                  member,
+                  everything,
+                  options.selection,
+                  affectedCacheDir(member),
+                  recordedGraphs.get(member),
+                )
         // The project's own filter (`--filter`) takes either, as Jest filters the tests it found.
         const own = projects[member.projectIndex]
         const discovered =
@@ -1050,6 +1186,7 @@ export async function runProjects(
           : NO_AUTOMATIC_IN_BAND,
       ...(options.runInBand === true ? { runInBand: true } : {}),
       ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
+      ...(host === undefined ? {} : { watch: true }),
       workerMemoryLimit: options.pool?.recycle?.memoryLimitBytes !== undefined,
       maxWorkers: options.pool?.maxWorkers ?? defaultMaxWorkers(),
       fileCount: found.reduce((sum, entry) => sum + entry.discovered.length, 0),
@@ -1060,7 +1197,8 @@ export async function runProjects(
         }),
       ),
     })
-    if (inBand && kind !== 'inline') {
+    // A session's pool is its own for every run: its kind was decided when it was made.
+    if (inBand && kind !== 'inline' && host === undefined) {
       await pool.close()
       kind = 'inline'
       inBandChosen = true
@@ -1082,7 +1220,7 @@ export async function runProjects(
       root: runRoot,
       projects: projects.map((project) => project.name),
       startTime: startedAt,
-      watch: false,
+      watch: host !== undefined,
       inBand: kind === 'inline',
     }
     if (found.every((entry) => entry.discovered.length === 0)) {
@@ -1131,6 +1269,7 @@ export async function runProjects(
         forceSignal: options.forceSignal,
       })
     }
+    host?.onProvided(globalSetup?.provided ?? {})
 
     announced = true
     await bus.emit(
@@ -1145,7 +1284,7 @@ export async function runProjects(
     if (options.detectOpenHandles === true) {
       handles = collectOpenHandles({ roots: members.map((m) => m.project.rootDir) })
     }
-    const running = queue.map((entry) => runFile(entry))
+    running = queue.map((entry) => runFile(entry))
     pool.drain()
     await Promise.all(running)
     // The history is complete; writing it overlaps the workers' shutdown.
@@ -1241,6 +1380,9 @@ export async function runProjects(
   } catch (error) {
     thrown = true
     await pool.close()
+    // A session's pool doesn't wait for the files it killed: each still ends (its `file:end`)
+    // before the reporters hear the run ended, and none reaches the session's next run.
+    if (host !== undefined) await Promise.allSettled(running)
     // The hook that tracks resources is process-wide: it must not outlive the run.
     handles?.dispose()
     // Reporters that heard `run:start` hear how it ended, whatever threw.
@@ -1404,6 +1546,27 @@ function planQueue(
   return ordered.flatMap((input) => entries.get(input.path) ?? [])
 }
 
+/**
+ * A file the worker found leaking, failed whole: its tests are discarded (`resultsDiscarded`) and
+ * its one error is Provino's own text, which a dialect with a wording of its own replaces where it
+ * reads `FileResult.leaks` (the Jest dialect's result builder does).
+ */
+function leakedResult(reported: FileResult): FileResult {
+  return {
+    ...reported,
+    state: 'fail',
+    resultsDiscarded: true,
+    leaks: true,
+    errors: [
+      {
+        name: 'Error',
+        message:
+          'The file leaks memory: its environment was still reachable after its teardown (detectLeaks)',
+      },
+    ],
+  }
+}
+
 /** How a file's pool outcome becomes its result; `end` is the `file-end` result its events carried, if any. */
 function resultOf(
   file: FileInfo,
@@ -1453,6 +1616,9 @@ function resultOf(
             errors: end.errors,
             ...(outcome.done.snapshot === undefined ? {} : { snapshot: outcome.done.snapshot }),
             ...(end.childOrder === undefined ? {} : { childOrder: end.childOrder }),
+            ...(outcome.done.heapUsedBytes === undefined
+              ? {}
+              : { heapUsedBytes: outcome.done.heapUsedBytes }),
           }
     default:
       return outcome satisfies never

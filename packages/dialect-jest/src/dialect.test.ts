@@ -9,7 +9,7 @@ import {
   resolvePolicy,
   serializePolicy,
 } from '@provino/policy'
-import type { Policy } from '@provino/types'
+import type { DependencyExtractor, Policy } from '@provino/types'
 import { jestDialect, jestPolicy } from './dialect.ts'
 import { jestExpectPolicy } from './expect-policy.ts'
 import { jestMockPolicy } from './mock-policy.ts'
@@ -295,12 +295,26 @@ test('Jest’s changed-file and affected-test keys are refs into the coordinator
   assert.equal(orchestrator.affected.invalidateAll, 'none')
   assert.equal(orchestrator.affected.graph, 'static')
   assert.equal(orchestrator.affected.conditions, 'none')
-  // Until Phase 5 builds them, the leaf's exports refuse with the orchestrator's code.
+  // The refs load to the leaf's working functions (Phase 5), not its Phase 1 stubs: the provider
+  // answers for no roots with no repository, and the factory's extractor reads haste's edges.
   const provider = await createBehaviourLoader().load(orchestrator.changedFiles as never)
-  await assert.rejects(
-    (provider as (options: { roots: string[] }) => Promise<unknown>)({ roots: [] }),
-    { code: 'ORCH_NOT_IMPLEMENTED' },
+  assert.equal(typeof provider, 'function')
+  assert.deepEqual(
+    await (provider as (options: { roots: string[] }) => Promise<unknown>)({ roots: [] }),
+    { changedFiles: [], repos: { git: [], hg: [], sl: [] } },
   )
-  const extractor = await createBehaviourLoader().load(orchestrator.affected.extractor as never)
-  assert.throws(() => (extractor as () => unknown)(), { code: 'ORCH_NOT_IMPLEMENTED' })
+  const factory = await createBehaviourLoader().load(orchestrator.affected.extractor as never)
+  assert.equal(typeof factory, 'function')
+  const extractor = (factory as () => DependencyExtractor)()
+  assert.equal(typeof extractor.extract, 'function')
+  assert.deepEqual(
+    [
+      ...extractor.extract(
+        "// require('./commented')\nrequire('./a')\njest.requireActual('./b')\n",
+        '/x.ts',
+        () => new Set(),
+      ),
+    ],
+    ['./a', './b'],
+  )
 })

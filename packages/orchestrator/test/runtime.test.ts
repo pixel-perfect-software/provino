@@ -490,6 +490,31 @@ describe('the globals', () => {
   })
 })
 
+describe('a callback a file leaves behind (--detectLeaks)', () => {
+  /** What the leftover callback finds, with the job's `detectLeaks` as given. */
+  async function late(detectLeaks: boolean): Promise<string[]> {
+    const p = await project({ 'a.test.js': "test('t', () => { leaveCallback(20) })" })
+    const config = runtimeConfig(p.dir)
+    const trace: string[] = []
+    const job = runtimeJob(config, p.path('a.test.js'))
+    await runJobs({
+      config,
+      trace,
+      jobs: [detectLeaks ? { ...job, detectLeaks: true as const } : job],
+    })
+    await new Promise((resolve) => setTimeout(resolve, 80))
+    return trace
+      .filter((step) => step.startsWith('late'))
+      .map((step) => step.replace(/file=\S+/, 'file=A'))
+  }
+
+  it('finds disposed registries, the same with the flag as without it', async () => {
+    const without = await late(false)
+    assert.deepEqual(without, ['late file=A mocks=function modules=function'])
+    assert.deepEqual(await late(true), without)
+  })
+})
+
 describe('a matcher the globals factory adds', () => {
   const files = {
     'a.test.js': "test('a', () => { expect('factory').toBeFromFactory() })",
