@@ -25,7 +25,7 @@ const RESULT_REQUESTS = [
   'dashed',
 ] as const
 
-const ANSI = { test: (text: string): boolean => text.includes('\u001b[') }
+const ANSI = new RegExp(`${String.fromCharCode(27)}\\[`)
 
 interface Assertion {
   title: unknown
@@ -43,23 +43,6 @@ interface FileResult {
 }
 interface Results {
   testResults: FileResult[]
-}
-
-/** The fields vscode-jest reads (`test_reconciler.ts`, `TestResult.ts`), nothing else. */
-function fieldsRead(results: Results): unknown[] {
-  return results.testResults.map((file) => ({
-    name: file.name,
-    status: file.status,
-    message: file.message,
-    assertionResults: file.assertionResults.map((a) => ({
-      title: a.title,
-      fullName: a.fullName,
-      ancestorTitles: a.ancestorTitles,
-      status: a.status,
-      location: a.location,
-      failureMessages: a.failureMessages,
-    })),
-  }))
 }
 
 function asResults(value: Json | null | undefined, what: string): Results {
@@ -105,8 +88,6 @@ describe('vscode-jest replays (T11.12)', () => {
 
       // The fields by name, so a regression says which one moved.
       assert.equal(ours.testResults.length, theirs.testResults.length, `${id}: file count`)
-      const read = fieldsRead(ours) as ReturnType<typeof fieldsRead>
-      const want = fieldsRead(theirs)
       for (const [index, file] of ours.testResults.entries()) {
         const expected: FileResult | undefined = theirs.testResults[index]
         assert.ok(expected !== undefined)
@@ -133,7 +114,6 @@ describe('vscode-jest replays (T11.12)', () => {
           }
         }
       }
-      assert.deepEqual(read, want)
 
       // Under `--colors` the failing test's message and failureMessages carry colour codes, and
       // vscode-jest strips them itself (`TestResult.ts:116-137`).
@@ -141,13 +121,18 @@ describe('vscode-jest replays (T11.12)', () => {
         file.assertionResults.filter((a) => a.status === 'failed'),
       )
       for (const a of failing) {
-        assert.ok(
-          (a.failureMessages as string[]).every((text) => ANSI.test(text)),
-          `${id}: failureMessages have no colour codes`,
-        )
+        const messages = a.failureMessages as string[]
+        assert.ok(messages.length > 0, `${id}: a failed assertion has no failureMessages`)
+        for (const text of messages) {
+          assert.match(text, ANSI, `${id}: a failure message has no colour codes`)
+        }
       }
-      if (failing.length > 0) {
-        assert.ok(ANSI.test(String(ours.testResults[0]?.message)), `${id}: message has no colour`)
+      for (const file of ours.testResults.filter((f) => f.status === 'failed')) {
+        assert.match(
+          String(file.message),
+          ANSI,
+          `${id}: ${String(file.name)} message has no colour`,
+        )
       }
 
       // The reporter's control lines, as the extension matches them (`process-listeners.ts`).
@@ -164,6 +149,7 @@ describe('vscode-jest replays (T11.12)', () => {
       typeof text === 'string' && text.includes('"stored"'),
       `${id}: the .snap is not updated`,
     )
+    assert.ok(!text.includes('"old"'), `${id}: the stale snapshot is still in the .snap`)
   })
 
   it('debug: no --json, Jest’s own text, exit 1 for the failing test', async () => {
