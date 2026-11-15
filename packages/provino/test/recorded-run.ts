@@ -272,11 +272,13 @@ export async function runFixture(
       const text = await readText(RESULTS)
       raw[RESULTS] = text === null ? null : (JSON.parse(text) as Json)
     }
+    // The recorder reads only the streams a fixture captures; `sortStdout` must not fail on the rest.
+    const captured = (stream: string): boolean => spec?.capture.includes(stream) ?? false
     return {
       fixture,
       code: ended.code,
-      stdout: recordedStream(ended.stdout, spec, roots, `${id} stdout`),
-      stderr: recordedStream(ended.stderr, spec, roots, `${id} stderr`),
+      stdout: captured('stdout') ? recordedStream(ended.stdout, spec, roots, `${id} stdout`) : '',
+      stderr: captured('stderr') ? recordedStream(ended.stderr, spec, roots, `${id} stderr`) : '',
       files,
       json,
       rawJson(file) {
