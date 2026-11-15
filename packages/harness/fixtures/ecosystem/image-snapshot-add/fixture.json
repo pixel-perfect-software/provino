@@ -1,0 +1,27 @@
+{
+  "description": "jest-image-snapshot 6.5.2 writes new images in a local run (B23e Phase 2c): `v1` stores `shared-image.png`, and `counter` takes its image between two `toMatchSnapshot` calls, so the matchers share the test's counter (`this.snapshotState._counters`): the image is snapshot 2 and the .snap holds `counter 1` and `counter 3`. Every write reaches Jest's totals (`added`), so the Snapshot Summary counts them. `-t \"v1|counter\"` leaves `v2` out; two files, one worker.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "setupFilesAfterEnv": ["<rootDir>/setup.ts"]
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false", "-w", "1", "-t", "v1|counter"]
+    },
+    "capture": [
+      "exitCode",
+      "stderr",
+      "json:.harness-out/jest.json",
+      "file:image-hashes.txt",
+      "file:__snapshots__/counter.test.ts.snap"
+    ],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Snapshot Summary|^ › |^ +● |^    [A-Z]",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

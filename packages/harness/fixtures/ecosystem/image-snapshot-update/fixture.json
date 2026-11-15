@@ -1,0 +1,26 @@
+{
+  "description": "jest-image-snapshot 6.5.2 under `-u` (B23e Phase 2c): a first run stores `v1`'s image, then `-t v2 -u` rewrites it with v2's (the matcher reads `this.snapshotState._updateSnapshot` as `all`), and the rewrite reaches Jest's totals (`updated`). Two files, one worker.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "env": {
+    "CI": ""
+  },
+  "config": {
+    "jest": {
+      "setupFilesAfterEnv": ["<rootDir>/setup.ts"]
+    }
+  },
+  "before": [
+    {
+      "argv": ["--ci=false", "-w", "1", "-t", "v1"]
+    }
+  ],
+  "run": {
+    "argv": {
+      "jest": ["-w", "1", "-t", "v2", "-u"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json", "file:image-hashes.txt"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Snapshot Summary|^ › |^ +● |^    [A-Z]",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
