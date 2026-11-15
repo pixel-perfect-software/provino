@@ -27,6 +27,31 @@ function fileGlobal(): {
   return { global, baseline }
 }
 
+/**
+ * Wraps the setter of every configurable get/set accessor of `target` and keeps its getter, as
+ * `@provino/env-shared`'s `snapshotProperties` does for a file (the orchestrator may not import
+ * it). Returns the call that puts the originals back.
+ */
+function wrapSettersAsSnapshotDoes(target: object): () => void {
+  const originals: [string, PropertyDescriptor][] = []
+  for (const key of Object.getOwnPropertyNames(target)) {
+    const original = Object.getOwnPropertyDescriptor(target, key)
+    if (original?.get === undefined || original.set === undefined) continue
+    if (original.configurable !== true) continue
+    const set = original.set
+    Object.defineProperty(target, key, {
+      ...original,
+      set(this: unknown, value: unknown) {
+        Reflect.apply(set, this, [value])
+      },
+    })
+    originals.push([key, original])
+  }
+  return () => {
+    for (const [key, original] of originals) Object.defineProperty(target, key, original)
+  }
+}
+
 describe('the external probe (D127, P42)', () => {
   it('watches what the file installed or changed, never what the worker booted with or process', () => {
     const { global, baseline } = fileGlobal()
@@ -140,6 +165,63 @@ describe('the external probe (D127, P42)', () => {
     ;(listener as unknown as () => void)()
     assert.equal(end(), true, 'the environment’s accessor reported the read')
     assert.equal(listener, null, 'the listener is gone once the window closes')
+  })
+
+  it('does not watch an accessor whose setter alone was wrapped (the environment’s per-file snapshot)', () => {
+    // `@provino/env-shared`'s `snapshotProperties` wraps the setter of every configurable get/set
+    // accessor (`Buffer`, `performance`, Node 26's `localStorage`) and keeps its getter.
+    const global: Record<string, unknown> = {}
+    const store = { value: 1 }
+    Object.defineProperty(global, 'performance', {
+      configurable: true,
+      enumerable: true,
+      get: () => store.value,
+      set: (next: number) => {
+        store.value = next
+      },
+    })
+    const baseline = readGlobalBaseline(global)
+    wrapSettersAsSnapshotDoes(global)
+    assert.deepEqual(perFileKeys(global, baseline), [])
+    const end = watchPerFileGlobals(global, baseline)
+    void global.performance
+    assert.equal(end(), false, 'a package that reads `performance` at load is not learned')
+  })
+
+  it('on the real global, a per-file snapshot alone leaves no key to watch', () => {
+    const baseline = readGlobalBaseline(globalThis)
+    const restore = wrapSettersAsSnapshotDoes(globalThis)
+    try {
+      assert.deepEqual(
+        perFileKeys(globalThis, baseline).map(([key]) => key),
+        [],
+      )
+      const end = watchPerFileGlobals(globalThis, baseline)
+      void typeof performance
+      void typeof Buffer
+      assert.equal(end(), false)
+    } finally {
+      restore()
+    }
+  })
+
+  it('still watches an accessor whose getter the file replaced', () => {
+    const global: Record<string, unknown> = {}
+    Object.defineProperty(global, 'performance', {
+      configurable: true,
+      get: () => 1,
+      set: () => {},
+    })
+    const baseline = readGlobalBaseline(global)
+    Object.defineProperty(global, 'performance', {
+      configurable: true,
+      get: () => 2,
+      set: () => {},
+    })
+    assert.deepEqual(
+      perFileKeys(global, baseline).map(([key]) => key),
+      ['performance'],
+    )
   })
 
   it('still watches a covered key the file redefined since', () => {
