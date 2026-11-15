@@ -9,11 +9,35 @@ import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
+import { Writable } from 'node:stream'
 import { describe, it } from 'node:test'
+import { createAffectedIndex } from '@provino/orchestrator'
 import { commitAll, gitEnv, initRepo } from './hermetic-git.ts'
 import { type Json, normalizedJson, observedText } from './mask.ts'
 import { loadFixture, materialize } from './recorded.ts'
 import { spawnCli } from './support.ts'
+
+const { runJestCommand } = (await import(
+  new URL('../src/internal/jest-command.ts', import.meta.url).href
+)) as {
+  runJestCommand(
+    args: readonly string[],
+    io: {
+      stdout: Writable
+      stderr: Writable
+      cwd: string
+      affectedLookup?: { createIndex: typeof createAffectedIndex }
+    },
+  ): Promise<number>
+}
+
+class Sink extends Writable {
+  text = ''
+  override _write(chunk: Buffer | string, _encoding: BufferEncoding, done: () => void): void {
+    this.text += chunk.toString()
+    done()
+  }
+}
 
 type ScmStep = { readonly commit: string } | { readonly write: Readonly<Record<string, string>> }
 
@@ -41,7 +65,6 @@ async function check(id: string): Promise<void> {
   const manifest = fixture.manifest as typeof fixture.manifest & Scm
   const golden = fixture.golden.observed
   assert.ok(golden !== undefined, 'the golden records a black-box run')
-  assert.ok(manifest.scm !== undefined, 'the fixture has scm steps')
   const project = await materialize(fixture)
   const { root } = project
   try {
@@ -49,7 +72,9 @@ async function check(id: string): Promise<void> {
     await mkdir(outDir)
     const config = join(outDir, 'jest.config.json')
     await rename(join(root, 'jest.config.json'), config)
-    await runScm(root, manifest.scm.steps)
+    // No `scm` field: the work directory is no repository (the ceiling in `gitEnv` keeps this
+    // checkout's from being found).
+    if (manifest.scm !== undefined) await runScm(root, manifest.scm.steps)
     const ended = await spawnCli(
       [
         'jest',
@@ -66,6 +91,10 @@ async function check(id: string): Promise<void> {
       observedText(ended.stdout, { roots: [root], mask: manifest.run?.mask }),
       golden.stdout,
     )
+    // The lines Jest wrote to stderr that are its own text (the sandbox adds noise of its own).
+    for (const line of (golden.stderr ?? '').split('\n').filter(Boolean)) {
+      assert.ok(ended.stderr.includes(line), `stderr lacks: ${line}\n${ended.stderr}`)
+    }
     const json = async (path: string): Promise<Json | null> =>
       existsSync(join(root, path))
         ? normalizedJson(JSON.parse(await readFile(join(root, path), 'utf8')) as Json, {
@@ -100,7 +129,47 @@ describe('provino jest --coverage with the changed-file flags writes the reports
     await check('coverage/only-changed-untested')
   })
 
+  it('-o outside a repository: the no-SCM line, no tests, exit 0, and empty coverage reports (coverage/only-changed-no-git)', async () => {
+    await check('coverage/only-changed-no-git')
+  })
+
   it('--findRelatedTests does not restrict coverage: every collectCoverageFrom file is counted (coverage/find-related)', async () => {
     await check('coverage/find-related')
+  })
+})
+
+describe("-o --coverage builds each project's affected index once", () => {
+  it('the selection and the changed-file coverage share one build (coverage/only-changed)', async () => {
+    const fixture = await loadFixture('coverage/only-changed')
+    const manifest = fixture.manifest as typeof fixture.manifest & Scm
+    assert.ok(manifest.scm !== undefined)
+    const project = await materialize(fixture)
+    const { root } = project
+    try {
+      const outDir = join(root, '.harness-out')
+      await mkdir(outDir)
+      const config = join(outDir, 'jest.config.json')
+      await rename(join(root, 'jest.config.json'), config)
+      await runScm(root, manifest.scm.steps)
+      let builds = 0
+      const code = await runJestCommand(
+        ['--config', config, '--ci', ...(manifest.run?.argv?.jest ?? [])],
+        {
+          stdout: new Sink(),
+          stderr: new Sink(),
+          cwd: root,
+          affectedLookup: {
+            createIndex: (...args) => {
+              builds += 1
+              return createAffectedIndex(...args)
+            },
+          },
+        },
+      )
+      assert.equal(code, 0)
+      assert.equal(builds, 1)
+    } finally {
+      await project.dispose()
+    }
   })
 })

@@ -35,22 +35,42 @@ export interface AffectedMember {
 }
 
 /**
- * The discovered files `selection` reaches: the tests related to some paths, or to the files a
- * change touched. It builds the project's index (its own coordinator loader resolves the edges) and
- * disposes the loader after. A selection by changed files needs `changed.changedFiles`; the paths
- * are absolute.
+ * What one index build answers for a selection: the absolute paths of the files it reaches, and,
+ * for a selection by changed files, the sources the changed test files import (Jest's
+ * `findRelatedSourcesFromTestsInChangedFiles`, SearchSource L361-L379: the direct dependencies of
+ * each changed file that is a test file of the project; empty when none is).
  * @beta
  */
-export async function selectAffected(
+export interface AffectedLookup {
+  readonly related: ReadonlySet<string>
+  readonly sources: readonly string[]
+}
+
+/**
+ * The seams of a lookup; a test counts index builds through `createIndex`.
+ * @beta
+ */
+export interface AffectedLookupOptions {
+  readonly createIndex?: typeof createAffectedIndex
+}
+
+/**
+ * Builds the project's index once (its own coordinator loader resolves the edges, disposed after)
+ * and reads from it everything a selection and the changed-file coverage need, so a run that asks
+ * for both builds one index. A selection by changed files needs `changed.changedFiles`; the paths
+ * are absolute. With no path nothing is built.
+ * @beta
+ */
+export async function lookupAffected(
   member: AffectedMember,
-  everything: readonly DiscoveredFile[],
   selection: AffectedSelection,
   cacheDir: string | null,
   recorded: RecordedGraph | undefined,
-): Promise<readonly DiscoveredFile[]> {
+  options: AffectedLookupOptions = {},
+): Promise<AffectedLookup> {
   const { project } = member
   const paths = selection.kind === 'related' ? selection.paths : selection.changed.changedFiles
-  if (paths.length === 0) return []
+  if (paths.length === 0) return { related: new Set(), sources: [] }
   // The loader is the coordinator's engine for modules it imports itself; it is only loaded here.
   const { createCoordinatorLoader } = await import('@provino/loader')
   // No `using`: Node 22.15, the floor, cannot parse it.
@@ -60,7 +80,7 @@ export async function selectAffected(
     project.policy.module,
   )
   try {
-    const index = await createAffectedIndex(project, {
+    const index = await (options.createIndex ?? createAffectedIndex)(project, {
       cacheDir,
       projectKey: member.cacheProject,
       loader,
@@ -72,62 +92,42 @@ export async function selectAffected(
         : { projectExtractor: project.affected.extractor }),
     })
     const related = new Set(index.related(paths))
+    const sources = new Set<string>()
+    if (selection.kind === 'changed') {
+      const tests = new Set(index.files().tests)
+      for (const path of paths) {
+        if (!tests.has(path)) continue
+        for (const source of index.sourcesOf(path)) sources.add(source)
+      }
+    }
     try {
       await index.save()
     } catch {
       // The cache is a convenience: an unwritable directory costs the next run its warm start.
     }
-    return everything.filter((file) => related.has(join(project.rootDir, file.relativePath)))
+    return { related, sources: [...sources] }
   } finally {
     loader[Symbol.dispose]()
   }
 }
 
 /**
- * The sources the changed test files import, as absolute paths: Jest's
- * `findRelatedSourcesFromTestsInChangedFiles` (SearchSource L361-L379), the direct dependencies
- * of each changed file that is a test file of the project. It builds the project's index as
- * `selectAffected` does, so a run asks only when coverage needs it.
+ * The discovered files `selection` reaches: the tests related to some paths, or to the files a
+ * change touched. It builds the project's index through `lookupAffected`, unless the caller passes
+ * the `lookup` it already made.
  * @beta
  */
-export async function sourcesRelatedToChangedTests(
+export async function selectAffected(
   member: AffectedMember,
-  changedFiles: readonly string[],
+  everything: readonly DiscoveredFile[],
+  selection: AffectedSelection,
   cacheDir: string | null,
-): Promise<readonly string[]> {
-  if (changedFiles.length === 0) return []
-  const { project } = member
-  const { createCoordinatorLoader } = await import('@provino/loader')
-  // No `using`: Node 22.15, the floor, cannot parse it.
-  const loader = await createCoordinatorLoader(
-    project.rootDir,
-    project.config.loader,
-    project.policy.module,
-  )
-  try {
-    const index = await createAffectedIndex(project, {
-      cacheDir,
-      projectKey: member.cacheProject,
-      loader,
-      ...(project.affected?.extractor === undefined
-        ? {}
-        : { projectExtractor: project.affected.extractor }),
-    })
-    const tests = new Set(index.files().tests)
-    const sources = new Set<string>()
-    for (const path of changedFiles) {
-      if (!tests.has(path)) continue
-      for (const source of index.sourcesOf(path)) sources.add(source)
-    }
-    try {
-      await index.save()
-    } catch {
-      // The cache is a convenience, as in `selectAffected`.
-    }
-    return [...sources]
-  } finally {
-    loader[Symbol.dispose]()
-  }
+  recorded: RecordedGraph | undefined,
+  lookup?: AffectedLookup,
+): Promise<readonly DiscoveredFile[]> {
+  const { related } = lookup ?? (await lookupAffected(member, selection, cacheDir, recorded))
+  if (related.size === 0) return []
+  return everything.filter((file) => related.has(join(member.project.rootDir, file.relativePath)))
 }
 
 /**
