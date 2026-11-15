@@ -2978,6 +2978,7 @@ export interface Sequencer {
 
 // @public
 export interface SerializedCoverageConfig {
+    readonly changedFiles?: readonly string[];
     readonly excludePaths: readonly string[];
     readonly excludePatterns: readonly string[];
     readonly force: readonly string[];
@@ -2988,6 +2989,7 @@ export interface SerializedCoverageConfig {
     readonly projectRoot: string;
     // (undocumented)
     readonly provider: "v8" | "istanbul";
+    readonly sourcesRelatedToTestsInChangedFiles?: readonly string[];
     readonly testFiles: readonly string[];
     readonly testIgnorePatterns: readonly string[];
     readonly testRegex: readonly string[];
