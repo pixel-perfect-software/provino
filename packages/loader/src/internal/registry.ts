@@ -18,13 +18,14 @@ import { dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ModuleId, ModuleMockRegistry, ModuleScopeValues, ResolveKind } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
-import { createLedger, mockedReach, noteInlined } from './inline.ts'
+import { createLedger, mockedReach, noteInlined, packageClosure, servedReach } from './inline.ts'
 import { actualView, cjsNamespace, createInteropCache, esmExports } from './interop.ts'
 import {
   type Compiled,
   compile,
   externalKey,
   type Found,
+  isEvaluableExternal,
   linkAsync,
   linkSync,
   type ModuleRecord,
@@ -40,6 +41,7 @@ import {
   toModuleId,
   userEdgesOf,
 } from './records.ts'
+import { watchedLoad } from './reevaluate.ts'
 
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
 type Style = 'esm' | 'cjs'
@@ -360,7 +362,10 @@ export class Registry {
 
   /** The runner's `import(specifier)` of a setup or test file: link asynchronously, then evaluate. */
   async load(specifier: string, importer: string, isTest: boolean): Promise<object> {
-    const target = resolveTarget(this.#state, specifier, importer, 'import')
+    const target = this.#maybeInline(
+      resolveTarget(this.#state, specifier, importer, 'import'),
+      true,
+    )
     if (target.kind !== 'user') return this.#externalAsync(target)
     // An entry the file asked for: no edge of another module leads to it.
     this.#touched?.add(target.id)
@@ -371,7 +376,10 @@ export class Registry {
 
   /** The runner's `require(specifier)`: link and evaluate synchronously. */
   loadSync(specifier: string, importer: string, isTest: boolean): unknown {
-    const target = resolveTarget(this.#state, specifier, importer, 'require')
+    const target = this.#maybeInline(
+      resolveTarget(this.#state, specifier, importer, 'require'),
+      true,
+    )
     if (target.kind !== 'user') return this.#requireExternal(target)
     this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, isTest)
@@ -514,35 +522,49 @@ export class Registry {
   // ---- inlining (T2.6) ----
 
   /**
-   * An external as the edge should load it: the same external, or a user module when a mock reaches
-   * it. It is inlined when `mocksReachShared` is on and the file's mocks take an edge in its graph
-   * closure; the answer is kept for the instance map in play, and later edges follow it.
+   * An external as the edge should load it: the same external, or a user module (inlined) for one
+   * of three reasons. It is evaluated again per file (`reevaluateHookingExternals`: its first load
+   * in this worker read a per-file global, D127); its closure reaches a module the dialect serves
+   * (`@jest/globals`, which only the registry can serve); or `mocksReachShared` is on and the
+   * file's mocks take an edge in its graph closure. The answer is kept for the instance map in
+   * play, and later edges follow it. The runner's own loads (`runner`) never ask the mocks, as
+   * the module itself is never mocked.
    */
-  #maybeInline(target: Found): Found {
+  #maybeInline(target: Found, runner = false): Found {
     if (target.kind !== 'external') return target
     const state = this.#state
-    const mocks = this.context.mocks
-    if (mocks === null || !state.options.policy.mocksReachShared) return target
+    const policy = state.options.policy
     const path = target.path
+    const again = policy.reevaluateHookingExternals && state.reevaluate.active.has(path)
+    const served = state.options.moduleScope?.modules ?? []
+    const mocks = runner || !policy.mocksReachShared ? null : this.context.mocks
+    if (!again && served.length === 0 && mocks === null) return target
     const map = this.#instances
-    let served = this.#memory.get(map)
-    if (served === undefined) {
-      served = new Map()
-      this.#memory.set(map, served)
+    let memory = this.#memory.get(map)
+    if (memory === undefined) {
+      memory = new Map()
+      this.#memory.set(map, memory)
     }
-    let inlined = served.get(path)
+    let inlined = memory.get(path)
     if (inlined === undefined) {
       inlined = false
-      if (mocks.active() && !path.endsWith('.node')) {
-        const mockedId = mockedReach(state.inline, state.options, path, mocks, (user) =>
-          userEdgesOf(state, user),
-        )
-        if (mockedId !== null) {
+      if (!path.endsWith('.node')) {
+        const userEdges = (user: string) => userEdgesOf(state, user)
+        if (again) inlined = true
+        else if (
+          served.length > 0 &&
+          servedReach(state.inline, state.options, path, served, userEdges)
+        ) {
           inlined = true
-          noteInlined(state.inline, state.options, this.#ledger, toModuleId(path), mockedId)
+        } else if (mocks?.active()) {
+          const mockedId = mockedReach(state.inline, state.options, path, mocks, userEdges)
+          if (mockedId !== null) {
+            inlined = true
+            noteInlined(state.inline, state.options, this.#ledger, toModuleId(path), mockedId)
+          }
         }
       }
-      served.set(path, inlined)
+      memory.set(path, inlined)
     }
     return inlined ? { kind: 'user', id: toModuleId(path) } : target
   }
@@ -561,9 +583,22 @@ export class Registry {
     const key = externalKey(target)
     const state = this.#state
     if (state.required.has(key)) return state.required.get(key)
-    const value: unknown = createRequire(
-      target.kind === 'external' ? target.path : state.options.root,
-    )(key)
+    if (target.kind !== 'external') {
+      const value: unknown = createRequire(state.options.root)(key)
+      state.required.set(key, value)
+      return value
+    }
+    // The external's first native load in this worker: a window the worker may watch (D127).
+    const load = (): unknown => createRequire(target.path)(key)
+    const value: unknown = state.options.policy.reevaluateHookingExternals
+      ? watchedLoad(
+          state.reevaluate,
+          target.path,
+          load,
+          (file) => isEvaluableExternal(file, state.options.inline ?? []),
+          (file) => packageClosure(state.inline, state.options, file),
+        )
+      : load()
     state.required.set(key, value)
     return value
   }

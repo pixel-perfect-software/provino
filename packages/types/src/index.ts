@@ -143,6 +143,7 @@ export type {
   CompiledModuleInfo,
   CreateLoader,
   EngineKind,
+  ExternalLoadWatcher,
   FileRegistry,
   FileRegistryOptions,
   LeakOptions,

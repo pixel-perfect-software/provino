@@ -317,6 +317,12 @@ export type WorkerToCoordinator =
       readonly leaks?: true
       /** `FileJob.logHeapUsage` was set: `process.memoryUsage().heapUsed` after the file, once collected when `gc` is exposed. */
       readonly heapUsedBytes?: number
+      /**
+       * The node_modules files (absolute paths) the worker learned, while this file ran, to
+       * evaluate per file from the next one on (`ModulePolicy.reevaluateHookingExternals`, D127);
+       * absent when it learned none. The coordinator keeps them in the results cache.
+       */
+      readonly reevaluated?: readonly string[]
     }
   | { readonly t: 'stopped' }
   | RpcCall<CoordinatorMethods>

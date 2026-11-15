@@ -80,6 +80,7 @@ export const JESTISH: ModulePolicy = {
   mockValueOwner: 'module-registry',
   mockResolveKind: 'require',
   mocksReachShared: true,
+  reevaluateHookingExternals: false,
   stackFrameNames: 'engine',
 }
 
@@ -95,6 +96,7 @@ export const VITESTISH: ModulePolicy = {
   mockValueOwner: 'registration',
   mockResolveKind: 'import',
   mocksReachShared: false,
+  reevaluateHookingExternals: false,
   stackFrameNames: 'engine',
   automockShape: 'deep',
 }

@@ -38,7 +38,10 @@ function loaderFor(
   extra: {
     readonly resolver?: Resolver
     readonly hoist?: HoistPolicy
-    readonly moduleScope?: { readonly names: readonly string[] }
+    readonly moduleScope?: {
+      readonly names: readonly string[]
+      readonly modules?: readonly string[]
+    }
   } = {},
 ): Loader {
   return createLoader({
@@ -912,4 +915,231 @@ test('dropRecords: the next registry reads the new code of a dropped module and 
   assert.equal((await load<{ value: string }>('b.ts')).value, 'two')
   await load('a.ts')
   assert.equal(compiled.filter((path) => path.endsWith('a.ts')).length, 1, 'a is compiled once')
+})
+
+// D127 / P42: a shared external that reads a per-file global while it first loads.
+
+/** The per-file globals the fake watcher reports a read of, as the worker's probe does. */
+const PER_FILE = ['afterEach', 'expect', 'document'] as const
+
+/**
+ * A watcher like the worker's: during an external's first native load it turns each per-file
+ * global into a getter that notes the read, and puts the global back when the window closes.
+ */
+function probe(watched: string[]): (path: string) => () => boolean {
+  return (path) => {
+    watched.push(path)
+    let read = false
+    const saved = PER_FILE.map(
+      (key) => [key, Object.getOwnPropertyDescriptor(globalThis, key)] as const,
+    )
+    for (const [key, descriptor] of saved) {
+      if (descriptor === undefined) continue
+      Object.defineProperty(globalThis, key, {
+        configurable: true,
+        get: () => {
+          read = true
+          return descriptor.value
+        },
+      })
+    }
+    return () => {
+      for (const [key, descriptor] of saved) {
+        if (descriptor !== undefined) Object.defineProperty(globalThis, key, descriptor)
+      }
+      return read
+    }
+  }
+}
+
+const HOOKING = {
+  // Registers a test hook as it loads, through a module of its own (its closure).
+  'node_modules/hooks-ext/package.json': JSON.stringify({ name: 'hooks-ext', main: 'index.js' }),
+  'node_modules/hooks-ext/index.js':
+    "const dep = require('./dep.js')\nafterEach(() => {})\nmodule.exports = { token: {}, dep }\n",
+  'node_modules/hooks-ext/dep.js': 'module.exports = { token: {} }\n',
+  // Reads `expect` as it loads.
+  'node_modules/expect-ext/package.json': JSON.stringify({ name: 'expect-ext', main: 'index.js' }),
+  'node_modules/expect-ext/index.js': 'module.exports = { token: {}, expect: expect }\n',
+  // Reads the environment's `document` as it loads.
+  'node_modules/dom-ext/package.json': JSON.stringify({ name: 'dom-ext', main: 'index.js' }),
+  'node_modules/dom-ext/index.js': 'module.exports = { token: {}, document: document }\n',
+  // Reads nothing per file.
+  'node_modules/plain-ext/package.json': JSON.stringify({ name: 'plain-ext', main: 'index.js' }),
+  'node_modules/plain-ext/index.js': 'module.exports = { token: {} }\n',
+  'a.test.js':
+    "module.exports = { hooks: require('hooks-ext'), expect: require('expect-ext'), dom: require('dom-ext'), plain: require('plain-ext') }\n",
+  'b.test.js':
+    "module.exports = { hooks: require('hooks-ext'), expect: require('expect-ext'), dom: require('dom-ext'), plain: require('plain-ext') }\n",
+}
+
+interface Loaded {
+  readonly hooks: { readonly token: object; readonly dep: { readonly token: object } }
+  readonly expect: { readonly token: object; readonly expect: object }
+  readonly dom: { readonly token: object; readonly document: object }
+  readonly plain: { readonly token: object }
+}
+
+/** Runs `fn` with the per-file globals installed as one file would see them, then removes them. */
+async function withFileGlobals<T>(
+  fn: (globals: { hooks: number; expect: object; document: object }) => Promise<T>,
+): Promise<T> {
+  const globals = { hooks: 0, expect: {}, document: {} }
+  Object.assign(globalThis, {
+    afterEach: () => {
+      globals.hooks++
+    },
+    expect: globals.expect,
+    document: globals.document,
+  })
+  try {
+    return await fn(globals)
+  } finally {
+    for (const key of PER_FILE) Reflect.deleteProperty(globalThis, key)
+  }
+}
+
+test('reevaluateHookingExternals: an external that reads a per-file global as it loads is evaluated again in each later file', async () => {
+  const root = writeTree(HOOKING)
+  const loader = loaderFor(root, { reevaluateHookingExternals: true, interopDefault: 'babel' })
+  const watched: string[] = []
+  loader.watchExternalLoads(probe(watched))
+  const load = (name: string) =>
+    loader
+      .createFileRegistry(join(root, name), { tier: 'registry' })
+      .import<Loaded>(join(root, name))
+  await withFileGlobals(async (globals) => {
+    const first = await load('a.test.js')
+    assert.deepEqual(
+      watched.map((path) => path.slice(root.length + 1)).toSorted(),
+      [
+        'node_modules/dom-ext/index.js',
+        'node_modules/expect-ext/index.js',
+        'node_modules/hooks-ext/index.js',
+        'node_modules/plain-ext/index.js',
+      ],
+      'each external’s first native load is one window; hooks-ext’s own dep is part of its window',
+    )
+    assert.equal(globals.hooks, 1)
+    assert.deepEqual(
+      loader
+        .reevaluatedExternals()
+        .map((path) => path.slice(root.length + 1))
+        .toSorted(),
+      [
+        'node_modules/dom-ext/index.js',
+        'node_modules/expect-ext/index.js',
+        'node_modules/hooks-ext/dep.js',
+        'node_modules/hooks-ext/index.js',
+      ],
+      'learned: the three that read a per-file global, and the file hooks-ext’s load evaluated',
+    )
+    const second = await load('b.test.js')
+    assert.equal(globals.hooks, 2, 'the second file registers the hook again')
+    assert.notEqual(second.hooks.token, first.hooks.token, 'hooks-ext is the second file’s own')
+    assert.notEqual(second.hooks.dep.token, first.hooks.dep.token, 'and so is its closure')
+    assert.notEqual(second.expect.token, first.expect.token)
+    assert.notEqual(second.dom.token, first.dom.token)
+    assert.equal(
+      second.plain.token,
+      first.plain.token,
+      'an external that reads nothing stays shared',
+    )
+    assert.equal(watched.length, 4, 'nothing is watched once every external has loaded')
+  })
+})
+
+test('reevaluateHookingExternals: a learned set given to a new loader inlines from its first file', async () => {
+  const root = writeTree(HOOKING)
+  const policy = { reevaluateHookingExternals: true, interopDefault: 'babel' } as const
+  const learning = loaderFor(root, policy)
+  learning.watchExternalLoads(probe([]))
+  await withFileGlobals(async () => {
+    await learning
+      .createFileRegistry(join(root, 'a.test.js'), { tier: 'registry' })
+      .import(join(root, 'a.test.js'))
+  })
+  const learned = learning.reevaluatedExternals()
+  learning[Symbol.dispose]()
+
+  const loader = loaderFor(root, policy)
+  const watched: string[] = []
+  loader.watchExternalLoads(probe(watched))
+  loader.reevaluateExternals(learned)
+  await withFileGlobals(async (globals) => {
+    const first = await loader
+      .createFileRegistry(join(root, 'a.test.js'), { tier: 'registry' })
+      .import<Loaded>(join(root, 'a.test.js'))
+    assert.equal(globals.hooks, 1)
+    assert.deepEqual(
+      watched.map((path) => path.slice(root.length + 1)),
+      ['node_modules/plain-ext/index.js'],
+      'only the external the set does not name loads natively',
+    )
+    const second = await loader
+      .createFileRegistry(join(root, 'b.test.js'), { tier: 'registry' })
+      .import<Loaded>(join(root, 'b.test.js'))
+    assert.equal(globals.hooks, 2)
+    assert.notEqual(second.hooks.token, first.hooks.token)
+  })
+})
+
+test('reevaluateHookingExternals off (neutral): nothing is watched or inlined, every external is shared', async () => {
+  const root = writeTree(HOOKING)
+  const loader = loaderFor(root, { interopDefault: 'babel' })
+  const watched: string[] = []
+  loader.watchExternalLoads(probe(watched))
+  loader.reevaluateExternals([join(root, 'node_modules/hooks-ext/index.js')])
+  await withFileGlobals(async (globals) => {
+    const load = (name: string) =>
+      loader
+        .createFileRegistry(join(root, name), { tier: 'registry' })
+        .import<Loaded>(join(root, name))
+    const first = await load('a.test.js')
+    const second = await load('b.test.js')
+    assert.deepEqual(watched, [])
+    assert.deepEqual(loader.reevaluatedExternals(), [])
+    assert.equal(globals.hooks, 1, 'the hook is registered by the first file only')
+    assert.equal(second.hooks.token, first.hooks.token)
+    assert.equal(second.dom.token, first.dom.token)
+  })
+})
+
+test('a shared external whose closure requires a served module is inlined, and its edge gets the served value', async () => {
+  const root = writeTree({
+    'node_modules/@jest/globals/package.json': JSON.stringify({
+      name: '@jest/globals',
+      main: 'index.js',
+    }),
+    'node_modules/@jest/globals/index.js':
+      "throw new Error('Do not import `@jest/globals` outside of the Jest test environment')\n",
+    'node_modules/uses-globals/package.json': JSON.stringify({
+      name: 'uses-globals',
+      main: 'index.js',
+    }),
+    'node_modules/uses-globals/index.js': "module.exports = require('./lib.js')\n",
+    'node_modules/uses-globals/lib.js':
+      "const globals = require('@jest/globals')\nmodule.exports = { served: globals.marker }\n",
+    'node_modules/plain-ext/package.json': JSON.stringify({ name: 'plain-ext', main: 'index.js' }),
+    'node_modules/plain-ext/index.js': 'module.exports = { token: {} }\n',
+    'a.test.js':
+      "module.exports = { uses: require('uses-globals'), plain: require('plain-ext') }\n",
+  })
+  const loader = loaderFor(
+    root,
+    { interopDefault: 'babel' },
+    { moduleScope: { names: [], modules: ['@jest/globals'] } },
+  )
+  const marker = {}
+  const load = () =>
+    loader
+      .createFileRegistry(join(root, 'a.test.js'), {
+        tier: 'registry',
+        moduleScope: () => ({ '@jest/globals': { marker } }),
+      })
+      .require<{ uses: { served: object }; plain: { token: object } }>(join(root, 'a.test.js'))
+  const first = load()
+  assert.equal(first.uses.served, marker, 'the served module, not the real one')
+  const second = load()
+  assert.equal(second.plain.token, first.plain.token, 'a package that reaches none stays shared')
 })

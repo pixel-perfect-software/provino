@@ -464,7 +464,33 @@ export interface Loader extends Disposable {
    * was never compiled in this worker. Absent from a loader that does not report coverage.
    */
   compiledModule?(url: string): CompiledModuleInfo | null
+  /**
+   * Watches each shared external's first native load in this worker from a user module or the
+   * runner (`ModulePolicy.reevaluateHookingExternals`; never called when it is `false`). A load
+   * started while another is watched is part of that one. Returns an unsubscribe function.
+   */
+  watchExternalLoads(watcher: ExternalLoadWatcher): () => void
+  /**
+   * The node_modules files this worker evaluates per file because a watched load read a per-file
+   * global (each such external and the files its load evaluated), as absolute paths: the ones it
+   * learned and the ones `reevaluateExternals` gave it.
+   */
+  reevaluatedExternals(): readonly string[]
+  /**
+   * Adds node_modules files (absolute paths) to evaluate per file from the next file on, such as a
+   * set an earlier run learned. Ignored unless `ModulePolicy.reevaluateHookingExternals` is on.
+   */
+  reevaluateExternals(paths: readonly string[]): void
 }
+
+/**
+ * Watches one shared external's first native load (D127): called with its path as the load starts,
+ * it returns the call that ends the watch, which says whether the load read a per-file global (a
+ * test global or one the file's environment installed). The end call is made whether or not the
+ * load threw.
+ * @public
+ */
+export type ExternalLoadWatcher = (path: string) => () => boolean
 
 /**
  * The signature of `createLoader` in `@provino/loader`.
