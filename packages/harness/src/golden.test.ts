@@ -349,6 +349,24 @@ test('a json: capture the run did not write is refused unless the fixture lists 
   })
 })
 
+test('a json: capture of an empty or whitespace-only stream is refused like a missing file', () => {
+  const observe = (spec: { capture: string[]; missingJson?: string[] }, stdout: string) =>
+    observedOf(spec, { exitCode: 0, stdout, stderr: '' }, {}, (text) => text, 'fixture.json')
+  for (const stdout of ['', ' \n']) {
+    assert.throws(
+      () => observe({ capture: ['json:stdout'] }, stdout),
+      (error: unknown) =>
+        error instanceof HarnessError &&
+        error.code === 'HARNESS_FIXTURE_BAD_RUN' &&
+        /json:stdout/.test(error.message) &&
+        /missingJson/.test(error.message),
+    )
+  }
+  assert.deepEqual(observe({ capture: ['json:stdout'], missingJson: ['json:stdout'] }, ''), {
+    json: { stdout: null },
+  })
+})
+
 test('a json: capture collapses only stack frames, not message lines that start with "at "', () => {
   const message = [
     'Error: boom',

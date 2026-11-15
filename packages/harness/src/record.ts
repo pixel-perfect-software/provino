@@ -410,13 +410,13 @@ export function observedOf(
               // `.each` discovery) that takes Jest's `--json` from stdout.
               const text =
                 file === 'stdout' || file === 'stderr' ? result[file] : (files[file] ?? null)
-              if (text === null) {
+              if (text === null || text.trim() === '') {
                 // A run that wrote no file would record `null` as the truth and fail later, far
                 // from here: refuse it unless the fixture says that is what the run shows.
                 if (spec.missingJson?.includes(entry) === true) return [file, null]
                 throw new HarnessError(
                   'HARNESS_FIXTURE_BAD_RUN',
-                  `${source}: "run" captures "json:${file}", which the run did not write (list "json:${file}" in "missingJson" if that is what the run shows)`,
+                  `${source}: "run" captures "json:${file}", which the run did not write, or wrote empty (list "json:${file}" in "missingJson" if that is what the run shows)`,
                   { path: source },
                 )
               }

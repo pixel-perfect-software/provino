@@ -254,7 +254,15 @@ export async function runFixture(
         // `json:stdout` and `json:stderr` are the stream itself (the recorder's `observedOf`).
         const text =
           file === 'stdout' ? ended.stdout : file === 'stderr' ? ended.stderr : await readText(file)
-        const value = text === null ? null : (JSON.parse(text) as Json)
+        // The recorder treats an empty capture as a run that wrote nothing; so does the replay.
+        if (text !== null && text.trim() === '') {
+          if (spec?.missingJson?.includes(entry) !== true) {
+            throw new Error(
+              `${id}: "${entry}" is empty: the run wrote no JSON to ${file} (list "${entry}" in "missingJson" if that is what the run shows)`,
+            )
+          }
+        }
+        const value = text === null || text.trim() === '' ? null : (JSON.parse(text) as Json)
         raw[file] = value
         json[file] =
           value === null
