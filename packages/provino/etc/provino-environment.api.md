@@ -24,6 +24,7 @@ export interface Environment<Name extends string = string, Options = Record<stri
 export interface EnvironmentInstance<G extends object = typeof globalThis> {
     readonly context?: Context;
     readonly global: G;
+    readonly globalReads?: GlobalReadWatch;
     onTestEvent?(event: LifecycleEvent): void | Promise<void>;
     teardown(): void | EnvironmentTeardownReport | Promise<void | EnvironmentTeardownReport>;
 }

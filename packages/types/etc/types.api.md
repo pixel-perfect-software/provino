@@ -776,6 +776,7 @@ export type EnvironmentHelper = <const N extends string>(config: N extends Built
 export interface EnvironmentInstance<G extends object = typeof globalThis> {
     readonly context?: Context;
     readonly global: G;
+    readonly globalReads?: GlobalReadWatch;
     onTestEvent?(event: LifecycleEvent): void | Promise<void>;
     teardown(): void | EnvironmentTeardownReport | Promise<void | EnvironmentTeardownReport>;
 }
@@ -975,7 +976,7 @@ export interface ExpectTable {
 }
 
 // @public
-export type ExternalLoadWatcher = (path: string) => () => boolean;
+export type ExternalLoadWatcher = (path: string) => (() => boolean) | null;
 
 // @public
 export interface FactoryReferenceRule {
@@ -1155,6 +1156,12 @@ export interface Frame {
     readonly repeat: number;
     // (undocumented)
     readonly test: TestTask | null;
+}
+
+// @public
+export interface GlobalReadWatch {
+    covers(key: string, descriptor: PropertyDescriptor): boolean;
+    watch(onRead: () => void): () => void;
 }
 
 // @public
@@ -3014,6 +3021,7 @@ export interface SerializedError {
         readonly expected: string;
         readonly actual: string;
     };
+    readonly enumerableFields?: readonly ("name" | "message" | "stack")[];
     // (undocumented)
     readonly errors?: readonly SerializedError[];
     // (undocumented)
