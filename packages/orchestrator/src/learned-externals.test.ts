@@ -61,6 +61,8 @@ describe('the learned externals in the results cache (D127)', () => {
     assert.deepEqual(readLearnedExternals(reading, 'p', root, new Map()), [
       join(root, 'node_modules/kept/index.js'),
     ])
+    // The run that read the set ran a file of the project, so the key has history and is kept.
+    reading.record('p', 'a.test.js', { durationMs: 1, failed: false, tests: 1, at: 1 })
     await reading.write()
     assert.deepEqual(
       [...createResultsCache(dir).externals('p')],

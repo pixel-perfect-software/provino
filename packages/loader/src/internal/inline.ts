@@ -19,6 +19,7 @@ import {
   scanSource,
   type ThirdPartyGraph,
 } from '../graph/index.ts'
+import type { ReevaluateState } from './reevaluate.ts'
 
 /** The default for `LoaderOptions.inlineBudget`. */
 export const DEFAULT_INLINE_BUDGET = 400
@@ -255,6 +256,35 @@ export function servedReach(
     return true
   }
   for (const member of done) if (inGraph(member)) state.served.set(member, false)
+  return false
+}
+
+/**
+ * Whether `path` is an external evaluated per file (`active`, D127), or its static closure reaches
+ * one. Loaded natively, such an external would `require` Node's one cached copy of what it
+ * reaches, while the file's own code and inlined externals get the file's copy: two instances of
+ * a singleton (`react` under a component library, an "Invalid hook call"). So it is inlined too.
+ * The verdict is kept in `reach` until `active` grows (`activate` clears it); a negative one holds
+ * for every node_modules file the walk covered.
+ */
+export function reevaluatedReach(
+  state: InlineState,
+  options: LoaderOptions,
+  path: string,
+  { active, reach: known }: ReevaluateState,
+  userEdges: UserEdges,
+): boolean {
+  if (active.has(path)) return true
+  const cached = known.get(path)
+  if (cached !== undefined) return cached
+  const takes = (edge: GraphEdge): string | null =>
+    edge.target !== null && active.has(edge.target) ? edge.target : null
+  const { found, done } = walkClosure(state, options, path, takes, userEdges)
+  if (found !== null) {
+    known.set(path, true)
+    return true
+  }
+  for (const member of done) if (inGraph(member)) known.set(member, false)
   return false
 }
 

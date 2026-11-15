@@ -13,6 +13,9 @@
 // when it closes, the original descriptor is put back, so no getter is left on `document` and the
 // steady state pays nothing. A key the load redefined itself is left as the load left it.
 //
+// An accessor whose getter is the baseline's is unchanged, whatever its setter: the per-file
+// snapshot every environment takes wraps the setters of the worker's own accessors.
+//
 // The keys an environment populated from its window (several hundred under jsdom) are accessors
 // already: when the environment offers `globalReads`, the probe listens to them instead of
 // redefining each one per window, which is what made a jsdom worker's first file pay hundreds of
@@ -37,10 +40,15 @@ export function readGlobalBaseline(global: object = globalThis): GlobalBaseline 
   return baseline
 }
 
+/**
+ * Whether a key still holds what the worker booted with. An accessor is compared by its getter
+ * alone: every environment's per-file snapshot wraps the setter of each get/set accessor (Node's
+ * `Buffer` and `performance`, and Node 26's `localStorage`) to record an assignment, which puts
+ * nothing per file on the global. Counting it would learn every package that reads `performance`
+ * at load (lru-cache does) for nothing, and on any runtime whose own accessors differ.
+ */
 function sameDescriptor(a: PropertyDescriptor, b: PropertyDescriptor): boolean {
-  return 'value' in a
-    ? 'value' in b && Object.is(a.value, b.value)
-    : a.get === b.get && a.set === b.set
+  return 'value' in a ? 'value' in b && Object.is(a.value, b.value) : a.get === b.get
 }
 
 /**

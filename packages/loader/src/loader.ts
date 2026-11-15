@@ -25,7 +25,7 @@ import {
   resolveOrMissing,
   toModuleId,
 } from './internal/records.ts'
-import { promoteLearned } from './internal/reevaluate.ts'
+import { activate, promoteLearned } from './internal/reevaluate.ts'
 import { type FileContext, NO_FILE, Registry } from './internal/registry.ts'
 import { tierFor } from './tier.ts'
 
@@ -221,11 +221,10 @@ export const createLoader: CreateLoader = (options) => {
       if (!options.policy.reevaluateHookingExternals) return
       // A set from an earlier run may name a file a reinstall removed, or one the loader can't
       // evaluate itself: those stay shared.
-      for (const path of paths) {
-        if (isEvaluableExternal(path, options.inline ?? []) && existsSync(path)) {
-          state.reevaluate.active.add(path)
-        }
-      }
+      activate(
+        state.reevaluate,
+        paths.filter((path) => isEvaluableExternal(path, options.inline ?? []) && existsSync(path)),
+      )
     },
     [Symbol.dispose]: () => {
       // Once per worker, with everything its files scanned.

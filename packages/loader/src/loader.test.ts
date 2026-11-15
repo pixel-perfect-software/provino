@@ -1193,6 +1193,125 @@ test('reevaluateHookingExternals under isolation none: a no-op, as the shared re
   })
 })
 
+// A `react`-like singleton learned through an RTL-like external, and a component library that
+// requires it at load and reads no per-file global: the library must see the file's singleton.
+const SINGLETON = {
+  'node_modules/singleton/package.json': JSON.stringify({ name: 'singleton', main: 'index.js' }),
+  'node_modules/singleton/index.js':
+    ';(globalThis.__provinoSingletonEvals ??= []).push(__filename)\nmodule.exports = { token: {} }\n',
+  'node_modules/rtl-ext/package.json': JSON.stringify({ name: 'rtl-ext', main: 'index.js' }),
+  'node_modules/rtl-ext/index.js':
+    "const singleton = require('singleton')\nafterEach(() => {})\nmodule.exports = { singleton }\n",
+  'node_modules/lib-ext/package.json': JSON.stringify({ name: 'lib-ext', main: 'index.js' }),
+  'node_modules/lib-ext/index.js': "module.exports = { singleton: require('singleton') }\n",
+  'a.test.js':
+    "module.exports = { rtl: require('rtl-ext'), lib: require('lib-ext'), singleton: require('singleton') }\n",
+  'b.test.js':
+    "module.exports = { lib: require('lib-ext'), rtl: require('rtl-ext'), singleton: require('singleton') }\n",
+}
+
+interface SingletonLoaded {
+  readonly rtl: { readonly singleton: { readonly token: object } }
+  readonly lib: { readonly singleton: { readonly token: object } }
+  readonly singleton: { readonly token: object }
+}
+
+/** How many times the singleton under `root` was evaluated since the last call. */
+function singletonEvals(root: string): number {
+  const all = Reflect.get(globalThis, '__provinoSingletonEvals') as string[] | undefined
+  const count = (all ?? []).filter((path) => path.startsWith(root)).length
+  Reflect.set(globalThis, '__provinoSingletonEvals', [])
+  return count
+}
+
+test('reevaluateHookingExternals: a shared external that requires a learned one is inlined, so it sees the file’s instance', async () => {
+  const root = realpathSync(writeTree(SINGLETON))
+  const loader = loaderFor(root, { reevaluateHookingExternals: true, interopDefault: 'babel' })
+  loader.watchExternalLoads(probe([]))
+  const load = (name: string) =>
+    loader
+      .createFileRegistry(join(root, name), { tier: 'registry' })
+      .require<SingletonLoaded>(join(root, name))
+  await withFileGlobals(async () => {
+    singletonEvals(root)
+    const first = load('a.test.js')
+    assert.equal(singletonEvals(root), 1)
+    assert.equal(first.lib.singleton, first.singleton)
+    assert.ok(
+      loader.reevaluatedExternals().some((path) => path.endsWith('singleton/index.js')),
+      'the singleton is learned through rtl-ext’s window',
+    )
+    const second = load('b.test.js')
+    assert.equal(singletonEvals(root), 1, 'evaluated once in the second file')
+    assert.notEqual(second.singleton.token, first.singleton.token, 'the second file’s own')
+    assert.equal(second.lib.singleton, second.singleton, 'the library sees the file’s singleton')
+    assert.equal(second.rtl.singleton, second.singleton)
+  })
+})
+
+test('reevaluateHookingExternals: a seeded set inlines a library that requires a learned external, so it is evaluated once per file', async () => {
+  const root = realpathSync(writeTree(SINGLETON))
+  const loader = loaderFor(root, { reevaluateHookingExternals: true, interopDefault: 'babel' })
+  loader.watchExternalLoads(probe([]))
+  loader.reevaluateExternals([
+    join(root, 'node_modules/rtl-ext/index.js'),
+    join(root, 'node_modules/singleton/index.js'),
+  ])
+  const load = (name: string) =>
+    loader
+      .createFileRegistry(join(root, name), { tier: 'registry' })
+      .require<SingletonLoaded>(join(root, name))
+  await withFileGlobals(async () => {
+    singletonEvals(root)
+    for (const name of ['a.test.js', 'b.test.js']) {
+      const loaded = load(name)
+      assert.equal(singletonEvals(root), 1, `evaluated once in ${name}`)
+      assert.equal(loaded.lib.singleton, loaded.singleton)
+      assert.equal(loaded.rtl.singleton, loaded.singleton)
+    }
+  })
+})
+
+test('isolation none: an external inlined for a served module is evaluated once per worker, not again per file', () => {
+  const root = writeTree({
+    'node_modules/@jest/globals/package.json': JSON.stringify({
+      name: '@jest/globals',
+      main: 'index.js',
+    }),
+    'node_modules/@jest/globals/index.js': "throw new Error('not outside Jest')\n",
+    'node_modules/uses-globals/package.json': JSON.stringify({
+      name: 'uses-globals',
+      main: 'index.js',
+    }),
+    'node_modules/uses-globals/index.js':
+      ";(globalThis.__provinoServedEvals ??= []).push(__filename)\nmodule.exports = { served: require('@jest/globals').marker, token: {} }\n",
+    'a.test.js': "module.exports = require('uses-globals')\n",
+    'b.test.js': "module.exports = require('uses-globals')\n",
+  })
+  const loader = loaderFor(
+    root,
+    { interopDefault: 'babel' },
+    { moduleScope: { names: [], modules: ['@jest/globals'] } },
+  )
+  const marker = {}
+  Reflect.set(globalThis, '__provinoServedEvals', [])
+  const load = (name: string) => {
+    const registry = loader.createFileRegistry(join(root, name), {
+      tier: 'none',
+      moduleScope: () => ({ '@jest/globals': { marker } }),
+    })
+    const value = registry.require<{ served: object; token: object }>(join(root, name))
+    registry.dispose()
+    return value
+  }
+  const first = load('a.test.js')
+  const second = load('b.test.js')
+  assert.equal(first.served, marker)
+  assert.equal(second.token, first.token, 'the worker’s one copy')
+  const evals = Reflect.get(globalThis, '__provinoServedEvals') as string[]
+  assert.equal(evals.length, 1, 'evaluated once under none')
+})
+
 test('a shared external that requests a served module itself is inlined without walking its closure', () => {
   const root = writeTree({
     'node_modules/@jest/globals/package.json': JSON.stringify({

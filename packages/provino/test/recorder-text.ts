@@ -2,7 +2,8 @@
 // with `internal/stack.ts` and the constants of `internal/paths.ts`), for the Provino side of a
 // comparison: a recording's streams and `file:` captures went through it before `keepLines`, so a
 // code frame, a duration or a stack the recorder reduced is reduced here the same way. A copy, like
-// `mask.ts` and `sweep.ts`: `provino` may not import the harness. Change both.
+// `mask.ts` and `sweep.ts`: `provino` may not import the harness. Change both:
+// `recorder-text.test.ts` holds this copy to the harness's own on the same inputs.
 
 const ROOT_PLACEHOLDER = '<root>'
 const WINDOWS_ABSOLUTE = /^(?:[A-Za-z]:[\\/]|\\\\)/

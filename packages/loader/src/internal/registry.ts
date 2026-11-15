@@ -18,7 +18,14 @@ import { dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ModuleId, ModuleMockRegistry, ModuleScopeValues, ResolveKind } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
-import { createLedger, mockedReach, noteInlined, packageClosure, servedReach } from './inline.ts'
+import {
+  createLedger,
+  mockedReach,
+  noteInlined,
+  packageClosure,
+  reevaluatedReach,
+  servedReach,
+} from './inline.ts'
 import { actualView, cjsNamespace, createInteropCache, esmExports } from './interop.ts'
 import {
   type Compiled,
@@ -150,6 +157,11 @@ export class Registry {
    * decides afresh.
    */
   readonly #memory = new WeakMap<Map<ModuleId, Instance>, Map<string, boolean>>()
+  /**
+   * The externals each instance map inlined because the file's mocks reach them: the ones
+   * `dropInlined` drops under `none`. One inlined for a served module is the worker's for good.
+   */
+  readonly #mockInlined = new WeakMap<Map<ModuleId, Instance>, Set<string>>()
   /** What this file inlined, for the budget and `LeakReport.inlinedForMocks`. */
   #ledger = createLedger()
   /** The running file's context. Under `none` the registry is shared, and each file sets its own. */
@@ -277,6 +289,7 @@ export class Registry {
     for (const map of this.#maps) {
       map.clear()
       this.#memory.delete(map)
+      this.#mockInlined.delete(map)
     }
   }
 
@@ -286,18 +299,35 @@ export class Registry {
   }
 
   /**
-   * Ends the file's inlining under `none`: the registry is shared and outlives the file, so the
-   * inlined instances go and the next file sees the shared module, and so does what was
-   * remembered. Any other tier's registry is the file's own and is reset instead.
+   * Ends the file's inlining for its mocks under `none`: the registry is shared and outlives the
+   * file, so the instances inlined for its mocks go and the next file sees the shared module, and
+   * every verdict but a positive one for a served module is forgotten (the next file's mocks
+   * decide afresh). An external inlined for a served module keeps its instance: under `none` no
+   * module is evaluated again. Any other tier's registry is the file's own and is reset instead.
    */
   dropInlined(): void {
     for (const map of this.#maps) {
-      const served = this.#memory.get(map)
-      if (served === undefined) continue
-      for (const [path, inlined] of served) if (inlined) map.delete(toModuleId(path))
-      this.#memory.delete(map)
+      const memory = this.#memory.get(map)
+      if (memory === undefined) continue
+      const forMocks = this.#mockInlined.get(map)
+      for (const [path, inlined] of memory) {
+        const forTheMocks = forMocks?.has(path) === true
+        if (forTheMocks) map.delete(toModuleId(path))
+        if (!inlined || forTheMocks) memory.delete(path)
+      }
+      this.#mockInlined.delete(map)
     }
     this.#ledger = createLedger()
+  }
+
+  /** The set of externals `map` inlined for the file's mocks. */
+  #forMocks(map: Map<ModuleId, Instance>): Set<string> {
+    let set = this.#mockInlined.get(map)
+    if (set === undefined) {
+      set = new Set()
+      this.#mockInlined.set(map, set)
+    }
+    return set
   }
 
   /**
@@ -536,8 +566,9 @@ export class Registry {
   /**
    * An external as the edge should load it: the same external, or a user module (inlined) for one
    * of three reasons. It is evaluated again per file (`reevaluateHookingExternals`: its first load
-   * in this worker read a per-file global, D127); its closure reaches a module the dialect serves
-   * (`@jest/globals`, which only the registry can serve); or `mocksReachShared` is on and the
+   * in this worker read a per-file global, D127, or its closure reaches such an external, so it
+   * shares the file's copy and never Node's cached one); its closure reaches a module the dialect
+   * serves (`@jest/globals`, which only the registry can serve); or `mocksReachShared` is on and the
    * file's mocks take an edge in its graph closure. The answer is kept for the instance map in
    * play, and later edges follow it. The runner's own loads (`runner`) never ask the mocks, as
    * the module itself is never mocked.
@@ -547,13 +578,14 @@ export class Registry {
     const state = this.#state
     const policy = state.options.policy
     const path = target.path
-    const again =
+    // Externals evaluated per file (D127): one is, or its closure reaches one.
+    const perFile =
       policy.reevaluateHookingExternals &&
       !this.sharedAcrossFiles &&
-      state.reevaluate.active.has(path)
+      state.reevaluate.active.size > 0
     const served = state.options.moduleScope?.modules ?? []
     const mocks = runner || !policy.mocksReachShared ? null : this.context.mocks
-    if (!again && served.length === 0 && mocks === null) return target
+    if (!perFile && served.length === 0 && mocks === null) return target
     const map = this.#instances
     let memory = this.#memory.get(map)
     if (memory === undefined) {
@@ -565,8 +597,12 @@ export class Registry {
       inlined = false
       if (!path.endsWith('.node')) {
         const userEdges = (user: string) => userEdgesOf(state, user)
-        if (again) inlined = true
-        else if (
+        if (
+          perFile &&
+          reevaluatedReach(state.inline, state.options, path, state.reevaluate, userEdges)
+        ) {
+          inlined = true
+        } else if (
           served.length > 0 &&
           servedReach(state.inline, state.options, path, served, userEdges)
         ) {
@@ -575,6 +611,7 @@ export class Registry {
           const mockedId = mockedReach(state.inline, state.options, path, mocks, userEdges)
           if (mockedId !== null) {
             inlined = true
+            this.#forMocks(map).add(path)
             noteInlined(state.inline, state.options, this.#ledger, toModuleId(path), mockedId)
           }
         }

@@ -1,0 +1,12 @@
+{
+  "description": "--json's failureDetails for thrown values that are not plain Errors: an object with a message, one with a message and a code, and an Error whose stack is its own enumerable property. Jest's JSON of each is the thrown value's own enumerable keys, as they were thrown. (A non-string `message` is left out: Jest 30.5.2 fails the file on a number, and writes a `failureMessages` entry that is no string for an array.) Read by `provino`'s `jest-json.test.ts`.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["--useStderr", "--testLocationInResults"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
