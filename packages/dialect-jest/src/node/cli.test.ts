@@ -996,7 +996,7 @@ describe('the options table', () => {
   it('classifies every option once, and counts the classes', (t) => {
     const counts = Object.fromEntries(supports)
     t.diagnostic(`support classes: ${JSON.stringify(counts)}`)
-    assert.deepEqual(counts, { request: 16, config: 81, accepted: 6, refuse: 2 })
+    assert.deepEqual(counts, { request: 16, config: 83, accepted: 6 })
     for (const [name, option] of Object.entries(JEST_CLI_OPTIONS)) {
       const needsOwner = option.support === 'warn' || option.support === 'refuse'
       assert.equal(option.owner !== undefined, needsOwner, name)
@@ -1040,6 +1040,8 @@ describe('the options table', () => {
     ])
     // B23d A4 applied the last three, so no flag is read and not applied.
     assert.deepEqual(named('warn'), [])
+    // B23c Phase 8 built watch mode, the last two refused (T9.11).
+    assert.deepEqual(named('refuse'), [])
   })
 
   it('makes one FlagSpec per option', () => {
@@ -1079,31 +1081,10 @@ describe('diagnostics', () => {
     return [...flag, ...extra]
   }
 
-  it('gives an error diagnostic for each refused flag, naming the task', () => {
-    assert.equal(Object.keys(REFUSED).length, 2)
-    for (const [name, owner] of Object.entries(REFUSED)) {
-      const { diagnostics } = parseJestCli(lineFor(name))
-      assert.deepEqual(
-        diagnostics,
-        [
-          {
-            level: 'error',
-            code: 'JEST_CLI_UNSUPPORTED',
-            key: `--${name}`,
-            message: `--${name} is not supported yet (${owner})`,
-          },
-        ],
-        name,
-      )
-    }
-  })
-
-  it('gives the owners the task names', () => {
-    const owners: Readonly<Record<string, string>> = {
-      watch: 'T9.11',
-      watchAll: 'T9.11',
-    }
-    assert.deepEqual(REFUSED, owners)
+  it('refuses no flag: --watch and --watchAll are applied (B23c Phase 8, T9.11)', () => {
+    assert.deepEqual(REFUSED, {})
+    assert.deepEqual(parseJestCli(['--watch']).diagnostics, [])
+    assert.deepEqual(parseJestCli(['--watchAll']).diagnostics, [])
   })
 
   it('says nothing for the flags B23d A4 applies: --showSeed, --logHeapUsage, --notify, --notifyMode, --detectLeaks', () => {
@@ -1154,9 +1135,10 @@ describe('diagnostics', () => {
       '--coverage',
       '--onlyFailures',
     ])
+    // --watch is applied too since B23c Phase 8, so none of them says anything.
     assert.deepEqual(
       diagnostics.map((diagnostic) => diagnostic.key),
-      ['--watch'],
+      [],
     )
     // --onlyFailures and the changed-file flags (B23c, T9.16) are applied now, so they say nothing.
     for (const line of [

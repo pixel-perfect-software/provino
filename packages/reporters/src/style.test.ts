@@ -16,6 +16,8 @@ describe('createStyle', () => {
       assert.equal(paint('text'), 'text')
     }
     assert.equal(style.badge('PASS', 'green'), 'PASS')
+    // RUNS is the bare word too: the live block pads it where it renders it (`Status.ts` L23-L24).
+    assert.equal(style.badge('RUNS', 'yellow'), 'RUNS')
   })
 
   test('with colour on a style wraps its text in an SGR sequence and its reset', () => {

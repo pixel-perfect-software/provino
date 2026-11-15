@@ -731,10 +731,11 @@ describe('the live view', () => {
       [{ path: 'a.test.ts', tests: [{ path: ['t'] }] }],
       live,
     )
+    // Jest pads RUNS whatever the colour support (`Status.ts` L23-L24): ` RUNS ` and a space.
     assert.equal(
       text,
       [
-        'RUNS ./a.test.ts\n',
+        ' RUNS  ./a.test.ts\n',
         `${ESC}[1F${ESC}[0JPASS ./a.test.ts\n`,
         `\nTest Suites: 1 passed, 1 total\nTests:       1 passed, 1 total\nTime:        1.234 s\n`,
       ].join(''),
@@ -788,6 +789,20 @@ describe('the live view', () => {
     assert.doesNotMatch(after.slice(after.indexOf('Test Suites')), /RUNS/)
   })
 
+  test('a run that began while a file of the last was still started starts a clean block', async () => {
+    // `drop` (the Jest dialect's watch policy) leaves an interrupted file with no `file:end`.
+    const out = output()
+    const bus = createReporterBus([defaultReporter({ stream: out, report: REPORT, ...live })])
+    await bus.emit('run:start', { root: '/p', projects: [''], startTime: 0, watch: true }, [])
+    await bus.emit('file:start', fileInfo('a.test.ts'), 0)
+    await bus.emit('run:start', { root: '/p', projects: [''], startTime: 0, watch: true }, [])
+    const before = out.text().length
+    await bus.emit('file:start', fileInfo('b.test.ts'), 0)
+    const drawn = out.text().slice(before)
+    assert.match(drawn, /b\.test\.ts/)
+    assert.doesNotMatch(drawn, /a\.test\.ts/)
+  })
+
   test('draws a file’s result and the block it leaves in one write, and nothing when the block is as it was', async () => {
     const out = output()
     const bus = createReporterBus([defaultReporter({ stream: out, report: REPORT, ...live })])
@@ -806,7 +821,7 @@ describe('the live view', () => {
     assert.equal(after.length, 1, 'one write for the text and the redraw')
     assert.equal(
       after[0],
-      `${ESC}[3F${ESC}[0JPASS ./a.test.ts\nRUNS ./b.test.ts\nRUNS ./c.test.ts\n`,
+      `${ESC}[3F${ESC}[0JPASS ./a.test.ts\n RUNS  ./b.test.ts\n RUNS  ./c.test.ts\n`,
     )
     // A file with no text that was never drawn changes nothing on the screen: no write.
     const quiet = out.writes().length

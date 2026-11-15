@@ -115,7 +115,7 @@ const IDS = (await readdir(join(FIXTURES, 'changed'))).sort()
 
 describe('provino jest against the changed/* goldens of Jest 30.5.2', () => {
   it('reads every fixture', () => {
-    assert.equal(IDS.length, 38)
+    assert.equal(IDS.length, 39)
   })
   for (const name of IDS) {
     it(`changed/${name}`, async () => {

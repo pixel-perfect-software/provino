@@ -48,6 +48,8 @@ export function createStyle(enabled: boolean): Style {
       yellow: same,
       magenta: same,
       inverse: same,
+      // PASS and FAIL are bare words with colour off (jest-reporters `getResultHeader.ts` L19-L27);
+      // the live block pads RUNS where it renders it (`Status.ts` L23-L24).
       badge: (word) => word,
     }
   }

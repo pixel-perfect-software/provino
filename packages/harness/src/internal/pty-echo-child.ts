@@ -18,10 +18,11 @@ if (stubborn) {
   })
   process.stdout.write(`GRANDCHILD ${grandchild.pid}\n`)
 }
+// Raw mode before READY: a Ctrl-C typed once READY shows must arrive as a key, not as SIGINT.
+if (process.stdin.isTTY) process.stdin.setRawMode(true)
 process.stdout.write(
   `READY tty=${process.stdin.isTTY === true && process.stdout.isTTY === true} size=${process.stdout.columns}x${process.stdout.rows}\n`,
 )
-if (process.stdin.isTTY) process.stdin.setRawMode(true)
 process.stdin.on('data', (chunk) => {
   const text = chunk.toString('utf8')
   process.stdout.write(`key:${JSON.stringify(text)}\n`)
