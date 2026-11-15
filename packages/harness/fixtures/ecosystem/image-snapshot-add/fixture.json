@@ -12,7 +12,7 @@
   },
   "run": {
     "argv": {
-      "jest": ["--ci=false", "-w", "1", "-t", "v1|counter"]
+      "jest": ["--ci=false", "--testLocationInResults", "-w", "1", "-t", "v1|counter"]
     },
     "capture": [
       "exitCode",

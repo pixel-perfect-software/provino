@@ -17,7 +17,7 @@
   ],
   "run": {
     "argv": {
-      "jest": ["-w", "1", "-t", "v2", "-u"]
+      "jest": ["--testLocationInResults", "-w", "1", "-t", "v2", "-u"]
     },
     "capture": ["exitCode", "stderr", "json:.harness-out/jest.json", "file:image-hashes.txt"],
     "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Snapshot Summary|^ › |^ +● |^    [A-Z]",
