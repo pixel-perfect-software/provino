@@ -77,6 +77,7 @@ import type {
   ResolveSnapshotPath,
   RuntimeEvent,
   SerializedCoverageConfig,
+  SnapshotContextViewFactory,
   SnapshotFileReport,
   SnapshotKey,
   SnapshotPlugin,
@@ -260,6 +261,8 @@ interface SnapshotBehaviours {
   readonly printer: SnapshotPrinter | null
   /** `null`: the default layout beside the test file. */
   readonly resolvePath: ResolveSnapshotPath | null
+  /** `snapshot.contextView`: what a matcher sees as `this.snapshotState`; `null` for the state. */
+  readonly contextView: SnapshotContextViewFactory | null
   /** The project's own resolver module (`SerializedProjectConfig.snapshotResolver`), if any. */
   readonly customResolver?: {
     readonly module: string
@@ -751,6 +754,8 @@ export function createRuntimeRunner(): WorkerRunner {
       printer: printerFactory === null ? null : printerFactory(),
       resolvePath:
         snapshot.resolvePath === null ? null : await behaviours.load(snapshot.resolvePath),
+      contextView:
+        snapshot.contextView === null ? null : await behaviours.load(snapshot.contextView),
       ...(config.snapshotResolver === undefined
         ? {}
         : {
@@ -1002,9 +1007,10 @@ export function createRuntimeRunner(): WorkerRunner {
         }
         if (globals !== undefined) installGlobals(instance.global, globals.before)
         worker.source.startFile(job.file)
-        // The file's snapshots: the state is where the matchers find it (Jest's
-        // `setState({ snapshotState, testPath })`), and the lifecycle follows the file's events.
-        const { key, printer } = worker.snapshots
+        // The file's snapshots: the state, or the dialect's view of it (`snapshot.contextView`),
+        // is where the matchers find it (Jest's `setState({ snapshotState, testPath })`), and the
+        // lifecycle follows the file's events.
+        const { key, printer, contextView } = worker.snapshots
         const open = async (): Promise<OpenSnapshots> => {
           const snapshots = openFileSnapshots({
             testPath: job.file,
@@ -1018,8 +1024,9 @@ export function createRuntimeRunner(): WorkerRunner {
               registry,
               worker.modules.policy.snapshot.extension,
             ),
+            contextView,
           })
-          Object.assign(worker.source.file(), { snapshotState: snapshots.state })
+          Object.assign(worker.source.file(), { snapshotState: snapshots.context })
           return snapshots
         }
         if (worker.snapshots.customResolver === undefined) openSnapshots = await open()

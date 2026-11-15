@@ -9,6 +9,7 @@ export {
   type SnapshotErrorCode,
   type SnapshotUpdateMode,
 } from '@provino/snapshot'
+export { snapshotContextOf, unwrapSnapshotContext } from './context.ts'
 export { type SnapshotLifecycle, trackSnapshots } from './lifecycle.ts'
 export { type OpenSnapshotsOptions, openFileSnapshots } from './open.ts'
 export {

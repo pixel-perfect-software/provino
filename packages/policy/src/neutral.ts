@@ -194,6 +194,7 @@ export const neutralPolicy: Policy = deepFreeze({
     printer: null,
     resolvePath: null,
     resolverFactory: null,
+    contextView: null,
   },
   expect: {
     matcherNamespace: 'provino',

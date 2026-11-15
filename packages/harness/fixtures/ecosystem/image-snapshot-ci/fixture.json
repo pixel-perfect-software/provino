@@ -1,0 +1,18 @@
+{
+  "description": "jest-image-snapshot 6.5.2 under `--ci` with nothing stored (B23e Phase 2c): the matcher reads `this.snapshotState._updateSnapshot` as `none` and fails `v1` with its own `New snapshot was not written` text, writing no image; exit 1. Two files, one worker.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "setupFilesAfterEnv": ["<rootDir>/setup.ts"]
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci", "--testLocationInResults", "-w", "1", "-t", "v1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json", "file:image-hashes.txt"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Snapshot Summary|^ › |^ +● |^    [A-Z]",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

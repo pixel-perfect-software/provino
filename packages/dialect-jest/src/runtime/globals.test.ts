@@ -216,6 +216,39 @@ test("jest.retryTimes hands core Jest's reading of the file's retry, and replace
   assert.equal(typeof returned[0], 'object', 'retryTimes returns the jest object')
 })
 
+test("jest.retryTimes leaves jest-runtime's four retry globals as given, for code outside the runner", async (t) => {
+  const { expect } = setUpJestExpect(t)
+  const names = ['RETRY_TIMES', 'LOG_ERRORS_BEFORE_RETRY', 'WAIT_BEFORE_RETRY', 'RETRY_IMMEDIATELY']
+  const symbols = names.map((name) => Symbol.for(name))
+  t.after(() => {
+    for (const symbol of symbols) Reflect.deleteProperty(globalThis, symbol)
+  })
+  const read = () => symbols.map((symbol) => Reflect.get(globalThis, symbol))
+  const seen: unknown[][] = []
+  await runRegistered((api) => {
+    const g = jestGlobals({
+      api,
+      expect,
+      registry: unusedRegistry,
+      ...mockHost(),
+      setDefaultRetry: () => {},
+      setDescribeRetry: () => 'set',
+    })
+    g.jest.retryTimes('2' as never, { logErrorsBeforeRetry: true, waitBeforeRetry: 40 })
+    seen.push(read())
+    g.jest.retryTimes(1)
+    seen.push(read())
+    // Describe-level retry goes through circus's setter: the file's globals stay.
+    g.jest.retryTimes(5, { entireDescribe: true })
+    seen.push(read())
+  }, jestCore)
+  assert.deepEqual(seen, [
+    ['2', true, 40, undefined],
+    [1, undefined, undefined, undefined],
+    [1, undefined, undefined, undefined],
+  ])
+})
+
 test('jest.retryTimes with entireDescribe sets the describe retry, as jest-runtime reads its options, and no file retry', async (t) => {
   const { expect } = setUpJestExpect(t)
   const seen: unknown[] = []

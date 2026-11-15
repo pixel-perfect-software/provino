@@ -15,6 +15,16 @@ const entry = (g: Golden, key: RegExp): string => {
 }
 const exitCode = (g: Golden): unknown => observedOf(g).exitCode
 
+/**
+ * One `ecosystem/image-snapshot-*` recording, as evidence for `snapshot.contextView`: the value is
+ * Jest's view, and the run shows jest-image-snapshot reading and writing it as `shows` says.
+ */
+const imageSnapshot = (fixture: string, shows: (g: Golden) => boolean) =>
+  golden(`ecosystem/image-snapshot-${fixture}`, {
+    matches: (g, value) =>
+      isModuleRef(value) && value.export === 'jestSnapshotStateView' && shows(g),
+  })
+
 export const snapshotClaims: Claims = {
   'snapshot.header': golden('snapshot-written', { read: (g) => snap(g).split('\n')[0] }),
   // The entries are `${name} ${n}`: the neutral `snapshotKey` both runners' keys follow.
@@ -174,6 +184,56 @@ export const snapshotClaims: Claims = {
       'T11.16',
       'what Vitest does with a snapshot file no test file has is recorded with its reader',
     ),
+  ),
+  // Provino's own key (B23e, D128): what a matcher finds as `this.snapshotState`. Jest's is
+  // jest-snapshot's `SnapshotState` shape, which jest-image-snapshot 6.5.2 reads and writes:
+  // `_counters` shared with `toMatchSnapshot` (`add`: the image is the test's second snapshot,
+  // the .snap holds `counter 1` and `counter 3`), `_updateSnapshot` (`ci`: `none` refuses a new
+  // image; `update`: `all` rewrites it), and the four counts Jest's totals add up. `retry`: the
+  // writes are no attempt's, so a retry keeps them (each first attempt's image is `added`, the
+  // retry `matched` on it: 7 and 3), and a counter `toMatchSnapshot` touched first goes back to
+  // the image's count (`image then snapshot 3`). The flip is the neutral `null` (`REF_FLIPS`),
+  // which every one of the six must reject.
+  'snapshot.contextView': each(
+    [
+      imageSnapshot('add', (g) => {
+        const hashes = capturedFile(g, 'image-hashes.txt')
+        const snap = capturedFile(g, '__snapshots__/counter.test.ts.snap')
+        return (
+          g.snapshots?.counters.added === 4 &&
+          hashes.includes('counter-test-ts-counter-2-snap.png ') &&
+          snap.includes('exports[`counter 1`]') &&
+          snap.includes('exports[`counter 3`]')
+        )
+      }),
+      imageSnapshot('match', (g) => g.snapshots?.counters.matched === 1),
+      imageSnapshot(
+        'mismatch',
+        (g) =>
+          g.snapshots?.counters.unmatched === 1 &&
+          capturedFile(g, 'image-hashes.txt').includes('__diff_output__/shared-image-diff.png '),
+      ),
+      imageSnapshot('update', (g) => g.snapshots?.counters.updated === 1),
+      imageSnapshot(
+        'ci',
+        (g) =>
+          exitCode(g) === 1 &&
+          capturedFile(g, 'image-hashes.txt') === '' &&
+          String(observedOf(g).stderr).includes('New snapshot was not written.'),
+      ),
+      imageSnapshot('retry', (g) => {
+        const snap = capturedFile(g, '__snapshots__/images.test.ts.snap')
+        return (
+          g.snapshots?.counters.added === 7 &&
+          g.snapshots.counters.matched === 3 &&
+          snap.includes('exports[`image then snapshot 3`]') &&
+          snap.includes('exports[`snapshot then image 1`]') &&
+          snap.includes('exports[`snapshot then image 3`]') &&
+          capturedFile(g, 'image-hashes.txt').includes('retry-mixed.png ')
+        )
+      }),
+    ],
+    pending('T7.6', 'what Vitest`s matchers read of `this.snapshotState` comes with its table'),
   ),
   // Provino's own key: the dialect's pretty-format and words. `own` pins the ref and the test that
   // loads it.
