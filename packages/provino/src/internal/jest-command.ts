@@ -57,7 +57,7 @@ import {
   keepFailedFiles,
   selectProjectFiles,
 } from './jest-selection.ts'
-import type { JestWatchInput } from './jest-watch.ts'
+import { type JestWatchInput, runJestWatch } from './jest-watch.ts'
 import { type DisplayOptions, outputFor, styleFor } from './reporters.ts'
 import {
   chooseProjects,
@@ -585,7 +585,8 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     })
     const env = io.env ?? process.env
     // `--watch` / `--watchAll` (B23c Phase 8): Jest's watch loop on a watch session, which selects
-    // every run's files itself. Loaded only then.
+    // every run's files itself. A static import: a chunk of its own would share the dialect's
+    // `/node` with the bin's and move it into the chunk the worker loads.
     if (request.mode === 'run' && (read.globalConfig.watch || read.globalConfig.watchAll)) {
       let watchFilter: JestFilter | undefined
       try {
@@ -594,7 +595,6 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
         filterError = error
         throw error
       }
-      const { runJestWatch } = await import('./jest-watch.ts')
       const hooks = jestRunGlobalHooks(read.globalConfig)
       return await runJestWatch({
         globalConfig: read.globalConfig,
