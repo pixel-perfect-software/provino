@@ -174,6 +174,23 @@ export function keepFailedFiles<T extends DiscoveredFile>(
 }
 
 /**
+ * What `shouldRunTestSuite` is given as `duration` (`runJest.ts` L149-L157: `test.duration`, the
+ * time the file took last run, from the sequencer's perf cache): the results cache's `durationMs`,
+ * the history `--onlyFailures` and the sequencer read; `undefined` with no history, and always
+ * under `--no-cache` (Jest reads its cache only when `config.cache` is on).
+ * @internal
+ */
+export function previousDurations(
+  project: ResolvedProject,
+  cache: boolean,
+): (path: string) => number | undefined {
+  if (!cache) return () => undefined
+  const results = createResultsCache(cacheDirectories(project).results)
+  const key = projectCacheKey(project)
+  return (path) => results.get(key, path)?.durationMs
+}
+
+/**
  * Whether an error is a command the changed-files provider ran that failed (`exec.ts`'s
  * `JEST_SCM_COMMAND_FAILED`): what Jest prints in red, with no stack, and exits 1 for
  * (`getChangedFilesPromise.ts` L28-L37). Any other error is internal and keeps its stack.

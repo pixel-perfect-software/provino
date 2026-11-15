@@ -974,6 +974,9 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
         if (Reflect.get(stream, 'isTTY') === true) stream.write(JEST_CLEAR_LINE)
       }
       stderr.write(`${error.message}\n`)
+      // Jest exits the process here (`exit(1)`): a plugin built before the failing one may have left
+      // a timer or listener open, and nothing tears it down, so the bin ends the process.
+      io.onForceExit?.()
       return ExitCode.TestFailure
     }
     if (error instanceof JestNotifierMissingError) {

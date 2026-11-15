@@ -2,7 +2,7 @@
 // and `t`, a pattern prompt each, whose Enter runs with the pattern in `watch` mode.
 import type { JestWatchTerminal } from './context.ts'
 import { JestPatternPrompt } from './pattern-prompt.ts'
-import type { JestWatchPlugin } from './plugin.ts'
+import { type JestWatchPlugin, nameJestWatchPlugin } from './plugin.ts'
 import { JestPrompt } from './prompt.ts'
 import { jestActiveFilters } from './usage.ts'
 
@@ -11,9 +11,10 @@ function patternPlugin(
   key: 'p' | 't',
   prompt: string,
   entity: 'filenames' | 'tests',
+  name: string,
 ): JestWatchPlugin {
   const keys = new JestPrompt(terminal.keys, terminal.resizes)
-  return {
+  return nameJestWatchPlugin(name, {
     isInternal: true,
     getUsageInfo: () => ({ key, prompt }),
     onKey: (pressed) => keys.put(pressed),
@@ -32,7 +33,7 @@ function patternPlugin(
           { header: jestActiveFilters(globalConfig, terminal.style) },
         )
       }),
-  }
+  })
 }
 
 /**
@@ -40,7 +41,13 @@ function patternPlugin(
  * @beta
  */
 export function jestTestPathPatternPlugin(terminal: JestWatchTerminal): JestWatchPlugin {
-  return patternPlugin(terminal, 'p', 'filter by a filename regex pattern', 'filenames')
+  return patternPlugin(
+    terminal,
+    'p',
+    'filter by a filename regex pattern',
+    'filenames',
+    'TestPathPatternPlugin',
+  )
 }
 
 /**
@@ -48,5 +55,11 @@ export function jestTestPathPatternPlugin(terminal: JestWatchTerminal): JestWatc
  * @beta
  */
 export function jestTestNamePatternPlugin(terminal: JestWatchTerminal): JestWatchPlugin {
-  return patternPlugin(terminal, 't', 'filter by a test name regex pattern', 'tests')
+  return patternPlugin(
+    terminal,
+    't',
+    'filter by a test name regex pattern',
+    'tests',
+    'TestNamePatternPlugin',
+  )
 }

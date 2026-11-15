@@ -10,6 +10,13 @@ import { after, before, describe, it } from 'node:test'
 import type { TextStyle } from '@provino/types'
 import type { JestGlobalConfig } from '../types.ts'
 import type { JestFileChange } from './hooks.ts'
+import {
+  jestFailedTestsInteractivePlugin,
+  jestUpdateSnapshotsInteractivePlugin,
+  jestUpdateSnapshotsPlugin,
+} from './interactive-plugins.ts'
+import { jestWatchKeys } from './keys.ts'
+import { jestTestNamePatternPlugin, jestTestPathPatternPlugin } from './pattern-plugins.ts'
 import type { JestWatchPlugin } from './plugin.ts'
 import {
   checkJestWatchPluginConflicts,
@@ -19,7 +26,8 @@ import {
   jestWatchPluginKeys,
   loadJestWatchPlugin,
 } from './plugin-host.ts'
-import type { JestWatchStdin } from './quit.ts'
+import { type JestWatchStdin, jestQuitPlugin } from './quit.ts'
+import { jestClearScreen, jestTerminalEscapes } from './terminal.ts'
 import { type JestWatchHost, type JestWatchRunContext, startJestWatch } from './watch.ts'
 
 const plain: TextStyle = {
@@ -68,6 +76,27 @@ before(async () => {
       "class ClaimsU {\n  getUsageInfo() {\n    return { key: 'u', prompt: 'other' }\n  }\n}\nmodule.exports = ClaimsU\n",
     'named.cjs':
       "class Inner {\n  getUsageInfo() {\n    return { key: 'z', prompt: 'z' }\n  }\n}\nInner.displayName = 'Shown'\nmodule.exports = Inner\n",
+    'throws-on-change.cjs': [
+      'class ThrowsOnChange {',
+      '  constructor({ config }) {',
+      '    this.throwAt = config.throwAt',
+      '    this.calls = 0',
+      '  }',
+      '  apply(hooks) {',
+      '    hooks.onFileChange(() => {',
+      '      this.calls += 1',
+      "      if (this.calls === this.throwAt) throw new Error('plugin broke')",
+      '    })',
+      '  }',
+      '}',
+      'module.exports = ThrowsOnChange',
+      '',
+    ].join('\n'),
+    'usage-empty.cjs': 'module.exports = class { getUsageInfo() { return {} } }\n',
+    'usage-prompt-only.cjs':
+      "module.exports = class { getUsageInfo() { return { prompt: 'x' } } }\n",
+    'usage-numeric.cjs':
+      "module.exports = class { getUsageInfo() { return { key: 5, prompt: 'five' } } }\n",
     'throws.cjs': "throw new Error('broken plugin')\n",
     'not-a-class.cjs': 'module.exports = 42\n',
     'custom.cjs': [
@@ -157,6 +186,34 @@ describe('checkForConflicts (L474-L515)', () => {
     )
   })
 
+  it("Jest's own plugins are named as Jest's classes are, in the conflict text", () => {
+    const terminal = {
+      out: { write: () => true },
+      style: plain,
+      escapes: jestTerminalEscapes(false),
+      clear: jestClearScreen('linux'),
+      keys: jestWatchKeys('linux'),
+    }
+    const pathPlugin = jestTestPathPatternPlugin(terminal)
+    const named: [JestWatchPlugin, string][] = [
+      [jestUpdateSnapshotsPlugin(), 'UpdateSnapshotsPlugin'],
+      [jestUpdateSnapshotsInteractivePlugin(terminal), 'UpdateSnapshotInteractivePlugin'],
+      [pathPlugin, 'TestPathPatternPlugin'],
+      [jestTestNamePatternPlugin(terminal), 'TestNamePatternPlugin'],
+      [jestQuitPlugin(terminal, stdin, () => {}), 'QuitPlugin'],
+      [jestFailedTestsInteractivePlugin(terminal), 'FailedTestsInteractivePlugin'],
+    ]
+    for (const [plugin, name] of named) assert.equal(getJestPluginIdentifier(plugin), name)
+    const keys = jestWatchPluginKeys([], new Map(), config())
+    keys.set('p', { overwritable: false, plugin: pathPlugin })
+    assert.throws(
+      () => checkJestWatchPluginConflicts(keys, keyed('p'), config(), plain),
+      (error: unknown) =>
+        error instanceof JestWatchPluginError &&
+        error.message.includes('Watch plugins TestPathPatternPlugin and Object both attempted'),
+    )
+  })
+
   it('a plugin with no key takes none; the key comes from getUsageInfo', () => {
     const keys = jestWatchPluginKeys([], new Map(), config())
     checkJestWatchPluginConflicts(keys, {}, config(), plain)
@@ -193,6 +250,31 @@ describe('loading a plugin (L199-L220)', () => {
         error.message ===
           'Error: Failed to initialize watch plugin "throws.cjs":\n\nformatted: broken plugin',
     )
+  })
+
+  it('a usage row is passed through as the plugin gave it: no key means no row and no key', async () => {
+    const rows: [string, unknown][] = [
+      ['usage-empty.cjs', null],
+      ['usage-prompt-only.cjs', null],
+      ['usage-numeric.cjs', { key: 5, prompt: 'five' }],
+    ]
+    for (const [file, expected] of rows) {
+      const plugin = await loadJestWatchPlugin({ path: join(dir, file), config: {} }, loadOptions)
+      assert.deepEqual(plugin.getUsageInfo?.(config()), expected, file)
+    }
+    const empty = await loadJestWatchPlugin(
+      { path: join(dir, 'usage-empty.cjs'), config: {} },
+      loadOptions,
+    )
+    assert.equal(getJestPluginKey(empty, config()), null)
+    const keys = jestWatchPluginKeys([], new Map(), config())
+    checkJestWatchPluginConflicts(keys, empty, config(), plain)
+    assert.equal(keys.size, 0, 'no key, no conflict')
+    const numeric = await loadJestWatchPlugin(
+      { path: join(dir, 'usage-numeric.cjs'), config: {} },
+      loadOptions,
+    )
+    assert.equal(Number(getJestPluginKey(numeric, config())), 5)
   })
 
   it('an export that is not a class fails the same way', async () => {
@@ -272,6 +354,7 @@ describe('the driver with a third-party plugin', () => {
     assert.equal(runs.length, 1)
     const [first] = runs
     assert.ok(first !== undefined)
+    assert.equal(first.usesShouldRunTestSuite(), true)
     assert.equal(
       await first.hooks.shouldRunTestSuite({
         config: {},
@@ -300,6 +383,14 @@ describe('the driver with a third-party plugin', () => {
     Reflect.deleteProperty(globalThis, '__provinoPlugin')
   })
 
+  it('with no plugin on shouldRunTestSuite the host is told to skip the per-file calls', async () => {
+    const runs: JestWatchRunContext[] = []
+    const watch = startJestWatch(config(), host({}, runs, { text: '' }))
+    for (let i = 0; i < 20 && runs.length === 0; i += 1) await new Promise(setImmediate)
+    assert.equal(runs[0]?.usesShouldRunTestSuite(), false)
+    watch.dispose()
+  })
+
   it('a conflicting plugin rejects done before any run', { timeout: 10_000 }, async () => {
     const runs: JestWatchRunContext[] = []
     const watch = startJestWatch(
@@ -308,5 +399,83 @@ describe('the driver with a third-party plugin', () => {
     )
     await assert.rejects(watch.done, (error: unknown) => error instanceof JestWatchPluginError)
     assert.equal(runs.length, 0)
+  })
+
+  const change: JestFileChange = { projects: [{ config: {}, testPaths: ['/root/a.test.ts'] }] }
+
+  it('a plugin whose onFileChange throws at start ends the session with its stack, no run', async () => {
+    const runs: JestWatchRunContext[] = []
+    const watch = startJestWatch(
+      config({
+        watchPlugins: [{ path: join(dir, 'throws-on-change.cjs'), config: { throwAt: 1 } }],
+      }),
+      host({ listTests: () => Promise.resolve(change) }, runs, { text: '' }),
+    )
+    await assert.rejects(
+      watch.done,
+      (error: unknown) =>
+        error instanceof JestWatchPluginError &&
+        error.code === 'JEST_WATCH_PLUGIN_HOOK' &&
+        error.message.includes('Error: plugin broke'),
+    )
+    assert.equal(runs.length, 0)
+  })
+
+  it('a plugin whose onFileChange throws on a change ends the session too', async () => {
+    const runs: JestWatchRunContext[] = []
+    let changed: (() => void) | undefined
+    const watch = startJestWatch(
+      config({
+        watchPlugins: [{ path: join(dir, 'throws-on-change.cjs'), config: { throwAt: 2 } }],
+      }),
+      host(
+        {
+          listTests: () => Promise.resolve(change),
+          onFileChange: (listener) => {
+            changed = listener
+            return () => {}
+          },
+        },
+        runs,
+        { text: '' },
+      ),
+    )
+    for (let i = 0; i < 20 && runs.length === 0; i += 1) await new Promise(setImmediate)
+    assert.equal(runs.length, 1)
+    changed?.()
+    await assert.rejects(
+      watch.done,
+      (error: unknown) =>
+        error instanceof JestWatchPluginError && error.code === 'JEST_WATCH_PLUGIN_HOOK',
+    )
+  })
+
+  it('a change starts its run without waiting for the listing the plugins hear', async () => {
+    const runs: JestWatchRunContext[] = []
+    let changed: (() => void) | undefined
+    let listings = 0
+    const watch = startJestWatch(
+      config({
+        watchPlugins: [{ path: join(dir, 'throws-on-change.cjs'), config: { throwAt: 0 } }],
+      }),
+      host(
+        {
+          // The first listing (at start) answers; the one a change asks for never does.
+          listTests: () => (++listings === 1 ? Promise.resolve(change) : new Promise(() => {})),
+          onFileChange: (listener) => {
+            changed = listener
+            return () => {}
+          },
+        },
+        runs,
+        { text: '' },
+      ),
+    )
+    for (let i = 0; i < 20 && runs.length === 0; i += 1) await new Promise(setImmediate)
+    changed?.()
+    for (let i = 0; i < 20 && runs.length < 2; i += 1) await new Promise(setImmediate)
+    assert.equal(listings, 2)
+    assert.equal(runs.length, 2, 'the run did not wait for the listing')
+    watch.dispose()
   })
 })

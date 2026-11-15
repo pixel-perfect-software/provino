@@ -108,6 +108,7 @@ interface JestCommandIo {
   readonly cwd: string
   readonly env?: Readonly<Record<string, string | undefined>>
   readonly signal?: AbortSignal
+  readonly onForceExit?: () => void
   readonly stdin?: {
     readonly setRawMode?: (mode: boolean) => unknown
     resume(): unknown

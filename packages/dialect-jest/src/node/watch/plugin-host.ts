@@ -10,7 +10,13 @@ import { requireOrImportModule } from '../load.ts'
 import type { JestGlobalConfig } from '../types.ts'
 import type { JestWatchOutput } from './context.ts'
 import type { JestHookSubscriber } from './hooks.ts'
-import type { JestUpdateConfigAndRun, JestUsageData, JestWatchPlugin } from './plugin.ts'
+import {
+  type JestUpdateConfigAndRun,
+  type JestUsageData,
+  type JestWatchPlugin,
+  namedJestWatchPlugin,
+  nameJestWatchPlugin,
+} from './plugin.ts'
 import type { JestWatchStdin } from './quit.ts'
 
 /**
@@ -18,9 +24,14 @@ import type { JestWatchStdin } from './quit.ts'
  *
  * - `JEST_WATCH_PLUGIN_LOAD`: a plugin's module failed to load, or its class to construct.
  * - `JEST_WATCH_PLUGIN_CONFLICT`: a plugin took a key Jest reserves, or one another plugin took.
+ * - `JEST_WATCH_PLUGIN_HOOK`: a plugin's `onFileChange` listener threw (Jest's call is synchronous,
+ *   so the throw ends the session: jest-cli prints its stack in red, exit 1).
  * @beta
  */
-export type JestWatchPluginErrorCode = 'JEST_WATCH_PLUGIN_LOAD' | 'JEST_WATCH_PLUGIN_CONFLICT'
+export type JestWatchPluginErrorCode =
+  | 'JEST_WATCH_PLUGIN_LOAD'
+  | 'JEST_WATCH_PLUGIN_CONFLICT'
+  | 'JEST_WATCH_PLUGIN_HOOK'
 
 /**
  * A watch plugin that could not be loaded or that conflicts. `message` is what jest-cli prints
@@ -60,15 +71,12 @@ interface ReservedInfo {
  */
 export type JestWatchPluginKeys = Map<string, ReservedInfo>
 
-/** A third-party plugin's name for the conflict text: its class's `displayName` or `name`. */
-const identifiers = new WeakMap<JestWatchPlugin, string>()
-
 /**
  * `getPluginIdentifier` (L517-L523): the plugin class's `displayName`, else its `name`.
  * @beta
  */
 export function getJestPluginIdentifier(plugin: JestWatchPlugin): string {
-  return identifiers.get(plugin) ?? classNameOf(plugin)
+  return namedJestWatchPlugin(plugin) ?? classNameOf(plugin)
 }
 
 function classNameOf(value: object): string {
@@ -234,16 +242,21 @@ function asWatchPlugin(instance: unknown): JestWatchPlugin {
             Promise.resolve(run(config, update)),
         }),
   }
-  identifiers.set(plugin, classNameOf(instance))
-  return plugin
+  return nameJestWatchPlugin(classNameOf(instance), plugin)
 }
 
-/** A usage row as Jest reads one: anything falsy is none, `key` and `prompt` as they are. */
+/** What `getPluginKey` reads (`(info || {key: null}).key`): a row with a key, as the plugin gave it. */
+function hasKey(value: object): value is JestUsageData {
+  return Reflect.get(value, 'key') != null
+}
+
+/**
+ * A usage row as Jest reads one: `key` and `prompt` exactly as the plugin returned them. A row with
+ * a nullish `key` has no key, so no usage row and no conflict.
+ */
 function usageOf(value: unknown): JestUsageData | null {
   if (typeof value !== 'object' || value === null) return null
-  const key: unknown = Reflect.get(value, 'key')
-  const prompt: unknown = Reflect.get(value, 'prompt')
-  return { key: String(key), prompt: String(prompt) }
+  return hasKey(value) ? value : null
 }
 
 /**

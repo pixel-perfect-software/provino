@@ -8,7 +8,7 @@ import {
   JestFailedTestsInteractiveMode,
 } from './failed-tests-interactive-mode.ts'
 import type { JestWatchResults } from './hooks.ts'
-import type { JestWatchPlugin } from './plugin.ts'
+import { type JestWatchPlugin, nameJestWatchPlugin } from './plugin.ts'
 import { JestSnapshotInteractiveMode } from './snapshot-interactive-mode.ts'
 
 /**
@@ -52,7 +52,7 @@ function failedSnapshotTestAssertions(results: JestWatchResults): JestAssertionL
 export function jestFailedTestsInteractivePlugin(terminal: JestWatchTerminal): JestWatchPlugin {
   let assertions: JestAssertionLocation[] | undefined
   const manager = new JestFailedTestsInteractiveMode(terminal)
-  return {
+  return nameJestWatchPlugin('FailedTestsInteractivePlugin', {
     apply: (hooks) =>
       hooks.onTestRunComplete((results) => {
         assertions = failedTestAssertions(results)
@@ -78,7 +78,7 @@ export function jestFailedTestsInteractivePlugin(terminal: JestWatchTerminal): J
           if (!manager.isActive()) resolve()
         })
       }),
-  }
+  })
 }
 
 /**
@@ -88,7 +88,7 @@ export function jestFailedTestsInteractivePlugin(terminal: JestWatchTerminal): J
  */
 export function jestUpdateSnapshotsPlugin(): JestWatchPlugin {
   let hasSnapshotFailure = false
-  return {
+  return nameJestWatchPlugin('UpdateSnapshotsPlugin', {
     isInternal: true,
     apply: (hooks) =>
       hooks.onTestRunComplete((results) => {
@@ -100,7 +100,7 @@ export function jestUpdateSnapshotsPlugin(): JestWatchPlugin {
       updateConfigAndRun({ updateSnapshot: 'all' })
       return Promise.resolve(false)
     },
-  }
+  })
 }
 
 /**
@@ -111,7 +111,7 @@ export function jestUpdateSnapshotsPlugin(): JestWatchPlugin {
 export function jestUpdateSnapshotsInteractivePlugin(terminal: JestWatchTerminal): JestWatchPlugin {
   const mode = new JestSnapshotInteractiveMode(terminal)
   let assertions: JestAssertionLocation[] = []
-  return {
+  return nameJestWatchPlugin('UpdateSnapshotInteractivePlugin', {
     isInternal: true,
     apply: (hooks) =>
       hooks.onTestRunComplete((results) => {
@@ -137,5 +137,5 @@ export function jestUpdateSnapshotsInteractivePlugin(terminal: JestWatchTerminal
     },
     getUsageInfo: () =>
       assertions.length > 0 ? { key: 'i', prompt: 'update failing snapshots interactively' } : null,
-  }
+  })
 }

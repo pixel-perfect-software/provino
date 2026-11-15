@@ -1326,7 +1326,7 @@ export class JestWatchPluginError extends Error {
 }
 
 // @beta
-export type JestWatchPluginErrorCode = "JEST_WATCH_PLUGIN_LOAD" | "JEST_WATCH_PLUGIN_CONFLICT";
+export type JestWatchPluginErrorCode = "JEST_WATCH_PLUGIN_LOAD" | "JEST_WATCH_PLUGIN_CONFLICT" | "JEST_WATCH_PLUGIN_HOOK";
 
 // @beta
 export type JestWatchPluginKeys = Map<string, ReservedInfo>;
@@ -1377,6 +1377,7 @@ export interface JestWatchRunContext {
     readonly hooks: JestHookEmitter;
     // (undocumented)
     readonly startRun: (globalConfig: JestGlobalConfig) => void;
+    readonly usesShouldRunTestSuite: () => boolean;
 }
 
 // @beta

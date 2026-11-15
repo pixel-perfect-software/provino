@@ -28,6 +28,7 @@ import {
 import {
   checkJestWatchPluginConflicts,
   type JestReservedKey,
+  JestWatchPluginError,
   jestWatchPluginKeys,
   loadJestWatchPlugin,
 } from './plugin-host.ts'
@@ -56,6 +57,8 @@ export type JestWatchRunOutcome =
 export interface JestWatchRunContext {
   readonly failedTestsCache: JestFailedTestsCache
   readonly hooks: JestHookEmitter
+  /** Whether any plugin listens to `shouldRunTestSuite`: when none does, the host skips the calls. */
+  readonly usesShouldRunTestSuite: () => boolean
   readonly startRun: (globalConfig: JestGlobalConfig) => void
 }
 
@@ -164,6 +167,15 @@ export function startJestWatch(
     resolveDone(code)
   }
 
+  const failSession = (error: unknown): void => {
+    if (ended) return
+    dispose()
+    const text = error instanceof Error ? (error.stack ?? String(error)) : String(error)
+    rejectDone(
+      new JestWatchPluginError('JEST_WATCH_PLUGIN_HOOK', style.red(text), { cause: error }),
+    )
+  }
+
   // L105-L108: watch mode always passes with no tests.
   let globalConfig = updateJestWatchConfig(initialGlobalConfig, {
     mode: initialGlobalConfig.watch ? 'watch' : 'watchAll',
@@ -231,7 +243,14 @@ export function startJestWatch(
     if (!hooks.isUsed('onFileChange') || listTests === undefined) return undefined
     return listTests.call(host).then(
       (change) => {
-        if (!ended) hooks.emitter.onFileChange(change)
+        if (ended) return
+        try {
+          hooks.emitter.onFileChange(change)
+        } catch (error) {
+          // Jest's call is synchronous: the throw ends `watch()` at start and is uncaught on a
+          // change. Either way jest-cli prints the stack in red and exits 1.
+          failSession(error)
+        }
       },
       (error: unknown) => {
         if (!ended) host.stderr.write(`\n\n${host.formatError(error)}\n`)
@@ -259,6 +278,7 @@ export function startJestWatch(
       outcome = await host.run(config, {
         failedTestsCache,
         hooks: hooks.emitter,
+        usesShouldRunTestSuite: () => hooks.isUsed('shouldRunTestSuite'),
         startRun: (next) => void startRun(next),
       })
     } catch (error) {
@@ -308,9 +328,10 @@ export function startJestWatch(
   const onChange = (): void => {
     if (ended) return
     activePlugin = null
-    const emitted = emitFileChange()
-    if (emitted === undefined) startAfterChange()
-    else void emitted.then(startAfterChange)
+    // The plugins hear of the files beside the run, not before it: the host's listing is a full
+    // discovery of every project, and the run's own discovery needn't wait for it (speed, D115).
+    void emitFileChange()
+    startAfterChange()
   }
   const startAfterChange = (): void => {
     if (ended) return
