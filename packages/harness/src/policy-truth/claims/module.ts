@@ -9,6 +9,7 @@ import {
   ObservationError,
   observation,
   observedOf,
+  oneOf,
   statusOf,
   templateIn,
 } from '../observe.ts'
@@ -43,6 +44,19 @@ const reevaluatedIn =
   (g: Golden): boolean =>
     titles.every((title) => statusOf(g, title) === 'passed')
 
+/**
+ * The kind an `import` in a file Jest runs as CommonJS resolved as (`env/conditions-import-*`):
+ * every test's title ends with the entry it got, `<branch>-require` when the edge took the
+ * importer's format, `<branch>-import` when it resolved as written.
+ */
+function edgeKindShown(g: Golden): string {
+  const titles = g.files.flatMap((file) => file.tests.map((test) => test.id.path.join(' ')))
+  return oneOf(titles, [
+    ['importer-format', titles.length > 0 && titles.every((title) => title.endsWith('-require'))],
+    ['as-written', titles.length > 0 && titles.every((title) => title.endsWith('-import'))],
+  ])
+}
+
 export const moduleClaims: Claims = {
   'module.factoryShape': mod('mod-factory-shape', 'mod-automock-all', 'mod-automock-cjs'),
   'module.rootMocksAutoApply': mod('mod-root-package', 'mod-root-core'),
@@ -76,6 +90,15 @@ export const moduleClaims: Claims = {
   'module.mockValueOwner': mod('mod-reregister', 'mod-reset-modules'),
   'module.mockResolveKind': mod('mod-conditions'),
   'module.mocksReachShared': mod('mod-shared-dep', 'mod-shared-dep-root'),
+  // The `-esm` fixture is not evidence here: an ES module's edges are `import`s under either value.
+  'module.edgeResolveKind': each(
+    [
+      golden('env/conditions-import-node', { read: edgeKindShown }),
+      golden('env/conditions-import-jsdom', { read: edgeKindShown }),
+      golden('env/conditions-import-custom', { read: edgeKindShown }),
+    ],
+    pending('T11.16', 'no Vitest fixture records how a module run as CommonJS resolves its edges'),
+  ),
   'module.reevaluateHookingExternals': each(
     [
       golden('ecosystem/rtl-cleanup', {

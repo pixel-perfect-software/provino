@@ -17,6 +17,7 @@ import type {
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
 import { conditionsOf } from '../graph/conditions.ts'
 import { type GraphEdge, inGraph } from '../graph/index.ts'
+import { createEdgeKindState, type EdgeKindState, edgeKind } from './edge-kind.ts'
 import { createInlineState, type InlineState } from './inline.ts'
 import { loaderMessage } from './messages.ts'
 import { createReevaluateState, type ReevaluateState } from './reevaluate.ts'
@@ -139,6 +140,8 @@ export interface Records {
   readonly listeners: Set<(event: CompiledModuleEvent) => void>
   /** The shared externals evaluated per file because their first load read a per-file global (D127). */
   readonly reevaluate: ReevaluateState
+  /** Which importers run as ES modules, for `ModulePolicy.edgeResolveKind`. */
+  readonly edgeKinds: EdgeKindState
   /** The scope names a module of each format can be given, in order. */
   readonly scopeNames: { readonly esm: readonly string[]; readonly cjs: readonly string[] }
   /** One word-scan pattern per scope name. */
@@ -175,6 +178,7 @@ export function createRecords(options: LoaderOptions): Records {
     required: new Map(),
     listeners: new Set(),
     reevaluate: createReevaluateState(),
+    edgeKinds: createEdgeKindState(options),
     scopeNames: { esm, cjs: dialect },
     scopePatterns,
     asyncGraphsStale: false,
@@ -245,13 +249,19 @@ export function mapperTakes(
   return (result.type === 'file' || result.type === 'not-found') && result.mappedBy !== null
 }
 
-/** Resolves `specifier` from `importer` to a target; one that doesn't resolve is `missing`. */
+/**
+ * Resolves `specifier` from `importer` to a target; one that doesn't resolve is `missing`. The edge
+ * resolves as the kind `ModulePolicy.edgeResolveKind` gives it from `kind` and its importer (a
+ * mock call's specifier, `exact`, as `kind` itself: `ModulePolicy.mockResolveKind`).
+ */
 export function resolveOrMissing(
   state: Records,
   specifier: string,
   importer: string,
-  kind: ResolveKind,
+  written: ResolveKind,
+  exact = false,
 ): Found | Extract<Target, { readonly kind: 'missing' | 'served' }> {
+  const kind = exact ? written : edgeKind(state.edgeKinds, importer, written)
   // A module the dialect serves (`@jest/globals`) is never resolved or loaded: its edge reads the
   // scope's value first (`FileRegistry.#mockOf`), as Jest answers `@jest/globals` before the
   // mapper, the resolver and the mocks.
@@ -266,11 +276,18 @@ export function resolveOrMissing(
       },
     }
   }
-  const result = state.options.resolver.resolve(specifier, {
-    importer,
-    kind,
-    conditions: conditionsOf(state.options),
-  })
+  const conditions = conditionsOf(state.options)
+  let result = state.options.resolver.resolve(specifier, { importer, kind, conditions })
+  // A package with no entry for the importer's kind (an `import`-only one, `provino` itself) is
+  // found under the edge's own kind, where Jest finds nothing (`ModulePolicy.edgeResolveKind`).
+  if (kind !== written && result.type === 'not-found' && result.mappedBy === null) {
+    const asWritten = state.options.resolver.resolve(specifier, {
+      importer,
+      kind: written,
+      conditions,
+    })
+    if (asWritten.type !== 'not-found') result = asWritten
+  }
   if (result.type === 'builtin') return { kind: 'builtin', id: result.id }
   if (result.type === 'file') {
     if (result.format === 'addon' || isThirdParty(result.path, state.options.inline ?? [])) {

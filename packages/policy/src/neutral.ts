@@ -165,6 +165,8 @@ export const neutralPolicy: Policy = deepFreeze({
     virtualRelative: true,
     mockValueOwner: 'registration',
     mockResolveKind: 'import',
+    // Ours (speed): an edge resolves as it is written, with no format lookup per importer.
+    edgeResolveKind: 'as-written',
     // T2.6: R3 makes mock-aware inlining the default (D39, B13d Gap 11).
     mocksReachShared: true,
     // Ours (speed): a shared package loads once per worker, whatever it reads while it loads (D127).

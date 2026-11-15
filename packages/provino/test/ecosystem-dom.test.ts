@@ -34,10 +34,11 @@ const PARENT = join(WORK, 'ecosystem-dom')
  *   `(0, _dom.waitFor)(…)`), Provino's under `waitFor` (column 9: the module-runner form calls
  *   `__vite_ssr_import_0__.waitFor(…)`), in both files' `failureMessage`. Not 2d's: the call
  *   position of an imported function through the transform.
- * - The loader: `ecosystem/jest-dom-jest-globals`. Jest runs the test file as CommonJS, so the
- *   entry resolves to `dist/jest-globals.js` under `require`; Provino resolves it under `import` to
- *   `dist/jest-globals.mjs`, whose `import { expect } from '@jest/globals'` fails to link against
- *   the served module, and the second file then fails with `ERR_REQUIRE_ESM_RACE_CONDITION`.
+ * - `ecosystem/jest-dom-jest-globals`: the same call position, in each test's `location`. The exit
+ *   code, the kept stderr lines and every status match (the entry now resolves under Jest's CJS
+ *   conditions to `dist/jest-globals.js`: `module.edgeResolveKind`); the 8 tests' `location.column`
+ *   is 5 in Jest's results (`test` from `@jest/globals` is called as `(0, _globals.test)(…)`, whose
+ *   position is the call's `(`) and 1 in Provino's (`__vite_ssr_import_1__.test(…)`).
  */
 const FIXTURE_IDS = [
   ['ecosystem/jest-axe', 'toHaveNoViolations and configureAxe'],

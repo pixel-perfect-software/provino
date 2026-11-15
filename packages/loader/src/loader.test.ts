@@ -1273,3 +1273,63 @@ test('a shared external whose closure requires a served module is inlined, and i
   const second = load()
   assert.equal(second.plain.token, first.plain.token, 'a package that reaches none stays shared')
 })
+
+/** A dual package: its `node` branch's `import` and `require` entries name themselves. */
+const DUAL = {
+  'node_modules/dual/package.json': JSON.stringify({
+    name: 'dual',
+    exports: { '.': { node: { import: './node.mjs', require: './node.cjs' }, default: './d.cjs' } },
+  }),
+  'node_modules/dual/node.mjs': "export default 'node-import'\n",
+  'node_modules/dual/node.cjs': "module.exports = 'node-require'\n",
+  'node_modules/dual/d.cjs': "module.exports = 'default'\n",
+  'package.json': '{}\n',
+  'helper.ts': "import entry from 'dual'\nexport const fromHelper: string = entry\n",
+  'entry.test.ts':
+    "import entry from 'dual'\nexport { fromHelper } from './helper.ts'\nexport const fromTest: string = entry\nexport const required: string = require('dual')\n",
+}
+
+test('edgeResolveKind: importer-format resolves every edge of a CommonJS-run module as require', async () => {
+  // This process has no `--experimental-vm-modules`, so every module runs as CommonJS (Jest's rule).
+  const root = writeTree(DUAL)
+  const policy = { edgeResolveKind: 'importer-format', interopDefault: 'babel' } as const
+  const registry = loaderFor(root, policy).createFileRegistry(join(root, 'entry.test.ts'), {
+    tier: 'registry',
+  })
+  const entry = await registry.import<Record<string, string>>(join(root, 'entry.test.ts'))
+  assert.deepEqual(
+    { fromTest: entry.fromTest, fromHelper: entry.fromHelper, required: entry.required },
+    { fromTest: 'node-require', fromHelper: 'node-require', required: 'node-require' },
+  )
+})
+
+test('edgeResolveKind: as-written (neutral) resolves an import as import and a require as require', async () => {
+  const root = writeTree(DUAL)
+  const registry = loaderFor(root, { interopDefault: 'babel' }).createFileRegistry(
+    join(root, 'entry.test.ts'),
+    { tier: 'registry' },
+  )
+  const entry = await registry.import<Record<string, string>>(join(root, 'entry.test.ts'))
+  assert.deepEqual(
+    { fromTest: entry.fromTest, fromHelper: entry.fromHelper, required: entry.required },
+    { fromTest: 'node-import', fromHelper: 'node-import', required: 'node-require' },
+  )
+})
+
+test('edgeResolveKind: an import-only package still loads from a CommonJS-run module, as written', async () => {
+  const root = writeTree({
+    'node_modules/esm-only/package.json': JSON.stringify({
+      name: 'esm-only',
+      exports: { '.': { import: './index.mjs' } },
+    }),
+    'node_modules/esm-only/index.mjs': "export const value = 'esm-only'\n",
+    'package.json': '{}\n',
+    'entry.test.ts': "export { value } from 'esm-only'\n",
+  })
+  const policy = { edgeResolveKind: 'importer-format', interopDefault: 'babel' } as const
+  const registry = loaderFor(root, policy).createFileRegistry(join(root, 'entry.test.ts'), {
+    tier: 'registry',
+  })
+  const entry = await registry.import<{ value: string }>(join(root, 'entry.test.ts'))
+  assert.equal(entry.value, 'esm-only')
+})

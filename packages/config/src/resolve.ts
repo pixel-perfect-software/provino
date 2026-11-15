@@ -433,6 +433,9 @@ function resolverKeys(input: ProjectInput): Partial<SerializedLoaderConfig> {
     ...(resolution?.modulePaths === undefined || resolution.modulePaths.length === 0
       ? {}
       : { modulePaths: resolution.modulePaths }),
+    ...(resolution?.esmExtensions === undefined || resolution.esmExtensions.length === 0
+      ? {}
+      : { esmExtensions: resolution.esmExtensions }),
     ...(resolution?.resolver === undefined
       ? {}
       : { resolver: { module: resolution.resolver, export: 'default' } }),

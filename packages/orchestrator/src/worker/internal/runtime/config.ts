@@ -225,6 +225,9 @@ function resolverKeys(loader: Record<string, unknown>): Partial<SerializedLoader
   if (loader.modulePaths !== undefined) {
     keys.modulePaths = absolutePaths(loader.modulePaths, 'loader.modulePaths')
   }
+  if (loader.esmExtensions !== undefined) {
+    keys.esmExtensions = texts(loader.esmExtensions, 'loader.esmExtensions')
+  }
   if (loader.resolver !== undefined) keys.resolver = absoluteRef(loader.resolver, 'loader.resolver')
   return keys
 }

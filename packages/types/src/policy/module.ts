@@ -121,6 +121,26 @@ export interface ModulePolicy {
    */
   readonly mockResolveKind: 'require' | 'import'
   /**
+   * The kind a module's edges resolve as, which decides the package `exports` conditions they are
+   * looked up with. `as-written`: each edge is its own kind, an `import` or `import()` adds the
+   * `import` condition and a `require` the `require` one. `importer-format`: every edge of a module
+   * takes the kind of the module it is in, `import` for one the runner runs as an ES module and
+   * `require` for any other, whatever its syntax; a module runs as an ES module when Node has
+   * `vm.SyntheticModule` (`--experimental-vm-modules`) and the file is `.mjs`, a `.js` file whose
+   * nearest `package.json` has `"type": "module"`, or has an extension in the loader's
+   * `esmExtensions`. `import.meta.resolve` keeps its own kind under either. An edge that finds no
+   * file under its importer's kind (a package with only an `import` entry, as `provino` is) is
+   * resolved again under its own: Jest fails such an edge, Provino loads it.
+   *
+   * Jest: `importer-format`, as jest-runtime resolves every edge of a module it runs as CommonJS
+   * with its CJS conditions (an `import` its transform turned into `require` too) and every edge of
+   * an ES module with its ESM ones (`jest-runtime` `internals/Resolution.ts`, `shouldLoadAsEsm` in
+   * `jest-resolve`); recorded by `env/conditions-import-node`, `-jsdom`, `-custom` and `-esm`
+   * (Jest 30.5.2). Vitest: `as-written`, pending T11.16. Neutral: `as-written` (speed: no format
+   * lookup per importer).
+   */
+  readonly edgeResolveKind: 'as-written' | 'importer-format'
+  /**
    * Whether a mock reaches the modules in `node_modules` that import the mocked one (T2.6, D39). When
    * `true`, a package whose imports lead to a module the file mocks is loaded per file through that
    * file's registry (inlined), so the mock reaches it; the next file sees the shared module. When

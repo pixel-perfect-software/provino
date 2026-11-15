@@ -224,6 +224,9 @@ export const jestPolicy: PolicyOverrides = {
     mockValueOwner: 'module-registry',
     // Recorded, Jest 30.5.2: `mod-conditions` (a `require`-only package mocks, an `import`-only one is not found).
     mockResolveKind: 'require',
+    // Recorded, Jest 30.5.2: `env/conditions-import-node`, `-jsdom`, `-custom` (an `import` in a file
+    // Jest runs as CommonJS takes the `require` entry) and `-esm` (an ES module's, the `import` one).
+    edgeResolveKind: 'importer-format',
     // Recorded, Jest 30.5.2: `mod-shared-dep` and `mod-shared-dep-root` (a mock reaches the packages that require it).
     mocksReachShared: true,
     // Recorded, Jest 30.5.2: `ecosystem/rtl-cleanup` and `ecosystem/jest-canvas-mock` (jest-runtime

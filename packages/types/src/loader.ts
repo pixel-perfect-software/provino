@@ -112,6 +112,12 @@ export interface LoaderOptions {
   /** Environment export conditions for resolution (Track 8); the call kind adds its own. Default `['node']`. */
   readonly conditions?: readonly string[]
   /**
+   * Extensions whose files run as ES modules beyond `.mjs` and a `"type": "module"` package's
+   * `.js` (Jest's `extensionsToTreatAsEsm`), read only under `ModulePolicy.edgeResolveKind`
+   * `importer-format`. Default none.
+   */
+  readonly esmExtensions?: readonly string[]
+  /**
    * The project's custom resolver as the config names it, handed to `formatMapperMiss`. Default
    * none.
    */

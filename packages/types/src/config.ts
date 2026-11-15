@@ -190,6 +190,12 @@ export interface SerializedLoaderConfig {
   readonly moduleDirectories?: readonly string[]
   /** Absolute directories searched after a miss (Jest `modulePaths`). */
   readonly modulePaths?: readonly string[]
+  /**
+   * Extensions whose files run as ES modules beyond `.mjs` and a `"type": "module"` package's `.js`
+   * (Jest `extensionsToTreatAsEsm`); read under `module.edgeResolveKind: 'importer-format'`. Absent
+   * means none.
+   */
+  readonly esmExtensions?: readonly string[]
   /** A custom resolver module (Jest `resolver`), its `module` absolute; the export is `default`. */
   readonly resolver?: ModuleRef
   /**
