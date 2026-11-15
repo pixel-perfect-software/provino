@@ -88,34 +88,66 @@ describe('createResultsCache', () => {
     const dir = await scratch()
     const first = createResultsCache(dir)
     const second = createResultsCache(dir)
-    first.learnExternals('p', ['node_modules/a/index.js'])
-    first.learnExternals('p', ['node_modules/a/index.js', 'node_modules/a/dep.js'])
-    second.learnExternals('p', ['node_modules/b/index.js'])
-    second.learnExternals('q', ['node_modules/c/index.js'])
-    assert.deepEqual(first.externals('p'), ['node_modules/a/index.js', 'node_modules/a/dep.js'])
+    first.learnExternals('p', [['node_modules/a/index.js', '1.0.0']])
+    first.learnExternals('p', [
+      ['node_modules/a/index.js', '1.0.0'],
+      ['node_modules/a/dep.js', '1.0.0'],
+    ])
+    second.learnExternals('p', [['node_modules/b/index.js', '']])
+    second.learnExternals('q', [['node_modules/c/index.js', '2.0.0']])
+    assert.deepEqual(
+      [...first.externals('p').keys()],
+      ['node_modules/a/index.js', 'node_modules/a/dep.js'],
+    )
     await first.write()
     await second.write()
     const merged = createResultsCache(dir)
-    assert.deepEqual(merged.externals('p'), [
-      'node_modules/a/index.js',
-      'node_modules/a/dep.js',
-      'node_modules/b/index.js',
-    ])
-    assert.deepEqual(merged.externals('q'), ['node_modules/c/index.js'])
-    assert.deepEqual(merged.externals('none'), [])
+    assert.deepEqual(
+      [...merged.externals('p')],
+      [
+        ['node_modules/a/index.js', '1.0.0'],
+        ['node_modules/a/dep.js', '1.0.0'],
+        ['node_modules/b/index.js', ''],
+      ],
+    )
+    assert.deepEqual([...merged.externals('q')], [['node_modules/c/index.js', '2.0.0']])
+    assert.equal(merged.externals('none').size, 0)
   })
 
-  it('reads no externals from a list that is not one of paths', async () => {
+  it('forgets an external here and in the disk’s copy at write, and learning it again keeps it', async () => {
+    const dir = await scratch()
+    const writer = createResultsCache(dir)
+    writer.learnExternals('p', [
+      ['node_modules/a/index.js', '1.0.0'],
+      ['node_modules/b/index.js', '1.0.0'],
+    ])
+    await writer.write()
+    const reader = createResultsCache(dir)
+    reader.forgetExternals('p', ['node_modules/a/index.js', 'node_modules/b/index.js'])
+    reader.learnExternals('p', [['node_modules/b/index.js', '2.0.0']])
+    assert.deepEqual([...reader.externals('p')], [['node_modules/b/index.js', '2.0.0']])
+    await reader.write()
+    assert.deepEqual(
+      [...createResultsCache(dir).externals('p')],
+      [['node_modules/b/index.js', '2.0.0']],
+    )
+  })
+
+  it('reads no externals from an entry that is not a record of versions', async () => {
     const dir = await scratch()
     await mkdir(dir, { recursive: true })
     await writeFile(
       join(dir, 'results.json'),
-      JSON.stringify({ version: 3, projects: {}, externals: { p: 'x', q: [1], r: ['ok.js'] } }),
+      JSON.stringify({
+        version: 3,
+        projects: {},
+        externals: { p: 'x', q: ['old.js'], r: { 'ok.js': '1.0.0' }, s: { 'bad.js': 1 } },
+      }),
     )
     const cache = createResultsCache(dir)
     assert.deepEqual(
-      ['p', 'q', 'r'].map((project) => cache.externals(project)),
-      [[], [], ['ok.js']],
+      ['p', 'q', 'r', 's'].map((project) => [...cache.externals(project)]),
+      [[], [], [['ok.js', '1.0.0']], []],
     )
   })
 

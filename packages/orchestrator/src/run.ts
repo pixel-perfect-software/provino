@@ -49,6 +49,7 @@ import { type GlobalSetupRun, type RunGlobalHooks, runGlobalSetup } from './glob
 import { shouldRunInBand } from './in-band.ts'
 import { createInlineSnapshotWrites, withInlineSnapshots } from './inline-snapshots.ts'
 import { configHash, hashOf, type WorkerKeyInput, workerKeyOf } from './key.ts'
+import { learnExternals, readLearnedExternals } from './learned-externals.ts'
 import { prepareObsoleteSnapshotCleanup } from './obsolete-snapshots.ts'
 import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
 import {
@@ -434,18 +435,21 @@ type SeededProject = Omit<ResolvedProject, 'config'> & { readonly config: Serial
 
 /**
  * The project's loader config with the node_modules files its workers learned to evaluate per
- * file in earlier runs (D127), from its history in `cache`, as absolute paths. Unchanged when the
- * policy doesn't ask for it or nothing was learned.
+ * file in earlier runs (D127), from its history in `cache` under `cacheProject` (the key the run
+ * also writes them under), as absolute paths. Unchanged when the policy doesn't ask for it or
+ * nothing was learned.
  */
 function withLearnedExternals(
   project: ResolvedProject,
   cache: ResultsCache | undefined,
+  cacheProject: string,
+  versions: Map<string, string>,
 ): SerializedProjectConfig['loader'] {
   const loader = project.config.loader
   if (cache === undefined || !project.policy.module.reevaluateHookingExternals) return loader
-  const learned = cache.externals(projectCacheKey(project))
+  const learned = readLearnedExternals(cache, cacheProject, project.rootDir, versions)
   if (learned.length === 0) return loader
-  return { ...loader, reevaluate: learned.map((path) => join(project.rootDir, path)) }
+  return { ...loader, reevaluate: learned }
 }
 
 /** One project of a run, with what the run decided for it once. */
@@ -709,6 +713,8 @@ export async function runProjectsOn(
   const takenIdentities = new Set<string>()
   const nameCounts = Map.groupBy(projects, (project) => project.name)
   const cacheKeyCounts = Map.groupBy(projects, projectCacheKey)
+  /** Each package directory's `version`, read once per run for the learned externals (D127). */
+  const packageVersions = new Map<string, string>()
   const members: Member[] = projects.map((resolved, index) => {
     // The transform cache (T3.6) is on unless the run has no cache (`--no-cache`): the directory is
     // wiped here if the lockfile changed, and handed to the project's workers.
@@ -717,31 +723,32 @@ export async function runProjectsOn(
         ? resolved
         : withTransformCache(resolved, cacheDirectories(resolved).transform, lockfileHashes)
     const cache = cacheFor(cached)
-    const project: SeededProject = {
+    const seeded: SeededProject = {
       ...cached,
-      config: {
-        ...cached.config,
-        seed: cached.config.seed ?? runSeed,
-        // Read by the stable key only: a project that shares it is keyed by its identity, which
-        // depends on this config, so it learns again in each run.
-        loader:
-          cacheKeyCounts.get(projectCacheKey(cached))?.length === 1
-            ? withLearnedExternals(cached, cache)
-            : cached.config.loader,
-      },
+      config: { ...cached.config, seed: cached.config.seed ?? runSeed },
     }
+    // The identity is taken before the learned externals go into the config, so it, and a shared
+    // key's history, is the same in the run that learned them and the next one, which reads them.
     const base =
-      nameCounts.get(project.name)?.length === 1
-        ? project.name
-        : `${project.name}#${configHash(project.config).slice(0, 8)}`
+      nameCounts.get(seeded.name)?.length === 1
+        ? seeded.name
+        : `${seeded.name}#${configHash(seeded.config).slice(0, 8)}`
     const identity = takenIdentities.has(base) ? `${base}@${index}` : base
     takenIdentities.add(identity)
-    const cacheKey = projectCacheKey(project)
+    const cacheKey = projectCacheKey(seeded)
+    // The results history keeps its stable key, so editing a config doesn't lose it, unless
+    // another project of the run has the same one.
+    const cacheProject = cacheKeyCounts.get(cacheKey)?.length === 1 ? cacheKey : identity
+    const project: SeededProject = {
+      ...seeded,
+      config: {
+        ...seeded.config,
+        loader: withLearnedExternals(seeded, cache, cacheProject, packageVersions),
+      },
+    }
     return {
       project,
-      // The results history keeps its stable key, so editing a config doesn't lose it, unless
-      // another project of the run has the same one.
-      cacheProject: cacheKeyCounts.get(cacheKey)?.length === 1 ? cacheKey : identity,
+      cacheProject,
       identity,
       projectIndex: index,
       // Asked of the project the caller gave: `project` above is a copy of it.
@@ -1045,10 +1052,15 @@ export async function runProjectsOn(
       }
       // What the worker learned to evaluate per file (D127), for the next run's workers.
       if (outcome.type === 'done' && outcome.done.reevaluated !== undefined) {
-        member.cache?.learnExternals(
-          member.cacheProject,
-          outcome.done.reevaluated.map((path) => relativePosix(member.project.rootDir, path)),
-        )
+        if (member.cache !== undefined) {
+          learnExternals(
+            member.cache,
+            member.cacheProject,
+            member.project.rootDir,
+            outcome.done.reevaluated,
+            packageVersions,
+          )
+        }
       }
       // A record is the file's whole closure only when every test ran: a test `-t`, `.only` or
       // `.skip` left out may load what the others don't, and an older, whole record is kept. It is

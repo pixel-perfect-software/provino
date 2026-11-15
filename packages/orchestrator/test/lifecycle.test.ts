@@ -301,8 +301,9 @@ describe('signals', () => {
         get: () => undefined,
         record: () => {},
         prune: () => {},
-        externals: () => [],
+        externals: () => new Map(),
         learnExternals: () => {},
+        forgetExternals: () => {},
         write: async () => controller.abort(reason),
       }
       const summary = await runProject(project, {

@@ -12,8 +12,10 @@ import {
   createResultsCache,
   defaultCacheDir,
   projectCacheKey,
+  runProjects,
 } from '@provino/orchestrator'
 import { moduleRef } from '@provino/policy'
+import { createReporterBus } from '@provino/reporters'
 import type {
   FileJob,
   GlobalsFactory,
@@ -24,6 +26,7 @@ import type {
   WorkerEvent,
 } from '@provino/types'
 import {
+  Collect,
   eventsOf,
   fixture,
   run,
@@ -1421,11 +1424,49 @@ describe('a shared external that reads a per-file global as it loads (D127, P42)
     await run(target, { cache, pool: { kind: 'inline', maxWorkers: 1 } })
     assert.equal(await loads(p.dir), 2)
     const reread = createResultsCache(defaultCacheDir(p.dir))
-    assert.deepEqual(reread.externals(projectCacheKey(target)), ['node_modules/hooker/index.js'])
+    assert.deepEqual(
+      [...reread.externals(projectCacheKey(target))],
+      [['node_modules/hooker/index.js', '']],
+      'with its package’s version (none here)',
+    )
 
     // A new run, a new worker: its first file evaluates `hooker` through its registry. (An inline
     // worker shares this process, so a native load would find Node's cached copy and add none.)
     await run(target, { cache: reread, pool: { kind: 'inline', maxWorkers: 1 } })
     assert.equal(await loads(p.dir), 4, 'both files of the second run evaluated it')
+  })
+
+  it('is read under the key it was written under, also for projects that share a cache key', async () => {
+    // `n` for a native load (Node's module has an id), `i` for one through a file's registry.
+    const p = await project({
+      ...files,
+      'node_modules/hooker/index.js': [
+        "const { appendFileSync } = require('node:fs')",
+        "appendFileSync(require('node:path').join(__dirname, 'loads.txt'), typeof module.id === 'string' ? 'n' : 'i')",
+        'afterEach(() => {})',
+        'module.exports = {}',
+      ].join('\n'),
+    })
+    // One name, root and globs (one cache key), told apart by their environment's options.
+    const projects = ['one', 'two'].map((tag) =>
+      runtimeProject(p.dir, {
+        policy: { module: { reevaluateHookingExternals: true } },
+        environmentOptions: { tag },
+      }),
+    )
+    const once = async (): Promise<void> => {
+      await runProjects(projects, {
+        bus: createReporterBus([]),
+        stderr: new Collect(),
+        pool: { kind: 'forks', maxWorkers: 1 },
+        cache: createResultsCache(defaultCacheDir(p.dir)),
+      })
+    }
+    const read = async (): Promise<string> =>
+      readFile(join(p.dir, 'node_modules/hooker/loads.txt'), 'utf8')
+    await once()
+    assert.equal(await read(), 'nini', 'each project’s worker learns it on its first file')
+    await once()
+    assert.equal((await read()).slice(4), 'iiii', 'the second run inlines it from each first file')
   })
 })
