@@ -1,6 +1,12 @@
-// Jest 30.5.2's watch mode (B23c Phase 8): the driver over a host, and the pieces it is made of.
+// Jest 30.5.2's watch mode (B23c Phases 8 and 9): the driver over a host, and the pieces it is made of.
 export type { JestWatchOutput, JestWatchTerminal } from './context.ts'
 export { JestFailedTestsCache } from './failed-tests-cache.ts'
+export {
+  JEST_ARROW,
+  type JestAssertionLocation,
+  JestFailedTestsInteractiveMode,
+  jestPluralize,
+} from './failed-tests-interactive-mode.ts'
 export {
   createJestHooks,
   type JestFileChange,
@@ -30,8 +36,21 @@ export {
   type JestWatchPlugin,
   pluginKey,
 } from './plugin.ts'
+export {
+  checkJestWatchPluginConflicts,
+  getJestPluginIdentifier,
+  getJestPluginKey,
+  type JestReservedKey,
+  JestWatchPluginError,
+  type JestWatchPluginErrorCode,
+  type JestWatchPluginKeys,
+  type JestWatchPluginLoadOptions,
+  jestWatchPluginKeys,
+  loadJestWatchPlugin,
+} from './plugin-host.ts'
 export { JestPrompt, type JestResizeSource, type JestScrollOptions } from './prompt.ts'
 export { type JestWatchStdin, jestQuitPlugin } from './quit.ts'
+export { JestSnapshotInteractiveMode } from './snapshot-interactive-mode.ts'
 export {
   JEST_CLEAR_LINE,
   JEST_PRE_RUN_MESSAGE,

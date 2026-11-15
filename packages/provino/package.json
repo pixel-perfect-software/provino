@@ -147,6 +147,7 @@
     "jest-silent-reporter": "catalog:",
     "jest-sonar-reporter": "catalog:",
     "jest-styled-components": "catalog:",
+    "jest-watch-typeahead": "catalog:",
     "jest-when": "catalog:",
     "msw": "catalog:",
     "prettier": "catalog:",

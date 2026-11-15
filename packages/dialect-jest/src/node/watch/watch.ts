@@ -1,12 +1,17 @@
 // jest-core `watch.ts` L91-L472 (Jest 30.5.2) over a host: the keys, the plugins, when a run
 // starts, what is written around it, and how the session ends. The host runs the tests (`provino`
 // wires the orchestrator's watch session to it), so this module starts no process and watches no
-// file. Third-party `watchPlugins` are B23c Phase 9's, and so are the `u` and `i` modes.
+// file. Third-party `watchPlugins` load here, in the coordinator (`plugin-host.ts`).
 import type { TextStyle } from '@provino/types'
 import type { JestGlobalConfig } from '../types.ts'
 import type { JestWatchOutput, JestWatchTerminal } from './context.ts'
 import { JestFailedTestsCache } from './failed-tests-cache.ts'
-import { createJestHooks, type JestHookEmitter, type JestWatchResults } from './hooks.ts'
+import {
+  createJestHooks,
+  type JestFileChange,
+  type JestHookEmitter,
+  type JestWatchResults,
+} from './hooks.ts'
 import {
   jestFailedTestsInteractivePlugin,
   jestUpdateSnapshotsInteractivePlugin,
@@ -20,6 +25,12 @@ import {
   type JestWatchPlugin,
   pluginKey,
 } from './plugin.ts'
+import {
+  checkJestWatchPluginConflicts,
+  type JestReservedKey,
+  jestWatchPluginKeys,
+  loadJestWatchPlugin,
+} from './plugin-host.ts'
 import type { JestResizeSource } from './prompt.ts'
 import { type JestWatchStdin, jestQuitPlugin } from './quit.ts'
 import { JEST_PRE_RUN_MESSAGE, jestClearScreen, jestTerminalEscapes } from './terminal.ts'
@@ -74,6 +85,13 @@ export interface JestWatchHost {
   onFileChange(listener: () => void): () => void
   /** The text of an error a run threw (`formatExecError(error, config, { noStackTrace: false })`). */
   formatError(error: unknown): string
+  /**
+   * Every test file of each project, with its config, as a plugin's `onFileChange` hears them
+   * (`emitFileChange`, L231-L245). Asked for only when a plugin listens; without it none is told.
+   */
+  listTests?(): Promise<JestFileChange>
+  /** What a watch plugin's path is printed relative to when it fails to load. Default `process.cwd()`. */
+  readonly cwd?: string
 }
 
 /**
@@ -81,7 +99,10 @@ export interface JestWatchHost {
  * @beta
  */
 export interface JestWatch {
-  /** Resolves with the exit code once watch mode ends (`q`, Ctrl+C, Ctrl+D: 0). */
+  /**
+   * Resolves with the exit code once watch mode ends (`q`, Ctrl+C, Ctrl+D: 0). Rejects with a
+   * `JestWatchPluginError` when a `watchPlugins` entry fails to load or conflicts, before any run.
+   */
   readonly done: Promise<number>
   /** Stops reading keys and changes, leaves raw mode. Called whatever ended the session. */
   dispose(): void
@@ -115,8 +136,10 @@ export function startJestWatch(
   const { style } = host
 
   let resolveDone: (code: number) => void = () => {}
-  const done = new Promise<number>((resolve) => {
+  let rejectDone: (error: unknown) => void = () => {}
+  const done = new Promise<number>((resolve, reject) => {
     resolveDone = resolve
+    rejectDone = reject
   })
   let ended = false
   let unsubscribe: (() => void) | undefined
@@ -161,15 +184,60 @@ export function startJestWatch(
 
   // L67-L74 and L158-L166: Jest's own plugins in its order, each applied to the hooks.
   const hooks = createJestHooks()
+  const updateSnapshots = jestUpdateSnapshotsPlugin()
+  const updateSnapshotsInteractive = jestUpdateSnapshotsInteractivePlugin(terminal)
+  const quit = jestQuitPlugin(terminal, stdin, exit)
   const plugins: JestWatchPlugin[] = [
     jestFailedTestsInteractivePlugin(terminal),
     jestTestPathPatternPlugin(terminal),
     jestTestNamePatternPlugin(terminal),
-    jestUpdateSnapshotsPlugin(terminal),
-    jestUpdateSnapshotsInteractivePlugin(terminal),
-    jestQuitPlugin(terminal, stdin, exit),
+    updateSnapshots,
+    updateSnapshotsInteractive,
+    quit,
   ]
   for (const plugin of plugins) plugin.apply?.(hooks.subscriber)
+  // RESERVED_KEY_PLUGINS (L76-L89)
+  const reserved = new Map<JestWatchPlugin, JestReservedKey>([
+    [updateSnapshots, { forbiddenOverwriteMessage: 'updating snapshots', key: 'u' }],
+    [
+      updateSnapshotsInteractive,
+      { forbiddenOverwriteMessage: 'updating snapshots interactively', key: 'i' },
+    ],
+    [quit, { forbiddenOverwriteMessage: 'quitting watch mode' }],
+  ])
+
+  // L168-L219: each third-party plugin is loaded, checked against the keys taken, and applied.
+  const loadThirdPartyPlugins = async (
+    entries: NonNullable<JestGlobalConfig['watchPlugins']>,
+  ): Promise<void> => {
+    const keys = jestWatchPluginKeys(plugins, reserved, globalConfig)
+    for (const entry of entries) {
+      const plugin = await loadJestWatchPlugin(entry, {
+        stdin,
+        stdout: host.stdout,
+        style,
+        cwd: host.cwd ?? process.cwd(),
+        formatError: (error) => host.formatError(error),
+      })
+      checkJestWatchPluginConflicts(keys, plugin, globalConfig, style)
+      plugin.apply?.(hooks.subscriber)
+      plugins.push(plugin)
+    }
+  }
+
+  // L231-L245: only when a plugin listens, as Jest asks `hooks.isUsed('onFileChange')`.
+  const emitFileChange = (): Promise<void> | undefined => {
+    const { listTests } = host
+    if (!hooks.isUsed('onFileChange') || listTests === undefined) return undefined
+    return listTests.call(host).then(
+      (change) => {
+        if (!ended) hooks.emitter.onFileChange(change)
+      },
+      (error: unknown) => {
+        if (!ended) host.stderr.write(`\n\n${host.formatError(error)}\n`)
+      },
+    )
+  }
 
   const failedTestsCache = new JestFailedTestsCache()
   let isRunning = false
@@ -236,16 +304,22 @@ export function startJestWatch(
     void startRun(globalConfig)
   }
 
-  // L249-L272: a relevant change ends any plugin's prompt and starts a run.
-  unsubscribe = host.onFileChange(() => {
+  // L249-L272: a relevant change ends any plugin's prompt, tells the plugins and starts a run.
+  const onChange = (): void => {
     if (ended) return
     activePlugin = null
+    const emitted = emitFileChange()
+    if (emitted === undefined) startAfterChange()
+    else void emitted.then(startAfterChange)
+  }
+  const startAfterChange = (): void => {
+    if (ended) return
     if (isRunning) {
       changedDuringRun = true
       return
     }
     void startRun(globalConfig)
-  })
+  }
 
   // L457-L462
   const onCancelPatternPrompt = (): void => {
@@ -344,15 +418,39 @@ export function startJestWatch(
     }
   }
 
-  // L464-L469: keys are read only from a terminal.
-  if (typeof stdin.setRawMode === 'function') {
-    stdin.setRawMode(true)
-    stdin.resume()
-    stdin.setEncoding('utf8')
-    stdin.on('data', onData)
-    reading = true
+  // What follows the plugins in Jest's order: the first `onFileChange` (L247), the change listener
+  // (L249), the keys, read only from a terminal (L464-L469), and the first run (L471).
+  const begin = (): void => {
+    if (ended) return
+    const emitted = emitFileChange()
+    if (emitted !== undefined) {
+      void emitted.then(listen)
+      return
+    }
+    listen()
+  }
+  const listen = (): void => {
+    if (ended) return
+    unsubscribe = host.onFileChange(onChange)
+    if (typeof stdin.setRawMode === 'function') {
+      stdin.setRawMode(true)
+      stdin.resume()
+      stdin.setEncoding('utf8')
+      stdin.on('data', onData)
+      reading = true
+    }
+    void startRun(globalConfig)
   }
 
-  void startRun(globalConfig)
+  // L197: `watchPlugins != null`. With none, watch mode starts at once, in this call.
+  const thirdParty = globalConfig.watchPlugins ?? []
+  if (thirdParty.length === 0) begin()
+  else {
+    loadThirdPartyPlugins(thirdParty).then(begin, (error: unknown) => {
+      if (ended) return
+      dispose()
+      rejectDone(error)
+    })
+  }
   return { done, dispose }
 }

@@ -168,6 +168,8 @@ const config: KnipConfig = {
         'jest-junit',
         'jest-silent-reporter',
         'jest-sonar-reporter',
+        // The watch plugins `jest-watch-plugins.test.ts` links into its projects (B23c, D120).
+        'jest-watch-typeahead',
         // B23e, T11.11 (D124): the ecosystem packages the tests' projects load from this package's node_modules.
         ...ECOSYSTEM_PACKAGES,
         // What the inline snapshot tests' projects resolve: Prettier 3, and babel-jest with the

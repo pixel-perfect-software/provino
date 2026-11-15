@@ -8,6 +8,7 @@ import { type ResolvedProject, resolveNeutralProject } from '@provino/config'
 import {
   createJestConfigReader,
   createJestResults,
+  JEST_CLEAR_LINE,
   JEST_NO_SCM_TEXT,
   type JestArgv,
   JestCliError,
@@ -16,6 +17,7 @@ import {
   type JestGlobalConfig,
   JestNotifierMissingError,
   type JestProjectConfig,
+  JestWatchPluginError,
   jestChangedFilesErrorText,
   jestChangedNoTestsMessage,
   jestCli,
@@ -932,6 +934,14 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     if (filterError !== undefined && error === filterError) {
       // jest-cli prints the stack of the error that ended `runCLI`, and exits 1.
       stderr.write(`${error instanceof Error ? (error.stack ?? String(error)) : String(error)}\n`)
+      return ExitCode.TestFailure
+    }
+    if (error instanceof JestWatchPluginError) {
+      // jest-cli `run.ts` L30-L38: both lines cleared on a terminal, then the error, exit 1.
+      for (const stream of [stderr, stdout]) {
+        if (Reflect.get(stream, 'isTTY') === true) stream.write(JEST_CLEAR_LINE)
+      }
+      stderr.write(`${error.message}\n`)
       return ExitCode.TestFailure
     }
     if (error instanceof JestNotifierMissingError) {

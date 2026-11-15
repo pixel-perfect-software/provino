@@ -86,7 +86,6 @@ function refusal(globalConfig: JestGlobalConfig): string | undefined {
   if (globalConfig.collectCoverage) refused.push('--coverage')
   if (globalConfig.collectTests) refused.push('--collectTests')
   if (globalConfig.detectOpenHandles) refused.push('--detectOpenHandles')
-  if ((globalConfig.watchPlugins ?? []).length > 0) refused.push('watchPlugins')
   if (refused.length === 0) return undefined
   return `${refused.join(', ')} in watch mode ${refused.length === 1 ? 'is' : 'are'} not supported yet (B23c Phase 9)`
 }
@@ -197,6 +196,18 @@ export async function runJestWatch(command: JestWatchCommand): Promise<number> {
           const keep = new Set(await command.filter(files.map((file) => file.path)))
           files = files.filter((file) => keep.has(file.path))
         }
+        // runJest.ts L149-L161: every plugin's `shouldRunTestSuite` must say yes.
+        const projectConfig = configs[projects.indexOf(project)]
+        const answers = await Promise.all(
+          files.map((file) =>
+            context.hooks.shouldRunTestSuite({
+              config: projectConfig,
+              duration: undefined,
+              testPath: file.path,
+            }),
+          ),
+        )
+        files = files.filter((_file, index) => answers[index] === true)
         // runJest.ts L302-L308: watch mode keeps the files the last run failed.
         return config.onlyFailures ? context.failedTestsCache.filterPaths(files) : files
       }),
@@ -284,6 +295,16 @@ export async function runJestWatch(command: JestWatchCommand): Promise<number> {
     onFileChange: (listener) => session.onChange(() => listener()),
     formatError: (error) =>
       jestWatchRunErrorText(error, configs[0] ?? { rootDir: globalConfig.rootDir, testMatch: [] }),
+    // watch.ts L231-L245: each project's test files with no pattern, for `onFileChange`.
+    listTests: async () => ({
+      projects: await Promise.all(
+        projects.map(async (project, index) => ({
+          config: configs[index],
+          testPaths: (await discoverProject(project)).map((file) => file.path),
+        })),
+      ),
+    }),
+    cwd,
   }
 
   let watch: ReturnType<typeof startJestWatch> | undefined
