@@ -90,6 +90,36 @@ function assertFields(id: string, ours: Results, theirs: Results): void {
   }
 }
 
+describe('assertFields', () => {
+  const file = (status: string): Results => ({
+    testResults: [
+      {
+        name: 'a',
+        status: 'passed',
+        message: '',
+        assertionResults: [
+          {
+            title: 't',
+            fullName: 't',
+            ancestorTitles: [],
+            status,
+            location: null,
+            failureMessages: [],
+          },
+        ],
+      },
+    ],
+  })
+
+  it('names the field of the replay that differs from the golden’s', () => {
+    assertFields('x', file('passed'), file('passed'))
+    assert.throws(
+      () => assertFields('x', file('failed'), file('passed')),
+      /assertionResults\[0\]\.status/,
+    )
+  })
+})
+
 async function replay(request: string): Promise<{ id: string; run: RecordedRun }> {
   const id = `ide/vscode-jest-${request}`
   return { id, run: await provinoOn(id) }
@@ -191,36 +221,36 @@ describe('vscode-jest replays (T11.12)', () => {
 
 /**
  * The watch requests, on a pipe in a process group of their own (`playPiped`): the bin is killed
- * in `finally` and its group probed. A sandbox without file events skips them, saying why, and
- * with `CI` set that is an error; CI's Linux legs run them. The results file is read after each
- * run, as vscode-jest reads it on `Test results written to`, and compared with the golden's
+ * and its group probed whatever happens. A sandbox without file events skips them, saying why,
+ * and with `CI` set that is an error; CI's Linux legs run them. The results file is read after
+ * each run, as vscode-jest reads it on `Test results written to`, and compared with the golden's
  * (the session has no exit code: a piped Jest has no key to quit with, and the editor kills it).
  */
-describe('vscode-jest watch replays (T11.12, B23e Phase 4)', async () => {
-  const skip = await watcherSkip()
+describe('vscode-jest watch replays (T11.12, B23e Phase 4)', () => {
   for (const request of WATCH_REQUESTS) {
     it(`${request}: the run log, the results file after each run and the reporter lines`, {
-      skip,
       timeout: 150_000,
-    }, async () => {
+    }, async (t) => {
+      const skip = await watcherSkip()
+      if (skip !== false) return t.skip(skip)
       const id = `ide/vscode-jest-${request}`
       const fixture = await loadFixture(id)
-      // `playPiped` compares the run log, the kept reporter lines and each captured results file
-      // with the golden; the fields vscode-jest reads are named by `assertFields`.
-      await playPiped(fixture)
-      const captured = Object.entries(fixture.golden.observed?.json ?? {})
-      assert.equal(captured.length, 2, `${id}: one results file per run`)
-      for (const [key, value] of captured) {
-        const results = asResults(value, key)
-        assert.ok(results.testResults.length > 0, `${key}: no test file`)
-        assertFields(key, results, results)
+      const golden = fixture.golden.observed
+      // `playPiped` holds the run log, the kept reporter lines and each captured results file to
+      // the golden's; what it returns is the replay's own, and the fields vscode-jest reads are
+      // named by `assertFields` over it.
+      const played = await playPiped(fixture)
+      const keys = Object.keys(played.json ?? {})
+      assert.deepEqual(keys, Object.keys(golden?.json ?? {}), `${id}: one results file per run`)
+      assert.equal(keys.length, 2, `${id}: two runs`)
+      for (const key of keys) {
+        const ours = asResults(played.json?.[key], `${id} replay ${key}`)
+        assert.ok(ours.testResults.length > 0, `${key}: no test file`)
+        assertFields(key, ours, asResults(golden?.json?.[key], `${id} golden ${key}`))
       }
-      const lines = fixture.golden.observed?.transcript ?? ''
-      assert.equal(lines.split('\n').filter((line) => line === 'onRunComplete').length, 2)
-      assert.equal(
-        lines.split('\n').filter((line) => line.startsWith('Test results written to')).length,
-        2,
-      )
+      const lines = (played.transcript ?? '').split('\n')
+      assert.equal(lines.filter((line) => line === 'onRunComplete').length, 2)
+      assert.equal(lines.filter((line) => line.startsWith('Test results written to')).length, 2)
     })
   }
 })

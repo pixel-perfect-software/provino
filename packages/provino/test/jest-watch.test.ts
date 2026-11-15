@@ -7,8 +7,10 @@ import { describe, it } from 'node:test'
 import { loadFixture } from './recorded.ts'
 import { failing, jestConfigJson, makeProject, passing } from './support.ts'
 import {
+  endSession,
   FakeStdin,
   FakeTerminal,
+  guarded,
   playInProcess,
   playOnTerminal,
   prepare,
@@ -157,5 +159,64 @@ describe('provino jest --watchAll --json: the results file of each run (runJest.
 
   it('a run with a failing test has success false', async () => {
     assert.equal(await successOf(failing('adds')), false)
+  })
+})
+
+describe('a watch session is always ended and its project disposed of', () => {
+  const fake = (kill: () => Promise<void>): Parameters<typeof endSession>[0] =>
+    ({ kill, childPgid: 1, relayPgid: 2 }) as unknown as Parameters<typeof endSession>[0]
+
+  it('a kill that throws still disposes, and its error is the one thrown', async () => {
+    let disposed = false
+    await assert.rejects(
+      endSession(
+        fake(() => Promise.reject(new Error('kill failed'))),
+        async () => {
+          disposed = true
+        },
+        () => true,
+      ),
+      /kill failed/,
+    )
+    assert.equal(disposed, true)
+  })
+
+  it('a group left behind still disposes', async () => {
+    let disposed = false
+    await assert.rejects(
+      endSession(
+        fake(async () => undefined),
+        async () => {
+          disposed = true
+        },
+        (pgid) => pgid !== 2,
+      ),
+      /the relay group is gone/,
+    )
+    assert.equal(disposed, true)
+  })
+
+  it('the play’s error comes before the cleanup’s', async () => {
+    await assert.rejects(
+      guarded(
+        () => Promise.reject(new Error('the play failed')),
+        () => Promise.reject(new Error('the cleanup failed')),
+      ),
+      /the play failed/,
+    )
+    await assert.rejects(
+      guarded(
+        async () => 1,
+        () => Promise.reject(new Error('the cleanup failed')),
+      ),
+      /the cleanup failed/,
+    )
+    assert.equal(
+      await guarded(
+        async () => 7,
+        async () => undefined,
+      ),
+      7,
+    )
   })
 })

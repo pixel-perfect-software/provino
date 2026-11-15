@@ -19,11 +19,12 @@
 // run (the usage line), since the last key or change.
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { mkdir, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, realpath, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
+import { isCi } from '@provino/reporters'
 import { commitAll, git, gitEnv, initRepo } from './hermetic-git.ts'
 import type { Json } from './mask.ts'
 import { normalizedJson } from './mask.ts'
@@ -164,7 +165,7 @@ interface WatchManifest {
     readonly mask?: readonly string[]
   }
 }
-interface WatchObserved {
+export interface WatchObserved {
   readonly exitCode?: number | null
   readonly runs?: readonly unknown[]
   readonly transcript?: string
@@ -174,6 +175,8 @@ interface WatchObserved {
 /** The recorder's deadline for a whole session. */
 export const SESSION_MS = 120_000
 const POLL_MS = 25
+/** What Jest prints once per run, after it has written `--outputFile`. */
+const RESULTS_WRITTEN = 'Test results written to'
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -286,9 +289,11 @@ function runWaiter(options: {
   readonly interactive: boolean
   readonly mark: () => number
   readonly ended: () => boolean
+  /** When the whole session's budget ends (default: `SESSION_MS` from each wait). */
+  readonly until?: number
 }) {
   return async (count: number): Promise<void> => {
-    const deadline = Date.now() + SESSION_MS
+    const deadline = options.until ?? Date.now() + SESSION_MS
     for (;;) {
       const seen = completeLines(await readFile(options.runLog, 'utf8'))
       if (seen > count) {
@@ -557,8 +562,7 @@ async function skipReason(needTerminal: boolean): Promise<string | false> {
     }
   }
   const { watch } = await import('node:fs')
-  const dir = join(process.env.TMPDIR ?? '/tmp', `provino-watch-probe-${process.pid}`)
-  await mkdir(dir, { recursive: true })
+  const dir = await mkdtemp(join(tmpdir(), 'provino-watch-probe-'))
   const event = await new Promise<string | undefined>((resolve) => {
     const timer = setTimeout(() => resolve('fs.watch reported no event'), 5_000)
     try {
@@ -582,7 +586,7 @@ async function skipReason(needTerminal: boolean): Promise<string | false> {
   if (event !== undefined) reasons.push(event)
   if (reasons.length === 0) return false
   const reason = reasons.join('; ')
-  if (process.env.CI !== undefined && process.env.CI !== '') {
+  if (isCi(process.env)) {
     throw new Error(`${reason}, and in CI the terminal watch tests must run`)
   }
   return `${reason} (a sandbox): CI runs these`
@@ -604,6 +608,52 @@ function terminalEnv(root: string): NodeJS.ProcessEnv {
   return env
 }
 
+/**
+ * Ends a session whatever happened: kills it, checks that its two process groups are gone, and
+ * always disposes of the project. Every step runs; the first error is the one that is thrown.
+ */
+export async function endSession(
+  session: PtyProcess | undefined,
+  dispose: () => Promise<void>,
+  groupGone: (pgid: number) => boolean = (pgid) => !H.groupExists(pgid),
+): Promise<void> {
+  let failure: { readonly error: unknown } | undefined
+  const attempt = async (step: () => void | Promise<void>): Promise<void> => {
+    try {
+      await step()
+    } catch (error) {
+      failure ??= { error }
+    }
+  }
+  if (session !== undefined) {
+    await attempt(() => session.kill())
+    await attempt(() => {
+      assert.equal(groupGone(session.childPgid), true, 'the bin group is gone')
+      assert.equal(groupGone(session.relayPgid), true, 'the relay group is gone')
+    })
+  }
+  await attempt(dispose)
+  if (failure !== undefined) throw failure.error
+}
+
+/** Runs a play, then ends its session; the play's own error is thrown before the cleanup's. */
+export async function guarded<T>(play: () => Promise<T>, end: () => Promise<void>): Promise<T> {
+  let failure: { readonly error: unknown } | undefined
+  let value: T | undefined
+  try {
+    value = await play()
+  } catch (error) {
+    failure = { error }
+  }
+  try {
+    await end()
+  } catch (error) {
+    failure ??= { error }
+  }
+  if (failure !== undefined) throw failure.error
+  return value as T
+}
+
 /** Plays a fixture against the bin on a terminal from the pty relay, with the real watcher. */
 export async function playOnTerminal(
   fixture: RecordedFixture,
@@ -612,69 +662,70 @@ export async function playOnTerminal(
   const { manifest, project, root, configFile, runLog } = await prepare(fixture, options)
   const deadline = AbortSignal.timeout(SESSION_MS)
   let pty: PtyProcess | undefined
-  try {
-    pty = await H.spawnPty(
-      [
-        process.execPath,
-        '--conditions=provino-source',
-        CLI,
-        'jest',
-        '--config',
-        configFile,
-        ...manifest.watch.argv,
-      ],
-      { cwd: root, env: terminalEnv(root), deadline },
-    )
-    const live = pty
-    let ended = false
-    void live.exit.then(
-      () => {
-        ended = true
-      },
-      () => {
-        ended = true
-      },
-    )
-    let mark = 0
-    const session: Session = {
-      write: (text) => {
-        mark = live.output().length
-        live.write(text)
-      },
-      output: live.output,
-      waitFor: live.waitFor.bind(live),
-      exit: live.exit,
-    }
-    const result = await H.runWatchSteps(manifest.watch.steps, {
-      session,
-      captureFile: NO_CAPTURE,
-      waitRuns: runWaiter({
-        runLog,
+  await guarded(
+    async () => {
+      pty = await H.spawnPty(
+        [
+          process.execPath,
+          '--conditions=provino-source',
+          CLI,
+          'jest',
+          '--config',
+          configFile,
+          ...manifest.watch.argv,
+        ],
+        { cwd: root, env: terminalEnv(root), deadline },
+      )
+      const live = pty
+      let ended = false
+      void live.exit.then(
+        () => {
+          ended = true
+        },
+        () => {
+          ended = true
+        },
+      )
+      let mark = 0
+      const session: Session = {
+        write: (text) => {
+          mark = live.output().length
+          live.write(text)
+        },
+        output: live.output,
+        waitFor: live.waitFor.bind(live),
+        exit: live.exit,
+      }
+      const result = await H.runWatchSteps(manifest.watch.steps, {
         session,
-        interactive: true,
-        mark: () => mark,
-        ended: () => ended,
-      }),
-      change: async (step) => {
-        mark = live.output().length
-        await applyStep(root, step)
-      },
-    })
-    assertObserved(
-      await observe(manifest, root, runLog, live.output(), result.exit?.exitCode),
-      fixture,
-    )
-  } finally {
-    await pty?.kill()
-    if (pty !== undefined) {
-      assert.equal(H.groupExists(pty.childPgid), false, 'the bin group is gone')
-      assert.equal(H.groupExists(pty.relayPgid), false, 'the relay group is gone')
-    }
-    await project.dispose()
-  }
+        captureFile: NO_CAPTURE,
+        waitRuns: runWaiter({
+          runLog,
+          session,
+          interactive: true,
+          mark: () => mark,
+          ended: () => ended,
+        }),
+        change: async (step) => {
+          mark = live.output().length
+          await applyStep(root, step)
+        },
+      })
+      assertObserved(
+        await observe(manifest, root, runLog, live.output(), result.exit?.exitCode),
+        fixture,
+      )
+    },
+    () => endSession(pty, () => project.dispose()),
+  )
 }
 
-/** The environment of an editor's child: the recorder's `watchEnv`, with the fixture's own `env`. */
+/**
+ * The environment of an editor's child as the recorder gives it (`record.ts`: the base, the
+ * fixture's `env` with each `null` removed, then `watchEnv`): not a CI run, a terminal type that is
+ * not `dumb`, and `FORCE_COLOR=0`. Jest's chalk lets that variable override the `--colors` the
+ * fixture's argv passes (supports-color 7.2.0, index.js L21-L29, L45), so both runners are plain.
+ */
 function pipedEnv(
   root: string,
   manifest: WatchManifest & RecordedFixture['manifest'],
@@ -684,8 +735,6 @@ function pipedEnv(
     if (value === null) delete env[name]
     else env[name] = value
   }
-  // `watchEnv` over the fixture's: not a CI run, a terminal type that is not `dumb`, no colour
-  // from `FORCE_COLOR` (chalk 4 reads it, and `--colors` is the editor's own).
   env.CI = 'false'
   env.FORCE_COLOR = '0'
   return env
@@ -694,103 +743,91 @@ function pipedEnv(
 /**
  * Plays a `tty: false` fixture against the bin on a pipe in a process group of its own, with the
  * real watcher: an editor's child. An exact session is given the fixture's `argv` as it is, with
- * the run log's reporter added on the command line, as the recorder adds it; a `captureFile` step
- * reads the results file once the run has written it (the reporters finish before Jest writes the
- * file, so the wait is for `Test results written to`, once per run).
+ * the run log's reporter added on the command line, as the recorder adds it. A `captureFile` step
+ * reads the results file once Jest has said it wrote it (the reporters finish before Jest writes
+ * the file): the n-th `Test results written to` line for the n-th capture. The whole session has
+ * one budget, `SESSION_MS`, which ends in an ordinary error with the output's tail.
  */
 export async function playPiped(
   fixture: RecordedFixture,
   options: PlayOptions = {},
-): Promise<void> {
+): Promise<WatchObserved> {
   const { manifest, project, root, configFile, runLog } = await prepare(fixture, options)
   const exact = manifest.watch.exact === true
   assert.equal(manifest.watch.tty, false, 'playPiped plays a fixture with tty: false')
   const deadline = AbortSignal.timeout(SESSION_MS)
+  const until = Date.now() + SESSION_MS
   let pty: PtyProcess | undefined
-  try {
-    pty = await H.spawnPiped(
-      [
-        process.execPath,
-        '--conditions=provino-source',
-        CLI,
-        'jest',
-        ...(exact ? [] : ['--config', configFile]),
-        ...manifest.watch.argv,
-        ...(exact ? ['--reporters', WATCH_LOG_REPORTER] : []),
-      ],
-      { cwd: root, env: { ...pipedEnv(root, manifest), PROVINO_WATCH_LOG: runLog }, deadline },
-    )
-    const live = pty
-    let ended = false
-    void live.exit.then(
-      () => {
-        ended = true
-      },
-      () => {
-        ended = true
-      },
-    )
-    const session: Session = {
-      write: (text) => live.write(text),
-      output: live.output,
-      waitFor: live.waitFor.bind(live),
-      exit: live.exit,
-    }
-    const runs = runWaiter({
-      runLog,
-      session,
-      interactive: false,
-      mark: () => 0,
-      ended: () => ended,
-    })
-    const written = (): number => live.output().split('Test results written to').length - 1
-    const captures: Capture[] = []
-    const result = await H.runWatchSteps(manifest.watch.steps, {
-      session,
-      captureFile: async (file) => {
-        const until = Date.now() + SESSION_MS
-        for (;;) {
-          try {
-            const text = await readFile(join(root, file), 'utf8')
-            JSON.parse(text)
-            const same = captures.filter((entry) => entry.file === file)
-            if (same.length < written() && text !== same.at(-1)?.text) {
-              captures.push({ file, text })
-              return
+  return guarded(
+    async () => {
+      pty = await H.spawnPiped(
+        [
+          process.execPath,
+          '--conditions=provino-source',
+          CLI,
+          'jest',
+          ...(exact ? [] : ['--config', configFile]),
+          ...manifest.watch.argv,
+          ...(exact ? ['--reporters', WATCH_LOG_REPORTER] : []),
+        ],
+        { cwd: root, env: { ...pipedEnv(root, manifest), PROVINO_WATCH_LOG: runLog }, deadline },
+      )
+      const live = pty
+      let ended = false
+      void live.exit.then(
+        () => {
+          ended = true
+        },
+        () => {
+          ended = true
+        },
+      )
+      const session: Session = {
+        write: (text) => live.write(text),
+        output: live.output,
+        waitFor: live.waitFor.bind(live),
+        exit: live.exit,
+      }
+      const runs = runWaiter({
+        runLog,
+        session,
+        interactive: false,
+        mark: () => 0,
+        ended: () => ended,
+        until,
+      })
+      const written = (): number => live.output().split(RESULTS_WRITTEN).length - 1
+      const captures: Capture[] = []
+      const result = await H.runWatchSteps(manifest.watch.steps, {
+        session,
+        captureFile: async (file) => {
+          const nth = captures.length + 1
+          while (written() < nth) {
+            if (ended || Date.now() > until) {
+              throw new Error(
+                `${ended ? 'the session ended' : 'the session budget ended'} before Jest wrote results file ${nth} (${file}). Output tail:\n${live.output().slice(-2000)}`,
+              )
             }
-          } catch {
-            // Not written yet, or half written: look again.
+            await sleep(POLL_MS)
           }
-          if (ended || Date.now() > until) {
-            throw new Error(
-              `${file} was never written. Output tail:\n${live.output().slice(-2000)}`,
-            )
-          }
-          await sleep(POLL_MS)
-        }
-      },
-      waitRuns: async (count) => {
-        await runs(count)
-        // The run log is written by a reporter before Jest writes the results file.
-        for (; exact && written() < count; ) {
-          if (ended) throw new Error('the session ended before the results file was written')
-          await sleep(POLL_MS)
-        }
-      },
-      change: async (step) => {
-        await applyStep(root, step)
-      },
-    })
-    assertObserved(
-      await observe(manifest, root, runLog, live.output(), result.exit?.exitCode, captures),
-      fixture,
-    )
-  } finally {
-    await pty?.kill()
-    if (pty !== undefined) {
-      assert.equal(H.groupExists(pty.childPgid), false, 'the bin group is gone')
-      assert.equal(H.groupExists(pty.relayPgid), false, 'the relay group is gone')
-    }
-    await project.dispose()
-  }
+          captures.push({ file, text: await readFile(join(root, file), 'utf8') })
+        },
+        waitRuns: runs,
+        change: async (step) => {
+          await applyStep(root, step)
+        },
+      })
+      const observed = await observe(
+        manifest,
+        root,
+        runLog,
+        live.output(),
+        result.exit?.exitCode,
+        captures,
+      )
+      assertObserved(observed, fixture)
+      return observed
+    },
+    () => endSession(pty, () => project.dispose()),
+  )
 }

@@ -1237,7 +1237,9 @@ function parseWatch(
       runs = step.waitRun
     }
     if ('captureFile' in step && runs === 0) {
-      throw bad(`step ${index} is "captureFile" before any "waitRun": no run has written a file yet`)
+      throw bad(
+        `step ${index} is "captureFile" before any "waitRun": no run has written a file yet`,
+      )
     }
     if ('captureFile' in step && exact !== true) {
       throw bad(
