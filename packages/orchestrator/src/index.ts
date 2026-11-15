@@ -7,10 +7,13 @@ export {
 } from './affected/index.ts'
 export { openRecordedGraph, type RecordedGraph } from './affected/recorded.ts'
 export {
+  type AffectedLookup,
+  type AffectedLookupOptions,
   type AffectedMember,
   findChangedFiles,
   hasScm,
   keepFailed,
+  lookupAffected,
   selectAffected,
 } from './affected/select.ts'
 export {
