@@ -257,6 +257,8 @@ for (const kind of ['forks', 'inline'] as const) {
 }
 
 describe('a watch session over forks', () => {
+  // The neutral `orchestrator.watch.interruptedFiles: 'report'`: the killed file is reported failed.
+  // (Jest's `drop` is held by `provino`'s `jest-watch.test.ts`, `watch/key-during-run`.)
   it('an interrupt ends the run as interrupted, charges the running file, and the next run is clean', async () => {
     const { reports } = await session(
       'forks',

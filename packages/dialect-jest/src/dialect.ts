@@ -325,7 +325,8 @@ export const jestPolicy: PolicyOverrides = {
     // research: track-01 L226, track-09 L561
     watchDefault: 'never',
     // research: track-09 L560 (`all` with `--watchAll`)
-    watch: { initialRun: 'changed' },
+    // `interruptedFiles`: TestScheduler.ts L138-L141 and L184-L187 drop a result once the watcher is interrupted.
+    watch: { initialRun: 'changed', interruptedFiles: 'drop' },
     // jest-changed-files rebuilt; `provino`'s jest-changed.test.ts holds it to every `changed/*` golden.
     changedFiles: moduleRef<ChangedFilesProvider>(
       import.meta.resolve('@provino/dialect-jest/affected'),
