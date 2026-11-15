@@ -12,6 +12,7 @@ import { WATCH_LOG_ENV } from '../reporters/jest-watch-log.ts'
 import {
   parseRunLog,
   recordWatchSession,
+  recordWatchSessionExit,
   WATCH_DONE_PLUGIN_PATH,
   WATCH_LOG_REPORTER_PATH,
   type WatchRecordOptions,
@@ -26,6 +27,8 @@ import {
 function fakeSpawn(
   options: {
     startRuns?: number
+    /** The exit code `q` ends the session with (default 0). */
+    quitCode?: number
     done?: boolean
     onWrite?: (text: string) => void
     /** What `kill()` throws, after it has ended the session (a group left behind). */
@@ -59,7 +62,7 @@ function fakeSpawn(
         options.onWrite?.(text)
         if (text === 'q') {
           output += '\r\n'
-          end({ exitCode: 0, killed: false })
+          end({ exitCode: options.quitCode ?? 0, killed: false })
         }
       },
       output: () => output,
@@ -414,5 +417,49 @@ test('a session that ended on its own just before the deadline is reported as an
         error.code === 'HARNESS_WATCH_FAILED' &&
         /the session ended with 1 of 2 runs/.test(error.message),
     )
+  })
+})
+
+test('a line that lands between the two log reads is judged on a pair the session could have held', async () => {
+  await withWorkDir(async (dir) => {
+    const runLog = path.join(dir, 'runs.jsonl')
+    const doneLog = path.join(dir, 'done.txt')
+    const { spawn } = fakeSpawn()
+    let reads = 0
+    // Run 2 (a real run no step waited for) lands right after the first read of the wait.
+    const read = async (file: string): Promise<string | null> => {
+      const text = await readFile(file, 'utf8').catch(() => null)
+      reads += 1
+      if (reads === 1) {
+        appendFileSync(runLog, `${JSON.stringify({ files: [], wasInterrupted: false })}\n`)
+        appendFileSync(doneLog, 'done\n')
+      }
+      return text
+    }
+    await assert.rejects(
+      recordWatchSession({ ...optionsFor(dir, QUIT, spawn), read }),
+      (error: unknown) => {
+        assert.ok(error instanceof HarnessError)
+        assert.equal(error.code, 'HARNESS_WATCH_FAILED')
+        // Never "1 runs (2 done)": a done line follows its log line, so done is never above seen.
+        assert.match(error.message, /holds 2 runs \(1 done\)|holds 2 runs \(2 done\)/)
+        assert.match(error.message, /a run no step waited for/)
+        return true
+      },
+    )
+  })
+})
+
+test('the session exit is returned whether or not the fixture captures exitCode', async () => {
+  await withWorkDir(async (dir) => {
+    const { spawn } = fakeSpawn({ quitCode: 1 })
+    const watch: FixtureWatch = {
+      ...QUIT,
+      steps: [{ waitRun: 1 }, { key: 'q' }, { exit: 1 }],
+      capture: ['runs'],
+    }
+    const result = await recordWatchSessionExit(optionsFor(dir, watch, spawn))
+    assert.equal(result.observed.exitCode, undefined, 'not captured, so not observed')
+    assert.equal(result.exitCode, 1)
   })
 })

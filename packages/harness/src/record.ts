@@ -56,7 +56,7 @@ import {
 import { hermeticGitEnv, initRepo, runScmSteps, withoutGitVariables } from './internal/scm.ts'
 import { assertTraceFromOneFile, readTrace } from './internal/trace.ts'
 import { isNodeModules, walkFiles } from './internal/walk.ts'
-import { recordWatchSession, watchJestConfig } from './internal/watch-record.ts'
+import { recordWatchSessionExit, watchJestConfig } from './internal/watch-record.ts'
 import {
   createWorkDirRegistry,
   REMOVE_TREE_OPTIONS,
@@ -594,7 +594,7 @@ async function runUnderRunner(
     // No `--ci`, `--json` or output file: a watch session is interactive, and its runs are in the
     // log. The manifest refused every flag that would change that.
     const normalizer = createNormalizer({ rootDir: paths.realWorkDir, extraRoots: [paths.workDir] })
-    const observed = await recordWatchSession({
+    const { observed, exitCode: sessionExit } = await recordWatchSessionExit({
       watch,
       argv: [
         process.execPath,
@@ -619,7 +619,8 @@ async function runUnderRunner(
       runnerVersion: install.version,
       suite: fixture.id,
       env: readRunEnvironment({ [runner]: install.version }),
-      success: observed.exitCode === undefined || observed.exitCode === 0,
+      // The real exit, not `observed.exitCode`, which is there only when the fixture captures it.
+      success: sessionExit === undefined || sessionExit === 0,
     }
     return { run, trace: [], observed }
   }
