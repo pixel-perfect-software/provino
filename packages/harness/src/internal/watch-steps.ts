@@ -41,10 +41,21 @@ export function keyBytes(key: string): string {
 }
 
 /**
+ * What a pattern prompt draws before the text typed into it: jest-watcher's `printPatternCaret`
+ * (`patternModeHelpers.ts` L12-21), which Jest's filename and test-name prompts and
+ * jest-watch-typeahead's both call on every key, with colour off as the recorder runs them.
+ */
+export const PATTERN_CARET = ' pattern \u203a '
+
+/**
  * Plays `steps` in order. A `waitText` looks only at output after the previous one's match, so a
  * text an earlier screen showed never satisfies a later step. `type` writes one character at a
- * time and waits for the terminal to show the text typed so far, so no two characters reach Jest
- * in one read. An `exit` step that sees another exit code is `HARNESS_WATCH_FAILED`.
+ * time and waits for the prompt line to show the text typed so far (`PATTERN_CARET` and the
+ * text), so no two characters, and no character and the key after it, reach Jest in one read: the
+ * prompt draws that line while it handles the character. The text alone is not that echo: the
+ * matches the prompt lists after its line hold it too (`foo` in ` › ./foo.test.ts`), and they can
+ * still be arriving when the next character is written. An `exit` step that sees another exit
+ * code is `HARNESS_WATCH_FAILED`.
  */
 export async function runWatchSteps(
   steps: readonly WatchStep[],
@@ -68,7 +79,7 @@ export async function runWatchSteps(
       for (let index = 0; index < chars.length; index += 1) {
         const from = session.output().length
         session.write(chars[index] ?? '')
-        mark = await session.waitFor(chars.slice(0, index + 1).join(''), from)
+        mark = await session.waitFor(`${PATTERN_CARET}${chars.slice(0, index + 1).join('')}`, from)
       }
     } else if ('scm' in step) {
       for (const inner of step.scm) await host.change(inner)

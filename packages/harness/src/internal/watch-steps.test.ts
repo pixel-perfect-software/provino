@@ -3,7 +3,7 @@ import { test } from 'node:test'
 import { HarnessError } from '../errors.ts'
 import type { ScmStep, WatchStep } from '../fixture.ts'
 import type { PtyExit, PtyMatch } from '../pty.ts'
-import { keyBytes, runWatchSteps, type WatchHost } from './watch-steps.ts'
+import { keyBytes, PATTERN_CARET, runWatchSteps, type WatchHost } from './watch-steps.ts'
 
 /**
  * A terminal that answers each write from a script, at once: no process and no clock. `respond`
@@ -95,7 +95,7 @@ test('a waitText after a key looks only at what the key drew', async () => {
   ])
 })
 
-test('type writes one character at a time and waits for the text so far after each', async () => {
+test('type writes one character at a time and waits for the prompt line of the text so far', async () => {
   let shown = ''
   const session = new FakeSession((written) => {
     shown += written
@@ -105,13 +105,38 @@ test('type writes one character at a time and waits for the text so far after ea
   assert.deepEqual(session.writes, ['f', 'o', 'o', '\r'])
   assert.deepEqual(
     session.waits.map((wait) => wait.match),
-    ['f', 'fo', 'foo'],
+    [' pattern › f', ' pattern › fo', ' pattern › foo'],
   )
   // Each wait looks only at what came after its own write.
   assert.deepEqual(
     session.waits.map((wait) => wait.from),
     [0, ' pattern › f'.length + 4, (' pattern › f'.length + 4) * 2 + 1],
   )
+})
+
+test('the caret is the one jest-watcher draws, colour off', () => {
+  assert.equal(PATTERN_CARET, ' pattern \u203a ')
+})
+
+test('a match list that holds the text is not the echo: the next key waits for the prompt line', async () => {
+  // watch/plugin-typeahead-filename, 2026-11-14: `f` drew its prompt line, and the list under it
+  // (` › ./foo.test.ts`) was still arriving when `o` was written. The list holds `fo` and `foo`,
+  // so both `o`s and the Enter went out before Jest read the first `o`, and Jest read `o\r` as
+  // one key: the pattern became `foo\r`, matched no file, and run 2 never started.
+  const shown: string[] = []
+  const session = new FakeSession((written) => {
+    shown.push(written)
+    // `f` is handled at once; what comes back for the first `o` is the rest of `f`'s screen.
+    if (shown.length === 1) return `\u001b[J pattern › f\u001b[s\r\n\r\n Pattern matches 2 files`
+    if (shown.length === 2) return '\r\n › ./bar.test.ts\r\n › ./foo.test.ts'
+    return ''
+  })
+  await assert.rejects(
+    runWatchSteps([{ type: 'foo' }, { key: '<enter>' }], hostOf(session)),
+    (error: unknown) => error instanceof HarnessError && error.code === 'HARNESS_WATCH_FAILED',
+  )
+  // Nothing after the first `o` until the prompt shows `fo`: the second `o` and the Enter wait.
+  assert.deepEqual(session.writes, ['f', 'o'])
 })
 
 test('a character the terminal never shows fails the step instead of racing ahead', async () => {

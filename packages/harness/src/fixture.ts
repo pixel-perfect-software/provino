@@ -170,7 +170,8 @@ export const WATCH_KEYS: Readonly<Record<string, string>> = {
  *   last one, so it reads keys again);
  * - `waitText`: the terminal shows this text after everything an earlier step waited for;
  * - `key`: one key (`WATCH_KEYS`, or one printable character);
- * - `type`: text, one character per write, each written once the terminal shows the text so far;
+ * - `type`: text typed into a pattern prompt, one character per write, each written once the
+ *   prompt line shows the text so far (` pattern › ` and the text);
  * - `write`, `remove`, `scm`: a change to the work directory, as a fixture's `scm` steps make it;
  * - `exit`: the session ends with this exit code (the last step).
  * @public
