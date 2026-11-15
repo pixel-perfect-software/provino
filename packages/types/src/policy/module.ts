@@ -139,6 +139,7 @@ export interface ModulePolicy {
    * `window`, …) is, with the modules that load did, loaded through each later file's registry
    * (inlined), so its top-level code binds that file's globals. What a worker learns is kept in the
    * results cache. When `false`, every such package stays shared, loaded natively once per worker.
+   * A no-op under isolation `none`, where no file is evaluated again by design.
    *
    * Jest: `true`, as jest-runtime evaluates node_modules again in every test file's registry;
    * recorded by `ecosystem/rtl-cleanup` and `ecosystem/jest-canvas-mock` (Jest 30.5.2). Vitest:

@@ -486,11 +486,11 @@ export interface Loader extends Disposable {
 /**
  * Watches one shared external's first native load (D127): called with its path as the load starts,
  * it returns the call that ends the watch, which says whether the load read a per-file global (a
- * test global or one the file's environment installed). The end call is made whether or not the
- * load threw.
+ * test global or one the file's environment installed), or `null` when it does not watch this load
+ * (no file is running). The end call is made whether or not the load threw.
  * @public
  */
-export type ExternalLoadWatcher = (path: string) => () => boolean
+export type ExternalLoadWatcher = (path: string) => (() => boolean) | null
 
 /**
  * The signature of `createLoader` in `@provino/loader`.

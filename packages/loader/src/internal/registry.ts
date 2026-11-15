@@ -168,9 +168,21 @@ export class Registry {
    */
   readonly #dynamicLoads = new Map<ModuleId, Set<ModuleId>>()
 
-  constructor(state: Records, base: Map<ModuleId, Instance> = new Map()) {
+  /**
+   * Whether the registry outlives its files (isolation `none`): it keeps every module it evaluated,
+   * so `reevaluateHookingExternals` neither watches nor inlines for it (D127). Each file is not
+   * evaluated again under `none` by design, so neither is an external.
+   */
+  readonly sharedAcrossFiles: boolean
+
+  constructor(
+    state: Records,
+    base: Map<ModuleId, Instance> = new Map(),
+    sharedAcrossFiles = false,
+  ) {
     this.#state = state
     this.#maps = [base]
+    this.sharedAcrossFiles = sharedAcrossFiles
   }
 
   get #instances(): Map<ModuleId, Instance> {
@@ -535,7 +547,10 @@ export class Registry {
     const state = this.#state
     const policy = state.options.policy
     const path = target.path
-    const again = policy.reevaluateHookingExternals && state.reevaluate.active.has(path)
+    const again =
+      policy.reevaluateHookingExternals &&
+      !this.sharedAcrossFiles &&
+      state.reevaluate.active.has(path)
     const served = state.options.moduleScope?.modules ?? []
     const mocks = runner || !policy.mocksReachShared ? null : this.context.mocks
     if (!again && served.length === 0 && mocks === null) return target
@@ -590,15 +605,16 @@ export class Registry {
     }
     // The external's first native load in this worker: a window the worker may watch (D127).
     const load = (): unknown => createRequire(target.path)(key)
-    const value: unknown = state.options.policy.reevaluateHookingExternals
-      ? watchedLoad(
-          state.reevaluate,
-          target.path,
-          load,
-          (file) => isEvaluableExternal(file, state.options.inline ?? []),
-          (file) => packageClosure(state.inline, state.options, file),
-        )
-      : load()
+    const value: unknown =
+      state.options.policy.reevaluateHookingExternals && !this.sharedAcrossFiles
+        ? watchedLoad(
+            state.reevaluate,
+            target.path,
+            load,
+            (file) => isEvaluableExternal(file, state.options.inline ?? []),
+            (file) => packageClosure(state.inline, state.options, file),
+          )
+        : load()
     state.required.set(key, value)
     return value
   }

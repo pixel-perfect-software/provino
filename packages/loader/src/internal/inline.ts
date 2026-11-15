@@ -9,12 +9,14 @@
 // it as they were written, with the specifier as written and the resolved id. It has no side effect
 // that matters here: `decide` remembers a specifier for an id and, under automock-all, a deep
 // unmock's imports, each of which the real edge would do on its own a moment later.
+import { readFileSync } from 'node:fs'
 import type { LoaderOptions, LoaderWarning, ModuleId, ModuleMockRegistry } from '@provino/types'
 import { conditionsOf } from '../graph/conditions.ts'
 import {
   buildThirdPartyGraph,
   type GraphEdge,
   inGraph,
+  scanSource,
   type ThirdPartyGraph,
 } from '../graph/index.ts'
 
@@ -223,6 +225,14 @@ export function mockedReach(
  * may refuse to load outside its runner), so it is inlined, and its edge gets the served module, as
  * a user file's does. Kept per worker; a negative verdict holds for every node_modules file the
  * walk covered.
+ *
+ * The external's own file is read first: one whose text names a served module and whose scan has
+ * the request is inlined without building its closure. Only otherwise is the closure walked (on a
+ * cold graph, about 0.15 s for jsdom's closure, `local`; read from the graph cache on later runs).
+ *
+ * Limit: a request the scan can't read (a computed `require(name)` or `import(name)`, the closure's
+ * `dynamic` flag) is not seen, so a package that reaches a served module only that way stays shared
+ * and meets the real module.
  */
 export function servedReach(
   state: InlineState,
@@ -233,6 +243,10 @@ export function servedReach(
 ): boolean {
   const known = state.served.get(path)
   if (known !== undefined) return known
+  if (requestsDirectly(path, served)) {
+    state.served.set(path, true)
+    return true
+  }
   const takes = (edge: GraphEdge): string | null =>
     served.includes(edge.specifier) ? edge.specifier : null
   const { found, done } = walkClosure(state, options, path, takes, userEdges)
@@ -242,6 +256,18 @@ export function servedReach(
   }
   for (const member of done) if (inGraph(member)) state.served.set(member, false)
   return false
+}
+
+/** Whether the file at `path` itself requests one of `served`: a text test, then the scan. */
+function requestsDirectly(path: string, served: readonly string[]): boolean {
+  let source: string
+  try {
+    source = readFileSync(path, 'utf8')
+  } catch {
+    return false
+  }
+  if (!served.some((specifier) => source.includes(specifier))) return false
+  return scanSource(source).edges.some((edge) => served.includes(edge.specifier))
 }
 
 /**

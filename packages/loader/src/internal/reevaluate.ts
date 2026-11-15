@@ -34,7 +34,12 @@ const nativeCache: NodeJS.Require['cache'] = createRequire(import.meta.url).cach
  * of its own package its static closure reaches (`ownPackage`: an ES module a `require(esm)`
  * evaluated is not in Node's cache) and every file the load added to Node's cache are learned,
  * each that `keep` accepts (a node_modules file the loader could evaluate itself), active from the
- * next file on. A load that throws learns nothing.
+ * next file on. A load that throws after such a read is learned too: the next file evaluates it
+ * (and meets its error) through its registry, as Jest's would, instead of watching it again.
+ *
+ * Every window a watcher opened is closed, whatever throws: a watcher that throws as it opens (the
+ * load is then not run, and its error is thrown), the load, or another window's end (each end is
+ * called; the first end's error is thrown after the load's result is known, unless the load threw).
  */
 export function watchedLoad<T>(
   state: ReevaluateState,
@@ -44,20 +49,35 @@ export function watchedLoad<T>(
   ownPackage: (file: string) => readonly string[],
 ): T {
   if (state.watching || state.watchers.size === 0 || state.active.has(path)) return load()
-  const before = Object.keys(nativeCache)
-  const ends = [...state.watchers].map((watcher) => watcher(path))
+  const ends: (() => boolean)[] = []
+  /** Node's cache before the load: read only once a window is open, as only then can it learn. */
+  let before: readonly string[] | undefined
+  let loadFailed = false
   state.watching = true
-  let loaded = false
   try {
-    const value = load()
-    loaded = true
-    return value
+    for (const watcher of state.watchers) {
+      const end = watcher(path)
+      if (end !== null) ends.push(end)
+    }
+    if (ends.length > 0) before = Object.keys(nativeCache)
+    try {
+      return load()
+    } catch (error) {
+      loadFailed = true
+      throw error
+    }
   } finally {
     state.watching = false
     let perFile = false
-    // Every watcher's window is closed, whatever an earlier one answered.
-    for (const end of ends) if (end()) perFile = true
-    if (loaded && perFile) {
+    let failure: { readonly error: unknown } | undefined
+    for (const end of ends) {
+      try {
+        if (end()) perFile = true
+      } catch (error) {
+        failure ??= { error }
+      }
+    }
+    if (perFile && before !== undefined) {
       const known = new Set(before)
       state.pending.add(path)
       for (const file of ownPackage(path)) if (keep(file)) state.pending.add(file)
@@ -65,6 +85,8 @@ export function watchedLoad<T>(
         if (!known.has(file) && keep(file)) state.pending.add(file)
       }
     }
+    // biome-ignore lint/correctness/noUnsafeFinally: an end that threw must not pass silently.
+    if (failure !== undefined && !loadFailed) throw failure.error
   }
 }
 

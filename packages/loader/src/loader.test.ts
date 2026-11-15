@@ -926,7 +926,7 @@ const PER_FILE = ['afterEach', 'expect', 'document'] as const
  * A watcher like the worker's: during an external's first native load it turns each per-file
  * global into a getter that notes the read, and puts the global back when the window closes.
  */
-function probe(watched: string[]): (path: string) => () => boolean {
+function probe(watched: string[]): (path: string) => (() => boolean) | null {
   return (path) => {
     watched.push(path)
     let read = false
@@ -1103,6 +1103,136 @@ test('reevaluateHookingExternals off (neutral): nothing is watched or inlined, e
     assert.equal(second.hooks.token, first.hooks.token)
     assert.equal(second.dom.token, first.dom.token)
   })
+})
+
+test('reevaluateHookingExternals: a watcher that throws as it opens still has the windows before it closed', async () => {
+  const root = writeTree(HOOKING)
+  const loader = loaderFor(root, { reevaluateHookingExternals: true, interopDefault: 'babel' })
+  loader.watchExternalLoads(probe([]))
+  loader.watchExternalLoads(() => {
+    throw new Error('watcher broke')
+  })
+  await withFileGlobals(async () => {
+    const before = Object.getOwnPropertyDescriptor(globalThis, 'afterEach')
+    await assert.rejects(
+      loader
+        .createFileRegistry(join(root, 'a.test.js'), { tier: 'registry' })
+        .import(join(root, 'a.test.js')),
+      /watcher broke/,
+    )
+    assert.deepEqual(
+      Object.getOwnPropertyDescriptor(globalThis, 'afterEach'),
+      before,
+      'the first watcher’s accessor is gone',
+    )
+  })
+})
+
+test('reevaluateHookingExternals: every window ends even when one end throws, and the load’s value stands learned', async () => {
+  const root = writeTree(HOOKING)
+  const loader = loaderFor(root, { reevaluateHookingExternals: true, interopDefault: 'babel' })
+  loader.watchExternalLoads(() => () => {
+    throw new Error('end broke')
+  })
+  loader.watchExternalLoads(probe([]))
+  await withFileGlobals(async () => {
+    const before = Object.getOwnPropertyDescriptor(globalThis, 'afterEach')
+    await assert.rejects(
+      loader
+        .createFileRegistry(join(root, 'a.test.js'), { tier: 'registry' })
+        .import(join(root, 'a.test.js')),
+      /end broke/,
+    )
+    assert.deepEqual(Object.getOwnPropertyDescriptor(globalThis, 'afterEach'), before)
+    assert.ok(
+      loader.reevaluatedExternals().some((path) => path.endsWith('hooks-ext/index.js')),
+      'the other watcher’s answer still counts',
+    )
+  })
+})
+
+test('reevaluateHookingExternals: a load that throws after a per-file read is learned, and is not watched again', async () => {
+  const root = writeTree({
+    'node_modules/throws-ext/package.json': JSON.stringify({
+      name: 'throws-ext',
+      main: 'index.js',
+    }),
+    'node_modules/throws-ext/index.js':
+      "afterEach(() => {})\nthrow new Error('throws-ext failed')\n",
+    'a.test.js': "require('throws-ext')\n",
+    'b.test.js': "require('throws-ext')\n",
+  })
+  const loader = loaderFor(root, { reevaluateHookingExternals: true, interopDefault: 'babel' })
+  const watched: string[] = []
+  loader.watchExternalLoads(probe(watched))
+  await withFileGlobals(async (globals) => {
+    const load = (name: string) =>
+      loader.createFileRegistry(join(root, name), { tier: 'registry' }).import(join(root, name))
+    await assert.rejects(load('a.test.js'), /throws-ext failed/)
+    assert.deepEqual(
+      loader.reevaluatedExternals().map((path) => path.slice(root.length + 1)),
+      ['node_modules/throws-ext/index.js'],
+    )
+    await assert.rejects(load('b.test.js'), /throws-ext failed/)
+    assert.equal(watched.length, 1, 'the second file evaluates it through its registry')
+    assert.equal(globals.hooks, 2)
+  })
+})
+
+test('reevaluateHookingExternals under isolation none: a no-op, as the shared registry keeps what it loaded', async () => {
+  const root = writeTree(HOOKING)
+  const loader = loaderFor(root, { reevaluateHookingExternals: true, interopDefault: 'babel' })
+  loader.watchExternalLoads(probe([]))
+  await withFileGlobals(async (globals) => {
+    const load = (name: string) =>
+      loader.createFileRegistry(join(root, name), { tier: 'none' }).import<Loaded>(join(root, name))
+    const first = await load('a.test.js')
+    const second = await load('b.test.js')
+    assert.equal(globals.hooks, 1, 'the hook is registered by the first file only')
+    assert.equal(second.hooks.token, first.hooks.token, 'hooks-ext stays the worker’s one copy')
+  })
+})
+
+test('a shared external that requests a served module itself is inlined without walking its closure', () => {
+  const root = writeTree({
+    'node_modules/@jest/globals/package.json': JSON.stringify({
+      name: '@jest/globals',
+      main: 'index.js',
+    }),
+    'node_modules/@jest/globals/index.js':
+      "require('./deep.js')\nthrow new Error('not outside Jest')\n",
+    'node_modules/@jest/globals/deep.js': 'module.exports = {}\n',
+    'node_modules/direct/package.json': JSON.stringify({ name: 'direct', main: 'index.js' }),
+    'node_modules/direct/index.js':
+      "module.exports = { served: require('@jest/globals').marker }\n",
+    'a.test.js': "module.exports = require('direct')\n",
+  })
+  const inner = createResolver({ root, mappers: [], extensions: ['.js'], tsconfig: false })
+  const asked: string[] = []
+  const resolver: Resolver = {
+    resolve: (specifier, context) => {
+      asked.push(specifier)
+      return inner.resolve(specifier, context)
+    },
+    invalidate: (paths) => {
+      inner.invalidate(paths)
+    },
+    fingerprint: inner.fingerprint,
+  }
+  const loader = loaderFor(
+    root,
+    { interopDefault: 'babel' },
+    { resolver, moduleScope: { names: [], modules: ['@jest/globals'] } },
+  )
+  const marker = {}
+  const loaded = loader
+    .createFileRegistry(join(root, 'a.test.js'), {
+      tier: 'registry',
+      moduleScope: () => ({ '@jest/globals': { marker } }),
+    })
+    .require<{ served: object }>(join(root, 'a.test.js'))
+  assert.equal(loaded.served, marker)
+  assert.ok(!asked.includes('./deep.js'), 'the real module’s closure was never scanned')
 })
 
 test('a shared external whose closure requires a served module is inlined, and its edge gets the served value', async () => {

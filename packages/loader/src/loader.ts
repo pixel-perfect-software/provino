@@ -45,7 +45,7 @@ export const createLoader: CreateLoader = (options) => {
   const state = createRecords(options)
   const conditions = conditionsOf(options)
   // The `none` tier: one instance map for every file in the worker.
-  const shared = new Registry(state)
+  const shared = new Registry(state, new Map(), true)
 
   function fileRegistry(testFile: string, registryOptions: FileRegistryOptions): FileRegistry {
     if (registryOptions.tier === 'realm') throw notYet('the realm tier', 'T2.8')
