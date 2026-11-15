@@ -1,0 +1,317 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ide/neotest-jest-test",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "PASS ./sum.test.ts\n    ○ skipped adds\n    ○ skipped fails\n    ○ skipped is skipped\n    ○ skipped is todo\n    ○ skipped each 1\n    ○ skipped each 3\n    ○ skipped matches a stored snapshot\n      ✓ handles (parens) and a-dash <masked>\n      ○ skipped fails inside\n        ○ skipped goes deep\n      ○ skipped has a number\n      ○ skipped has a number\nForce exiting Jest: Have you considered using `--detectOpenHandles` to detect async operations that kept running after all tests finished?",
+    "json": {
+      ".harness-out/neotest.json": {
+        "numFailedTestSuites": 0,
+        "numFailedTests": 0,
+        "numPassedTestSuites": 1,
+        "numPassedTests": 1,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 11,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 1,
+        "numTotalTests": 12,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": true,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum adds",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 4
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "adds",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum fails",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 7
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "fails",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum is skipped",
+                "invocations": 1,
+                "location": {
+                  "column": 6,
+                  "line": 10
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "is skipped",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum is todo",
+                "invocations": 1,
+                "location": {
+                  "column": 6,
+                  "line": 11
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "is todo",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum each 1",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 15
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "each 1",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum each 3",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 15
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "each 3",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum matches a stored snapshot",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 18
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "matches a stored snapshot",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum",
+                  "nested"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum nested handles (parens) and a-dash",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 22
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "handles (parens) and a-dash",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum",
+                  "nested"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum nested fails inside",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 25
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "fails inside",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum",
+                  "nested",
+                  "deeper"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum nested deeper goes deep",
+                "invocations": 1,
+                "location": {
+                  "column": 7,
+                  "line": 29
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "goes deep",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum",
+                  "group 1"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum group 1 has a number",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 35
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "has a number",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum",
+                  "group 2"
+                ],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum group 2 has a number",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 35
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "has a number",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/sum.test.ts",
+            "startTime": "<time>",
+            "status": "focused",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}
