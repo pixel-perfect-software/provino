@@ -2,8 +2,10 @@
 // recorded from Jest 30.5.2, played by `watch-goldens.ts` in this process and on a terminal. The
 // plugin, `u` and `i` goldens are `jest-watch-plugins.test.ts`'s.
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { describe, it } from 'node:test'
 import { loadFixture } from './recorded.ts'
+import { failing, jestConfigJson, makeProject, passing } from './support.ts'
 import {
   FakeStdin,
   FakeTerminal,
@@ -111,4 +113,49 @@ describe('provino jest --watch on a terminal, against the watch/* goldens of Jes
       await playOnTerminal(await loadFixture(`watch/${name}`))
     })
   }
+})
+
+describe('provino jest --watchAll --json: the results file of each run (runJest.ts)', () => {
+  /** Runs one watch run to its results file, then ends the session; the file's `success`. */
+  async function successOf(file: string): Promise<boolean> {
+    const project = await makeProject({
+      'jest.config.json': jestConfigJson(),
+      'tests/a.test.js': file,
+    })
+    try {
+      const terminal = new FakeTerminal(false)
+      const controller = new AbortController()
+      const out = project.path('out.json')
+      const result = runJestCommand(
+        ['--config', project.path('jest.config.json'), '--watchAll', '--json', '--outputFile', out],
+        {
+          stdout: terminal,
+          stderr: terminal,
+          cwd: project.dir,
+          env: { TERM: 'xterm-256color', NO_COLOR: '1' },
+          stdin: new FakeStdin(),
+          signal: controller.signal,
+          watchChanges: () => ({ close: () => undefined }),
+        },
+      )
+      const deadline = Date.now() + SESSION_MS
+      while (!terminal.text.includes('Test results written to')) {
+        assert.ok(Date.now() < deadline, `no results file. Output:\n${terminal.text}`)
+        await new Promise((resolve) => setTimeout(resolve, 25))
+      }
+      controller.abort()
+      await result
+      return (JSON.parse(await readFile(out, 'utf8')) as { success: boolean }).success
+    } finally {
+      await project.cleanup()
+    }
+  }
+
+  it('a run whose tests all pass has success true, as the same run without --watch does', async () => {
+    assert.equal(await successOf(passing('adds')), true)
+  })
+
+  it('a run with a failing test has success false', async () => {
+    assert.equal(await successOf(failing('adds')), false)
+  })
 })
