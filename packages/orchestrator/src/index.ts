@@ -12,6 +12,7 @@ export {
   hasScm,
   keepFailed,
   selectAffected,
+  sourcesRelatedToChangedTests,
 } from './affected/select.ts'
 export {
   cacheDirectories,

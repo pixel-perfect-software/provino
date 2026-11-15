@@ -16,6 +16,7 @@ import {
   projectCacheKey,
   selectAffected,
   selectFiles,
+  sourcesRelatedToChangedTests,
 } from '@provino/orchestrator'
 import type { AffectedSelection, FileFilter } from '@provino/types'
 
@@ -144,5 +145,47 @@ export function isScmCommandFailure(error: unknown): boolean {
   return (
     error instanceof Error &&
     (error as { readonly code?: unknown }).code === 'JEST_SCM_COMMAND_FAILED'
+  )
+}
+
+/**
+ * `-o` and coverage (`runJest.ts` L403-L421): the run counts only the changed files and the
+ * sources the changed test files import (`shouldInstrument` L111-L118). Each project's coverage
+ * config gets both lists, the related sources taken across every project's index as one set. Jest
+ * computes them on every `-o` run; they matter only when coverage is on, so nothing is built
+ * without it (speed, D115). Projects with no coverage config are returned as they are.
+ * @internal
+ */
+export async function withChangedCoverage(
+  projects: readonly ResolvedProject[],
+  selection: JestSelection,
+  cache: boolean,
+): Promise<readonly ResolvedProject[]> {
+  if (selection.selection?.kind !== 'changed') return projects
+  const { changedFiles } = selection.selection.changed
+  const related = new Set<string>()
+  for (const project of projects) {
+    if (project.config.coverage === undefined) continue
+    const sources = await sourcesRelatedToChangedTests(
+      { project, cacheProject: projectCacheKey(project) },
+      changedFiles,
+      cache ? cacheDirectories(project).results : null,
+    )
+    for (const source of sources) related.add(source)
+  }
+  return projects.map((project) =>
+    project.config.coverage === undefined
+      ? project
+      : {
+          ...project,
+          config: {
+            ...project.config,
+            coverage: {
+              ...project.config.coverage,
+              changedFiles,
+              sourcesRelatedToTestsInChangedFiles: [...related],
+            },
+          },
+        },
   )
 }

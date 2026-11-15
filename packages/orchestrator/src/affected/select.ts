@@ -84,6 +84,53 @@ export async function selectAffected(
 }
 
 /**
+ * The sources the changed test files import, as absolute paths: Jest's
+ * `findRelatedSourcesFromTestsInChangedFiles` (SearchSource L361-L379), the direct dependencies
+ * of each changed file that is a test file of the project. It builds the project's index as
+ * `selectAffected` does, so a run asks only when coverage needs it.
+ * @beta
+ */
+export async function sourcesRelatedToChangedTests(
+  member: AffectedMember,
+  changedFiles: readonly string[],
+  cacheDir: string | null,
+): Promise<readonly string[]> {
+  if (changedFiles.length === 0) return []
+  const { project } = member
+  const { createCoordinatorLoader } = await import('@provino/loader')
+  // No `using`: Node 22.15, the floor, cannot parse it.
+  const loader = await createCoordinatorLoader(
+    project.rootDir,
+    project.config.loader,
+    project.policy.module,
+  )
+  try {
+    const index = await createAffectedIndex(project, {
+      cacheDir,
+      projectKey: member.cacheProject,
+      loader,
+      ...(project.affected?.extractor === undefined
+        ? {}
+        : { projectExtractor: project.affected.extractor }),
+    })
+    const tests = new Set(index.files().tests)
+    const sources = new Set<string>()
+    for (const path of changedFiles) {
+      if (!tests.has(path)) continue
+      for (const source of index.sourcesOf(path)) sources.add(source)
+    }
+    try {
+      await index.save()
+    } catch {
+      // The cache is a convenience, as in `selectAffected`.
+    }
+    return [...sources]
+  } finally {
+    loader[Symbol.dispose]()
+  }
+}
+
+/**
  * Keeps the files that failed: `'history'` reads the results cache (`FileHistory.failed`, a file
  * whose last run ended `fail`, as Jest's `FAIL` entry: a skipped file is never recorded), a set
  * names absolute paths.

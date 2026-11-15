@@ -249,6 +249,13 @@ export interface SerializedCoverageConfig {
   readonly excludePatterns: readonly string[]
   /** Absolute paths to leave out (the config, setup and transform files). */
   readonly excludePaths: readonly string[]
+  /**
+   * Absolute: the files an `-o` run counts (Jest's `changedFiles` in `shouldInstrument`). Absent:
+   * no restriction. A file that is not here counts only when it is in the next list.
+   */
+  readonly changedFiles?: readonly string[]
+  /** Absolute: the sources the changed test files import, which count as well (Jest's `sourcesRelatedToTestsInChangedFiles`). */
+  readonly sourcesRelatedToTestsInChangedFiles?: readonly string[]
 }
 
 /**

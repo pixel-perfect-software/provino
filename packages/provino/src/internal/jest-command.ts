@@ -55,6 +55,7 @@ import {
   jestSelection,
   keepFailedFiles,
   selectProjectFiles,
+  withChangedCoverage,
 } from './jest-selection.ts'
 import { type DisplayOptions, outputFor, styleFor } from './reporters.ts'
 import {
@@ -588,6 +589,17 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       return ExitCode.TestFailure
     }
     const useCache = request.cache !== false && read.cache
+    if (
+      read.globalConfig.collectCoverage &&
+      !read.globalConfig.collectTests &&
+      request.mode === 'run'
+    ) {
+      projects.splice(
+        0,
+        projects.length,
+        ...(await withChangedCoverage(projects, fileSelection, useCache)),
+      )
+    }
     // runJest.ts L113-L119: each project left with no test under `-o` outside any repository says so.
     const announceNoScm = async (perProject: readonly (readonly unknown[])[]): Promise<void> => {
       if (!fileSelection.noScm) return
