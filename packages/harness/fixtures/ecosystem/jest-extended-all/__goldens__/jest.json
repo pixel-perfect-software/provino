@@ -1,0 +1,704 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ecosystem/jest-extended-all",
+  "files": [
+    {
+      "file": "calls.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "calls.test.ts",
+            "path": [
+              "calls",
+              "passes toThrowWithMessage and toHaveBeenCalledBefore"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 4,
+          "location": {
+            "line": 9,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "calls.test.ts",
+            "path": [
+              "calls",
+              "passes pass()"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 24,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "calls.test.ts",
+            "path": [
+              "calls",
+              "fails toHaveBeenCalledBefore"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toHaveBeenCalledBefore(expected)\n\nExpected first mock to have been called before, invocationCallOrder:\n  [4]\nReceived second mock with invocationCallOrder:\n  [3]",
+              "userFrame": "<root>/calls.test.ts:33:19"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 28,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "calls.test.ts",
+            "path": [
+              "calls",
+              "fails toThrowWithMessage"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(function).toThrowWithMessage(type, message)\n\nExpected to throw:\n  [ValidationError: bad input]\nThrown:\n  [ValidationError: other text]",
+              "userFrame": "<root>/calls.test.ts:39:8"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 36,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "calls.test.ts",
+            "path": [
+              "calls",
+              "fails fail()"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: told to fail",
+              "userFrame": "<root>/calls.test.ts:43:23"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 42,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "values.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "values",
+              "passes toBeOneOf, toIncludeSameMembers, toSatisfy and toContainEntry"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 7,
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "values",
+              "fails toBeOneOf"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toBeOneOf(expected)\n\nExpected value to be in list:\n  [1, 2, 3]\nReceived:\n  4",
+              "userFrame": "<root>/values.test.ts:13:15"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 12,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "values",
+              "fails toIncludeSameMembers"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toIncludeSameMembers(expected)\n\nExpected list to have the following members and no more:\n  [1, 2, 3]\nReceived:\n  [1, 2, 2]",
+              "userFrame": "<root>/values.test.ts:17:23"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 16,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "values",
+              "fails toSatisfy"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toSatisfy()\n\nExpected value to satisfy:\n  [Function isEven]\nReceived:\n  3",
+              "userFrame": "<root>/values.test.ts:21:15"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "values",
+              "fails toContainEntry"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toContainEntry(expected)\n\nExpected object to contain entry:\n  [\"a\", 2]\nReceived:\n  {\"a\": 1}",
+              "userFrame": "<root>/values.test.ts:27:22"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 26,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "values",
+              "fails .not.toBeOneOf"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).not.toBeOneOf(expected)\n\nExpected value to not be in list:\n  [1, 2]\nReceived:\n  1",
+              "userFrame": "<root>/values.test.ts:31:19"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 30,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "values.test.ts",
+            "path": [
+              "values",
+              "fails an asymmetric expect.toBeOneOf inside toEqual"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 1\n\n  Object {\n-   \"pick\": toBeOneOf<a,b>,\n+   \"pick\": \"c\",\n  }",
+              "matcher": "toEqual",
+              "userFrame": "<root>/values.test.ts:35:27"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 34,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./calls.test.ts\n  ● calls › fails toHaveBeenCalledBefore\n    expect(received).toHaveBeenCalledBefore(expected)\n    Expected first mock to have been called before, invocationCallOrder:\n      [4]\n    Received second mock with invocationCallOrder:\n      [3]\n  ● calls › fails toThrowWithMessage\n    expect(function).toThrowWithMessage(type, message)\n    Expected to throw:\n      [ValidationError: bad input]\n    Thrown:\n      [ValidationError: other text]\n  ● calls › fails fail()\n    told to fail\nFAIL ./values.test.ts\n  ● values › fails toBeOneOf\n    expect(received).toBeOneOf(expected)\n    Expected value to be in list:\n      [1, 2, 3]\n    Received:\n      4\n  ● values › fails toIncludeSameMembers\n    expect(received).toIncludeSameMembers(expected)\n    Expected list to have the following members and no more:\n      [1, 2, 3]\n    Received:\n      [1, 2, 2]\n  ● values › fails toSatisfy\n    expect(received).toSatisfy()\n    Expected value to satisfy:\n      [Function isEven]\n    Received:\n      3\n  ● values › fails toContainEntry\n    expect(received).toContainEntry(expected)\n    Expected object to contain entry:\n      [\"a\", 2]\n    Received:\n      {\"a\": 1}\n  ● values › fails .not.toBeOneOf\n    expect(received).not.toBeOneOf(expected)\n    Expected value to not be in list:\n      [1, 2]\n    Received:\n      1\n  ● values › fails an asymmetric expect.toBeOneOf inside toEqual\n    expect(received).toEqual(expected) // deep equality\n    - Expected  - 1\n    + Received  + 1\n      Object {\n    -   \"pick\": toBeOneOf<a,b>,\n    +   \"pick\": \"c\",\n      }\nTest Suites: 2 failed, 2 total\nTests:       9 failed, 3 passed, 12 total\nSnapshots:   0 total\nRan all test suites.\nTest results written to: .harness-out/jest.json",
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 2,
+        "numFailedTests": 9,
+        "numPassedTestSuites": 0,
+        "numPassedTests": 3,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 2,
+        "numTotalTests": 12,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [
+                  "calls"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "calls passes toThrowWithMessage and toHaveBeenCalledBefore",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 9
+                },
+                "numPassingAsserts": 4,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "passes toThrowWithMessage and toHaveBeenCalledBefore",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "calls"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "calls passes pass()",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 24
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "passes pass()",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "calls"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "expect(received).toHaveBeenCalledBefore(expected)\n\nExpected first mock to have been called before, invocationCallOrder:\n  [4]\nReceived second mock with invocationCallOrder:\n  [3]"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(received).toHaveBeenCalledBefore(expected)\n\nExpected first mock to have been called before, invocationCallOrder:\n  [4]\nReceived second mock with invocationCallOrder:\n  [3]\n<frames>"
+                ],
+                "fullName": "calls fails toHaveBeenCalledBefore",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 28
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fails toHaveBeenCalledBefore",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "calls"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "expect(function).toThrowWithMessage(type, message)\n\nExpected to throw:\n  [ValidationError: bad input]\nThrown:\n  [ValidationError: other text]\n"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(function).toThrowWithMessage(type, message)\n\nExpected to throw:\n  [ValidationError: bad input]\nThrown:\n  [ValidationError: other text]\n\n<frames>"
+                ],
+                "fullName": "calls fails toThrowWithMessage",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 36
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fails toThrowWithMessage",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "calls"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "told to fail"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: told to fail\n<frames>"
+                ],
+                "fullName": "calls fails fail()",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 42
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fails fail()",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● calls › fails toHaveBeenCalledBefore\n\n    expect(received).toHaveBeenCalledBefore(expected)\n\n    Expected first mock to have been called before, invocationCallOrder:\n      [4]\n    Received second mock with invocationCallOrder:\n      [3]\n\n      31 |     second()\n      32 |     first()\n    > 33 |     expect(first).toHaveBeenCalledBefore(second)\n         |                   ^\n      34 |   })\n      35 |\n      36 |   it('fails toThrowWithMessage', () => {\n\n<frames>\n\n  ● calls › fails toThrowWithMessage\n\n    expect(function).toThrowWithMessage(type, message)\n\n    Expected to throw:\n      [ValidationError: bad input]\n    Thrown:\n      [ValidationError: other text]\n\n      37 |     expect(() => {\n      38 |       throw new ValidationError('other text')\n    > 39 |     }).toThrowWithMessage(ValidationError, 'bad input')\n         |        ^\n      40 |   })\n      41 |\n      42 |   it('fails fail()', () => {\n\n<frames>\n\n  ● calls › fails fail()\n\n    told to fail\n\n      41 |\n      42 |   it('fails fail()', () => {\n    > 43 |     expect(undefined).fail('told to fail')\n         |                       ^\n      44 |   })\n      45 | })\n      46 |\n\n<frames>\n",
+            "name": "<root>/calls.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [
+                  "values"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "values passes toBeOneOf, toIncludeSameMembers, toSatisfy and toContainEntry",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 2
+                },
+                "numPassingAsserts": 7,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "passes toBeOneOf, toIncludeSameMembers, toSatisfy and toContainEntry",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "values"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "expect(received).toBeOneOf(expected)\n\nExpected value to be in list:\n  [1, 2, 3]\nReceived:\n  4"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(received).toBeOneOf(expected)\n\nExpected value to be in list:\n  [1, 2, 3]\nReceived:\n  4\n<frames>"
+                ],
+                "fullName": "values fails toBeOneOf",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 12
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fails toBeOneOf",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "values"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "expect(received).toIncludeSameMembers(expected)\n\nExpected list to have the following members and no more:\n  [1, 2, 3]\nReceived:\n  [1, 2, 2]"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(received).toIncludeSameMembers(expected)\n\nExpected list to have the following members and no more:\n  [1, 2, 3]\nReceived:\n  [1, 2, 2]\n<frames>"
+                ],
+                "fullName": "values fails toIncludeSameMembers",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 16
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fails toIncludeSameMembers",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "values"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "expect(received).toSatisfy()\n\nExpected value to satisfy:\n  [Function isEven]\nReceived:\n  3"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(received).toSatisfy()\n\nExpected value to satisfy:\n  [Function isEven]\nReceived:\n  3\n<frames>"
+                ],
+                "fullName": "values fails toSatisfy",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 20
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fails toSatisfy",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "values"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "expect(received).toContainEntry(expected)\n\nExpected object to contain entry:\n  [\"a\", 2]\nReceived:\n  {\"a\": 1}"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(received).toContainEntry(expected)\n\nExpected object to contain entry:\n  [\"a\", 2]\nReceived:\n  {\"a\": 1}\n<frames>"
+                ],
+                "fullName": "values fails toContainEntry",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 26
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fails toContainEntry",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "values"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": true,
+                      "message": "expect(received).not.toBeOneOf(expected)\n\nExpected value to not be in list:\n  [1, 2]\nReceived:\n  1"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(received).not.toBeOneOf(expected)\n\nExpected value to not be in list:\n  [1, 2]\nReceived:\n  1\n<frames>"
+                ],
+                "fullName": "values fails .not.toBeOneOf",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 30
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fails .not.toBeOneOf",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "values"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "actual": {
+                        "pick": "c"
+                      },
+                      "expected": {
+                        "pick": {
+                          "sample": [
+                            [
+                              "a",
+                              "b"
+                            ]
+                          ],
+                          "inverse": false
+                        }
+                      },
+                      "message": "expect(received).toEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 1\n\n  Object {\n-   \"pick\": toBeOneOf<a,b>,\n+   \"pick\": \"c\",\n  }",
+                      "name": "toEqual",
+                      "pass": false
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(received).toEqual(expected) // deep equality\n\n- Expected  - 1\n+ Received  + 1\n\n  Object {\n-   \"pick\": toBeOneOf<a,b>,\n+   \"pick\": \"c\",\n  }\n<frames>"
+                ],
+                "fullName": "values fails an asymmetric expect.toBeOneOf inside toEqual",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 34
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "fails an asymmetric expect.toBeOneOf inside toEqual",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● values › fails toBeOneOf\n\n    expect(received).toBeOneOf(expected)\n\n    Expected value to be in list:\n      [1, 2, 3]\n    Received:\n      4\n\n      11 |\n      12 |   it('fails toBeOneOf', () => {\n    > 13 |     expect(4).toBeOneOf([1, 2, 3])\n         |               ^\n      14 |   })\n      15 |\n      16 |   it('fails toIncludeSameMembers', () => {\n\n<frames>\n\n  ● values › fails toIncludeSameMembers\n\n    expect(received).toIncludeSameMembers(expected)\n\n    Expected list to have the following members and no more:\n      [1, 2, 3]\n    Received:\n      [1, 2, 2]\n\n      15 |\n      16 |   it('fails toIncludeSameMembers', () => {\n    > 17 |     expect([1, 2, 2]).toIncludeSameMembers([1, 2, 3])\n         |                       ^\n      18 |   })\n      19 |\n      20 |   it('fails toSatisfy', () => {\n\n<frames>\n\n  ● values › fails toSatisfy\n\n    expect(received).toSatisfy()\n\n    Expected value to satisfy:\n      [Function isEven]\n    Received:\n      3\n\n      19 |\n      20 |   it('fails toSatisfy', () => {\n    > 21 |     expect(3).toSatisfy(function isEven(n: number) {\n         |               ^\n      22 |       return n % 2 === 0\n      23 |     })\n      24 |   })\n\n<frames>\n\n  ● values › fails toContainEntry\n\n    expect(received).toContainEntry(expected)\n\n    Expected object to contain entry:\n      [\"a\", 2]\n    Received:\n      {\"a\": 1}\n\n      25 |\n      26 |   it('fails toContainEntry', () => {\n    > 27 |     expect({ a: 1 }).toContainEntry(['a', 2])\n         |                      ^\n      28 |   })\n      29 |\n      30 |   it('fails .not.toBeOneOf', () => {\n\n<frames>\n\n  ● values › fails .not.toBeOneOf\n\n    expect(received).not.toBeOneOf(expected)\n\n    Expected value to not be in list:\n      [1, 2]\n    Received:\n      1\n\n      29 |\n      30 |   it('fails .not.toBeOneOf', () => {\n    > 31 |     expect(1).not.toBeOneOf([1, 2])\n         |                   ^\n      32 |   })\n      33 |\n      34 |   it('fails an asymmetric expect.toBeOneOf inside toEqual', () => {\n\n<frames>\n\n  ● values › fails an asymmetric expect.toBeOneOf inside toEqual\n\n    expect(received).toEqual(expected) // deep equality\n\n    - Expected  - 1\n    + Received  + 1\n\n      Object {\n    -   \"pick\": toBeOneOf<a,b>,\n    +   \"pick\": \"c\",\n      }\n\n      33 |\n      34 |   it('fails an asymmetric expect.toBeOneOf inside toEqual', () => {\n    > 35 |     expect({ pick: 'c' }).toEqual({ pick: expect.toBeOneOf(['a', 'b']) })\n         |                           ^\n      36 |   })\n      37 | })\n      38 |\n\n<frames>\n",
+            "name": "<root>/values.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "description": "identity-obj-proxy 3 as a CSS module mapper (T11.11): `moduleNameMapper: { \"\\\\.css$\": \"identity-obj-proxy\" }`, on two files under one worker. `require('./a.css').foo` reads back `foo`, and under `jestEsm` `import styles from './a.css'` goes through Babel's interop over the proxy's `__esModule: false`, so the default import is the proxy itself and `styles.foo` is `foo` too, while a named import beside it reads `undefined` (`_interopRequireWildcard` copies the proxy's own keys, of which it has none). Read by `provino`'s `ecosystem-matchers.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "moduleNameMapper": { "\\.css$": "identity-obj-proxy" }
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^ {2,}(?!at )\\S|^(Test Suites|Tests|Snapshots):|^Ran all test suites|^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

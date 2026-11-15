@@ -1,0 +1,12 @@
+{
+  "description": "jest-when 4 (T11.11), on two files under one worker so the second file sees a package the worker loaded for the first. `when(fn).calledWith(1).mockReturnValue(…)`, `calledWith(expect.anything())`, the `mockImplementation` fallthrough, `resetAllWhenMocks`, a failing `verifyAllWhenMocksCalled()` whose count reads the module's registry of when-mocks, and a test under `expect.assertions(1)` that first loads jest-when: at load it runs `expect().__capture_equals__()`, then writes `assertionCalls = 0` on `$$jest-matchers-object`'s `state` and deletes the matcher from its `matchers`, so the count after that trick is pinned. Read by `provino`'s `ecosystem-matchers.test.ts`.",
+  "runners": ["jest"],
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^ {2,}(?!at )\\S|^(Test Suites|Tests|Snapshots):|^Ran all test suites|^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

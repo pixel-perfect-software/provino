@@ -1,0 +1,14 @@
+{
+  "description": "msw 3 from `msw/node` (T11.11), on two files under one worker, in the node environment: `setupServer(http.get('https://api.example.invalid/…', …))`, `listen({ onUnhandledRequest: 'error' })`, `server.use` with `resetHandlers` in `afterEach`, `close` in `afterAll`, and the global `fetch` intercepted. msw 3 ships ES modules only: the test files `import` it under `jestEsm` (Babel's CommonJS transform, which stands for the documented `@babel/preset-env` setup), and Node runs with `--experimental-vm-modules`, which Jest 30.5.2 needs for its native `require(esm)` (`vm.SourceTextModule`; without it every file fails with `Must use import to load ES Module`). No network. Read by `provino`'s `ecosystem-matchers.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "nodeFlags": ["--experimental-vm-modules"],
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^ {2,}(?!at )\\S|^(Test Suites|Tests|Snapshots):|^Ran all test suites|^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

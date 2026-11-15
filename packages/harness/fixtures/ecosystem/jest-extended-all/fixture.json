@@ -1,0 +1,17 @@
+{
+  "description": "jest-extended 7's whole set, loaded by `setupFilesAfterEnv: [\"jest-extended/all\"]` (T11.11), on two files under one worker so the second file sees a package the worker loaded for the first: passing and failing `toBeOneOf`, `toIncludeSameMembers`, `toSatisfy`, `toThrowWithMessage`, `toHaveBeenCalledBefore` (it reads `mock.invocationCallOrder`), `toContainEntry`, `pass` and `fail`, the asymmetric `expect.toBeOneOf`, and `.not`. Its matchers read `this.equals`, `this.utils` and `this.customTesters`. Read by `provino`'s `ecosystem-matchers.test.ts`.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "setupFilesAfterEnv": ["jest-extended/all"]
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^ {2,}(?!at )\\S|^(Test Suites|Tests|Snapshots):|^Ran all test suites|^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
