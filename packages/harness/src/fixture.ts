@@ -202,7 +202,9 @@ export type WatchStep =
  * `exact` (B23e Phase 4) gives Jest exactly `argv`, as `run.exact` does: no `--config`, `--ci` or
  * output file of the recorder's, the recorder's config is the project's `jest.config.json`, and
  * the recorder adds only a `--reporters` for its run log (the command line's own `--reporters`
- * would replace the config's). `timeKeys` and `maskKeys` are `run`'s, for `captureFile` steps.
+ * would replace the config's; so an exact session's own `argv` must name a `--reporters`, which the
+ * log reporter's own output never changes: it writes only its file, so no kept line differs).
+ * `timeKeys` and `maskKeys` are `run`'s, for `captureFile` steps.
  * @public
  */
 export interface FixtureWatch {
@@ -1194,6 +1196,13 @@ function parseWatch(
   }
   const owned = ownedFlagIn(argv, exact === true)
   if (owned !== undefined) throw bad(`"argv" gives "${owned}", which the recorder sets`)
+  // The recorder adds its run log's reporter as `--reporters`, and a command-line `--reporters`
+  // replaces the config's, so an exact session that names none would silently lose the config's.
+  if (exact === true && !argv.some((arg) => optionOf(arg) === 'reporters')) {
+    throw bad(
+      '"exact" needs a "--reporters" of its own in "argv": the recorder adds its run log\'s reporter as one, which would replace the config\'s reporters',
+    )
+  }
   // The recorder puts its done plugin and its ignored directories in the config; a flag would
   // replace them. A fixture's own go in `config.jest`, which the recorder adds to.
   const watchOwned = argv.find((arg) => {
@@ -1226,6 +1235,14 @@ function parseWatch(
         throw bad(`step ${index} waits for run ${step.waitRun} after run ${runs}`)
       }
       runs = step.waitRun
+    }
+    if ('captureFile' in step && runs === 0) {
+      throw bad(`step ${index} is "captureFile" before any "waitRun": no run has written a file yet`)
+    }
+    if ('captureFile' in step && exact !== true) {
+      throw bad(
+        `step ${index} is "captureFile" without "exact": the recorder gives Jest no output file, so nothing writes one`,
+      )
     }
     if ('exit' in step && next !== undefined) {
       throw bad(`step ${index} is "exit", which must be the last step`)

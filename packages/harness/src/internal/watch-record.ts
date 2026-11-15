@@ -158,6 +158,13 @@ export interface WatchRecordOptions {
   readonly poll?: () => Promise<void>
 }
 
+/** What Jest prints, after it has written `--outputFile`, once per run. */
+const RESULTS_WRITTEN = 'Test results written to'
+
+function countOf(text: string, needle: string): number {
+  return text.split(needle).length - 1
+}
+
 function defaultSpawn(tty: boolean) {
   return (
     argv: readonly string[],
@@ -254,6 +261,19 @@ export async function recordWatchSessionExit(
       },
       change: (step) => runScmStep(options.repo, step),
       async captureFile(file) {
+        // The run log's line comes from a reporter, before Jest writes `--outputFile`, so the file
+        // is read once Jest has said it wrote it: the n-th such line for the n-th capture.
+        const written = captures.length + 1
+        for (;;) {
+          if (countOf(session?.output() ?? '', RESULTS_WRITTEN) >= written) break
+          if (cause !== undefined) {
+            throw new HarnessError(
+              'HARNESS_WATCH_FAILED',
+              `${source}: ${cause} before Jest wrote its results file for capture ${written} ("${RESULTS_WRITTEN}"). Output tail:\n${session?.output().slice(-2000) ?? ''}`,
+            )
+          }
+          await poll()
+        }
         captures.push({ file, text: await readIfThere(path.join(options.workDir, file)) })
       },
     }
