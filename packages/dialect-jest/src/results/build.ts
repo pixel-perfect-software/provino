@@ -495,7 +495,8 @@ function failureDetailOf(error: SerializedError): unknown {
       writable: true,
       configurable: true,
       enumerable,
-      // A message or stack can carry frames (`toThrow` prints the thrown error's); ours stay out (D104).
+      // A message or stack can carry frames (`toThrow` prints the thrown error's): ours stay out
+      // (D104).
       value: key !== 'name' && typeof kept === 'string' ? hideProvinoFrames(kept) : kept,
     })
   }

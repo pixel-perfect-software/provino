@@ -19,6 +19,7 @@ import {
   scanSource,
   type ThirdPartyGraph,
 } from '../graph/index.ts'
+import type { ReevaluateState } from './reevaluate.ts'
 
 /** The default for `LoaderOptions.inlineBudget`. */
 export const DEFAULT_INLINE_BUDGET = 400
@@ -263,15 +264,14 @@ export function servedReach(
  * one. Loaded natively, such an external would `require` Node's one cached copy of what it
  * reaches, while the file's own code and inlined externals get the file's copy: two instances of
  * a singleton (`react` under a component library, an "Invalid hook call"). So it is inlined too.
- * The verdict is kept in `known` until `active` grows (the caller clears it); a negative one holds
+ * The verdict is kept in `reach` until `active` grows (`activate` clears it); a negative one holds
  * for every node_modules file the walk covered.
  */
 export function reevaluatedReach(
   state: InlineState,
   options: LoaderOptions,
   path: string,
-  active: ReadonlySet<string>,
-  known: Map<string, boolean>,
+  { active, reach: known }: ReevaluateState,
   userEdges: UserEdges,
 ): boolean {
   if (active.has(path)) return true

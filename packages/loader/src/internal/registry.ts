@@ -311,8 +311,9 @@ export class Registry {
       if (memory === undefined) continue
       const forMocks = this.#mockInlined.get(map)
       for (const [path, inlined] of memory) {
-        if (forMocks?.has(path) === true) map.delete(toModuleId(path))
-        if (!inlined || forMocks?.has(path) === true) memory.delete(path)
+        const forTheMocks = forMocks?.has(path) === true
+        if (forTheMocks) map.delete(toModuleId(path))
+        if (!inlined || forTheMocks) memory.delete(path)
       }
       this.#mockInlined.delete(map)
     }
@@ -566,8 +567,8 @@ export class Registry {
    * An external as the edge should load it: the same external, or a user module (inlined) for one
    * of three reasons. It is evaluated again per file (`reevaluateHookingExternals`: its first load
    * in this worker read a per-file global, D127, or its closure reaches such an external, so it
-   * shares the file's copy and never Node's cached one); its closure reaches a module the dialect serves
-   * (`@jest/globals`, which only the registry can serve); or `mocksReachShared` is on and the
+   * shares the file's copy and never Node's cached one); its closure reaches a module the dialect
+   * serves (`@jest/globals`, which only the registry can serve); or `mocksReachShared` is on and the
    * file's mocks take an edge in its graph closure. The answer is kept for the instance map in
    * play, and later edges follow it. The runner's own loads (`runner`) never ask the mocks, as
    * the module itself is never mocked.
@@ -598,14 +599,7 @@ export class Registry {
         const userEdges = (user: string) => userEdgesOf(state, user)
         if (
           perFile &&
-          reevaluatedReach(
-            state.inline,
-            state.options,
-            path,
-            state.reevaluate.active,
-            state.reevaluate.reach,
-            userEdges,
-          )
+          reevaluatedReach(state.inline, state.options, path, state.reevaluate, userEdges)
         ) {
           inlined = true
         } else if (
