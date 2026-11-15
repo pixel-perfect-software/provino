@@ -789,6 +789,20 @@ describe('the live view', () => {
     assert.doesNotMatch(after.slice(after.indexOf('Test Suites')), /RUNS/)
   })
 
+  test('a run that began while a file of the last was still started starts a clean block', async () => {
+    // `drop` (the Jest dialect's watch policy) leaves an interrupted file with no `file:end`.
+    const out = output()
+    const bus = createReporterBus([defaultReporter({ stream: out, report: REPORT, ...live })])
+    await bus.emit('run:start', { root: '/p', projects: [''], startTime: 0, watch: true }, [])
+    await bus.emit('file:start', fileInfo('a.test.ts'), 0)
+    await bus.emit('run:start', { root: '/p', projects: [''], startTime: 0, watch: true }, [])
+    const before = out.text().length
+    await bus.emit('file:start', fileInfo('b.test.ts'), 0)
+    const drawn = out.text().slice(before)
+    assert.match(drawn, /b\.test\.ts/)
+    assert.doesNotMatch(drawn, /a\.test\.ts/)
+  })
+
   test('draws a file’s result and the block it leaves in one write, and nothing when the block is as it was', async () => {
     const out = output()
     const bus = createReporterBus([defaultReporter({ stream: out, report: REPORT, ...live })])
