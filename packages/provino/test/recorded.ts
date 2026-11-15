@@ -17,6 +17,8 @@ export interface RecordedManifest {
   /** Set in the runner's environment; `null` removes a variable the recorder sets. */
   readonly env?: Readonly<Record<string, string | null>>
   readonly config?: { readonly jest?: Readonly<Record<string, unknown>> }
+  /** The per-test mock cleanup, by `MockPolicy.between`'s names; Jest's keys in the config. */
+  readonly mockCleanup?: Readonly<Partial<Record<'clear' | 'reset' | 'restore', boolean>>>
   readonly files?: { readonly jest?: Readonly<Record<string, string>> }
   /** Installed into `node_modules/<name>/` before the run. */
   readonly packages?: Readonly<Record<string, Readonly<Record<string, string>>>>
@@ -93,6 +95,18 @@ export async function loadFixture(id: string): Promise<RecordedFixture> {
 const RECORDER_BASE = {
   testMatch: ['<rootDir>/**/*.test.ts'],
   testPathIgnorePatterns: ['/node_modules/', '/__goldens__/', '\\.vitest\\.test\\.ts$'],
+  testLocationInResults: true,
+}
+
+/** A copy of the recorder's `jestMockCleanupOptions`: only the keys the fixture sets. */
+function mockCleanupOptions(
+  cleanup: RecordedManifest['mockCleanup'],
+): Readonly<Record<string, boolean>> {
+  const options: Record<string, boolean> = {}
+  if (cleanup?.clear !== undefined) options.clearMocks = cleanup.clear
+  if (cleanup?.reset !== undefined) options.resetMocks = cleanup.reset
+  if (cleanup?.restore !== undefined) options.restoreMocks = cleanup.restore
+  return options
 }
 
 export interface Materialized {
@@ -132,7 +146,12 @@ export async function materialize(
     }
   }
   if (fixture.manifest.run?.exact === true) await assertNoOtherJestConfig(root, fixture.id)
-  const config = { rootDir: root, ...RECORDER_BASE, ...fixture.manifest.config?.jest }
+  const config = {
+    rootDir: root,
+    ...RECORDER_BASE,
+    ...mockCleanupOptions(fixture.manifest.mockCleanup),
+    ...fixture.manifest.config?.jest,
+  }
   await writeFile(join(root, 'jest.config.json'), JSON.stringify(config, null, 2))
   return { root, dispose: () => rm(root, { recursive: true, force: true }) }
 }
