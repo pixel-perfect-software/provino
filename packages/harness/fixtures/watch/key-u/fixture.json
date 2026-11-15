@@ -1,0 +1,47 @@
+{
+  "description": "A stored snapshot that differs: the `u` row appears, `u` rewrites the .snap, and the next save runs with updateSnapshot back to \"new\" (watch.ts L151-155), so it passes without writing. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      }
+    ]
+  },
+  "files": {
+    "jest": {
+      "__snapshots__/snap.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`value 1`] = `\"old\"`;\n"
+    }
+  },
+  "watch": {
+    "argv": ["--watchAll"],
+    "tty": true,
+    "steps": [
+      {
+        "waitRun": 1
+      },
+      {
+        "key": "u"
+      },
+      {
+        "waitRun": 2
+      },
+      {
+        "write": {
+          "snap.test.ts": "test('value', () => {\n  expect('new').toMatchSnapshot()\n})\n// saved again\n"
+        }
+      },
+      {
+        "waitRun": 3
+      },
+      {
+        "key": "q"
+      },
+      {
+        "exit": 0
+      }
+    ],
+    "capture": ["runs", "transcript", "exitCode", "file:__snapshots__/snap.test.ts.snap"],
+    "keepLines": "^(?:<CLEAR>$|Watch Usage| › |Active Filters:|Pattern Mode Usage| pattern ›|Ran all test suites|Test run was interrupted|No tests found|No failed test found|Press `|Run Jest without|Interactive (?:Test|Snapshot)|Pattern matches|Start typing|Tests:|Test Suites:|Snapshots:)"
+  }
+}

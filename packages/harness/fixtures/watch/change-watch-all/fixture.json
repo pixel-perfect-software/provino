@@ -1,0 +1,36 @@
+{
+  "description": "Under --watchAll, a saved source reruns every test file. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      }
+    ]
+  },
+  "watch": {
+    "argv": ["--watchAll"],
+    "tty": true,
+    "steps": [
+      {
+        "waitRun": 1
+      },
+      {
+        "write": {
+          "src/a.ts": "module.exports = { a: 2 }\n"
+        }
+      },
+      {
+        "waitRun": 2
+      },
+      {
+        "key": "q"
+      },
+      {
+        "exit": 0
+      }
+    ],
+    "capture": ["runs", "transcript", "exitCode"],
+    "keepLines": "^(?:<CLEAR>$|Watch Usage| › |Active Filters:|Pattern Mode Usage| pattern ›|Ran all test suites|Test run was interrupted|No tests found|No failed test found|Press `|Run Jest without|Interactive (?:Test|Snapshot)|Pattern matches|Start typing|Tests:|Test Suites:|Snapshots:)"
+  }
+}

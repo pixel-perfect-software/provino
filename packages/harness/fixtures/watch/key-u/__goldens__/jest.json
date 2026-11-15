@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "watch/key-u",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      "__snapshots__/snap.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`value 1`] = `\"new\"`;\n"
+    },
+    "runs": [
+      {
+        "files": [
+          {
+            "path": "snap.test.ts",
+            "status": "failed",
+            "tests": [
+              {
+                "fullName": "value",
+                "status": "failed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 1
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [
+          {
+            "path": "snap.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "value",
+                "status": "passed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 1,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [
+          {
+            "path": "snap.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "value",
+                "status": "passed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      }
+    ],
+    "transcript": "<CLEAR>\n › 1 snapshot failed.\n › 1 snapshot failed from 1 test suite. Inspect your code changes or press `u` to update them.\nTest Suites: 1 failed, 1 total\nTests:       1 failed, 1 total\nSnapshots:   1 failed, 1 total\nRan all test suites.\nWatch Usage\n › Press f to run only failed tests.\n › Press o to only run tests related to changed files.\n › Press p to filter by a filename regex pattern.\n › Press t to filter by a test name regex pattern.\n › Press u to update failing snapshots.\n › Press i to update failing snapshots interactively.\n › Press q to quit watch mode.\n › Press Enter to trigger a test run.\n<CLEAR>\n › 1 snapshot updated.\n › 1 snapshot updated from 1 test suite.\nTest Suites: 1 passed, 1 total\nTests:       1 passed, 1 total\nSnapshots:   1 updated, 1 total\nRan all test suites.\nWatch Usage: Press w to show more.\n<CLEAR>\nTest Suites: 1 passed, 1 total\nTests:       1 passed, 1 total\nSnapshots:   1 passed, 1 total\nRan all test suites.\nWatch Usage: Press w to show more."
+  }
+}

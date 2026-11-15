@@ -13,6 +13,11 @@ test('observed comes last, with its keys in a fixed order whatever the caller ga
   assert.deepEqual(Object.keys(golden).at(-1), 'observed')
   assert.deepEqual(Object.keys(golden.observed ?? {}), ['exitCode', 'stderr', 'files'])
   assert.equal('observed' in toGolden(makeRun([])), false)
+  // A watch session's captures (B23c) come after the black-box ones.
+  const watch = toGolden(makeRun([]), {
+    observed: { transcript: 't', runs: [{ files: [] }], files: { 'a.snap': 'x' }, exitCode: 0 },
+  })
+  assert.deepEqual(Object.keys(watch.observed ?? {}), ['exitCode', 'files', 'runs', 'transcript'])
 })
 
 test('observedOf keeps the captured kinds, filters and sorts the streams, and normalizes', () => {

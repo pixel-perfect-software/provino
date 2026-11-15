@@ -1,0 +1,49 @@
+{
+  "description": "`p`: the Pattern Mode Usage screen, ` pattern › foo`, Enter runs the matching file with `Active Filters: filename /foo/`, then `c` clears the filters (mode watch). Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      }
+    ]
+  },
+  "watch": {
+    "argv": ["--watchAll"],
+    "tty": true,
+    "steps": [
+      {
+        "waitRun": 1
+      },
+      {
+        "key": "p"
+      },
+      {
+        "waitText": "Pattern Mode Usage"
+      },
+      {
+        "type": "foo"
+      },
+      {
+        "key": "<enter>"
+      },
+      {
+        "waitRun": 2
+      },
+      {
+        "key": "c"
+      },
+      {
+        "waitRun": 3
+      },
+      {
+        "key": "q"
+      },
+      {
+        "exit": 0
+      }
+    ],
+    "capture": ["runs", "transcript", "exitCode"],
+    "keepLines": "^(?:<CLEAR>$|Watch Usage| › |Active Filters:|Pattern Mode Usage| pattern ›|Ran all test suites|Test run was interrupted|No tests found|No failed test found|Press `|Run Jest without|Interactive (?:Test|Snapshot)|Pattern matches|Start typing|Tests:|Test Suites:|Snapshots:)"
+  }
+}

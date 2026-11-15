@@ -11,7 +11,7 @@ async function readExports(): Promise<Record<string, unknown>> {
   return manifest.exports
 }
 
-test('the package exports only its public entries and the sidecar reporters; the Jest transformer is loaded by path', async () => {
+test('the package exports only its public entries, the sidecar reporters and the watch run log; the Jest transformer and the watch done plugin are loaded by path', async () => {
   const exports = await readExports()
   assert.deepEqual(Object.keys(exports), [
     '.',
@@ -19,6 +19,8 @@ test('the package exports only its public entries and the sidecar reporters; the
     './corpus',
     './reporters/jest',
     './reporters/vitest',
+    // B23c: the run log `provino jest --reporters` writes beside a watch golden's.
+    './reporters/jest-watch-log',
   ])
 })
 

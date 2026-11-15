@@ -1,0 +1,41 @@
+{
+  "description": "Under --watch, a saved source reruns its dependents and every earlier uncommitted change: b.test.ts first (src/b.ts changed before the start), then a.test.ts and b.test.ts after src/a.ts is saved; c.test.ts never. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "write": {
+          "src/b.ts": "module.exports = { b: 2 }\n"
+        }
+      }
+    ]
+  },
+  "watch": {
+    "argv": ["--watch"],
+    "tty": true,
+    "steps": [
+      {
+        "waitRun": 1
+      },
+      {
+        "write": {
+          "src/a.ts": "module.exports = { a: 2 }\n"
+        }
+      },
+      {
+        "waitRun": 2
+      },
+      {
+        "key": "q"
+      },
+      {
+        "exit": 0
+      }
+    ],
+    "capture": ["runs", "transcript", "exitCode"],
+    "keepLines": "^(?:<CLEAR>$|Watch Usage| › |Active Filters:|Pattern Mode Usage| pattern ›|Ran all test suites|Test run was interrupted|No tests found|No failed test found|Press `|Run Jest without|Interactive (?:Test|Snapshot)|Pattern matches|Start typing|Tests:|Test Suites:|Snapshots:)"
+  }
+}

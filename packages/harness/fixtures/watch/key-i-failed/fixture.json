@@ -1,0 +1,46 @@
+{
+  "description": "Interactive failed-tests mode: `i` runs the first failure alone, `s` skips to the second, `q` leaves the mode (a run with the filters cleared). Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      }
+    ]
+  },
+  "watch": {
+    "argv": ["--watchAll"],
+    "tty": true,
+    "steps": [
+      {
+        "waitRun": 1
+      },
+      {
+        "key": "i"
+      },
+      {
+        "waitRun": 2
+      },
+      {
+        "key": "s"
+      },
+      {
+        "waitRun": 3
+      },
+      {
+        "key": "q"
+      },
+      {
+        "waitRun": 4
+      },
+      {
+        "key": "q"
+      },
+      {
+        "exit": 0
+      }
+    ],
+    "capture": ["runs", "transcript", "exitCode"],
+    "keepLines": "^(?:<CLEAR>$|Watch Usage| › |Active Filters:|Pattern Mode Usage| pattern ›|Ran all test suites|Test run was interrupted|No tests found|No failed test found|Press `|Run Jest without|Interactive (?:Test|Snapshot)|Pattern matches|Start typing|Tests:|Test Suites:|Snapshots:)"
+  }
+}

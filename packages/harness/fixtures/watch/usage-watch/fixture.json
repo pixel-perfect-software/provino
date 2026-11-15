@@ -1,0 +1,33 @@
+{
+  "description": "Under --watch the usage block shows `a` and not `o` (watch.ts L536-584); the first run is the test changed since the last commit. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "write": {
+          "a.test.ts": "test('a passes', () => {\n  expect(1).toBe(1)\n})\ntest('a changed', () => {\n  expect(1).toBe(1)\n})\n"
+        }
+      }
+    ]
+  },
+  "watch": {
+    "argv": ["--watch"],
+    "tty": true,
+    "steps": [
+      {
+        "waitRun": 1
+      },
+      {
+        "key": "q"
+      },
+      {
+        "exit": 0
+      }
+    ],
+    "capture": ["runs", "transcript", "exitCode"],
+    "keepLines": "^(?:<CLEAR>$|Watch Usage| › |Active Filters:|Pattern Mode Usage| pattern ›|Ran all test suites|Test run was interrupted|No tests found|No failed test found|Press `|Run Jest without|Interactive (?:Test|Snapshot)|Pattern matches|Start typing|Tests:|Test Suites:|Snapshots:)"
+  }
+}
