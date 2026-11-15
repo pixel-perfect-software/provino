@@ -1,8 +1,6 @@
 {
   "description": "vscode-jest 6.4.4 (T11.12, D125): the by-file-pattern request (JestProcess.ts:185-192), --testPathPatterns as Jest 30 takes it (cli/jest-test-path-pattern holds the probe). The 7-test Spike A project (cli/json-vscode-contract), run with the editor's argv after the shell (fixtures/ide/README.md has the source lines). The editor's spawner sets no CI and no NO_COLOR and the recorder sets both, so `env` has \"CI\": \"false\" (ci-info reads that as not CI) and removes NO_COLOR; both are test choices, not the editor's. The output file is a relative path inside the project (vscode-jest uses a name under os.tmpdir()), the reporter is the project's ./vscode-jest-reporter.js (the editor passes <ext>/out/reporter.js) and a file argument is relative (the editor passes an absolute path).",
-  "runners": [
-    "jest"
-  ],
+  "runners": ["jest"],
   "env": {
     "CI": "false",
     "NO_COLOR": null
@@ -35,20 +33,8 @@
         "sum\\.test\\.ts"
       ]
     },
-    "capture": [
-      "exitCode",
-      "stderr",
-      "json:.harness-out/jest_runner_ws_0.json"
-    ],
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest_runner_ws_0.json"],
     "keepLines": "^(onRunStart|onTestFileResult|onRunComplete|Test results written to)",
-    "timeKeys": [
-      "startTime",
-      "endTime",
-      "duration",
-      "startAt",
-      "start",
-      "end",
-      "runtime"
-    ]
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
   }
 }

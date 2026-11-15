@@ -1,8 +1,6 @@
 {
   "description": "vscode-jest 6.4.4 (T11.12, D125): the debug configuration's args (DebugConfigurationProvider.ts:178-185, :143-146), started by VS Code's Node debugger with no shell and no --json: --runInBand --watchAll=false --testNamePattern .* --runTestsByPath <file>. No CI is set by the v2 configuration. Jest's own text is compared: the PASS/FAIL lines, the failure titles and the totals. The recorder sets CI and NO_COLOR, so `env` has \"CI\": \"false\" and removes NO_COLOR (test choices); the file argument is relative.",
-  "runners": [
-    "jest"
-  ],
+  "runners": ["jest"],
   "env": {
     "CI": "false",
     "NO_COLOR": null
@@ -26,10 +24,7 @@
         "sum.test.ts"
       ]
     },
-    "capture": [
-      "exitCode",
-      "stderr"
-    ],
+    "capture": ["exitCode", "stderr"],
     "keepLines": "^(PASS|FAIL|Tests:|Test Suites:|Snapshots:|  \u25cf)"
   }
 }
