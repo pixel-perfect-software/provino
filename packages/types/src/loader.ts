@@ -430,6 +430,13 @@ export interface FileRegistry extends Disposable {
   isolateModulesAsync<R>(fn: () => Promise<R>): Promise<R>
   /** For affected-test selection (Track 9). */
   loadedModules(): readonly ModuleId[]
+  /**
+   * The objects a file's own code reaches through its `require` and `import` (what a leaked
+   * function of the file would keep alive): they must be unreachable after `dispose` and the
+   * file's end, which is what `--detectLeaks` checks. A registry that has none of its own leaves
+   * this out, and the registry itself is the target.
+   */
+  leakTargets?(): readonly object[]
   [Symbol.dispose](): void
   dispose(): LeakReport
 }

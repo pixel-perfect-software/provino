@@ -70,6 +70,7 @@ export interface ct {
     dim(text: string): string;
     // (undocumented)
     green(text: string): string;
+    inverse(text: string): string;
     // (undocumented)
     magenta(text: string): string;
     // (undocumented)
@@ -478,6 +479,8 @@ export interface T {
     readonly errors: readonly Q[];
     // (undocumented)
     readonly file: w;
+    readonly heapUsedBytes?: number;
+    readonly leaks?: true;
     readonly resultsDiscarded?: true;
     readonly snapshot?: SnapshotFileReport;
     // (undocumented)

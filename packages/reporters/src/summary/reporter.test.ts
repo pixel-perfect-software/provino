@@ -54,6 +54,15 @@ describe('the summary reporter', () => {
     await expectGolden('summary.plain', text)
   })
 
+  test('prints the seed before the totals when it is given (--showSeed)', async () => {
+    const { text } = await playFixture((out) =>
+      summaryReporter({ stream: out, ...PLAIN, seed: 42 }),
+    )
+    assert.match(text, /^Seed: {8}42\nTest Suites:/m)
+    const plain = await playFixture((out) => summaryReporter({ stream: out, ...PLAIN }))
+    assert.doesNotMatch(plain.text, /Seed:/)
+  })
+
   test('reprints each failed file under "Summary of all failing tests" past the threshold', async () => {
     const { text } = await playFixture((out) =>
       summaryReporter({ stream: out, ...PLAIN, failureSummaryThreshold: 1 }),

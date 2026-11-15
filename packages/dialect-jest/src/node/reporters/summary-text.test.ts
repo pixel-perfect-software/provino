@@ -20,6 +20,7 @@ const style: TextStyle = {
   green: plain,
   yellow: plain,
   magenta: plain,
+  inverse: plain,
   badge: plain,
 }
 

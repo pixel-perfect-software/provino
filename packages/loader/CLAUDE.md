@@ -8,6 +8,7 @@ The module loader (Track 2): a two-phase module-runner engine. One `Loader` per 
   - transformed once: the `ModuleTransformer` (the pipeline, with the dialect's hoist policy), then `toModuleRunner` from `@provino/transform` for files with ESM syntax, or with `import()` and no other module syntax (format `unknown`, which a CommonJS `vm` script can't run). A file that calls `require` or uses `module`/`exports` is `cjs`, `import()` or not, and keeps the CommonJS wrapper;
   - its static deps resolved once; one that doesn't resolve is a `missing` target, and a user module that doesn't transform (a `.css` file) a `failed` one, each thrown only when its edge runs and decides on the real module (B13c Gap 7; so a factory for `./styles.css` never transforms it);
   - compiled once per mode with `vm.runInThisContext`, with `filename` set to the real path.
+  - forgotten by `dropRecords(paths)` (watch mode, B23c): the next registry reads, transforms and compiles those modules again, and `asyncGraphsStale` is set; the others stay. The orchestrator's runner calls it with `FileJob.staleModules` before a file starts.
 
   `linkAsync`/`linkSync` walk the static graph. A record's `lateDeps` (D38) are never linked. Externals (anything under `node_modules` that `inline` doesn't match, plus addons and builtins) are shared by the worker: under `interopDefault: 'node'` the async path preloads them with native `import()` (Node's namespaces); under `babel` nothing is preloaded, and an edge `require`s the external when it runs, as Jest's CommonJS output does, so a mocked package never loads. `asyncGraph` marks top-level-await subgraphs and `lateGraph` the subgraphs that reach a module with late deps, both as one fixed point over cycles. `markAsyncGraphs` scans every record in the worker, so it runs only while `Records.asyncGraphsStale` is set: a new record, a record linked and every `resolved` write (through `setResolved`) set it, and the scan clears it.
 - **Per file: `src/internal/registry.ts`.** A stack of instance maps; the top one is live, and `isolateModules` pushes a fresh one. Evaluation calls a record's compiled wrapper with fresh linkers, so module state is per registry while compiled code is shared. The registry carries the running file's `FileContext` (`{ mocks, scope }`); under `none` the registry is shared and each file sets its own.
@@ -118,7 +119,6 @@ Files: `bindings-and-cycles` (live bindings, ESM and CJS cycles, TLA in a leaf a
 |---|---|
 | Leak snapshot/restore (`dispose()` returns an empty `LeakReport`) | T2.7 |
 | The `realm` tier | T2.8 |
-| Coverage: `onModuleCompiled` reports `wrapperColumnOffset` for each script (V8's ranges are offsets in the whole script, the wrapper included) | T2.9 |
 | `engine: 'native'` and `provino-mock:` URLs | T2.10 |
 
 ## Gotchas
@@ -133,3 +133,7 @@ Files: `bindings-and-cycles` (live bindings, ESM and CJS cycles, TLA in a leaf a
   - `pnpm bench:loader e2e`: vs Jest.
   - `packages/bench/src/loader/fixture.test.ts` runs the 600/600 check in `pnpm test`.
   - Against real Jest and Vitest: `@provino/harness`'s `mod-corpus.test.ts` (in-process and end to end).
+
+## Coverage (T2.9, B23b)
+
+`createProjectLoader(..., { coverage: { instrumenter, shouldInstrument }, cacheMode })` instruments the user modules `shouldInstrument` accepts (Istanbul). For V8, `Loader.onModuleCompiled` reports each script's `CompiledModuleEvent` (`scriptUrl`, `wrapperColumnOffset`, `transformKey`) and `Loader.compiledModule(url)` answers `{ path, code, wrapperLength, map (composed to the source), transformKey }`, which the V8 collector sends and the coordinator hands to `v8-to-istanbul` as `wrapperLength`. `CoordinatorLoader.transformForCoverage(path)` transforms a file no test loaded, for its initial coverage. `src/coverage.test.ts` runs a TS fixture in a child process with an inspector session: every block range minus `wrapperLength` maps to the marked TS line, in the runner form and in CommonJS.

@@ -72,16 +72,14 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Runs tests related to the current changes and the changes made in the last commit. Behaves similarly to `--onlyChanged`.',
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   changedSince: {
     type: 'string',
     requiresArg: true,
     description:
       'Runs tests related to the changes since the provided branch. If the current branch has diverged from the given branch, then only changes made locally will be tested. Behaves similarly to `--onlyChanged`.',
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   ci: {
     type: 'boolean',
@@ -184,8 +182,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       '**EXPERIMENTAL**: Detect memory leaks in tests. After executing a test, it will try to garbage collect the global object used, and fail if it was leaked',
-    support: 'refuse',
-    owner: 'T2.7',
+    support: 'config',
   },
   detectOpenHandles: {
     type: 'boolean',
@@ -215,8 +212,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Find related tests for a list of source files that were passed in as arguments. Useful for pre-commit hook integration to run the minimal amount of tests necessary.',
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   forceExit: {
     type: 'boolean',
@@ -272,8 +268,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Run all tests affected by file changes in the last commit made. Behaves similarly to `--onlyChanged`.',
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   listTests: {
     type: 'boolean',
@@ -285,8 +280,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Logs the heap usage after every test. Useful to debug memory leaks. Use together with `--runInBand` and `--expose-gc` in node.',
-    support: 'warn',
-    owner: 'T9.7',
+    support: 'config',
   },
   maxConcurrency: {
     type: 'number',
@@ -350,30 +344,26 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
   notify: {
     type: 'boolean',
     description: 'Activates notifications for test results.',
-    support: 'warn',
-    owner: 'T9.7',
+    support: 'config',
   },
   notifyMode: {
     requiresArg: true,
     choices: ['always', 'failure', 'success', 'change', 'success-change', 'failure-change'],
     description: 'Specifies when notifications will appear for test results.',
-    support: 'warn',
-    owner: 'T9.7',
+    support: 'config',
   },
   onlyChanged: {
     type: 'boolean',
     alias: 'o',
     description:
       "Attempts to identify which tests to run based on which files have changed in the current repository. Only works if you're running tests in a git or hg repository at the moment.",
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   onlyFailures: {
     type: 'boolean',
     alias: 'f',
     description: 'Run tests that failed in the previous execution.',
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   openHandlesTimeout: {
     type: 'number',
@@ -531,8 +521,7 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Prints the seed value in the test report summary. See `--seed` for how to set this value',
-    support: 'refuse',
-    owner: 'Track 9, no task yet',
+    support: 'config',
   },
   silent: {
     type: 'boolean',
