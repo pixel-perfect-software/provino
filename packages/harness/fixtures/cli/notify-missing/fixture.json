@@ -1,0 +1,16 @@
+{
+  "description": "`--notify` with no `node-notifier` anywhere under Jest 30.5.2 (B23d A4): the notify reporter cannot load it and the run ends with Jest's message `notify reporter requires optional peer dependency \"node-notifier\" but it was not found`. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--notify"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "notify reporter requires|^Test Suites:"
+  }
+}

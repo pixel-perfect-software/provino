@@ -17,6 +17,7 @@ import {
   type FileEvents,
   finishAggregated,
   flattenSerializedError,
+  LEAK_MESSAGE,
   NO_TESTS_MESSAGE,
   type TestRecord,
   toAssertionResult,
@@ -338,6 +339,34 @@ describe('toTestResult', () => {
       [run.numFailedTests, run.numTotalTests, run.numRuntimeErrorTestSuites],
       [0, 0, 1],
     )
+  })
+
+  it('a file that leaks (--detectLeaks) is a runtime error with Jest’s text, and counts no test', () => {
+    const built = toTestResult(
+      events(
+        [{ task: test('a', 'file'), result: result('pass') }],
+        {},
+        { state: 'fail', leaks: true, resultsDiscarded: true, errors: [] },
+      ),
+      OPTIONS,
+    )
+    assert.equal(built.testExecError?.message, LEAK_MESSAGE)
+    assert.match(LEAK_MESSAGE, /^EXPERIMENTAL FEATURE!\nYour test suite is leaking memory\./)
+    assert.deepEqual(built.testResults, [])
+    assert.equal(built.numPassingTests, 0)
+  })
+
+  it('a file’s heap (--logHeapUsage) is the result’s memoryUsage', () => {
+    const built = toTestResult(
+      events([{ task: test('a', 'file'), result: result('pass') }], {}, { heapUsedBytes: 123_456 }),
+      OPTIONS,
+    )
+    assert.equal(built.memoryUsage, 123_456)
+    const none = toTestResult(
+      events([{ task: test('a', 'file'), result: result('pass') }], {}),
+      OPTIONS,
+    )
+    assert.equal('memoryUsage' in none, false)
   })
 
   it('a file with no test fails with Jest’s message', () => {

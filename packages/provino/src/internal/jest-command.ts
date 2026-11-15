@@ -8,12 +8,16 @@ import { type ResolvedProject, resolveNeutralProject } from '@provino/config'
 import {
   createJestConfigReader,
   createJestResults,
+  JEST_NO_SCM_TEXT,
   type JestArgv,
   JestCliError,
   JestConfigError,
   type JestFilter,
   type JestGlobalConfig,
+  JestNotifierMissingError,
   type JestProjectConfig,
+  jestChangedFilesErrorText,
+  jestChangedNoTestsMessage,
   jestCli,
   jestCollectedText,
   jestCoverageOptions,
@@ -26,6 +30,7 @@ import {
   readJestConfigs,
 } from '@provino/dialect-jest/node'
 import {
+  type DiscoveredFile,
   defaultCacheDir,
   discoverProject,
   ExitCode,
@@ -33,7 +38,6 @@ import {
   type RunCoverageHooks,
   readTimings,
   type ShardSpec,
-  selectFiles,
   shardFiles,
   TIMINGS_FILE_NAME,
 } from '@provino/orchestrator'
@@ -45,6 +49,13 @@ import type { CoverageReporter } from './coverage-reporter.ts'
 import { usageMessage } from './describe.ts'
 import { executeProject, timingsOf } from './execute.ts'
 import { setUpJestReporters } from './jest-reporters.ts'
+import {
+  isScmCommandFailure,
+  type JestSelection,
+  jestSelection,
+  keepFailedFiles,
+  selectProjectFiles,
+} from './jest-selection.ts'
 import { type DisplayOptions, outputFor, styleFor } from './reporters.ts'
 import {
   chooseProjects,
@@ -322,29 +333,72 @@ function oncePerProject(filter: JestFilter): ProjectFilter {
   }
 }
 
+/** How a run selects its files: the shard and its timings, `--filter`, and the changed-file flags. */
+type Sharding = ShardRequest & {
+  readonly runRoot: string
+  readonly filter?: ProjectFilter | undefined
+  readonly selection: JestSelection
+  /** `false` under `--no-cache`: no edge cache and no results history. */
+  readonly cache: boolean
+}
+
+/** Each project's files before the shard, in `projects`' order. */
+type BeforeShard = () => Promise<readonly (readonly DiscoveredFile[])[]>
+
 /**
- * Each project's selected test files (the filters applied, then `--filter`, then the shard), one
- * list per project.
+ * Each project's files before the shard (the filters, or the changed-file selection in their
+ * place, then `--filter`), worked out once however often it is asked: the selection builds each
+ * project's loader and affected index, which the listing, the reporters' count, the no-tests text
+ * and the run all read.
  */
-async function selectedPerProject(
+function selectedBeforeShard(
   projects: readonly ResolvedProject[],
   request: RunRequest,
   cwd: string,
-  sharding: ShardRequest & {
-    readonly runRoot: string
-    readonly filter?: ProjectFilter | undefined
-  },
+  sharding: Pick<Sharding, 'filter' | 'selection' | 'cache'>,
+): BeforeShard {
+  let once: Promise<readonly (readonly DiscoveredFile[])[]> | undefined
+  return () => {
+    once ??= Promise.all(
+      projects.map(async (project) => {
+        const files = await selectProjectFiles(project, await discoverProject(project), {
+          selection: sharding.selection,
+          fileFilters: request.fileFilters,
+          cwd,
+          cache: sharding.cache,
+        })
+        return sharding.filter === undefined ? files : sharding.filter(project, files)
+      }),
+    )
+    return once
+  }
+}
+
+/**
+ * Each project's selected test files (the filters applied, or the changed-file selection in their
+ * place, then `--filter`, then the shard, then `--onlyFailures`), one list per project.
+ */
+async function selectedPerProject(
+  projects: readonly ResolvedProject[],
+  cwd: string,
+  sharding: Sharding,
+  beforeShard: BeforeShard,
 ): Promise<readonly (readonly { readonly path: string }[])[]> {
-  const { filter } = sharding
-  const selected = await Promise.all(
-    projects.map(async (project) => {
-      const files = selectFiles(await discoverProject(project), request.fileFilters, {
-        rootDir: project.rootDir,
-        cwd,
-      })
-      return filter === undefined ? files : filter(project, files)
-    }),
-  )
+  const sharded = await shardedPerProject(projects, cwd, sharding, beforeShard)
+  if (sharding.selection.onlyFailures === undefined) return sharded
+  return sharded.map((files, index) => {
+    const project = projects[index]
+    return project === undefined ? files : keepFailedFiles(project, files, sharding.cache)
+  })
+}
+
+async function shardedPerProject(
+  projects: readonly ResolvedProject[],
+  cwd: string,
+  sharding: Sharding,
+  beforeShard: BeforeShard,
+): Promise<readonly (readonly DiscoveredFile[])[]> {
+  const selected = await beforeShard()
   const [first] = projects
   const { shard } = sharding
   return shard === undefined || first === undefined
@@ -363,20 +417,6 @@ async function selectedPerProject(
           ),
         },
       )
-}
-
-/** Every project's test files, once each, sorted by path; only shard `sharding.shard`'s when it names one. */
-async function listFiles(
-  projects: readonly ResolvedProject[],
-  request: RunRequest,
-  cwd: string,
-  sharding: ShardRequest & {
-    readonly runRoot: string
-    readonly filter?: ProjectFilter | undefined
-  },
-): Promise<readonly string[]> {
-  const perProject = await selectedPerProject(projects, request, cwd, sharding)
-  return [...new Set(perProject.flatMap((files) => files.map((file) => file.path)))].sort()
 }
 
 /**
@@ -518,6 +558,43 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       }
       return ExitCode.Pass
     }
+    // The changed-file flags (T9.16): `-o`'s lookup runs once, before the listing or the run, and a
+    // failure ends the command as `getChangedFilesPromise` does (L28-L37): the error in red, exit 1.
+    const selectedConfigs = neutrals.flatMap((neutral) => {
+      const config = read.configs[read.neutral.indexOf(neutral)]
+      return config === undefined ? [] : [config]
+    })
+    const env = io.env ?? process.env
+    let fileSelection: JestSelection
+    try {
+      fileSelection = await jestSelection(
+        read.globalConfig,
+        projects,
+        selectedConfigs,
+        realCwd(cwd),
+      )
+    } catch (error) {
+      // Only a command the provider ran and that failed is Jest's red text (`exec.ts`'s
+      // `JEST_SCM_COMMAND_FAILED`); anything else is an internal error, with its stack.
+      if (!isScmCommandFailure(error)) throw error
+      const [firstConfig] = selectedConfigs
+      stderr.write(
+        `${jestChangedFilesErrorText(
+          error,
+          firstConfig ?? { rootDir: read.globalConfig.rootDir, testMatch: [] },
+          styleFor({ env, stream: stdout, ci: read.globalConfig.ci, colour: request.colour }),
+        )}\n`,
+      )
+      return ExitCode.TestFailure
+    }
+    const useCache = request.cache !== false && read.cache
+    // runJest.ts L113-L119: each project left with no test under `-o` outside any repository says so.
+    const announceNoScm = async (perProject: readonly (readonly unknown[])[]): Promise<void> => {
+      if (!fileSelection.noScm) return
+      for (const files of perProject) {
+        if (files.length === 0) await writeOut(`${JEST_NO_SCM_TEXT}\n`)
+      }
+    }
     // `--filter`: loaded as `runCLI` does, once the run or the listing is certain (the exits above
     // come first), and a failure to load, set up or use it ends the run with its stack.
     let filter: JestFilter | undefined
@@ -538,14 +615,19 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
               throw error
             }
           })
+    const sharding: Sharding = {
+      shard: shardOf(read.globalConfig),
+      timingsFile,
+      runRoot: read.globalConfig.rootDir,
+      filter: guardedFilter,
+      selection: fileSelection,
+      cache: useCache,
+    }
+    const beforeShard = selectedBeforeShard(projects, request, cwd, sharding)
     if (request.mode === 'list-files') {
-      const sharding = {
-        shard: shardOf(read.globalConfig),
-        timingsFile,
-        runRoot: read.globalConfig.rootDir,
-        filter: guardedFilter,
-      }
-      const files = await listFiles(projects, request, cwd, sharding)
+      const perProject = await selectedPerProject(projects, cwd, sharding, beforeShard)
+      await announceNoScm(perProject)
+      const files = [...new Set(perProject.flatMap((list) => list.map((file) => file.path)))].sort()
       if (!request.json) {
         await stdout.write(files.map((file) => `${file}\n`).join(''))
         return ExitCode.Pass
@@ -580,6 +662,60 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       await writeOut(message)
       return passWithNoTests ? ExitCode.Pass : jestExitCode('noTests', ExitCode.TestFailure)
     }
+    // The run's files, worked out once: the reporters' count (Jest decides from the tests it will
+    // run) and the changed-file flags' no-tests texts read them.
+    let runFilesOnce: Promise<readonly (readonly { readonly path: string }[])[]> | undefined
+    const runFiles = (): Promise<readonly (readonly { readonly path: string }[])[]> => {
+      runFilesOnce ??= selectedPerProject(projects, cwd, sharding, beforeShard)
+      return runFilesOnce
+    }
+    // `getNoTestsFoundMessage.ts` L16-L34 for `-o` and `--onlyFailures`: with no test the message
+    // goes to the output stream, and the run ends 0 when `passWithNoTests || lastCommit ||
+    // onlyChanged` (runJest.ts L369-L381), else with the no-tests code.
+    const changedMessage = jestChangedNoTestsMessage(read.globalConfig, {
+      interactive: outputFor({ env, stderr: stdout, ci: read.globalConfig.ci }).live,
+      style: styleFor({ env, stream: stdout, ci: read.globalConfig.ci, colour: request.colour }),
+    })
+    if (changedMessage !== undefined && !read.globalConfig.collectTests) {
+      const perProject = await runFiles()
+      if (perProject.every((files) => files.length === 0)) {
+        await announceNoScm(perProject)
+        await writeOut(`${changedMessage.message}\n`)
+        return changedMessage.exitWith0
+          ? ExitCode.Pass
+          : jestExitCode('noTests', ExitCode.TestFailure)
+      }
+    }
+    // `-o` and `--findRelatedTests` select in place of the filters: the files were selected once
+    // above (the loader and the affected index are built once), so the run is handed them as each
+    // project's own filter, before the shard, as `runProjects` would have selected them.
+    // `--onlyFailures` reads the history after the shard; under `--no-cache` there is none, and the
+    // command has already ended with Jest's no-tests text.
+    const preselected = fileSelection.selection !== undefined
+    // `--onlyFailures --no-cache --collectTests` gets here with nothing to keep.
+    const noHistory = fileSelection.onlyFailures !== undefined && !useCache
+    const runSelection: Pick<
+      Parameters<typeof executeProject>[0],
+      'fileFilters' | 'fileFilter' | 'onlyFailures'
+    > = {
+      ...(preselected ? {} : { fileFilters: request.fileFilters }),
+      ...(noHistory
+        ? { fileFilter: async () => [] }
+        : preselected
+          ? {
+              fileFilter: async (own, files) => {
+                const index = projects.indexOf(own)
+                const keep = new Set(((await beforeShard())[index] ?? []).map((file) => file.path))
+                return files.filter((file) => keep.has(file.path))
+              },
+            }
+          : guardedFilter === undefined
+            ? {}
+            : { fileFilter: (filtered, files) => guardedFilter(filtered, files) }),
+      ...(fileSelection.onlyFailures !== undefined && useCache
+        ? { onlyFailures: fileSelection.onlyFailures }
+        : {}),
+    }
     const runHooks = jestRunGlobalHooks(read.globalConfig)
     const shard = shardOf(read.globalConfig)
     // `--json` and `testResultsProcessor` read the run as Jest's `AggregatedResult`: a collector
@@ -587,11 +723,6 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     // `--collectTests` (runJest.ts L334-L367) runs no global setup and no reporter: the collector
     // alone hears the run, whose files report what their tests would do.
     const collecting = read.globalConfig.collectTests
-    // The projects of the run (`--selectProjects` and `--ignoreProjects` applied), in `projects`' order.
-    const selectedConfigs = neutrals.flatMap((neutral) => {
-      const config = read.configs[read.neutral.indexOf(neutral)]
-      return config === undefined ? [] : [config]
-    })
     const newResults = (): ReturnType<typeof createJestResults<JestProjectConfig>> =>
       createJestResults({
         ...(collecting ? { collectOnly: true } : {}),
@@ -605,7 +736,6 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     // The reporters (Jest's failure text, the classes a config names) read the same results; a run
     // that neither writes JSON nor runs a processor keeps its own exit code.
     const reporterResults = results ?? (collecting ? undefined : newResults())
-    const env = io.env ?? process.env
     // `--coverage` (B23b): Jest's CoverageReporter, and the notice on a terminal while the files no
     // test loaded are covered. A `--collectTests` run collects nothing.
     const coverage = collecting
@@ -618,15 +748,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
             globalConfig: read.globalConfig,
             configs: selectedConfigs,
             // Jest decides from the tests it will run (`tests.some(...)`, `shouldRunInBand`).
-            filesPerProject: async () => {
-              const files = await selectedPerProject(projects, request, cwd, {
-                shard: shardOf(read.globalConfig),
-                timingsFile,
-                runRoot: read.globalConfig.rootDir,
-                filter: guardedFilter,
-              })
-              return files.map((list) => list.length)
-            },
+            filesPerProject: async () => (await runFiles()).map((list) => list.length),
             results: reporterResults,
             output: outputFor({ env, stderr, ci: read.globalConfig.ci, colour: request.colour }),
             env,
@@ -682,10 +804,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       ...(request.cache === false || !read.cache ? { cache: false } : {}),
       testNamePattern: read.globalConfig.testNamePattern,
       update: request.update,
-      fileFilters: request.fileFilters,
-      ...(guardedFilter === undefined
-        ? {}
-        : { fileFilter: (filtered, files) => guardedFilter(filtered, files) }),
+      ...runSelection,
       // `-i`: the files run in this process. Jest also goes in band by itself for a small run: the
       // policy's `orchestrator.inBand`, decided once the files are known.
       ...(read.globalConfig.runInBand ? { runInBand: true } : {}),
@@ -693,6 +812,10 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       // (and `--bail=2` is false, as in Jest 30.5.2, so a count is always the config's).
       ...(read.globalConfig.bail > 0 ? { bail: { count: read.globalConfig.bail } } : {}),
       ...(read.globalConfig.detectOpenHandles ? { detectOpenHandles: true } : {}),
+      // `detectLeaks` is a project key (`--detectLeaks` sets every project's): each project is checked
+      // or not by its own, as `runTest` reads `config.detectLeaks`. `--logHeapUsage` is global.
+      detectLeaks: (resolved) => selectedConfigs[projects.indexOf(resolved)]?.detectLeaks === true,
+      ...(read.globalConfig.logHeapUsage ? { logHeapUsage: true } : {}),
       // Jest's `--shard=i/n` (validated by the config reader, as Jest's `normalize` does).
       ...(shard === undefined ? {} : { shard }),
       ...timingsOf({ timingsFile, updateTimings }),
@@ -763,6 +886,12 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     if (filterError !== undefined && error === filterError) {
       // jest-cli prints the stack of the error that ended `runCLI`, and exits 1.
       stderr.write(`${error instanceof Error ? (error.stack ?? String(error)) : String(error)}\n`)
+      return ExitCode.TestFailure
+    }
+    if (error instanceof JestNotifierMissingError) {
+      // Thrown where Jest builds the NotifyReporter, before a file runs: jest-cli prints the stack
+      // of the error that ended `runCLI`, and exits 1.
+      stderr.write(`${error.stack ?? error.message}\n`)
       return ExitCode.TestFailure
     }
     if (error instanceof JestCliError || error instanceof JestConfigError) {

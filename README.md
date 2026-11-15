@@ -50,6 +50,7 @@ Time:        1.412 s
 - 📸 **Snapshots byte for byte,** with `-u`, `--ci` and obsolete snapshots handled as Jest handles them.
 - 🧩 **Your setup, as it is:** `projects`, `moduleNameMapper`, your transformers, `jsdom` and custom environments, and `globalSetup`.
 - 🦥 **Lazy variables,** RSpec style: `import { lazy } from 'provino'` for values that are built on first read, memoized per test and overridden in a nested `describe`. [Lazy variables →](wiki/lazy-variables.md)
+- 📊 **Coverage** with `--coverage`: Istanbul or V8, Jest's reports and thresholds.
 - 🧵 **Sharding that balances:** Jest's split, or by recorded time.
 - 🤖 **Output for people, CI and agents:** Jest's text in a terminal, annotations on GitHub Actions, and a compact report under an AI agent.
 
@@ -107,7 +108,7 @@ pnpm exec provino jest                    # the whole suite
 
 ## 🚧 Not in place yet
 
-Coverage and watch mode are planned, and are refused by name until then. `provino vitest` comes next. [Jest compatibility](wiki/compatibility.md) has the full list. If a test passes under Jest and fails under Provino, that's a bug: please [open an issue](https://github.com/pixel-perfect-software/provino/issues).
+Watch mode is planned, and is refused by name until then. `provino vitest` comes next. [Jest compatibility](wiki/compatibility.md) has the full list. If a test passes under Jest and fails under Provino, that's a bug: please [open an issue](https://github.com/pixel-perfect-software/provino/issues).
 
 ## 📚 Learn more
 

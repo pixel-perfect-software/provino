@@ -4,19 +4,32 @@
 // the sort, which `planQueue` does).
 import { join } from 'node:path'
 import type { ResolvedProject } from '@provino/config'
-import type { AffectedSelection } from '@provino/types'
+import { callBehaviour, createBehaviourLoader } from '@provino/policy'
+import type {
+  AffectedSelection,
+  Behaviour,
+  ChangedFiles,
+  ChangedFilesOptions,
+  ChangedFilesProvider,
+} from '@provino/types'
 import type { ResultsCache } from '../cache.ts'
 import type { DiscoveredFile } from '../discover.ts'
 import { OrchestratorError } from '../errors.ts'
 import { createAffectedIndex } from './index.ts'
 import type { RecordedGraph } from './recorded.ts'
 
-/** What `selectAffected` reads of a project of the run. */
+/**
+ * What `selectAffected` reads of a project of the run.
+ * @beta
+ */
 export interface AffectedMember {
   readonly project: Pick<
     ResolvedProject,
     'rootDir' | 'discovery' | 'include' | 'exclude' | 'policy' | 'globalSetup' | 'config'
-  > & { readonly cacheDirectory?: string | undefined }
+  > & {
+    readonly cacheDirectory?: string | undefined
+    readonly affected?: ResolvedProject['affected'] | undefined
+  }
   /** The results cache's key for the project. */
   readonly cacheProject: string
 }
@@ -26,6 +39,7 @@ export interface AffectedMember {
  * change touched. It builds the project's index (its own coordinator loader resolves the edges) and
  * disposes the loader after. A selection by changed files needs `changed.changedFiles`; the paths
  * are absolute.
+ * @beta
  */
 export async function selectAffected(
   member: AffectedMember,
@@ -51,6 +65,11 @@ export async function selectAffected(
       projectKey: member.cacheProject,
       loader,
       ...(recorded === undefined ? {} : { recorded }),
+      // The project's own extractor (Jest's `dependencyExtractor`); a run that isn't a watch reads
+      // no `watchPathIgnorePatterns` (jest-runtime `createHasteMap` L333-L337).
+      ...(project.affected?.extractor === undefined
+        ? {}
+        : { projectExtractor: project.affected.extractor }),
     })
     const related = new Set(index.related(paths))
     try {
@@ -68,6 +87,7 @@ export async function selectAffected(
  * Keeps the files that failed: `'history'` reads the results cache (`FileHistory.failed`, a file
  * whose last run ended `fail`, as Jest's `FAIL` entry: a skipped file is never recorded), a set
  * names absolute paths.
+ * @beta
  */
 export function keepFailed(
   member: AffectedMember & { readonly cache: ResultsCache | undefined },
@@ -85,4 +105,34 @@ export function keepFailed(
     return files.filter((file) => cache.get(cacheProject, file.relativePath)?.failed === true)
   }
   return files.filter((file) => onlyFailures.has(join(member.project.rootDir, file.relativePath)))
+}
+
+/**
+ * The files a change touched under some roots, by the policy's `orchestrator.changedFiles` (Jest's
+ * jest-changed-files under the Jest dialect). A policy with none can't select by changed files:
+ * `ORCH_NOT_IMPLEMENTED`, naming the task that builds the neutral and Vitest ones. What the
+ * provider rejects with (a failing git command) is passed on as it is.
+ * @beta
+ */
+export async function findChangedFiles(
+  provider: Behaviour<ChangedFilesProvider> | null,
+  options: ChangedFilesOptions,
+): Promise<ChangedFiles> {
+  if (provider === null) {
+    throw new OrchestratorError(
+      'ORCH_NOT_IMPLEMENTED',
+      'selecting tests by changed files is not built for this dialect yet (T11.16)',
+    )
+  }
+  return callBehaviour(createBehaviourLoader(), provider, options)
+}
+
+/**
+ * Whether a change set came from any repository: Jest's `hasSCM` (SearchSource L42-L44). With
+ * none, `-o` selects nothing and Jest says why.
+ * @beta
+ */
+export function hasScm(changed: ChangedFiles): boolean {
+  const { git, hg, sl } = changed.repos
+  return git.length + hg.length + sl.length > 0
 }

@@ -77,6 +77,8 @@ export interface TextExtras {
   readonly closingLine?: (summary: RunSummary, style: TextStyle) => string | undefined
   /** The totals always have a `Snapshots:` line. */
   readonly snapshotsAlways?: true
+  /** Jest's `--showSeed`: the summary has a `Seed:` line with this seed. */
+  readonly seed?: number
 }
 
 /**
@@ -266,6 +268,7 @@ function textOptions(context: ReporterContext, output: OutputEnvironment): TextR
       : { snapshotSummary: context.text.snapshotSummary }),
     ...(context.text?.closingLine === undefined ? {} : { closingLine: context.text.closingLine }),
     ...(context.text?.snapshotsAlways === true ? { snapshotsAlways: true as const } : {}),
+    ...(context.text?.seed === undefined ? {} : { seed: context.text.seed }),
   }
 }
 

@@ -13,6 +13,8 @@ export interface TextStyle {
   green(text: string): string
   yellow(text: string): string
   magenta(text: string): string
+  /** Swaps the foreground and the background (SGR 7), as chalk's `inverse`. */
+  inverse(text: string): string
   /**
    * A status word on a coloured block (inverse, bold): Jest's ` PASS ` and ` FAIL ` badges. With
    * colour off it is the bare word, as Jest prints it, so `PASS path` stays a line anyone can match.

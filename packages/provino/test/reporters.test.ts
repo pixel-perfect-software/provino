@@ -95,6 +95,11 @@ describe('provino jest prints what Jest 30.5.2 printed (the lines each recording
       'cli/report-single-file-verbose-false',
       'a single test file under verbose: false is not verbose: the console block under the header',
     ],
+    ['cli/show-seed', '--showSeed: `Seed:` before the totals, with the order kept (B23d A4)'],
+    [
+      'cli/randomize-shows-seed',
+      '--randomize turns showSeed on: the seed line with no --showSeed (B23d A4)',
+    ],
     ['cli/report-ran-pattern', 'a file pattern: `Ran all test suites matching snap.`'],
     [
       'cli/report-from-subdir',
@@ -114,6 +119,37 @@ describe('provino jest prints what Jest 30.5.2 printed (the lines each recording
       assert.deepEqual(run.lines, run.expected, run.stderr)
     })
   }
+
+  it('--logHeapUsage: each header ends ` (<n> MB heap size)` (cli/log-heap-usage, B23d A4)', async () => {
+    const fixture = await loadFixture('cli/log-heap-usage')
+    const project = await materialize(fixture)
+    try {
+      const keepLines = fixture.manifest.run?.keepLines
+      assert.ok(keepLines !== undefined)
+      const mask = (text: string): string[] =>
+        kept(text, keepLines)
+          .map((line) => line.replace(/\d+(?= MB heap size)/, '<masked>'))
+          .sort()
+      const ended = await spawnCli(
+        [
+          'jest',
+          `--config=${join(project.root, 'jest.config.json')}`,
+          '--ci',
+          ...(fixture.manifest.run?.argv?.jest ?? []),
+        ],
+        { cwd: project.root },
+      )
+      assert.equal(ended.code, fixture.golden.observed?.exitCode, ended.stderr)
+      assert.deepEqual(
+        mask(ended.stderr),
+        mask(fixture.golden.observed?.stderr ?? ''),
+        ended.stderr,
+      )
+      assert.ok(mask(ended.stderr).some((line) => line.includes('<masked> MB heap size')))
+    } finally {
+      await project.dispose()
+    }
+  })
 
   it('two projects: the display name before each file, `Ran all test suites in 2 projects.` (cli/report-ran-projects)', async () => {
     const fixture = await loadFixture('cli/report-ran-projects')
