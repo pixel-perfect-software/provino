@@ -73,6 +73,7 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'vitest orchestrator.processObject': 'T11.16',
   'vitest orchestrator.shard.fallback': 'T11.16',
   'vitest orchestrator.watch.initialRun': 'T9.11',
+  'vitest orchestrator.watch.interruptedFiles': 'T11.16',
   'vitest orchestrator.changedFiles': 'T11.16',
   'vitest orchestrator.affected.extractor': 'T11.16',
   'vitest orchestrator.affected.mockEdges.dir': 'T11.16',

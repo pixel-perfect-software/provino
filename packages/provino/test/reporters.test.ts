@@ -391,7 +391,8 @@ describe('a terminal (through run(), where a stderr can say it is one)', () => {
       stderr: plain,
       env: { NO_COLOR: '1' },
     })
-    assert.match(plain.text, /RUNS tests\/[ab]\.test\.js/)
+    // Jest pads RUNS whatever the colour (`Status.ts` L23-L24).
+    assert.match(plain.text, / RUNS {2}tests\/[ab]\.test\.js/)
     assert.doesNotMatch(plain.text, new RegExp(`${ESC}\\[3\\dm`))
     const dumb = new Terminal()
     await run({
