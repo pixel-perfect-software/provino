@@ -168,6 +168,34 @@ export interface SnapshotResolver {
 export type SnapshotResolverFactory = (exports: unknown, extension: string) => SnapshotResolver
 
 /**
+ * What a snapshot context view is built over: the running file's snapshot state
+ * (`@provino/snapshot/runtime`'s `SnapshotState`), as far as a matcher outside Provino may reach
+ * it. The four counts are the ones the file's report and the run's totals add up, so a write to
+ * one is a snapshot written, matched, failed or updated.
+ * @public
+ */
+export interface SnapshotContextSource {
+  added: number
+  matched: number
+  unmatched: number
+  updated: number
+  /** What may be written: `all` (`-u`), `new`, or `none` (CI). */
+  readonly update: 'all' | 'new' | 'none'
+  /**
+   * How many snapshots each test name has taken, the live map the state numbers keys from: a count
+   * set here is the number the next snapshot of that name follows.
+   */
+  readonly liveCounters: Map<string, number>
+}
+
+/**
+ * Builds the object a matcher finds as `this.snapshotState`, over the file's state. It runs in the
+ * worker once per test file; the snapshot matchers still reach the state itself.
+ * @public
+ */
+export type SnapshotContextViewFactory = (state: SnapshotContextSource) => object
+
+/**
  * The `snapshot` slice, read by `@provino/snapshot` (Track 7).
  * @public
  */
@@ -260,4 +288,12 @@ export interface SnapshotPolicy {
    * (its `resolveSnapshotPath` is T11.16's). Provino's own key.
    */
   readonly resolverFactory: Behaviour<SnapshotResolverFactory> | null
+  /**
+   * The shape a matcher's `this.snapshotState` has, or `null` for the file's snapshot state itself.
+   * Jest: `@provino/dialect-jest/runtime` `jestSnapshotStateView`, jest-snapshot 30.5's
+   * `SnapshotState` fields that third-party matchers read and write (`_counters`, `_updateSnapshot`,
+   * the four counts; jest-image-snapshot). Vitest: `null` until T7.6 records what its matchers
+   * read. Provino's own key.
+   */
+  readonly contextView: Behaviour<SnapshotContextViewFactory> | null
 }

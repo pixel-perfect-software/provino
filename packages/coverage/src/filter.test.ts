@@ -83,6 +83,16 @@ function jestInstruments(config: SerializedCoverageConfig, path: string): boolea
         collectCoverageFrom: [...config.include],
         coverageProvider: 'babel',
         globalRootDir: config.globalRoot,
+        ...(config.changedFiles === undefined
+          ? {}
+          : { changedFiles: new Set(config.changedFiles) }),
+        ...(config.sourcesRelatedToTestsInChangedFiles === undefined
+          ? {}
+          : {
+              sourcesRelatedToTestsInChangedFiles: new Set(
+                config.sourcesRelatedToTestsInChangedFiles,
+              ),
+            }),
       },
       jestConfig(config),
     ) && babelInstruments(path)
@@ -182,4 +192,54 @@ test('an instrument root below the project root (babel-jest cwd) leaves the rest
   // V8 has no such step: the global root decides.
   const v8 = createCoverageFilter({ ...CONFIG, provider: 'v8', instrumentRoot: `${ROOT}/sub` })
   assert.equal(v8(`${ROOT}/src/add.ts`), true)
+})
+
+// `shouldInstrument` L111-L118 (an `-o` run): a file outside `changedFiles` counts only when it is
+// one of the sources the changed tests import; a forced file counts before that step.
+const CHANGED_PATHS: readonly [name: string, path: string][] = [
+  ...PATHS,
+  ['a changed source', `${ROOT}/src/changed.ts`],
+  ['a related source', `${ROOT}/src/related.ts`],
+  ['an unrelated source', `${ROOT}/src/other.ts`],
+  ['a changed test file', `${ROOT}/src/changed.test.ts`],
+]
+
+for (const [name, extra] of [
+  [
+    'changed files only',
+    { changedFiles: [`${ROOT}/src/changed.ts`, `${ROOT}/src/changed.test.ts`] },
+  ],
+  [
+    'changed files and related sources',
+    {
+      changedFiles: [`${ROOT}/src/changed.ts`],
+      sourcesRelatedToTestsInChangedFiles: [`${ROOT}/src/related.ts`],
+    },
+  ],
+  ['no changed files at all', { changedFiles: [] }],
+  ['related sources with no changed set', { sourcesRelatedToTestsInChangedFiles: [] }],
+  [
+    'a forced file outside the changed set',
+    { changedFiles: [`${ROOT}/src/changed.ts`], force: ['**/shared/**'] },
+  ],
+] as const) {
+  const config: SerializedCoverageConfig = { ...CONFIG, ...extra }
+  test(`the filter agrees with Jest on changed files (${name})`, () => {
+    const filter = createCoverageFilter(config)
+    for (const [what, path] of CHANGED_PATHS) {
+      assert.equal(filter(path), jestInstruments(config, path), `${what}: ${path}`)
+    }
+  })
+}
+
+test('changed files restrict the V8 provider too, and the files are what count', () => {
+  const filter = createCoverageFilter({
+    ...CONFIG,
+    provider: 'v8',
+    changedFiles: [`${ROOT}/src/changed.ts`],
+    sourcesRelatedToTestsInChangedFiles: [`${ROOT}/src/related.ts`],
+  })
+  assert.equal(filter(`${ROOT}/src/changed.ts`), true)
+  assert.equal(filter(`${ROOT}/src/related.ts`), true)
+  assert.equal(filter(`${ROOT}/src/other.ts`), false)
 })

@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { iterableEquality, subsetEquality } from '@jest/expect-utils'
-import { SnapshotError, SnapshotState } from '@provino/snapshot/runtime'
+import { SnapshotError, SnapshotState, snapshotContextOf } from '@provino/snapshot/runtime'
 import type { ExpectStatic, SnapshotMessageInfo, SnapshotPrinter } from '@provino/types'
 import { createEndOfTest } from './end-of-test.ts'
 import { createExpect, MatcherResultError } from './expect.ts'
@@ -608,5 +608,53 @@ describe('expect.addSnapshotSerializer', () => {
       () => expect.addSnapshotSerializer({ test: () => true, serialize: () => '' }),
       (error) => error instanceof SnapshotError && error.code === 'SNAPSHOT_NOT_INITIALIZED',
     )
+  })
+})
+
+describe('a dialect`s view as this.snapshotState (B23e, D128)', () => {
+  /** The setup with the matcher state holding a view over the file's state, as the worker puts it. */
+  const viewed = () => {
+    const set = setup()
+    const view = snapshotContextOf(set.state, () => ({ shape: 'dialect' }))
+    set.expect.setState({ snapshotState: view })
+    return { ...set, view }
+  }
+
+  test('the snapshot matchers work on the state the view was built over', () => {
+    const { expect, inTest, state, snapPath } = viewed()
+    inTest(['t'], () => expect({ a: 1 }).toMatchSnapshot())
+    assert.equal(state.added, 1)
+    state.finish()
+    assert.match(readFileSync(snapPath, 'utf8'), /exports\[`t 1`\]/)
+  })
+
+  test('a matcher of the project`s sees the view, and shares the counter with toMatchSnapshot', () => {
+    const { expect, inTest, state, view, snapPath } = viewed()
+    const seen: unknown[] = []
+    expect.extend({
+      toCountOne(this: { snapshotState?: unknown }) {
+        seen.push(this.snapshotState)
+        state.liveCounters.set('t', (state.liveCounters.get('t') ?? 0) + 1)
+        return { pass: true, message: () => '' }
+      },
+    })
+    inTest(['t'], () => {
+      expect(1).toMatchSnapshot()
+      ;(expect(1) as unknown as { toCountOne(): void }).toCountOne()
+      expect(3).toMatchSnapshot()
+    })
+    assert.deepEqual(seen, [view])
+    state.finish()
+    const written = readFileSync(snapPath, 'utf8')
+    assert.match(written, /exports\[`t 1`\] = `1`;/)
+    assert.match(written, /exports\[`t 3`\] = `3`;/, 'the third snapshot of the test is `t 3`')
+  })
+
+  test('expect.addSnapshotSerializer adds to the state behind the view', () => {
+    const { expect, inTest, state, snapPath } = viewed()
+    expect.addSnapshotSerializer({ test: (v) => v === 'secret', serialize: () => 'HIDDEN' })
+    inTest(['t'], () => expect('secret').toMatchSnapshot())
+    state.finish()
+    assert.match(readFileSync(snapPath, 'utf8'), /exports\[`t 1`\] = `HIDDEN`;/)
   })
 })

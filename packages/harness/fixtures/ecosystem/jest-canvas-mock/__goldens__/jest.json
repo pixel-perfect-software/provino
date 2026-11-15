@@ -1,0 +1,335 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ecosystem/jest-canvas-mock",
+  "files": [
+    {
+      "file": "drawing.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "drawing.test.ts",
+            "path": [
+              "drawing calls are recorded as events"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 5,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "drawing.test.ts",
+            "path": [
+              "the context methods are jest.fn mocks"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 14,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "drawing.test.ts",
+            "path": [
+              "a wrong call count fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)\n\nExpected number of calls: 2\nReceived number of calls: 1",
+              "userFrame": "<root>/drawing.test.ts:23:25"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "reset.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "reset.test.ts",
+            "path": [
+              "after the re-setup the context still records draw calls"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 12,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "reset.test.ts",
+            "path": [
+              "each test sees a fresh mock"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 18,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "reset.test.ts",
+            "path": [
+              "measureText still answers after the reset"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 23,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 3,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 3,
+      "filesAdded": 2,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/drawing.test.ts.snap",
+        "sha256": "b3ac02cf4e76c258775b62be76a3839e180fa858686df1166b101645695a91fe"
+      },
+      {
+        "file": "__snapshots__/reset.test.ts.snap",
+        "sha256": "1a0c14317d2b659e080325f90b80c0127a34e230a4007f8bbbcd33e086a1bb43"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "PASS ./reset.test.ts\n › 2 snapshots written.\nFAIL ./drawing.test.ts\n  ● a wrong call count fails\n    Expected number of calls: 2\n    Received number of calls: 1\n › 1 snapshot written.\nSnapshot Summary\n › 3 snapshots written from 2 test suites.\nTest Suites: 1 failed, 1 passed, 2 total\nTests:       1 failed, 5 passed, 6 total\nSnapshots:   3 written, 3 total",
+    "files": {
+      "__snapshots__/drawing.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`drawing calls are recorded as events 1`] = `\n[\n  {\n    \"props\": {\n      \"value\": \"#ff0000\",\n    },\n    \"transform\": [\n      1,\n      0,\n      0,\n      1,\n      0,\n      0,\n    ],\n    \"type\": \"fillStyle\",\n  },\n  {\n    \"props\": {\n      \"height\": 10,\n      \"width\": 10,\n      \"x\": 0,\n      \"y\": 0,\n    },\n    \"transform\": [\n      1,\n      0,\n      0,\n      1,\n      0,\n      0,\n    ],\n    \"type\": \"fillRect\",\n  },\n  {\n    \"props\": {},\n    \"transform\": [\n      1,\n      0,\n      0,\n      1,\n      0,\n      0,\n    ],\n    \"type\": \"beginPath\",\n  },\n  {\n    \"props\": {\n      \"anticlockwise\": false,\n      \"endAngle\": 6.283185307179586,\n      \"radius\": 3,\n      \"startAngle\": 0,\n      \"x\": 5,\n      \"y\": 5,\n    },\n    \"transform\": [\n      1,\n      0,\n      0,\n      1,\n      0,\n      0,\n    ],\n    \"type\": \"arc\",\n  },\n  {\n    \"props\": {\n      \"path\": [\n        {\n          \"props\": {},\n          \"transform\": [\n            1,\n            0,\n            0,\n            1,\n            0,\n            0,\n          ],\n          \"type\": \"beginPath\",\n        },\n        {\n          \"props\": {\n            \"anticlockwise\": false,\n            \"endAngle\": 6.283185307179586,\n            \"radius\": 3,\n            \"startAngle\": 0,\n            \"x\": 5,\n            \"y\": 5,\n          },\n          \"transform\": [\n            1,\n            0,\n            0,\n            1,\n            0,\n            0,\n          ],\n          \"type\": \"arc\",\n        },\n      ],\n    },\n    \"transform\": [\n      1,\n      0,\n      0,\n      1,\n      0,\n      0,\n    ],\n    \"type\": \"stroke\",\n  },\n]\n`;\n",
+      "__snapshots__/reset.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`after the re-setup the context still records draw calls 1`] = `\n[\n  {\n    \"props\": {\n      \"height\": 6,\n      \"width\": 6,\n      \"x\": 2,\n      \"y\": 2,\n    },\n    \"transform\": [\n      1,\n      0,\n      0,\n      1,\n      0,\n      0,\n    ],\n    \"type\": \"strokeRect\",\n  },\n]\n`;\n\nexports[`measureText still answers after the reset 1`] = `3`;\n"
+    },
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 1,
+        "numFailedTests": 1,
+        "numPassedTestSuites": 1,
+        "numPassedTests": 5,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 2,
+        "numTotalTests": 6,
+        "openHandles": [],
+        "snapshot": {
+          "added": 3,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 2,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 3,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "drawing calls are recorded as events",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 5
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "drawing calls are recorded as events",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "the context methods are jest.fn mocks",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 14
+                },
+                "numPassingAsserts": 2,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "the context methods are jest.fn mocks",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "message": "expect(jest.fn()).toHaveBeenCalledTimes(expected)\n\nExpected number of calls: 2\nReceived number of calls: 1",
+                      "pass": false
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(jest.fn()).toHaveBeenCalledTimes(expected)\n\nExpected number of calls: 2\nReceived number of calls: 1\n<frames>"
+                ],
+                "fullName": "a wrong call count fails",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 20
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "a wrong call count fails",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● a wrong call count fails\n\n    expect(jest.fn()).toHaveBeenCalledTimes(expected)\n\n    Expected number of calls: 2\n    Received number of calls: 1\n\n      21 |   const ctx = context()\n      22 |   ctx.clearRect(0, 0, 1, 1)\n    > 23 |   expect(ctx.clearRect).toHaveBeenCalledTimes(2)\n         |                         ^\n      24 | })\n      25 |\n\n<frames>\n",
+            "name": "<root>/drawing.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "after the re-setup the context still records draw calls",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 12
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "after the re-setup the context still records draw calls",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "each test sees a fresh mock",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 18
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "each test sees a fresh mock",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "measureText still answers after the reset",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 23
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "measureText still answers after the reset",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/reset.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

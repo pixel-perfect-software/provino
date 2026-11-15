@@ -6,6 +6,7 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { test } from 'node:test'
+import { WATCH_DONE_PLUGIN_PATH, WATCH_LOG_REPORTER_PATH } from '../internal/watch-record.ts'
 import { sidecarReporterPath } from '../sidecar.ts'
 
 const IMPORT = /^\s*(import|export)\s+(type\s+)?(?:[^'"]*?\sfrom\s+)?['"]([^'"]+)['"]/gm
@@ -31,6 +32,19 @@ for (const runner of ['jest', 'vitest'] as const) {
   test(`the ${runner} sidecar loads Node builtins only`, async () => {
     const file = sidecarReporterPath(runner)
     assert.ok(path.isAbsolute(file) && file.endsWith(`${runner}.ts`), file)
+    const imports = await runtimeImports(file)
+    assert.ok(imports.length > 0, 'it imports node:fs at least')
+    for (const specifier of imports) assert.match(specifier, /^node:/, specifier)
+  })
+}
+
+// B23c: the watch run log is loaded the same way, from the recorder's config and from
+// `provino jest --reporters`.
+for (const [name, file] of [
+  ['run-log reporter', WATCH_LOG_REPORTER_PATH],
+  ['done plugin', WATCH_DONE_PLUGIN_PATH],
+] as const) {
+  test(`the watch ${name} loads Node builtins only`, async () => {
     const imports = await runtimeImports(file)
     assert.ok(imports.length > 0, 'it imports node:fs at least')
     for (const specifier of imports) assert.match(specifier, /^node:/, specifier)

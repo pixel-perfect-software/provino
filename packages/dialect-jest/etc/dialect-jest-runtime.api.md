@@ -22,6 +22,7 @@ import { MockTarget } from '@provino/mock';
 import { Pragmas } from '@provino/types';
 import { Replaced } from '@provino/mock';
 import { RuntimeApi } from '@provino/core';
+import { SnapshotContextSource } from '@provino/types';
 import { SnapshotPrinter } from '@provino/types';
 import { SnapshotResolverFactory } from '@provino/types';
 import { SpiedGetter } from '@provino/mock';
@@ -201,6 +202,23 @@ export function jestSnapshotPrinter(): SnapshotPrinter;
 
 // @public
 export const jestSnapshotResolver: SnapshotResolverFactory;
+
+// @public
+export interface JestSnapshotStateView {
+    // (undocumented)
+    added: number;
+    readonly _counters: Map<string, number>;
+    // (undocumented)
+    matched: number;
+    // (undocumented)
+    unmatched: number;
+    // (undocumented)
+    updated: number;
+    readonly _updateSnapshot: "all" | "new" | "none";
+}
+
+// @public
+export function jestSnapshotStateView(state: SnapshotContextSource): JestSnapshotStateView;
 
 // @public
 export interface JestTimerMembers<J> {

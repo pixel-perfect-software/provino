@@ -1,0 +1,45 @@
+{
+  "description": "`o` from --watchAll: only the tests related to files changed since the last commit run (mode watch), and the `o` row leaves the usage. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "write": {
+          "b.test.ts": "test('b passes', () => {\n  expect(1).toBe(1)\n})\ntest('b changed', () => {\n  expect(1).toBe(1)\n})\n"
+        }
+      }
+    ]
+  },
+  "watch": {
+    "argv": ["--watchAll"],
+    "tty": true,
+    "steps": [
+      {
+        "waitRun": 1
+      },
+      {
+        "key": "o"
+      },
+      {
+        "waitRun": 2
+      },
+      {
+        "key": "w"
+      },
+      {
+        "waitText": "to trigger a test run."
+      },
+      {
+        "key": "q"
+      },
+      {
+        "exit": 0
+      }
+    ],
+    "capture": ["runs", "transcript", "exitCode"],
+    "keepLines": "^(?:<CLEAR>$|Watch Usage| › |Active Filters:|Pattern Mode Usage| pattern ›|Ran all test suites|Test run was interrupted|No tests found|No failed test found|Press `|Run Jest without|Interactive (?:Test|Snapshot)|Pattern matches|Start typing|Tests:|Test Suites:|Snapshots:)"
+  }
+}

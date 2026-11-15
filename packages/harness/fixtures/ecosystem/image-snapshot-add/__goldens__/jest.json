@@ -1,0 +1,212 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ecosystem/image-snapshot-add",
+  "files": [
+    {
+      "file": "counter.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "counter.test.ts",
+            "path": [
+              "counter"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 3,
+          "location": {
+            "line": 5,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "images.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "images.test.ts",
+            "path": [
+              "v1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 6,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "images.test.ts",
+            "path": [
+              "v2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 4,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 4,
+      "filesAdded": 2,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/counter.test.ts.snap",
+        "sha256": "7cfe8b0b50e420b50f8eb98cdf08385918b3705f3154c5b0927299af4aebe61c"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "PASS ./images.test.ts\n › 1 snapshot written.\nPASS ./counter.test.ts\n › 3 snapshots written.\nSnapshot Summary\n › 4 snapshots written from 2 test suites.\nTest Suites: 2 passed, 2 total\nTests:       1 skipped, 2 passed, 3 total\nSnapshots:   4 written, 4 total",
+    "files": {
+      "image-hashes.txt": "counter-test-ts-counter-2-snap.png 3c1b23407ae8867d4a780321c60b36be20c09fba4a0612a0901825609acabb8d\nshared-image.png 1284b3c3991161f10af007e4b890476cf4f356e3021ea927b037c2f01b24952f\n",
+      "__snapshots__/counter.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`counter 1`] = `\"first\"`;\n\nexports[`counter 3`] = `\"third\"`;\n"
+    },
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 0,
+        "numFailedTests": 0,
+        "numPassedTestSuites": 2,
+        "numPassedTests": 2,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 1,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 2,
+        "numTotalTests": 3,
+        "openHandles": [],
+        "snapshot": {
+          "added": 4,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 2,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 4,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": true,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "counter",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 5
+                },
+                "numPassingAsserts": 3,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "counter",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/counter.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "v1",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 6
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "v1",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "v2",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 10
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "v2",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/images.test.ts",
+            "startTime": "<time>",
+            "status": "focused",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

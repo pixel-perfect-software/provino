@@ -1,0 +1,48 @@
+{
+  "description": "jest-watch-typeahead/testname (3.0.1) in `watchPlugins`: `t` opens its prompt over the last run's test names, typing lists the one match, Enter runs it with the other skipped. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      }
+    ]
+  },
+  "config": {
+    "jest": {
+      "watchPlugins": ["jest-watch-typeahead/testname"]
+    }
+  },
+  "watch": {
+    "argv": ["--watchAll"],
+    "tty": true,
+    "steps": [
+      {
+        "waitRun": 1
+      },
+      {
+        "key": "t"
+      },
+      {
+        "waitText": "Start typing"
+      },
+      {
+        "type": "beta"
+      },
+      {
+        "key": "<enter>"
+      },
+      {
+        "waitRun": 2
+      },
+      {
+        "key": "q"
+      },
+      {
+        "exit": 0
+      }
+    ],
+    "capture": ["runs", "transcript", "exitCode"],
+    "keepLines": "^(?:<CLEAR>$|Watch Usage| › |Active Filters:|Pattern Mode Usage| pattern ›|Ran all test suites|Test run was interrupted|No tests found|No failed test found|Press `|Run Jest without|Interactive (?:Test|Snapshot)|Pattern matches|Start typing|Tests:|Test Suites:|Snapshots:)"
+  }
+}

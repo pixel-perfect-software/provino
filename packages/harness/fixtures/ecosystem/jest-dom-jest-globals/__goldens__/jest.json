@@ -1,0 +1,437 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ecosystem/jest-dom-jest-globals",
+  "files": [
+    {
+      "file": "first.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "first.test.ts",
+            "path": [
+              "first: toBeInTheDocument passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 11,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "first.test.ts",
+            "path": [
+              "first: toHaveTextContent passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 14,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "first.test.ts",
+            "path": [
+              "first: toHaveAttribute fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).toHaveAttribute(\"data-file\", \"neither\") // element.getAttribute(\"data-file\") === \"neither\"\n\nExpected the element to have attribute:\n  data-file=\"neither\"\nReceived:\n  data-file=\"first\"",
+              "userFrame": "<root>/first.test.ts:18:18"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 17,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "first.test.ts",
+            "path": [
+              "first: .not.toBeInTheDocument fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).not.toBeInTheDocument()\n\nexpected document not to contain element, found <p data-file=\"first\" id=\"note\">The first file</p> instead",
+              "userFrame": "<root>/first.test.ts:21:22"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 5
+          }
+        }
+      ]
+    },
+    {
+      "file": "second.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "second.test.ts",
+            "path": [
+              "second: toBeInTheDocument passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 11,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "second.test.ts",
+            "path": [
+              "second: toHaveTextContent fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).toHaveTextContent()\n\nExpected element to have text content:\n  The first file\nReceived:\n  The second file",
+              "userFrame": "<root>/second.test.ts:15:18"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 14,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "second.test.ts",
+            "path": [
+              "second: toHaveAttribute passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 17,
+            "column": 5
+          }
+        },
+        {
+          "id": {
+            "file": "second.test.ts",
+            "path": [
+              "second: .not.toHaveAttribute fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).not.toHaveAttribute(\"id\") // element.hasAttribute(\"id\")\n\nExpected the element not to have attribute:\n  id\nReceived:\n  id=\"note\"",
+              "userFrame": "<root>/second.test.ts:21:22"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 5
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./first.test.ts\n  ● first: toHaveAttribute fails\n    Expected the element to have attribute:\n    Received:\n  ● first: .not.toBeInTheDocument fails\nFAIL ./second.test.ts\n  ● second: toHaveTextContent fails\n    Expected element to have text content:\n    Received:\n  ● second: .not.toHaveAttribute fails\n    Expected the element not to have attribute:\n    Received:\nTest Suites: 2 failed, 2 total\nTests:       4 failed, 4 passed, 8 total\nSnapshots:   0 total",
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 2,
+        "numFailedTests": 4,
+        "numPassedTestSuites": 0,
+        "numPassedTests": 4,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 2,
+        "numTotalTests": 8,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "first: toBeInTheDocument passes",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 11
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "first: toBeInTheDocument passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "first: toHaveTextContent passes",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 14
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "first: toHaveTextContent passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "expect(element).toHaveAttribute(\"data-file\", \"neither\") // element.getAttribute(\"data-file\") === \"neither\"\n\nExpected the element to have attribute:\n  data-file=\"neither\"\nReceived:\n  data-file=\"first\""
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).toHaveAttribute(\"data-file\", \"neither\") // element.getAttribute(\"data-file\") === \"neither\"\n\nExpected the element to have attribute:\n  data-file=\"neither\"\nReceived:\n  data-file=\"first\"\n<frames>"
+                ],
+                "fullName": "first: toHaveAttribute fails",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 17
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "first: toHaveAttribute fails",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": true,
+                      "message": "expect(element).not.toBeInTheDocument()\n\nexpected document not to contain element, found <p data-file=\"first\" id=\"note\">The first file</p> instead"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).not.toBeInTheDocument()\n\nexpected document not to contain element, found <p data-file=\"first\" id=\"note\">The first file</p> instead\n<frames>"
+                ],
+                "fullName": "first: .not.toBeInTheDocument fails",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 20
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "first: .not.toBeInTheDocument fails",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● first: toHaveAttribute fails\n\n    expect(element).toHaveAttribute(\"data-file\", \"neither\") // element.getAttribute(\"data-file\") === \"neither\"\n\n    Expected the element to have attribute:\n      data-file=\"neither\"\n    Received:\n      data-file=\"first\"\n\n      16 | })\n      17 | test('first: toHaveAttribute fails', () => {\n    > 18 |   expect(note()).toHaveAttribute('data-file', 'neither')\n         |                  ^\n      19 | })\n      20 | test('first: .not.toBeInTheDocument fails', () => {\n      21 |   expect(note()).not.toBeInTheDocument()\n\n<frames>\n\n  ● first: .not.toBeInTheDocument fails\n\n    expect(element).not.toBeInTheDocument()\n\n    expected document not to contain element, found <p data-file=\"first\" id=\"note\">The first file</p> instead\n\n      19 | })\n      20 | test('first: .not.toBeInTheDocument fails', () => {\n    > 21 |   expect(note()).not.toBeInTheDocument()\n         |                      ^\n      22 | })\n      23 |\n\n<frames>\n",
+            "name": "<root>/first.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "second: toBeInTheDocument passes",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 11
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "second: toBeInTheDocument passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "expect(element).toHaveTextContent()\n\nExpected element to have text content:\n  The first file\nReceived:\n  The second file"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).toHaveTextContent()\n\nExpected element to have text content:\n  The first file\nReceived:\n  The second file\n<frames>"
+                ],
+                "fullName": "second: toHaveTextContent fails",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 14
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "second: toHaveTextContent fails",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "second: toHaveAttribute passes",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 17
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "second: toHaveAttribute passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": true,
+                      "message": "expect(element).not.toHaveAttribute(\"id\") // element.hasAttribute(\"id\")\n\nExpected the element not to have attribute:\n  id\nReceived:\n  id=\"note\""
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).not.toHaveAttribute(\"id\") // element.hasAttribute(\"id\")\n\nExpected the element not to have attribute:\n  id\nReceived:\n  id=\"note\"\n<frames>"
+                ],
+                "fullName": "second: .not.toHaveAttribute fails",
+                "invocations": 1,
+                "location": {
+                  "column": 5,
+                  "line": 20
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "second: .not.toHaveAttribute fails",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● second: toHaveTextContent fails\n\n    expect(element).toHaveTextContent()\n\n    Expected element to have text content:\n      The first file\n    Received:\n      The second file\n\n      13 | })\n      14 | test('second: toHaveTextContent fails', () => {\n    > 15 |   expect(note()).toHaveTextContent('The first file')\n         |                  ^\n      16 | })\n      17 | test('second: toHaveAttribute passes', () => {\n      18 |   expect(note()).toHaveAttribute('data-file', 'second')\n\n<frames>\n\n  ● second: .not.toHaveAttribute fails\n\n    expect(element).not.toHaveAttribute(\"id\") // element.hasAttribute(\"id\")\n\n    Expected the element not to have attribute:\n      id\n    Received:\n      id=\"note\"\n\n      19 | })\n      20 | test('second: .not.toHaveAttribute fails', () => {\n    > 21 |   expect(note()).not.toHaveAttribute('id')\n         |                      ^\n      22 | })\n      23 |\n\n<frames>\n",
+            "name": "<root>/second.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

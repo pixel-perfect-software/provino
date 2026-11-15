@@ -281,6 +281,18 @@ function coverageConfig(value: unknown): SerializedCoverageConfig {
     testIgnorePatterns: texts(coverage.testIgnorePatterns, 'coverage.testIgnorePatterns'),
     excludePatterns: texts(coverage.excludePatterns, 'coverage.excludePatterns'),
     excludePaths: absolutePaths(coverage.excludePaths, 'coverage.excludePaths'),
+    // `-o` (B23c Phase 6): absent on a full run, which counts every file.
+    ...(coverage.changedFiles === undefined
+      ? {}
+      : { changedFiles: absolutePaths(coverage.changedFiles, 'coverage.changedFiles') }),
+    ...(coverage.sourcesRelatedToTestsInChangedFiles === undefined
+      ? {}
+      : {
+          sourcesRelatedToTestsInChangedFiles: absolutePaths(
+            coverage.sourcesRelatedToTestsInChangedFiles,
+            'coverage.sourcesRelatedToTestsInChangedFiles',
+          ),
+        }),
   }
 }
 

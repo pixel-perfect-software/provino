@@ -1,0 +1,48 @@
+{
+  "description": "jest-watch-typeahead/filename (3.0.1) in `watchPlugins`: `p` opens its prompt, typing lists the one matching file, Enter runs it. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      }
+    ]
+  },
+  "config": {
+    "jest": {
+      "watchPlugins": ["jest-watch-typeahead/filename"]
+    }
+  },
+  "watch": {
+    "argv": ["--watchAll"],
+    "tty": true,
+    "steps": [
+      {
+        "waitRun": 1
+      },
+      {
+        "key": "p"
+      },
+      {
+        "waitText": "Start typing"
+      },
+      {
+        "type": "foo"
+      },
+      {
+        "key": "<enter>"
+      },
+      {
+        "waitRun": 2
+      },
+      {
+        "key": "q"
+      },
+      {
+        "exit": 0
+      }
+    ],
+    "capture": ["runs", "transcript", "exitCode"],
+    "keepLines": "^(?:<CLEAR>$|Watch Usage| › |Active Filters:|Pattern Mode Usage| pattern ›|Ran all test suites|Test run was interrupted|No tests found|No failed test found|Press `|Run Jest without|Interactive (?:Test|Snapshot)|Pattern matches|Start typing|Tests:|Test Suites:|Snapshots:)"
+  }
+}
