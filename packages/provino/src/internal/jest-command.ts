@@ -589,6 +589,10 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       return ExitCode.TestFailure
     }
     const useCache = request.cache !== false && read.cache
+    // Only the `-o` modes restrict coverage (runJest.ts L403-L421). `--findRelatedTests` does not:
+    // Jest 30.5.2 builds `SearchResult.collectCoverageFrom` (SearchSource.ts L196-L231) and never
+    // reads it in `runJest`, so coverage there counts every `collectCoverageFrom` file
+    // (`coverage/find-related`, held by `test/jest-coverage-changed.test.ts`).
     if (
       read.globalConfig.collectCoverage &&
       !read.globalConfig.collectTests &&

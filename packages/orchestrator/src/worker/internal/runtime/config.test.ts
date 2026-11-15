@@ -350,6 +350,42 @@ describe('parseProjectConfig', () => {
     })
   })
 
+  it('keeps the changed-file coverage lists an -o run sends (B23c Phase 6), and none otherwise', () => {
+    const coverage = {
+      provider: 'istanbul',
+      globalRoot: '/root',
+      projectRoot: '/root',
+      include: [],
+      includeRoot: false,
+      force: [],
+      testFiles: [],
+      testRegex: [],
+      testIgnorePatterns: [],
+      excludePatterns: [],
+      excludePaths: [],
+    }
+    const plain = parseProjectConfig({ ...structuredClone(valid), coverage })
+    assert.equal('changedFiles' in (plain.coverage ?? {}), false)
+    const changed = parseProjectConfig({
+      ...structuredClone(valid),
+      coverage: {
+        ...coverage,
+        changedFiles: ['/root/a.ts'],
+        sourcesRelatedToTestsInChangedFiles: ['/root/b.ts'],
+      },
+    })
+    assert.deepEqual(changed.coverage?.changedFiles, ['/root/a.ts'])
+    assert.deepEqual(changed.coverage?.sourcesRelatedToTestsInChangedFiles, ['/root/b.ts'])
+    assert.throws(
+      () =>
+        parseProjectConfig({
+          ...structuredClone(valid),
+          coverage: { ...coverage, changedFiles: ['a.ts'] },
+        }),
+      { code: 'ORCH_BAD_CONFIG' },
+    )
+  })
+
   it('rejects a config that is not an object', () => {
     for (const value of [undefined, null, 'config', 3, []]) {
       assert.throws(() => parseProjectConfig(value), { code: 'ORCH_BAD_CONFIG' })
