@@ -1,0 +1,18 @@
+{
+  "description": "@testing-library/jest-dom/jest-globals imported by each test file beside `import { beforeEach, expect, test } from '@jest/globals'` (T11.11): the entry extends the expect @jest/globals serves, and two files on one worker each import it. toBeInTheDocument, toHaveTextContent and toHaveAttribute pass and fail.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]|^Snapshot Summary$",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "description": "`-o --coverage` (runJest.ts L403-L421, shouldInstrument L111-L118): coverage counts the changed source (`src/changed.ts`) and the sources a changed test file imports (`src/related.ts`, through `tests/edited.test.ts`); `src/shared.ts`, which an -o-selected test loads but nobody changed, is left out, and `src/other.ts` belongs to a test -o does not run. Jest only. Read by `provino`'s `jest-coverage-changed.test.ts`.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "coverageProvider": "babel",
+      "coverageReporters": ["json", "json-summary", "text"],
+      "maxWorkers": 1
+    }
+  },
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      },
+      {
+        "write": {
+          "src/changed.ts": "function double(n) {\n  if (n < 0) {\n    return 0\n  }\n  return n * 2 // edited\n}\nmodule.exports = { double }\n",
+          "tests/edited.test.ts": "const { add } = require('../src/related.ts')\n\ntest('adds', () => {\n  expect(add(1, 2)).toBe(3)\n})\n\ntest('adds again', () => {\n  expect(add(2, 2)).toBe(4)\n})\n"
+        }
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["-o"]
+    },
+    "raw": true,
+    "maskKeys": ["hash"],
+    "capture": [
+      "exitCode",
+      "stdout",
+      "json:coverage/coverage-final.json",
+      "json:coverage/coverage-summary.json"
+    ]
+  }
+}

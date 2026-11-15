@@ -1,0 +1,350 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ecosystem/jest-styled-components",
+  "files": [
+    {
+      "file": "button.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "button.test.ts",
+            "path": [
+              "toHaveStyleRule passes, with and without a modifier"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 15,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "button.test.ts",
+            "path": [
+              "toHaveStyleRule fails on another value"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: \"Value mismatch for property 'color'\"\n\nExpected\n  \"color: green\"\nReceived:\n  \"color: red\"",
+              "userFrame": "<root>/button.test.ts:22:32"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "button.test.ts",
+            "path": [
+              "toHaveStyleRule fails on a missing property"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: \"Property 'margin' not found in style rules\"\n\nExpected\n  \"margin: 1px\"\nReceived:\n  \"margin: undefined\"",
+              "userFrame": "<root>/button.test.ts:26:32"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "button.test.ts",
+            "path": [
+              "the snapshot holds the serializer class names and the rules"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 28,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "card.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "card.test.ts",
+            "path": [
+              "the snapshot of a nested pair"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 14,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "card.test.ts",
+            "path": [
+              "toHaveStyleRule on the second file"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 18,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 2,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 2,
+      "filesAdded": 2,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/button.test.ts.snap",
+        "sha256": "dc409e611f40323b4ecef2bd7c4716953c63df036762e6e0a9aa9bc9144fa24f"
+      },
+      {
+        "file": "__snapshots__/card.test.ts.snap",
+        "sha256": "eb30d0a54ae0bbffd2384d591d792ecdd2a3087ef7056e72ca61a655e0648668"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./button.test.ts\n  ● toHaveStyleRule fails on another value\n    Expected\n    Received:\n  ● toHaveStyleRule fails on a missing property\n    Expected\n    Received:\n › 1 snapshot written.\nPASS ./card.test.ts\n › 1 snapshot written.\nSnapshot Summary\n › 2 snapshots written from 2 test suites.\nTest Suites: 1 failed, 1 passed, 2 total\nTests:       2 failed, 4 passed, 6 total\nSnapshots:   2 written, 2 total",
+    "files": {
+      "__snapshots__/button.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`the snapshot holds the serializer class names and the rules 1`] = `\n.c0 {\n  color: red;\n  padding: 4px;\n}\n\n.c0:hover {\n  color: blue;\n}\n\n<button\n  class=\"c0\"\n>\n  go\n</button>\n`;\n",
+      "__snapshots__/card.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`the snapshot of a nested pair 1`] = `\n.c0 {\n  border: 1px solid black;\n}\n\n.c1 {\n  font-weight: bold;\n}\n\n<section\n  class=\"c0\"\n>\n  <h2\n    class=\"c1\"\n  >\n    title\n  </h2>\n</section>\n`;\n"
+    },
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 1,
+        "numFailedTests": 2,
+        "numPassedTestSuites": 1,
+        "numPassedTests": 4,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 2,
+        "numTotalTests": 6,
+        "openHandles": [],
+        "snapshot": {
+          "added": 2,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 2,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 2,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "toHaveStyleRule passes, with and without a modifier",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 15
+                },
+                "numPassingAsserts": 2,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "toHaveStyleRule passes, with and without a modifier",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "\"Value mismatch for property 'color'\"\n\nExpected\n  \"color: green\"\nReceived:\n  \"color: red\""
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: \"Value mismatch for property 'color'\"\n\nExpected\n  \"color: green\"\nReceived:\n  \"color: red\"\n<frames>"
+                ],
+                "fullName": "toHaveStyleRule fails on another value",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 20
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "toHaveStyleRule fails on another value",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "\"Property 'margin' not found in style rules\"\n\nExpected\n  \"margin: 1px\"\nReceived:\n  \"margin: undefined\""
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: \"Property 'margin' not found in style rules\"\n\nExpected\n  \"margin: 1px\"\nReceived:\n  \"margin: undefined\"\n<frames>"
+                ],
+                "fullName": "toHaveStyleRule fails on a missing property",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 24
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "toHaveStyleRule fails on a missing property",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "the snapshot holds the serializer class names and the rules",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 28
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "the snapshot holds the serializer class names and the rules",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● toHaveStyleRule fails on another value\n\n    \"Value mismatch for property 'color'\"\n\n    Expected\n      \"color: green\"\n    Received:\n      \"color: red\"\n\n      20 | test('toHaveStyleRule fails on another value', () => {\n      21 |   const { container } = render(createElement(Button, null, 'go'))\n    > 22 |   expect(container.firstChild).toHaveStyleRule('color', 'green')\n         |                                ^\n      23 | })\n      24 | test('toHaveStyleRule fails on a missing property', () => {\n      25 |   const { container } = render(createElement(Button, null, 'go'))\n\n<frames>\n\n  ● toHaveStyleRule fails on a missing property\n\n    \"Property 'margin' not found in style rules\"\n\n    Expected\n      \"margin: 1px\"\n    Received:\n      \"margin: undefined\"\n\n      24 | test('toHaveStyleRule fails on a missing property', () => {\n      25 |   const { container } = render(createElement(Button, null, 'go'))\n    > 26 |   expect(container.firstChild).toHaveStyleRule('margin', '1px')\n         |                                ^\n      27 | })\n      28 | test('the snapshot holds the serializer class names and the rules', () => {\n      29 |   const { container } = render(createElement(Button, null, 'go'))\n\n<frames>\n",
+            "name": "<root>/button.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "the snapshot of a nested pair",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 14
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "the snapshot of a nested pair",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "toHaveStyleRule on the second file",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 18
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "toHaveStyleRule on the second file",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/card.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "description": "@testing-library/jest-dom's default entry as a setupFilesAfterEnv module on jest-environment-jsdom (T11.11): toBeInTheDocument, toHaveClass, toHaveTextContent, toBeVisible, toHaveStyle and toHaveAttribute passing and failing, in one file plainly and in a second file under .not, on one worker. A failure's text is built from the matcher context (this.utils, this.isNot), so failureMessages and the kept stderr lines hold Jest's.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom",
+      "setupFilesAfterEnv": ["@testing-library/jest-dom"]
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]|^Snapshot Summary$",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

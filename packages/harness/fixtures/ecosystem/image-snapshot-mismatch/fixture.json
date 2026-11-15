@@ -1,0 +1,23 @@
+{
+  "description": "jest-image-snapshot 6.5.2 on an image that differs (B23e Phase 2c): `v1` and `v2` share one `customSnapshotIdentifier`; a first run stores v1, then `-t v2` fails with the share and count of differing pixels (one of sixteen) and writes the diff under `__image_snapshots__/__diff_output__/`, hashed with the stored image. The failure reaches Jest's totals (`unmatched`). Two files, one worker.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "setupFilesAfterEnv": ["<rootDir>/setup.ts"]
+    }
+  },
+  "before": [
+    {
+      "argv": ["--ci=false", "-w", "1", "-t", "v1"]
+    }
+  ],
+  "run": {
+    "argv": {
+      "jest": ["--ci", "--testLocationInResults", "-w", "1", "-t", "v2"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json", "file:image-hashes.txt"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Snapshot Summary|^ › |^ +● |^    [A-Z]",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

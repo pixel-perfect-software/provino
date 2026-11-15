@@ -1,0 +1,430 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ecosystem/jest-axe",
+  "files": [
+    {
+      "file": "configured.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "configured.test.ts",
+            "path": [
+              "image-alt is off, so an image with no alt passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 8,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "configured.test.ts",
+            "path": [
+              "a button with no name is a violation"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toHaveNoViolations(expected)\n\nExpected the HTML found at $('button') to have no violations:\n\n<button type=\"button\"></button>\n\nReceived:\n\n\"Buttons must have discernible text (button-name)\"\n\nFix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"\n\nYou can find more information on this issue here: \nhttps://dequeuniversity.com/rules/axe/4.12/button-name?application=axeAPI",
+              "userFrame": "<root>/configured.test.ts:14:36"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 12,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "default.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "default.test.ts",
+            "path": [
+              "a labelled form has no violations"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 6,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "default.test.ts",
+            "path": [
+              "an image with no alt is a violation"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toHaveNoViolations(expected)\n\nExpected the HTML found at $('img') to have no violations:\n\n<img src=\"photo.png\">\n\nReceived:\n\n\"Images must have alternative text (image-alt)\"\n\nFix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"\n\nYou can find more information on this issue here: \nhttps://dequeuniversity.com/rules/axe/4.12/image-alt?application=axeAPI",
+              "userFrame": "<root>/default.test.ts:13:36"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 11,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./configured.test.ts\n  ● a button with no name is a violation\n    Expected the HTML found at $('button') to have no violations:\n    Received:\n    Fix any of the following:\n    You can find more information on this issue here: \nFAIL ./default.test.ts\n  ● an image with no alt is a violation\n    Expected the HTML found at $('img') to have no violations:\n    Received:\n    Fix any of the following:\n    You can find more information on this issue here: \nTest Suites: 2 failed, 2 total\nTests:       2 failed, 2 passed, 4 total\nSnapshots:   0 total",
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 2,
+        "numFailedTests": 2,
+        "numPassedTestSuites": 0,
+        "numPassedTests": 2,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 2,
+        "numTotalTests": 4,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "image-alt is off, so an image with no alt passes",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 8
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "image-alt is off, so an image with no alt passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "actual": [
+                        {
+                          "id": "button-name",
+                          "impact": "critical",
+                          "tags": [
+                            "cat.name-role-value",
+                            "wcag2a",
+                            "wcag412",
+                            "section508",
+                            "section508.22.a",
+                            "TTv5",
+                            "TT6.a",
+                            "EN-301-549",
+                            "EN-9.4.1.2",
+                            "ACT",
+                            "RGAAv4",
+                            "RGAA-11.9.1"
+                          ],
+                          "description": "Ensure buttons have discernible text",
+                          "help": "Buttons must have discernible text",
+                          "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/button-name?application=axeAPI",
+                          "nodes": [
+                            {
+                              "any": [
+                                {
+                                  "id": "button-has-visible-text",
+                                  "data": null,
+                                  "relatedNodes": [],
+                                  "impact": "critical",
+                                  "message": "Element does not have inner text that is visible to screen readers"
+                                },
+                                {
+                                  "id": "aria-label",
+                                  "data": null,
+                                  "relatedNodes": [],
+                                  "impact": "critical",
+                                  "message": "aria-label attribute does not exist or is empty"
+                                },
+                                {
+                                  "id": "aria-labelledby",
+                                  "data": null,
+                                  "relatedNodes": [],
+                                  "impact": "critical",
+                                  "message": "aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty"
+                                },
+                                {
+                                  "id": "non-empty-title",
+                                  "data": {
+                                    "messageKey": "noAttr"
+                                  },
+                                  "relatedNodes": [],
+                                  "impact": "critical",
+                                  "message": "Element has no title attribute"
+                                },
+                                {
+                                  "id": "implicit-label",
+                                  "data": null,
+                                  "relatedNodes": [],
+                                  "impact": "critical",
+                                  "message": "Element does not have an implicit (wrapped) <label>"
+                                },
+                                {
+                                  "id": "explicit-label",
+                                  "data": null,
+                                  "relatedNodes": [],
+                                  "impact": "critical",
+                                  "message": "Element does not have an explicit <label>"
+                                },
+                                {
+                                  "id": "presentational-role",
+                                  "data": null,
+                                  "relatedNodes": [],
+                                  "impact": "critical",
+                                  "message": "Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+                                }
+                              ],
+                              "all": [],
+                              "none": [],
+                              "impact": "critical",
+                              "html": "<button type=\"button\"></button>",
+                              "target": [
+                                "button"
+                              ],
+                              "failureSummary": "Fix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+                            }
+                          ]
+                        }
+                      ],
+                      "message": "expect(received).toHaveNoViolations(expected)\n\nExpected the HTML found at $('button') to have no violations:\n\n<button type=\"button\"></button>\n\nReceived:\n\n\"Buttons must have discernible text (button-name)\"\n\nFix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"\n\nYou can find more information on this issue here: \nhttps://dequeuniversity.com/rules/axe/4.12/button-name?application=axeAPI",
+                      "pass": false
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(received).toHaveNoViolations(expected)\n\nExpected the HTML found at $('button') to have no violations:\n\n<button type=\"button\"></button>\n\nReceived:\n\n\"Buttons must have discernible text (button-name)\"\n\nFix any of the following:\n  Element does not have inner text that is visible to screen readers\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element does not have an implicit (wrapped) <label>\n  Element does not have an explicit <label>\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"\n\nYou can find more information on this issue here: \nhttps://dequeuniversity.com/rules/axe/4.12/button-name?application=axeAPI\n<frames>"
+                ],
+                "fullName": "a button with no name is a violation",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 12
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "a button with no name is a violation",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● a button with no name is a violation\n\n    expect(received).toHaveNoViolations(expected)\n\n    Expected the HTML found at $('button') to have no violations:\n\n    <button type=\"button\"></button>\n\n    Received:\n\n    \"Buttons must have discernible text (button-name)\"\n\n    Fix any of the following:\n      Element does not have inner text that is visible to screen readers\n      aria-label attribute does not exist or is empty\n      aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n      Element has no title attribute\n      Element does not have an implicit (wrapped) <label>\n      Element does not have an explicit <label>\n      Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"\n\n    You can find more information on this issue here: \n    https://dequeuniversity.com/rules/axe/4.12/button-name?application=axeAPI\n\n      12 | test('a button with no name is a violation', async () => {\n      13 |   document.body.innerHTML = '<main><button type=\"button\"></button></main>'\n    > 14 |   expect(await axe(document.body)).toHaveNoViolations()\n         |                                    ^\n      15 | })\n      16 |\n\n<frames>\n",
+            "name": "<root>/configured.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "a labelled form has no violations",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 6
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "a labelled form has no violations",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "actual": [
+                        {
+                          "id": "image-alt",
+                          "impact": "critical",
+                          "tags": [
+                            "cat.text-alternatives",
+                            "wcag2a",
+                            "wcag111",
+                            "section508",
+                            "section508.22.a",
+                            "TTv5",
+                            "TT7.a",
+                            "TT7.b",
+                            "EN-301-549",
+                            "EN-9.1.1.1",
+                            "ACT",
+                            "RGAAv4",
+                            "RGAA-1.1.1"
+                          ],
+                          "description": "Ensure <img> elements have alternative text or a role of none or presentation",
+                          "help": "Images must have alternative text",
+                          "helpUrl": "https://dequeuniversity.com/rules/axe/4.12/image-alt?application=axeAPI",
+                          "nodes": [
+                            {
+                              "any": [
+                                {
+                                  "id": "has-alt",
+                                  "data": null,
+                                  "relatedNodes": [],
+                                  "impact": "critical",
+                                  "message": "Element does not have an alt attribute"
+                                },
+                                {
+                                  "id": "aria-label",
+                                  "data": null,
+                                  "relatedNodes": [],
+                                  "impact": "critical",
+                                  "message": "aria-label attribute does not exist or is empty"
+                                },
+                                {
+                                  "id": "aria-labelledby",
+                                  "data": null,
+                                  "relatedNodes": [],
+                                  "impact": "critical",
+                                  "message": "aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty"
+                                },
+                                {
+                                  "id": "non-empty-title",
+                                  "data": {
+                                    "messageKey": "noAttr"
+                                  },
+                                  "relatedNodes": [],
+                                  "impact": "critical",
+                                  "message": "Element has no title attribute"
+                                },
+                                {
+                                  "id": "presentational-role",
+                                  "data": null,
+                                  "relatedNodes": [],
+                                  "impact": "critical",
+                                  "message": "Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+                                }
+                              ],
+                              "all": [],
+                              "none": [],
+                              "impact": "critical",
+                              "html": "<img src=\"photo.png\">",
+                              "target": [
+                                "img"
+                              ],
+                              "failureSummary": "Fix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\""
+                            }
+                          ]
+                        }
+                      ],
+                      "message": "expect(received).toHaveNoViolations(expected)\n\nExpected the HTML found at $('img') to have no violations:\n\n<img src=\"photo.png\">\n\nReceived:\n\n\"Images must have alternative text (image-alt)\"\n\nFix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"\n\nYou can find more information on this issue here: \nhttps://dequeuniversity.com/rules/axe/4.12/image-alt?application=axeAPI",
+                      "pass": false
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(received).toHaveNoViolations(expected)\n\nExpected the HTML found at $('img') to have no violations:\n\n<img src=\"photo.png\">\n\nReceived:\n\n\"Images must have alternative text (image-alt)\"\n\nFix any of the following:\n  Element does not have an alt attribute\n  aria-label attribute does not exist or is empty\n  aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n  Element has no title attribute\n  Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"\n\nYou can find more information on this issue here: \nhttps://dequeuniversity.com/rules/axe/4.12/image-alt?application=axeAPI\n<frames>"
+                ],
+                "fullName": "an image with no alt is a violation",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 11
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "an image with no alt is a violation",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● an image with no alt is a violation\n\n    expect(received).toHaveNoViolations(expected)\n\n    Expected the HTML found at $('img') to have no violations:\n\n    <img src=\"photo.png\">\n\n    Received:\n\n    \"Images must have alternative text (image-alt)\"\n\n    Fix any of the following:\n      Element does not have an alt attribute\n      aria-label attribute does not exist or is empty\n      aria-labelledby attribute does not exist, references elements that do not exist or references elements that are empty\n      Element has no title attribute\n      Element's default semantics were not overridden with role=\"none\" or role=\"presentation\"\n\n    You can find more information on this issue here: \n    https://dequeuniversity.com/rules/axe/4.12/image-alt?application=axeAPI\n\n      11 | test('an image with no alt is a violation', async () => {\n      12 |   document.body.innerHTML = '<main><img src=\"photo.png\"></main>'\n    > 13 |   expect(await axe(document.body)).toHaveNoViolations()\n         |                                    ^\n      14 | })\n      15 |\n\n<frames>\n",
+            "name": "<root>/default.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

@@ -32,6 +32,7 @@ import {
   readJestConfigs,
 } from '@provino/dialect-jest/node'
 import {
+  type AffectedLookupOptions,
   type ChangeSource,
   type DiscoveredFile,
   defaultCacheDir,
@@ -58,6 +59,7 @@ import {
   jestSelection,
   keepFailedFiles,
   selectProjectFiles,
+  withChangedCoverage,
 } from './jest-selection.ts'
 import { type JestWatchInput, runJestWatch } from './jest-watch.ts'
 import { type DisplayOptions, outputFor, styleFor } from './reporters.ts'
@@ -98,6 +100,8 @@ export interface JestCommandIo {
   readonly stdin?: JestWatchInput
   /** Where `--watch` hears of changes, in place of the file watcher (a test's). */
   readonly watchChanges?: ChangeSource
+  /** The seam a test counts affected-index builds through (`createIndex`). */
+  readonly affectedLookup?: AffectedLookupOptions
 }
 
 /** The version of Jest the dialect mirrors, for `--showConfig`. */
@@ -450,6 +454,8 @@ async function shardedPerProject(
  */
 async function coverageFor(
   globalConfig: JestGlobalConfig,
+  /** Jest's `--passWithNoTests` or a `-o` that found no test: the empty run is reported. */
+  reportEmptyRun: boolean,
   io: {
     readonly cwd: string
     readonly env: Readonly<Record<string, string | undefined>>
@@ -486,7 +492,7 @@ async function coverageFor(
     thresholdsCwd: io.cwd,
     // runJest.ts: with no test file Jest ends with its message, unless `--passWithNoTests` lets the
     // scheduler run on an empty list, which the CoverageReporter then reports.
-    reportEmptyRun: globalConfig.passWithNoTests,
+    reportEmptyRun,
     ...(interactive
       ? {
           onUntested: {
@@ -628,6 +634,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
         projects,
         selectedConfigs,
         realCwd(cwd),
+        io.affectedLookup,
       )
     } catch (error) {
       // Only a command the provider ran and that failed is Jest's red text (`exec.ts`'s
@@ -644,6 +651,21 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       return ExitCode.TestFailure
     }
     const useCache = request.cache !== false && read.cache
+    // Only the `-o` modes restrict coverage (runJest.ts L403-L421). `--findRelatedTests` does not:
+    // Jest 30.5.2 builds `SearchResult.collectCoverageFrom` (SearchSource.ts L196-L231) and never
+    // reads it in `runJest`, so coverage there counts every `collectCoverageFrom` file
+    // (`coverage/find-related`, held by `test/jest-coverage-changed.test.ts`).
+    if (
+      read.globalConfig.collectCoverage &&
+      !read.globalConfig.collectTests &&
+      request.mode === 'run'
+    ) {
+      projects.splice(
+        0,
+        projects.length,
+        ...(await withChangedCoverage(projects, fileSelection, useCache)),
+      )
+    }
     // runJest.ts L113-L119: each project left with no test under `-o` outside any repository says so.
     const announceNoScm = async (perProject: readonly (readonly unknown[])[]): Promise<void> => {
       if (!fileSelection.noScm) return
@@ -737,9 +759,16 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       if (perProject.every((files) => files.length === 0)) {
         await announceNoScm(perProject)
         await writeOut(`${changedMessage.message}\n`)
-        return changedMessage.exitWith0
-          ? ExitCode.Pass
-          : jestExitCode('noTests', ExitCode.TestFailure)
+        // runJest.ts L369-L381 prints the message and goes on: with coverage on, the empty run's
+        // reports are still written (`coverage/only-changed-no-git`), so only a run with no
+        // coverage ends here.
+        const reportsEmptyRun =
+          changedMessage.exitWith0 && request.mode === 'run' && read.globalConfig.collectCoverage
+        if (!reportsEmptyRun) {
+          return changedMessage.exitWith0
+            ? ExitCode.Pass
+            : jestExitCode('noTests', ExitCode.TestFailure)
+        }
       }
     }
     // `-o` and `--findRelatedTests` select in place of the filters: the files were selected once
@@ -792,11 +821,14 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     // The reporters (Jest's failure text, the classes a config names) read the same results; a run
     // that neither writes JSON nor runs a processor keeps its own exit code.
     const reporterResults = results ?? (collecting ? undefined : newResults())
+    // An empty run is a pass under `--passWithNoTests`, and for the `-o` modes that end 0 with no
+    // test (runJest.ts L369-L381); then its coverage reports are still written.
+    const emptyRunOk = read.globalConfig.passWithNoTests || changedMessage?.exitWith0 === true
     // `--coverage` (B23b): Jest's CoverageReporter, and the notice on a terminal while the files no
     // test loaded are covered. A `--collectTests` run collects nothing.
     const coverage = collecting
       ? undefined
-      : await coverageFor(read.globalConfig, { cwd, env, stdout, stderr })
+      : await coverageFor(read.globalConfig, emptyRunOk, { cwd, env, stdout, stderr })
     const setup =
       collecting || io.reporters !== undefined || reporterResults === undefined
         ? undefined
@@ -890,7 +922,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     const processing =
       results !== undefined &&
       result.summary !== null &&
-      !(result.summary.files.length === 0 && !read.globalConfig.passWithNoTests) &&
+      !(result.summary.files.length === 0 && !emptyRunOk) &&
       !results.aggregated().wasInterrupted
     if (results !== undefined && result.summary !== null && processing) {
       results.reportersFailed(reporterFailed || coverage?.reporter.thresholdsFailed() === true)

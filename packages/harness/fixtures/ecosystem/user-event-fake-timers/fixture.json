@@ -1,0 +1,18 @@
+{
+  "description": "@testing-library/user-event under Jest's modern fake timers (T11.11): userEvent.setup({ advanceTimers: jest.advanceTimersByTime }), await user.click and user.type with a delay, and waitFor from @testing-library/dom, which finds Jest's fake clock by typeof jest and setTimeout.clock and advances it while it polls. A waitFor that never matches times out on the fake clock with its DOM dump. Two files on one worker.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]|^Snapshot Summary$",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
