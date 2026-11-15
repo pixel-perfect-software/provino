@@ -522,4 +522,21 @@ describe('the driver', () => {
     assert.equal(t.reading(), false)
     assert.equal(t.hasChangeListener(), false)
   })
+
+  it('dispose ends the driver: a run still going prints nothing when the close rejects it, and nothing starts', async () => {
+    const t = setUp()
+    t.watch.dispose()
+    await t.last().fail(new Error('The watch session is closed.'))
+    assert.equal(t.errors(), '')
+    await t.change()
+    assert.equal(t.runs.length, 1, 'no run starts on a closed session')
+  })
+
+  it('dispose with a change pending starts no run when the one going ends', async () => {
+    const t = setUp()
+    await t.change()
+    t.watch.dispose()
+    await t.last().settle(complete())
+    assert.equal(t.runs.length, 1)
+  })
 })

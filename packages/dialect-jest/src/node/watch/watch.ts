@@ -122,7 +122,10 @@ export function startJestWatch(
   let unsubscribe: (() => void) | undefined
   const onData = (chunk: string): void => onKeypress(chunk)
   let reading = false
+  // Closing the session (a signal, an error) ends the driver too: no run starts and a run still
+  // going has its outcome, or its rejection from the close, dropped.
   const dispose = (): void => {
+    ended = true
     unsubscribe?.()
     unsubscribe = undefined
     if (reading) {
@@ -134,7 +137,6 @@ export function startJestWatch(
   }
   const exit = (code: number): void => {
     if (ended) return
-    ended = true
     dispose()
     resolveDone(code)
   }
@@ -192,8 +194,10 @@ export function startJestWatch(
         startRun: (next) => void startRun(next),
       })
     } catch (error) {
-      // Errors thrown inside the run are written below the pre-run message and the watch goes on.
       isRunning = false
+      // The session was closed under the run: the rejection is the close's, not the run's.
+      if (ended) return
+      // Errors thrown inside the run are written below the pre-run message and the watch goes on.
       host.stderr.write(`\n\n${host.formatError(error)}\n`)
       rerunIfChanged()
       return
@@ -245,6 +249,7 @@ export function startJestWatch(
 
   // L457-L462
   const onCancelPatternPrompt = (): void => {
+    if (ended) return
     out.write(escapes.cursorHide)
     out.write(terminal.clear)
     out.write(usage())

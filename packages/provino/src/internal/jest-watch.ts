@@ -42,6 +42,7 @@ import { setUpJestReporters } from './jest-reporters.ts'
 import { isScmCommandFailure, jestSelection, selectProjectFiles } from './jest-selection.ts'
 import { type DisplayOptions, outputFor, styleFor } from './reporters.ts'
 import { UsageError } from './usage-error.ts'
+import { latchInterrupts } from './watch-interrupt.ts'
 
 /**
  * What watch mode reads keys from: the process's stdin by default.
@@ -105,6 +106,8 @@ function realCwd(cwd: string): string {
 
 /** A run's file filters: the patterns a key set (`p`), or the paths `--runTestsByPath` named. */
 function fileFiltersOf(globalConfig: JestGlobalConfig, request: RunRequest): readonly FileFilter[] {
+  // As Jest: `p` sets `testPathPatterns` only (`updateGlobalConfig.ts`), and `SearchSource.ts`
+  // L285-L292 goes by `nonFlagArgs` first when `runTestsByPath` is set, so the paths stay.
   if (globalConfig.runTestsByPath) return request.fileFilters
   return globalConfig.testPathPatterns.map((value): FileFilter => ({ kind: 'regex', value }))
 }
@@ -155,7 +158,9 @@ export async function runJestWatch(command: JestWatchCommand): Promise<number> {
   const stderrIsTerminal = Reflect.get(stderr, 'isTTY') === true
   const stdoutIsTerminal = Reflect.get(outputStream, 'isTTY') === true
 
-  const run = async (
+  const interrupts = latchInterrupts(session)
+
+  const runOnce = async (
     config: JestGlobalConfig,
     context: JestWatchRunContext,
   ): Promise<JestWatchRunOutcome> => {
@@ -219,7 +224,6 @@ export async function runJestWatch(command: JestWatchCommand): Promise<number> {
     await executeProject({
       project,
       others,
-      root,
       cwd,
       stdout,
       stderr,
@@ -240,7 +244,7 @@ export async function runJestWatch(command: JestWatchCommand): Promise<number> {
       ...(config.bail > 0 ? { bail: { count: config.bail } } : {}),
       detectLeaks: (resolved) => configs[projects.indexOf(resolved)]?.detectLeaks === true,
       ...(config.logHeapUsage ? { logHeapUsage: true } : {}),
-      session,
+      session: interrupts.session,
     })
     // `processResults` (runJest.ts L173-L213) after every run: `--json` and `testResultsProcessor`.
     if (config.json || config.testResultsProcessor !== undefined) {
@@ -255,6 +259,18 @@ export async function runJestWatch(command: JestWatchCommand): Promise<number> {
     return { kind: 'complete', results: results.aggregated() }
   }
 
+  const run = async (
+    config: JestGlobalConfig,
+    context: JestWatchRunContext,
+  ): Promise<JestWatchRunOutcome> => {
+    interrupts.begin()
+    try {
+      return await runOnce(config, context)
+    } finally {
+      interrupts.end()
+    }
+  }
+
   const stdin: JestWatchInput = command.stdin ?? process.stdin
   const host: JestWatchHost = {
     stdin,
@@ -264,7 +280,7 @@ export async function runJestWatch(command: JestWatchCommand): Promise<number> {
     style,
     appleTerminal: env.TERM_PROGRAM === 'Apple_Terminal',
     run,
-    interrupt: () => session.interrupt(),
+    interrupt: interrupts.interrupt,
     onFileChange: (listener) => session.onChange(() => listener()),
     formatError: (error) =>
       jestWatchRunErrorText(error, configs[0] ?? { rootDir: globalConfig.rootDir, testMatch: [] }),
@@ -282,12 +298,22 @@ export async function runJestWatch(command: JestWatchCommand): Promise<number> {
     })
     return await Promise.race([watch.done, aborted])
   } finally {
-    if (onAbort !== undefined) command.signal?.removeEventListener('abort', onAbort)
-    // Raw mode is left whatever ended the session, then every worker is stopped.
-    watch?.dispose()
-    if (typeof stdin.setRawMode === 'function' && Reflect.get(stdin, 'isRaw') === true) {
-      stdin.setRawMode(false)
+    // Each step has its own try: raw mode is left and the listeners are off whatever one of them
+    // throws, and the session is closed last, always.
+    try {
+      if (onAbort !== undefined) command.signal?.removeEventListener('abort', onAbort)
+    } finally {
+      try {
+        watch?.dispose()
+      } finally {
+        try {
+          if (typeof stdin.setRawMode === 'function' && Reflect.get(stdin, 'isRaw') === true) {
+            stdin.setRawMode(false)
+          }
+        } finally {
+          await session.close()
+        }
+      }
     }
-    await session.close()
   }
 }
