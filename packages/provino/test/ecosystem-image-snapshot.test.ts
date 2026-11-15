@@ -1,4 +1,4 @@
-// jest-image-snapshot 6.5.2 under `provino jest` (B23e Phase 2c): the five `ecosystem/image-snapshot-*`
+// jest-image-snapshot 6.5.2 under `provino jest` (B23e Phase 2c): the six `ecosystem/image-snapshot-*`
 // recordings of Jest 30.5.2, each run through the bin as the recorder ran Jest (`before` first) and
 // held to every capture: the exit code, the kept stderr (the failure text and the Snapshot
 // Summary), the results file and `image-hashes.txt`, the sha256 of every image written.
@@ -23,6 +23,9 @@ const FIXTURES = [
   'ecosystem/image-snapshot-update',
   // `--ci` with nothing stored: jest-image-snapshot's own "not written" failure.
   'ecosystem/image-snapshot-ci',
+  // `jest.retryTimes(1)`: the matcher reads the file's retry count, and a retry takes back only
+  // what jest-snapshot itself counted (the image matcher's own writes stay, as in Jest).
+  'ecosystem/image-snapshot-retry',
 ] as const
 
 describe('provino jest with jest-image-snapshot', () => {

@@ -5,7 +5,9 @@
 // same Map back and so leaves it alone: the Map must be the live one), reads `_updateSnapshot`, and
 // writes `added`, `updated`, `matched` and `unmatched` back (`merge(state, { added: added + 1 })`).
 // The view gives those fields over Provino's state, so a count written here is the one the file's
-// report and the run's Snapshot Summary add up. The snapshot matchers themselves work on the state
+// report and the run's Snapshot Summary add up. Those writes go to the fields, not to the attempt's
+// record, so a retry keeps them, as Jest's `clear(test)` does (`ecosystem/image-snapshot-retry`:
+// a retried image counts on both attempts). The snapshot matchers themselves work on the state
 // underneath (`@provino/snapshot/runtime`'s `unwrapSnapshotContext`). The faster path, `null`
 // (the state itself), is the neutral value; this one is loaded only by the Jest dialect.
 import type { SnapshotContextSource } from '@provino/types'

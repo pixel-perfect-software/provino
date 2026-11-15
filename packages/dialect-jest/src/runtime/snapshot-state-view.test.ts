@@ -77,6 +77,18 @@ describe('jestSnapshotStateView', () => {
     assert.equal(view.added, 10)
   })
 
+  test('a write through it is no attempt`s, so a retry leaves it, as in Jest', () => {
+    // `ecosystem/image-snapshot-retry`: Jest 30.5.2's `clear(test)` takes back only what
+    // jest-snapshot recorded for the attempt; jest-image-snapshot's writes to `_counters` and
+    // `added` go straight to the fields, so a retried test's image counts twice in the summary.
+    // The view writes the fields the same way: no attempt is charged for them.
+    const state = source()
+    const view = jestSnapshotStateView(state)
+    view._counters.set('t', (view._counters.get('t') ?? 0) + 1)
+    Object.assign(view, { added: view.added + 1 })
+    assert.deepEqual([state.liveCounters.get('t'), state.added], [1, 1])
+  })
+
   test('_counters and _updateSnapshot can`t be replaced', () => {
     const state = source('none')
     const view = jestSnapshotStateView(state)
