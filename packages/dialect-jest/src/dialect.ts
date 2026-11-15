@@ -33,6 +33,7 @@ import type {
   InlineSnapshotWriterFactory,
   ModuleScopeFactory,
   PolicyOverrides,
+  ShapeTestError,
   ShuffleFactory,
   SnapshotPrinterFactory,
   SnapshotResolverFactory,
@@ -91,6 +92,12 @@ export const jestPolicy: PolicyOverrides = {
     shuffle: moduleRef<ShuffleFactory>(
       import.meta.resolve('@provino/dialect-jest/runtime'),
       'jestShuffle',
+    ),
+    // jest-circus 30.5.2's `formatNodeAssertErrors` (`src/runtime/node-assert-errors.ts`): a failed
+    // `node:assert` call prints `assert.equal(received, expected)` and a diff (`cli/node-assert`).
+    shapeTestError: moduleRef<ShapeTestError>(
+      import.meta.resolve('@provino/dialect-jest/runtime'),
+      'shapeTestError',
     ),
     // Jest passes `done`, not a context: nothing to call (runtime corpus `done-callback` agrees).
     doneDeprecatedMessage: null,

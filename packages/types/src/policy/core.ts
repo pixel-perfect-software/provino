@@ -41,6 +41,13 @@ export type FormatEachTitle = (
 export type FormatValue = (value: unknown) => string
 
 /**
+ * Replaces the error of a failed test with the value to report in its place, or returns it as it
+ * is. Called once per error of a test, as the result is built, with the thrown value itself.
+ * @public
+ */
+export type ShapeTestError = (error: unknown) => unknown
+
+/**
  * The escape hatch for an ordering no `HookOrder` describes: returns the hooks of one kind in
  * the order to run them.
  * @public
@@ -310,4 +317,11 @@ export interface CorePolicy {
    * are backed by `cli/randomize-*`.
    */
   readonly shuffle: Behaviour<ShuffleFactory> | null
+  /**
+   * Shapes each error of a failed test before it is reported. `null`: reported as thrown. Jest: a
+   * ref to `shapeTestError`, jest-circus's `formatNodeAssertErrors` (a `node:assert` AssertionError
+   * reads `assert.equal(received, expected)`, `Expected value to be equal to:` and a diff, not
+   * Node's own text). Provino's own key; the value is backed by `cli/node-assert`.
+   */
+  readonly shapeTestError: Behaviour<ShapeTestError> | null
 }

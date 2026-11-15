@@ -407,6 +407,7 @@ export interface CorePolicy {
         readonly functionCondition: "call" | "ignore-warn";
         readonly functionConditionWarning: string;
     };
+    readonly shapeTestError: Behaviour<ShapeTestError> | null;
     readonly shuffle: Behaviour<ShuffleFactory> | null;
     readonly status: {
         readonly todoUnderSkip: "skipped" | "todo";
@@ -3095,6 +3096,9 @@ export interface SerializedTransformConfig {
     // (undocumented)
     readonly rules: readonly SerializedTransform[];
 }
+
+// @public
+export type ShapeTestError = (error: unknown) => unknown;
 
 // @public
 export type ShuffleFactory = (seed: number) => <T>(items: T[]) => T[];

@@ -22,6 +22,7 @@ import { MockTarget } from '@provino/mock';
 import { Pragmas } from '@provino/types';
 import { Replaced } from '@provino/mock';
 import { RuntimeApi } from '@provino/core';
+import { ShapeTestError } from '@provino/types';
 import { SnapshotPrinter } from '@provino/types';
 import { SnapshotResolverFactory } from '@provino/types';
 import { SpiedGetter } from '@provino/mock';
@@ -233,6 +234,9 @@ export interface JestTimerMembers<J> {
     useFakeTimers(config?: JestFakeTimersConfig): J;
     useRealTimers(): J;
 }
+
+// @public
+export const shapeTestError: ShapeTestError;
 
 // (No @packageDocumentation comment for this package)
 

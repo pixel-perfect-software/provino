@@ -89,6 +89,9 @@ test('a few divergences from the neutral policy are Vitest`s', () => {
   // while Jest's is a ref to jest-circus's.
   assert.equal(row('core.shuffle'), undefined)
   assert.equal(resolved.core.shuffle, null)
+  // Vitest reports a node:assert AssertionError as thrown: `core.shapeTestError` stays `null`.
+  assert.equal(row('core.shapeTestError'), undefined)
+  assert.equal(resolved.core.shapeTestError, null)
   // The words core prints after naming the test (`The function given as the retry.condition of
   // "<test>" is not called: `): Provino's own text, which names the runner, so it is the dialect's.
   assert.equal(

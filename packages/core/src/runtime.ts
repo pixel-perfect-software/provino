@@ -197,6 +197,10 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     policy.shuffle === null ? undefined : await options.behaviours.load(policy.shuffle)
   const orderHooks =
     policy.orderHooks === null ? undefined : await options.behaviours.load(policy.orderHooks)
+  const shapeTestError =
+    policy.shapeTestError === null
+      ? undefined
+      : await options.behaviours.load(policy.shapeTestError)
   const runs = createRunRegistry()
   const workerTeardowns: Array<() => unknown> = []
   const collector = new Collector({
@@ -231,6 +235,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   const executor: Executor = new Executor({
     policy,
     orderHooks,
+    shapeTestError,
     sink,
     deadlines,
     timers,

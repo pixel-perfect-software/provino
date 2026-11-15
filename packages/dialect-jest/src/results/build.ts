@@ -449,10 +449,14 @@ function failureDetailOf(error: SerializedError): unknown {
   if (typeof details !== 'object' || details === null || Array.isArray(details)) return details
   const detail: Record<string, unknown> = { ...details }
   const hidden = { writable: true, configurable: true, enumerable: false }
-  Object.defineProperty(detail, 'name', { ...hidden, value: error.name })
+  // A key the thrown value enumerates stays enumerable: Jest's `{ message }` for a failed `node:assert`
+  // call is a plain object (`formatNodeAssertErrors`), whose `message` `--json` writes.
+  if (!('name' in detail)) Object.defineProperty(detail, 'name', { ...hidden, value: error.name })
   // A message can carry a stack of its own (`toThrow` prints the thrown error's); ours stay out (D104).
-  Object.defineProperty(detail, 'message', { ...hidden, value: hideProvinoFrames(error.message) })
-  if (error.stack !== undefined)
+  if (!('message' in detail)) {
+    Object.defineProperty(detail, 'message', { ...hidden, value: hideProvinoFrames(error.message) })
+  }
+  if (error.stack !== undefined && !('stack' in detail))
     Object.defineProperty(detail, 'stack', { ...hidden, value: error.stack })
   return detail
 }

@@ -22,6 +22,7 @@ import type {
   OrderHooks,
   RuntimeEvent,
   RuntimeHookKind,
+  ShapeTestError,
   SkipReason,
   SourceLocation,
   SuiteHandle,
@@ -60,6 +61,8 @@ import { createLimiter, type Limiter, unlimited } from './limiter.ts'
 export interface ExecutorConfig {
   readonly policy: CorePolicy
   readonly orderHooks: OrderHooks | undefined
+  /** `CorePolicy.shapeTestError`, loaded: replaces a failed test's error before it is reported. */
+  readonly shapeTestError: ShapeTestError | undefined
   readonly sink: EventSink
   /** Every user call's deadline. */
   readonly deadlines: Deadlines
@@ -943,7 +946,7 @@ export class Executor {
           attempt: number,
           repeat,
           state: errors.length > 0 ? 'fail' : progress.skipped === undefined ? 'pass' : 'skip',
-          errors: errors.map(serializeError),
+          errors: errors.map(this.#serializeTestError),
           willRetry: decision.willRetry,
           t: this.#now(),
         },
@@ -1819,6 +1822,20 @@ export class Executor {
     this.#config.sink.emit(event)
   }
 
+  /**
+   * A failed test's error as it is reported: through the policy's `shapeTestError` when it has one
+   * (a shaper that throws leaves the error as thrown).
+   */
+  readonly #serializeTestError = (error: unknown): SerializedError => {
+    const shape = this.#config.shapeTestError
+    if (shape === undefined) return serializeError(error)
+    try {
+      return serializeError(shape(error))
+    } catch {
+      return serializeError(error)
+    }
+  }
+
   /** Emits a task's end event, its result and the event timed now. */
   #endTask(
     hold: Hold | undefined,
@@ -1830,7 +1847,22 @@ export class Executor {
     extra?: ResultExtra,
   ): void {
     const t = this.#now()
-    this.#emit({ type, id, result: taskResult(state, start, t, errors, extra), t }, hold)
+    this.#emit(
+      {
+        type,
+        id,
+        result: taskResult(
+          state,
+          start,
+          t,
+          errors,
+          extra,
+          type === 'test-end' ? this.#serializeTestError : serializeError,
+        ),
+        t,
+      },
+      hold,
+    )
   }
 }
 
@@ -1877,13 +1909,14 @@ export function taskResult(
   end: number,
   errors: readonly unknown[],
   extra: ResultExtra = {},
+  serialize: (error: unknown) => SerializedError = serializeError,
 ): TaskResult {
   return {
     state,
     durationMs: end - start - (extra.parkedMs ?? 0),
     startTime: start,
-    errors: errors.map(serializeError),
-    retryErrors: (extra.retryErrors ?? []).map(serializeError),
+    errors: errors.map(serialize),
+    retryErrors: (extra.retryErrors ?? []).map(serialize),
     attempts: extra.attempts ?? 0,
     repeatIndex: extra.repeatIndex ?? 0,
     assertions: 0,
