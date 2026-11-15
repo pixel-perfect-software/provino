@@ -6,8 +6,26 @@ import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { describe, it } from 'node:test'
-import { jestColourRequest } from '../src/internal/jest-command.ts'
-import { outputFor } from '../src/internal/reporters.ts'
+
+// Loaded by URL: the type-test project includes `test/` but not `src/`.
+const { jestColourRequest } = (await import(
+  new URL('../src/internal/jest-command.ts', import.meta.url).href
+)) as {
+  jestColourRequest: (
+    env: Readonly<Record<string, string | undefined>>,
+    flag: boolean | undefined,
+  ) => boolean | undefined
+}
+const { outputFor } = (await import(
+  new URL('../src/internal/reporters.ts', import.meta.url).href
+)) as {
+  outputFor: (context: {
+    env: Record<string, string | undefined>
+    stderr: object
+    ci: boolean
+    colour?: boolean | undefined
+  }) => { colour: boolean }
+}
 
 const here = createRequire(import.meta.url)
 const fromMessageUtil = createRequire(here.resolve('jest-message-util/package.json'))
