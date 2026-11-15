@@ -29,21 +29,22 @@ const CONFIG = jestConfigJson()
 const provino = (args: readonly string[], cwd: string) => spawnCli(['jest', ...args], { cwd })
 
 describe('what provino jest does not run is said, not ignored', () => {
-  it('refuses a flag with no backend by name, with the task that builds it', async () => {
+  it('refuses what watch mode cannot run yet by name, with the task that builds it', async () => {
     const dir = await tree({ 'jest.config.json': CONFIG, 'tests/a.test.js': passing('a') })
-    // A refusal names the flag by its long name, whatever alias was typed (`-o` was the aliased
-    // case until B23c built it; no refused flag left has an alias).
-    for (const [flag, task, named] of [
-      ['--watchAll', 'T9.11'],
-      ['--watch', 'T9.11'],
-    ] as readonly (readonly [string, string, string?])[]) {
-      const ended = await provino([flag], dir)
-      assert.equal(ended.code, 1, `${flag}: ${ended.stderr}`)
+    // No flag is refused on its own since B23c Phase 8 built --watch and --watchAll; what a watch
+    // session can't apply yet is, before anything runs.
+    for (const flags of [
+      ['--watchAll', '--coverage'],
+      ['--watchAll', '--detectOpenHandles'],
+      ['--watchAll', '--collectTests'],
+    ]) {
+      const ended = await provino(flags, dir)
+      assert.equal(ended.code, 1, `${flags.join(' ')}: ${ended.stderr}`)
       assert.match(
         ended.stderr,
-        new RegExp(`${named ?? flag.split('=')[0]} is not supported yet \\(${task}`),
+        new RegExp(`${flags[1]} in watch mode is not supported yet \\(B23c Phase 9\\)`),
       )
-      assert.doesNotMatch(ended.stderr, /PASS/, `${flag} ran nothing`)
+      assert.doesNotMatch(ended.stderr, /PASS/, `${flags.join(' ')} ran nothing`)
     }
   })
 

@@ -16,6 +16,7 @@ import type {
   TestResult,
 } from '@provino/dialect-jest/results'
 import type { FileInfo, Reporter, SerializedError, TaskId } from '@provino/types'
+import type { JestGlobalConfig } from '../types.ts'
 
 /**
  * What `onRunStart` is given as its second argument (`ReporterOnStartOptions`).
@@ -36,6 +37,8 @@ export interface JestReporterContext {
   previousSuccess: boolean
   changedFiles?: Set<string>
   sourcesRelatedToTestsInChangedFiles?: Set<string>
+  /** Watch mode's `startRun` (`ReporterContext.startRun`), which a reporter may call. */
+  startRun?: (globalConfig: JestGlobalConfig) => unknown
 }
 
 /**

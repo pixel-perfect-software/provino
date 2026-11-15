@@ -75,6 +75,13 @@ export interface OrchestratorPolicy {
   readonly watch: {
     /** What the first watch run covers. Jest: `changed` (`all` with `--watchAll`). Vitest: `all`. research: track-09 L560 */
     readonly initialRun: 'changed' | 'all'
+    /**
+     * What a watch run that was interrupted (a key during it) reports of the files it killed:
+     * `report` (each fails `Interrupted`) or `drop` (none: no result, as a bailed file has none).
+     * Neutral: `report`. Jest: `drop` (`TestScheduler.ts` L138-L141 and L184-L187 ignore a result once
+     * the watcher is interrupted; recorded by `watch/key-during-run`). Vitest: T11.16.
+     */
+    readonly interruptedFiles: 'report' | 'drop'
   }
   /**
    * Where the files a change touched come from (`-o`, `--changedSince`, `--lastCommit`,
