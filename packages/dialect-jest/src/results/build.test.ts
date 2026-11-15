@@ -212,6 +212,26 @@ describe('toAssertionResult', () => {
     )
     assert.deepEqual(built.failureDetails, [{}])
   })
+
+  it('keeps a name the thrown error set as its own enumerable property (ecosystem/rtl-cleanup)', () => {
+    // dom-testing-library's `TestingLibraryElementError` does `this.name = …` in its constructor,
+    // so Jest's JSON of it is `{ name }`; the message and stack stay hidden, as an Error's are.
+    const thrown: SerializedError = {
+      ...failure('not found', { name: 'TestingLibraryElementError' }),
+      name: 'TestingLibraryElementError',
+    }
+    const built = toAssertionResult(
+      {
+        task: test('t', 'file'),
+        result: result('fail', { errors: [thrown] }),
+        startedAt: 1,
+      },
+      OPTIONS,
+    )
+    assert.equal(JSON.stringify(built.failureDetails), '[{"name":"TestingLibraryElementError"}]')
+    const [detail] = built.failureDetails as [{ message: string }]
+    assert.equal(detail.message, 'not found')
+  })
 })
 
 describe('flattenSerializedError', () => {

@@ -448,11 +448,20 @@ function failureDetailOf(error: SerializedError): unknown {
   const details = error.details ?? {}
   if (typeof details !== 'object' || details === null || Array.isArray(details)) return details
   const detail: Record<string, unknown> = { ...details }
-  const hidden = { writable: true, configurable: true, enumerable: false }
-  Object.defineProperty(detail, 'name', { ...hidden, value: error.name })
+  // A key the thrown value had as its own enumerable property (`this.name = …` in a constructor,
+  // as dom-testing-library's `TestingLibraryElementError` sets it) stays enumerable: Jest's JSON
+  // of the error keeps it.
+  const field = (key: string, value: unknown): void => {
+    Object.defineProperty(detail, key, {
+      writable: true,
+      configurable: true,
+      enumerable: Object.hasOwn(details, key),
+      value,
+    })
+  }
+  field('name', error.name)
   // A message can carry a stack of its own (`toThrow` prints the thrown error's); ours stay out (D104).
-  Object.defineProperty(detail, 'message', { ...hidden, value: hideProvinoFrames(error.message) })
-  if (error.stack !== undefined)
-    Object.defineProperty(detail, 'stack', { ...hidden, value: error.stack })
+  field('message', hideProvinoFrames(error.message))
+  if (error.stack !== undefined) field('stack', error.stack)
   return detail
 }
