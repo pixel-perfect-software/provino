@@ -554,3 +554,34 @@ describe('matchRaw', () => {
     assert.equal(readFileSync(file, 'utf8'), '{\n  "a": 1\n}')
   })
 })
+
+describe('liveCounters (B23e, D128)', () => {
+  test('is the map the keys are numbered from, both ways', () => {
+    const state = stateIn(tempDir())
+    const counters = state.liveCounters
+    assert.equal(state.match({ testName: 't', received: 1, isInline: false }).key, 't 1')
+    assert.equal(counters.get('t'), 1, 'a snapshot taken shows in the map it gave out')
+    // A matcher outside Provino counts one of its own (jest-image-snapshot's `_counters.set`).
+    counters.set('t', (counters.get('t') ?? 0) + 1)
+    assert.equal(state.match({ testName: 't', received: 3, isInline: false }).key, 't 3')
+    assert.equal(state.liveCounters, counters, 'the same map every time')
+  })
+
+  test('the counts beside it are the ones the report adds up', () => {
+    const state = stateIn(tempDir())
+    state.added += 1
+    state.updated += 2
+    state.matched += 3
+    state.unmatched += 4
+    const report = state.finish()
+    assert.deepEqual([report.added, report.updated, report.matched, report.unmatched], [1, 2, 3, 4])
+  })
+
+  test('a retry still takes back what its own snapshots counted', () => {
+    const state = stateIn(tempDir())
+    state.match({ testName: 't', received: 1, isInline: false, testId: 'a' })
+    state.clearTest('a')
+    assert.equal(state.liveCounters.has('t'), false)
+    assert.equal(state.match({ testName: 't', received: 1, isInline: false }).key, 't 1')
+  })
+})

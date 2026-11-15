@@ -26,9 +26,13 @@ import {
   type SnapshotLifecycle,
   SnapshotState,
   type SnapshotStateOptions,
+  snapshotContextOf,
   trackSnapshots,
+  unwrapSnapshotContext,
 } from '@provino/snapshot/runtime'
 import type {
+  SnapshotContextSource,
+  SnapshotContextViewFactory,
   SnapshotFileReport,
   SnapshotPolicy,
   SnapshotPrinter,
@@ -100,7 +104,30 @@ trackSnapshots(state, {})
 expectTypeOf(openFileSnapshots).returns.toEqualTypeOf<{
   readonly state: SnapshotState
   readonly lifecycle: SnapshotLifecycle
+  readonly context: object
 }>()
+
+// B23e (D128): the live counters a dialect's view is built over, and the view's wrap and unwrap.
+expectTypeOf(state.liveCounters).toEqualTypeOf<Map<string, number>>()
+expectTypeOf(state).toExtend<SnapshotContextSource>()
+// @ts-expect-error the live map is the state's own: it can't be replaced
+state.liveCounters = new Map()
+expectTypeOf(snapshotContextOf).parameters.toEqualTypeOf<
+  [SnapshotState, SnapshotContextViewFactory | null]
+>()
+expectTypeOf(snapshotContextOf(state, null)).toEqualTypeOf<object>()
+expectTypeOf(unwrapSnapshotContext).parameters.toEqualTypeOf<[unknown]>()
+expectTypeOf(unwrapSnapshotContext(state)).toEqualTypeOf<unknown>()
+// @ts-expect-error a view needs the factory or `null`, not nothing
+snapshotContextOf(state)
+// @ts-expect-error a view is built over the state, not a number
+snapshotContextOf(state, (count: number) => ({ count }))
+// @ts-expect-error a view is an object, not text
+snapshotContextOf(state, () => 'view')
+declare const openOptions: Parameters<typeof openFileSnapshots>[0]
+openFileSnapshots({ ...openOptions, contextView: (source) => ({ added: source.added }) })
+// @ts-expect-error the policy's view is a loaded function, not its ref
+openFileSnapshots({ ...openOptions, contextView: { module: 'x', export: 'y' } })
 
 // B23d B1: the inline edits a file reports, and the obsolete-file crawl with its inverse.
 expectTypeOf<NonNullable<SnapshotFileReport['inline']>[number]>().toEqualTypeOf<{

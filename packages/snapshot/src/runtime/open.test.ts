@@ -3,6 +3,8 @@ import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
 import { SnapshotError } from '@provino/snapshot'
+import type { SnapshotContextSource, SnapshotContextViewFactory } from '@provino/types'
+import { unwrapSnapshotContext } from './context.ts'
 import { openFileSnapshots } from './open.ts'
 import { jsonPrinter, policy, tempDir } from './test-support.ts'
 
@@ -69,6 +71,44 @@ describe('openFileSnapshots', () => {
       resolvePath: null,
     })
     assert.equal(lifecycle.finish(), null)
+  })
+})
+
+describe('the matcher context`s snapshotState (B23e, D128)', () => {
+  const open = (contextView?: SnapshotContextViewFactory | null) =>
+    openFileSnapshots({
+      testPath: join(tempDir(), 'a.test.ts'),
+      update: 'new',
+      expand: false,
+      policy: snapshotPolicy,
+      key,
+      printer: jsonPrinter,
+      resolvePath: null,
+      ...(contextView === undefined ? {} : { contextView }),
+    })
+
+  test('is the state itself with no view, absent or null', () => {
+    for (const opened of [open(), open(null)]) {
+      assert.equal(opened.context, opened.state)
+      assert.equal(unwrapSnapshotContext(opened.context), opened.state)
+    }
+  })
+
+  test('is the view the policy builds over the state, which unwraps to it', () => {
+    const seen: SnapshotContextSource[] = []
+    const opened = open((state) => {
+      seen.push(state)
+      return { shape: 'dialect' }
+    })
+    assert.deepEqual(seen, [opened.state], 'built once, over the file`s state')
+    assert.deepEqual(Object.keys(opened.context), ['shape'], 'the state is not an own key to see')
+    assert.equal(unwrapSnapshotContext(opened.context), opened.state)
+  })
+
+  test('anything else unwraps to itself, so the matchers can refuse it', () => {
+    for (const value of [undefined, null, 1, 'state', { match() {} }]) {
+      assert.equal(unwrapSnapshotContext(value), value)
+    }
   })
 })
 
