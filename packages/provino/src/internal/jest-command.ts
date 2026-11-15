@@ -62,7 +62,7 @@ import {
   withChangedCoverage,
 } from './jest-selection.ts'
 import { type JestWatchInput, runJestWatch } from './jest-watch.ts'
-import { type DisplayOptions, outputFor, styleFor } from './reporters.ts'
+import { type DisplayOptions, outputFor, styleFor, styleOf } from './reporters.ts'
 import {
   chooseProjects,
   noProjectsMessage,
@@ -471,13 +471,9 @@ async function coverageFor(
   const { env, stdout, stderr } = io
   const columns = (stdout as { columns?: unknown }).columns
   // Jest's chalk and `istanbul-lib-report`'s console writer follow stdout's colour support.
-  const style = styleFor({ env, stream: stdout, ci: globalConfig.ci, colour: io.colour })
-  const consoleColour = outputFor({
-    env,
-    stderr: stdout,
-    ci: globalConfig.ci,
-    colour: io.colour,
-  }).colour
+  const output = outputFor({ env, stderr: stdout, ci: globalConfig.ci, colour: io.colour })
+  const style = styleOf(output)
+  const consoleColour = output.colour
   const options = jestCoverageOptions(globalConfig, {
     env,
     stdoutColumns: typeof columns === 'number' && columns > 0 ? columns : undefined,
@@ -491,7 +487,7 @@ async function coverageFor(
     texts: jestCoverageTexts,
   })
   // jest-util's `isInteractive`: stdout a terminal, not dumb, not CI.
-  const interactive = outputFor({ env, stderr: stdout, ci: globalConfig.ci }).live
+  const interactive = output.live
   // The thresholds are checked in the coordinator (`CoverageSummary.thresholdFailures`); Jest
   // resolves a relative group against the process's directory.
   const hooks: RunCoverageHooks = {
@@ -517,6 +513,31 @@ async function coverageFor(
 }
 
 /**
+ * The colour request Jest's chalk acts on: supports-color 7.2.0 (chalk 4's) lets a `FORCE_COLOR` in
+ * the environment override `--color`, `--colors` and `--no-color` (index.js L21-L29 set `forceColor`
+ * from it after the flags, and L45 returns 0 for `FORCE_COLOR=0`), and never reads `NO_COLOR`.
+ * `detectOutput` puts an explicit request above the environment, so under the Jest dialect the
+ * request is the environment's when it forces a level, else the flag's.
+ * @internal
+ */
+export function jestColourRequest(
+  env: Readonly<Record<string, string | undefined>>,
+  flag: boolean | undefined,
+): boolean | undefined {
+  const forced = env.FORCE_COLOR
+  if (forced === undefined) return flag
+  const level =
+    forced === 'true'
+      ? 1
+      : forced === 'false'
+        ? 0
+        : forced.length === 0
+          ? 1
+          : Math.min(Number.parseInt(forced, 10), 3)
+  return Number.isNaN(level) ? flag : level > 0
+}
+
+/**
  * Runs one `provino jest` command line and resolves with the exit code. Bad input (a flag Jest
  * refuses or Provino can't run yet, a config Jest refuses, a pattern that isn't a regular
  * expression) is a message on `stderr` and Jest's exit code for it; any other error is a bug and
@@ -532,7 +553,12 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     const { rest, timingsFile, updateTimings } = takeTimingsFlags(args)
     const parsed = jestCli.parse(rest)
     if (report(parsed.diagnostics, stderr)) return usage
-    const request = jestCli.toRunRequest(parsed.argv)
+    const parsedRequest = jestCli.toRunRequest(parsed.argv)
+    const colour = jestColourRequest(io.env ?? process.env, parsedRequest.colour)
+    const request: RunRequest = {
+      ...parsedRequest,
+      ...(colour === undefined ? {} : { colour }),
+    }
     const read = await readProjects(parsed.argv, request, cwd)
     if (report(read.diagnostics, stderr)) return usage
 

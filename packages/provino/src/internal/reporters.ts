@@ -157,7 +157,16 @@ export function styleFor(context: {
   readonly ci: boolean
   readonly colour?: boolean | undefined
 }): Style {
-  return createStyle(outputFor({ ...context, stderr: context.stream }).colour)
+  return styleOf(outputFor({ ...context, stderr: context.stream }))
+}
+
+/**
+ * The colours for an output decision already made, so a caller that needs `colour` and `live` too
+ * decides once.
+ * @internal
+ */
+export function styleOf(output: OutputEnvironment): Style {
+  return createStyle(output.colour)
 }
 
 /**
