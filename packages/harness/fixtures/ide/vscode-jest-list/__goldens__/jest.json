@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ide/vscode-jest-list",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stdout": "<root>/sum.test.ts"
+  }
+}

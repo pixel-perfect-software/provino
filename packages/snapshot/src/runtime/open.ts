@@ -1,10 +1,12 @@
 import { defaultSnapshotPath, SnapshotError, type SnapshotUpdateMode } from '@provino/snapshot'
 import type {
   ResolveSnapshotPath,
+  SnapshotContextViewFactory,
   SnapshotKey,
   SnapshotPolicy,
   SnapshotPrinter,
 } from '@provino/types'
+import { snapshotContextOf } from './context.ts'
 import { type SnapshotLifecycle, trackSnapshots } from './lifecycle.ts'
 import { SnapshotState } from './state.ts'
 
@@ -23,6 +25,11 @@ export interface OpenSnapshotsOptions {
   readonly printer: SnapshotPrinter | null
   /** `null`: the default layout beside the test file. */
   readonly resolvePath: ResolveSnapshotPath | null
+  /**
+   * The policy's `snapshot.contextView`, loaded: what a matcher sees as `this.snapshotState`.
+   * Absent or `null`: the state itself.
+   */
+  readonly contextView?: SnapshotContextViewFactory | null
 }
 
 /**
@@ -43,13 +50,15 @@ function missingPrinter(): SnapshotPrinter {
 }
 
 /**
- * Opens a test file's snapshots: its state (reading the `.snap` file) and the lifecycle that
- * follows the file's events.
+ * Opens a test file's snapshots: its state (reading the `.snap` file), the lifecycle that follows
+ * the file's events, and `context`, the value the matcher state holds as `snapshotState` (the
+ * state, or the policy's view of it; `unwrapSnapshotContext` gives the state back).
  * @public
  */
 export function openFileSnapshots(options: OpenSnapshotsOptions): {
   readonly state: SnapshotState
   readonly lifecycle: SnapshotLifecycle
+  readonly context: object
 } {
   const { testPath, policy } = options
   const snapshotPath =
@@ -66,5 +75,9 @@ export function openFileSnapshots(options: OpenSnapshotsOptions): {
     printer: options.printer ?? missingPrinter(),
     inlineWrites: policy.inline.writer !== null,
   })
-  return { state, lifecycle: trackSnapshots(state, { keyJoin: policy.keyJoin }) }
+  return {
+    state,
+    lifecycle: trackSnapshots(state, { keyJoin: policy.keyJoin }),
+    context: snapshotContextOf(state, options.contextView ?? null),
+  }
 }

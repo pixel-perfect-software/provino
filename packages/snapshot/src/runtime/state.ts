@@ -18,6 +18,7 @@ import {
 } from '@provino/snapshot'
 import type {
   InlineSnapshotEdit,
+  SnapshotContextSource,
   SnapshotFileReport,
   SnapshotKey,
   SnapshotPlugin,
@@ -139,7 +140,7 @@ interface AttemptRecord {
  * The snapshot state of one test file.
  * @public
  */
-export class SnapshotState {
+export class SnapshotState implements SnapshotContextSource {
   readonly testPath: string
   readonly snapshotPath: string
   readonly update: SnapshotUpdateMode
@@ -149,7 +150,7 @@ export class SnapshotState {
   unmatched = 0
   updated = 0
 
-  private counters = new Map<string, number>()
+  private readonly counters = new Map<string, number>()
   private dirty: boolean
   private fileExists: boolean
   private readonly data: SnapshotData
@@ -174,6 +175,18 @@ export class SnapshotState {
     this.fileExists = read.exists
     this.uncheckedKeys = new Set(Object.keys(this.data))
     this.plugins = [...(options.serializers ?? [])]
+  }
+
+  /**
+   * The count of snapshots taken per test name, as a live map: the next key of a name follows the
+   * count set here. For a dialect's context view (`snapshot.contextView`), whose matchers count
+   * snapshots of their own (Jest's `_counters`); Provino's matchers never read it. A write here,
+   * like one to the four counts, is no attempt's: `clearTest` keeps it, as jest-snapshot 30.5.2's
+   * `clear(test)` keeps what a matcher wrote to its fields (`ecosystem/image-snapshot-retry`), and
+   * puts back only the counters the test's own snapshots touched, to their value before that.
+   */
+  get liveCounters(): Map<string, number> {
+    return this.counters
   }
 
   /** The serializers in the order they are tried: the one added last first. */

@@ -56,7 +56,7 @@ These are the gaps the code itself names. Any other difference from Jest is a bu
 
 | Gap | What happens today | Status |
 | --- | --- | --- |
-| Coverage from saved reports: `--merge-reports`, and coverage of changed files only | Not built. Workers and shards merge into one report in one run, but not from reports written earlier | Planned |
+| Coverage from saved reports: `--merge-reports` | Not built. Workers and shards merge into one report in one run, but not from reports written earlier | Planned |
 | Coverage HTML report | Written, but not compared byte for byte with Jest's (the other reporters are) | Not planned |
 | Coverage under `provino run --config` | Only `provino jest` reads Jest's coverage keys; a Provino config has no coverage section yet | Planned |
 | Coverage of a TypeScript file Provino's in-place strip can't take (a non-`declare` enum, a namespace with values, a parameter property, a decorator under `experimentalDecorators`, …) | The file is compiled and remapped instead, so a statement, function or branch end can be `null` and a `line` missing in `coverage-final.json` | Not planned |
@@ -65,7 +65,6 @@ These are the gaps the code itself names. Any other difference from Jest is a bu
 | `_coverageSchema` in `coverage-final.json` and `--json`'s `coverageMap` | Jest's value, whatever the dialect | Not planned |
 | Watch mode's `u` and `i` keys, `watchPlugins` (jest-watch-typeahead), and `--coverage`, `--collectTests` or `--detectOpenHandles` with `--watch`/`--watchAll` | Refused by name. The rest of watch mode is Jest's: the keys `a f o p t q w c`, Enter, Esc, Ctrl+C/D, the usage text and prompts, a run after each change; a change saved during a run starts one more run after it, where Jest drops it | Planned |
 | A Jest reporter's own copy of Jest's frames | A report that embeds each failure's raw stack (jest-html-reporters, jest-sonar-reporter, jest-junit without `noStackTrace`) holds Provino's frames in place of `jest-circus`'s, with the project's frames in Jest's layout | Not planned |
-| Coverage of only what changed: `--coverage` with `-o` or `--findRelatedTests` | The selected tests run, and coverage is collected as for a full run, not only of the changed files and the sources their tests import | Planned |
 | A `snapshotResolver` that is broken | Each file fails with Jest's text and the run ends with no totals, exit 1, as in Jest; the error prints as `Provino: unexpected error:` with its stack, where Jest prints it red | Not planned |
 | Inline snapshots with Prettier 2 | Written unformatted, with a warning (Prettier 3 formats as Jest does) | Not planned |
 | Legacy fake timers | `legacyFakeTimers: true` throws when a test installs the timers, with a hint to use the modern ones. `jest.runAllImmediates` throws | Not planned |

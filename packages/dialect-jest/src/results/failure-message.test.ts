@@ -62,6 +62,44 @@ describe('the failure text of an install', () => {
     assert.doesNotMatch(text ?? '', /node_modules\/(provino|@provino)/)
   })
 
+  it('prints an error whose message changed after it was made from its stack, as Jest does', async () => {
+    // dom-testing-library's `waitFor` appends the DOM to a timed-out error's `message` after the
+    // stack was captured, so `failureMessages` (message, then the stack) holds the DOM twice. Jest
+    // formats the error itself (`failureDetailsToErrorOrStack`), whose `stack` has it once.
+    const message = 'Unable to find it.\n\n<body />\n\n<html />'
+    const errorStack =
+      'Error: Unable to find it.\n\n<body />\n    at Object.<anonymous> (/app/a.test.ts:3:11)'
+    const real = new Error(message)
+    real.stack = errorStack
+    const hidden = { writable: true, configurable: true, enumerable: false }
+    const detail = {}
+    Object.defineProperty(detail, 'name', { ...hidden, value: 'Error' })
+    Object.defineProperty(detail, 'message', { ...hidden, value: message })
+    Object.defineProperty(detail, 'stack', { ...hidden, value: errorStack })
+    const flattened = message + errorStack
+    const withDetail = (failureDetails: unknown) =>
+      ({
+        ...assertion,
+        failureDetails: [failureDetails],
+        failureMessages: [flattened],
+      }) as unknown as AssertionResult
+    const jest = await import('jest-message-util')
+    const expected = jest.formatResultsErrors(
+      [withDetail(real)] as unknown as Parameters<typeof jest.formatResultsErrors>[0],
+      config as unknown as Parameters<typeof jest.formatResultsErrors>[1],
+      { noStackTrace: false },
+      '/app/a.test.ts',
+    )
+    const text = await formatTestFailures(
+      [withDetail(detail)],
+      config,
+      { noStackTrace: false },
+      '/app/a.test.ts',
+    )
+    assert.equal(text, expected)
+    assert.equal(text?.split('<body />').length, 2)
+  })
+
   it('has none for an error that kept the file from running', async () => {
     const text = await formatFileError(
       { message: 'boom', stack: INSTALLED },

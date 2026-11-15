@@ -125,6 +125,9 @@ const REF_FLIPS: Readonly<Record<string, readonly unknown[]>> = {
   // `require` and misses `jest.requireActual` (`changed/related-extractor-*`).
   'orchestrator.changedFiles': [neutralPolicy.orchestrator.changedFiles],
   'orchestrator.affected.extractor': [neutralPolicy.orchestrator.affected.extractor],
+  // The neutral `null`: `this.snapshotState` is Provino's own state, which has no `_counters` or
+  // `_updateSnapshot`, so jest-image-snapshot can't run (`ecosystem/image-snapshot-*`).
+  'snapshot.contextView': [neutralPolicy.snapshot.contextView],
 }
 
 /** The suffix a flipped free-text value gains. */

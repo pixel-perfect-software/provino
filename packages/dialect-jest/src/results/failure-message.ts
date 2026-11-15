@@ -86,6 +86,24 @@ function messageUtil(): Promise<MessageUtil> {
 }
 
 /**
+ * What `formatResultsErrors` should format for one failure. Jest hands it the thrown `Error`
+ * itself (`failureDetailsToErrorOrStack`, jest-message-util 30.5.2 index.ts L640-L658), and formats
+ * its `stack` (`formatErrorStackWithSeen` L564-L568); our `failureDetails[i]` is a plain object, so
+ * the package formats `failureMessages[i]` instead, which is `flattenErrorStack`'s message, then the
+ * stack, when the stack lacks the message. The two differ when the message changed after the stack
+ * was taken (dom-testing-library's `waitFor` appends the DOM to a timed-out error's message), so
+ * then the stack is formatted, as Jest formats it. A failure that also carries a `cause` or
+ * `errors` (more text after the two) is left as it is.
+ */
+function formattedSource(content: string, detail: unknown): string {
+  if (typeof detail !== 'object' || detail === null) return content
+  const { message, stack } = detail as { readonly message?: unknown; readonly stack?: unknown }
+  if (typeof message !== 'string' || typeof stack !== 'string' || stack === '') return content
+  if (message === '' || stack.includes(message)) return content
+  return content === message + stack.replace(/^Error:?\s*\n/, '\n') ? stack : content
+}
+
+/**
  * The text Jest prints for the failures of one file's tests (`formatResultsErrors`), or `null`
  * when none failed.
  * @public
@@ -101,7 +119,9 @@ export async function formatTestFailures(
   // The package types `AssertionResult` from `@jest/types`, a structural twin of ours.
   const shown = assertionResults.map((result) => ({
     ...result,
-    failureMessages: result.failureMessages.map((message) => hideProvinoFrames(message)),
+    failureMessages: result.failureMessages.map((message, index) =>
+      hideProvinoFrames(formattedSource(message, result.failureDetails[index])),
+    ),
   }))
   return util.formatResultsErrors(
     shown as unknown as Parameters<MessageUtil['formatResultsErrors']>[0],

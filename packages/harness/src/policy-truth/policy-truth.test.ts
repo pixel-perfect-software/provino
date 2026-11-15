@@ -57,6 +57,7 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'vitest snapshot.inline.formatter': 'T7.11',
   'vitest snapshot.inline.writer': 'T7.11',
   'vitest snapshot.resolverFactory': 'T11.16',
+  'vitest snapshot.contextView': 'T7.6',
   'vitest snapshot.obsoleteFiles': 'T11.16',
   'vitest hoist.messages.HOIST_EXPORTED': 'T11.16',
   'vitest hoist.messages.HOIST_EXPORTED_VALUE': 'T11.16',

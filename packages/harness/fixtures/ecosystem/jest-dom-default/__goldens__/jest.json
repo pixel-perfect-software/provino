@@ -1,0 +1,1117 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ecosystem/jest-dom-default",
+  "files": [
+    {
+      "file": "negated.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "negated.test.ts",
+            "path": [
+              ".not.toBeInTheDocument passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 9,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "negated.test.ts",
+            "path": [
+              ".not.toBeInTheDocument fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).not.toBeInTheDocument()\n\nexpected document not to contain element, found <button aria-label=\"Go\" class=\"primary\" id=\"go\" style=\"visibility: hidden\">Go now</button> instead",
+              "userFrame": "<root>/negated.test.ts:13:20"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 12,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "negated.test.ts",
+            "path": [
+              ".not.toHaveClass passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 15,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "negated.test.ts",
+            "path": [
+              ".not.toHaveClass fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).not.toHaveClass(\"primary\")\n\nExpected the element not to have class:\n  primary\nReceived:\n  primary",
+              "userFrame": "<root>/negated.test.ts:19:20"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 18,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "negated.test.ts",
+            "path": [
+              ".not.toHaveTextContent passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 21,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "negated.test.ts",
+            "path": [
+              ".not.toHaveTextContent fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).not.toHaveTextContent()\n\nExpected element not to have text content:\n  Go now\nReceived:\n  Go now",
+              "userFrame": "<root>/negated.test.ts:25:20"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 24,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "negated.test.ts",
+            "path": [
+              ".not.toBeVisible passes on visibility: hidden"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 27,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "negated.test.ts",
+            "path": [
+              ".not.toBeVisible fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).not.toBeVisible()\n\nReceived element is visible:\n  <button aria-label=\"Go\" class=\"primary\" id=\"go\" style=\"visibility: visible;\" />",
+              "userFrame": "<root>/negated.test.ts:32:20"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 30,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "negated.test.ts",
+            "path": [
+              ".not.toHaveStyle passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 34,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "negated.test.ts",
+            "path": [
+              ".not.toHaveStyle fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).not.toHaveStyle()\n\nCompared values have no visual difference.",
+              "userFrame": "<root>/negated.test.ts:38:20"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 37,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "negated.test.ts",
+            "path": [
+              ".not.toHaveAttribute passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 40,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "negated.test.ts",
+            "path": [
+              ".not.toHaveAttribute fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).not.toHaveAttribute(\"aria-label\", \"Go\") // element.getAttribute(\"aria-label\") === \"Go\"\n\nExpected the element not to have attribute:\n  aria-label=\"Go\"\nReceived:\n  aria-label=\"Go\"",
+              "userFrame": "<root>/negated.test.ts:44:20"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 43,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "plain.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "plain.test.ts",
+            "path": [
+              "toBeInTheDocument passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 10,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "plain.test.ts",
+            "path": [
+              "toBeInTheDocument fails on a detached node"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).toBeInTheDocument()\n\nelement could not be found in the document",
+              "userFrame": "<root>/plain.test.ts:14:39"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 13,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "plain.test.ts",
+            "path": [
+              "toHaveClass passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 16,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "plain.test.ts",
+            "path": [
+              "toHaveClass fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).toHaveClass(\"small\")\n\nExpected the element to have class:\n  small\nReceived:\n  card big",
+              "userFrame": "<root>/plain.test.ts:20:23"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 19,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "plain.test.ts",
+            "path": [
+              "toHaveTextContent passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 22,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "plain.test.ts",
+            "path": [
+              "toHaveTextContent fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).toHaveTextContent()\n\nExpected element to have text content:\n  Goodbye\nReceived:\n  Hello world",
+              "userFrame": "<root>/plain.test.ts:26:23"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 25,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "plain.test.ts",
+            "path": [
+              "toBeVisible passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 28,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "plain.test.ts",
+            "path": [
+              "toBeVisible fails on display: none"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).toBeVisible()\n\nReceived element is not visible:\n  <span id=\"hidden\" style=\"display: none\" />",
+              "userFrame": "<root>/plain.test.ts:32:26"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 31,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "plain.test.ts",
+            "path": [
+              "toHaveStyle passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 34,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "plain.test.ts",
+            "path": [
+              "toHaveStyle fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).toHaveStyle()\n\n- Expected\n\n- color: blue;\n+ color: rgb(255, 0, 0);",
+              "userFrame": "<root>/plain.test.ts:38:23"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 37,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "plain.test.ts",
+            "path": [
+              "toHaveAttribute passes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 40,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "plain.test.ts",
+            "path": [
+              "toHaveAttribute fails"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(element).toHaveAttribute(\"title\", \"farewell\") // element.getAttribute(\"title\") === \"farewell\"\n\nExpected the element to have attribute:\n  title=\"farewell\"\nReceived:\n  title=\"greeting\"",
+              "userFrame": "<root>/plain.test.ts:44:23"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 43,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./plain.test.ts\n  ● toBeInTheDocument fails on a detached node\n  ● toHaveClass fails\n    Expected the element to have class:\n    Received:\n  ● toHaveTextContent fails\n    Expected element to have text content:\n    Received:\n  ● toBeVisible fails on display: none\n    Received element is not visible:\n  ● toHaveStyle fails\n  ● toHaveAttribute fails\n    Expected the element to have attribute:\n    Received:\nFAIL ./negated.test.ts\n  ● .not.toBeInTheDocument fails\n  ● .not.toHaveClass fails\n    Expected the element not to have class:\n    Received:\n  ● .not.toHaveTextContent fails\n    Expected element not to have text content:\n    Received:\n  ● .not.toBeVisible fails\n    Received element is visible:\n  ● .not.toHaveStyle fails\n    Compared values have no visual difference.\n  ● .not.toHaveAttribute fails\n    Expected the element not to have attribute:\n    Received:\nTest Suites: 2 failed, 2 total\nTests:       12 failed, 12 passed, 24 total\nSnapshots:   0 total",
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 2,
+        "numFailedTests": 12,
+        "numPassedTestSuites": 0,
+        "numPassedTests": 12,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 2,
+        "numTotalTests": 24,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": ".not.toBeInTheDocument passes",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 9
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": ".not.toBeInTheDocument passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": true,
+                      "message": "expect(element).not.toBeInTheDocument()\n\nexpected document not to contain element, found <button aria-label=\"Go\" class=\"primary\" id=\"go\" style=\"visibility: hidden\">Go now</button> instead"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).not.toBeInTheDocument()\n\nexpected document not to contain element, found <button aria-label=\"Go\" class=\"primary\" id=\"go\" style=\"visibility: hidden\">Go now</button> instead\n<frames>"
+                ],
+                "fullName": ".not.toBeInTheDocument fails",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 12
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": ".not.toBeInTheDocument fails",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": ".not.toHaveClass passes",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 15
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": ".not.toHaveClass passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": true,
+                      "message": "expect(element).not.toHaveClass(\"primary\")\n\nExpected the element not to have class:\n  primary\nReceived:\n  primary"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).not.toHaveClass(\"primary\")\n\nExpected the element not to have class:\n  primary\nReceived:\n  primary\n<frames>"
+                ],
+                "fullName": ".not.toHaveClass fails",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 18
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": ".not.toHaveClass fails",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": ".not.toHaveTextContent passes",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 21
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": ".not.toHaveTextContent passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": true,
+                      "message": "expect(element).not.toHaveTextContent()\n\nExpected element not to have text content:\n  Go now\nReceived:\n  Go now"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).not.toHaveTextContent()\n\nExpected element not to have text content:\n  Go now\nReceived:\n  Go now\n<frames>"
+                ],
+                "fullName": ".not.toHaveTextContent fails",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 24
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": ".not.toHaveTextContent fails",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": ".not.toBeVisible passes on visibility: hidden",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 27
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": ".not.toBeVisible passes on visibility: hidden",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": true,
+                      "message": "expect(element).not.toBeVisible()\n\nReceived element is visible:\n  <button aria-label=\"Go\" class=\"primary\" id=\"go\" style=\"visibility: visible;\" />"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).not.toBeVisible()\n\nReceived element is visible:\n  <button aria-label=\"Go\" class=\"primary\" id=\"go\" style=\"visibility: visible;\" />\n<frames>"
+                ],
+                "fullName": ".not.toBeVisible fails",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 30
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": ".not.toBeVisible fails",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": ".not.toHaveStyle passes",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 34
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": ".not.toHaveStyle passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": true,
+                      "message": "expect(element).not.toHaveStyle()\n\nCompared values have no visual difference."
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).not.toHaveStyle()\n\nCompared values have no visual difference.\n<frames>"
+                ],
+                "fullName": ".not.toHaveStyle fails",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 37
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": ".not.toHaveStyle fails",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": ".not.toHaveAttribute passes",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 40
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": ".not.toHaveAttribute passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": true,
+                      "message": "expect(element).not.toHaveAttribute(\"aria-label\", \"Go\") // element.getAttribute(\"aria-label\") === \"Go\"\n\nExpected the element not to have attribute:\n  aria-label=\"Go\"\nReceived:\n  aria-label=\"Go\""
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).not.toHaveAttribute(\"aria-label\", \"Go\") // element.getAttribute(\"aria-label\") === \"Go\"\n\nExpected the element not to have attribute:\n  aria-label=\"Go\"\nReceived:\n  aria-label=\"Go\"\n<frames>"
+                ],
+                "fullName": ".not.toHaveAttribute fails",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 43
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": ".not.toHaveAttribute fails",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● .not.toBeInTheDocument fails\n\n    expect(element).not.toBeInTheDocument()\n\n    expected document not to contain element, found <button aria-label=\"Go\" class=\"primary\" id=\"go\" style=\"visibility: hidden\">Go now</button> instead\n\n      11 | })\n      12 | test('.not.toBeInTheDocument fails', () => {\n    > 13 |   expect(go()).not.toBeInTheDocument()\n         |                    ^\n      14 | })\n      15 | test('.not.toHaveClass passes', () => {\n      16 |   expect(go()).not.toHaveClass('secondary')\n\n<frames>\n\n  ● .not.toHaveClass fails\n\n    expect(element).not.toHaveClass(\"primary\")\n\n    Expected the element not to have class:\n      primary\n    Received:\n      primary\n\n      17 | })\n      18 | test('.not.toHaveClass fails', () => {\n    > 19 |   expect(go()).not.toHaveClass('primary')\n         |                    ^\n      20 | })\n      21 | test('.not.toHaveTextContent passes', () => {\n      22 |   expect(go()).not.toHaveTextContent('Stop')\n\n<frames>\n\n  ● .not.toHaveTextContent fails\n\n    expect(element).not.toHaveTextContent()\n\n    Expected element not to have text content:\n      Go now\n    Received:\n      Go now\n\n      23 | })\n      24 | test('.not.toHaveTextContent fails', () => {\n    > 25 |   expect(go()).not.toHaveTextContent('Go now')\n         |                    ^\n      26 | })\n      27 | test('.not.toBeVisible passes on visibility: hidden', () => {\n      28 |   expect(go()).not.toBeVisible()\n\n<frames>\n\n  ● .not.toBeVisible fails\n\n    expect(element).not.toBeVisible()\n\n    Received element is visible:\n      <button aria-label=\"Go\" class=\"primary\" id=\"go\" style=\"visibility: visible;\" />\n\n      30 | test('.not.toBeVisible fails', () => {\n      31 |   go().style.visibility = 'visible'\n    > 32 |   expect(go()).not.toBeVisible()\n         |                    ^\n      33 | })\n      34 | test('.not.toHaveStyle passes', () => {\n      35 |   expect(go()).not.toHaveStyle({ visibility: 'visible' })\n\n<frames>\n\n  ● .not.toHaveStyle fails\n\n    expect(element).not.toHaveStyle()\n\n    Compared values have no visual difference.\n\n      36 | })\n      37 | test('.not.toHaveStyle fails', () => {\n    > 38 |   expect(go()).not.toHaveStyle({ visibility: 'hidden' })\n         |                    ^\n      39 | })\n      40 | test('.not.toHaveAttribute passes', () => {\n      41 |   expect(go()).not.toHaveAttribute('disabled')\n\n<frames>\n\n  ● .not.toHaveAttribute fails\n\n    expect(element).not.toHaveAttribute(\"aria-label\", \"Go\") // element.getAttribute(\"aria-label\") === \"Go\"\n\n    Expected the element not to have attribute:\n      aria-label=\"Go\"\n    Received:\n      aria-label=\"Go\"\n\n      42 | })\n      43 | test('.not.toHaveAttribute fails', () => {\n    > 44 |   expect(go()).not.toHaveAttribute('aria-label', 'Go')\n         |                    ^\n      45 | })\n      46 |\n\n<frames>\n",
+            "name": "<root>/negated.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "toBeInTheDocument passes",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 10
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "toBeInTheDocument passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "expect(element).toBeInTheDocument()\n\nelement could not be found in the document"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).toBeInTheDocument()\n\nelement could not be found in the document\n<frames>"
+                ],
+                "fullName": "toBeInTheDocument fails on a detached node",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 13
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "toBeInTheDocument fails on a detached node",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "toHaveClass passes",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 16
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "toHaveClass passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "expect(element).toHaveClass(\"small\")\n\nExpected the element to have class:\n  small\nReceived:\n  card big"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).toHaveClass(\"small\")\n\nExpected the element to have class:\n  small\nReceived:\n  card big\n<frames>"
+                ],
+                "fullName": "toHaveClass fails",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 19
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "toHaveClass fails",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "toHaveTextContent passes",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 22
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "toHaveTextContent passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "expect(element).toHaveTextContent()\n\nExpected element to have text content:\n  Goodbye\nReceived:\n  Hello world"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).toHaveTextContent()\n\nExpected element to have text content:\n  Goodbye\nReceived:\n  Hello world\n<frames>"
+                ],
+                "fullName": "toHaveTextContent fails",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 25
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "toHaveTextContent fails",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "toBeVisible passes",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 28
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "toBeVisible passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "expect(element).toBeVisible()\n\nReceived element is not visible:\n  <span id=\"hidden\" style=\"display: none\" />"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).toBeVisible()\n\nReceived element is not visible:\n  <span id=\"hidden\" style=\"display: none\" />\n<frames>"
+                ],
+                "fullName": "toBeVisible fails on display: none",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 31
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "toBeVisible fails on display: none",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "toHaveStyle passes",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 34
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "toHaveStyle passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "expect(element).toHaveStyle()\n\n- Expected\n\n- color: blue;\n+ color: rgb(255, 0, 0);"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).toHaveStyle()\n\n- Expected\n\n- color: blue;\n+ color: rgb(255, 0, 0);\n<frames>"
+                ],
+                "fullName": "toHaveStyle fails",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 37
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "toHaveStyle fails",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "toHaveAttribute passes",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 40
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "toHaveAttribute passes",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "pass": false,
+                      "message": "expect(element).toHaveAttribute(\"title\", \"farewell\") // element.getAttribute(\"title\") === \"farewell\"\n\nExpected the element to have attribute:\n  title=\"farewell\"\nReceived:\n  title=\"greeting\""
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(element).toHaveAttribute(\"title\", \"farewell\") // element.getAttribute(\"title\") === \"farewell\"\n\nExpected the element to have attribute:\n  title=\"farewell\"\nReceived:\n  title=\"greeting\"\n<frames>"
+                ],
+                "fullName": "toHaveAttribute fails",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 43
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "toHaveAttribute fails",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● toBeInTheDocument fails on a detached node\n\n    expect(element).toBeInTheDocument()\n\n    element could not be found in the document\n\n      12 | })\n      13 | test('toBeInTheDocument fails on a detached node', () => {\n    > 14 |   expect(document.createElement('p')).toBeInTheDocument()\n         |                                       ^\n      15 | })\n      16 | test('toHaveClass passes', () => {\n      17 |   expect(byId('box')).toHaveClass('card', 'big')\n\n<frames>\n\n  ● toHaveClass fails\n\n    expect(element).toHaveClass(\"small\")\n\n    Expected the element to have class:\n      small\n    Received:\n      card big\n\n      18 | })\n      19 | test('toHaveClass fails', () => {\n    > 20 |   expect(byId('box')).toHaveClass('small')\n         |                       ^\n      21 | })\n      22 | test('toHaveTextContent passes', () => {\n      23 |   expect(byId('box')).toHaveTextContent(/hello/i)\n\n<frames>\n\n  ● toHaveTextContent fails\n\n    expect(element).toHaveTextContent()\n\n    Expected element to have text content:\n      Goodbye\n    Received:\n      Hello world\n\n      24 | })\n      25 | test('toHaveTextContent fails', () => {\n    > 26 |   expect(byId('box')).toHaveTextContent('Goodbye')\n         |                       ^\n      27 | })\n      28 | test('toBeVisible passes', () => {\n      29 |   expect(byId('box')).toBeVisible()\n\n<frames>\n\n  ● toBeVisible fails on display: none\n\n    expect(element).toBeVisible()\n\n    Received element is not visible:\n      <span id=\"hidden\" style=\"display: none\" />\n\n      30 | })\n      31 | test('toBeVisible fails on display: none', () => {\n    > 32 |   expect(byId('hidden')).toBeVisible()\n         |                          ^\n      33 | })\n      34 | test('toHaveStyle passes', () => {\n      35 |   expect(byId('box')).toHaveStyle({ color: 'rgb(255, 0, 0)', display: 'block' })\n\n<frames>\n\n  ● toHaveStyle fails\n\n    expect(element).toHaveStyle()\n\n    - Expected\n\n    - color: blue;\n    + color: rgb(255, 0, 0);\n\n      36 | })\n      37 | test('toHaveStyle fails', () => {\n    > 38 |   expect(byId('box')).toHaveStyle('color: blue')\n         |                       ^\n      39 | })\n      40 | test('toHaveAttribute passes', () => {\n      41 |   expect(byId('box')).toHaveAttribute('title', 'greeting')\n\n<frames>\n\n  ● toHaveAttribute fails\n\n    expect(element).toHaveAttribute(\"title\", \"farewell\") // element.getAttribute(\"title\") === \"farewell\"\n\n    Expected the element to have attribute:\n      title=\"farewell\"\n    Received:\n      title=\"greeting\"\n\n      42 | })\n      43 | test('toHaveAttribute fails', () => {\n    > 44 |   expect(byId('box')).toHaveAttribute('title', 'farewell')\n         |                       ^\n      45 | })\n      46 |\n\n<frames>\n",
+            "name": "<root>/plain.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

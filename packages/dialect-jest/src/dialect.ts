@@ -34,6 +34,7 @@ import type {
   ModuleScopeFactory,
   PolicyOverrides,
   ShuffleFactory,
+  SnapshotContextViewFactory,
   SnapshotPrinterFactory,
   SnapshotResolverFactory,
 } from '@provino/types'
@@ -306,6 +307,13 @@ export const jestPolicy: PolicyOverrides = {
     resolverFactory: moduleRef<SnapshotResolverFactory>(
       import.meta.resolve('@provino/dialect-jest/runtime'),
       'jestSnapshotResolver',
+    ),
+    // Provino's own key (B23e, D128, compat): `this.snapshotState` as jest-snapshot 30.5.2's
+    // `SnapshotState` shows it to a matcher (`_counters`, `_updateSnapshot`, the four counts), over
+    // Provino's state; `ecosystem/image-snapshot-*` hold jest-image-snapshot's reads and writes.
+    contextView: moduleRef<SnapshotContextViewFactory>(
+      import.meta.resolve('@provino/dialect-jest/runtime'),
+      'jestSnapshotStateView',
     ),
     // Provino's own key (T7.10): Jest's `pretty-format` 30.5 with its plugin order, and its words.
     // Resolved here, so the worker's loader finds it from any package.

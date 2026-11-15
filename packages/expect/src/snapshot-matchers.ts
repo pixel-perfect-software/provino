@@ -18,6 +18,7 @@ import {
   type MatchResult,
   SnapshotError,
   SnapshotState,
+  unwrapSnapshotContext,
 } from '@provino/snapshot/runtime'
 import type {
   Matcher,
@@ -115,9 +116,12 @@ const isSnapshotState = (value: unknown): value is SnapshotState =>
   typeof Reflect.get(value, 'match') === 'function' &&
   typeof Reflect.get(value, 'testName') === 'function'
 
-/** The file's snapshot state: Jest's "Snapshot state must be initialized". */
+/**
+ * The file's snapshot state: Jest's "Snapshot state must be initialized". The context may hold the
+ * dialect's view of it (`snapshot.contextView`), which unwraps to the state.
+ */
 function stateOf(context: MatcherContext, matcherName: string): SnapshotState {
-  const { snapshotState } = context
+  const snapshotState = unwrapSnapshotContext(context.snapshotState)
   if (!isSnapshotState(snapshotState)) {
     throw new SnapshotError(
       'SNAPSHOT_NOT_INITIALIZED',
@@ -531,7 +535,7 @@ export function addSnapshotSerializer(
   context: { snapshotState?: unknown },
   plugin: SnapshotPlugin,
 ): void {
-  const { snapshotState } = context
+  const snapshotState = unwrapSnapshotContext(context.snapshotState)
   if (!isSnapshotState(snapshotState)) {
     throw new SnapshotError(
       'SNAPSHOT_NOT_INITIALIZED',

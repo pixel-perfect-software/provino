@@ -81,6 +81,11 @@ export function createCoverageFilter(config: SerializedCoverageConfig): (path: s
   const include = globsToMatcher(config.include)
   const exclude = config.excludePatterns.map(regexOf)
   const excludedPaths = new Set(config.excludePaths)
+  const changed = config.changedFiles === undefined ? undefined : new Set(config.changedFiles)
+  const related =
+    config.sourcesRelatedToTestsInChangedFiles === undefined
+      ? undefined
+      : new Set(config.sourcesRelatedToTestsInChangedFiles)
   const counted = (path: string): boolean => {
     if (config.force.length > 0 && force(path)) return true
     if (!testIgnore.some((pattern) => pattern.test(path))) {
@@ -96,6 +101,8 @@ export function createCoverageFilter(config: SerializedCoverageConfig): (path: s
     if (exclude.some((pattern) => pattern.test(path))) return false
     if (excludedPaths.has(path)) return false
     if (MOCKS.test(path)) return false
+    // `shouldInstrument` L111-L118: outside the changed files, only a source a changed test imports.
+    if (changed !== undefined && !changed.has(path) && !(related?.has(path) ?? false)) return false
     return !path.endsWith('.json')
   }
   if (config.provider !== 'istanbul') {
