@@ -1,0 +1,24 @@
+{
+  "description": "jest-styled-components imported by each test file on jest-environment-jsdom (T11.11): its import registers beforeEach(resetStyleSheet) and its snapshot serializer, and adds toHaveStyleRule. toHaveStyleRule passes and fails (with a modifier too), and toMatchSnapshot of an RTL container.firstChild prints the serializer's class names (c0) and the CSS. The second file renders other components, so its snapshot shows whether the style sheet was reset for it. Runs with --ci=false, because under the recorder's CI Jest writes no new snapshot; the .snap files are captured. Two files on one worker.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1", "--ci=false"]
+    },
+    "capture": [
+      "exitCode",
+      "stderr",
+      "json:.harness-out/jest.json",
+      "file:__snapshots__/button.test.ts.snap",
+      "file:__snapshots__/card.test.ts.snap"
+    ],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]|^Snapshot Summary$",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

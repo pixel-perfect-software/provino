@@ -1,0 +1,18 @@
+{
+  "description": "jest-axe on jest-environment-jsdom (T11.11): expect.extend(toHaveNoViolations) in each test file, and axe-core run on a labelled form and on an <img> with no alt. The failure text (the rule, its help URL and the offending node) is kept. The second file uses configureAxe to turn image-alt off and fails a button with no name instead. Two files on one worker.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]|^Snapshot Summary$",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
