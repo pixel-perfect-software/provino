@@ -93,6 +93,8 @@ export async function loadFixture(id: string): Promise<RecordedFixture> {
 const RECORDER_BASE = {
   testMatch: ['<rootDir>/**/*.test.ts'],
   testPathIgnorePatterns: ['/node_modules/', '/__goldens__/', '\\.vitest\\.test\\.ts$'],
+  // Jest writes each test's `location` into the results the goldens capture only with this on.
+  testLocationInResults: true,
 }
 
 export interface Materialized {
