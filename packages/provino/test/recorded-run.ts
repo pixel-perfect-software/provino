@@ -16,6 +16,7 @@ import {
   type RecordedFixture,
   type RecordedManifest,
 } from './recorded.ts'
+import { recorderText } from './recorder-text.ts'
 import { outputFree, spawnCli } from './support.ts'
 
 /** Inside this package, so the packages a fixture's config names resolve from `node_modules`. */
@@ -72,8 +73,21 @@ function sortedLines(lines: readonly string[], mode: true | 'json', what: string
 type RunSpec = NonNullable<RecordedManifest['run']>
 
 /**
- * A captured stream as the recorder records it (`observedOf`): the roots as `<root>`, the lines
- * `keepLines` keeps, `sortStdout` (`true` sorts the lines, `'json'` the elements of the one array
+ * The text as the recorder normalized it before anything else (`record.ts`): under `run.raw` the
+ * roots as `<root>` alone, else its normalizer's `text` (`recorder-text.ts`: the roots, and the
+ * code frames, durations, placeholders and stacks it reduces).
+ */
+function normalizedForRecording(
+  text: string,
+  spec: RunSpec | undefined,
+  roots: readonly string[],
+): string {
+  return spec?.raw === true ? observedText(text, { roots }) : recorderText(roots)(text)
+}
+
+/**
+ * A captured stream as the recorder records it (`observedOf`): normalized as the recorder did
+ * (`normalizedForRecording`), the lines `keepLines` keeps, `sortStdout` (`true` sorts the lines, `'json'` the elements of the one array
  * they make), then `mask`.
  */
 export function recordedStream(
@@ -82,14 +96,17 @@ export function recordedStream(
   roots: readonly string[],
   what = 'a stream',
 ): string {
-  const kept = observedText(text, { roots, keepLines: spec?.keepLines })
+  const kept = observedText(normalizedForRecording(text, spec, roots), {
+    roots: [],
+    keepLines: spec?.keepLines,
+  })
   const sorted =
     spec?.sortStdout === undefined ? kept : sortedLines(kept.split('\n'), spec.sortStdout, what)
   return observedText(sorted, { roots: [], mask: spec?.mask })
 }
 
 /**
- * A `file:` capture as the recorder records it: the roots as `<root>`, then (only under
+ * A `file:` capture as the recorder records it: normalized as the recorder did, then (only under
  * `sortStdout: "json"`, which the recorder applies to every captured file too) the elements of the
  * one array the text is, sorted, then `mask`. `sortStdout: true` leaves a file alone.
  */
@@ -99,7 +116,7 @@ export function recordedFile(
   roots: readonly string[],
   what = 'a file',
 ): string {
-  const rooted = observedText(text, { roots })
+  const rooted = normalizedForRecording(text, spec, roots)
   const sorted = spec?.sortStdout === 'json' ? sortedLines([rooted], 'json', what) : rooted
   return observedText(sorted, { roots: [], mask: spec?.mask })
 }

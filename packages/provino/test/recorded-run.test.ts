@@ -192,6 +192,30 @@ describe('captures are read as the recorder reads them', () => {
     // As the recorder, a text file under "json" is refused.
     assert.throws(() => recordedFile('b\na', { capture: [], sortStdout: 'json' }, []), /JSON array/)
   })
+
+  it("a stream goes through the recorder's normalizer before keepLines; run.raw only roots it", () => {
+    // What `jest-extended-all` and `jest-when` print: a code frame (which keepLines would keep, as
+    // its lines start with spaces) and a stack, which the recorder's normalizer reduced first.
+    const text = [
+      '  ● values › fails toBeOneOf',
+      '    Received:',
+      '      4',
+      "      12 |   it('fails toBeOneOf', () => {",
+      '    > 13 |     expect(4).toBeOneOf([1, 2, 3])',
+      '         |               ^',
+      '      14 |   })',
+      '',
+      '      at Object.toBeOneOf (/r/values.test.ts:13:15)',
+    ].join('\n')
+    const spec = { capture: [], keepLines: '^ +' }
+    // The normalizer also trims the text (the first line's indent) and ends it with the user frame.
+    assert.equal(recordedStream(text, spec, ['/r']), '    Received:\n      4')
+    assert.equal(
+      recordedStream(text, { ...spec, raw: true }, ['/r']).split('\n').length,
+      8,
+      'raw: every line keepLines keeps, the frame rooted',
+    )
+  })
 })
 
 describe('assertMatchesGolden compares as recorded', () => {

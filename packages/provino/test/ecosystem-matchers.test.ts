@@ -13,32 +13,28 @@ import { assertMatchesGolden, provinoOn } from './recorded-run.ts'
 const FIXTURES = [
   ['ecosystem/identity-obj-proxy', "a CSS mapper and Babel's interop over __esModule: false"],
   ['ecosystem/expect-type', 'expect-type loads and its calls do nothing'],
+  // Phase 2d (D127, P42): a package that reads `expect` or `jest` while it first loads in a
+  // worker is evaluated again for each later file (`module.reevaluateHookingExternals`).
+  ['ecosystem/jest-extended-all', "jest-extended/all's expect.extend, in both files"],
+  ['ecosystem/jest-fetch-mock', "enableMocks()'s jest.fn, the second file's own"],
+  // A shared package's own `require('@jest/globals')` gets the served module.
+  ['ecosystem/jest-mock-extended', 'mock<T>() and calledWith over the served @jest/globals'],
 ] as const
 
 /**
- * Recorded, and left out until the work named here lands. Phase 2d (D127): under isolation
- * `registry` a package in node_modules loads once per worker, so the second file sees the first
- * file's instance. Each one's second file, run alone, gives what Jest gave.
- * - `jest-extended-all`: `setupFilesAfterEnv: ["jest-extended/all"]` extends `expect` once; in
- *   `values.test.ts` every matcher is `expect(...).toBeOneOf is not a function`.
- * - `jest-when`: its module registry of when-mocks carries `calls.test.ts`'s uncalled mock into
- *   `verify.test.ts` (`2 not called` where Jest has `1`).
- * - `jest-fetch-mock`: the `jest.fn`s `enableMocks()` made are the first file's, so the second
- *   file's `resetMocks` misses them (an implementation where Jest has none; 3 calls for 1).
+ * Recorded, and left out until the work named here lands.
+ * - `jest-when`: Jest's `AssertionError` text. `verifyAllWhenMocksCalled` throws Node's
+ *   `assert.equal` error, which Jest prints as `assert.equal(received, expected)` with `Expected
+ *   value to be equal to:`, `Received:`, `Message:` and a `Difference:`, where Provino prints
+ *   `AssertionError [ERR_ASSERTION]: Failed verifyAllWhenMocksCalled: 1 not called:`. The count is
+ *   Jest's since Phase 2d (`when` is evaluated per file); the text is `task/B23e-node-assert`'s.
  * - `msw-node`: `second.test.ts`'s fetches are no longer intercepted after `handlers.test.ts`
- *   closed its server, and the run hangs.
- *
- * Stopped, a loader gap (not 2d: both files fail): `jest-mock-extended`'s own
- * `require('@jest/globals')` runs in a shared external, so it reaches the real package, which
- * throws `Do not import \`@jest/globals\` outside of the Jest test environment`.
+ *   closed its server, and the run hangs. msw reads no per-file global while it loads (the node
+ *   environment installs none it reads), so Phase 2d's trigger never fires for it: what the second
+ *   file needs is a fresh copy of its module state, which only evaluating it per file whatever it
+ *   reads would give.
  */
-const LEFT_OUT: readonly string[] = [
-  'ecosystem/jest-extended-all',
-  'ecosystem/jest-when',
-  'ecosystem/jest-fetch-mock',
-  'ecosystem/msw-node',
-  'ecosystem/jest-mock-extended',
-]
+const LEFT_OUT: readonly string[] = ['ecosystem/jest-when', 'ecosystem/msw-node']
 
 /** The seven fixtures Phase 2b records (other phases add `ecosystem/*` fixtures of their own). */
 const PHASE_2B: ReadonlySet<string> = new Set([
