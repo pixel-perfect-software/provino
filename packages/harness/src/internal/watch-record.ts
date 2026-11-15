@@ -147,6 +147,8 @@ export interface WatchRecordOptions {
     env: NodeJS.ProcessEnv,
     deadline: AbortSignal,
   ) => Promise<PtyProcess>
+  /** Reads a log file (a test's seam; default: the file's text, or null when it is not there). */
+  readonly read?: (file: string) => Promise<string | null>
   /** The pause between two reads of the run log and the done file (default 25 ms). */
   readonly poll?: () => Promise<void>
 }
@@ -168,7 +170,19 @@ function defaultSpawn(tty: boolean) {
  * pin down and the recording is refused (`HARNESS_WATCH_FAILED`).
  */
 export async function recordWatchSession(options: WatchRecordOptions): Promise<GoldenObserved> {
+  return (await recordWatchSessionExit(options)).observed
+}
+
+/**
+ * `recordWatchSession`, with the session's real exit code too: `observed.exitCode` exists only
+ * when the fixture captures it, and whether the session succeeded must not depend on that.
+ * `exitCode` is undefined when the steps did not end with an `exit` step (the session was killed).
+ */
+export async function recordWatchSessionExit(
+  options: WatchRecordOptions,
+): Promise<{ readonly observed: GoldenObserved; readonly exitCode: number | null | undefined }> {
   const { watch, source } = options
+  const read = options.read ?? readIfThere
   await writeFile(options.runLog, '')
   await writeFile(options.doneLog, '')
   const env = {
@@ -181,19 +195,28 @@ export async function recordWatchSession(options: WatchRecordOptions): Promise<G
   const spawn = options.spawn ?? defaultSpawn(watch.tty)
   const poll = options.poll ?? (() => sleep(POLL_MS))
   let session: PtyProcess | undefined
+  let cause: 'the deadline passed' | 'the session ended' | undefined
   let runs = 0
   let exitCode: number | null | undefined
   // The steps' error is the one the caller sees; a kill that fails as well is added to it.
   let failure: { readonly error: unknown } | undefined
   try {
     session = await spawn(options.argv, options.workDir, env, controller.signal)
-    let ended = false
+    // The first of the two ends is the cause: the deadline terminates the session's group, so
+    // by the poll's next look both have usually happened, and the later one says nothing.
+    controller.signal.addEventListener(
+      'abort',
+      () => {
+        cause ??= 'the deadline passed'
+      },
+      { once: true },
+    )
     void session.exit.then(
       () => {
-        ended = true
+        cause ??= 'the session ended'
       },
       () => {
-        ended = true
+        cause ??= 'the session ended'
       },
     )
     const host: WatchHost = {
@@ -202,21 +225,22 @@ export async function recordWatchSession(options: WatchRecordOptions): Promise<G
         for (;;) {
           // The log grows when the reporters finish, the done file once Jest reads keys again.
           // Counted, not parsed: a line may be half written; it is parsed once the session ends.
-          const seen = completeLines((await readIfThere(options.runLog)) ?? '')
-          const done = completeLines((await readIfThere(options.doneLog)) ?? '')
-          if (seen > count || done > count) {
+          // The done file is read first: a done line is written after its run's log line, so a
+          // line that lands between the two reads can only make the log the longer, and the pair
+          // is one a moment of the session could have held (`done` never above `seen`).
+          const done = completeLines((await read(options.doneLog)) ?? '')
+          const seen = completeLines((await read(options.runLog)) ?? '')
+          if (seen > count) {
             throw new HarnessError(
               'HARNESS_WATCH_FAILED',
               `${source}: the run log holds ${seen} runs (${done} done) where a step waits for ${count}: a run no step waited for`,
             )
           }
           if (seen === count && done === count) return
-          if (ended || controller.signal.aborted) {
-            // The deadline first: it ends the session too (the group is terminated), and by the
-            // next look the session has often ended as well.
+          if (cause !== undefined) {
             throw new HarnessError(
               'HARNESS_WATCH_FAILED',
-              `${source}: ${controller.signal.aborted ? 'the deadline passed' : 'the session ended'} with ${seen} of ${count} runs. Output tail:\n${session?.output().slice(-2000) ?? ''}`,
+              `${source}: ${cause} with ${seen} of ${count} runs. Output tail:\n${session?.output().slice(-2000) ?? ''}`,
             )
           }
           await poll()
@@ -280,7 +304,7 @@ export async function recordWatchSession(options: WatchRecordOptions): Promise<G
     }
     transcript = lines.join('\n')
   }
-  return {
+  const observed: GoldenObserved = {
     ...(captured('exitCode') ? { exitCode: exitCode ?? null } : {}),
     ...(files.length === 0
       ? {}
@@ -300,4 +324,5 @@ export async function recordWatchSession(options: WatchRecordOptions): Promise<G
       : {}),
     ...(transcript === undefined ? {} : { transcript }),
   }
+  return { observed, exitCode }
 }

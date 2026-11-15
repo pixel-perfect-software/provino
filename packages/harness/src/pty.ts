@@ -34,9 +34,10 @@ export const PTY_COLUMNS = 120
  * grandchild that inherited the terminal keeps the master open after the child is gone. Once the
  * child has ended, what the master holds is drained, the child's group (the grandchild included)
  * is killed, and the master is closed. `-I`: nothing from the working directory (a fixture's
- * `pty.py`) is imported.
+ * `pty.py`) is imported. Exported for the test that runs its `put` helper without a terminal.
+ * @internal
  */
-const RELAY = `
+export const PTY_RELAY = `
 import fcntl, os, pty, select, signal, struct, sys, termios, time
 
 rows, cols = int(sys.argv[1]), int(sys.argv[2])
@@ -98,8 +99,18 @@ def drain():
             return
         if not data:
             return
-        os.write(1, data)
+        if not put(1, data):
+            return
 
+def put(target, data):
+    # False when the terminal or the harness is gone: the write raised EIO or EPIPE.
+    try:
+        os.write(target, data)
+    except OSError:
+        return False
+    return True
+
+gone = False
 while True:
     if kill_at is not None and time.monotonic() >= kill_at:
         try:
@@ -118,16 +129,22 @@ while True:
             data = b""
         if source == 0:
             if data:
-                os.write(fd, data)
+                if not put(fd, data):
+                    gone = True
             else:
                 watching.remove(0)
                 end()
         elif data:
-            os.write(1, data)
+            if not put(1, data):
+                gone = True
         else:
-            # Every holder of the terminal closed it: the child has ended or is ending.
+            # Every holder of the terminal closed it: the child has ended or is ending, but may
+            # not have ended yet, so it is reaped without blocking, and the escalation goes on.
             watching = [0] if 0 in watching else []
-            reap(True)
+    if gone:
+        # A write failed (the child closed the slave, or stdout is gone): end it as on EOF.
+        watching = []
+        end()
     reap(False)
     if status is not None:
         drain()
@@ -366,7 +383,7 @@ export async function spawnPty(argv: readonly string[], options: PtyOptions): Pr
   const { stop, unlink } = linkedStop(options.deadline)
   const { child, exited } = spawnInGroup(
     python,
-    ['-I', '-c', RELAY, String(PTY_ROWS), String(PTY_COLUMNS), ...argv],
+    ['-I', '-c', PTY_RELAY, String(PTY_ROWS), String(PTY_COLUMNS), ...argv],
     {
       cwd: options.cwd,
       env: options.env,

@@ -1294,8 +1294,19 @@ function parseWatchStep(
       return { exit: count(0) }
     case 'waitText':
       return { waitText: text() }
-    case 'type':
-      return { type: text() }
+    case 'type': {
+      const typed = text()
+      // A pattern prompt starts empty and a `type` step only adds characters: that is what lets
+      // the recorder tell the prompt's line for the text so far from an earlier, longer one.
+      // Backspace, DEL, Escape, Enter and line feed edit or leave the prompt: `key` steps.
+      const control = /\p{Cc}/u.exec(typed)
+      if (control !== null) {
+        throw bad(
+          `step ${index}: "type" holds the control character U+${control[0].codePointAt(0)?.toString(16).toUpperCase().padStart(4, '0')}, which a "key" step sends ("<backspace>", "<esc>", "<enter>"): "type" only adds characters to a pattern prompt`,
+        )
+      }
+      return { type: typed }
+    }
     case 'key': {
       const name = text()
       if (!isWatchKey(name)) {

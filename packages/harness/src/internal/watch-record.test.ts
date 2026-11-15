@@ -12,6 +12,7 @@ import { WATCH_LOG_ENV } from '../reporters/jest-watch-log.ts'
 import {
   parseRunLog,
   recordWatchSession,
+  recordWatchSessionExit,
   WATCH_DONE_PLUGIN_PATH,
   WATCH_LOG_REPORTER_PATH,
   type WatchRecordOptions,
@@ -26,6 +27,8 @@ import {
 function fakeSpawn(
   options: {
     startRuns?: number
+    /** The exit code `q` ends the session with (default 0). */
+    quitCode?: number
     done?: boolean
     onWrite?: (text: string) => void
     /** What `kill()` throws, after it has ended the session (a group left behind). */
@@ -59,7 +62,7 @@ function fakeSpawn(
         options.onWrite?.(text)
         if (text === 'q') {
           output += '\r\n'
-          end({ exitCode: 0, killed: false })
+          end({ exitCode: options.quitCode ?? 0, killed: false })
         }
       },
       output: () => output,
@@ -380,5 +383,83 @@ test('a deadline that kills the session mid-wait is reported as the deadline, no
         error.code === 'HARNESS_WATCH_FAILED' &&
         /the deadline passed with 1 of 2 runs/.test(error.message),
     )
+  })
+})
+
+test('a session that ended on its own just before the deadline is reported as an end', async () => {
+  await withWorkDir(async (dir) => {
+    // The mirror of the test above: a Jest crash, then the deadline passes before the poll looks.
+    // The end came first (its handler runs before the zero-delay timer), so it is the cause.
+    let deadline: AbortSignal | undefined
+    const { spawn } = fakeSpawn()
+    const crashing: NonNullable<WatchRecordOptions['spawn']> = async (argv, cwd, env, signal) => {
+      const session = await spawn(argv, cwd, env, signal)
+      deadline = signal
+      return { ...session, exit: Promise.resolve({ exitCode: 1, killed: false }) }
+    }
+    const watch: FixtureWatch = { ...QUIT, steps: [{ waitRun: 2 }, { key: 'q' }, { exit: 0 }] }
+    await assert.rejects(
+      recordWatchSession({
+        ...optionsFor(dir, watch, crashing),
+        timeoutMs: 0,
+        poll: async () => {
+          const signal = deadline
+          if (signal !== undefined && !signal.aborted) {
+            await new Promise((resolve) =>
+              signal.addEventListener('abort', resolve, { once: true }),
+            )
+          }
+          await new Promise((resolve) => setImmediate(resolve))
+        },
+      }),
+      (error: unknown) =>
+        error instanceof HarnessError &&
+        error.code === 'HARNESS_WATCH_FAILED' &&
+        /the session ended with 1 of 2 runs/.test(error.message),
+    )
+  })
+})
+
+test('a line that lands between the two log reads is judged on a pair the session could have held', async () => {
+  await withWorkDir(async (dir) => {
+    const runLog = path.join(dir, 'runs.jsonl')
+    const doneLog = path.join(dir, 'done.txt')
+    const { spawn } = fakeSpawn()
+    let reads = 0
+    // Run 2 (a real run no step waited for) lands right after the first read of the wait.
+    const read = async (file: string): Promise<string | null> => {
+      const text = await readFile(file, 'utf8').catch(() => null)
+      reads += 1
+      if (reads === 1) {
+        appendFileSync(runLog, `${JSON.stringify({ files: [], wasInterrupted: false })}\n`)
+        appendFileSync(doneLog, 'done\n')
+      }
+      return text
+    }
+    await assert.rejects(
+      recordWatchSession({ ...optionsFor(dir, QUIT, spawn), read }),
+      (error: unknown) => {
+        assert.ok(error instanceof HarnessError)
+        assert.equal(error.code, 'HARNESS_WATCH_FAILED')
+        // Never "1 runs (2 done)": a done line follows its log line, so done is never above seen.
+        assert.match(error.message, /holds 2 runs \(1 done\)|holds 2 runs \(2 done\)/)
+        assert.match(error.message, /a run no step waited for/)
+        return true
+      },
+    )
+  })
+})
+
+test('the session exit is returned whether or not the fixture captures exitCode', async () => {
+  await withWorkDir(async (dir) => {
+    const { spawn } = fakeSpawn({ quitCode: 1 })
+    const watch: FixtureWatch = {
+      ...QUIT,
+      steps: [{ waitRun: 1 }, { key: 'q' }, { exit: 1 }],
+      capture: ['runs'],
+    }
+    const result = await recordWatchSessionExit(optionsFor(dir, watch, spawn))
+    assert.equal(result.observed.exitCode, undefined, 'not captured, so not observed')
+    assert.equal(result.exitCode, 1)
   })
 })

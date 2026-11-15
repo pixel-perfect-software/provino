@@ -1,7 +1,16 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import { HarnessError } from './errors.ts'
-import { exitCodeOf, groupExists, type PtyProcess, spawnPiped, spawnPty } from './pty.ts'
+import {
+  exitCodeOf,
+  groupExists,
+  PTY_PYTHON,
+  PTY_RELAY,
+  type PtyProcess,
+  spawnPiped,
+  spawnPty,
+} from './pty.ts'
 
 const CHILD = new URL('./internal/pty-echo-child.ts', import.meta.url).pathname
 const base = { cwd: process.cwd(), env: process.env }
@@ -169,4 +178,24 @@ test('no python3 is HARNESS_PTY_UNAVAILABLE, not a skip', { timeout: 10_000 }, a
     spawnPty([process.execPath, CHILD], { ...base, python: '/nonexistent/python3' }),
     (error: unknown) => error instanceof HarnessError && error.code === 'HARNESS_PTY_UNAVAILABLE',
   )
+})
+
+test('the relay\u2019s write helper reports a closed end instead of raising (no terminal needed)', () => {
+  // The relay's `put`, cut out of its source and run on a pipe whose reader is gone: a write the
+  // child's closed terminal or a gone harness would refuse (EPIPE here, EIO on a terminal).
+  const start = PTY_RELAY.indexOf('def put(')
+  const end = PTY_RELAY.indexOf('gone = False')
+  assert.ok(start !== -1 && end > start, 'the relay has a put helper')
+  const script = [
+    'import os, signal',
+    'signal.signal(signal.SIGPIPE, signal.SIG_IGN)',
+    PTY_RELAY.slice(start, end),
+    'r, w = os.pipe()',
+    'assert put(w, b"x") is True',
+    'os.close(r)',
+    'assert put(w, b"x") is False',
+    'print("ok")',
+  ].join('\n')
+  const result = spawnSync(PTY_PYTHON, ['-I', '-c', script], { encoding: 'utf8' })
+  assert.equal(result.stdout.trim(), 'ok', result.stderr)
 })

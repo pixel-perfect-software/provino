@@ -148,6 +148,18 @@ test('a character the terminal never shows fails the step instead of racing ahea
   assert.deepEqual(session.writes, ['a'])
 })
 
+test('a type step that never sees its prompt line says so, and that type needs a pattern prompt', async () => {
+  const session = new FakeSession()
+  await assert.rejects(
+    runWatchSteps([{ type: 'ab' }], hostOf(session)),
+    (error: unknown) =>
+      error instanceof HarnessError &&
+      error.code === 'HARNESS_WATCH_FAILED' &&
+      error.message.includes('the prompt never drew " pattern \u203a a"') &&
+      error.message.includes('"type" works only in a pattern prompt'),
+  )
+})
+
 test('waitText waits after the last match, and changes go to the host in order', async () => {
   const session = new FakeSession((written) => (written === 'p' ? 'Pattern Mode Usage' : ''))
   const host = hostOf(session)
@@ -218,4 +230,48 @@ test('two waitTexts that one read answers both pass: each starts where the last 
     session.waits.map((wait) => wait.from),
     [0, '\nPattern Mode Usage'.length],
   )
+})
+
+test('a character waits for the prompt line, and goes out once it arrives', async () => {
+  // As the test above, but the wait really waits: the list is drawn first, the line after it.
+  class SlowSession extends FakeSession {
+    readonly pending: { match: string; from: number; resolve: (end: number) => void }[] = []
+    override waitFor(match: PtyMatch, from = 0): Promise<number> {
+      if (typeof match !== 'string') throw new Error('the steps wait for text')
+      this.waits.push({ match, from })
+      return new Promise((resolve) => {
+        this.pending.push({ match, from, resolve })
+        this.settle()
+      })
+    }
+    arrive(text: string): void {
+      this.text += text
+      this.settle()
+    }
+    settle(): void {
+      for (const wait of [...this.pending]) {
+        const at = this.text.indexOf(wait.match, wait.from)
+        if (at === -1) continue
+        this.pending.splice(this.pending.indexOf(wait), 1)
+        wait.resolve(at + wait.match.length)
+      }
+    }
+  }
+  const session = new SlowSession()
+  const done = runWatchSteps([{ type: 'fo' }, { key: '<enter>' }], hostOf(session))
+  const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
+  await tick()
+  assert.deepEqual(session.writes, ['f'])
+  session.arrive('\u001b[J pattern › f')
+  await tick()
+  assert.deepEqual(session.writes, ['f', 'o'])
+  // The list holding `fo` is no echo: the Enter still waits.
+  session.arrive('\r\n › ./foo.test.ts')
+  await tick()
+  assert.deepEqual(session.writes, ['f', 'o'])
+  session.arrive('\u001b[J pattern › fo')
+  await tick()
+  assert.deepEqual(session.writes, ['f', 'o', '\r'])
+  await done
+  assert.deepEqual(session.writes, ['f', 'o', '\r'])
 })
