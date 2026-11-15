@@ -166,6 +166,18 @@ describe('rawJson', () => {
   })
 })
 
+describe('an uncaptured stream', () => {
+  it('throws when read, naming the fixture, and a captured one still reads', async () => {
+    const run = await runFixture(
+      await fixtureOf({ run: { ...EXACT, capture: ['exitCode', 'stderr'] } }, ''),
+    )
+    assert.throws(() => run.stdout, /inline\/probe: stdout was not captured: capture it/)
+    assert.equal(typeof run.stderr, 'string')
+    const none = await runFixture(await fixtureOf({ run: EXACT }, ''))
+    assert.throws(() => none.stderr, /stderr was not captured: capture it/)
+  })
+})
+
 describe('captures are read as the recorder reads them', () => {
   it('sortStdout: the roots become <root> before the lines are sorted', () => {
     // Sorted first, '/r/c' < '5 a'; as `<root>/c` it sorts after it: the recorder's order wins.
