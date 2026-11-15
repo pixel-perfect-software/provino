@@ -1,0 +1,54 @@
+{
+  "description": "vscode-jest 6.4.4 (T11.12, D125, B23e Phase 4): the watch-all-tests request (`--watchAll`, JestProcess.ts:31-39, :239; Runner.ts:94-96). Run 1 is both test files; src/sum.ts is then saved and run 2 is both again. Run with the editor's argv after the shell (fixtures/ide/README.md has the source lines). The editor's spawner sets no CI and no NO_COLOR and the recorder sets both, so `env` has \"CI\": \"false\" (ci-info reads that as not CI) and removes NO_COLOR; both are test choices, not the editor's. The output file is a relative path inside the project (vscode-jest uses a name under os.tmpdir()) and the reporter is the project's ./vscode-jest-reporter.js (the editor passes <ext>/out/reporter.js). The session is piped, as the editor's child is (no TTY), and is ended by the recorder: a piped Jest has no key to quit with, so there is no exit step and no exit code. The run log, the results file after each run and the reporter lines are kept.",
+  "runners": ["jest"],
+  "env": {
+    "CI": "false",
+    "NO_COLOR": null
+  },
+  "files": {
+    "jest": {
+      "vscode-jest-reporter.js": "(()=>{\"use strict\";var e={8472:(e,r)=>{Object.defineProperty(r,\"__esModule\",{value:!0}),e.exports=class{onRunStart(e){process.stderr.write(`onRunStart: numTotalTestSuites: ${e.numTotalTestSuites}\\r\\n`)}onRunComplete(e,r){r.runExecError?process.stderr.write(`onRunComplete: execError: ${r.runExecError.message}\\r\\n`):process.stderr.write(\"onRunComplete\\r\\n\")}onTestFileResult(e,r,t){if(r.numFailingTests>0||r.testExecError){const e=\"onTestFileResult: encountered errors\";process.stderr.write(`${e}\\r\\n`)}}getLastError(){}}}},r={},t=function t(s){var o=r[s];if(void 0!==o)return o.exports;var n=r[s]={exports:{}};return e[s](n,n.exports,t),n.exports}(8472);module.exports=t})();\n//# sourceMappingURL=reporter.js.map",
+      "package.json": "{\n  \"type\": \"commonjs\"\n}\n"
+    }
+  },
+  "watch": {
+    "exact": true,
+    "argv": [
+      "--testLocationInResults",
+      "--json",
+      "--useStderr",
+      "--outputFile",
+      ".harness-out/jest_runner_ws_0.json",
+      "--watchAll",
+      "--no-coverage",
+      "--reporters",
+      "default",
+      "--reporters",
+      "./vscode-jest-reporter.js",
+      "--colors"
+    ],
+    "tty": false,
+    "steps": [
+      {
+        "waitRun": 1
+      },
+      {
+        "captureFile": ".harness-out/jest_runner_ws_0.json"
+      },
+      {
+        "write": {
+          "src/sum.ts": "module.exports = { sum: (a: number, b: number): number => 0 + a + b }\n"
+        }
+      },
+      {
+        "waitRun": 2
+      },
+      {
+        "captureFile": ".harness-out/jest_runner_ws_0.json"
+      }
+    ],
+    "capture": ["runs", "transcript"],
+    "keepLines": "^(onRunStart|onTestFileResult|onRunComplete|Test results written to)",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

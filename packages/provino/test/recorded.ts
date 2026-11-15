@@ -67,6 +67,7 @@ export interface RecordedGolden {
     readonly files?: Readonly<Record<string, string | null>>
     /** The parsed `json:` captures, as the recorder's `normalizedJson` leaves them. */
     readonly json?: Readonly<Record<string, Json | null>>
+    readonly transcript?: string
   }
 }
 

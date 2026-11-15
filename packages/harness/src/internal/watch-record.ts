@@ -136,6 +136,11 @@ export interface WatchRecordOptions {
   readonly normalize: (text: string) => string
   /** The work directory's spellings, which the run log's strings have as `<root>`. */
   readonly roots: readonly string[]
+  /**
+   * A `captureFile` step's parsed file as the golden keeps it (`normalizedJson` with the fixture's
+   * `timeKeys` and `maskKeys`); a file that is not JSON is refused.
+   */
+  readonly normalizeJson?: (value: JsonValue) => JsonValue
   /** The whole session's deadline, in milliseconds. */
   readonly timeoutMs: number
   /** Names the fixture in errors. */
@@ -195,6 +200,7 @@ export async function recordWatchSessionExit(
   const spawn = options.spawn ?? defaultSpawn(watch.tty)
   const poll = options.poll ?? (() => sleep(POLL_MS))
   let session: PtyProcess | undefined
+  const captures: { readonly file: string; readonly text: string | null }[] = []
   let cause: 'the deadline passed' | 'the session ended' | undefined
   let runs = 0
   let exitCode: number | null | undefined
@@ -247,6 +253,9 @@ export async function recordWatchSessionExit(
         }
       },
       change: (step) => runScmStep(options.repo, step),
+      async captureFile(file) {
+        captures.push({ file, text: await readIfThere(path.join(options.workDir, file)) })
+      },
     }
     const result = await runWatchSteps(watch.steps, host)
     runs = result.runs
@@ -304,6 +313,36 @@ export async function recordWatchSessionExit(
     }
     transcript = lines.join('\n')
   }
+  const seenFiles = new Map<string, number>()
+  const json = Object.fromEntries(
+    captures.map(({ file, text }) => {
+      const count = (seenFiles.get(file) ?? 0) + 1
+      seenFiles.set(file, count)
+      const key = `${file}#${count}`
+      if (text === null || text.trim() === '') {
+        throw new HarnessError(
+          'HARNESS_WATCH_FAILED',
+          `${source}: "captureFile" ${file} (capture ${count}): the session left no file there, or an empty one`,
+        )
+      }
+      let value: JsonValue
+      try {
+        value = JSON.parse(text) as JsonValue
+      } catch (cause) {
+        throw new HarnessError(
+          'HARNESS_WATCH_FAILED',
+          `${source}: "captureFile" ${key} is not JSON`,
+          {
+            cause,
+          },
+        )
+      }
+      return [
+        key,
+        options.normalizeJson === undefined ? value : options.normalizeJson(value),
+      ] as const
+    }),
+  )
   const observed: GoldenObserved = {
     ...(captured('exitCode') ? { exitCode: exitCode ?? null } : {}),
     ...(files.length === 0
@@ -319,6 +358,7 @@ export async function recordWatchSessionExit(
             ),
           ),
         }),
+    ...(captures.length === 0 ? {} : { json }),
     ...(captured('runs')
       ? { runs: entries.map((entry) => JSON.parse(rooted(JSON.stringify(entry))) as JsonValue) }
       : {}),

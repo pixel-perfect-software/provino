@@ -25,6 +25,8 @@ import { dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
 import { fileURLToPath } from 'node:url'
 import { commitAll, git, gitEnv, initRepo } from './hermetic-git.ts'
+import type { Json } from './mask.ts'
+import { normalizedJson } from './mask.ts'
 import { type Materialized, materialize, type RecordedFixture } from './recorded.ts'
 import { CLI, outputFree } from './support.ts'
 
@@ -50,6 +52,7 @@ type WatchStep =
   | { readonly write: Readonly<Record<string, string>> }
   | { readonly remove: readonly string[] }
   | { readonly scm: readonly ScmStep[] }
+  | { readonly captureFile: string }
   | { readonly exit: number }
 interface PtyExit {
   readonly exitCode: number | null
@@ -74,11 +77,16 @@ interface Harness {
       readonly session: Session
       waitRuns(count: number): Promise<void>
       change(step: ScmStep): Promise<void>
+      captureFile(file: string): Promise<void>
     },
   ): Promise<{ readonly runs: number; readonly exit?: PtyExit }>
   renderTranscript(output: string): string
   maskTimes(text: string): string
   spawnPty(
+    argv: readonly string[],
+    options: { cwd: string; env: NodeJS.ProcessEnv; deadline?: AbortSignal },
+  ): Promise<PtyProcess>
+  spawnPiped(
     argv: readonly string[],
     options: { cwd: string; env: NodeJS.ProcessEnv; deadline?: AbortSignal },
   ): Promise<PtyProcess>
@@ -96,6 +104,7 @@ async function harness(): Promise<Harness> {
     renderTranscript: transcript.renderTranscript,
     maskTimes: transcript.maskTimes,
     spawnPty: pty.spawnPty,
+    spawnPiped: pty.spawnPiped,
     groupExists: pty.groupExists,
   }
 }
@@ -143,6 +152,10 @@ for (const name of Object.keys(process.env)) {
 interface WatchManifest {
   readonly scm?: { readonly steps: readonly ScmStep[] }
   readonly watch: {
+    /** B23e: Jest gets exactly `argv` (an editor's line); the config is the project's own. */
+    readonly exact?: true
+    readonly timeKeys?: readonly string[]
+    readonly maskKeys?: readonly string[]
     readonly argv: readonly string[]
     readonly tty: boolean
     readonly steps: readonly WatchStep[]
@@ -155,6 +168,7 @@ interface WatchObserved {
   readonly exitCode?: number | null
   readonly runs?: readonly unknown[]
   readonly transcript?: string
+  readonly json?: Readonly<Record<string, Json | null>>
 }
 
 /** The recorder's deadline for a whole session. */
@@ -190,20 +204,23 @@ export async function prepare(
   }
   const outDir = join(root, '.harness-out')
   await mkdir(outDir)
-  const configFile = join(outDir, 'jest.config.json')
+  const exact = manifest.watch.exact === true
   const runLog = join(outDir, 'runs.jsonl')
   const base = JSON.parse(await readFile(join(root, 'jest.config.json'), 'utf8')) as Record<
     string,
     unknown
   >
-  await rm(join(root, 'jest.config.json'))
   const ignored = Array.isArray(base.watchPathIgnorePatterns) ? base.watchPathIgnorePatterns : []
+  // An exact session has no `--config`: Jest finds the project's own `jest.config.json`, and its
+  // command line's `--reporters` replace the config's (the run log's goes on the line instead).
+  const configFile = exact ? join(root, 'jest.config.json') : join(outDir, 'jest.config.json')
+  if (!exact) await rm(join(root, 'jest.config.json'))
   await writeFile(
     configFile,
     `${JSON.stringify(
       {
         ...base,
-        reporters: ['default', [WATCH_LOG_REPORTER, { outputFile: runLog }]],
+        ...(exact ? {} : { reporters: ['default', [WATCH_LOG_REPORTER, { outputFile: runLog }]] }),
         watchPathIgnorePatterns: [...ignored, ...IGNORED_BY_WATCH],
       },
       null,
@@ -298,6 +315,7 @@ async function observe(
   runLog: string,
   output: string,
   exitCode: number | null | undefined,
+  captures: readonly Capture[] = [],
 ): Promise<WatchObserved> {
   const { watch } = manifest
   const rooted = (text: string): string => text.replaceAll(root, '<root>')
@@ -318,11 +336,39 @@ async function observe(
     }
     transcript = lines.join('\n')
   }
+  const counts = new Map<string, number>()
+  const json = Object.fromEntries(
+    captures.map(({ file, text }) => {
+      const count = (counts.get(file) ?? 0) + 1
+      counts.set(file, count)
+      return [
+        `${file}#${count}`,
+        normalizedJson(JSON.parse(text) as Json, {
+          roots: [root],
+          timeKeys: watch.timeKeys ?? [],
+          maskKeys: watch.maskKeys ?? [],
+          mask: watch.mask ?? [],
+        }),
+      ]
+    }),
+  )
   return {
     ...(captured('exitCode') ? { exitCode: exitCode ?? null } : {}),
+    ...(captures.length === 0 ? {} : { json }),
     ...(captured('runs') ? { runs } : {}),
     ...(transcript === undefined ? {} : { transcript }),
   }
+}
+
+/** What a `captureFile` step read: the file and its text at that point. */
+interface Capture {
+  readonly file: string
+  readonly text: string
+}
+
+/** The step host's `captureFile`, for a play that has no results file to read. */
+const NO_CAPTURE = async (): Promise<void> => {
+  throw new Error('a captureFile step needs playPiped')
 }
 
 function assertObserved(actual: WatchObserved, fixture: RecordedFixture): void {
@@ -330,6 +376,16 @@ function assertObserved(actual: WatchObserved, fixture: RecordedFixture): void {
   if (expected.runs !== undefined) assert.deepEqual(actual.runs, expected.runs, 'the run log')
   if (expected.transcript !== undefined) {
     assert.equal(actual.transcript, expected.transcript, 'the kept transcript lines')
+  }
+  if (expected.json !== undefined) {
+    assert.deepEqual(
+      Object.keys(actual.json ?? {}),
+      Object.keys(expected.json),
+      'the captured files',
+    )
+    for (const [key, value] of Object.entries(expected.json)) {
+      assert.deepEqual(actual.json?.[key], value, `the results file, ${key}`)
+    }
   }
   if ('exitCode' in expected) assert.equal(actual.exitCode, expected.exitCode, 'the exit code')
 }
@@ -443,6 +499,7 @@ export async function playInProcess(
   try {
     const result = await H.runWatchSteps(manifest.watch.steps, {
       session,
+      captureFile: NO_CAPTURE,
       waitRuns: runWaiter({ runLog, session, interactive, mark: () => mark, ended: () => ended }),
       change: async (step) => {
         mark = terminal.text.length
@@ -477,13 +534,27 @@ export async function playInProcess(
  * events. `false` runs them; with `CI` set a reason is an error, never a skip.
  */
 export async function terminalSkip(): Promise<string | false> {
+  return skipReason(true)
+}
+
+/** `terminalSkip` for a session on a pipe: only the file events (`fs.watch`) are needed. */
+export async function watcherSkip(): Promise<string | false> {
+  return skipReason(false)
+}
+
+async function skipReason(needTerminal: boolean): Promise<string | false> {
   const reasons: string[] = []
-  try {
-    const probe = await H.spawnPty(['/bin/echo', 'ready'], { cwd: process.cwd(), env: process.env })
-    await probe.exit
-    await probe.kill()
-  } catch (error) {
-    reasons.push(`no terminal: ${(error as Error).message.split('\n')[0]}`)
+  if (needTerminal) {
+    try {
+      const probe = await H.spawnPty(['/bin/echo', 'ready'], {
+        cwd: process.cwd(),
+        env: process.env,
+      })
+      await probe.exit
+      await probe.kill()
+    } catch (error) {
+      reasons.push(`no terminal: ${(error as Error).message.split('\n')[0]}`)
+    }
   }
   const { watch } = await import('node:fs')
   const dir = join(process.env.TMPDIR ?? '/tmp', `provino-watch-probe-${process.pid}`)
@@ -576,6 +647,7 @@ export async function playOnTerminal(
     }
     const result = await H.runWatchSteps(manifest.watch.steps, {
       session,
+      captureFile: NO_CAPTURE,
       waitRuns: runWaiter({
         runLog,
         session,
@@ -590,6 +662,127 @@ export async function playOnTerminal(
     })
     assertObserved(
       await observe(manifest, root, runLog, live.output(), result.exit?.exitCode),
+      fixture,
+    )
+  } finally {
+    await pty?.kill()
+    if (pty !== undefined) {
+      assert.equal(H.groupExists(pty.childPgid), false, 'the bin group is gone')
+      assert.equal(H.groupExists(pty.relayPgid), false, 'the relay group is gone')
+    }
+    await project.dispose()
+  }
+}
+
+/** The environment of an editor's child: the recorder's `watchEnv`, with the fixture's own `env`. */
+function pipedEnv(
+  root: string,
+  manifest: WatchManifest & RecordedFixture['manifest'],
+): NodeJS.ProcessEnv {
+  const env = terminalEnv(root)
+  for (const [name, value] of Object.entries(manifest.env ?? {})) {
+    if (value === null) delete env[name]
+    else env[name] = value
+  }
+  // `watchEnv` over the fixture's: not a CI run, a terminal type that is not `dumb`, no colour
+  // from `FORCE_COLOR` (chalk 4 reads it, and `--colors` is the editor's own).
+  env.CI = 'false'
+  env.FORCE_COLOR = '0'
+  return env
+}
+
+/**
+ * Plays a `tty: false` fixture against the bin on a pipe in a process group of its own, with the
+ * real watcher: an editor's child. An exact session is given the fixture's `argv` as it is, with
+ * the run log's reporter added on the command line, as the recorder adds it; a `captureFile` step
+ * reads the results file once the run has written it (the reporters finish before Jest writes the
+ * file, so the wait is for `Test results written to`, once per run).
+ */
+export async function playPiped(
+  fixture: RecordedFixture,
+  options: PlayOptions = {},
+): Promise<void> {
+  const { manifest, project, root, configFile, runLog } = await prepare(fixture, options)
+  const exact = manifest.watch.exact === true
+  assert.equal(manifest.watch.tty, false, 'playPiped plays a fixture with tty: false')
+  const deadline = AbortSignal.timeout(SESSION_MS)
+  let pty: PtyProcess | undefined
+  try {
+    pty = await H.spawnPiped(
+      [
+        process.execPath,
+        '--conditions=provino-source',
+        CLI,
+        'jest',
+        ...(exact ? [] : ['--config', configFile]),
+        ...manifest.watch.argv,
+        ...(exact ? ['--reporters', WATCH_LOG_REPORTER] : []),
+      ],
+      { cwd: root, env: { ...pipedEnv(root, manifest), PROVINO_WATCH_LOG: runLog }, deadline },
+    )
+    const live = pty
+    let ended = false
+    void live.exit.then(
+      () => {
+        ended = true
+      },
+      () => {
+        ended = true
+      },
+    )
+    const session: Session = {
+      write: (text) => live.write(text),
+      output: live.output,
+      waitFor: live.waitFor.bind(live),
+      exit: live.exit,
+    }
+    const runs = runWaiter({
+      runLog,
+      session,
+      interactive: false,
+      mark: () => 0,
+      ended: () => ended,
+    })
+    const written = (): number => live.output().split('Test results written to').length - 1
+    const captures: Capture[] = []
+    const result = await H.runWatchSteps(manifest.watch.steps, {
+      session,
+      captureFile: async (file) => {
+        const until = Date.now() + SESSION_MS
+        for (;;) {
+          try {
+            const text = await readFile(join(root, file), 'utf8')
+            JSON.parse(text)
+            const same = captures.filter((entry) => entry.file === file)
+            if (same.length < written() && text !== same.at(-1)?.text) {
+              captures.push({ file, text })
+              return
+            }
+          } catch {
+            // Not written yet, or half written: look again.
+          }
+          if (ended || Date.now() > until) {
+            throw new Error(
+              `${file} was never written. Output tail:\n${live.output().slice(-2000)}`,
+            )
+          }
+          await sleep(POLL_MS)
+        }
+      },
+      waitRuns: async (count) => {
+        await runs(count)
+        // The run log is written by a reporter before Jest writes the results file.
+        for (; exact && written() < count; ) {
+          if (ended) throw new Error('the session ended before the results file was written')
+          await sleep(POLL_MS)
+        }
+      },
+      change: async (step) => {
+        await applyStep(root, step)
+      },
+    })
+    assertObserved(
+      await observe(manifest, root, runLog, live.output(), result.exit?.exitCode, captures),
       fixture,
     )
   } finally {

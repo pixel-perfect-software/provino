@@ -177,6 +177,9 @@ export const WATCH_KEYS: Readonly<Record<string, string>> = {
  * - `type`: text typed into a pattern prompt, one character per write, each written once the
  *   prompt line shows the text so far (` pattern › ` and the text);
  * - `write`, `remove`, `scm`: a change to the work directory, as a fixture's `scm` steps make it;
+ * - `captureFile`: the file's text at this point (a relative path), recorded under `json` as
+ *   `<path>#<n>` for the n-th capture of that path (B23e Phase 4: the results file an editor
+ *   reads after each run);
  * - `exit`: the session ends with this exit code (the last step).
  * @public
  */
@@ -188,6 +191,7 @@ export type WatchStep =
   | { readonly write: Readonly<Record<string, string>> }
   | { readonly remove: readonly string[] }
   | { readonly scm: readonly ScmStep[] }
+  | { readonly captureFile: string }
   | { readonly exit: number }
 
 /**
@@ -195,9 +199,16 @@ export type WatchStep =
  * `--watchAll`; `capture` lists `runs` (the run log, one entry per run), `transcript` (the terminal
  * as it was left, normalized and cut to `keepLines`), `exitCode` (needs an `exit` step) and
  * `file:<relative path>`. `mask` is `run.mask`'s, over the transcript and the files.
+ * `exact` (B23e Phase 4) gives Jest exactly `argv`, as `run.exact` does: no `--config`, `--ci` or
+ * output file of the recorder's, the recorder's config is the project's `jest.config.json`, and
+ * the recorder adds only a `--reporters` for its run log (the command line's own `--reporters`
+ * would replace the config's). `timeKeys` and `maskKeys` are `run`'s, for `captureFile` steps.
  * @public
  */
 export interface FixtureWatch {
+  readonly exact?: true
+  readonly timeKeys?: readonly string[]
+  readonly maskKeys?: readonly string[]
   readonly argv: readonly string[]
   readonly tty: boolean
   readonly steps: readonly WatchStep[]
@@ -1094,7 +1105,17 @@ function parseBefore(
   })
 }
 
-const WATCH_FIELDS: readonly string[] = ['argv', 'capture', 'keepLines', 'mask', 'steps', 'tty']
+const WATCH_FIELDS: readonly string[] = [
+  'argv',
+  'capture',
+  'exact',
+  'keepLines',
+  'mask',
+  'maskKeys',
+  'steps',
+  'timeKeys',
+  'tty',
+]
 const WATCH_STEP_KEYS: readonly string[] = [
   'waitRun',
   'waitText',
@@ -1103,6 +1124,7 @@ const WATCH_STEP_KEYS: readonly string[] = [
   'write',
   'remove',
   'scm',
+  'captureFile',
   'exit',
 ]
 /** What `watch.capture` may name besides `file:<path>`. */
@@ -1160,7 +1182,9 @@ function parseWatch(
       throw bad(`has the unknown key "${key}" (expected ${WATCH_FIELDS.join(', ')})`)
     }
   }
-  const { argv, tty, steps, capture, keepLines, mask } = watch
+  const { argv, tty, steps, capture, keepLines, mask, exact, timeKeys, maskKeys } = watch
+  if (exact !== undefined && exact !== true)
+    throw bad('"exact" must be true (leave it out for off)')
   if (
     !Array.isArray(argv) ||
     !argv.every((arg): arg is string => typeof arg === 'string') ||
@@ -1168,7 +1192,7 @@ function parseWatch(
   ) {
     throw bad('"argv" must be an array of strings with "--watch" or "--watchAll" once')
   }
-  const owned = ownedFlagIn(argv)
+  const owned = ownedFlagIn(argv, exact === true)
   if (owned !== undefined) throw bad(`"argv" gives "${owned}", which the recorder sets`)
   // The recorder puts its done plugin and its ignored directories in the config; a flag would
   // replace them. A fixture's own go in `config.jest`, which the recorder adds to.
@@ -1238,7 +1262,30 @@ function parseWatch(
     capture: string[]
     keepLines?: string
     mask?: string[]
+    exact?: true
+    timeKeys?: string[]
+    maskKeys?: string[]
   } = { argv, tty, steps: parsed, capture }
+  if (exact === true) out.exact = true
+  const hasCaptureFile = parsed.some((step) => 'captureFile' in step)
+  for (const [name, keys] of [
+    ['timeKeys', timeKeys],
+    ['maskKeys', maskKeys],
+  ] as const) {
+    if (keys === undefined) continue
+    if (
+      !hasCaptureFile ||
+      !Array.isArray(keys) ||
+      keys.length === 0 ||
+      new Set(keys).size !== keys.length ||
+      !keys.every((key): key is string => typeof key === 'string' && key !== '')
+    ) {
+      throw bad(
+        `"${name}" must be a non-empty list of distinct key names, beside a "captureFile" step`,
+      )
+    }
+    out[name] = keys
+  }
   if (keepLines !== undefined) {
     if (typeof keepLines !== 'string' || keepLines === '' || !isRegExpSource(keepLines, '')) {
       throw bad('"keepLines" must be a non-empty regular-expression source')
@@ -1319,6 +1366,12 @@ function parseWatchStep(
     }
     case 'scm':
       return { scm: parseScmSteps(value, source, `watch.steps[${index}].scm`) }
+    case 'captureFile': {
+      const file = text()
+      if (!staysInside(file))
+        throw bad(`step ${index}: "captureFile" must be a relative path inside the work directory`)
+      return { captureFile: file }
+    }
     default: {
       // `write` and `remove` are the `scm` steps of the same name, which need no repository.
       const [change] = parseScmSteps([{ [key]: value }], source, `watch.steps[${index}]`)

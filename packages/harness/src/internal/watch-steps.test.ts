@@ -49,19 +49,28 @@ class FakeSession {
 function hostOf(
   session: FakeSession,
   options: { onRuns?: (count: number) => void } = {},
-): WatchHost & { readonly runs: number[]; readonly changes: ScmStep[] } {
+): WatchHost & {
+  readonly runs: number[]
+  readonly changes: ScmStep[]
+  readonly captured: string[]
+} {
+  const captured: string[] = []
   const runs: number[] = []
   const changes: ScmStep[] = []
   return {
     session,
     runs,
     changes,
+    captured,
     async waitRuns(count) {
       runs.push(count)
       options.onRuns?.(count)
     },
     async change(step) {
       changes.push(step)
+    },
+    async captureFile(file) {
+      captured.push(file)
     },
   }
 }
@@ -210,6 +219,7 @@ test('a run log that fails its wait fails the steps there', async () => {
     waitRuns: () =>
       Promise.reject(new HarnessError('HARNESS_WATCH_FAILED', 'a run no step waited for')),
     change: async () => {},
+    captureFile: async () => {},
   }
   await assert.rejects(
     runWatchSteps([{ waitRun: 1 }, { key: 'q' }], host),
@@ -274,4 +284,14 @@ test('a character waits for the prompt line, and goes out once it arrives', asyn
   assert.deepEqual(session.writes, ['f', 'o', '\r'])
   await done
   assert.deepEqual(session.writes, ['f', 'o', '\r'])
+})
+
+test('a captureFile step asks the host for its file, in order, between the waits', async () => {
+  const host = hostOf(new FakeSession())
+  await runWatchSteps(
+    [{ waitRun: 1 }, { captureFile: 'out.json' }, { waitRun: 2 }, { captureFile: 'out.json' }],
+    host,
+  )
+  assert.deepEqual(host.captured, ['out.json', 'out.json'])
+  assert.deepEqual(host.runs, [1, 2])
 })

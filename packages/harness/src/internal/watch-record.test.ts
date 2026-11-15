@@ -463,3 +463,48 @@ test('the session exit is returned whether or not the fixture captures exitCode'
     assert.equal(result.exitCode, 1)
   })
 })
+
+test('captureFile steps are kept per capture, parsed and normalized, under `<path>#<n>`', async () => {
+  await withWorkDir(async (dir) => {
+    const { spawn } = fakeSpawn()
+    const out = path.join(dir, 'out.json')
+    const watch: FixtureWatch = {
+      argv: ['--watchAll'],
+      tty: false,
+      timeKeys: ['startTime'],
+      steps: [
+        { waitRun: 1 },
+        { write: { 'out.json': JSON.stringify({ startTime: 5, name: `${dir}/a` }) } },
+        { captureFile: 'out.json' },
+        { write: { 'out.json': JSON.stringify({ startTime: 9, name: 'b' }) } },
+        { captureFile: 'out.json' },
+      ],
+      capture: ['runs'],
+    }
+    await writeFile(out, '{}')
+    const observed = await recordWatchSession({
+      ...optionsFor(dir, watch, spawn),
+      normalizeJson: (value) => JSON.parse(JSON.stringify(value).replaceAll(dir, '<root>')),
+    })
+    assert.deepEqual(observed.json, {
+      'out.json#1': { startTime: 5, name: '<root>/a' },
+      'out.json#2': { startTime: 9, name: 'b' },
+    })
+  })
+})
+
+test('a captureFile step whose file is not there fails the recording', async () => {
+  await withWorkDir(async (dir) => {
+    const { spawn } = fakeSpawn()
+    const watch: FixtureWatch = {
+      argv: ['--watchAll'],
+      tty: false,
+      steps: [{ waitRun: 1 }, { captureFile: 'nope.json' }],
+      capture: ['runs'],
+    }
+    await assert.rejects(
+      recordWatchSession(optionsFor(dir, watch, spawn)),
+      (error: unknown) => error instanceof HarnessError && /left no file/.test(error.message),
+    )
+  })
+})

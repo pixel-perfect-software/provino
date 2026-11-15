@@ -25,6 +25,8 @@ export interface WatchHost {
   waitRuns(count: number): Promise<void>
   /** Applies a change to the work directory: `write`, `remove`, or one step of an `scm` list. */
   change(step: ScmStep): Promise<void>
+  /** Records the text of a file now (a `captureFile` step), in the order the steps ask. */
+  captureFile(file: string): Promise<void>
 }
 
 /** How the steps ended. */
@@ -92,6 +94,8 @@ export async function runWatchSteps(
       }
     } else if ('scm' in step) {
       for (const inner of step.scm) await host.change(inner)
+    } else if ('captureFile' in step) {
+      await host.captureFile(step.captureFile)
     } else if ('exit' in step) {
       const exit = await session.exit
       if (exit.exitCode !== step.exit) {

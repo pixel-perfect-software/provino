@@ -461,6 +461,8 @@ async function coverageFor(
     readonly env: Readonly<Record<string, string | undefined>>
     readonly stdout: TextSink
     readonly stderr: NodeJS.WritableStream
+    /** `--colors` or `--no-color`: supports-color reads them from the command line, as Jest's does. */
+    readonly colour: boolean | undefined
   },
 ): Promise<{ readonly reporter: CoverageReporter; readonly hooks: RunCoverageHooks } | undefined> {
   if (!globalConfig.collectCoverage) return undefined
@@ -469,8 +471,13 @@ async function coverageFor(
   const { env, stdout, stderr } = io
   const columns = (stdout as { columns?: unknown }).columns
   // Jest's chalk and `istanbul-lib-report`'s console writer follow stdout's colour support.
-  const style = styleFor({ env, stream: stdout, ci: globalConfig.ci })
-  const consoleColour = outputFor({ env, stderr: stdout, ci: globalConfig.ci }).colour
+  const style = styleFor({ env, stream: stdout, ci: globalConfig.ci, colour: io.colour })
+  const consoleColour = outputFor({
+    env,
+    stderr: stdout,
+    ci: globalConfig.ci,
+    colour: io.colour,
+  }).colour
   const options = jestCoverageOptions(globalConfig, {
     env,
     stdoutColumns: typeof columns === 'number' && columns > 0 ? columns : undefined,
@@ -828,7 +835,13 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
     // test loaded are covered. A `--collectTests` run collects nothing.
     const coverage = collecting
       ? undefined
-      : await coverageFor(read.globalConfig, emptyRunOk, { cwd, env, stdout, stderr })
+      : await coverageFor(read.globalConfig, emptyRunOk, {
+          cwd,
+          env,
+          stdout,
+          stderr,
+          colour: request.colour,
+        })
     const setup =
       collecting || io.reporters !== undefined || reporterResults === undefined
         ? undefined
