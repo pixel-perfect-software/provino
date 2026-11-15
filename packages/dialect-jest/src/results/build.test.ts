@@ -247,6 +247,42 @@ describe('toAssertionResult', () => {
     )
     assert.equal(JSON.stringify(built.failureDetails), '[{"code":1}]')
   })
+
+  describe('failureDetails of an error whose details enumerate a message', () => {
+    const provinoFrame = '    at run (/app/node_modules/provino/dist/worker/jest-runtime.js:1:100)'
+    const details = (error: SerializedError): Record<string, unknown> => {
+      const built = toAssertionResult(
+        {
+          task: test('t', 'file'),
+          result: result('fail', { errors: [error] }),
+          startedAt: 1,
+        },
+        OPTIONS,
+      )
+      return built.failureDetails[0] as Record<string, unknown>
+    }
+
+    it('keeps a shaped node:assert error`s message enumerable, its name hidden, and hides our frames', () => {
+      const message = `assert.equal(received, expected)\n    at t (/a.test.ts:1:1)\n${provinoFrame}`
+      const shaped = details({
+        name: 'AssertionError',
+        code: 'ERR_ASSERTION',
+        message,
+        stack: message,
+        details: { message },
+      })
+      assert.deepEqual(Object.keys(shaped), ['message'])
+      assert.equal(shaped.message, 'assert.equal(received, expected)\n    at t (/a.test.ts:1:1)')
+      assert.equal(shaped.name, 'AssertionError')
+    })
+
+    it('leaves every other error as it was: the message hidden, our frames dropped', () => {
+      const message = `thrown\n${provinoFrame}`
+      const other = details({ name: 'Error', message, details: { message } })
+      assert.deepEqual(Object.keys(other), [])
+      assert.equal(other.message, 'thrown')
+    })
+  })
 })
 
 describe('flattenSerializedError', () => {

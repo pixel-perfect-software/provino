@@ -1,0 +1,25 @@
+{
+  "description": "neotest-jest's `.each` discovery run (neotest-jest 0e7979d, parameterized-tests.lua:55-77): a placeholder name pattern that matches no test, so every test comes back pending with its location. No --config and no --outputFile: neotest reads the JSON from stdout, so stdout is captured as JSON.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "__snapshots__/sum.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`sum matches a stored snapshot 1`] = `\"stored\"`;\n"
+    }
+  },
+  "run": {
+    "exact": true,
+    "argv": {
+      "jest": [
+        "--no-coverage",
+        "--testLocationInResults",
+        "--verbose",
+        "--json",
+        "sum.test.ts",
+        "-t",
+        "@______________PLACEHOLDER______________@"
+      ]
+    },
+    "capture": ["exitCode", "json:stdout"],
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

@@ -39,7 +39,12 @@ import type { FileFilter, RunRequest } from '@provino/types'
 import { workerStartupEnv } from './compile-cache.ts'
 import { type ExecuteOptions, executeProject } from './execute.ts'
 import { setUpJestReporters } from './jest-reporters.ts'
-import { isScmCommandFailure, jestSelection, selectProjectFiles } from './jest-selection.ts'
+import {
+  isScmCommandFailure,
+  jestSelection,
+  previousDurations,
+  selectProjectFiles,
+} from './jest-selection.ts'
 import { type DisplayOptions, outputFor, styleFor } from './reporters.ts'
 import { UsageError } from './usage-error.ts'
 import { latchInterrupts } from './watch-interrupt.ts'
@@ -86,7 +91,6 @@ function refusal(globalConfig: JestGlobalConfig): string | undefined {
   if (globalConfig.collectCoverage) refused.push('--coverage')
   if (globalConfig.collectTests) refused.push('--collectTests')
   if (globalConfig.detectOpenHandles) refused.push('--detectOpenHandles')
-  if ((globalConfig.watchPlugins ?? []).length > 0) refused.push('watchPlugins')
   if (refused.length === 0) return undefined
   return `${refused.join(', ')} in watch mode ${refused.length === 1 ? 'is' : 'are'} not supported yet (B23c Phase 9)`
 }
@@ -197,6 +201,22 @@ export async function runJestWatch(command: JestWatchCommand): Promise<number> {
           const keep = new Set(await command.filter(files.map((file) => file.path)))
           files = files.filter((file) => keep.has(file.path))
         }
+        // runJest.ts L149-L161: every plugin's `shouldRunTestSuite` must say yes. With no plugin
+        // on it, no file is asked (speed, D115).
+        if (context.usesShouldRunTestSuite()) {
+          const projectConfig = configs[projects.indexOf(project)]
+          const durationOf = previousDurations(project, useCache)
+          const answers = await Promise.all(
+            files.map((file) =>
+              context.hooks.shouldRunTestSuite({
+                config: projectConfig,
+                duration: durationOf(file.relativePath),
+                testPath: file.path,
+              }),
+            ),
+          )
+          files = files.filter((_file, index) => answers[index] === true)
+        }
         // runJest.ts L302-L308: watch mode keeps the files the last run failed.
         return config.onlyFailures ? context.failedTestsCache.filterPaths(files) : files
       }),
@@ -284,6 +304,16 @@ export async function runJestWatch(command: JestWatchCommand): Promise<number> {
     onFileChange: (listener) => session.onChange(() => listener()),
     formatError: (error) =>
       jestWatchRunErrorText(error, configs[0] ?? { rootDir: globalConfig.rootDir, testMatch: [] }),
+    // watch.ts L231-L245: each project's test files with no pattern, for `onFileChange`.
+    listTests: async () => ({
+      projects: await Promise.all(
+        projects.map(async (project, index) => ({
+          config: configs[index],
+          testPaths: (await discoverProject(project)).map((file) => file.path),
+        })),
+      ),
+    }),
+    cwd,
   }
 
   let watch: ReturnType<typeof startJestWatch> | undefined

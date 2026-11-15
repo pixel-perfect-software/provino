@@ -178,6 +178,21 @@ describe('an uncaptured stream', () => {
   })
 })
 
+describe('json: of an empty stream', () => {
+  it('throws naming the fixture and the stream, unless missingJson lists it', async () => {
+    // `provino jest` writes its text to stderr, so stdout is empty here.
+    const capture = ['exitCode', 'json:stdout']
+    await assert.rejects(
+      runFixture(await fixtureOf({ run: { ...EXACT, capture } }, '')),
+      /inline\/probe: "json:stdout" is empty.*missingJson/,
+    )
+    const run = await runFixture(
+      await fixtureOf({ run: { ...EXACT, capture, missingJson: ['json:stdout'] } }, ''),
+    )
+    assert.equal(run.json.stdout, null)
+  })
+})
+
 describe('captures are read as the recorder reads them', () => {
   it('sortStdout: the roots become <root> before the lines are sorted', () => {
     // Sorted first, '/r/c' < '5 a'; as `<root>/c` it sorts after it: the recorder's order wins.

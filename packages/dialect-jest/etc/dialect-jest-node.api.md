@@ -115,6 +115,9 @@ export interface BuildOptions {
     readonly slowTestThreshold?: number;
 }
 
+// @beta
+export function checkJestWatchPluginConflicts(keys: JestWatchPluginKeys, plugin: JestWatchPlugin, globalConfig: JestGlobalConfig, style: TextStyle): void;
+
 // @public
 export interface CollectedTextStyle {
     // (undocumented)
@@ -254,6 +257,12 @@ export interface FormattedTestResults extends Omit<AggregatedResult, "testResult
 export function formatTestFailures(assertionResults: readonly AssertionResult[], config: StackTraceConfig, options: StackTraceOptions, testPath: string): Promise<string | null>;
 
 // @beta
+export function getJestPluginIdentifier(plugin: JestWatchPlugin): string;
+
+// @beta
+export function getJestPluginKey(plugin: JestWatchPlugin, globalConfig: JestGlobalConfig): string | null;
+
+// @beta
 export function getSortedUsageRows(plugins: readonly JestWatchPlugin[], globalConfig: JestGlobalConfig): JestUsageData[];
 
 // @public
@@ -275,6 +284,9 @@ export function inlineProjectOptions(project: Readonly<Record<string, unknown>>,
 
 // @public
 export function isJSONString(text: string | undefined): text is string;
+
+// @beta
+export const JEST_ARROW: string;
 
 // @beta
 export const JEST_CLEAR_LINE: string;
@@ -307,6 +319,14 @@ export type JestArgv = Readonly<Record<string, unknown>> & {
 
 // @public
 export function jestArgvToRunRequest(argv: JestArgv): RunRequest;
+
+// @beta
+export interface JestAssertionLocation {
+    // (undocumented)
+    readonly fullName: string;
+    // (undocumented)
+    readonly path: string;
+}
 
 // @public
 export function jestChangedFilesErrorText(error: unknown, projectConfig: {
@@ -424,6 +444,16 @@ export class JestFailedTestsCache {
         readonly path: string;
     }>(tests: readonly T[]): readonly T[];
     setTestResults(testResults: JestWatchResults["testResults"]): void;
+}
+
+// @beta
+export class JestFailedTestsInteractiveMode {
+    constructor(terminal: JestWatchTerminal);
+    // (undocumented)
+    isActive(): boolean;
+    put(key: string): void;
+    run(failedTestAssertions: readonly JestAssertionLocation[], updateConfig: (failure?: JestAssertionLocation) => void): void;
+    updateWithResults(results: JestWatchResults): void;
 }
 
 // @beta
@@ -690,6 +720,9 @@ export class JestPatternPrompt {
         readonly header: string;
     }): void;
 }
+
+// @beta
+export function jestPluralize(word: string, count: number): string;
 
 // @public
 export interface JestProjectConfig {
@@ -982,6 +1015,14 @@ export type JestReporterStep = {
 export type JestRequireResolve = (specifier: string) => string | undefined;
 
 // @beta
+export interface JestReservedKey {
+    // (undocumented)
+    readonly forbiddenOverwriteMessage?: string;
+    // (undocumented)
+    readonly key?: string;
+}
+
+// @beta
 export interface JestResizeSource {
     // (undocumented)
     on(event: "resize", listener: () => void): unknown;
@@ -1061,6 +1102,20 @@ export interface JestScrollOptions {
     readonly offset: number;
 }
 
+// @beta
+export class JestSnapshotInteractiveMode {
+    constructor(terminal: JestWatchTerminal);
+    abort(): void;
+    // (undocumented)
+    getSkippedNum(): number;
+    // (undocumented)
+    isActive(): boolean;
+    put(key: string): void;
+    restart(): void;
+    run(failedSnapshotTestAssertions: readonly JestAssertionLocation[], onConfigChange: (assertion: JestAssertionLocation | null, shouldUpdateSnapshot: boolean) => unknown): void;
+    updateWithResults(results: JestWatchResults): void;
+}
+
 // @public
 export function jestSnapshotStatus(snapshot: TestResult["snapshot"], afterUpdate: boolean, style: TextStyle): readonly string[];
 
@@ -1129,7 +1184,7 @@ export type JestUpdateConfigAndRun = (update?: JestWatchConfigUpdate) => void;
 export function jestUpdateSnapshotsInteractivePlugin(terminal: JestWatchTerminal): JestWatchPlugin;
 
 // @beta
-export function jestUpdateSnapshotsPlugin(terminal: JestWatchTerminal): JestWatchPlugin;
+export function jestUpdateSnapshotsPlugin(): JestWatchPlugin;
 
 // @beta
 export interface JestUsageData {
@@ -1188,10 +1243,12 @@ export interface JestWatchConfigUpdate {
 // @beta
 export interface JestWatchHost {
     readonly appleTerminal?: boolean;
+    readonly cwd?: string;
     formatError(error: unknown): string;
     // (undocumented)
     readonly interactive: boolean;
     interrupt(): void;
+    listTests?(): Promise<JestFileChange>;
     onFileChange(listener: () => void): () => void;
     readonly platform?: NodeJS.Platform;
     // (undocumented)
@@ -1258,6 +1315,37 @@ export interface JestWatchPlugin {
 }
 
 // @beta
+export class JestWatchPluginError extends Error {
+    constructor(code: JestWatchPluginErrorCode, message: string, options?: {
+        cause?: unknown;
+    });
+    // (undocumented)
+    readonly code: JestWatchPluginErrorCode;
+    // (undocumented)
+    override readonly name = "JestWatchPluginError";
+}
+
+// @beta
+export type JestWatchPluginErrorCode = "JEST_WATCH_PLUGIN_LOAD" | "JEST_WATCH_PLUGIN_CONFLICT" | "JEST_WATCH_PLUGIN_HOOK";
+
+// @beta
+export type JestWatchPluginKeys = Map<string, ReservedInfo>;
+
+// @beta
+export function jestWatchPluginKeys(plugins: readonly JestWatchPlugin[], reserved: ReadonlyMap<JestWatchPlugin, JestReservedKey>, globalConfig: JestGlobalConfig): JestWatchPluginKeys;
+
+// @beta
+export interface JestWatchPluginLoadOptions {
+    readonly cwd: string;
+    readonly formatError: (error: unknown) => string;
+    // (undocumented)
+    readonly stdin: JestWatchStdin;
+    readonly stdout: JestWatchOutput;
+    // (undocumented)
+    readonly style: TextStyle;
+}
+
+// @beta
 export interface JestWatchResults {
     // (undocumented)
     readonly numFailedTests: number;
@@ -1289,6 +1377,7 @@ export interface JestWatchRunContext {
     readonly hooks: JestHookEmitter;
     // (undocumented)
     readonly startRun: (globalConfig: JestGlobalConfig) => void;
+    readonly usesShouldRunTestSuite: () => boolean;
 }
 
 // @beta
@@ -1362,6 +1451,12 @@ export function loadJestNotifier(rootDir: string): JestNotifierLoad;
 export function loadJestReporters(plan: JestReporterPlan, options?: {
     readonly style?: TextStyle;
 }): Promise<JestLoadedReporter[]>;
+
+// @beta
+export function loadJestWatchPlugin(entry: {
+    readonly path: string;
+    readonly config: unknown;
+}, options: JestWatchPluginLoadOptions): Promise<JestWatchPlugin>;
 
 // @public
 export function makeCollectedTestResult(testResults: AssertionResult[], options: {

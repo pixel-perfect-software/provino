@@ -1,0 +1,29 @@
+{
+  "description": "neotest-jest's test run (neotest-jest 0e7979d, init.lua:524-548): the id after the first :: with :: as a space, run through escapeTestPattern (util.lua:247-262: parentheses and the dash are escaped, the dot is not), then ^ and $. One test with `(parens)` and a dash in its title.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "__snapshots__/sum.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`sum matches a stored snapshot 1`] = `\"stored\"`;\n"
+    }
+  },
+  "run": {
+    "exact": true,
+    "argv": {
+      "jest": [
+        "--config=jest.config.json",
+        "--no-coverage",
+        "--verbose",
+        "--json",
+        "--outputFile=.harness-out/neotest.json",
+        "--testNamePattern=^sum nested handles \\(parens\\) and a\\-dash$",
+        "--forceExit",
+        "--testLocationInResults",
+        "sum.test.ts"
+      ]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/neotest.json"],
+    "keepLines": "^(PASS|FAIL) |^\\s+(✓|✕|○|✎) |^Force exiting Jest",
+    "mask": ["\\((?:<dur>|\\d+ ms)\\)"],
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

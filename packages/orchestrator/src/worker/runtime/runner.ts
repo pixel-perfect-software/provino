@@ -716,6 +716,8 @@ export function createRuntimeRunner(): WorkerRunner {
       rootDir: config.rootDir,
       projectName: config.name,
       ci: config.ci,
+      // `--expand` reaches the policy's `expect.expand`; a failed `node:assert` call's diff follows it.
+      expand: policy.expect.expand,
     })
     parts.runtime = coreRuntime
     // Cleanup between tests (T4.10): where `registry.beforeEach` sits in a test's order is core's
