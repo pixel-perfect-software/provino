@@ -84,6 +84,41 @@ describe('createResultsCache', () => {
     assert.deepEqual(third.get('p', 'new.test.ts'), history(7))
   })
 
+  it('keeps the externals each project learned (D127), merged with what another run wrote', async () => {
+    const dir = await scratch()
+    const first = createResultsCache(dir)
+    const second = createResultsCache(dir)
+    first.learnExternals('p', ['node_modules/a/index.js'])
+    first.learnExternals('p', ['node_modules/a/index.js', 'node_modules/a/dep.js'])
+    second.learnExternals('p', ['node_modules/b/index.js'])
+    second.learnExternals('q', ['node_modules/c/index.js'])
+    assert.deepEqual(first.externals('p'), ['node_modules/a/index.js', 'node_modules/a/dep.js'])
+    await first.write()
+    await second.write()
+    const merged = createResultsCache(dir)
+    assert.deepEqual(merged.externals('p'), [
+      'node_modules/a/index.js',
+      'node_modules/a/dep.js',
+      'node_modules/b/index.js',
+    ])
+    assert.deepEqual(merged.externals('q'), ['node_modules/c/index.js'])
+    assert.deepEqual(merged.externals('none'), [])
+  })
+
+  it('reads no externals from a list that is not one of paths', async () => {
+    const dir = await scratch()
+    await mkdir(dir, { recursive: true })
+    await writeFile(
+      join(dir, 'results.json'),
+      JSON.stringify({ version: 3, projects: {}, externals: { p: 'x', q: [1], r: ['ok.js'] } }),
+    )
+    const cache = createResultsCache(dir)
+    assert.deepEqual(
+      ['p', 'q', 'r'].map((project) => cache.externals(project)),
+      [[], [], ['ok.js']],
+    )
+  })
+
   it('keeps what a run that overlapped wrote: two caches opened from one file, each with its own entry', async () => {
     const dir = await scratch()
     const seed = createResultsCache(dir)
