@@ -756,6 +756,16 @@ function ownedFlagIn(args: readonly string[], exact = false): string | undefined
   })
 }
 
+/** A `timeKeys` or `maskKeys` list: non-empty, every name a distinct non-empty string. */
+function isKeyList(keys: unknown): keys is string[] {
+  return (
+    Array.isArray(keys) &&
+    keys.length > 0 &&
+    new Set(keys).size === keys.length &&
+    keys.every((key): key is string => typeof key === 'string' && key !== '')
+  )
+}
+
 /**
  * `run` is `{ capture, argv?, keepLines?, emptyStreams?, sortStdout?, timeKeys?, mask? }`:
  * `capture` a non-empty list of `exitCode`, `stdout`, `stderr`, `file:<relative path>` and
@@ -905,13 +915,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     out.sortStdout = sortStdout
   }
   if (timeKeys !== undefined) {
-    if (
-      !capture.some((entry) => entry.startsWith('json:')) ||
-      !Array.isArray(timeKeys) ||
-      timeKeys.length === 0 ||
-      new Set(timeKeys).size !== timeKeys.length ||
-      !timeKeys.every((key): key is string => typeof key === 'string' && key !== '')
-    ) {
+    if (!capture.some((entry) => entry.startsWith('json:')) || !isKeyList(timeKeys)) {
       throw bad(
         '"timeKeys" must be a non-empty list of distinct key names, beside a "json:" capture',
       )
@@ -940,13 +944,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     out.mask = mask
   }
   if (maskKeys !== undefined) {
-    if (
-      !capture.some((entry) => entry.startsWith('json:')) ||
-      !Array.isArray(maskKeys) ||
-      maskKeys.length === 0 ||
-      new Set(maskKeys).size !== maskKeys.length ||
-      !maskKeys.every((key): key is string => typeof key === 'string' && key !== '')
-    ) {
+    if (!capture.some((entry) => entry.startsWith('json:')) || !isKeyList(maskKeys)) {
       throw bad(
         '"maskKeys" must be a non-empty list of distinct key names, beside a "json:" capture',
       )
@@ -1292,13 +1290,7 @@ function parseWatch(
     ['maskKeys', maskKeys],
   ] as const) {
     if (keys === undefined) continue
-    if (
-      !hasCaptureFile ||
-      !Array.isArray(keys) ||
-      keys.length === 0 ||
-      new Set(keys).size !== keys.length ||
-      !keys.every((key): key is string => typeof key === 'string' && key !== '')
-    ) {
+    if (!hasCaptureFile || !isKeyList(keys)) {
       throw bad(
         `"${name}" must be a non-empty list of distinct key names, beside a "captureFile" step`,
       )
