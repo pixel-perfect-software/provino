@@ -365,7 +365,9 @@ async function playInProcess(fixture: RecordedFixture): Promise<void> {
   const controller = new AbortController()
   let ended = false
   let mark = 0
-  const exit = runJestCommand(['--config', configFile, ...manifest.watch.argv], {
+  // `--ci=false`: the recorder's `watchEnv` has `CI=false`, and the config reader reads `CI` from
+  // the process (GitHub's runners set it), which would turn the live `RUNS` block off.
+  const exit = runJestCommand(['--config', configFile, '--ci=false', ...manifest.watch.argv], {
     stdout: terminal,
     stderr: terminal,
     cwd: root,
