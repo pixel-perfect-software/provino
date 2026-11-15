@@ -1,0 +1,18 @@
+{
+  "description": "jest-fetch-mock 4 (T11.11, T4.11's Jest half), on two files under one worker under `resetMocks: true`: `setupFiles` calls `require('jest-fetch-mock').enableMocks()`, which builds its `jest.fn`s from the global `jest` when the package loads. The first file re-arms the package with `fetchMock.resetMocks()` in a `beforeEach`, as its documentation says to under `resetMocks`, and uses `mockResponseOnce`, `mockReject`, `mockResponses` and a call count read through `fetchMock.mock.calls`; the second file does not, so it sees what `resetMocks` alone leaves: no default implementation (a setup file has no `beforeEach`, so the package re-arms nothing) and a `mockResponseOnce` that fails inside the package (`mockResult is not iterable`). Each file's own `resetMocks` reaches the `jest.fn`s only when they belong to the running file, so the second file shows whose `jest` built them. No network: every URL is `https://api.example.invalid/…`. Read by `provino`'s `ecosystem-matchers.test.ts`.",
+  "runners": ["jest"],
+  "mockCleanup": { "reset": true },
+  "config": {
+    "jest": {
+      "setupFiles": ["<rootDir>/fetch-setup.ts"]
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^ {2,}(?!at )\\S|^(Test Suites|Tests|Snapshots):|^Ran all test suites|^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
