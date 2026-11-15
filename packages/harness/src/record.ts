@@ -621,11 +621,7 @@ async function runUnderRunner(
           roots: [paths.realWorkDir, paths.workDir].toSorted((a, b) => b.length - a.length),
           timeKeys: watch.timeKeys ?? [],
           maskKeys: watch.maskKeys ?? [],
-          mask: (text) =>
-            (watch.mask ?? []).reduce(
-              (out, pattern) => out.replace(new RegExp(pattern, 'gm'), '<masked>'),
-              text,
-            ),
+          mask: masker(watch.mask),
         }),
       repo: { dir: workDir, ceiling: path.dirname(paths.realWorkDir) },
       normalize: (text) => normalizer.text(text),
