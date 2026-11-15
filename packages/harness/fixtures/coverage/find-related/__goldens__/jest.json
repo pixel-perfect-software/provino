@@ -1,0 +1,665 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "coverage/find-related",
+  "files": [
+    {
+      "file": "tests/changed.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "tests/changed.test.ts",
+            "path": [
+              "doubles"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 4,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stdout": "---------------------|---------|----------|---------|---------|-------------------\nFile                 | % Stmts | % Branch | % Funcs | % Lines | Uncovered Line #s \n---------------------|---------|----------|---------|---------|-------------------\nAll files            |   28.57 |       50 |   16.66 |   30.76 |                   \n changed.ts          |      75 |       50 |     100 |      75 | 3                 \n other.ts            |       0 |      100 |       0 |       0 | 1                 \n related.ts          |       0 |      100 |       0 |       0 | 2-7               \n shared.ts           |     100 |      100 |     100 |     100 |                   \n untested-changed.ts |       0 |      100 |       0 |       0 | 2-4               \n untested.ts         |       0 |      100 |       0 |       0 | 2-4               \n---------------------|---------|----------|---------|---------|-------------------\n",
+    "json": {
+      "coverage/coverage-final.json": {
+        "<root>/src/changed.ts": {
+          "path": "<root>/src/changed.ts",
+          "statementMap": {
+            "0": {
+              "start": {
+                "line": 2,
+                "column": 2
+              },
+              "end": {
+                "line": 4,
+                "column": 3
+              }
+            },
+            "1": {
+              "start": {
+                "line": 3,
+                "column": 4
+              },
+              "end": {
+                "line": 3,
+                "column": 12
+              }
+            },
+            "2": {
+              "start": {
+                "line": 5,
+                "column": 2
+              },
+              "end": {
+                "line": 5,
+                "column": 14
+              }
+            },
+            "3": {
+              "start": {
+                "line": 7,
+                "column": 0
+              },
+              "end": {
+                "line": 7,
+                "column": 27
+              }
+            }
+          },
+          "fnMap": {
+            "0": {
+              "name": "double",
+              "decl": {
+                "start": {
+                  "line": 1,
+                  "column": 9
+                },
+                "end": {
+                  "line": 1,
+                  "column": 15
+                }
+              },
+              "loc": {
+                "start": {
+                  "line": 1,
+                  "column": 19
+                },
+                "end": {
+                  "line": 6,
+                  "column": 1
+                }
+              },
+              "line": 1
+            }
+          },
+          "branchMap": {
+            "0": {
+              "loc": {
+                "start": {
+                  "line": 2,
+                  "column": 2
+                },
+                "end": {
+                  "line": 4,
+                  "column": 3
+                }
+              },
+              "type": "if",
+              "locations": [
+                {
+                  "start": {
+                    "line": 2,
+                    "column": 2
+                  },
+                  "end": {
+                    "line": 4,
+                    "column": 3
+                  }
+                },
+                {
+                  "start": {},
+                  "end": {}
+                }
+              ],
+              "line": 2
+            }
+          },
+          "s": {
+            "0": 1,
+            "1": 0,
+            "2": 1,
+            "3": 1
+          },
+          "f": {
+            "0": 1
+          },
+          "b": {
+            "0": [
+              0,
+              1
+            ]
+          },
+          "_coverageSchema": "1a1c01bbd47fc00a2c39e90264f33305004495a9",
+          "hash": "<masked>"
+        },
+        "<root>/src/other.ts": {
+          "path": "<root>/src/other.ts",
+          "statementMap": {
+            "0": {
+              "start": {
+                "line": 1,
+                "column": 0
+              },
+              "end": {
+                "line": 1,
+                "column": 35
+              }
+            },
+            "1": {
+              "start": {
+                "line": 1,
+                "column": 32
+              },
+              "end": {
+                "line": 1,
+                "column": 33
+              }
+            }
+          },
+          "fnMap": {
+            "0": {
+              "name": "(anonymous_0)",
+              "decl": {
+                "start": {
+                  "line": 1,
+                  "column": 26
+                },
+                "end": {
+                  "line": 1,
+                  "column": 27
+                }
+              },
+              "loc": {
+                "start": {
+                  "line": 1,
+                  "column": 32
+                },
+                "end": {
+                  "line": 1,
+                  "column": 33
+                }
+              },
+              "line": 1
+            }
+          },
+          "branchMap": {},
+          "s": {
+            "0": 0,
+            "1": 0
+          },
+          "f": {
+            "0": 0
+          },
+          "b": {}
+        },
+        "<root>/src/related.ts": {
+          "path": "<root>/src/related.ts",
+          "statementMap": {
+            "0": {
+              "start": {
+                "line": 2,
+                "column": 2
+              },
+              "end": {
+                "line": 2,
+                "column": 14
+              }
+            },
+            "1": {
+              "start": {
+                "line": 5,
+                "column": 2
+              },
+              "end": {
+                "line": 5,
+                "column": 16
+              }
+            },
+            "2": {
+              "start": {
+                "line": 7,
+                "column": 0
+              },
+              "end": {
+                "line": 7,
+                "column": 32
+              }
+            }
+          },
+          "fnMap": {
+            "0": {
+              "name": "add",
+              "decl": {
+                "start": {
+                  "line": 1,
+                  "column": 9
+                },
+                "end": {
+                  "line": 1,
+                  "column": 12
+                }
+              },
+              "loc": {
+                "start": {
+                  "line": 1,
+                  "column": 19
+                },
+                "end": {
+                  "line": 3,
+                  "column": 1
+                }
+              },
+              "line": 1
+            },
+            "1": {
+              "name": "unused",
+              "decl": {
+                "start": {
+                  "line": 4,
+                  "column": 9
+                },
+                "end": {
+                  "line": 4,
+                  "column": 15
+                }
+              },
+              "loc": {
+                "start": {
+                  "line": 4,
+                  "column": 18
+                },
+                "end": {
+                  "line": 6,
+                  "column": 1
+                }
+              },
+              "line": 4
+            }
+          },
+          "branchMap": {},
+          "s": {
+            "0": 0,
+            "1": 0,
+            "2": 0
+          },
+          "f": {
+            "0": 0,
+            "1": 0
+          },
+          "b": {}
+        },
+        "<root>/src/shared.ts": {
+          "path": "<root>/src/shared.ts",
+          "statementMap": {
+            "0": {
+              "start": {
+                "line": 1,
+                "column": 0
+              },
+              "end": {
+                "line": 1,
+                "column": 35
+              }
+            }
+          },
+          "fnMap": {},
+          "branchMap": {},
+          "s": {
+            "0": 1
+          },
+          "f": {},
+          "b": {},
+          "_coverageSchema": "1a1c01bbd47fc00a2c39e90264f33305004495a9",
+          "hash": "<masked>"
+        },
+        "<root>/src/untested-changed.ts": {
+          "path": "<root>/src/untested-changed.ts",
+          "statementMap": {
+            "0": {
+              "start": {
+                "line": 2,
+                "column": 2
+              },
+              "end": {
+                "line": 2,
+                "column": 17
+              }
+            },
+            "1": {
+              "start": {
+                "line": 4,
+                "column": 0
+              },
+              "end": {
+                "line": 4,
+                "column": 27
+              }
+            }
+          },
+          "fnMap": {
+            "0": {
+              "name": "nobody",
+              "decl": {
+                "start": {
+                  "line": 1,
+                  "column": 9
+                },
+                "end": {
+                  "line": 1,
+                  "column": 15
+                }
+              },
+              "loc": {
+                "start": {
+                  "line": 1,
+                  "column": 18
+                },
+                "end": {
+                  "line": 3,
+                  "column": 1
+                }
+              },
+              "line": 1
+            }
+          },
+          "branchMap": {},
+          "s": {
+            "0": 0,
+            "1": 0
+          },
+          "f": {
+            "0": 0
+          },
+          "b": {}
+        },
+        "<root>/src/untested.ts": {
+          "path": "<root>/src/untested.ts",
+          "statementMap": {
+            "0": {
+              "start": {
+                "line": 2,
+                "column": 2
+              },
+              "end": {
+                "line": 2,
+                "column": 16
+              }
+            },
+            "1": {
+              "start": {
+                "line": 4,
+                "column": 0
+              },
+              "end": {
+                "line": 4,
+                "column": 26
+              }
+            }
+          },
+          "fnMap": {
+            "0": {
+              "name": "never",
+              "decl": {
+                "start": {
+                  "line": 1,
+                  "column": 9
+                },
+                "end": {
+                  "line": 1,
+                  "column": 14
+                }
+              },
+              "loc": {
+                "start": {
+                  "line": 1,
+                  "column": 17
+                },
+                "end": {
+                  "line": 3,
+                  "column": 1
+                }
+              },
+              "line": 1
+            }
+          },
+          "branchMap": {},
+          "s": {
+            "0": 0,
+            "1": 0
+          },
+          "f": {
+            "0": 0
+          },
+          "b": {}
+        }
+      },
+      "coverage/coverage-summary.json": {
+        "total": {
+          "lines": {
+            "total": 13,
+            "covered": 4,
+            "skipped": 0,
+            "pct": 30.76
+          },
+          "statements": {
+            "total": 14,
+            "covered": 4,
+            "skipped": 0,
+            "pct": 28.57
+          },
+          "functions": {
+            "total": 6,
+            "covered": 1,
+            "skipped": 0,
+            "pct": 16.66
+          },
+          "branches": {
+            "total": 2,
+            "covered": 1,
+            "skipped": 0,
+            "pct": 50
+          },
+          "branchesTrue": {
+            "total": 0,
+            "covered": 0,
+            "skipped": 0,
+            "pct": "Unknown"
+          }
+        },
+        "<root>/src/changed.ts": {
+          "lines": {
+            "total": 4,
+            "covered": 3,
+            "skipped": 0,
+            "pct": 75
+          },
+          "functions": {
+            "total": 1,
+            "covered": 1,
+            "skipped": 0,
+            "pct": 100
+          },
+          "statements": {
+            "total": 4,
+            "covered": 3,
+            "skipped": 0,
+            "pct": 75
+          },
+          "branches": {
+            "total": 2,
+            "covered": 1,
+            "skipped": 0,
+            "pct": 50
+          }
+        },
+        "<root>/src/other.ts": {
+          "lines": {
+            "total": 1,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "functions": {
+            "total": 1,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "statements": {
+            "total": 2,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "branches": {
+            "total": 0,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 100
+          }
+        },
+        "<root>/src/related.ts": {
+          "lines": {
+            "total": 3,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "functions": {
+            "total": 2,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "statements": {
+            "total": 3,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "branches": {
+            "total": 0,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 100
+          }
+        },
+        "<root>/src/shared.ts": {
+          "lines": {
+            "total": 1,
+            "covered": 1,
+            "skipped": 0,
+            "pct": 100
+          },
+          "functions": {
+            "total": 0,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 100
+          },
+          "statements": {
+            "total": 1,
+            "covered": 1,
+            "skipped": 0,
+            "pct": 100
+          },
+          "branches": {
+            "total": 0,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 100
+          }
+        },
+        "<root>/src/untested-changed.ts": {
+          "lines": {
+            "total": 2,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "functions": {
+            "total": 1,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "statements": {
+            "total": 2,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "branches": {
+            "total": 0,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 100
+          }
+        },
+        "<root>/src/untested.ts": {
+          "lines": {
+            "total": 2,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "functions": {
+            "total": 1,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "statements": {
+            "total": 2,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 0
+          },
+          "branches": {
+            "total": 0,
+            "covered": 0,
+            "skipped": 0,
+            "pct": 100
+          }
+        }
+      }
+    }
+  }
+}

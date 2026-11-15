@@ -93,6 +93,8 @@ export type {
   InlineSnapshotWriterFactory,
   LegacySnapshotSerializer,
   ResolveSnapshotPath,
+  SnapshotContextSource,
+  SnapshotContextViewFactory,
   SnapshotKey,
   SnapshotMessageInfo,
   SnapshotMessages,

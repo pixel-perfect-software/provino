@@ -1,0 +1,26 @@
+{
+  "description": "`-o --coverage` in a directory that is no git or hg repository: Jest prints the no-SCM line and finds no tests, and `runJest` still builds `changedFiles` from the empty change set. No `scm` field, so the recorder gives the work directory no repository. Jest only. Read by `provino`'s `jest-coverage-changed.test.ts`.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "coverageProvider": "babel",
+      "coverageReporters": ["json", "json-summary", "text"],
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-o"]
+    },
+    "raw": true,
+    "maskKeys": ["hash"],
+    "capture": [
+      "exitCode",
+      "stdout",
+      "stderr",
+      "json:coverage/coverage-final.json",
+      "json:coverage/coverage-summary.json"
+    ]
+  }
+}

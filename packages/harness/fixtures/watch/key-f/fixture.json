@@ -1,0 +1,60 @@
+{
+  "description": "`f` toggles \"only failed tests\": the failed file alone reruns, a fix reruns it, Enter then finds no failed test (with the watch hint), `w` shows the `f` row saying \"quit\", and `f` again runs everything. Jest only.",
+  "runners": ["jest"],
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      }
+    ]
+  },
+  "watch": {
+    "argv": ["--watchAll"],
+    "tty": true,
+    "steps": [
+      {
+        "waitRun": 1
+      },
+      {
+        "key": "f"
+      },
+      {
+        "waitRun": 2
+      },
+      {
+        "write": {
+          "fail.test.ts": "test('fails until fixed', () => {\n  expect(2).toBe(2)\n})\n"
+        }
+      },
+      {
+        "waitRun": 3
+      },
+      {
+        "key": "<enter>"
+      },
+      {
+        "waitRun": 4
+      },
+      {
+        "key": "w"
+      },
+      {
+        "waitText": "to quit \"only failed tests\" mode."
+      },
+      {
+        "key": "f"
+      },
+      {
+        "waitRun": 5
+      },
+      {
+        "key": "q"
+      },
+      {
+        "exit": 0
+      }
+    ],
+    "capture": ["runs", "transcript", "exitCode"],
+    "keepLines": "^(?:<CLEAR>$|Watch Usage| › |Active Filters:|Pattern Mode Usage| pattern ›|Ran all test suites|Test run was interrupted|No tests found|No failed test found|Press `|Run Jest without|Interactive (?:Test|Snapshot)|Pattern matches|Start typing|Tests:|Test Suites:|Snapshots:)"
+  }
+}

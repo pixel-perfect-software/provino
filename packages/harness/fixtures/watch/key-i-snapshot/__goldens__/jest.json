@@ -1,0 +1,138 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "watch/key-i-snapshot",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      "__snapshots__/snaps.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`first 1`] = `\"first new\"`;\n\nexports[`second 1`] = `\"second old\"`;\n"
+    },
+    "runs": [
+      {
+        "files": [
+          {
+            "path": "snaps.test.ts",
+            "status": "failed",
+            "tests": [
+              {
+                "fullName": "first",
+                "status": "failed"
+              },
+              {
+                "fullName": "second",
+                "status": "failed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 2
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [
+          {
+            "path": "snaps.test.ts",
+            "status": "failed",
+            "tests": [
+              {
+                "fullName": "first",
+                "status": "failed"
+              },
+              {
+                "fullName": "second",
+                "status": "pending"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 1
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [
+          {
+            "path": "snaps.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "first",
+                "status": "passed"
+              },
+              {
+                "fullName": "second",
+                "status": "pending"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 1,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [
+          {
+            "path": "snaps.test.ts",
+            "status": "failed",
+            "tests": [
+              {
+                "fullName": "first",
+                "status": "pending"
+              },
+              {
+                "fullName": "second",
+                "status": "failed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 1
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [
+          {
+            "path": "snaps.test.ts",
+            "status": "failed",
+            "tests": [
+              {
+                "fullName": "first",
+                "status": "passed"
+              },
+              {
+                "fullName": "second",
+                "status": "failed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 1
+        },
+        "wasInterrupted": false
+      }
+    ],
+    "transcript": "<CLEAR>\n › 2 snapshots failed.\n › 2 snapshots failed from 1 test suite. Inspect your code changes or press `u` to update them.\nTest Suites: 1 failed, 1 total\nTests:       2 failed, 2 total\nSnapshots:   2 failed, 2 total\nRan all test suites.\nWatch Usage\n › Press f to run only failed tests.\n › Press o to only run tests related to changed files.\n › Press p to filter by a filename regex pattern.\n › Press t to filter by a test name regex pattern.\n › Press u to update failing snapshots.\n › Press i to update failing snapshots interactively.\n › Press q to quit watch mode.\n › Press Enter to trigger a test run.\n<CLEAR>\n › 1 snapshot failed.\n › 1 snapshot failed from 1 test suite. Inspect your code changes or press `u` to update them.\nInteractive Snapshot Progress\n › 2 snapshots remaining\nWatch Usage\n › Press u to update failing snapshots for this test.\n › Press s to skip the current test.\n › Press q to quit Interactive Snapshot Mode.\n › Press Enter to trigger a test run.\nWatch Usage: Press w to show more.\n<CLEAR>\n › 1 snapshot updated.\n › 1 snapshot updated from 1 test suite.\nTest Suites: 1 passed, 1 total\nTests:       1 skipped, 1 passed, 2 total\nSnapshots:   1 updated, 1 total\nRan all test suites matching <root>/snaps.test.ts with tests matching \"^first$\".\n<CLEAR>\n › 1 snapshot failed.\n › 1 snapshot failed from 1 test suite. Inspect your code changes or press `u` to update them.\nInteractive Snapshot Progress\n › 1 snapshot remaining, 1 snapshot updated\nWatch Usage\n › Press u to update failing snapshots for this test.\n › Press s to skip the current test.\n › Press q to quit Interactive Snapshot Mode.\n › Press Enter to trigger a test run.\nWatch Usage: Press w to show more.\n<CLEAR>\nInteractive Snapshot Result\n › 2 snapshots reviewed, 1 snapshot updated, 1 snapshot skipped\nWatch Usage\n › Press r to restart Interactive Snapshot Mode.\n › Press q to quit Interactive Snapshot Mode.\n<CLEAR>\n › 1 snapshot failed.\n › 1 snapshot failed from 1 test suite. Inspect your code changes or press `u` to update them.\nTest Suites: 1 failed, 1 total\nTests:       1 failed, 1 passed, 2 total\nSnapshots:   1 failed, 1 passed, 2 total\nRan all test suites related to changed files.\nWatch Usage: Press w to show more."
+  }
+}

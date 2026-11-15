@@ -7,12 +7,15 @@ import { resolve } from 'node:path'
 import type { ResolvedProject } from '@provino/config'
 import type { JestGlobalConfig, JestProjectConfig } from '@provino/dialect-jest/node'
 import {
+  type AffectedLookup,
+  type AffectedLookupOptions,
   cacheDirectories,
   createResultsCache,
   type DiscoveredFile,
   findChangedFiles,
   hasScm,
   keepFailed,
+  lookupAffected,
   projectCacheKey,
   selectAffected,
   selectFiles,
@@ -29,6 +32,34 @@ export interface JestSelection {
   readonly selection?: AffectedSelection
   readonly onlyFailures?: 'history'
   readonly noScm: boolean
+  /**
+   * One affected lookup per project, made by whichever of the selection and the changed-file
+   * coverage asks first and read by the other (one index build, D115). Keyed by the project
+   * object; `withChangedCoverage` registers the copies it makes.
+   */
+  readonly lookups: WeakMap<ResolvedProject, Promise<AffectedLookup>>
+  /** The seam a test counts index builds through. */
+  readonly lookupOptions?: AffectedLookupOptions
+}
+
+function lookupFor(
+  selection: JestSelection,
+  project: ResolvedProject,
+  affected: AffectedSelection,
+  cache: boolean,
+): Promise<AffectedLookup> {
+  let lookup = selection.lookups.get(project)
+  if (lookup === undefined) {
+    lookup = lookupAffected(
+      { project, cacheProject: projectCacheKey(project) },
+      affected,
+      cache ? cacheDirectories(project).results : null,
+      undefined,
+      selection.lookupOptions,
+    )
+    selection.lookups.set(project, lookup)
+  }
+  return lookup
 }
 
 /**
@@ -43,9 +74,11 @@ export async function jestSelection(
   projects: readonly ResolvedProject[],
   configs: readonly JestProjectConfig[],
   cwd: string,
+  lookupOptions?: AffectedLookupOptions,
 ): Promise<JestSelection> {
   const onlyFailures = globalConfig.onlyFailures ? ({ onlyFailures: 'history' } as const) : {}
   const [first] = projects
+  const lookupExtra = lookupOptions === undefined ? {} : { lookupOptions }
   if (globalConfig.onlyChanged && first !== undefined) {
     const roots = [...new Set(configs.flatMap((config) => config.roots))]
     const changed = await findChangedFiles(first.policy.orchestrator.changedFiles, {
@@ -62,6 +95,8 @@ export async function jestSelection(
         changed: hasScm(changed) ? changed : { ...changed, changedFiles: [] },
       },
       noScm: !hasScm(changed),
+      lookups: new WeakMap(),
+      ...lookupExtra,
       ...onlyFailures,
     }
   }
@@ -70,10 +105,12 @@ export async function jestSelection(
     return {
       selection: { kind: 'related', paths: paths.map((path) => resolve(cwd, path)) },
       noScm: false,
+      lookups: new WeakMap(),
+      ...lookupExtra,
       ...onlyFailures,
     }
   }
-  return { noScm: false, ...onlyFailures }
+  return { noScm: false, lookups: new WeakMap(), ...lookupExtra, ...onlyFailures }
 }
 
 /**
@@ -99,12 +136,14 @@ export async function selectProjectFiles(
       cwd: options.cwd,
     })
   }
+  const lookup = await lookupFor(options.selection, project, selection, options.cache)
   return selectAffected(
     { project, cacheProject: projectCacheKey(project) },
     everything,
     selection,
-    options.cache ? cacheDirectories(project).results : null,
+    null,
     undefined,
+    lookup,
   )
 }
 
@@ -145,4 +184,45 @@ export function isScmCommandFailure(error: unknown): boolean {
     error instanceof Error &&
     (error as { readonly code?: unknown }).code === 'JEST_SCM_COMMAND_FAILED'
   )
+}
+
+/**
+ * `-o` and coverage (`runJest.ts` L403-L421): the run counts only the changed files and the
+ * sources the changed test files import (`shouldInstrument` L111-L118). Each project's coverage
+ * config gets both lists, the related sources taken across every project's index as one set. Jest
+ * computes them on every `-o` run; they matter only when coverage is on, so nothing is built
+ * without it (speed, D115). Projects with no coverage config are returned as they are.
+ * @internal
+ */
+export async function withChangedCoverage(
+  projects: readonly ResolvedProject[],
+  selection: JestSelection,
+  cache: boolean,
+): Promise<readonly ResolvedProject[]> {
+  if (selection.selection?.kind !== 'changed') return projects
+  const { changedFiles } = selection.selection.changed
+  const related = new Set<string>()
+  for (const project of projects) {
+    if (project.config.coverage === undefined) continue
+    const lookup = await lookupFor(selection, project, selection.selection, cache)
+    for (const source of lookup.sources) related.add(source)
+  }
+  return projects.map((project) => {
+    if (project.config.coverage === undefined) return project
+    const restricted: ResolvedProject = {
+      ...project,
+      config: {
+        ...project.config,
+        coverage: {
+          ...project.config.coverage,
+          changedFiles,
+          sourcesRelatedToTestsInChangedFiles: [...related],
+        },
+      },
+    }
+    // The selection runs on the copy: it reads the lookup made here.
+    const lookup = selection.lookups.get(project)
+    if (lookup !== undefined) selection.lookups.set(restricted, lookup)
+    return restricted
+  })
 }

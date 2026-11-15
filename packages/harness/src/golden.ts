@@ -117,6 +117,16 @@ export interface GoldenObserved {
    * stack frames as `<frames>`.
    */
   readonly json?: Readonly<Record<string, JsonValue | null>>
+  /**
+   * A watch session's runs (`watch.capture` `runs`), one entry per run as the run-log reporter
+   * wrote it (`reporters/jest-watch-log.ts`), with the work directory as `<root>`.
+   */
+  readonly runs?: readonly JsonValue[]
+  /**
+   * A watch session's terminal (`watch.capture` `transcript`): every row as the session left it
+   * (`internal/watch-transcript.ts`), normalized, masked and cut to `keepLines`.
+   */
+  readonly transcript?: string
 }
 
 /**
@@ -201,6 +211,8 @@ function observedInOrder(observed: GoldenObserved): GoldenObserved {
     ...(observed.stderr === undefined ? {} : { stderr: observed.stderr }),
     ...(observed.files === undefined ? {} : { files: observed.files }),
     ...(observed.json === undefined ? {} : { json: observed.json }),
+    ...(observed.runs === undefined ? {} : { runs: observed.runs }),
+    ...(observed.transcript === undefined ? {} : { transcript: observed.transcript }),
   }
 }
 

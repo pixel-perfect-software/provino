@@ -1,0 +1,33 @@
+{
+  "description": "`--findRelatedTests src/changed.ts --coverage` with `collectCoverageFrom: ['src/**/*.ts']`: in Jest 30.5.2 `SearchResult.collectCoverageFrom` (SearchSource.ts L196-L231) is built and never read by `runJest`, so this golden shows whether coverage is restricted to the related files at all. Jest only. Read by `provino`'s `jest-coverage-changed.test.ts`.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "collectCoverage": true,
+      "coverageProvider": "babel",
+      "coverageReporters": ["json", "json-summary", "text"],
+      "maxWorkers": 1,
+      "collectCoverageFrom": ["src/**/*.ts"]
+    }
+  },
+  "scm": {
+    "steps": [
+      {
+        "commit": "base"
+      }
+    ]
+  },
+  "run": {
+    "argv": {
+      "jest": ["--findRelatedTests", "src/changed.ts"]
+    },
+    "raw": true,
+    "maskKeys": ["hash"],
+    "capture": [
+      "exitCode",
+      "stdout",
+      "json:coverage/coverage-final.json",
+      "json:coverage/coverage-summary.json"
+    ]
+  }
+}

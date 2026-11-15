@@ -1,0 +1,223 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ecosystem/image-snapshot-mismatch",
+  "files": [
+    {
+      "file": "counter.test.ts",
+      "status": "skipped",
+      "tests": [
+        {
+          "id": {
+            "file": "counter.test.ts",
+            "path": [
+              "counter"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "images.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "images.test.ts",
+            "path": [
+              "v1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 6,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "images.test.ts",
+            "path": [
+              "v2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: Expected image to match or be a close match to snapshot but was 6.25% different from snapshot (1 differing pixels).\nSee diff for details: <root>/__image_snapshots__/__diff_output__/shared-image-diff.png",
+              "userFrame": "<root>/images.test.ts:11:66"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 1,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 1,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 1,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./images.test.ts\n  ● v2\n    Expected image to match or be a close match to snapshot but was 6.25% different from snapshot (1 differing pixels).\n    See diff for details: <root>/__image_snapshots__/__diff_output__/shared-image-diff.png\n › 1 snapshot failed.\nSnapshot Summary\n › 1 snapshot failed from 1 test suite. Inspect your code changes or re-run jest with `-u` to update them.\nTest Suites: 1 failed, 1 skipped, 1 of 2 total\nTests:       1 failed, 2 skipped, 3 total\nSnapshots:   1 failed, 1 total",
+    "files": {
+      "image-hashes.txt": "__diff_output__/shared-image-diff.png e9779832a7d162e48beb9875d29d7682ae142fcdf9cd608ed3bce38352bd606d\nshared-image.png 1284b3c3991161f10af007e4b890476cf4f356e3021ea927b037c2f01b24952f\n"
+    },
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 1,
+        "numFailedTests": 1,
+        "numPassedTestSuites": 0,
+        "numPassedTests": 0,
+        "numPendingTestSuites": 1,
+        "numPendingTests": 2,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 2,
+        "numTotalTests": 3,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": true,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 1,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 1,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 1,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "counter",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 5
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "counter",
+                "startAt": "<time>"
+              }
+            ],
+            "coverage": {},
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/counter.test.ts",
+            "startTime": "<time>",
+            "status": "skipped",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": null,
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "v1",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 6
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "pending",
+                "title": "v1",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "message": "Expected image to match or be a close match to snapshot but was 6.25% different from snapshot (1 differing pixels).\nSee diff for details: <root>/__image_snapshots__/__diff_output__/shared-image-diff.png",
+                      "pass": false
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: Expected image to match or be a close match to snapshot but was 6.25% different from snapshot (1 differing pixels).\nSee diff for details: <root>/__image_snapshots__/__diff_output__/shared-image-diff.png\n<frames>"
+                ],
+                "fullName": "v2",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 10
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "v2",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● v2\n\n    Expected image to match or be a close match to snapshot but was 6.25% different from snapshot (1 differing pixels).\n    See diff for details: <root>/__image_snapshots__/__diff_output__/shared-image-diff.png\n\n       9 |\n      10 | test('v2', () => {\n    > 11 |   expect(png(4, 4, (x, y) => (x === 1 && y === 2 ? BLUE : RED))).toMatchImageSnapshot({\n         |                                                                  ^\n      12 |     customSnapshotIdentifier,\n      13 |   })\n      14 | })\n\n<frames>\n",
+            "name": "<root>/images.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

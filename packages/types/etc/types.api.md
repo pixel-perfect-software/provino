@@ -2979,6 +2979,7 @@ export interface Sequencer {
 
 // @public
 export interface SerializedCoverageConfig {
+    readonly changedFiles?: readonly string[];
     readonly excludePaths: readonly string[];
     readonly excludePatterns: readonly string[];
     readonly force: readonly string[];
@@ -2989,6 +2990,7 @@ export interface SerializedCoverageConfig {
     readonly projectRoot: string;
     // (undocumented)
     readonly provider: "v8" | "istanbul";
+    readonly sourcesRelatedToTestsInChangedFiles?: readonly string[];
     readonly testFiles: readonly string[];
     readonly testIgnorePatterns: readonly string[];
     readonly testRegex: readonly string[];
@@ -3112,6 +3114,23 @@ export type SkipReason = "modifier" | "only-filter" | "name-filter" | "condition
 export type SliceName = keyof PolicySlices;
 
 // @public
+export interface SnapshotContextSource {
+    // (undocumented)
+    added: number;
+    readonly liveCounters: Map<string, number>;
+    // (undocumented)
+    matched: number;
+    // (undocumented)
+    unmatched: number;
+    readonly update: "all" | "new" | "none";
+    // (undocumented)
+    updated: number;
+}
+
+// @public
+export type SnapshotContextViewFactory = (state: SnapshotContextSource) => object;
+
+// @public
 export interface SnapshotCounters {
     // (undocumented)
     readonly added: number;
@@ -3193,6 +3212,7 @@ export type SnapshotPlugin = SnapshotSerializer | LegacySnapshotSerializer;
 // @public
 export interface SnapshotPolicy {
     readonly ciUpdate: "new" | "none";
+    readonly contextView: Behaviour<SnapshotContextViewFactory> | null;
     readonly dirName: string;
     readonly extension: string;
     readonly format: {

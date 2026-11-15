@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ide/vscode-jest-debug",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./sum.test.ts\n  ● sum › fails\nTest Suites: 1 failed, 1 total\nTests:       1 failed, 1 skipped, 1 todo, 4 passed, 7 total\nSnapshots:   1 passed, 1 total"
+  }
+}

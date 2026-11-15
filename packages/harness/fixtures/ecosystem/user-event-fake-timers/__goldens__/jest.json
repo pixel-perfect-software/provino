@@ -1,0 +1,329 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ecosystem/user-event-fake-timers",
+  "files": [
+    {
+      "file": "first.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "first.test.ts",
+            "path": [
+              "first: a click whose effect lands on a timer"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 12,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "first.test.ts",
+            "path": [
+              "first: typing with a delay between keys"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 25,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "first.test.ts",
+            "path": [
+              "first: waitFor times out on the fake clock"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "Unable to find an element with the text: never shown. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\nIgnored nodes: comments, script, style\n<body>\n  <p>\n    only this\n  </p>\n</body>\n\nIgnored nodes: comments, script, style\n<html>\n  <head />\n  <body>\n    <p>\n      only this\n    </p>\n  </body>\n</html>Error: Unable to find an element with the text: never shown. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\nIgnored nodes: comments, script, style\n<body>\n  <p>\n    only this\n  </p>\n</body>",
+              "userFrame": "<root>/first.test.ts:36:16"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 34,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "second.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "second.test.ts",
+            "path": [
+              "second: a click whose effect lands on a timer"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 12,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "second.test.ts",
+            "path": [
+              "second: typing with a delay between keys"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 25,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "second.test.ts",
+            "path": [
+              "second: waitFor times out on the fake clock"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "Unable to find an element with the text: never shown. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\nIgnored nodes: comments, script, style\n<body>\n  <p>\n    only this\n  </p>\n</body>\n\nIgnored nodes: comments, script, style\n<html>\n  <head />\n  <body>\n    <p>\n      only this\n    </p>\n  </body>\n</html>Error: Unable to find an element with the text: never shown. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\nIgnored nodes: comments, script, style\n<body>\n  <p>\n    only this\n  </p>\n</body>",
+              "userFrame": "<root>/second.test.ts:36:16"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 34,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./second.test.ts\n  ● second: waitFor times out on the fake clock\n    Unable to find an element with the text: never shown. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n    Ignored nodes: comments, script, style\nFAIL ./first.test.ts\n  ● first: waitFor times out on the fake clock\n    Unable to find an element with the text: never shown. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n    Ignored nodes: comments, script, style\nTest Suites: 2 failed, 2 total\nTests:       2 failed, 4 passed, 6 total\nSnapshots:   0 total",
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 2,
+        "numFailedTests": 2,
+        "numPassedTestSuites": 0,
+        "numPassedTests": 4,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 2,
+        "numTotalTests": 6,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "first: a click whose effect lands on a timer",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 12
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "first: a click whose effect lands on a timer",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "first: typing with a delay between keys",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 25
+                },
+                "numPassingAsserts": 2,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "first: typing with a delay between keys",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "name": "TestingLibraryElementError"
+                  }
+                ],
+                "failureMessages": [
+                  "Unable to find an element with the text: never shown. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\nIgnored nodes: comments, script, style\n\u001b[36m<body>\u001b[39m\n  \u001b[36m<p>\u001b[39m\n    \u001b[0monly this\u001b[0m\n  \u001b[36m</p>\u001b[39m\n\u001b[36m</body>\u001b[39m\n\nIgnored nodes: comments, script, style\n\u001b[36m<html>\u001b[39m\n  \u001b[36m<head />\u001b[39m\n  \u001b[36m<body>\u001b[39m\n    \u001b[36m<p>\u001b[39m\n      \u001b[0monly this\u001b[0m\n    \u001b[36m</p>\u001b[39m\n  \u001b[36m</body>\u001b[39m\n\u001b[36m</html>\u001b[39mError: Unable to find an element with the text: never shown. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\nIgnored nodes: comments, script, style\n\u001b[36m<body>\u001b[39m\n  \u001b[36m<p>\u001b[39m\n    \u001b[0monly this\u001b[0m\n  \u001b[36m</p>\u001b[39m\n\u001b[36m</body>\u001b[39m\n<frames>"
+                ],
+                "fullName": "first: waitFor times out on the fake clock",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 34
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "first: waitFor times out on the fake clock",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● first: waitFor times out on the fake clock\n\n    Unable to find an element with the text: never shown. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\n    Ignored nodes: comments, script, style\n    \u001b[36m<body>\u001b[39m\n      \u001b[36m<p>\u001b[39m\n        \u001b[0monly this\u001b[0m\n      \u001b[36m</p>\u001b[39m\n    \u001b[36m</body>\u001b[39m\n\n      34 | test('first: waitFor times out on the fake clock', async () => {\n      35 |   document.body.innerHTML = '<p>only this</p>'\n    > 36 |   await waitFor(() => expect(screen.getByText('never shown')).toBeTruthy(), { timeout: 200 })\n         |                ^\n      37 | })\n      38 |\n\n<frames>\n",
+            "name": "<root>/first.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "second: a click whose effect lands on a timer",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 12
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "second: a click whose effect lands on a timer",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "second: typing with a delay between keys",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 25
+                },
+                "numPassingAsserts": 2,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "second: typing with a delay between keys",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "name": "TestingLibraryElementError"
+                  }
+                ],
+                "failureMessages": [
+                  "Unable to find an element with the text: never shown. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\nIgnored nodes: comments, script, style\n\u001b[36m<body>\u001b[39m\n  \u001b[36m<p>\u001b[39m\n    \u001b[0monly this\u001b[0m\n  \u001b[36m</p>\u001b[39m\n\u001b[36m</body>\u001b[39m\n\nIgnored nodes: comments, script, style\n\u001b[36m<html>\u001b[39m\n  \u001b[36m<head />\u001b[39m\n  \u001b[36m<body>\u001b[39m\n    \u001b[36m<p>\u001b[39m\n      \u001b[0monly this\u001b[0m\n    \u001b[36m</p>\u001b[39m\n  \u001b[36m</body>\u001b[39m\n\u001b[36m</html>\u001b[39mError: Unable to find an element with the text: never shown. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\nIgnored nodes: comments, script, style\n\u001b[36m<body>\u001b[39m\n  \u001b[36m<p>\u001b[39m\n    \u001b[0monly this\u001b[0m\n  \u001b[36m</p>\u001b[39m\n\u001b[36m</body>\u001b[39m\n<frames>"
+                ],
+                "fullName": "second: waitFor times out on the fake clock",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 34
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "second: waitFor times out on the fake clock",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● second: waitFor times out on the fake clock\n\n    Unable to find an element with the text: never shown. This could be because the text is broken up by multiple elements. In this case, you can provide a function for your text matcher to make your matcher more flexible.\n\n    Ignored nodes: comments, script, style\n    \u001b[36m<body>\u001b[39m\n      \u001b[36m<p>\u001b[39m\n        \u001b[0monly this\u001b[0m\n      \u001b[36m</p>\u001b[39m\n    \u001b[36m</body>\u001b[39m\n\n      34 | test('second: waitFor times out on the fake clock', async () => {\n      35 |   document.body.innerHTML = '<p>only this</p>'\n    > 36 |   await waitFor(() => expect(screen.getByText('never shown')).toBeTruthy(), { timeout: 200 })\n         |                ^\n      37 | })\n      38 |\n\n<frames>\n",
+            "name": "<root>/second.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}
