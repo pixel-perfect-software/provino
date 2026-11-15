@@ -89,6 +89,11 @@ export interface FileOutcome {
    * affected-test selection (T9.12). Absent for a runner with no loader.
    */
   readonly deps?: readonly string[]
+  /**
+   * The node_modules files the loader learned, while the file ran, to evaluate per file (D127):
+   * `fileDone.reevaluated`.
+   */
+  readonly reevaluated?: readonly string[]
 }
 
 /**
@@ -273,6 +278,7 @@ export function startWorker(
     let leakedGlobals: readonly string[] = []
     let snapshot: SnapshotFileReport | null = null
     let heapUsedBytes: number | undefined
+    let reevaluated: readonly string[] | undefined
     let isLeaking: ((signal: AbortSignal) => Promise<boolean>) | undefined
     try {
       if (startFailure !== undefined) throw startFailure.error
@@ -284,6 +290,7 @@ export function startWorker(
       leakedGlobals = outcome?.leakedGlobals ?? []
       snapshot = outcome?.snapshot ?? null
       heapUsedBytes = outcome?.heapUsedBytes
+      reevaluated = outcome?.reevaluated
       isLeaking = outcome?.isLeaking
       if (outcome?.deps !== undefined) {
         // Each path crosses the link once per worker; after that it is its id.
@@ -328,6 +335,7 @@ export function startWorker(
         ...(snapshot === null ? {} : { snapshot }),
         ...(leaks ? { leaks: true as const } : {}),
         ...(heapUsedBytes === undefined ? {} : { heapUsedBytes }),
+        ...(reevaluated === undefined ? {} : { reevaluated }),
       }),
     )
   }

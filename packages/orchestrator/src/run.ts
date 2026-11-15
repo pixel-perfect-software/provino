@@ -432,6 +432,22 @@ function crashError(file: FileInfo, exit: WorkerExit): SerializedError {
 /** A project with the run's seed in its worker config. */
 type SeededProject = Omit<ResolvedProject, 'config'> & { readonly config: SerializedProjectConfig }
 
+/**
+ * The project's loader config with the node_modules files its workers learned to evaluate per
+ * file in earlier runs (D127), from its history in `cache`, as absolute paths. Unchanged when the
+ * policy doesn't ask for it or nothing was learned.
+ */
+function withLearnedExternals(
+  project: ResolvedProject,
+  cache: ResultsCache | undefined,
+): SerializedProjectConfig['loader'] {
+  const loader = project.config.loader
+  if (cache === undefined || !project.policy.module.reevaluateHookingExternals) return loader
+  const learned = cache.externals(projectCacheKey(project))
+  if (learned.length === 0) return loader
+  return { ...loader, reevaluate: learned.map((path) => join(project.rootDir, path)) }
+}
+
 /** One project of a run, with what the run decided for it once. */
 interface Member {
   readonly project: SeededProject
@@ -700,9 +716,19 @@ export async function runProjectsOn(
       options.cache === false
         ? resolved
         : withTransformCache(resolved, cacheDirectories(resolved).transform, lockfileHashes)
+    const cache = cacheFor(cached)
     const project: SeededProject = {
       ...cached,
-      config: { ...cached.config, seed: cached.config.seed ?? runSeed },
+      config: {
+        ...cached.config,
+        seed: cached.config.seed ?? runSeed,
+        // Read by the stable key only: a project that shares it is keyed by its identity, which
+        // depends on this config, so it learns again in each run.
+        loader:
+          cacheKeyCounts.get(projectCacheKey(cached))?.length === 1
+            ? withLearnedExternals(cached, cache)
+            : cached.config.loader,
+      },
     }
     const base =
       nameCounts.get(project.name)?.length === 1
@@ -730,7 +756,7 @@ export async function runProjectsOn(
         }),
         project.policy.snapshot,
       ),
-      cache: cacheFor(project),
+      cache,
       keyInput: {
         project: identity,
         pool: kind,
@@ -1016,6 +1042,13 @@ export async function runProjectsOn(
           tests: dispatch.tests,
           at: Date.now(),
         })
+      }
+      // What the worker learned to evaluate per file (D127), for the next run's workers.
+      if (outcome.type === 'done' && outcome.done.reevaluated !== undefined) {
+        member.cache?.learnExternals(
+          member.cacheProject,
+          outcome.done.reevaluated.map((path) => relativePosix(member.project.rootDir, path)),
+        )
       }
       // A record is the file's whole closure only when every test ran: a test `-t`, `.only` or
       // `.skip` left out may load what the others don't, and an older, whole record is kept. It is

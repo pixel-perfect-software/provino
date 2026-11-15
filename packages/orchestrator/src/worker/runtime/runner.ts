@@ -93,6 +93,7 @@ import {
   prepareEnvironment,
   setupEnvironment,
 } from '../internal/runtime/environment.ts'
+import { readGlobalBaseline, watchPerFileGlobals } from '../internal/runtime/external-probe.ts'
 import { installGlobals, splitGlobals } from '../internal/runtime/globals.ts'
 import { lazyReportSink } from '../internal/runtime/lazy-sink.ts'
 import {
@@ -551,6 +552,8 @@ export function createRuntimeRunner(): WorkerRunner {
    * callback must still find the current file, or a green suite goes red.
    */
   let fallback: FileScope | undefined
+  /** The externals the loader evaluates per file that the coordinator already knows of (D127). */
+  let reportedExternals = new Set<string>()
   /** The snapshots of the file running now; the runtime's events pass through its lifecycle. */
   let openSnapshots: OpenSnapshots | undefined
   /**
@@ -605,6 +608,18 @@ export function createRuntimeRunner(): WorkerRunner {
     parts.unmapStacks = installSourceMappedStacks(parts.loader, {
       frameNames: policy.module.stackFrameNames,
     })
+    // D127 / P42: a shared external whose first load, while a file runs, reads a per-file global
+    // is evaluated again for each later file. The global as the worker found it, before any
+    // environment or globals: what a file's setup changed is what the watcher watches.
+    reportedExternals = new Set(parts.loader.reevaluatedExternals())
+    if (policy.module.reevaluateHookingExternals) {
+      const baseline = readGlobalBaseline()
+      parts.loader.watchExternalLoads(() =>
+        fallback === undefined || fallback.tornDown
+          ? () => false
+          : watchPerFileGlobals(globalThis, baseline),
+      )
+    }
 
     // `process` is the pool's business (a new process per file) and runs as `registry`.
     const tier = context.init.isolation === 'process' ? 'registry' : context.init.isolation
@@ -1119,8 +1134,14 @@ export function createRuntimeRunner(): WorkerRunner {
               ...(instance === undefined ? [] : [instance]),
             ])
           : undefined
+      // What the loader learned while this file ran (D127), for the coordinator's results cache.
+      const reevaluated = worker.loader
+        .reevaluatedExternals()
+        .filter((path) => !reportedExternals.has(path))
+      for (const path of reevaluated) reportedExternals.add(path)
       return {
         deps,
+        ...(reevaluated.length === 0 ? {} : { reevaluated }),
         ...(heap === undefined ? {} : { heapUsedBytes: heap }),
         ...(isLeaking === undefined ? {} : { isLeaking }),
         ...(leaked.length > 0 ? { leakedGlobals: leaked } : {}),

@@ -18,7 +18,8 @@ const FILE_NAME = 'results.json'
  * The format version; a file with another one is treated as empty. 2: the project key is the
  * project's name and a hash of its root and globs (1 keyed by the bare name). 3: a file's record
  * may hold an inputs hash, a learned tier and a coverage map (T9.6; nothing writes them yet), so an
- * older reader would drop them.
+ * older reader would drop them. Still 3 with `externals` (D127) beside `projects`: a reader that
+ * doesn't know it keeps every file's history and drops only that, which a worker learns again.
  */
 const VERSION = 3
 
@@ -89,6 +90,14 @@ export interface ResultsCache {
    */
   prune(project: string, keep: ReadonlySet<string>): void
   /**
+   * The node_modules files the project's workers learned to evaluate per file
+   * (`ModulePolicy.reevaluateHookingExternals`, D127), relative to the project root with `/`, in
+   * the order they were learned.
+   */
+  externals(project: string): readonly string[]
+  /** Adds files to `externals` (relative to the project root, with `/`); kept until `write`. */
+  learnExternals(project: string, paths: readonly string[]): void
+  /**
    * Writes the cache to its directory (created if need be). It reads `results.json` again first
    * (a missing, unreadable or other-version file is empty, as when the cache was opened), applies
    * this cache's `record`ed entries and `prune`s on top of what is there, and writes the result as
@@ -101,6 +110,15 @@ export interface ResultsCache {
 }
 
 type Projects = Map<string, Map<string, FileHistory>>
+
+/** Per project, the node_modules files evaluated per file (D127), as a set in learned order. */
+type Externals = Map<string, Set<string>>
+
+/** What `results.json` holds. */
+interface Contents {
+  readonly projects: Projects
+  readonly externals: Externals
+}
 
 /** `coverage`: test ids to lists of function ids, all text. */
 function isCoverageMap(value: unknown): boolean {
@@ -128,16 +146,33 @@ function isHistory(value: unknown): value is FileHistory {
   )
 }
 
-/** The projects in `text`; anything unreadable, or of another version, is no history at all. */
-function parse(text: string): Projects {
-  const projects: Projects = new Map()
+function empty(): Contents {
+  return { projects: new Map(), externals: new Map() }
+}
+
+/** Each project's list of files in `value`, keeping only lists of text. */
+function parseExternals(value: unknown): Externals {
+  const externals: Externals = new Map()
+  if (!isRecord(value)) return externals
+  for (const [project, paths] of Object.entries(value)) {
+    if (Array.isArray(paths) && paths.every((path) => typeof path === 'string')) {
+      externals.set(project, new Set(paths))
+    }
+  }
+  return externals
+}
+
+/** The contents of `text`; anything unreadable, or of another version, is no history at all. */
+function parse(text: string): Contents {
+  const contents = empty()
+  const { projects } = contents
   let data: unknown
   try {
     data = JSON.parse(text)
   } catch {
-    return projects
+    return contents
   }
-  if (!isRecord(data) || data.version !== VERSION || !isRecord(data.projects)) return projects
+  if (!isRecord(data) || data.version !== VERSION || !isRecord(data.projects)) return contents
   for (const [project, files] of Object.entries(data.projects)) {
     if (!isRecord(files)) continue
     const known = new Map<string, FileHistory>()
@@ -147,23 +182,33 @@ function parse(text: string): Projects {
     }
     projects.set(project, known)
   }
-  return projects
+  return { projects, externals: parseExternals(data.externals) }
 }
 
-function read(file: string): Projects {
+function read(file: string): Contents {
   try {
     return parse(readFileSync(file, 'utf8'))
   } catch {
-    return new Map()
+    return empty()
   }
 }
 
-async function load(file: string): Promise<Projects> {
+async function load(file: string): Promise<Contents> {
   try {
     return parse(await readFile(file, 'utf8'))
   } catch {
-    return new Map()
+    return empty()
   }
+}
+
+/** Adds `paths` to the project's set in `externals`. */
+function addExternals(externals: Externals, project: string, paths: Iterable<string>): void {
+  let known = externals.get(project)
+  if (known === undefined) {
+    known = new Set()
+    externals.set(project, known)
+  }
+  for (const path of paths) known.add(path)
 }
 
 function filesOf(projects: Projects, project: string): Map<string, FileHistory> {
@@ -193,9 +238,10 @@ function dropOutside(files: Map<string, FileHistory> | undefined, keep: Readonly
 export function createResultsCache(dir: string): ResultsCache {
   const file = join(dir, FILE_NAME)
   /** What `get` answers from: the file as it was when opened, plus what this cache recorded. */
-  const projects = read(file)
+  const { projects, externals } = read(file)
   /** Only what this cache recorded: what `write` puts on top of the disk's. */
   const recorded: Projects = new Map()
+  const learned: Externals = new Map()
   /** The files `prune` kept, by project: what `write` drops from the disk's. */
   const kept = new Map<string, ReadonlySet<string>>()
   return {
@@ -209,9 +255,16 @@ export function createResultsCache(dir: string): ResultsCache {
       dropOutside(projects.get(project), keep)
       dropOutside(recorded.get(project), keep)
     },
+    externals: (project) => [...(externals.get(project) ?? [])],
+    learnExternals(project, paths) {
+      addExternals(externals, project, paths)
+      addExternals(learned, project, paths)
+    },
     async write() {
       // Another run may have written since this cache was opened: start from the file as it is.
-      const merged = await load(file)
+      const disk = await load(file)
+      const merged = disk.projects
+      for (const [project, paths] of learned) addExternals(disk.externals, project, paths)
       for (const [project, paths] of kept) dropOutside(merged.get(project), paths)
       for (const [project, files] of recorded) {
         const into = filesOf(merged, project)
@@ -224,6 +277,13 @@ export function createResultsCache(dir: string): ResultsCache {
             .filter(([, files]) => files.size > 0)
             .map(([project, files]) => [project, Object.fromEntries(files)]),
         ),
+        ...(disk.externals.size === 0
+          ? {}
+          : {
+              externals: Object.fromEntries(
+                [...disk.externals].map(([project, paths]) => [project, [...paths]]),
+              ),
+            }),
       }
       await mkdir(dir, { recursive: true })
       const temporary = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`
