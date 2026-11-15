@@ -44,6 +44,10 @@ export function createLiveOutput(
   options: { readonly live: boolean; readonly columns: number; readonly style: Style },
 ): LiveOutput {
   const { live, columns, style } = options
+  // Jest pads RUNS whatever the colour support (`Status.ts` L23-L24): the coloured badge carries
+  // its own padding, the plain one is the bare word.
+  const badge = style.badge('RUNS', 'yellow')
+  const runsBadge = badge === 'RUNS' ? ' RUNS ' : badge
   /** Each running file's `RUNS …` line, rendered once, when it starts. */
   const running = new Map<string, string>()
   /** The block as last drawn, and how many lines it took. */
@@ -85,7 +89,7 @@ export function createLiveOutput(
     },
     async start(id, label) {
       if (!live) return
-      running.set(id, `${style.badge('RUNS', 'yellow')} ${fit(label, columns - 7)}`)
+      running.set(id, `${runsBadge} ${fit(label, columns - 7)}`)
       await redraw()
     },
     async finish(id, text) {
@@ -97,8 +101,9 @@ export function createLiveOutput(
       await redraw(text === undefined ? '' : `${text}\n`)
     },
     async close() {
-      if (!live || drawn === 0) return
+      if (!live) return
       running.clear()
+      if (drawn === 0) return
       await redraw()
     },
   }

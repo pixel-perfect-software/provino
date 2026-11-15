@@ -677,15 +677,13 @@ export const JEST_CLI_OPTIONS: Readonly<Record<string, JestCliOption>> = {
     type: 'boolean',
     description:
       'Watch files for changes and rerun tests related to changed files. If you want to re-run all tests when a file has changed, use the `--watchAll` option.',
-    support: 'refuse',
-    owner: 'T9.11',
+    support: 'config',
   },
   watchAll: {
     type: 'boolean',
     description:
       'Watch files for changes and rerun all tests. If you want to re-run only the tests related to the changed files, use the `--watch` option.',
-    support: 'refuse',
-    owner: 'T9.11',
+    support: 'config',
   },
   watchPathIgnorePatterns: {
     type: 'array',

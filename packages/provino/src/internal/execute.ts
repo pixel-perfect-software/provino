@@ -8,6 +8,8 @@ import {
   type RunProjectOptions,
   runProjects,
   type ShardSpec,
+  type WatchRunOptions,
+  type WatchSession,
 } from '@provino/orchestrator'
 import { createReporterBus, type Environment } from '@provino/reporters'
 import type { FileFilter, Reporter, ReporterBus, RunSummary, SerializedError } from '@provino/types'
@@ -84,6 +86,11 @@ export interface ExecuteOptions {
   readonly timings?: NonNullable<RunProjectOptions['timings']>
   /** What a run with coverage tells the caller (the files no test loaded). */
   readonly coverage?: RunCoverageHooks
+  /**
+   * Run on this watch session's pool (watch mode, B23c): the pool, the caches, the root, the
+   * global hooks and where output goes are the session's, so those options are not read.
+   */
+  readonly session?: WatchSession
 }
 
 /**
@@ -179,12 +186,30 @@ function run(
   projects: readonly ResolvedProject[],
 ): Promise<RunSummary> {
   const { stderr, cwd } = options
+  // What every run takes, the session's or not.
+  const perRun: WatchRunOptions = {
+    bus,
+    ...(options.testNamePattern === undefined ? {} : { testNamePattern: options.testNamePattern }),
+    ...(options.update === true ? { update: true } : {}),
+    ...(options.collectOnly === true ? { collectOnly: true } : {}),
+    ...(options.fileFilters === undefined ? {} : { fileFilters: options.fileFilters }),
+    ...(options.selection === undefined ? {} : { selection: options.selection }),
+    ...(options.onlyFailures === undefined ? {} : { onlyFailures: options.onlyFailures }),
+    ...(options.fileFilter === undefined ? {} : { fileFilter: options.fileFilter }),
+    ...(options.detectLeaks === undefined ? {} : { detectLeaks: options.detectLeaks }),
+    ...(options.logHeapUsage === true ? { logHeapUsage: true } : {}),
+    ...(options.bail === undefined ? {} : { bail: options.bail }),
+    ...(options.shard === undefined ? {} : { shard: options.shard }),
+    ...(options.timings === undefined ? {} : { timings: options.timings }),
+    ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
+  }
+  if (options.session !== undefined) return options.session.run(perRun)
   // The bin's compile cache for the forked workers' own startup, and for them only (see
   // `workerStartupEnv`); `{}` for a library caller, which turned nothing on.
   const startupEnv = workerStartupEnv(process.env)
   return runProjects(projects, {
+    ...perRun,
     ...(options.root === undefined ? {} : { root: options.root }),
-    bus,
     pool: Object.keys(startupEnv).length === 0 ? options.pool : { ...options.pool, startupEnv },
     // Jest writes all test output to stderr and keeps stdout for `--json`: a worker's own stdout
     // (a direct write to fd 1) goes there too, so it can't land in the middle of a reporter's.
@@ -193,23 +218,10 @@ function run(
     cwd,
     // Omitted, `runProject` keeps the cache in the project's `node_modules/.cache/provino`.
     ...(options.cache === false ? { cache: false } : {}),
-    ...(options.testNamePattern === undefined ? {} : { testNamePattern: options.testNamePattern }),
-    ...(options.update === true ? { update: true } : {}),
-    ...(options.collectOnly === true ? { collectOnly: true } : {}),
-    ...(options.fileFilters === undefined ? {} : { fileFilters: options.fileFilters }),
-    ...(options.selection === undefined ? {} : { selection: options.selection }),
-    ...(options.onlyFailures === undefined ? {} : { onlyFailures: options.onlyFailures }),
-    ...(options.fileFilter === undefined ? {} : { fileFilter: options.fileFilter }),
     ...(options.runInBand === true ? { runInBand: true } : {}),
-    ...(options.detectLeaks === undefined ? {} : { detectLeaks: options.detectLeaks }),
-    ...(options.logHeapUsage === true ? { logHeapUsage: true } : {}),
     ...(options.signal === undefined ? {} : { signal: options.signal }),
     ...(options.forceSignal === undefined ? {} : { forceSignal: options.forceSignal }),
-    ...(options.bail === undefined ? {} : { bail: options.bail }),
     ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
     ...(options.globalSetup === undefined ? {} : { globalSetup: options.globalSetup }),
-    ...(options.shard === undefined ? {} : { shard: options.shard }),
-    ...(options.timings === undefined ? {} : { timings: options.timings }),
-    ...(options.coverage === undefined ? {} : { coverage: options.coverage }),
   })
 }

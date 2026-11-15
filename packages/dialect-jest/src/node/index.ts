@@ -137,6 +137,7 @@ export type {
   JestTransformEntry,
 } from './types.ts'
 export { type ValidationOutcome, validateJestConfig } from './validate.ts'
+export * from './watch/index.ts'
 
 /**
  * What the reader's `resolve` step returns: the run's global config and each project's config
