@@ -11,6 +11,7 @@ import type {
   EnvironmentRef,
   IsolationTier,
   JsonValue,
+  ModuleRef,
   NeutralAlias,
   NeutralDiscovery,
   NeutralProject,
@@ -106,6 +107,11 @@ export interface ResolvedProject {
   readonly cacheDirectory?: string
   /** Global setup and teardown the coordinator runs for this project (T9.15); absent for none. */
   readonly globalSetup?: ResolvedGlobalSetup
+  /**
+   * What affected-test selection reads of the project itself (T9.12, T9.16): its own dependency
+   * extractor (Jest's `dependencyExtractor`); absent when it names none.
+   */
+  readonly affected?: { readonly extractor: ModuleRef }
 }
 
 /**
@@ -329,6 +335,7 @@ export async function resolveNeutralProject(
       transform: resolveTransforms(neutral),
       cacheDirectory: neutral.cacheDirectory,
       globalSetup: globalSetupOf(neutral),
+      affected: affectedOf(neutral),
       aliases: neutral.aliases,
       globalValues: neutral.globalValues,
       fakeTimers: neutral.fakeTimers,
@@ -340,6 +347,16 @@ export async function resolveNeutralProject(
     },
     { environments: options.environments, ci: options.ci },
   )
+}
+
+/**
+ * The project's own affected-selection settings: its dependency extractor, or `undefined` when it
+ * names none. `watchPathIgnorePatterns` stays on the neutral project (`watch`) for the watch
+ * driver to carry (B23c Phase 8).
+ */
+function affectedOf(neutral: NeutralProject): ResolvedProject['affected'] {
+  const extractor = neutral.affected?.extractor
+  return extractor === undefined ? undefined : { extractor }
 }
 
 /**
@@ -385,6 +402,8 @@ interface ProjectInput {
   readonly cacheDirectory?: string | undefined
   /** Global setup and teardown (T9.15); a neutral project's only. */
   readonly globalSetup?: ResolvedGlobalSetup | undefined
+  /** The project's own affected-selection settings (T9.16); a neutral project's only. */
+  readonly affected?: ResolvedProject['affected'] | undefined
   /** Name-mapping rules and resolver keys (T3.3); none for a `provino.config.*` project. */
   readonly aliases?: readonly NeutralAlias[] | undefined
   readonly resolution?: NeutralResolution | undefined
@@ -535,5 +554,6 @@ async function finishProject(
     config,
     ...(input.cacheDirectory === undefined ? {} : { cacheDirectory: input.cacheDirectory }),
     ...(input.globalSetup === undefined ? {} : { globalSetup: input.globalSetup }),
+    ...(input.affected === undefined ? {} : { affected: input.affected }),
   }
 }

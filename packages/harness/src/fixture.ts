@@ -50,8 +50,12 @@ export interface FixtureManifest {
   readonly description: string
   /** The runners and profiles it is recorded under. */
   readonly runners: readonly FixtureProfile[]
-  /** Environment variables for the runner process, on top of the recorder's own. */
-  readonly env?: Readonly<Record<string, string>>
+  /**
+   * Environment variables for the runner process, on top of the recorder's own. A `null` removes
+   * a variable the process inherits or the recorder sets (`NO_COLOR`, for an editor that passes
+   * `--colors`).
+   */
+  readonly env?: Readonly<Record<string, string | null>>
   /**
    * Flags for `node` itself, before the runner's bin (`--harmony-temporal`, which `NODE_OPTIONS`
    * refuses). B17a's `policy/timers-temporal` needs a Node with a `Temporal`.
@@ -251,6 +255,14 @@ export type FixtureConfigOverlay = Readonly<
  * @public
  */
 export interface FixtureRun {
+  /**
+   * `true` runs Jest with exactly `argv.jest`: none of the recorder's own flags (`--config`,
+   * `--ci`, `--json`, `--outputFile`), as an editor's command line is. The recorder's config is
+   * written as `jest.config.json` in the work directory, where Jest finds it as it finds a
+   * project's own. The reserved-flag check is skipped, so the result is read from a `json:` or
+   * `file:` capture. Needs `runners: ["jest"]`.
+   */
+  readonly exact?: true
   readonly argv?: Readonly<Partial<Record<FixtureRunner, readonly string[]>>>
   /**
    * `exitCode`, `stdout`, `stderr`, `file:<path>` (the file's text) and `json:<path>` (the file
@@ -442,6 +454,19 @@ export function parseFixtureManifest(
       { path: source },
     )
   }
+  const parsedFiles = files === undefined ? undefined : parseRunnerFiles(files, runners, source)
+  const parsedRun = run === undefined ? undefined : parseRun(run, runners, source)
+  if (parsedRun?.exact === true) {
+    for (const [file, text] of Object.entries(parsedFiles?.jest ?? {})) {
+      if (isJestConfigFile(file, text)) {
+        throw new HarnessError(
+          'HARNESS_FIXTURE_BAD_RUN',
+          `${source}: "run" is "exact", so the recorder's jest.config.json is the project's Jest config, but "files" gives "${file}", another one`,
+          { path: source },
+        )
+      }
+    }
+  }
   return {
     description,
     runners,
@@ -473,10 +498,12 @@ export function parseFixtureManifest(
             run: run !== undefined,
           }),
         }),
-    ...(files === undefined ? {} : { files: parseRunnerFiles(files, runners, source) }),
-    ...(run === undefined ? {} : { run: parseRun(run, runners, source) }),
+    ...(parsedFiles === undefined ? {} : { files: parsedFiles }),
+    ...(parsedRun === undefined ? {} : { run: parsedRun }),
     ...(scm === undefined ? {} : { scm: parseScm(scm, source) }),
-    ...(before === undefined ? {} : { before: parseBefore(before, runners, source) }),
+    ...(before === undefined
+      ? {}
+      : { before: parseBefore(before, runners, source, parsedRun?.exact === true) }),
     ...(watch === undefined
       ? {}
       : {
@@ -487,6 +514,25 @@ export function parseFixtureManifest(
             reporters: isRecord(config) && isRecord(config.jest) && 'reporters' in config.jest,
           }),
         }),
+  }
+}
+
+/**
+ * Whether a file of a fixture is a Jest configuration: a `jest.config.*` (found before the
+ * recorder's own `jest.config.json`) or a `package.json` with a `jest` key (Jest reports several
+ * configurations). Under `run.exact` the recorder's config sits where Jest finds it, so a fixture
+ * may not bring another.
+ * @public
+ */
+export function isJestConfigFile(file: string, text: string): boolean {
+  const name = path.posix.normalize(file)
+  if (/^jest\.config\.[^/]+$/.test(name)) return true
+  if (name !== 'package.json') return false
+  try {
+    const parsed: unknown = JSON.parse(text)
+    return isRecord(parsed) && Object.hasOwn(parsed, 'jest')
+  } catch {
+    return false
   }
 }
 
@@ -637,6 +683,7 @@ const RUN_KEYS: readonly string[] = [
   'capture',
   'cwd',
   'emptyStreams',
+  'exact',
   'keepLines',
   'mask',
   'maskKeys',
@@ -681,11 +728,17 @@ function optionOf(arg: string): string | undefined {
  */
 const addsTextReporter = (arg: string): boolean => /^--reporter=(?!json$)[a-z-]+$/.test(arg)
 
-/** The first argument that sets an option the recorder owns, if any (`run.argv` and `before`). */
-function ownedFlagIn(args: readonly string[]): string | undefined {
+/**
+ * The first argument that sets an option the recorder owns, if any (`run.argv` and `before`).
+ * Under `run.exact` the recorder passes no flag of its own, so only the cleanup options
+ * `mockCleanup` sets stay owned.
+ */
+function ownedFlagIn(args: readonly string[], exact = false): string | undefined {
   return args.find((arg) => {
     const option = optionOf(arg)
-    return option !== undefined && OWNED_FLAGS.has(option) && !addsTextReporter(arg)
+    if (option === undefined) return false
+    if (exact) return JEST_MOCK_CLEANUP_OPTIONS.includes(option)
+    return OWNED_FLAGS.has(option) && !addsTextReporter(arg)
   })
 }
 
@@ -711,6 +764,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     capture,
     cwd,
     emptyStreams,
+    exact,
     keepLines,
     mask,
     maskKeys,
@@ -747,7 +801,18 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
     maskKeys?: string[]
     cwd?: string
     raw?: true
+    exact?: true
   } = { capture }
+  if (exact !== undefined) {
+    if (exact !== true) throw bad('"exact" must be true (leave it out for off)')
+    if (runners.some((profile) => runnerOfProfile(profile) !== 'jest')) {
+      throw bad('"exact" needs a fixture that runs only Jest')
+    }
+    if (!isRecord(argv) || !Array.isArray(argv.jest) || argv.jest.length === 0) {
+      throw bad('"exact" needs a non-empty "argv.jest": the arguments Jest is started with')
+    }
+    out.exact = true
+  }
   if (argv !== undefined) {
     if (!isRecord(argv) || Object.keys(argv).length === 0) {
       throw bad('"argv" must be a non-empty object from a runner to its arguments')
@@ -761,7 +826,7 @@ function parseRun(run: unknown, runners: readonly FixtureProfile[], source: stri
       if (!Array.isArray(args) || !args.every((arg): arg is string => typeof arg === 'string')) {
         throw bad(`"argv" must give "${runner}" an array of strings`)
       }
-      const owned = ownedFlagIn(args)
+      const owned = ownedFlagIn(args, exact === true)
       if (owned !== undefined) {
         throw bad(`"argv" gives "${owned}" to ${runner}, which the recorder or "mockCleanup" sets`)
       }
@@ -1000,6 +1065,7 @@ function parseBefore(
   before: unknown,
   runners: readonly FixtureProfile[],
   source: string,
+  exact: boolean,
 ): FixtureBeforeRun[] {
   const bad = (reason: string): HarnessError =>
     new HarnessError('HARNESS_FIXTURE_BAD_BEFORE', `${source}: "before" ${reason}`, {
@@ -1019,7 +1085,7 @@ function parseBefore(
     if (!Array.isArray(argv) || !argv.every((arg): arg is string => typeof arg === 'string')) {
       throw bad(`entry ${index} must give "argv" an array of strings`)
     }
-    const owned = ownedFlagIn(argv)
+    const owned = ownedFlagIn(argv, exact)
     if (owned !== undefined) {
       throw bad(`entry ${index} gives "${owned}", which the recorder or "mockCleanup" sets`)
     }
@@ -1465,17 +1531,17 @@ function parseMockCleanup(
   return cleanup
 }
 
-function parseEnv(env: unknown, source: string): Record<string, string> {
-  if (!isRecord(env) || !Object.values(env).every((v) => typeof v === 'string')) {
+function parseEnv(env: unknown, source: string): Record<string, string | null> {
+  if (!isRecord(env) || !Object.values(env).every((v) => typeof v === 'string' || v === null)) {
     throw new HarnessError(
       'HARNESS_FIXTURE_BAD_ENV',
-      `${source}: "env" must be an object of string values`,
+      `${source}: "env" must be an object of string values (or null, to remove a variable)`,
       { path: source },
     )
   }
-  const stringEnv: Record<string, string> = {}
+  const stringEnv: Record<string, string | null> = {}
   for (const [name, entry] of Object.entries(env)) {
-    if (typeof entry === 'string') stringEnv[name] = entry
+    if (typeof entry === 'string' || entry === null) stringEnv[name] = entry
   }
   return stringEnv
 }

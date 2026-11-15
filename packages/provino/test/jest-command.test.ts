@@ -31,11 +31,11 @@ const provino = (args: readonly string[], cwd: string) => spawnCli(['jest', ...a
 describe('what provino jest does not run is said, not ignored', () => {
   it('refuses a flag with no backend by name, with the task that builds it', async () => {
     const dir = await tree({ 'jest.config.json': CONFIG, 'tests/a.test.js': passing('a') })
-    // A refusal names the flag by its long name, whatever alias was typed.
+    // A refusal names the flag by its long name, whatever alias was typed (`-o` was the aliased
+    // case until B23c built it; no refused flag left has an alias).
     for (const [flag, task, named] of [
-      ['--detectLeaks', 'T2.7'],
+      ['--watchAll', 'T9.11'],
       ['--watch', 'T9.11'],
-      ['-o', 'Track 9', '--onlyChanged'],
     ] as readonly (readonly [string, string, string?])[]) {
       const ended = await provino([flag], dir)
       assert.equal(ended.code, 1, `${flag}: ${ended.stderr}`)
@@ -66,14 +66,16 @@ describe('what provino jest does not run is said, not ignored', () => {
     assert.match(verbose.stderr, /PASS tests\/a\.test\.js\n {2}✓ a( \(\d+ ms\))?\n\n/)
   })
 
-  it('warns, naming the task, for the flags that still do nothing', async () => {
+  it('applies --showSeed, --logHeapUsage, --notifyMode and --detectLeaks and says nothing about them (B23d A4)', async () => {
     const dir = await tree({ 'jest.config.json': CONFIG, 'tests/a.test.js': passing('a') })
-    const ended = await provino(['--logHeapUsage', '--notify', '--notifyMode', 'always'], dir)
+    const ended = await provino(
+      ['--showSeed', '--seed=3', '--logHeapUsage', '--notifyMode', 'always', '--detectLeaks'],
+      dir,
+    )
     assert.equal(ended.code, 0, ended.stderr)
-    for (const flag of ['logHeapUsage', 'notify', 'notifyMode']) {
-      assert.match(ended.stderr, new RegExp(`--${flag} is read but not applied yet \\(T9\\.7\\)`))
-    }
-    assert.match(ended.stderr, /PASS tests\/a\.test\.js/)
+    assert.doesNotMatch(ended.stderr, /not applied yet|not supported yet/)
+    assert.match(ended.stderr, /PASS tests\/a\.test\.js \(\d+ MB heap size\)/)
+    assert.match(ended.stderr, /^Seed: {8}3\nTest Suites:/m)
   })
 
   it('runs several projects (D29), and lists the files of all of them', async () => {

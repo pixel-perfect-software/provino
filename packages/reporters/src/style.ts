@@ -47,6 +47,7 @@ export function createStyle(enabled: boolean): Style {
       green: same,
       yellow: same,
       magenta: same,
+      inverse: same,
       badge: (word) => word,
     }
   }
@@ -65,6 +66,7 @@ export function createStyle(enabled: boolean): Style {
     green: wrap(32, 39),
     yellow: wrap(33, 39),
     magenta: wrap(35, 39),
+    inverse,
     badge: (word, colour) => {
       if (word === 'PASS' && colour === 'green') return pass
       if (word === 'FAIL' && colour === 'red') return fail

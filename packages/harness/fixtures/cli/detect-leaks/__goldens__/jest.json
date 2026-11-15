@@ -1,0 +1,59 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/detect-leaks",
+  "files": [
+    {
+      "file": "clean.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "clean.test.ts",
+            "path": [
+              "clean"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "leak.test.ts",
+      "status": "crashed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    EXPERIMENTAL FEATURE!\n    Your test suite is leaking memory. Please ensure all references are cleaned.\n\n    There is a number of things that can leak memory:\n      - Async operations that have not finished (e.g. fs.readFile).\n      - Timers not properly mocked (e.g. setInterval, setTimeout).\n      - Keeping references to the global scope."
+      },
+      "tests": []
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "      - Async operations that have not finished (e.g. fs.readFile).\n      - Keeping references to the global scope.\n      - Timers not properly mocked (e.g. setInterval, setTimeout).\n    EXPERIMENTAL FEATURE!\n    There is a number of things that can leak memory:\n    Your test suite is leaking memory. Please ensure all references are cleaned.\n  ● Test suite failed to run\nFAIL ./leak.test.ts\nPASS ./clean.test.ts\nTest Suites: 1 failed, 1 passed, 2 total\nTests:       1 passed, 1 total"
+  }
+}

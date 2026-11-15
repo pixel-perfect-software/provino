@@ -44,18 +44,29 @@ export function lexerExtractor(): EdgeExtractor {
 
 /**
  * A `DependencyExtractor` (Jest's custom `dependencyExtractor` shape) as an `EdgeExtractor`: it
- * is given the lexer's as its fallback, and its `cacheKey` is part of its identity.
+ * is given `fallback`'s extract (the lexer's when none is given) as its fallback, and its
+ * `cacheKey` and the fallback's identity are part of its identity.
  * @internal
  */
 export function customExtractor(
   extractor: DependencyExtractor,
   source: string,
   module?: string,
+  fallback?: EdgeExtractor,
 ): EdgeExtractor {
   const code = module === undefined ? '' : moduleIdentity(module)
+  const defaults =
+    fallback === undefined
+      ? lexerSpecifiers
+      : (text: string, path: string): readonly string[] => fallback.extract(text, path)
+  // jest-haste-map's worker calls `extractor.extract(content, filePath, defaultExtract)`, where the
+  // default takes the code alone and returns a fresh `Set<string>`: an extractor may `.add` to it
+  // (`const deps = defaultExtract(code); deps.add('x'); return deps`).
   return {
-    identity: `custom:${source}:${code}:${extractor.cacheKey ?? ''}:${engineIdentity()}`,
-    extract: (code, path) => [...extractor.extract(code, path, lexerSpecifiers)],
+    identity: `custom:${source}:${code}:${extractor.cacheKey ?? ''}:${fallback?.identity ?? ''}:${engineIdentity()}`,
+    extract: (text, path) => [
+      ...extractor.extract(text, path, (inner) => new Set(defaults(inner, path))),
+    ],
   }
 }
 
@@ -104,10 +115,13 @@ export async function loadExtractor(
   projectRef?: ModuleRef,
 ): Promise<EdgeExtractor> {
   if (projectRef !== undefined) {
+    // Its fallback is the policy's extractor (haste's under Jest: jest-haste-map hands a custom
+    // `dependencyExtractor` its default one), else the lexer.
     return customExtractor(
       await importProjectExtractor(projectRef),
       projectRef.module,
       projectRef.module,
+      await loadExtractor(policyExtractor),
     )
   }
   if (policyExtractor === null) return lexerExtractor()

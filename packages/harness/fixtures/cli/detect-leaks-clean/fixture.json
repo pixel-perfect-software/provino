@@ -1,0 +1,11 @@
+{
+  "description": "`--detectLeaks` on files that leak nothing under Jest 30.5.2 (B23d A4): both pass, with Jest's usual output and exit code 0. One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["--detectLeaks"] },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^Test Suites:|^Tests:|leaking",
+    "sortStdout": true
+  }
+}

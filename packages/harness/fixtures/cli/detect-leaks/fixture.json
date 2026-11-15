@@ -1,0 +1,11 @@
+{
+  "description": "`--detectLeaks` under Jest 30.5.2 (B23d A4): a file that leaves a function of its own on a shared core module (`fs`) keeps its environment reachable after teardown, so Jest fails that file with `EXPERIMENTAL FEATURE!` and its list of causes (a file-level failure, not a test failure); the clean file passes. One Jest worker. A black-box run.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["--detectLeaks"] },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^Test Suites:|^Tests:|^  ● |EXPERIMENTAL|leaking|There is a number|^ +- ",
+    "sortStdout": true
+  }
+}

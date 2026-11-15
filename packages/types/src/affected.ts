@@ -38,16 +38,13 @@ export type ChangedFilesProvider = (options: ChangedFilesOptions) => Promise<Cha
 
 /**
  * Reads the specifiers a file's code depends on. This is the shape of Jest's custom
- * `dependencyExtractor`: `fallback` is the default extractor over the same code, and `cacheKey`
+ * `dependencyExtractor`: `fallback` is the default extractor over the same code, a fresh `Set` the
+ * extractor may add to (jest-haste-map hands it so), and `cacheKey`
  * names the extractor's version for the edge cache.
  * @public
  */
 export interface DependencyExtractor {
-  extract(
-    code: string,
-    path: string,
-    fallback: (code: string) => Iterable<string>,
-  ): Iterable<string>
+  extract(code: string, path: string, fallback: (code: string) => Set<string>): Iterable<string>
   readonly cacheKey?: string
 }
 

@@ -86,6 +86,9 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'orchestrator.shard.fallback': ['sha1-slice', 'path-slice'],
   'orchestrator.globalSetup.signature': ['global-and-project-config', 'project-with-teardown'],
   'orchestrator.globalSetup.teardownOrder': ['in-order', 'reverse'],
+  'orchestrator.affected.invalidateAll': ['project-inputs', 'none'],
+  'orchestrator.affected.graph': ['static', 'recorded-then-static'],
+  'orchestrator.affected.conditions': ['environment', 'none'],
   'report.resultStatusSkipped': ['pending', 'skipped'],
   'coverage.thresholdGrouping': ['every-match', 'all-files'],
   'coverage.globThresholdScope': ['per-file', 'aggregate'],
@@ -117,6 +120,10 @@ const REF_FLIPS: Readonly<Record<string, readonly unknown[]>> = {
   // The four `cli/global-setup-throws*` recordings word a failing hook as Jest's behaviour does; the
   // neutral wording must fail them (the claim calls the ref it is given).
   'orchestrator.globalSetup.failure': [neutralPolicy.orchestrator.globalSetup.failure],
+  // The neutral values: no provider (`-o` refused) and the lexer, which reads a commented
+  // `require` and misses `jest.requireActual` (`changed/related-extractor-*`).
+  'orchestrator.changedFiles': [neutralPolicy.orchestrator.changedFiles],
+  'orchestrator.affected.extractor': [neutralPolicy.orchestrator.affected.extractor],
 }
 
 /** The suffix a flipped free-text value gains. */

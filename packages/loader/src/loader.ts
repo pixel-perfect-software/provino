@@ -141,6 +141,7 @@ export const createLoader: CreateLoader = (options) => {
       },
       // Counted per file under `none` (`beginFile`), every instance of a file's own registry.
       loadedModules: () => registry.loadedByFile(),
+      leakTargets: () => [registry],
       dispose: () => {
         mocks?.dispose()
         // What the file inlined, for its report; under `none` the instances go too, so the next

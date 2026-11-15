@@ -208,6 +208,11 @@ export interface CliOptions {
   readonly env?: Readonly<Record<string, string>>
   /** Node flags before the bin (`--import <preload>`). */
   readonly nodeArgs?: readonly string[]
+  /**
+   * The whole environment the bin starts from, in place of `outputFree()` (which `env` is still
+   * added to). For a replay that builds its own, as the recorder builds the runner's.
+   */
+  readonly baseEnv?: NodeJS.ProcessEnv
 }
 
 /** A bin process that is running, and how to follow it. */
@@ -240,11 +245,23 @@ export interface Spawned {
  * suite.
  */
 export function startCli(args: readonly string[], options: CliOptions = {}): LiveCli {
-  const { cwd = tmpdir(), deadlineMs = 90_000, detached = false, env = {}, nodeArgs = [] } = options
+  const {
+    cwd = tmpdir(),
+    deadlineMs = 90_000,
+    detached = false,
+    env = {},
+    nodeArgs = [],
+    baseEnv,
+  } = options
   const child = spawn(
     process.execPath,
     ['--conditions=provino-source', ...nodeArgs, CLI, ...args],
-    { cwd, detached, stdio: ['ignore', 'pipe', 'pipe'], env: { ...outputFree(), ...env } },
+    {
+      cwd,
+      detached,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      env: { ...(baseEnv ?? outputFree()), ...env },
+    },
   )
   let stdout = ''
   let stderr = ''
