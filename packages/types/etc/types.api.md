@@ -975,6 +975,9 @@ export interface ExpectTable {
 }
 
 // @public
+export type ExternalLoadWatcher = (path: string) => () => boolean;
+
+// @public
 export interface FactoryReferenceRule {
     // (undocumented)
     readonly allowGlobals: ReadonlySet<string>;
@@ -1694,7 +1697,10 @@ export interface Loader extends Disposable {
     // (undocumented)
     getSourceMap(id: ModuleId): SourceMapV3 | null;
     onModuleCompiled(listener: (event: CompiledModuleEvent) => void): () => void;
+    reevaluatedExternals(): readonly string[];
+    reevaluateExternals(paths: readonly string[]): void;
     tierFor(testFile: string, sources: TierSources): TierChoice;
+    watchExternalLoads(watcher: ExternalLoadWatcher): () => void;
 }
 
 // @public
@@ -2070,6 +2076,7 @@ export interface ModulePolicy {
     readonly mockResolveKind: "require" | "import";
     readonly mocksReachShared: boolean;
     readonly mockValueOwner: "module-registry" | "registration";
+    readonly reevaluateHookingExternals: boolean;
     readonly requireVirtualFlag: boolean;
     readonly resetModulesBetween: boolean;
     readonly resetModulesClearsMocks: boolean;
@@ -3035,6 +3042,7 @@ export interface SerializedLoaderConfig {
     readonly moduleDirectories?: readonly string[];
     readonly modulePaths?: readonly string[];
     readonly moduleScope: readonly string[];
+    readonly reevaluate?: readonly string[];
     readonly resolver?: ModuleRef;
     readonly scopeMappable?: readonly string[];
     readonly scopeModules?: readonly string[];
@@ -3825,6 +3833,7 @@ export type WorkerToCoordinator = {
     readonly snapshot?: SnapshotFileReport;
     readonly leaks?: true;
     readonly heapUsedBytes?: number;
+    readonly reevaluated?: readonly string[];
 } | {
     readonly t: "stopped";
 } | RpcCall<CoordinatorMethods> | RpcReply<WorkerMethods>;
