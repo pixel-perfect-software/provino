@@ -577,6 +577,40 @@ describe('liveCounters (B23e, D128)', () => {
     assert.deepEqual([report.added, report.updated, report.matched, report.unmatched], [1, 2, 3, 4])
   })
 
+  // `ecosystem/image-snapshot-retry` (Jest 30.5.2): `clear(test)` takes back jest-snapshot's own
+  // record, which a matcher writing the fields directly is not part of.
+  test('a retry leaves what a matcher outside Provino wrote, as Jest`s clear(test) does', () => {
+    const state = stateIn(tempDir())
+    const counters = state.liveCounters
+    // jest-image-snapshot's first attempt: its counter, and an image written.
+    counters.set('t', 1)
+    state.added += 1
+    state.clearTest('a')
+    assert.equal(counters.get('t'), 1, 'the counter it set stays')
+    assert.equal(state.added, 1, 'the image it counted stays')
+  })
+
+  test('a retry puts back the counter as it was before its own first snapshot', () => {
+    const state = stateIn(tempDir())
+    const counters = state.liveCounters
+    // `image then snapshot`: the image's count, then `toMatchSnapshot` is the test's second.
+    counters.set('t', 1)
+    state.added += 1
+    assert.equal(
+      state.match({ testName: 't', received: 1, isInline: false, testId: 'a' }).key,
+      't 2',
+    )
+    state.clearTest('a')
+    assert.equal(counters.get('t'), 1, 'back to the image`s count, not to none')
+    assert.equal(state.added, 1, 'the snapshot`s count is taken back, the image`s is not')
+    // The retry: the image again, then the snapshot is the third, as Jest's `.snap` has it.
+    counters.set('t', 2)
+    assert.equal(
+      state.match({ testName: 't', received: 1, isInline: false, testId: 'a' }).key,
+      't 3',
+    )
+  })
+
   test('a retry still takes back what its own snapshots counted', () => {
     const state = stateIn(tempDir())
     state.match({ testName: 't', received: 1, isInline: false, testId: 'a' })

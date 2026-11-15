@@ -1,11 +1,13 @@
 // What a matcher finds as `this.snapshotState` (B23e, D128): the file's state, or the dialect's view
-// of it (`snapshot.contextView`). A view is built over the state and carries it under a symbol, so
-// the snapshot matchers reach the state itself whatever shape the matcher context shows.
+// of it (`snapshot.contextView`). A view is linked to the state it was built over in a module
+// `WeakMap`, so the snapshot matchers reach the state itself whatever shape the matcher context
+// shows, the view object is never written to (a frozen one works), and a link lives no longer than
+// its view.
 import type { SnapshotContextViewFactory } from '@provino/types'
 import type { SnapshotState } from './state.ts'
 
-/** Where a view keeps the state it was built over. Non-enumerable, so no walk of the view sees it. */
-const STATE = Symbol('provino.snapshotState')
+/** Each view `snapshotContextOf` built, to the state it was built over. */
+const stateOfView = new WeakMap<object, SnapshotState>()
 
 /**
  * The value for the matcher context's `snapshotState`: the state itself when the policy has no
@@ -18,7 +20,7 @@ export function snapshotContextOf(
 ): object {
   if (view === null) return state
   const context = view(state)
-  Object.defineProperty(context, STATE, { value: state })
+  stateOfView.set(context, state)
   return context
 }
 
@@ -30,5 +32,5 @@ export function snapshotContextOf(
  */
 export function unwrapSnapshotContext(value: unknown): unknown {
   if (typeof value !== 'object' || value === null) return value
-  return Object.hasOwn(value, STATE) ? Reflect.get(value, STATE) : value
+  return stateOfView.get(value) ?? value
 }

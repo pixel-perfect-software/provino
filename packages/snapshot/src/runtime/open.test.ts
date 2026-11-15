@@ -105,6 +105,20 @@ describe('the matcher context`s snapshotState (B23e, D128)', () => {
     assert.equal(unwrapSnapshotContext(opened.context), opened.state)
   })
 
+  test('may be a frozen object, which is linked to the state without being written to', () => {
+    const view = Object.freeze({ shape: 'frozen' })
+    const opened = open(() => view)
+    assert.equal(opened.context, view)
+    assert.deepEqual(Reflect.ownKeys(view), ['shape'], 'nothing was defined on it')
+    assert.equal(unwrapSnapshotContext(opened.context), opened.state)
+  })
+
+  test('a look-alike of a view is not one: only the object the factory built unwraps', () => {
+    const opened = open(() => ({ shape: 'dialect' }))
+    const copy = { ...opened.context }
+    assert.equal(unwrapSnapshotContext(copy), copy)
+  })
+
   test('anything else unwraps to itself, so the matchers can refuse it', () => {
     for (const value of [undefined, null, 1, 'state', { match() {} }]) {
       assert.equal(unwrapSnapshotContext(value), value)
