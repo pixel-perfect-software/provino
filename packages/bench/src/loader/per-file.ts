@@ -6,7 +6,7 @@
 // packages the worker has not seen, each of them a new external to index and settle. The second
 // file's load is timed, in a fresh loader per pass (`local`; no bar). A code change is measured by
 // running this on both trees.
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { createLoader } from '@provino/loader'
@@ -14,6 +14,7 @@ import { neutralPolicy } from '@provino/policy'
 import { createResolver } from '@provino/resolver'
 import { createPipeline } from '@provino/transform'
 import { median } from '../stats.ts'
+import { writePackage } from './packages.ts'
 
 /** The hub's per-file importers. */
 export const PER_FILE_MEMBERS = 3000
@@ -22,11 +23,9 @@ export const PER_FILE_FRESH = 20
 const PASSES = 5
 const WARMUP_PASSES = 1
 
-function writePackage(root: string, name: string, source: string): void {
-  const dir = join(root, 'node_modules', name)
-  mkdirSync(dir, { recursive: true })
-  writeFileSync(join(dir, 'package.json'), `{"name":"${name}","main":"index.js"}\n`)
-  writeFileSync(join(dir, 'index.js'), source)
+/** A package whose `main` is `index.js`, holding `source`. */
+function writeIndexPackage(root: string, name: string, source: string): void {
+  writePackage(root, name, [['index.js', source]], 'index.js')
 }
 
 interface Project {
@@ -36,18 +35,18 @@ interface Project {
 }
 
 function writeProject(root: string): Project {
-  writePackage(root, 'seed', 'module.exports = {}\n')
-  writePackage(root, 'hub', 'module.exports = {}\n')
-  writePackage(root, 'shared', "module.exports = require('hub')\n")
+  writeIndexPackage(root, 'seed', 'module.exports = {}\n')
+  writeIndexPackage(root, 'hub', 'module.exports = {}\n')
+  writeIndexPackage(root, 'shared', "module.exports = require('hub')\n")
   const first: string[] = []
   for (let index = 0; index < PER_FILE_MEMBERS; index++) {
-    writePackage(root, `member${index}`, "require('seed')\nmodule.exports = require('hub')\n")
+    writeIndexPackage(root, `member${index}`, "require('seed')\nmodule.exports = require('hub')\n")
     first.push(`require('member${index}')`)
   }
   first.push("require('shared')")
   const second: string[] = []
   for (let index = 0; index < PER_FILE_FRESH; index++) {
-    writePackage(root, `fresh${index}`, 'module.exports = {}\n')
+    writeIndexPackage(root, `fresh${index}`, 'module.exports = {}\n')
     second.push(`require('fresh${index}')`)
   }
   writeFileSync(join(root, 'first.js'), `${first.join('\n')}\n`)

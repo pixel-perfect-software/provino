@@ -6,7 +6,6 @@ import { after, test } from 'node:test'
 import { createResolver } from '@provino/resolver'
 import type {
   CompiledModuleEvent,
-  HoistPolicy,
   Loader,
   LoaderWarning,
   ModuleId,
@@ -16,7 +15,7 @@ import type {
   TransformClaims,
 } from '@provino/types'
 import { RequireEsmError } from './errors.ts'
-import { type LoaderOptionsExtra, loaderOptionsFor } from './internal/test-support.ts'
+import { HOIST, type LoaderOptionsExtra, loaderOptionsFor } from './internal/test-support.ts'
 import { createLoader } from './loader.ts'
 import { tierFor } from './tier.ts'
 
@@ -752,30 +751,6 @@ test('loadedModules: under none a reused ES module’s own import(variable) is s
     join(root, 'second.test.ts'),
   ])
 })
-
-/** A Jest-shaped hoist policy for this test only (the dialect's value is not used here). */
-const HOIST: HoistPolicy = {
-  id: 'loader-test',
-  objects: [{ kind: 'global', name: 'mocker' }],
-  hoistCalls: { mock: 'path-factory-options', unmock: 'one-string' },
-  hoistValues: [],
-  rewriteImportArg: [],
-  chainable: true,
-  placement: 'enclosing-block',
-  topLevelGuards: [],
-  factoryReferences: 'allow',
-  runnerModules: [],
-  reExports: 'in-order',
-  rewrittenCalls: 'detached',
-  messages: {
-    HOIST_FACTORY_OUT_OF_SCOPE: 'out of scope',
-    HOIST_FACTORY_NOT_FUNCTION: 'not a function',
-    HOIST_NOT_TOP_LEVEL: 'not top level',
-    HOIST_NESTED: 'nested',
-    HOIST_EXPORTED: 'exported',
-    HOIST_EXPORTED_VALUE: 'exported value',
-  },
-}
 
 test('loadedModules: under none a reused module’s late imports (D38) are still what the next file loaded', async () => {
   // The `mocker.mock` call hoists above the imports, so each module's own import becomes a late

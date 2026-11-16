@@ -142,8 +142,22 @@ interface Walk {
 }
 
 /**
- * Walks `path`'s closure, through node_modules files (the graph) and the user modules an edge leads
- * to (`userEdges`), until `takes` names an edge.
+ * What a walk already knows of a node_modules file it meets (not its start): a string ends the walk
+ * with that as what it found, `null` leaves the file's closure out (it holds nothing `takes` names),
+ * `undefined` walks it.
+ */
+type KnownReach = (path: string) => string | null | undefined
+
+/**
+ * Walks `path`'s closure until `takes` names an edge, node by node, so a walk that finds one early
+ * costs the files visited before it, not the whole closure (a component library's file reaches
+ * thousands). The node_modules files go depth first through the graph (`ThirdPartyGraph.visitNode`)
+ * in the order `ThirdPartyGraph.reachable` lists them: each edge is put to `takes` as the file is
+ * visited, and its target pushed as written. A user module an edge leads out to (a workspace package
+ * linked into `node_modules`) waits on its own stack, and is walked (`userEdges`) once the graph
+ * walk that found it ends, with the node_modules files it leads back to. So the first edge `takes`
+ * names is the one a walk over the whole closure's edges names first. `known` (`KnownReach`)
+ * shortens the walk with verdicts kept from earlier walks.
  */
 function walkClosure(
   state: InlineState,
@@ -151,36 +165,51 @@ function walkClosure(
   path: string,
   takes: (edge: GraphEdge, importer: string) => string | null,
   userEdges: UserEdges,
+  known?: KnownReach,
 ): Walk {
   const graph = graphOf(state, options)
   const done = new Set<string>()
-  const stack = [path]
+  const users = [path]
   let dynamic = false
   let found: string | null = null
-  while (found === null && stack.length > 0) {
-    const current = stack.pop()
-    if (current === undefined || done.has(current)) continue
-    done.add(current)
-    if (inGraph(current)) {
-      const closure = graph.edgesOf(current)
-      for (const member of closure.paths) done.add(member)
-      if (closure.dynamic) dynamic = true
-      for (const { importer, edge } of closure.edges) {
-        found = takes(edge, importer)
-        if (found !== null) break
-        // An edge out of node_modules that `takes` passes is a user module the loader can read.
-        if (isFileTarget(edge.target) && !inGraph(edge.target)) stack.push(edge.target)
-      }
-    } else {
-      const edges = userEdges(current)
+  while (found === null && users.length > 0) {
+    const start = users.pop()
+    if (start === undefined || done.has(start)) continue
+    if (!inGraph(start)) {
+      done.add(start)
+      const edges = userEdges(start)
       if (edges === null) {
         dynamic = true
         continue
       }
       for (const edge of edges) {
+        found = takes(edge, start)
+        if (found !== null) break
+        if (isFileTarget(edge.target) && !done.has(edge.target)) users.push(edge.target)
+      }
+      continue
+    }
+    const files = [start]
+    while (found === null && files.length > 0) {
+      const current = files.pop()
+      if (current === undefined || done.has(current)) continue
+      done.add(current)
+      const verdict = current === path ? undefined : known?.(current)
+      if (verdict === null) continue
+      if (verdict !== undefined) {
+        found = verdict
+        break
+      }
+      const node = graph.visitNode(current)
+      if (node === undefined) continue
+      if (node.dynamic) dynamic = true
+      for (const edge of node.edges) {
         found = takes(edge, current)
         if (found !== null) break
-        if (isFileTarget(edge.target)) stack.push(edge.target)
+        if (!isFileTarget(edge.target) || done.has(edge.target)) continue
+        // An edge out of node_modules that `takes` passes is a user module the loader can read.
+        if (inGraph(edge.target)) files.push(edge.target)
+        else users.push(edge.target)
       }
     }
   }
@@ -189,7 +218,7 @@ function walkClosure(
 
 /**
  * The first id among the edges `path` reaches that `mocks` takes, or `null` when none is. `path` is
- * a real file under `node_modules`; the graph is extended to its closure first. The walk goes on
+ * a real file under `node_modules`; the walk (`walkClosure`) ends at that edge. It goes on
  * through a user module an edge leads to (`userEdges`) and through the node_modules files it leads
  * back to. The verdict is kept until the mocks change, and a negative one holds for every
  * node_modules file the walk covered, since each reaches no more than `path` does.
@@ -248,10 +277,13 @@ export function mockedReach(
 }
 
 /**
- * `path`'s verdict in `known`, or the closure walk's: true when `direct` (a check of the file
- * itself, made before any walk) holds or `takes` names an edge of its closure. A positive verdict
- * is kept for `path`, and a negative one for every node_modules file the walk covered, since each
- * reaches no more than `path` does.
+ * `path`'s verdict in `known`, or a walk's: true when `direct` (a check of the file itself, made
+ * before any walk) holds or `takes` names an edge of its closure. A positive verdict is kept for
+ * `path`, and a negative one for every node_modules file the walk covered, since each reaches no
+ * more than `path` does. The walk (`walkClosure`) stops at the first edge `takes` names, and at a
+ * file with a verdict in `known` already: a positive one ends it, a negative one has nothing to add.
+ * The verdict is the same as a walk over the whole closure's edges: it is whether any edge of the
+ * same reachable set is one `takes` names.
  */
 function cachedReach(
   known: Map<string, boolean>,
@@ -268,7 +300,10 @@ function cachedReach(
     known.set(path, true)
     return true
   }
-  const { found, done } = walkClosure(state, options, path, takes, userEdges)
+  const { found, done } = walkClosure(state, options, path, takes, userEdges, (file) => {
+    const verdict = known.get(file)
+    return verdict === undefined ? undefined : verdict ? file : null
+  })
   if (found !== null) {
     known.set(path, true)
     return true
@@ -286,7 +321,8 @@ function cachedReach(
  *
  * The external's own edges are read first: one that requests a served module itself is inlined
  * without building its closure (`requestsDirectly`). Only otherwise is the closure walked (on a
- * cold graph, about 0.15 s for jsdom's closure, `local`; read from the graph cache on later runs).
+ * cold graph, about 170 ms for jsdom's 1,107 files, `local`; read from the graph cache on later
+ * runs).
  *
  * Limit: a request the scan can't read (a computed `require(name)` or `import(name)`, the closure's
  * `dynamic` flag) is not seen, so a package that reaches a served module only that way stays shared
@@ -379,6 +415,11 @@ function dynamicBound(state: InlineState, path: string): ReadonlySet<string> | n
  * (`userEdges`). A file's own edges are read from its graph node, not from the closure's
  * deduplicated list, which names only the first importer of each request. `elsewhere` says which
  * files are evaluated per file for another reason (a served module), `null` when none can be.
+ *
+ * The walk goes node by node (`ThirdPartyGraph.visitNode`) and does not descend into a file that is
+ * indexed already: every walk indexes a whole closure, so that file's closure is indexed too. A
+ * walk from an external whose closure is mostly known (a component beside the ones a file loaded
+ * before it) costs the files that are new, not the whole closure each time.
  */
 function indexClosure(
   state: InlineState,
@@ -395,22 +436,18 @@ function indexClosure(
   while (stack.length > 0) {
     const current = stack.pop()
     if (current === undefined || perFile.edges.has(current)) continue
-    if (!inGraph(current)) {
-      const targets = fileTargets(userEdges(current) ?? NO_EDGES)
+    let targets: readonly string[]
+    if (inGraph(current)) {
+      const node = graph.visitNode(current)
+      if (node === undefined) continue
+      targets = fileTargets(node.edges)
+      const bound = node.dynamic ? dynamicBound(state, current) : null
+      indexFile(perFile, current, targets, bound, elsewhere?.(current) ?? false, keep)
+    } else {
+      targets = fileTargets(userEdges(current) ?? NO_EDGES)
       indexFile(perFile, current, targets, null, elsewhere?.(current) ?? false, keep)
-      for (const target of targets) if (!perFile.edges.has(target)) stack.push(target)
-      continue
     }
-    graph.add(current)
-    for (const { path: member, node } of graph.reachable(current)) {
-      if (perFile.edges.has(member)) continue
-      const targets = fileTargets(node.edges)
-      const bound = node.dynamic ? dynamicBound(state, member) : null
-      indexFile(perFile, member, targets, bound, elsewhere?.(member) ?? false, keep)
-      for (const target of targets) {
-        if (!inGraph(target) && !perFile.edges.has(target)) stack.push(target)
-      }
-    }
+    for (const target of targets) if (!perFile.edges.has(target)) stack.push(target)
   }
 }
 
@@ -530,7 +567,11 @@ export function packageClosure(
 ): readonly string[] {
   const own = packageDirOf(path)
   if (own === null) return []
-  return graphOf(state, options)
-    .edgesOf(path)
-    .paths.filter((member) => packageDirOf(member) === own)
+  const graph = graphOf(state, options)
+  graph.add(path)
+  const files: string[] = []
+  for (const entry of graph.reachable(path)) {
+    if (packageDirOf(entry.path) === own) files.push(entry.path)
+  }
+  return files
 }

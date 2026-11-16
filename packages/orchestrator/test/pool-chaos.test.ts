@@ -224,6 +224,55 @@ describe('recycling over real forks (T9.5)', () => {
     }
   })
 
+  it('a fork whose RSS is over the limit and whose heapUsed is under it is not replaced (jest-worker compares heapUsed)', async () => {
+    // 256 MB of Buffer memory, written so the pages are resident, held on `process` (shared by
+    // every file of the fork): RSS is far over the 128 MiB limit, the isolate's heap is not.
+    const files = Object.fromEntries(
+      Array.from({ length: 6 }, (_, i) => [
+        `native-${i}.test.js`,
+        `test('holds native memory', () => {
+  process.__native ??= Buffer.alloc(256 * 1024 * 1024, 1)
+  expect(process.__native.length).toBe(256 * 1024 * 1024)
+})
+`,
+      ]),
+    )
+    const run = await chaos('forks', {
+      files,
+      pool: { maxWorkers: 1, recycle: { memoryLimitBytes: 128 * 1024 * 1024 } },
+    })
+    try {
+      assert.equal(run.reason, 'passed', run.stderr)
+      assert.equal(new Set(run.workerPids).size, 1, 'one worker serves all six files')
+    } finally {
+      killGroup(run.pgid)
+    }
+  })
+
+  it('a fork whose heapUsed grows past the limit is replaced', async () => {
+    // Held on `process`, so it survives the file: 2e7 slots is about 160 MB of heap.
+    const files = Object.fromEntries(
+      Array.from({ length: 4 }, (_, i) => [
+        `heap-${i}.test.js`,
+        `test('holds heap', () => {
+  process.__heap = new Array(20_000_000).fill(${i})
+  expect(process.__heap.length).toBe(20_000_000)
+})
+`,
+      ]),
+    )
+    const run = await chaos('forks', {
+      files,
+      pool: { maxWorkers: 1, recycle: { memoryLimitBytes: 100 * 1024 * 1024 } },
+    })
+    try {
+      assert.equal(run.reason, 'passed', run.stderr)
+      assert.equal(new Set(run.workerPids).size, 4, 'four files, four workers')
+    } finally {
+      killGroup(run.pgid)
+    }
+  })
+
   it('without a limit one worker serves every file (the control)', async () => {
     const run = await chaos('forks', {
       files: passingFiles(6),
