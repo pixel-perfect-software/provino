@@ -376,4 +376,25 @@ describe('loadJestReporters', () => {
       },
     )
   })
+
+  it('reports the innermost error when what a module threw wraps another one', async () => {
+    const path = await reporterModule(
+      "throw new Error('wrapper', { cause: new Error('the original error') })\n",
+    )
+    await assert.rejects(
+      loadJestReporters({
+        steps: [{ kind: 'custom', path, options: {} }],
+        summary: undefined,
+      }),
+      (error: Error) => {
+        assert.equal(
+          error.message,
+          `An error occurred while adding the reporter at path "${path}".\nthe original error`,
+        )
+        assert.ok(error.cause instanceof Error)
+        assert.equal(error.cause.message, 'wrapper')
+        return true
+      },
+    )
+  })
 })
