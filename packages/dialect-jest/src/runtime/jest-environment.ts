@@ -22,6 +22,7 @@ import type {
 } from '@provino/types'
 import { projectJestRequireResolve } from '../jest-require.ts'
 import { type CircusConfig, createCircusMirror, type HandleTestEvent } from './circus-mirror.ts'
+import { installWindowTimers, type WindowTimers } from './window-timers.ts'
 
 /**
  * What the adapter is given (JSON, so it crosses to a worker): where the class is and the parts of
@@ -108,9 +109,15 @@ function circusConfigOf(globalConfig: object): CircusConfig {
   }
 }
 
+/** What `prepare` gives `setup`: the class, and the worker's timer wrappers (`window-timers.ts`). */
+interface PreparedJest {
+  readonly EnvironmentClass: JestEnvironmentClass
+  readonly timers: WindowTimers
+}
+
 async function setUpJest(
   context: EnvironmentSetupContext<{ readonly [key: string]: JsonValue }>,
-  EnvironmentClass: JestEnvironmentClass,
+  { EnvironmentClass, timers }: PreparedJest,
   projectConfig: object,
   globalConfig: object = {},
 ): Promise<EnvironmentInstance> {
@@ -123,10 +130,13 @@ async function setUpJest(
     { console: context.console, docblockPragmas: context.pragmas, testPath: context.testPath },
   )
   let populated: Populated | undefined
+  // Only a window stands in for the global: a Node or edge environment's code must not see one.
+  const isWindow = 'document' in environment.global
+  // The timers a window file sets die with its window, as `window.close()` cancels jsdom's in Jest;
+  // a Node environment's outlive the file, as Node's do there.
+  if (isWindow) timers.begin()
   try {
     await environment.setup()
-    // Only a window stands in for the global: a Node or edge environment's code must not see one.
-    const isWindow = 'document' in environment.global
     // A window's methods (`dispatchEvent`, `addEventListener` and the rest of `EventTarget`'s) check
     // their receiver: read off the worker's global they would run with the wrong `this`, so they
     // are bound to the window, as `@provino/env-jsdom` does. In Jest the test runs inside the window.
@@ -149,6 +159,7 @@ async function setUpJest(
   } catch (error) {
     // Jest tears the environment down even when its setup threw: its window, timers and
     // half-defined accessors must not outlive the failed file.
+    if (isWindow) timers.cancelPending()
     try {
       await environment.teardown()
     } catch {
@@ -172,6 +183,9 @@ async function setUpJest(
     ...(listener === undefined ? {} : { onTestEvent: listener }),
     async teardown(): Promise<EnvironmentTeardownReport | undefined> {
       let failure: { readonly error: unknown } | undefined
+      // First, as `window.close()` is the first thing that stops the window's timers in Jest: no
+      // timer the file left fires while the class tears down or once the window is gone.
+      if (isWindow) timers.cancelPending()
       try {
         await environment.teardown()
       } catch (error) {
@@ -199,16 +213,13 @@ export const jestEnvironment: Environment<'jest-environment', JestEnvironmentOpt
   realms: ['worker'],
   async prepare(options) {
     const { module } = optionsOf(options)
-    return classOf(await import(pathToFileURL(module).href), module)
+    const EnvironmentClass = classOf(await import(pathToFileURL(module).href), module)
+    // Once per worker, before any test file loads a package that captures the timers.
+    return { EnvironmentClass, timers: installWindowTimers() } satisfies PreparedJest
   },
   setup(context, prepared) {
     const options = optionsOf(context.options)
-    return setUpJest(
-      context,
-      prepared as JestEnvironmentClass,
-      options.projectConfig,
-      options.globalConfig,
-    )
+    return setUpJest(context, prepared as PreparedJest, options.projectConfig, options.globalConfig)
   },
 }
 
@@ -225,7 +236,18 @@ export function fromJestEnvironment(
   return {
     name: 'jest-environment',
     realms: ['worker'],
-    setup: (context) => setUpJest(context, EnvironmentClass, projectConfig, globalConfig),
+    prepare: () => ({ EnvironmentClass, timers: installWindowTimers() }) satisfies PreparedJest,
+    // A caller that never prepared gets the wrappers now (one per global, so the same ones).
+    setup: (context, prepared) =>
+      setUpJest(
+        context,
+        (prepared as PreparedJest | undefined) ?? {
+          EnvironmentClass,
+          timers: installWindowTimers(),
+        },
+        projectConfig,
+        globalConfig,
+      ),
   }
 }
 
