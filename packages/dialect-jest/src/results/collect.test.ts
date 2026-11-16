@@ -387,12 +387,7 @@ describe('createJestResults', () => {
 
   /** The run's end as the bus gives it, then the reporters' verdict (none failed). */
   async function endRun(results: ReturnType<typeof createJestResults>): Promise<void> {
-    await results.reporter['run:end']?.({
-      reason: 'passed',
-      files: [],
-      unhandled: [],
-      durationMs: 1,
-    })
+    await results.reporter['run:end']?.({ ...SUMMARY, reason: 'passed' })
     results.reportersFailed(false)
   }
 
@@ -409,6 +404,53 @@ describe('createJestResults', () => {
     assert.equal(results.aggregated().numRuntimeErrorTestSuites, 0)
     await endRun(results)
     assert.equal(results.aggregated().success, false)
+  })
+
+  it('fails a file whole for a runner’s error, even one charged to one of its tests', async () => {
+    // The one place `runnerFailed` shows: a file with no test result is Jest's "must contain at
+    // least one test" unless its runner failed it (`toTestResult`). The root lists no test here, so
+    // the test the error is charged to is a task of the file but has no result.
+    const statusFor = async (origin: string): Promise<string | undefined> => {
+      const results = fresh()
+      const info = infoOf('a.test.ts')
+      const own = testOf('a.test.ts', 'here')
+      await results.reporter['file:start']?.(info, 1)
+      await results.reporter['file:collected']?.(info, {
+        type: 'file-collect-end',
+        fileId: info.fileId,
+        tasks: [
+          {
+            type: 'file',
+            id: info.fileId,
+            parentId: null,
+            fileId: info.fileId,
+            name: info.path,
+            mode: 'run',
+            location: null,
+            tags: [],
+            meta: {},
+            path: info.path,
+            projectName: 'p',
+            children: [],
+          },
+          own,
+        ],
+        errors: [],
+        t: 0,
+      })
+      await results.reporter.unhandled?.(info, {
+        type: 'unhandled-error',
+        ownerId: own.id,
+        lastTestId: own.id,
+        origin,
+        error: retry('the environment’s teardown threw'),
+        t: 0,
+      } as never)
+      await results.reporter['file:end']?.({ file: info, state: 'fail', durationMs: 1, errors: [] })
+      return results.testResultOf(info.fileId)?.testExecError?.message
+    }
+    assert.match((await statusFor('runner')) ?? '', /teardown threw/)
+    assert.match((await statusFor('uncaughtException')) ?? '', /must contain at least one test/)
   })
 
   it('fails the test an error was charged to after it ended, with the error, as circus’s test.errors', async () => {
