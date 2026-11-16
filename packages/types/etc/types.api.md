@@ -2260,6 +2260,7 @@ export interface NeutralResolution {
 
 // @public
 export interface NeutralTransform {
+    readonly checksMockFactories?: boolean;
     // (undocumented)
     readonly module: string;
     // (undocumented)
@@ -3109,6 +3110,7 @@ export interface SerializedProjectConfig {
 
 // @public
 export interface SerializedTransform {
+    readonly checksMockFactories?: boolean;
     // (undocumented)
     readonly options: JsonValue;
     // (undocumented)
