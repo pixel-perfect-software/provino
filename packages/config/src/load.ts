@@ -88,34 +88,24 @@ export function interopDefault(value: unknown): unknown {
 }
 
 /**
- * Imports a config module and returns its default export, unwrapped as `interopRequireDefault`
- * does for a CommonJS file compiled from `export default`: how `loadConfigFile` reads a
- * `provino.config.*` (build-plan §6). The Jest dialect reads Jest's files as jest-util's
- * `requireOrImportModule` does instead (cached, as in Jest). Node's own loader reads the file, so `.mjs`, `.js` (per the nearest `package.json`'s `type`),
- * `.mts` and `.ts` load as Node loads them (type stripping needs Node 22.18+, or
- * `--experimental-strip-types`). Every call reads the file again (see `freshUrl`).
- *
- * A module with no default export is `CONFIG_INVALID`, unless `withoutDefault` is `'namespace'`:
- * then its namespace is the value, as `require()` of such a module gives it (Jest reads a
- * `jest.config.ts` with only named exports that way).
+ * Imports a `provino.config.*` and returns its default export, unwrapped as
+ * `interopRequireDefault` does for a CommonJS file compiled from `export default`: how
+ * `loadConfigFile` reads it (build-plan §6). The Jest dialect reads Jest's files as jest-util's
+ * `requireOrImportModule` does instead (cached, as in Jest). Node's own loader reads the file, so
+ * `.mjs`, `.js` (per the nearest `package.json`'s `type`), `.mts` and `.ts` load as Node loads them
+ * (type stripping needs Node 22.18+, or `--experimental-strip-types`). Every call reads the file
+ * again (see `freshUrl`).
  *
  * Throws `ConfigError`: `CONFIG_LOAD_FAILED` when the import throws (the error is the `cause`),
- * `CONFIG_INVALID` when the module has no default export (see above).
- * @public
+ * `CONFIG_INVALID` when the module has no default export.
  */
-export async function importConfigModule(
-  path: string,
-  options: { readonly withoutDefault?: 'error' | 'namespace' } = {},
-): Promise<unknown> {
+async function importConfigModule(path: string): Promise<unknown> {
   const file = resolve(path)
   let namespace: unknown
   try {
     namespace = await importFresh(file)
   } catch (cause) {
     throw new ConfigError('CONFIG_LOAD_FAILED', `can't load the config file "${file}"`, { cause })
-  }
-  if (isRecord(namespace) && !('default' in namespace) && options.withoutDefault === 'namespace') {
-    return namespace
   }
   if (!isRecord(namespace) || !('default' in namespace)) {
     throw new ConfigError(

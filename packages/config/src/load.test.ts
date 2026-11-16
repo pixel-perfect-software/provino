@@ -5,7 +5,7 @@ import { after, before, describe, test } from 'node:test'
 import type { ConfigEnv } from '@provino/types'
 import { ConfigError } from './errors.ts'
 import { makeTempDir, rejectsWith, type TempDir } from './internal/test-support.ts'
-import { importConfigModule, loadConfigFile, loadProject } from './load.ts'
+import { loadConfigFile, loadProject } from './load.ts'
 
 const ENV: ConfigEnv = { command: 'run', mode: 'test' }
 
@@ -277,7 +277,7 @@ describe('loading the same file again', () => {
   test('loads of one CommonJS file at the same time all succeed, and each runs the file', async () => {
     const path = await temp.write('at-once/provino.config.cjs', countingCjs('__provinoAtOnceLoads'))
     try {
-      const loaded = await Promise.all(Array.from({ length: 4 }, () => importConfigModule(path)))
+      const loaded = await Promise.all(Array.from({ length: 4 }, () => loadConfigFile(path, ENV)))
       for (const config of loaded) assert.deepEqual(config, { include: ['src/**'] })
       assert.equal(Reflect.get(globalThis, '__provinoAtOnceLoads'), 4)
     } finally {
@@ -294,7 +294,7 @@ describe('loading the same file again', () => {
     const alias = join(temp.dir, 'spelled-alias', 'provino.config.cjs')
     try {
       const loaded = await Promise.all(
-        [path, alias, path, alias].map((file) => importConfigModule(file)),
+        [path, alias, path, alias].map((file) => loadConfigFile(file, ENV)),
       )
       for (const config of loaded) assert.deepEqual(config, { include: ['src/**'] })
       assert.equal(Reflect.get(globalThis, '__provinoSpelledLoads'), 4)
