@@ -138,6 +138,8 @@ interface MutableFile {
   /** The child order of each suite a randomized run shuffled. */
   orders: Map<TaskId, readonly TaskId[]>
   unhandled: SerializedError[]
+  /** Errors charged to one of the file's tests after it ended, by test. */
+  late: Map<TaskId, SerializedError[]>
   /** The file's `console` calls, as `BufferedConsole` keeps them. */
   console: ConsoleEntry[]
 }
@@ -154,7 +156,9 @@ export function createJestResults<Config extends ProjectConfigLike>(
   const { globalConfig, projectConfigs } = options
   let aggregated = makeEmptyAggregatedTestResult()
   /** How the run ended, kept for `reportersFailed`. */
-  let ended: Pick<RunEnd, 'reason' | 'snapshots'> | undefined
+  let ended: Pick<RunEnd, 'reason' | 'snapshots' | 'runErrors'> | undefined
+  /** Whether an unhandled error no file owns reached the run (`RunEnd.runErrors`). */
+  let runErrors = false
   aggregated.success = false
   const files = new Map<TaskId, MutableFile>()
   const results = new Map<TaskId, TestResult>()
@@ -184,6 +188,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
     records: new Map(),
     orders: new Map(),
     unhandled: [],
+    late: new Map(),
     console: [],
   })
   const stateOf = (info: FileInfo): MutableFile => {
@@ -203,6 +208,30 @@ export function createJestResults<Config extends ProjectConfigLike>(
     file.records.set(id, fresh)
     return fresh
   }
+  /**
+   * Puts the errors charged to each test after it ended on its result: the test fails (jest-circus
+   * reads `test.errors` when the run ends, so an error pushed after `test_done` still fails it). A
+   * test with no result keeps them as the file's.
+   */
+  const chargeLate = (file: MutableFile): void => {
+    for (const [id, errors] of file.late) {
+      const known = record(file, id)
+      const result = known?.result
+      if (known === undefined || result === undefined) {
+        file.unhandled.push(...errors)
+        continue
+      }
+      file.records.set(id, {
+        ...known,
+        result: {
+          ...result,
+          state: result.state === 'pass' ? 'fail' : result.state,
+          errors: [...result.errors, ...errors],
+        },
+      })
+    }
+    file.late.clear()
+  }
 
   const reporter: Reporter = {
     name: 'jest-results',
@@ -210,6 +239,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
       aggregated = makeEmptyAggregatedTestResult()
       aggregated.success = false
       ended = undefined
+      runErrors = false
       aggregated.numTotalTestSuites = all.length
       aggregated.startTime = now()
       files.clear()
@@ -257,22 +287,36 @@ export function createJestResults<Config extends ProjectConfigLike>(
       file.records.set(task.id, { ...known, result: event.result })
     },
     unhandled: (info, event) => {
-      if (info === null) return
+      // An error no file owns (a test's timer that threw after its file ended, in the worker's idle
+      // time) is the run's: Jest's process would have crashed on it, so the run fails.
+      if (info === null) {
+        runErrors = true
+        return
+      }
       const file = stateOf(info)
-      // An error charged to a test of another file isn't this file's (the worker reported it while
-      // it ran this one): it stays in the run's `unhandled`, out of the file's results.
       const { ownerId } = event
-      const ours =
-        ownerId === null ||
-        ownerId === info.fileId ||
-        (file.tree?.some((node) => node.id === ownerId) ?? false)
-      if (!ours) return
-      file.unhandled.push(event.error)
-      if (event.origin === 'runner') file.runnerFailed = true
+      const owner = ownerId === null ? undefined : file.tree?.find((node) => node.id === ownerId)
+      // One charged to a test after it ended is that test's error, as circus pushes it on the
+      // owner's `test.errors` and reads them at `run_finish` (`cli/uncaught-during-test`).
+      if (ownerId !== null && owner?.type === 'test') {
+        const late = file.late.get(ownerId)
+        if (late === undefined) file.late.set(ownerId, [event.error])
+        else late.push(event.error)
+        return
+      }
+      if (ownerId === null || ownerId === info.fileId || owner !== undefined) {
+        file.unhandled.push(event.error)
+        if (event.origin === 'runner') file.runnerFailed = true
+        return
+      }
+      // Charged to a test of another file (the worker reported it while it ran this one): it stays
+      // out of this file's results, and fails the run as one no file owns does.
+      runErrors = true
     },
     'file:end': async (fileResult) => {
       const info = fileResult.file
       const file = stateOf(info)
+      chargeLate(file)
       const config = configOf(info)
       const build: BuildOptions = {
         locations: config.testLocationInResults,
@@ -351,7 +395,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
       contextOf(config)
     },
     'run:end': (summary) => {
-      ended = { reason: summary.reason, snapshots: summary.snapshots }
+      ended = { reason: summary.reason, snapshots: summary.snapshots, runErrors }
       finishAggregated(aggregated, { ...ended, reporterFailed: false })
       // Jest computes `success` only after the dispatcher has run `onRunComplete` (TestScheduler.ts
       // L338-L352, L486-L491): a reporter hears `false`. `reportersFailed` settles it.

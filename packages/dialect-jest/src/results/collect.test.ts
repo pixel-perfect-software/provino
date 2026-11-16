@@ -385,7 +385,18 @@ describe('createJestResults', () => {
     assert.match(two?.retryMessages?.[0] ?? '', /only the second/)
   })
 
-  it('charges an unhandled error to the running file only when it is the file’s or one of its tests’', async () => {
+  /** The run's end as the bus gives it, then the reporters' verdict (none failed). */
+  async function endRun(results: ReturnType<typeof createJestResults>): Promise<void> {
+    await results.reporter['run:end']?.({
+      reason: 'passed',
+      files: [],
+      unhandled: [],
+      durationMs: 1,
+    })
+    results.reportersFailed(false)
+  }
+
+  it('keeps an error charged to another file’s test out of the file, and fails the run for it', async () => {
     const results = fresh()
     const other = testOf('b.test.ts', 'elsewhere')
     const own = testOf('a.test.ts', 'here')
@@ -394,16 +405,75 @@ describe('createJestResults', () => {
     })
     const stray = results.testResultOf(id('a.test.ts'))
     assert.equal(stray?.testExecError, undefined)
+    assert.equal(stray?.testResults[0]?.status, 'passed')
     assert.equal(results.aggregated().numRuntimeErrorTestSuites, 0)
+    await endRun(results)
+    assert.equal(results.aggregated().success, false)
+  })
 
-    const mine = fresh()
-    await playFile(mine, infoOf('a.test.ts'), [{ task: own, result: resultOf('pass') }], {
+  it('fails the test an error was charged to after it ended, with the error, as circus’s test.errors', async () => {
+    const results = fresh()
+    const own = testOf('a.test.ts', 'here')
+    const other = testOf('a.test.ts', 'other')
+    await playFile(
+      results,
+      infoOf('a.test.ts'),
+      [
+        { task: own, result: resultOf('pass') },
+        { task: other, result: resultOf('pass') },
+      ],
+      { unhandled: [{ ownerId: own.id, error: retry('thrown after it ended') }] },
+    )
+    const file = results.testResultOf(id('a.test.ts'))
+    assert.equal(file?.testExecError, undefined)
+    assert.deepEqual(
+      file?.testResults.map((test) => test.status),
+      ['failed', 'passed'],
+    )
+    assert.match(file?.testResults[0]?.failureMessages[0] ?? '', /thrown after it ended/)
+    assert.equal(file?.numFailingTests, 1)
+    assert.equal(file?.numPassingTests, 1)
+    const blocks = results.failureTextOf(id('a.test.ts')) ?? []
+    assert.deepEqual(
+      blocks.map((block) => block.taskId),
+      [own.id],
+    )
+    assert.match(blocks[0]?.text ?? '', /● suite › here\n\n {4}thrown after it ended/)
+  })
+
+  it('makes an error charged to the file, or to no task, the file’s exec error', async () => {
+    const results = fresh()
+    const own = testOf('a.test.ts', 'here')
+    await playFile(results, infoOf('a.test.ts'), [{ task: own, result: resultOf('pass') }], {
       unhandled: [
-        { ownerId: own.id, error: retry('in a test') },
-        { ownerId: null, error: retry('in the run') },
+        { ownerId: id('a.test.ts'), error: retry('in a hook') },
+        { ownerId: null, error: retry('in no task') },
       ],
     })
-    assert.ok(mine.testResultOf(id('a.test.ts'))?.testExecError !== undefined)
+    const file = results.testResultOf(id('a.test.ts'))
+    assert.match(file?.testExecError?.stack ?? '', /in a hook[\s\S]*in no task/)
+    assert.equal(file?.testResults[0]?.status, 'passed')
+  })
+
+  it('fails the run for an unhandled error no file owns (one that came after its file ended)', async () => {
+    const results = fresh()
+    const own = testOf('a.test.ts', 'here')
+    await playFile(results, infoOf('a.test.ts'), [{ task: own, result: resultOf('pass') }])
+    await results.reporter.unhandled?.(null, {
+      type: 'unhandled-error',
+      ownerId: own.id,
+      lastTestId: own.id,
+      origin: 'uncaughtException',
+      error: retry('after the file'),
+      t: 0,
+    })
+    assert.equal(results.testResultOf(id('a.test.ts'))?.testResults[0]?.status, 'passed')
+    await endRun(results)
+    assert.equal(results.aggregated().success, false)
+    const clean = fresh()
+    await playFile(clean, infoOf('a.test.ts'), [{ task: own, result: resultOf('pass') }])
+    await endRun(clean)
+    assert.equal(clean.aggregated().success, true, 'the control run succeeds')
   })
 
   it('formats a file that could not load with Jest’s text', async () => {

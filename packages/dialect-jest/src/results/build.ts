@@ -433,6 +433,11 @@ export interface RunEnd {
   readonly snapshots: SnapshotRunSummary | undefined
   /** A reporter failed (Jest's `anyReporterErrors`). */
   readonly reporterFailed: boolean
+  /**
+   * An unhandled error no file owns reached the run: one a test's timer threw after its file had
+   * ended, say, on which Jest's own process (or worker) would have crashed. It fails the run.
+   */
+  readonly runErrors?: boolean
 }
 
 /**
@@ -457,7 +462,12 @@ export function finishAggregated(aggregated: AggregatedResult, end: RunEnd): voi
   const anyTestFailures = !(
     aggregated.numFailedTests === 0 && aggregated.numRuntimeErrorTestSuites === 0
   )
-  aggregated.success = !(anyTestFailures || snapshot.failure || end.reporterFailed)
+  aggregated.success = !(
+    anyTestFailures ||
+    snapshot.failure ||
+    end.reporterFailed ||
+    end.runErrors === true
+  )
 }
 
 /**
