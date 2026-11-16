@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/uncaught-after-run",
+  "files": [],
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "Error: rejected as its test ends",
+    "json": {
+      ".harness-out/jest.json": null
+    }
+  }
+}

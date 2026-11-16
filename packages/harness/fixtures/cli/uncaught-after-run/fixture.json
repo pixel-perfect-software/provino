@@ -1,0 +1,12 @@
+{
+  "description": "Jest 30.5.2 in band (`-i`) on a file whose last test leaves a rejection nobody handles: Node reports it once circus has torn its handlers down (the rest of the file is promise work, so no timer can come between), and Jest's own process ends on Node's report, exit 1, before it prints a header or writes its results file. Kept: the `PASS`/`FAIL` headers, the `●` titles, the `Error:` lines and the test count. `cli/uncaught-after-run-worker` is the same file in a worker. A black-box run, read by `provino`'s `jest-uncaught.test.ts`, which declares Provino's difference (it fails the test, exit 1).",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["-i", "--useStderr"] },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "missingJson": ["json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^\\s*● |^Error: |^Tests:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
