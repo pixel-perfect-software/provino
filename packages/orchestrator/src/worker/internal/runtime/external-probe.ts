@@ -41,6 +41,29 @@ export function readGlobalBaseline(global: object = globalThis): GlobalBaseline 
 }
 
 /**
+ * Takes into `baseline` what an environment's `prepare` changed on the global since `before` (a
+ * read made just before it): `prepare` runs once per worker, before the file that needs it sets
+ * anything up, so what it installs (the Jest adapter's timer wrappers) is the worker's, the same
+ * in every file, and no per-file global. A key it removed leaves the baseline too.
+ */
+export function adoptPreparedGlobals(
+  baseline: Map<string, PropertyDescriptor>,
+  before: GlobalBaseline,
+  global: object = globalThis,
+): void {
+  const now = readGlobalBaseline(global)
+  for (const [key, descriptor] of now) {
+    const previous = before.get(key)
+    if (previous === undefined || !sameDescriptor(previous, descriptor)) {
+      baseline.set(key, descriptor)
+    }
+  }
+  for (const key of before.keys()) {
+    if (!now.has(key)) baseline.delete(key)
+  }
+}
+
+/**
  * Whether a key still holds what the worker booted with. An accessor is compared by its getter
  * alone: every environment's per-file snapshot wraps the setter of each get/set accessor (Node's
  * `Buffer` and `performance`, and Node 26's `localStorage`) to record an assignment, which puts

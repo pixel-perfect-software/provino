@@ -93,7 +93,11 @@ import {
   prepareEnvironment,
   setupEnvironment,
 } from '../internal/runtime/environment.ts'
-import { readGlobalBaseline, watchPerFileGlobals } from '../internal/runtime/external-probe.ts'
+import {
+  adoptPreparedGlobals,
+  readGlobalBaseline,
+  watchPerFileGlobals,
+} from '../internal/runtime/external-probe.ts'
 import { installGlobals, splitGlobals } from '../internal/runtime/globals.ts'
 import { lazyReportSink } from '../internal/runtime/lazy-sink.ts'
 import {
@@ -557,6 +561,19 @@ export function createRuntimeRunner(): WorkerRunner {
   /** The snapshots of the file running now; the runtime's events pass through its lifecycle. */
   let openSnapshots: OpenSnapshots | undefined
   /**
+   * The global as the worker found it, for D127's probe (`undefined` when the policy doesn't watch
+   * external loads), with what each environment's `prepare` installed taken in (`prepareAdopted`).
+   */
+  let globalBaseline: Map<string, PropertyDescriptor> | undefined
+  /** `prepareEnvironment`, with what the `prepare` put on the global taken into the baseline. */
+  async function prepareAdopted(ref: EnvironmentRef): Promise<PreparedEnvironment> {
+    const baseline = globalBaseline
+    const before = baseline === undefined ? undefined : readGlobalBaseline()
+    const environment = await prepareEnvironment(ref)
+    if (baseline !== undefined && before !== undefined) adoptPreparedGlobals(baseline, before)
+    return environment
+  }
+  /**
    * Opens the file's snapshots when its collection starts (`importFile`), for a project with its
    * own snapshot resolver: loading and checking that is part of the file's run, so a resolver
    * that throws fails the file to run, as in Jest (jestAdapterInit builds it).
@@ -612,7 +629,8 @@ export function createRuntimeRunner(): WorkerRunner {
     // is evaluated again for each later file. The global as the worker found it, before any
     // environment or globals: what a file's setup changed is what the watcher watches.
     if (policy.module.reevaluateHookingExternals) {
-      const baseline = readGlobalBaseline()
+      const baseline = new Map(readGlobalBaseline())
+      globalBaseline = baseline
       parts.loader.watchExternalLoads(() =>
         fallback === undefined
           ? null
@@ -785,7 +803,7 @@ export function createRuntimeRunner(): WorkerRunner {
           }),
     }
 
-    parts.environment = await prepareEnvironment(config.environment)
+    parts.environment = await prepareAdopted(config.environment)
     if (config.environmentResolver !== undefined) {
       parts.pragmaEnvironments = {
         resolve: await behaviours.load(config.environmentResolver),
@@ -941,7 +959,7 @@ export function createRuntimeRunner(): WorkerRunner {
     const key = JSON.stringify([ref.module, ref.export, ref.options])
     let prepared = known.prepared.get(key)
     if (prepared === undefined) {
-      prepared = await prepareEnvironment(ref)
+      prepared = await prepareAdopted(ref)
       known.prepared.set(key, prepared)
     }
     known.requested.set(requestKey, prepared)

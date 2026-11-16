@@ -5,7 +5,7 @@
 // options steer failures: `failSetup` and `failTeardown`. `leak: 'a,b'` makes `teardown` report
 // those keys as globals it could not remove (D22), without actually leaving anything behind.
 // `slowTeardown` makes it end later, after a macrotask and a file system round trip, as a teardown
-// that does real I/O would.
+// that does real I/O would. `prepareGlobal: 'name'` makes `prepare` define that global.
 import { stat } from 'node:fs/promises'
 import { setImmediate as macrotask } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
@@ -33,6 +33,10 @@ export const recordingEnvironment: Environment<
   realms: ['worker'],
   prepare(options) {
     trace(`env:prepare ${JSON.stringify(options)}`)
+    // A worker-wide global `prepare` installs once, as the Jest adapter's timer wrappers are.
+    if (typeof options.prepareGlobal === 'string') {
+      Reflect.set(globalThis, options.prepareGlobal, () => 'installed by prepare')
+    }
     return { prepared: true }
   },
   setup(context, prepared) {
