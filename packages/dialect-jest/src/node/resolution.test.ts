@@ -115,7 +115,9 @@ test('a resolver two projects name by different spellings of its path loads once
 })
 
 // jest-resolve lets what `require` threw out as it is, and jest-cli prints its stack: the error
-// keeps a short message and carries that error, which `provino jest` prints (`cli/resolver-load-error`).
+// carries that error as its cause, which `provino jest` prints (`cli/resolver-load-error`). Its own
+// message names the resolver and the first line of what the module threw, so a consumer that prints
+// only the message (watch mode, `provino run`) still shows the user's text.
 test("a resolver that can't load is refused with what it threw as the cause", async () => {
   const root = writeTree({ 'resolver.cjs': "require('./missing-helper.cjs')\n" })
   trees.push(root)
@@ -125,7 +127,10 @@ test("a resolver that can't load is refused with what it threw as the cause", as
     (error: unknown) => {
       assert.ok(error instanceof JestConfigError)
       assert.equal(error.code, 'JEST_CONFIG_RESOLVER_LOAD_FAILED')
-      assert.equal(error.message, `can't load the resolver "${resolver}"`)
+      assert.equal(
+        error.message,
+        `can't load the resolver "${resolver}": Cannot find module './missing-helper.cjs'`,
+      )
       const { cause } = error
       assert.ok(cause instanceof Error)
       assert.equal(Reflect.get(cause, 'code'), 'MODULE_NOT_FOUND')

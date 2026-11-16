@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { createResolver } from '@provino/resolver'
 import type { Resolver } from '@provino/types'
 import { type JestRequireResolve, projectJestRequireResolve } from '../jest-require.ts'
-import { JestConfigError } from './errors.ts'
+import { JestConfigError, messageOf } from './errors.ts'
 import { requireOrImportModule } from './load.ts'
 import { tryRealpath } from './paths.ts'
 
@@ -117,9 +117,12 @@ function preloadedResolver(path: string): Promise<LoadedResolver> {
     loading = requireOrImportModule(path, { interop: false }).then(
       (loaded) => toResolver(path, loaded),
       (error: unknown) => {
+        // The message carries the first line of what the module threw, for a consumer that prints
+        // only the message; `provino jest` prints the `cause`'s stack, as jest-cli does.
+        const [first = ''] = messageOf(error).split('\n')
         throw new JestConfigError(
           'JEST_CONFIG_RESOLVER_LOAD_FAILED',
-          `can't load the resolver "${path}"`,
+          `can't load the resolver "${path}"${first === '' ? '' : `: ${first}`}`,
           { cause: error },
         )
       },
