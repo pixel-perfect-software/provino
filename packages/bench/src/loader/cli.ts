@@ -6,6 +6,7 @@
 //              per-file overhead (bar ≤1 ms/file on Node 24 with --max-overhead-ms 1)
 //   graph      T2.6's node_modules graph: the corpus, its edges against oxc-parser, and the cold and
 //              warm medians (`--max-cold-ms 300 --max-warm-ms 20`)
+//   claims     the cost of the claims verdicts over 2,000 claimed files of one package (no bar)
 //   e2e        bench-e2e: process start to exit for 200 files and 1 file, Provino's loader vs
 //              Jest 30.5 with @swc/jest; a first per-file signal, not a gate
 // Every number is labelled `local`. These are in-process micro-benchmarks from the spike, not
@@ -15,6 +16,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { parseArgs } from 'node:util'
 import { parseLimit } from '../internal/limits.ts'
+import { claimsLines } from './claims.ts'
 import { e2eLines, isolationLines, measureE2e, measureIsolation } from './e2e.ts'
 import { FIXTURE_FILES, TESTS_PER_FILE, writeLoaderFixture } from './fixture.ts'
 import { graphChild, graphCommand } from './graph-cli.ts'
@@ -46,6 +48,11 @@ if (command === 'graph') {
   const { lines: graphLines, exitCode } = await graphCommand({ maxColdMs, maxWarmMs })
   process.stdout.write(`${graphLines.join('\n')}\n`)
   process.exit(exitCode)
+}
+
+if (command === 'claims') {
+  process.stdout.write(`${(await claimsLines()).join('\n')}\n`)
+  process.exit(0)
 }
 
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'provino-loader-fixture-')))

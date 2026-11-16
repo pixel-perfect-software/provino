@@ -6,10 +6,8 @@
 // has `vm.SyntheticModule` at all). `import-and-sync-require` adds `module-sync` to an
 // `import`-kind lookup, and to a `require`-kind one when Node can evaluate an ES module graph
 // synchronously (`vm.SourceTextModule.prototype.hasAsyncGraph`).
-import { readFileSync } from 'node:fs'
-import { findPackageJSON } from 'node:module'
-import { dirname, extname, join, sep } from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { readFileSync, statSync } from 'node:fs'
+import { basename, dirname, extname, join } from 'node:path'
 import * as vm from 'node:vm'
 import type { LoaderOptions, ResolveKind } from '@provino/types'
 import { conditionsOf } from '../graph/conditions.ts'
@@ -40,6 +38,15 @@ export interface EdgeKindState {
   readonly esmByPath: Map<string, boolean>
   /** The `"type"` a `package.json` gives (`undefined` for none), by the manifest's path. */
   readonly typeByManifest: Map<string, string | undefined>
+  /** The nearest `package.json` at or above a directory (`null` for none), by the directory. */
+  readonly manifestByDir: Map<string, string | null>
+  /** Whether `path` is a file; a test passes a counting one. */
+  readonly isFile: (path: string) => boolean
+}
+
+/** Whether `path` is a file, without throwing for a missing one (an ENOENT costs a `NodeError`). */
+function isFileOnDisk(path: string): boolean {
+  return statSync(path, { throwIfNoEntry: false })?.isFile() === true
 }
 
 /** A member of `node:vm` this Node may lack, read without its type (the flags decide). */
@@ -66,6 +73,7 @@ function probeRuntime(): RuntimeCapabilities {
 export function createEdgeKindState(
   options: EdgeKindOptions,
   runtime?: RuntimeCapabilities,
+  isFile: (path: string) => boolean = isFileOnDisk,
 ): EdgeKindState {
   const conditions = conditionsOf(options)
   let capabilities = runtime
@@ -78,6 +86,8 @@ export function createEdgeKindState(
       : [...conditions, 'module-sync'],
     esmByPath: new Map(),
     typeByManifest: new Map(),
+    manifestByDir: new Map(),
+    isFile,
   }
 }
 
@@ -93,22 +103,44 @@ function packageTypeOf(manifest: string): string | undefined {
   }
 }
 
-/** The nearest `package.json` at or above `dir`, or `undefined` for none (or one Node can't parse). */
-function nearestManifest(dir: string): string | undefined {
-  try {
-    return findPackageJSON(pathToFileURL(join(dir, sep)).href)
-  } catch {
-    return undefined
+/**
+ * The nearest `package.json` at or above `dir`, or `undefined` for none. The search stops at a
+ * `node_modules` directory, as Node's own (`module.findPackageJSON`) does. The answer is kept per
+ * directory, and every directory the walk passed gets it, so a directory's files cost one lookup
+ * and a walk ends at the first directory already known.
+ */
+function nearestManifest(state: EdgeKindState, dir: string): string | undefined {
+  const passed: string[] = []
+  let found: string | null = null
+  let current = dir
+  for (;;) {
+    const known = state.manifestByDir.get(current)
+    if (known !== undefined) {
+      found = known
+      break
+    }
+    passed.push(current)
+    if (basename(current) === 'node_modules') break
+    const candidate = join(current, 'package.json')
+    if (state.isFile(candidate)) {
+      found = candidate
+      break
+    }
+    const parent = dirname(current)
+    if (parent === current) break
+    current = parent
   }
+  for (const directory of passed) state.manifestByDir.set(directory, found)
+  return found ?? undefined
 }
 
 /**
  * The `type` of the nearest `package.json` at or above the file at `path` (`"module"`,
- * `"commonjs"`), or `undefined` for none, or one Node cannot parse (it throws): CommonJS, as Jest
+ * `"commonjs"`), or `undefined` for none, or one that does not parse: CommonJS, as Jest
  * has it. Each manifest is read once.
  */
 export function packageTypeAt(state: EdgeKindState, path: string): string | undefined {
-  const manifest = nearestManifest(dirname(path))
+  const manifest = nearestManifest(state, dirname(path))
   if (manifest === undefined) return undefined
   if (state.typeByManifest.has(manifest)) return state.typeByManifest.get(manifest)
   const type = packageTypeOf(manifest)

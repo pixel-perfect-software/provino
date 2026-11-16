@@ -1,0 +1,24 @@
+{
+  "description": "The same as `cli/node-path-transform`, with a custom `resolver` that calls `defaultResolver` as `ts-jest-resolver` does (B23e): Jest hands the resolver `paths` (`NODE_PATH`) and the `defaultResolver` it calls retries them, so the module is found through the custom resolver too. A black-box run.",
+  "runners": ["jest"],
+  "env": {
+    "NODE_PATH": "libs"
+  },
+  "files": {
+    "jest": {
+      "resolver.cjs": "module.exports = (path, options) => options.defaultResolver(path, options)\n",
+      "libs/hoisted-setup/index.js": "globalThis.__MARK__ = 'from NODE_PATH'\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "resolver": "<rootDir>/resolver.cjs",
+      "setupFilesAfterEnv": ["hoisted-setup"]
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |Validation Error|Module .* was not found"
+  }
+}
