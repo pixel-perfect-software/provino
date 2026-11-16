@@ -3852,6 +3852,7 @@ export interface WorkerInit {
     readonly isolation: IsolationTier;
     // (undocumented)
     readonly key: WorkerKey;
+    readonly memoryLimitBytes?: number;
     readonly provided: Readonly<Partial<ProvidedContext>>;
     // (undocumented)
     readonly workerId: number;

@@ -823,6 +823,53 @@ describe('runProject over real threads under the default memory limit', () => {
   })
 })
 
+describe('runProject over real threads under a memory limit', () => {
+  /** A test file that makes 160 MB nothing refers to once its test returns. */
+  const garbage = (name: string): string =>
+    [
+      `// ${name}`,
+      "test('makes garbage', () => {",
+      '  const scratch = new Array(20_000_000).fill(0)',
+      '  expect(scratch.length).toBe(20_000_000)',
+      '})',
+      '',
+    ].join('\n')
+
+  /** The worker id each file ran on, in the order the files started. */
+  async function workersFor(
+    files: Readonly<Record<string, string>>,
+    memoryLimitBytes: number,
+  ): Promise<readonly unknown[]> {
+    const p = await makeProject(files)
+    const { summary, seen } = await run(runtimeProject(p.dir), {
+      pool: { kind: 'threads', maxWorkers: 1, recycle: { memoryLimitBytes } },
+    })
+    assert.ok(
+      summary.files.every((file) => file.state === 'pass'),
+      'every file passed',
+    )
+    return seen.filter((entry) => entry.name === 'file:start').map((entry) => entry.detail.workerId)
+  }
+
+  it('keeps a thread that only makes garbage: it collects once before it reports its heap (DIVERGENCES: collect before recycling, Tyler 2026-11-16)', async () => {
+    // The limit is under the 160 MB each file leaves as garbage and over what a thread lives on.
+    const workers = await workersFor(
+      Object.fromEntries(['a', 'b', 'c', 'd'].map((n) => [`${n}.test.js`, garbage(n)])),
+      128 * 1024 * 1024,
+    )
+    assert.equal(workers.length, 4)
+    assert.equal(new Set(workers).size, 1, `one thread took every file, got ${workers.join(', ')}`)
+  })
+
+  it('replaces a thread after every file under a limit of 0, which collects nothing first', async () => {
+    const workers = await workersFor(
+      Object.fromEntries(['a', 'b', 'c'].map((n) => [`${n}.test.js`, passing(n)])),
+      0,
+    )
+    assert.equal(new Set(workers).size, 3, `a thread per file, got ${workers.join(', ')}`)
+  })
+})
+
 describe('runProject: pool and run lifecycle', () => {
   it('runs an inline pool on one worker whatever maxWorkers says: three passing files all pass', async () => {
     const p = await makeProject({

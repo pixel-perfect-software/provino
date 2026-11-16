@@ -19,6 +19,7 @@ import type {
   WorkerPort,
   WorkerToCoordinator,
 } from '@provino/types'
+import { collectGarbage, usedHeapBytes } from './internal/memory.ts'
 import { type StartWorkerOptions, startWorker, type WorkerRunner } from './start.ts'
 
 /** A valid project config; these tests move it around without reading it. */
@@ -249,6 +250,70 @@ describe('startWorker', () => {
       .filter((e): e is RuntimeEventOf<'console'> => e.type === 'console')
       .map((e) => e.text)
     assert.deepEqual(texts, ['suite\n', '  hits: 1\n', 'two\n', 'hits: 1\n'])
+  })
+
+  describe('fileDone.memoryBytes', () => {
+    /** 160 MB of heap that nothing refers to once this returns. */
+    function makeGarbage(): void {
+      new Array(20_000_000).fill(0)
+    }
+
+    /**
+     * A limit 64 MiB over the live heap, taken after a collection so that garbage an earlier test
+     * left in this process does not move it: far under what 160 MB adds, far over what remains
+     * once it is collected.
+     */
+    function limitAboveLiveHeap(): number {
+      collectGarbage()
+      return usedHeapBytes() + 64 * 1024 * 1024
+    }
+
+    function memoryOf(h: ReturnType<typeof harness>, seq: number): number {
+      const done = h.received.find(h.fileDone(seq))
+      assert.ok(done?.t === 'fileDone')
+      return done.memoryBytes
+    }
+
+    it('is the heap after one collection when the init’s memoryLimitBytes was passed: garbage a file left is not reported', async (t) => {
+      // The limit is far under what the garbage holds and far over what the process lives on, so
+      // only a collection puts the reported heap under it.
+      const limit = limitAboveLiveHeap()
+      const h = harness({
+        runFile: async () => {
+          makeGarbage()
+          return undefined
+        },
+      })
+      t.after(() => h.coordinator.close())
+      h.coordinator.send({ t: 'start', init: { ...init, memoryLimitBytes: limit } })
+      h.coordinator.send({ t: 'run', seq: 0, job: job('garbage') })
+      await h.until(h.fileDone(0))
+      const reported = memoryOf(h, 0)
+      assert.ok(reported <= limit, `reported ${reported} bytes, over the limit of ${limit}`)
+    })
+
+    it('is the heap after the collection, not before it: what the file still holds is reported', async (t) => {
+      const held: unknown[] = []
+      t.after(() => {
+        held.length = 0
+      })
+      const limit = limitAboveLiveHeap()
+      const h = harness({
+        runFile: async () => {
+          held.push(new Array(20_000_000).fill(0))
+          return undefined
+        },
+      })
+      t.after(() => h.coordinator.close())
+      h.coordinator.send({ t: 'start', init: { ...init, memoryLimitBytes: limit } })
+      h.coordinator.send({ t: 'run', seq: 0, job: job('holds') })
+      await h.until(h.fileDone(0))
+      const reported = memoryOf(h, 0)
+      assert.ok(
+        reported > limit,
+        `reported ${reported} bytes: the 160 MB the file holds is over ${limit}`,
+      )
+    })
   })
 
   describe('fileDone.leakedGlobals', () => {

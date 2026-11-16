@@ -53,6 +53,8 @@ interface Fake {
   readonly end: (workerId: number) => void
   /** Every job a worker was sent, with the id of that worker. */
   readonly jobs: { readonly workerId: number; readonly job: FileJob }[]
+  /** The init each worker was started with, in the order the factory was asked. */
+  readonly inits: WorkerInit[]
 }
 
 function fake(
@@ -77,6 +79,7 @@ function fake(
   const exited = new Set<number>()
   const ran = new Map<number, string[]>()
   const jobs: Fake['jobs'] = []
+  const inits: WorkerInit[] = []
   const enders = new Map<number, () => void>()
   let attempts = 0
   let running = 0
@@ -87,6 +90,7 @@ function fake(
     ...(extra.sharesProcess === true ? { sharesProcess: true } : {}),
     async create(init: WorkerInit, signal?: AbortSignal): Promise<Transport> {
       attempts++
+      inits.push(init)
       if (extra.createMs !== undefined) {
         await new Promise<void>((resolve, reject) => {
           const timer = setTimeout(resolve, extra.createMs)
@@ -207,6 +211,7 @@ function fake(
     ran,
     end: (id) => enders.get(id)?.(),
     jobs,
+    inits,
   }
 }
 
@@ -922,6 +927,65 @@ describe('recycling (T9.5)', () => {
       [1, 2],
       'and so does a leak of globals',
     )
+  })
+
+  it('starts a fork or a thread with the limit it compares memoryBytes with, so the worker collects before it reports', async () => {
+    for (const kind of ['forks', 'threads'] as const) {
+      const f = fake(() => 'ok', undefined, { kind })
+      const pool = createPool(
+        options(2, undefined, { kind, recycle: { memoryLimitBytes: 5000 } }),
+        deps(f),
+      )
+      await runAll(pool, ['a', 'b', 'c'])
+      assert.ok(f.inits.length >= 1)
+      for (const init of f.inits) assert.equal(init.memoryLimitBytes, 5000, `a ${kind} worker`)
+    }
+  })
+
+  it('starts a worker with a limit of 0 as 0: the pool replaces it after every file, and the worker collects nothing', async () => {
+    const f = fake(() => 'ok', undefined, { kind: 'forks' })
+    const pool = createPool(
+      options(1, undefined, { kind: 'forks', recycle: { memoryLimitBytes: 0 } }),
+      deps(f),
+    )
+    await runAll(pool, ['a', 'b'])
+    assert.deepEqual(
+      f.inits.map((init) => init.memoryLimitBytes),
+      [0, 0],
+    )
+  })
+
+  it('gives a worker no limit when the pool has none', async () => {
+    const f = fake(() => 'ok', undefined, { kind: 'forks' })
+    const pool = createPool(options(1, undefined, { kind: 'forks' }), deps(f))
+    await runAll(pool, ['a'])
+    assert.equal(f.inits.length, 1)
+    assert.equal('memoryLimitBytes' in (f.inits[0] ?? {}), false)
+  })
+
+  it('gives a worker that shares the process no limit: it is never replaced for memory, so it collects nothing', async () => {
+    const f = fake(() => 'ok', undefined, { sharesProcess: true })
+    const pool = createPool(options(1, undefined, { recycle: { memoryLimitBytes: 5000 } }), deps(f))
+    await runAll(pool, ['a'])
+    assert.equal(f.inits.length, 1)
+    assert.equal('memoryLimitBytes' in (f.inits[0] ?? {}), false)
+  })
+
+  it('leaves the rest of the init as the run made it', async () => {
+    const f = fake(() => 'ok', undefined, { kind: 'forks' })
+    const pool = createPool(
+      options(1, undefined, { kind: 'forks', recycle: { memoryLimitBytes: 5000 } }),
+      deps(f),
+    )
+    await runAll(pool, ['a'])
+    assert.deepEqual(f.inits[0], {
+      key,
+      workerId: 1,
+      isolation: 'registry',
+      provided: {},
+      config: undefined,
+      memoryLimitBytes: 5000,
+    })
   })
 
   it('does no memory check when the limit is Infinity, and keeps its worker', async () => {
