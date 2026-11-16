@@ -36,6 +36,11 @@ export function observation(golden: Golden, id: string): unknown {
   return found.get(id)
 }
 
+/** The title of every test of every file of the golden, each title path joined with spaces. */
+export function titlesOf(golden: Golden): string[] {
+  return golden.files.flatMap((file) => file.tests.map((test) => test.id.path.join(' ')))
+}
+
 /** The test with this title path, in any file of the golden. */
 export function testOf(golden: Golden, ...titles: readonly string[]): GoldenTest {
   const wanted = JSON.stringify(titles)
