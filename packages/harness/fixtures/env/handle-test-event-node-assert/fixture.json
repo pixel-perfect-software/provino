@@ -1,0 +1,19 @@
+{
+  "description": "A custom environment's `handleTestEvent` after a test fails with a node:assert AssertionError (B23e): jest-circus's handlers are `[eventHandler, formatNodeAssertErrors]` and the environment's comes after them, so at `test_done` each AssertionError entry of `test.errors` is already `{ message }` (jest-circus's text: `assert.strictEqual(received, expected)`, `Expected value to strictly be equal to:`) where any other error is still `[error, asyncError]`; under `jest.retryTimes(1, { logErrorsBeforeRetry: true })` `test_retry` moves those formatted entries into `retryReasons`. A failing body, a plain Error, and an AssertionError from an `afterEach`. The environment extends `jest-environment-node` and appends one JSON line per `test_done` and `test_retry` to `<test file>.events.jsonl`: the test, and each entry of its `errors` and `retryReasons` (a tuple by its messages, an object by its keys and message, colours and stack frames taken out).",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "testEnvironment": "<rootDir>/custom-env.cjs",
+      "maxWorkers": 1
+    }
+  },
+  "files": {
+    "jest": {
+      "custom-env.cjs": "const { TestEnvironment } = require('jest-environment-node')\nconst fs = require('node:fs')\nconst path = require('node:path')\n\n// One JSON line per `test_done` and `test_retry`, to `<test file>.events.jsonl`: the test's name and\n// its `errors` and `retryReasons` as the handler sees them. An entry circus keeps as it was pushed is\n// `[error, asyncError]` (`tuple`); one jest-circus's `formatNodeAssertErrors` replaced at `test_done`\n// is an object of its own (`keys`). Messages lose their colours and their stack frames.\nconst ANSI = /\\u001b\\[[0-9;]*m/g\nconst text = (value) =>\n  String(value)\n    .replace(ANSI, '')\n    .split('\\n')\n    .filter((line) => !/^\\s+at /.test(line))\n    .join('\\n')\nconst errorShape = (error) =>\n  error !== null && typeof error === 'object' ? { message: text(error.message) } : { value: typeof error }\nconst entryShape = (entry) =>\n  Array.isArray(entry)\n    ? { tuple: entry.map(errorShape) }\n    : entry !== null && typeof entry === 'object'\n      ? { keys: Object.keys(entry).sort(), message: text(entry.message) }\n      : { value: typeof entry }\n\nclass RecordingEnvironment extends TestEnvironment {\n  constructor(config, context) {\n    super(config, context)\n    this.eventsFile = path.join(\n      config.projectConfig.rootDir,\n      `${path.basename(context.testPath).replace(/\\.test\\.ts$/, '')}.events.jsonl`,\n    )\n  }\n\n  handleTestEvent(event) {\n    if (event.name !== 'test_done' && event.name !== 'test_retry') return\n    const { test } = event\n    const line = {\n      name: event.name,\n      test: test.name,\n      errors: test.errors.map(entryShape),\n      retryReasons: test.retryReasons.map(entryShape),\n    }\n    fs.appendFileSync(this.eventsFile, JSON.stringify(line) + '\\n')\n  }\n}\n\nmodule.exports = RecordingEnvironment\n"
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "file:node-assert.events.jsonl"]
+  }
+}

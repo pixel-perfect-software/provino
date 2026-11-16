@@ -168,7 +168,11 @@ function isErrorShaped(value: unknown): value is object {
 
 function serialize(value: unknown, depth: number, walk: Walk): SerializedError {
   walk.count++
-  if (!isErrorLike(value)) return { name: 'Error', message: describe(value) }
+  if (!isErrorLike(value)) {
+    // Only the thrown value itself is handed on as it is; a cause or an aggregate's entry that is
+    // no error is its string form (`toErrorOrStack` prints `thrown: …` for it).
+    return (depth === 0 ? fieldsOfMessageOrStack(value) : undefined) ?? describeValue(value)
+  }
   const own = ownFields(value)
   if (depth >= MAX_DEPTH || walk.seen.has(value)) return own
   walk.seen.add(value)
@@ -178,6 +182,34 @@ function serialize(value: unknown, depth: number, walk: Walk): SerializedError {
     ...own,
     ...(cause === undefined ? {} : { cause: serialize(cause, depth + 1, walk) }),
     ...(errors === undefined ? {} : { errors: serializeAll(errors, depth + 1, walk) }),
+  }
+}
+
+/** A value that is no error, as an error whose message is its string form. */
+function describeValue(value: unknown): SerializedError {
+  return { name: 'Error', message: describe(value) }
+}
+
+/**
+ * An object that is no error and has only a string `stack`, a non-empty string `message`, or both
+ * of one kind (`throw { stack }`, `throw { message }`): what it holds, not its string form
+ * (`[object Object]`), is what a failure says of it. These are the values jest-circus's
+ * `_getError` (utils.ts L434-L451) hands on as they are (a string `stack` or a truthy `message`),
+ * and `flattenErrorStack` (jest-message-util index.ts L504-L544) reads their fields. A value with neither, or with a `message` that is not
+ * a string (Jest fails the whole file on a number), has its string form, as before; so has one
+ * whose fields can't be read.
+ */
+function fieldsOfMessageOrStack(value: unknown): SerializedError | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const message = read(value, 'message')
+  const stack = read(value, 'stack')
+  const hasMessage = typeof message === 'string' && message !== ''
+  const hasStack = typeof stack === 'string'
+  if (!hasMessage && !hasStack) return undefined
+  return {
+    name: 'Error',
+    message: hasMessage ? message : '',
+    ...(hasStack ? { stack } : {}),
   }
 }
 

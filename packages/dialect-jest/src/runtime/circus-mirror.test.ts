@@ -282,6 +282,28 @@ describe('the circus mirror', () => {
     ])
   })
 
+  // `formatNodeAssertErrors` (L47-L72) reads a pair `[error, asyncError]` by its error, and for an
+  // error with no stack it takes the `asyncError` and gives it the error's message: the handler
+  // hears the pair as it was pushed, its `asyncError` carrying what was thrown.
+  test('test_done: a value thrown with no stack stays a pair whose asyncError holds its message', async () => {
+    let pair: unknown[] | undefined
+    await observe(
+      ({ test }) =>
+        test('a', () => {
+          throw { code: 'ERR_ASSERTION', message: 'thrown as a plain object', operator: '==' }
+        }),
+      {},
+      (event) => {
+        if (event.name !== 'test_done') return
+        pair = (event.test as { errors: unknown[][] }).errors[0]
+      },
+    )
+    assert.ok(pair !== undefined && pair.length === 2, 'the entry is still a pair')
+    const [thrown, asyncError] = pair as [{ message: string }, Error]
+    assert.equal(thrown.message, 'thrown as a plain object')
+    assert.equal(asyncError.message, 'thrown as a plain object')
+  })
+
   // circus's `getEachHooksForTest` gives a concurrent test no each-hooks (`utils.ts` L142-L146),
   // so the adapter's root `beforeEach` never runs for one.
   test("a concurrent test gets no hook_start for the adapter's beforeEach", async () => {

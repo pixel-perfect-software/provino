@@ -110,6 +110,7 @@ describe('handleTestEvent sees the events Jest 30.5.2 gave it', () => {
     'env/handle-test-event-timeout',
     'env/handle-test-event-retry-reasons',
     'env/handle-test-event-throws',
+    'env/handle-test-event-node-assert',
   ]) {
     it(id, async () => {
       const fixture = await loadFixture(id)

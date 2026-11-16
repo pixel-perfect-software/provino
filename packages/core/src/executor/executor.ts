@@ -22,7 +22,6 @@ import type {
   OrderHooks,
   RuntimeEvent,
   RuntimeHookKind,
-  ShapeTestError,
   SkipReason,
   SourceLocation,
   SuiteHandle,
@@ -61,10 +60,11 @@ import { createLimiter, type Limiter, unlimited } from './limiter.ts'
 export interface ExecutorConfig {
   readonly policy: CorePolicy
   readonly orderHooks: OrderHooks | undefined
-  /** `CorePolicy.shapeTestError`, loaded: replaces a failed test's error before it is reported. */
-  readonly shapeTestError: ShapeTestError | undefined
-  /** The run's `--expand`, handed to `shapeTestError`. */
-  readonly expand: boolean
+  /**
+   * `CorePolicy.shapeTestError`, loaded and bound to the run's options (`expand`): replaces a failed
+   * test's error before it is reported.
+   */
+  readonly shapeTestError: ((error: unknown) => unknown) | undefined
   readonly sink: EventSink
   /** Every user call's deadline. */
   readonly deadlines: Deadlines
@@ -179,13 +179,18 @@ const NO_ARGS: readonly unknown[] = Object.freeze([])
 /** The tests of a concurrent group when nothing listens. */
 const NO_TESTS: readonly TestNode[] = Object.freeze([])
 
+/** The errors of an attempt that passed: shared, since nothing appends to a reported list. */
+const NO_ERRORS: readonly SerializedError[] = Object.freeze([])
+
 /** What a test's attempts have left so far. */
 interface Progress {
   readonly start: number
-  /** The errors of the attempts that were retried, when the result keeps them. */
-  readonly retryErrors: unknown[]
-  /** The errors of the attempt that ended the test. */
+  /** The errors of the attempts that were retried, when the result keeps them, as reported. */
+  readonly retryErrors: SerializedError[]
+  /** The errors of the attempt that ended the test, as thrown (a describe attempt compares them). */
   readonly failures: unknown[]
+  /** `failures` as reported: each shaped and serialized once, when its attempt ended. */
+  readonly reported: SerializedError[]
   attempts: number
   /** Attempts the test had already run in discarded describe attempts (`setDescribeRetry`). */
   readonly attemptBase: number
@@ -306,8 +311,6 @@ export class Executor {
   #rootOrder: readonly TaskId[] | undefined
   /** The test that started last. */
   #lastTestId: TaskId | null = null
-  /** The errors shaped so far in this file, so each is shaped once (`serializeTestError`). */
-  readonly #shaped = new Map<unknown, SerializedError>()
   /** The path of the file running now, for the location of a `ctx.annotate` call. */
   #filePath: string | undefined
   /** The file's lifecycle listener (an environment's `onTestEvent`); `undefined` costs nothing. */
@@ -356,7 +359,6 @@ export class Executor {
     this.#filePath = file.path
     this.#heldTests.clear()
     this.#describeAttempts.clear()
-    this.#shaped.clear()
     const life = file.lifecycle
     this.#life = life
     this.#aborted = undefined
@@ -379,6 +381,10 @@ export class Executor {
       return outcome
     } finally {
       this.#life = undefined
+      // What a describe attempt held (the raw values its tests threw) goes with the file: the
+      // executor outlives it, and `--detectLeaks` and a worker's heap count what it keeps.
+      this.#heldTests.clear()
+      this.#describeAttempts.clear()
     }
   }
 
@@ -821,24 +827,15 @@ export class Executor {
     const outcomes: Outcome[] = []
     for (const child of suite.children) {
       const t = this.#now()
-      const blocked = child.blocked === undefined ? [] : [child.blocked]
+      // A task is blocked only by `.only` on CI (a `CoreError`), which no dialect shapes.
+      const errors = child.blocked === undefined ? NO_ERRORS : [serializeError(child.blocked)]
       if (child.type !== 'test') {
         this.#start(hold, 'suite-start', child.id, t)
         this.#skipBelow(child, hold)
-        this.#endTask(hold, 'suite-end', child.id, 'skip', t, blocked.map(serializeError))
+        this.#endTask(hold, 'suite-end', child.id, 'skip', t, errors)
       } else {
         this.#start(hold, 'test-start', child.id, t)
-        this.#endTask(
-          hold,
-          'test-end',
-          child.id,
-          'skip',
-          t,
-          blocked.map(this.#serializeTestError),
-          {
-            skipReason: 'unknown',
-          },
-        )
+        this.#endTask(hold, 'test-end', child.id, 'skip', t, errors, { skipReason: 'unknown' })
       }
       outcomes.push('skip')
     }
@@ -868,9 +865,7 @@ export class Executor {
     }
     if (test.blocked !== undefined) {
       hold?.failures.push(test.blocked)
-      this.#endTask(hold, 'test-end', test.id, 'fail', start, [
-        this.#serializeTestError(test.blocked),
-      ])
+      this.#endTask(hold, 'test-end', test.id, 'fail', start, [serializeError(test.blocked)])
       return 'fail'
     }
     if (hold !== undefined) this.#heldTests.set(test.id, hold)
@@ -879,6 +874,7 @@ export class Executor {
       start,
       retryErrors: [],
       failures: [],
+      reported: [],
       attempts: 0,
       attemptBase: hold === undefined ? 0 : (this.#describeAttempts.get(test.id) ?? 0),
       repeatIndex: 0,
@@ -956,6 +952,9 @@ export class Executor {
         errors.length > 0 && attempt < plan.count
           ? this.#retryDecision(run, test, plan, errors)
           : STOP
+      // Each error is shaped once, here: the attempt's end and the test's result report the same
+      // values, and nothing keeps the thrown ones past the test.
+      const reported = errors.length === 0 ? NO_ERRORS : errors.map(this.#serializeTestError)
       this.#emit(
         {
           type: 'test-attempt-end',
@@ -963,7 +962,7 @@ export class Executor {
           attempt: number,
           repeat,
           state: errors.length > 0 ? 'fail' : progress.skipped === undefined ? 'pass' : 'skip',
-          errors: errors.map(this.#serializeTestError),
+          errors: reported,
           willRetry: decision.willRetry,
           t: this.#now(),
         },
@@ -972,11 +971,14 @@ export class Executor {
       if (errors.length === 0) return false
       if (!decision.willRetry) {
         progress.failures.push(...errors)
-        if (decision.conditionFailure !== undefined)
+        progress.reported.push(...reported)
+        if (decision.conditionFailure !== undefined) {
           progress.failures.push(decision.conditionFailure)
+          progress.reported.push(this.#serializeTestError(decision.conditionFailure))
+        }
         return false
       }
-      if (this.#keepsEarlierErrors()) progress.retryErrors.push(...errors)
+      if (this.#keepsEarlierErrors()) progress.retryErrors.push(...reported)
       if (plan.deferred && !resuming) return true
       await this.#announceRetry(test)
       await sleep(this.#config.timers, plan.delay)
@@ -1055,7 +1057,7 @@ export class Executor {
 
   /** Ends a test with what its attempts left, and returns its outcome. */
   #finishTest(test: TestNode, progress: Progress, hold: Hold | undefined): Outcome {
-    const { start, failures, retryErrors, repeatIndex, skipped, parkedMs } = progress
+    const { start, failures, reported, retryErrors, repeatIndex, skipped, parkedMs } = progress
     const attempts = progress.attemptBase + progress.attempts
     if (skipped !== undefined && failures.length === 0) {
       this.#endTask(hold, 'test-end', test.id, 'skip', start, [], {
@@ -1069,20 +1071,12 @@ export class Executor {
     }
     const outcome: Outcome = failures.length > 0 ? 'fail' : 'pass'
     hold?.failures.push(...failures)
-    this.#endTask(
-      hold,
-      'test-end',
-      test.id,
-      outcome,
-      start,
-      failures.map(this.#serializeTestError),
-      {
-        retryErrors: retryErrors.map(this.#serializeTestError),
-        attempts,
-        repeatIndex,
-        parkedMs,
-      },
-    )
+    this.#endTask(hold, 'test-end', test.id, outcome, start, reported, {
+      retryErrors,
+      attempts,
+      repeatIndex,
+      parkedMs,
+    })
     return outcome
   }
 
@@ -1848,26 +1842,20 @@ export class Executor {
   }
 
   /**
-   * An error attached to a test, as it is reported: the one place every such error passes through,
-   * whatever route attached it (a failed attempt, a blocked test, an error charged to it late). It
-   * goes through the policy's `shapeTestError` when there is one, and once: the value an attempt
-   * ended with is the one its test's end reports.
+   * An error a test's attempt ended with, as it is reported: through the policy's `shapeTestError`
+   * when there is one. Called once per error, when the attempt ends (`#runAttempts`); an error
+   * charged to the test after it ended is reported as thrown (`ProcessErrors`).
    */
   readonly #serializeTestError = (error: unknown): SerializedError => {
     const shape = this.#config.shapeTestError
     if (shape === undefined) return serializeError(error)
-    const known = this.#shaped.get(error)
-    if (known !== undefined) return known
-    let serialized: SerializedError
     try {
-      serialized = serializeError(shape(error, { expand: this.#config.expand }))
+      return serializeError(shape(error))
     } catch {
       // A shaper that throws must not turn a test's failure into the shaper's: the error is
       // reported as thrown, which is what the neutral policy does with every error.
-      serialized = serializeError(error)
+      return serializeError(error)
     }
-    this.#shaped.set(error, serialized)
-    return serialized
   }
 
   /** Emits a task's end event, its result and the event timed now. */
@@ -1921,7 +1909,10 @@ export interface ResultExtra {
   readonly childOrder?: readonly TaskId[]
 }
 
-/** A task's (or a file's) result, from errors already serialized. */
+/**
+ * A task's (or a file's) result, from errors already serialized. The arrays are taken as they are:
+ * each caller builds its own, and nothing appends to a reported list.
+ */
 export function taskResult(
   state: TaskState,
   start: number,
@@ -1933,8 +1924,8 @@ export function taskResult(
     state,
     durationMs: end - start - (extra.parkedMs ?? 0),
     startTime: start,
-    errors: [...errors],
-    retryErrors: [...(extra.retryErrors ?? [])],
+    errors,
+    retryErrors: extra.retryErrors ?? NO_ERRORS,
     attempts: extra.attempts ?? 0,
     repeatIndex: extra.repeatIndex ?? 0,
     assertions: 0,

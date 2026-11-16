@@ -5,7 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import {AssertionError} from 'node:assert';
+import type {AssertionError} from 'node:assert'; // provino: the class loads on first use (`isAssertionError`), not when every Jest worker boots
+import process from 'node:process';
+import {format as prettyFormat} from 'pretty-format';
 import {
   DIM_COLOR,
   EXPECTED_COLOR,
@@ -39,12 +41,45 @@ const humanReadableOperators: Record<string, string> = {
   strictEqual: 'to strictly be equal',
 };
 
-// provino: jest-circus maps every error of a finished test (`test_done`); the runtime hands each
-// error here as it serializes it and takes the result in its place. `expand` is `state.expand`.
-const formatNodeAssertErrors = (error: unknown, expand: boolean): unknown =>
-  isAssertionError(error)
+// provino: the `test_done` handler's `event.test.errors.map(errors => …)` callback, as a function of
+// one entry and `expand` (`state.expand`); its caller maps the entries and keeps the result in
+// their place. An entry is what circus keeps in `test.errors`: a pair `[originalError, asyncError]`
+// or the error itself. Only the pair's branch looks at the stack (L47-L72), as upstream.
+interface Thrown {
+  stack?: unknown;
+  message?: string;
+}
+const formatNodeAssertErrors = (errors: unknown, expand: boolean): unknown => {
+  let error;
+  if (Array.isArray(errors)) {
+    const [originalError, asyncError] = errors as [
+      Thrown | null | undefined,
+      Error | undefined,
+    ];
+
+    if (originalError == null) {
+      error = asyncError;
+    } else if (originalError.stack) {
+      error = originalError;
+    } else if (asyncError) {
+      error = asyncError;
+
+      error.message =
+        originalError.message ||
+        `thrown: ${prettyFormat(originalError, {maxDepth: 3})}`;
+    } else {
+      error = new Error(
+        originalError.message ||
+          `thrown: ${prettyFormat(originalError, {maxDepth: 3})}`,
+      );
+    }
+  } else {
+    error = errors;
+  }
+  return isAssertionError(error)
     ? {message: assertionErrorMessage(error, {expand})}
-    : error;
+    : errors;
+};
 
 const getOperatorName = (operator: string | undefined, stack: string) => {
   if (typeof operator === 'string') {
@@ -106,9 +141,7 @@ function assertionErrorMessage(
   error: AssertionErrorWithStack,
   options: {expand: boolean},
 ) {
-  const {expected, actual, generatedMessage, message, operator} = error;
-  // provino: an error that only carries the code may have no stack; circus has made one by now.
-  const stack = typeof error.stack === 'string' ? error.stack : '';
+  const {expected, actual, generatedMessage, message, operator, stack} = error;
   const diffString = diff(expected, actual, options);
   const hasCustomMessage = !generatedMessage;
   const operatorName = getOperatorName(operator, stack);
@@ -167,14 +200,22 @@ function assertionErrorMessage(
   );
 }
 
+// provino: `node:assert`'s `AssertionError`, loaded the first time a value passes neither the name
+// nor the code test.
+let assertionErrorClass: typeof AssertionError | undefined;
+const loadedAssertionError = (): typeof AssertionError =>
+  (assertionErrorClass ??= process.getBuiltinModule('node:assert').AssertionError);
+
 function isAssertionError(error: unknown): error is AssertionErrorWithStack {
-  // provino: `error` is `unknown` here, so the property reads go through a cast; the test is jest-circus's.
+  // provino: `error` is `unknown` here, so the property reads go through a cast; jest-circus's three
+  // tests, the name (`AssertionError.name`) and code first and `instanceof` last, so `node:assert`
+  // loads only for a value that is neither: the same answer.
   const candidate = error as {name?: unknown; code?: unknown} | null | undefined;
   return Boolean(
     candidate &&
-      (error instanceof AssertionError ||
-        candidate.name === AssertionError.name ||
-        candidate.code === 'ERR_ASSERTION'),
+      (candidate.name === 'AssertionError' ||
+        candidate.code === 'ERR_ASSERTION' ||
+        error instanceof loadedAssertionError()),
   );
 }
 
