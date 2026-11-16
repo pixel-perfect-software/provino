@@ -1,0 +1,10 @@
+{
+  "description": "NODE_ENV in a test file when the environment already sets it to `production` (B23e): jest-cli's bin leaves a value that is not null alone, so both files see `production`, and `jest.replaceProperty(process.env, 'NODE_ENV', ...)` puts `production` back. Two workers. A black-box run.",
+  "runners": ["jest"],
+  "env": { "NODE_ENV": "production" },
+  "config": { "jest": { "maxWorkers": 2 } },
+  "run": {
+    "capture": ["exitCode", "json:.harness-out/jest.json"],
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

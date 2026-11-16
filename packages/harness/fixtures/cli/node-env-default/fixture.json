@@ -1,0 +1,9 @@
+{
+  "description": "NODE_ENV in a test file when the environment sets none (B23e): jest-cli's bin runs `if (process.env.NODE_ENV == null) process.env.NODE_ENV = 'test'` before anything else, so a file sees `test` as it loads and inside a test, in either of two files that run in two workers, and `jest.replaceProperty(process.env, 'NODE_ENV', ...)` finds the property to replace and puts it back. The recorder drops any NODE_ENV it inherits. A black-box run.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 2 } },
+  "run": {
+    "capture": ["exitCode", "json:.harness-out/jest.json"],
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

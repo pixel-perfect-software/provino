@@ -553,6 +553,19 @@ export function jestColourRequest(
 }
 
 /**
+ * What `jest-cli/bin/jest.js` (30.5.2) does before anything else: `if (process.env.NODE_ENV == null)
+ * process.env.NODE_ENV = 'test'`. A value the environment already holds, an empty string included
+ * (`== null` is true for `undefined` only here, as `process.env` never holds `null`), is left
+ * alone. It is the process's own environment, so the config files, the transforms (Babel's `env`
+ * key reads it) and every worker, which inherit it at spawn, see it, and
+ * `jest.replaceProperty(process.env, 'NODE_ENV', ...)` finds a property to replace.
+ * @internal
+ */
+export function defaultNodeEnv(env: NodeJS.ProcessEnv): void {
+  if (env.NODE_ENV === undefined) env.NODE_ENV = 'test'
+}
+
+/**
  * Runs one `provino jest` command line and resolves with the exit code. Bad input (a flag Jest
  * refuses or Provino can't run yet, a config Jest refuses, a pattern that isn't a regular
  * expression) is a message on `stderr` and Jest's exit code for it; any other error is a bug and
@@ -560,6 +573,8 @@ export function jestColourRequest(
  * @internal
  */
 export async function runJestCommand(args: readonly string[], io: JestCommandIo): Promise<number> {
+  // Before the config is found: a config file may read `NODE_ENV`, as Jest's does after its bin.
+  defaultNodeEnv(process.env)
   const { stdout, stderr, cwd } = io
   const usage = jestExitCode('usage', ExitCode.UsageError)
   /** What `--filter` threw (loading it, its `setup`, or a bad result): Jest ends with that error's stack. */
