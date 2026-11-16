@@ -42,6 +42,7 @@ const { positionals, values: args } = parseArgs({
     runs: { type: 'string' },
     only: { type: 'string' },
     keep: { type: 'boolean', default: false },
+    esm: { type: 'boolean', default: false },
     baseline: { type: 'string' },
     'idle-memory-limit': { type: 'string' },
   },
@@ -73,18 +74,35 @@ if (command === 'per-file-graph') {
     }
     return parsed
   }
+  const usage = (message: string): never => {
+    process.stderr.write(`${message}\n`)
+    process.exit(2)
+  }
   const subjects: Subject[] = []
-  for (const name of (args.only ?? 'provino,jest,baseline').split(',')) {
+  // By default every subject that can run: the baseline only with a checkout, Jest only on CommonJS.
+  const only =
+    args.only ??
+    [
+      'provino',
+      ...(args.esm ? [] : ['jest']),
+      ...(args.baseline === undefined ? [] : ['baseline']),
+    ].join(',')
+  for (const name of only.split(',')) {
     if (name !== 'provino' && name !== 'jest' && name !== 'baseline') {
-      process.stderr.write(`--only takes provino, jest and baseline, got ${name}\n`)
-      process.exit(2)
+      usage(`--only takes provino, jest and baseline, got ${name}`)
+    } else if (name === 'baseline' && args.baseline === undefined) {
+      usage('--only baseline needs --baseline <checkout>')
+    } else if (name === 'jest' && args.esm) {
+      usage('--esm runs Provino only: Jest leaves ES modules untransformed')
+    } else {
+      subjects.push(name)
     }
-    if (name !== 'baseline' || args.baseline !== undefined) subjects.push(name)
   }
   const lines = await perFileGraphLines({
     files: count('files', args.files, PER_FILE_TESTS),
     runs: count('runs', args.runs, 3),
     keep: args.keep,
+    esm: args.esm,
     subjects,
     ...(args.baseline === undefined ? {} : { baseline: args.baseline }),
     ...(args['idle-memory-limit'] === undefined

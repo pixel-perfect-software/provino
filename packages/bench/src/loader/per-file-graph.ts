@@ -8,7 +8,7 @@
 // `provino jest -w 1` and Jest 30.5.2 (`jest -w 1`) run the same project, interleaved, warm (each
 // keeps its cache directory between runs; one discarded warm-up each). From each run's `--json`
 // results: file 1's time and the median of files 2..N. Each test file's last test appends the
-// process's `pid`, RSS and `heapUsed` (no collection forced) to a log the run names: the memory of
+// process's `pid`, RSS, `heapUsed` and `arrayBuffers` (no collection forced, but with `--esm`) to a log the run names: the memory of
 // the worker that ran it, and with `--idle-memory-limit` how often a worker was replaced. A
 // `--baseline <checkout>` runs that tree's `provino jest` too, for a change's before and after. No
 // bar; every number is `local`.
@@ -47,6 +47,11 @@ export interface PerFileGraphOptions {
    * replaced, as a project that sets one sees. Unset, both run in band.
    */
   readonly idleMemoryLimit?: string
+  /**
+   * The graph as ES modules in the project's `src/` (`esmLibraryFiles`), with a collection before
+   * each memory row. Provino's subjects only: Jest's default transform leaves ES modules as they are.
+   */
+  readonly esm: boolean
 }
 
 /** Who runs: Jest, this tree's `provino jest`, or the baseline tree's. */
@@ -54,6 +59,8 @@ export type Subject = 'provino' | 'jest' | 'baseline'
 
 /** The variable that names a run's memory log. */
 const MEMORY_LOG = 'PER_FILE_GRAPH_MEMORY_LOG'
+/** Set (`--esm`) when the memory row collects first: the subject runs with `--expose-gc`. */
+const MEMORY_GC = 'PER_FILE_GRAPH_MEMORY_GC'
 
 const pad = (index: number): string => String(index).padStart(4, '0')
 
@@ -135,13 +142,79 @@ function libraryFiles(): Map<string, string> {
   return files
 }
 
-function testFile(index: number): string {
+/**
+ * The same graph as ES modules in the project's own `src/ui/` (`--esm`): user modules, so each is
+ * transformed, kept in its module-runner form by the transform cache, and evaluated per file.
+ */
+function esmLibraryFiles(): Map<string, string> {
+  const files = new Map<string, string>()
+  const domExports: string[] = []
+  for (let index = 0; index < DOM_MODULES; index++) {
+    files.set(
+      `src/ui/dom/helper${pad(index)}.js`,
+      `export const name = 'helper${index}';\nexport function apply(node, value) {\n  node.setAttribute('data-h${index}', String(value));\n  return node;\n}\n`,
+    )
+    domExports.push(`export * as helper${index} from './helper${pad(index)}.js';`)
+  }
+  files.set(
+    'src/ui/dom/index.js',
+    `${domExports.join('\n')}\nexport const canUseDom = typeof document.createElement === 'function';\nexport function createElement(tag) {\n  return document.createElement(tag);\n}\n`,
+  )
+  const coreExports: string[] = []
+  for (let index = 0; index < CORE_MODULES; index++) {
+    const next = (index + 1) % CORE_MODULES
+    const back = Math.floor(index / 2)
+    files.set(
+      `src/ui/core/m${pad(index)}.js`,
+      `import * as dom from '../dom/index.js';\nimport * as back from './m${pad(back)}.js';\nimport * as nextModule from './m${pad(next)}.js';\nexport const id = ${index};\nexport function style(props) {\n  const out = {};\n  for (const key in props) out[key + '${index}'] = props[key];\n  return out;\n}\nexport function next() {\n  return nextModule.id;\n}\nexport function canUseDom() {\n  return dom.canUseDom && back.id >= 0;\n}\n`,
+    )
+    coreExports.push(`export * as m${index} from './m${pad(index)}.js';`)
+  }
+  files.set(
+    'src/ui/core/index.js',
+    `${coreExports.join('\n')}\nexport { createElement } from '../dom/index.js';\n`,
+  )
+  files.set(
+    'src/ui/icons/util.js',
+    `import { createElement } from '../core/index.js';\nexport function createIcon(path, name) {\n  function Icon(props) {\n    const node = createElement('svg');\n    node.setAttribute('data-icon', name);\n    node.setAttribute('d', path);\n    return node;\n  }\n  Icon.displayName = name + 'Icon';\n  return Icon;\n}\n`,
+  )
+  const barrel: string[] = []
+  for (let index = 0; index < PER_FILE_ICONS; index++) {
+    files.set(
+      `src/ui/icons/Icon${pad(index)}.js`,
+      `import { createIcon } from './util.js';\nexport default createIcon('M${index} 20v-6h4v6h5v-8h3L12 3 2 12h3v8z', 'Icon${pad(index)}');\n`,
+    )
+    barrel.push(`export { default as Icon${pad(index)} } from './Icon${pad(index)}.js';`)
+  }
+  files.set('src/ui/icons/index.js', `${barrel.join('\n')}\n`)
+  for (let index = 0; index < COMPONENTS; index++) {
+    const sibling = (index * 7 + 3) % COMPONENTS
+    const below = Math.floor(index / 3)
+    files.set(
+      `src/ui/lib/C${pad(index)}.js`,
+      `import * as core from '../core/index.js';\nimport * as dom from '../dom/index.js';\nimport * as sibling from './C${pad(sibling)}.js';\nimport * as below from './C${pad(below)}.js';\nexport function render(label) {\n  const node = dom.createElement('div');\n  node.setAttribute('data-c', '${index}');\n  node.textContent = String(label);\n  return node;\n}\nexport function related() {\n  return [sibling.render, below.render, core.m${index % CORE_MODULES}.id];\n}\n`,
+    )
+  }
+  return files
+}
+
+function testFile(index: number, esm: boolean): string {
   const component = (offset: number): string => pad((index * 37 + offset * 101) % COMPONENTS)
+  const imports = esm
+    ? [
+        "import * as icons from '../src/ui/icons/index.js';",
+        `import * as first from '../src/ui/lib/C${component(0)}.js';`,
+        `import * as second from '../src/ui/lib/C${component(1)}.js';`,
+        `import * as third from '../src/ui/lib/C${component(2)}.js';`,
+      ]
+    : [
+        "const icons = require('ui-icons');",
+        `const first = require('ui-lib/C${component(0)}.js');`,
+        `const second = require('ui-lib/C${component(1)}.js');`,
+        `const third = require('ui-lib/C${component(2)}.js');`,
+      ]
   return [
-    "const icons = require('ui-icons');",
-    `const first = require('ui-lib/C${component(0)}.js');`,
-    `const second = require('ui-lib/C${component(1)}.js');`,
-    `const third = require('ui-lib/C${component(2)}.js');`,
+    ...imports,
     '',
     `test('renders file ${index}', () => {`,
     `  const node = first.render('t${index}');`,
@@ -155,8 +228,9 @@ function testFile(index: number): string {
     "test('memory', () => {",
     `  const log = process.env.${MEMORY_LOG}`,
     '  if (log === undefined) return',
+    `  if (process.env.${MEMORY_GC} === '1' && typeof gc === 'function') gc()`,
     '  const usage = process.memoryUsage()',
-    `  const row = { file: ${index}, pid: process.pid, rss: usage.rss, heapUsed: usage.heapUsed }`,
+    `  const row = { file: ${index}, pid: process.pid, rss: usage.rss, heapUsed: usage.heapUsed, arrayBuffers: usage.arrayBuffers }`,
     "  require('fs').appendFileSync(log, JSON.stringify(row) + '\\n')",
     '})',
     '',
@@ -167,11 +241,12 @@ function testFile(index: number): string {
 export async function writePerFileProject(
   root: string,
   testFiles: number,
-  idleMemoryLimit?: string,
+  idleMemoryLimit: string | undefined,
+  esm: boolean,
 ): Promise<void> {
-  const files = libraryFiles()
+  const files = esm ? esmLibraryFiles() : libraryFiles()
   for (let index = 0; index < testFiles; index++) {
-    files.set(`tests/t${pad(index)}.test.js`, testFile(index))
+    files.set(`tests/t${pad(index)}.test.js`, testFile(index, esm))
   }
   files.set(
     'jest.config.json',
@@ -189,6 +264,7 @@ export async function writePerFileProject(
   const harness = createRequire(
     fileURLToPath(new URL('../../../harness/package.json', import.meta.url)),
   )
+  mkdirSync(join(root, 'node_modules'), { recursive: true })
   symlinkSync(
     dirname(harness.resolve('jest-environment-jsdom/package.json')),
     join(root, 'node_modules', 'jest-environment-jsdom'),
@@ -202,6 +278,7 @@ interface FileNumbers {
   readonly pid: number
   readonly rssMb: number
   readonly heapMb: number
+  readonly buffersMb: number
 }
 
 /** One run's per-file numbers, in the order the files ran. */
@@ -218,8 +295,19 @@ function readMemory(path: string): Map<number, Memory> {
   const rows = new Map<number, Memory>()
   for (const line of readFileSync(path, 'utf8').split('\n')) {
     if (line === '') continue
-    const row = JSON.parse(line) as { file: number; pid: number; rss: number; heapUsed: number }
-    rows.set(row.file, { pid: row.pid, rssMb: row.rss / MB, heapMb: row.heapUsed / MB })
+    const row = JSON.parse(line) as {
+      file: number
+      pid: number
+      rss: number
+      heapUsed: number
+      arrayBuffers: number
+    }
+    rows.set(row.file, {
+      pid: row.pid,
+      rssMb: row.rss / MB,
+      heapMb: row.heapUsed / MB,
+      buffersMb: row.arrayBuffers / MB,
+    })
   }
   return rows
 }
@@ -257,10 +345,17 @@ async function runOnce(
   root: string,
   name: string,
   baseline: string | undefined,
+  esm: boolean,
 ): Promise<RunNumbers> {
   const out = join(root, `${name}.json`)
   const log = join(root, `${name}.memory.jsonl`)
-  const env: NodeJS.ProcessEnv = { ...process.env, NO_COLOR: '1', CI: '1', [MEMORY_LOG]: log }
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    NO_COLOR: '1',
+    CI: '1',
+    [MEMORY_LOG]: log,
+    ...(esm ? { [MEMORY_GC]: '1' } : {}),
+  }
   for (const key of ['CLAUDECODE', 'AI_AGENT', 'GITHUB_ACTIONS']) delete env[key]
   const flags = ['-w', '1', '--ci', '--json', '--outputFile', out]
   const cli =
@@ -275,7 +370,15 @@ async function runOnce(
           'jest.config.json',
           ...flags,
         ]
-      : ['--conditions=provino-source', cli, 'jest', '--config', 'jest.config.json', ...flags]
+      : [
+          ...(esm ? ['--expose-gc'] : []),
+          '--conditions=provino-source',
+          cli,
+          'jest',
+          '--config',
+          'jest.config.json',
+          ...flags,
+        ]
   const result = await runProcess(process.execPath, args, { cwd: root, env, timeoutMs: 900_000 })
   if (result.exitCode !== 0) {
     throw new Error(`${subject} exited with ${result.exitCode}:\n${result.output}`)
@@ -290,6 +393,7 @@ interface Summary {
   /** Per file position: the medians over the runs. */
   readonly rssMb: readonly number[]
   readonly heapMb: readonly number[]
+  readonly buffersMb: readonly number[]
   /** The worker processes a run used, the median over the runs. */
   readonly workers: number
 }
@@ -306,6 +410,7 @@ function summarize(runs: readonly RunNumbers[]): Summary {
     restMs: median(runs.map((run) => median(run.files.slice(1).map((file) => file.ms)))),
     rssMb: at((file) => file.rssMb),
     heapMb: at((file) => file.heapMb),
+    buffersMb: at((file) => file.buffersMb),
     workers: median(runs.map((run) => new Set(run.files.map((file) => file.pid)).size)),
   }
 }
@@ -316,13 +421,22 @@ const row = (values: readonly number[]): string => values.map((value) => value.t
 export async function perFileGraphLines(options: PerFileGraphOptions): Promise<string[]> {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'provino-per-file-graph-')))
   try {
-    await writePerFileProject(root, options.files, options.idleMemoryLimit)
+    if (options.esm && options.subjects.includes('jest')) {
+      throw new Error('--esm runs Provino only: Jest leaves ES modules untransformed')
+    }
+    await writePerFileProject(root, options.files, options.idleMemoryLimit, options.esm)
     const runs: Record<Subject, RunNumbers[]> = { provino: [], jest: [], baseline: [] }
     for (let run = 0; run <= options.runs; run++) {
       // The first side alternates, so none always runs on a machine another just warmed.
       const order = run % 2 === 0 ? options.subjects : [...options.subjects].reverse()
       for (const subject of order) {
-        const numbers = await runOnce(subject, root, `${subject}-${run}`, options.baseline)
+        const numbers = await runOnce(
+          subject,
+          root,
+          `${subject}-${run}`,
+          options.baseline,
+          options.esm,
+        )
         if (run > 0) runs[subject].push(numbers)
       }
     }
@@ -331,9 +445,12 @@ export async function perFileGraphLines(options: PerFileGraphOptions): Promise<s
       options.idleMemoryLimit === undefined
         ? 'in band'
         : `workerIdleMemoryLimit ${options.idleMemoryLimit}`
+    const shape = options.esm
+      ? 'ES modules in src/, heapUsed after a collection'
+      : 'CommonJS in node_modules, dom reads document at load'
     const lines = [
       `loader per-file-graph (local, Node ${process.version}, ${options.files} files, -w 1, ${limit}, jsdom through jest-environment-jsdom; median of ${options.runs} warm runs after 1 discarded, interleaved)`,
-      `  graph: ${PER_FILE_ICONS} icons + barrel + util, ${CORE_MODULES} core, ${COMPONENTS} components, ${DOM_MODULES + 1} dom (reads document at load)`,
+      `  graph: ${PER_FILE_ICONS} icons + barrel + util, ${CORE_MODULES} core, ${COMPONENTS} components, ${DOM_MODULES + 1} dom (${shape})`,
     ]
     const summaries = new Map<Subject, Summary>()
     for (const subject of options.subjects) {
@@ -349,6 +466,7 @@ export async function perFileGraphLines(options: PerFileGraphOptions): Promise<s
         `  ${label.padEnd(12)} wall ${summary.wallMs.toFixed(0)} ms, file 1 ${summary.firstMs.toFixed(0)} ms, files 2..${options.files} median ${summary.restMs.toFixed(0)} ms, ${summary.workers} worker processes`,
         `  ${''.padEnd(12)} RSS MB after each file:      ${row(summary.rssMb)}`,
         `  ${''.padEnd(12)} heapUsed MB after each file: ${row(summary.heapMb)}`,
+        `  ${''.padEnd(12)} arrayBuffers MB after each:  ${row(summary.buffersMb)}`,
       )
     }
     const theirs = summaries.get('jest')
