@@ -137,33 +137,39 @@ describe('provino jest --json writes what Jest 30.5.2 wrote', () => {
   }
 })
 
-describe('provino jest --json: failureDetails of thrown values that are not plain Errors', () => {
-  /** Each test's title, status and `failureDetails`, as `--json` wrote them. */
+describe('provino jest --json: thrown values that are not plain Errors', () => {
+  /** Each file's failure text, and each test's title, status, `failureMessages` and `failureDetails`. */
   const detailsOf = (results: Json): unknown[] =>
     (
       results as unknown as {
         testResults: {
-          assertionResults: { title: string; status: string; failureDetails: unknown }[]
+          message: string
+          assertionResults: {
+            title: string
+            status: string
+            failureMessages: unknown
+            failureDetails: unknown
+          }[]
         }[]
       }
-    ).testResults.flatMap((file) =>
-      file.assertionResults.map(({ title, status, failureDetails }) => ({
+    ).testResults.flatMap((file) => [
+      file.message,
+      ...file.assertionResults.map(({ title, status, failureMessages, failureDetails }) => ({
         title,
         status,
+        failureMessages,
         failureDetails,
       })),
-    )
+    ])
 
-  // A thrown `{ message }` has no frame to name, so the location checks above don't apply. Only
-  // `failureDetails` is held here: the failure text of a thrown non-Error (`failureMessages`, the
-  // stderr block) is core's serializer's description of the value (`[object Object]`), where
-  // Jest's circus reads its `message`, a gap of its own.
-  it('each is the JSON of the value as it was thrown (cli/json-thrown-values)', async () => {
+  // A thrown `{ message }` has no frame to name, so the location checks above don't apply. Its
+  // failure text is its `message`, as circus's `getErrorStack` reads a value with no string stack.
+  it('each fails with its message and is the JSON of the value as it was thrown (cli/json-thrown-values)', async () => {
     const id = 'cli/json-thrown-values'
     const run = await view(id)
     assert.equal(run.code, run.recordedCode, run.stderr)
     const recorded = detailsOf(run.recorded)
-    assert.equal(recorded.length, 3, 'the recording has the three tests')
+    assert.equal(recorded.length, 4, 'the recording has the file and its three tests')
     assert.deepEqual(detailsOf(JSON.parse(run.keys ?? 'null') as Json), recorded)
     assertTimes(run.raw, run.timeKeys, id)
   })
