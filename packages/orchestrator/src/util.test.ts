@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { getEventListeners } from 'node:events'
 import { describe, it } from 'node:test'
-import { ABORTED, isRecord, raceAbort } from './util.ts'
+import { ABORTED, isRecord, passesWithNoTests, raceAbort } from './util.ts'
 
 /** How many `abort` listeners a signal holds (`events.getEventListeners` is the public way to see them). */
 function listenerCount(signal: AbortSignal): number {
@@ -74,5 +74,14 @@ describe('isRecord', () => {
       isRecord(() => {}),
       false,
     )
+  })
+})
+
+describe('passesWithNoTests', () => {
+  it('is the run’s option when it has one, else the policy’s', () => {
+    assert.equal(passesWithNoTests(true, { passWithNoTests: false }), true)
+    assert.equal(passesWithNoTests(false, { passWithNoTests: true }), false)
+    assert.equal(passesWithNoTests(undefined, { passWithNoTests: true }), true)
+    assert.equal(passesWithNoTests(undefined, { passWithNoTests: false }), false)
   })
 })

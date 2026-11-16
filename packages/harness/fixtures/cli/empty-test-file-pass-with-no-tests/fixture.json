@@ -1,0 +1,24 @@
+{
+  "description": "--passWithNoTests does not rescue a matched test file that declares no tests: the flag is about finding no files (getNoTestsFoundMessage), and the scheduler's \"Your test suite must contain at least one test.\" (TestScheduler.ts onResult) never reads it, so the empty files still FAIL and the run exits 1. The same tree as cli/empty-test-file. One Jest worker, the default reporter.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "testMatch": ["**/__tests__/**/*.[jt]s?(x)", "**/?(*.)+(spec|test).[jt]s?(x)"]
+    }
+  },
+  "files": {
+    "jest": {
+      "__tests__/helper.ts": "export const helper = (): number => 1\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--useStderr", "--passWithNoTests"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^Test Suites:|must contain",
+    "sortStdout": true
+  }
+}

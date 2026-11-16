@@ -2,9 +2,12 @@
 // time, a module with only named `sync`/`async` exports is a resolver as its namespace is, and
 // resolution then goes through it.
 import assert from 'node:assert/strict'
+import { symlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
+import { JestConfigError } from './errors.ts'
 import { oracleRequireResolve, removeTree, writeTree } from './internal/test-support.ts'
+import { readJestConfigs } from './normalize.ts'
 import { createJestResolution } from './resolution.ts'
 
 const trees: string[] = []
@@ -45,6 +48,96 @@ test('a CommonJS resolver function is the resolver', async () => {
   const resolver = join(root, 'resolver.js')
   await resolution.preloadResolver(resolver)
   assert.equal(resolution.findNodeModule('@@x.js', { basedir: root, resolver }), join(root, 'x.js'))
+})
+
+/** A CommonJS resolver that requires something and counts its loads in `globalThis[counter]`. */
+function countingResolver(counter: string): string {
+  return [
+    "'use strict'",
+    "const { extname } = require('node:path')",
+    `globalThis.${counter} = (globalThis.${counter} ?? 0) + 1`,
+    'module.exports = (path, options) =>',
+    "  options.defaultResolver(extname(path) === '' ? `${path}.js` : path, options)",
+    '',
+  ].join('\n')
+}
+
+// Each project's normalize preloads the resolver, and `readJestConfigs` reads the projects at once,
+// as Jest's `readConfigs` does. A load per project, each a fresh `import()` that deleted the
+// file's `require.cache` entry, once failed with Node's `ERR_INTERNAL_ASSERTION`
+// (ts-jest-resolver's `dist/index.cjs` in a pnpm monorepo). jest-resolve loads it once per process.
+test('projects read at once share one load of a CommonJS resolver', async () => {
+  const config = JSON.stringify({ resolver: '<rootDir>/../resolver.cjs' })
+  const root = writeTree({
+    'resolver.cjs': countingResolver('__provinoSharedResolverLoads'),
+    'a/jest.config.json': config,
+    'b/jest.config.json': config,
+    'c/jest.config.json': config,
+  })
+  trees.push(root)
+  try {
+    const read = await readJestConfigs(
+      ['a', 'b', 'c'].map((project) => join(root, project)),
+      { cwd: root, requireResolve: oracleRequireResolve, ci: false, seed: 0 },
+    )
+    assert.deepEqual(
+      read.configs.map((project) => project.resolver),
+      ['a', 'b', 'c'].map(() => join(root, 'resolver.cjs')),
+    )
+    assert.equal(Reflect.get(globalThis, '__provinoSharedResolverLoads'), 1)
+  } finally {
+    Reflect.deleteProperty(globalThis, '__provinoSharedResolverLoads')
+  }
+})
+
+test('a resolver two projects name by different spellings of its path loads once', async () => {
+  const root = writeTree({
+    'real/resolver.cjs': countingResolver('__provinoSpelledResolverLoads'),
+    'x.js': '',
+  })
+  trees.push(root)
+  symlinkSync(join(root, 'real'), join(root, 'alias'))
+  const real = join(root, 'real', 'resolver.cjs')
+  const alias = join(root, 'alias', 'resolver.cjs')
+  const first = createJestResolution(oracleRequireResolve)
+  const second = createJestResolution(oracleRequireResolve)
+  try {
+    await Promise.all([first.preloadResolver(real), second.preloadResolver(alias)])
+    assert.equal(Reflect.get(globalThis, '__provinoSpelledResolverLoads'), 1)
+    assert.equal(first.findNodeModule('./x', { basedir: root, resolver: real }), join(root, 'x.js'))
+    assert.equal(
+      second.findNodeModule('./x', { basedir: root, resolver: alias }),
+      join(root, 'x.js'),
+    )
+  } finally {
+    Reflect.deleteProperty(globalThis, '__provinoSpelledResolverLoads')
+  }
+})
+
+// jest-resolve lets what `require` threw out as it is, and jest-cli prints its stack: the error
+// carries that error as its cause, which `provino jest` prints (`cli/resolver-load-error`). Its own
+// message names the resolver and the first line of what the module threw, so a consumer that prints
+// only the message (watch mode, `provino run`) still shows the user's text.
+test("a resolver that can't load is refused with what it threw as the cause", async () => {
+  const root = writeTree({ 'resolver.cjs': "require('./missing-helper.cjs')\n" })
+  trees.push(root)
+  const resolver = join(root, 'resolver.cjs')
+  await assert.rejects(
+    createJestResolution(oracleRequireResolve).preloadResolver(resolver),
+    (error: unknown) => {
+      assert.ok(error instanceof JestConfigError)
+      assert.equal(error.code, 'JEST_CONFIG_RESOLVER_LOAD_FAILED')
+      assert.equal(
+        error.message,
+        `can't load the resolver "${resolver}": Cannot find module './missing-helper.cjs'`,
+      )
+      const { cause } = error
+      assert.ok(cause instanceof Error)
+      assert.equal(Reflect.get(cause, 'code'), 'MODULE_NOT_FOUND')
+      assert.equal(cause.message.split('\n')[0], "Cannot find module './missing-helper.cjs'")
+      return true
+    },
+  )
 })
 
 test("a module that exports no resolver is refused with jest-resolve's text", async () => {

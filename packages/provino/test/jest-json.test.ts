@@ -100,6 +100,19 @@ describe('provino jest --json writes what Jest 30.5.2 wrote', () => {
     ['cli/json-vscode-contract', 'the contract vscode-jest reads: statuses, locations, snapshot'],
     ['cli/json-no-location', '--testLocationInResults=false: every location is null'],
     ['cli/json-file-states', 'a file that fails to import, an all-skipped file and a focused one'],
+    [
+      'cli/empty-test-file',
+      'a matched file with no tests: failed, "must contain at least one test"',
+    ],
+    [
+      'cli/empty-test-file-skipped-and-todo',
+      'todo-only, skip-only and skipped-describe files stay passed or skipped beside an empty one',
+    ],
+    ['cli/empty-test-file-name-pattern', '-t that matches no test: skipped, not "no tests"'],
+    [
+      'cli/empty-test-file-error-timing',
+      'a file with no test: circus’s own error is dropped, a load error is kept',
+    ],
     ['cli/json-results-processor', 'a testResultsProcessor: its keys in, its return out'],
   ] as const) {
     it(`${what} (${id})`, async () => {
@@ -137,33 +150,40 @@ describe('provino jest --json writes what Jest 30.5.2 wrote', () => {
   }
 })
 
-describe('provino jest --json: failureDetails of thrown values that are not plain Errors', () => {
-  /** Each test's title, status and `failureDetails`, as `--json` wrote them. */
+describe('provino jest --json: thrown values that are not plain Errors', () => {
+  /** Each file's failure text, and each test's title, status, `failureMessages` and `failureDetails`. */
   const detailsOf = (results: Json): unknown[] =>
     (
       results as unknown as {
         testResults: {
-          assertionResults: { title: string; status: string; failureDetails: unknown }[]
+          message: string
+          assertionResults: {
+            title: string
+            status: string
+            failureMessages: unknown
+            failureDetails: unknown
+          }[]
         }[]
       }
-    ).testResults.flatMap((file) =>
-      file.assertionResults.map(({ title, status, failureDetails }) => ({
+    ).testResults.flatMap((file) => [
+      file.message,
+      ...file.assertionResults.map(({ title, status, failureMessages, failureDetails }) => ({
         title,
         status,
+        failureMessages,
         failureDetails,
       })),
-    )
+    ])
 
-  // A thrown `{ message }` has no frame to name, so the location checks above don't apply. Only
-  // `failureDetails` is held here: the failure text of a thrown non-Error (`failureMessages`, the
-  // stderr block) is core's serializer's description of the value (`[object Object]`), where
-  // Jest's circus reads its `message`, a gap of its own.
-  it('each is the JSON of the value as it was thrown (cli/json-thrown-values)', async () => {
+  // A thrown `{ message }` or `{ stack }` has no frame to name, so the location checks above don't
+  // apply. Its failure text is `flattenErrorStack`'s: the stack, or the message when there is none,
+  // with the message put in front of a stack that lacks it (`{ message: 'M', stack: 'S' }` is `MS`).
+  it('each fails with its message and is the JSON of the value as it was thrown (cli/json-thrown-values)', async () => {
     const id = 'cli/json-thrown-values'
     const run = await view(id)
     assert.equal(run.code, run.recordedCode, run.stderr)
     const recorded = detailsOf(run.recorded)
-    assert.equal(recorded.length, 3, 'the recording has the three tests')
+    assert.equal(recorded.length, 7, 'the recording has the file and its six tests')
     assert.deepEqual(detailsOf(JSON.parse(run.keys ?? 'null') as Json), recorded)
     assertTimes(run.raw, run.timeKeys, id)
   })

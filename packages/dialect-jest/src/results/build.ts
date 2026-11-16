@@ -43,6 +43,14 @@ export interface FileEvents {
   readonly testFilePath: string
   /** The file's tree (`file:collected`), or `undefined` when it never got that far. */
   readonly tree: readonly TaskNode[] | undefined
+  /** The file never loaded (`file-collect-end`'s `loadFailed`): its import threw, say. */
+  readonly loadFailed?: true
+  /**
+   * The worker's runner failed the file after it ran (an unhandled error with the origin
+   * `runner`: the environment's teardown threw, say). Jest's `runTest` rejects then, so the
+   * scheduler's no-tests check never runs and the error is the file's.
+   */
+  readonly runnerFailed?: true
   readonly records: ReadonlyMap<TaskId, TestRecord>
   /**
    * The order each suite's children ran in, for the suites a randomized run shuffled
@@ -263,6 +271,19 @@ function noTestsResult(testFilePath: string): TestResult {
 }
 
 /**
+ * A file whose results the worker took with it, or a runner that failed it whole: Jest's runner
+ * fails the whole file (`TestScheduler.ts` `onFailure`, L185-L200), so even tests that ended before
+ * a crash leave no counts and no assertion.
+ */
+function discardedResult(file: FileEvents): TestResult {
+  const error = execErrorOf([...file.result.errors, ...file.unhandled]) ?? {
+    message: `the worker running the file exited (${JSON.stringify(file.result.workerExit)})`,
+    stack: null,
+  }
+  return buildFailureTestResult(file.testFilePath, error)
+}
+
+/**
  * What `runTest.ts` L313-L337 sets on every file's result, a collected one too: `perfStats`,
  * `skipped` and `displayName`.
  */
@@ -288,34 +309,43 @@ function withPerfStats(result: TestResult, file: FileEvents, options: BuildOptio
  * One file's `TestResult`, with `failureMessage` left `null` (the text comes from
  * `jest-message-util`, asynchronously: `collect.ts` fills it).
  *
- * - A file that ended with errors and no test that ran, or never collected, is a runtime error:
+ * - A file that loaded and has no test result fails with `Your test suite must contain at least one
+ *   test.`, whatever errors or leaks it holds (`onResult`, which tests only the results' length),
+ *   unless the worker's runner failed it after it ran (`runnerFailed`): `runTest` rejected then.
+ * - A file that ended with errors and no test that ran, or never loaded, is a runtime error:
  *   `testExecError` is its first error.
  * - A file with errors beside tests that ran has `testExecError` `{ message: '', stack }` with the
  *   errors joined by newlines, as Jest does for `unhandledErrors` (jestAdapterInit.ts L314-L319).
- * - A file with neither tests nor errors fails with `Your test suite must contain at least one test.`
  * @public
  */
 export function toTestResult(file: FileEvents, options: BuildOptions): TestResult {
+  if (file.result.workerExit !== undefined) return discardedResult(file)
+  const tests = file.tree === undefined ? [] : testsInOrder(file.tree, file.records, ordersOf(file))
+  const assertionResults = tests.map((record) => toAssertionResult(record, options))
+  const count = (status: Status): number =>
+    assertionResults.filter((result) => result.status === status).length
+  if (
+    assertionResults.length === 0 &&
+    file.tree !== undefined &&
+    file.loadFailed !== true &&
+    file.runnerFailed !== true
+  ) {
+    // `TestScheduler.onResult` (L144-L150) tests only `testResults.length === 0`, and before the
+    // leaks check (L153), so a file that loaded and has no test result is "must contain at least
+    // one test", whatever errors or leaks it holds: circus's `unhandledErrors` (a hook in a
+    // describe with no test: `cli/empty-test-file-error-timing`) and an error that came after
+    // circus had finished (a timer that throws: `cli/empty-test-file-timer-throws`) are dropped
+    // with it. A file that never loaded, or that the runner failed, is `onFailure`'s and keeps its
+    // own error.
+    return noTestsResult(file.testFilePath)
+  }
   if (file.result.leaks === true) {
     return buildFailureTestResult(file.testFilePath, {
       message: LEAK_MESSAGE,
       stack: `Error: ${LEAK_MESSAGE}\n    at TestScheduler.onResult (node_modules/@jest/core/build/index.js:1:1)`,
     })
   }
-  if (file.result.workerExit !== undefined || file.result.resultsDiscarded === true) {
-    // A worker that died takes the file's results with it: Jest's runner fails the whole file
-    // (`TestScheduler.ts` `onFailure`, L185-L200), so even tests that ended before the crash
-    // leave no counts and no assertion.
-    const error = execErrorOf([...file.result.errors, ...file.unhandled]) ?? {
-      message: `the worker running the file exited (${JSON.stringify(file.result.workerExit)})`,
-      stack: null,
-    }
-    return buildFailureTestResult(file.testFilePath, error)
-  }
-  const tests = file.tree === undefined ? [] : testsInOrder(file.tree, file.records, ordersOf(file))
-  const assertionResults = tests.map((record) => toAssertionResult(record, options))
-  const count = (status: Status): number =>
-    assertionResults.filter((result) => result.status === status).length
+  if (file.result.resultsDiscarded === true) return discardedResult(file)
   const numFailingTests = count('failed')
   const numPassingTests = count('passed')
   const numPendingTests = count('pending')
@@ -326,9 +356,7 @@ export function toTestResult(file: FileEvents, options: BuildOptions): TestResul
   const collected = file.tree?.some((node) => node.type !== 'file') === true
   if (options.collectOnly === true && collected) {
     // `collectTestsWithoutRunning` never reads `state.unhandledErrors`, so an error circus files
-    // there (a hooks-only describe, say) is not the file's; a file that collected nothing is
-    // `TestScheduler.onResult`'s (L144-L150) "must contain at least one test".
-    if (assertionResults.length === 0) return noTestsResult(file.testFilePath)
+    // there (a hooks-only describe, say) is not the file's.
     return withPerfStats(
       makeCollectedTestResult(assertionResults, {
         displayName: options.displayName,
@@ -341,12 +369,7 @@ export function toTestResult(file: FileEvents, options: BuildOptions): TestResul
   const ran = tests.some((record) => record.result !== undefined)
   let testExecError: TestResult['testExecError']
   if (!ran) {
-    testExecError =
-      execErrorOf(fileErrors) ??
-      ((file.result.state === 'fail' || options.collectOnly === true) &&
-      assertionResults.length === 0
-        ? { message: NO_TESTS_MESSAGE, stack: noTestsStack() }
-        : undefined)
+    testExecError = execErrorOf(fileErrors)
   } else if (fileErrors.length > 0) {
     testExecError = {
       message: '',
@@ -438,36 +461,6 @@ export function finishAggregated(aggregated: AggregatedResult, end: RunEnd): voi
 }
 
 /**
- * Whether the error is what the dialect's `shapeTestError` made of a failed `node:assert` call: a
- * `{ message }` object (jest-circus's `formatNodeAssertErrors`) that keeps the assertion error's own
- * `name` or `code`. Only that object enumerates a `message` (an `Error`'s is not enumerable), so it
- * is the one value whose `details` holds it: the serialized error carries no other mark, and every
- * other error's `failureDetails` stays as it was.
- */
-function isShapedAssertion(error: SerializedError, details: object): boolean {
-  const keys = Object.keys(details)
-  return (
-    keys.length === 1 &&
-    keys[0] === 'message' &&
-    (error.name === 'AssertionError' || error.code === 'ERR_ASSERTION') &&
-    (details as { message?: unknown }).message === error.message
-  )
-}
-
-/**
- * `failureDetails[i]` of a shaped assertion error: Jest's `{ message }` plain object, whose
- * `message` `--json` writes. Our frames stay out of its text, as of every message here (D104).
- */
-function shapedFailureDetailOf(error: SerializedError, details: object): unknown {
-  const message = hideProvinoFrames(error.message)
-  const detail: Record<string, unknown> = { ...details, message }
-  const hidden = { writable: true, configurable: true, enumerable: false }
-  Object.defineProperty(detail, 'name', { ...hidden, value: error.name })
-  Object.defineProperty(detail, 'stack', { ...hidden, value: message })
-  return detail
-}
-
-/**
  * What a reporter finds in `failureDetails[i]`: Jest hands it the error itself, so a hook reads
  * `detail.message` (jest-junit's `noStackTrace` does). `--json` writes only the own enumerable keys
  * (`details`, the JSON of the thrown value: only an assertion error keeps `matcherResult`), since
@@ -477,18 +470,18 @@ function shapedFailureDetailOf(error: SerializedError, details: object): unknown
 function failureDetailOf(error: SerializedError): unknown {
   const details = error.details ?? {}
   if (typeof details !== 'object' || details === null || Array.isArray(details)) return details
-  // The two rules combine by order: the shaper's output is Jest's `{ message }` (the shaped
-  // assertion), whatever `enumerableFields` says; every other error follows its own fields below.
-  if (isShapedAssertion(error, details)) return shapedFailureDetailOf(error, details)
   const detail: Record<string, unknown> = { ...details }
   // A key the thrown value had as its own enumerable property (`this.name = …` in a constructor,
   // as dom-testing-library's `TestingLibraryElementError` sets it) stays enumerable: Jest's JSON
   // of the error keeps it, with the value as thrown (`details`, the JSON of the value: a thrown
   // `{ message: 'boom' }` is `{"message":"boom"}`, not the serializer's text for it). The worker
   // says which (`enumerableFields`): an own key of `details` may come from the value's `toJSON`
-  // instead, and is then hidden, with the serializer's value.
+  // instead, and is then hidden, with the serializer's value, as is an own key of the value that
+  // the `toJSON` left out of `details`.
   const field = (key: 'name' | 'message' | 'stack', value: unknown): void => {
-    const enumerable = error.enumerableFields?.includes(key) === true
+    const enumerable =
+      error.enumerableFields?.includes(key) === true &&
+      (error.details === undefined || Object.hasOwn(detail, key))
     // `detail` still holds `details`' own copy of this key: only the keys `field` already ran for
     // are redefined.
     const kept = enumerable && Object.hasOwn(detail, key) ? detail[key] : value

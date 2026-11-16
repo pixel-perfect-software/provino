@@ -290,7 +290,9 @@ describe('createJestReporterHost', () => {
       'onTestFileStart',
       'onTestCaseStart',
     ])
-    const serial = await play([path], ['a.test.ts', 'b.test.ts'], {
+    // A module of its own: a reporter loads once per process, as Jest `require`s it, so a second
+    // load of the first would keep recording into the first run's array.
+    const serial = await play([await reporterModule(RECORDING)], ['a.test.ts', 'b.test.ts'], {
       interleave: true,
       serial: true,
     })
@@ -370,6 +372,27 @@ describe('loadJestReporters', () => {
           ),
         )
         assert.match(error.message, /cannot load it/)
+        return true
+      },
+    )
+  })
+
+  it('reports the innermost error when what a module threw wraps another one', async () => {
+    const path = await reporterModule(
+      "throw new Error('wrapper', { cause: new Error('the original error') })\n",
+    )
+    await assert.rejects(
+      loadJestReporters({
+        steps: [{ kind: 'custom', path, options: {} }],
+        summary: undefined,
+      }),
+      (error: Error) => {
+        assert.equal(
+          error.message,
+          `An error occurred while adding the reporter at path "${path}".\nthe original error`,
+        )
+        assert.ok(error.cause instanceof Error)
+        assert.equal(error.cause.message, 'wrapper')
         return true
       },
     )

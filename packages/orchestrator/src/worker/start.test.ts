@@ -134,6 +134,25 @@ describe('startWorker', () => {
     )
   })
 
+  it('charges a runner that throws with the origin runner, so a result builder can tell it from an error of the file', async (t) => {
+    const h = harness({
+      runFile: async () => {
+        throw new Error('Tearing down a.test.js failed')
+      },
+    })
+    t.after(() => h.coordinator.close())
+    h.coordinator.send({ t: 'start', init })
+    h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
+    await h.until(h.fileDone(0))
+    const charged = h
+      .events()
+      .filter((e): e is RuntimeEventOf<'unhandled-error'> => e.type === 'unhandled-error')
+    assert.deepEqual(
+      charged.map((e) => [e.ownerId, e.origin]),
+      [['file:a', 'runner']],
+    )
+  })
+
   it('sends output emitted just after runFile returns before fileDone', async (t) => {
     const h = harness({
       runFile: async ({ job, sink }) => {

@@ -1,0 +1,18 @@
+{
+  "description": "A file that declares no test and schedules a timer that throws: the timer fires after circus has finished, so the error is not circus's. Jest reports the file as \"Your test suite must contain at least one test.\" (TestScheduler.ts onResult, which tests only testResults.length === 0), then the throw ends Jest's own process (Node's uncaught-exception report, exit 1; with this one file the --json file is written first, and the report's text is not kept here, since Provino ends no process on it). The error is not on the file's result. One Jest worker, the default reporter, one file.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--useStderr"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |must contain",
+    "sortStdout": true
+  }
+}

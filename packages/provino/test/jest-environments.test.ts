@@ -11,7 +11,7 @@ import { dirname, join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { liveJest, provinoRun, sorted } from './live-jest.ts'
-import { loadFixture, materialize } from './recorded.ts'
+import { loadFixture, materialize, underRoot } from './recorded.ts'
 import { spawnCli } from './support.ts'
 
 const require = createRequire(
@@ -110,6 +110,7 @@ describe('handleTestEvent sees the events Jest 30.5.2 gave it', () => {
     'env/handle-test-event-timeout',
     'env/handle-test-event-retry-reasons',
     'env/handle-test-event-throws',
+    'env/handle-test-event-node-assert',
   ]) {
     it(id, async () => {
       const fixture = await loadFixture(id)
@@ -154,4 +155,40 @@ describe('handleTestEvent sees the events Jest 30.5.2 gave it', () => {
       }
     })
   }
+})
+
+// A file that declares no test, run by an environment whose `teardown()` throws. Jest's `runTest`
+// awaits the teardown inside its `try`, so the throw rejects `runTest` and `onFailure` prints that
+// error; `onResult`'s "Your test suite must contain at least one test." only looks at a result
+// `runTest` returned (`cli/empty-test-file-teardown-throws`).
+describe('an environment whose teardown throws, in a file with no test', () => {
+  it('prints the teardown’s error, not "must contain at least one test", as Jest 30.5.2 does', async () => {
+    const fixture = await loadFixture('cli/empty-test-file-teardown-throws')
+    const expected = fixture.golden.observed
+    assert.equal(expected?.exitCode, 1)
+    assert.match(expected?.stderr ?? '', /environment teardown failed/)
+    const project = await materialize(fixture)
+    try {
+      const target = dirname(require.resolve('jest-environment-node/package.json'))
+      await mkdir(join(project.root, 'node_modules'), { recursive: true })
+      await symlink(target, join(project.root, 'node_modules', 'jest-environment-node'))
+      const ended = await spawnCli(
+        [
+          'jest',
+          `--config=${join(project.root, 'jest.config.json')}`,
+          ...(fixture.manifest.run?.argv?.jest ?? []),
+        ],
+        { cwd: project.root },
+      )
+      assert.equal(ended.signal, null, 'it exited, it was not killed')
+      assert.equal(ended.code, expected?.exitCode, ended.stderr)
+      const printed = underRoot(ended.stderr, project.root)
+      for (const line of (expected?.stderr ?? '').split('\n')) {
+        assert.ok(printed.includes(line), `stderr has "${line}":\n${printed}`)
+      }
+      assert.doesNotMatch(printed, /must contain at least one test/)
+    } finally {
+      await project.dispose()
+    }
+  })
 })

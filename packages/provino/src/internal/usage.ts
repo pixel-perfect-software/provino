@@ -27,7 +27,7 @@ Options of provino run:
   -t, --testNamePattern <pattern>   Run only the tests whose full name matches
   -u, --updateSnapshot              Rewrite the snapshots that differ (default: write new ones)
       --ci                          Treat this as a CI run (default: from the CI variable)
-      --passWithNoTests             Pass when no test files are found
+      --passWithNoTests             Pass when no test files are found, and for a file with no test
       --no-cache                    Neither read nor write the results cache or the transform cache
       --bail[=n]                    End the run once n tests have failed (default 1; 0 is off)
       --forceExit                   Exit the process when the run is over, whatever a test left open

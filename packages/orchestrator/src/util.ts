@@ -1,4 +1,17 @@
 // Small helpers the coordinator's modules share. Not exported from the package.
+import type { OrchestratorPolicy } from '@provino/types'
+
+/**
+ * Whether a run passes with no tests: the run's own option (`--passWithNoTests`) when it has one,
+ * else the project's `orchestrator.passWithNoTests`. `exitCodeFor` (a run that found no file) and
+ * `runProjects` (a file that declares no test) both ask.
+ */
+export function passesWithNoTests(
+  option: boolean | undefined,
+  orchestrator: Pick<OrchestratorPolicy, 'passWithNoTests'>,
+): boolean {
+  return option ?? orchestrator.passWithNoTests
+}
 
 /** `-1`, `0` or `1` by UTF-16 code unit order, which is the same on every machine (`localeCompare` is not). */
 export function byText(a: string, b: string): number {

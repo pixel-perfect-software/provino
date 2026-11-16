@@ -37,7 +37,9 @@ export async function loadJestReporters(
       const Class = (await requireOrImportModule(step.path)) as JestReporterClass
       entries.push({ path: step.path, options: step.options, Class })
     } catch (error) {
-      // The module loader wraps what the module threw; Jest's `requireOrImportModule` doesn't.
+      // TestScheduler.ts L444-L448: the message of the error the module threw, after Jest's line.
+      // A wrapper (a loader's, or the module's own) names the error it wraps as its `cause`, and
+      // the user's text is the innermost one.
       let cause: unknown = error
       while (cause instanceof Error && cause.cause instanceof Error) cause = cause.cause
       const message = cause instanceof Error ? cause.message : ''

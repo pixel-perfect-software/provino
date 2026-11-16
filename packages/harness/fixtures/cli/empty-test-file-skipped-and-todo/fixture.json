@@ -1,0 +1,19 @@
+{
+  "description": "What stays a pass beside an empty file: a file of only a todo test, of only a skipped test and of a skipped describe with a test inside each collected something, so each has test results and Jest's scheduler (TestScheduler.ts onResult) does not turn it into \"Your test suite must contain at least one test.\"; the file of an empty describe next to them still fails with that text. The tree is data (D13). One Jest worker, the default reporter and --json.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--useStderr"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL|SKIP) |^Test Suites:|^Tests:|must contain",
+    "sortStdout": true,
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

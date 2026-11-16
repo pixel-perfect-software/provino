@@ -186,11 +186,13 @@ export interface FileEvents {
     readonly endedAt: number;
     // (undocumented)
     readonly info: FileInfo;
+    readonly loadFailed?: true;
     readonly orders?: ReadonlyMap<TaskId, readonly TaskId[]>;
     // (undocumented)
     readonly records: ReadonlyMap<TaskId, TestRecord>;
     // (undocumented)
     readonly result: FileResult;
+    readonly runnerFailed?: true;
     readonly startedAt: number;
     readonly testFilePath: string;
     readonly tree: readonly TaskNode[] | undefined;
@@ -393,7 +395,7 @@ export class JestConfigError extends Error {
 }
 
 // @public
-export type JestConfigErrorCode = "JEST_CONFIG_NOT_FOUND" | "JEST_CONFIG_NO_ROOT" | "JEST_CONFIG_MULTIPLE" | "JEST_CONFIG_LOAD_FAILED" | "JEST_CONFIG_TS_LOADER" | "JEST_CONFIG_INVALID" | "JEST_CONFIG_PRESET" | "JEST_CONFIG_MODULE_NOT_FOUND" | "JEST_CONFIG_DUPLICATE_PROJECT";
+export type JestConfigErrorCode = "JEST_CONFIG_NOT_FOUND" | "JEST_CONFIG_NO_ROOT" | "JEST_CONFIG_MULTIPLE" | "JEST_CONFIG_LOAD_FAILED" | "JEST_CONFIG_RESOLVER_LOAD_FAILED" | "JEST_CONFIG_TS_LOADER" | "JEST_CONFIG_INVALID" | "JEST_CONFIG_PRESET" | "JEST_CONFIG_MODULE_NOT_FOUND" | "JEST_CONFIG_DUPLICATE_PROJECT";
 
 // @public
 export const jestConfigReader: ConfigReader<JestLoadedConfig, JestResolvedConfig>;
@@ -1506,6 +1508,9 @@ export interface NormalizeOptions {
     readonly requireResolve?: JestRequireResolve;
     readonly seed?: number;
 }
+
+// @public
+export function packageJsonKey(path: string, key: string): unknown;
 
 // @public
 export function parseJestArgv(args: readonly string[]): JestArgv;

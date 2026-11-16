@@ -29,6 +29,12 @@ export interface FileDispatch {
   /** How many tests the file collected (`file-collect-end`). */
   readonly tests: number
   /**
+   * The worker's runner failed the file after it ran (an unhandled error with the origin
+   * `runner`: the environment's teardown threw, say). That error is the file's, whatever it
+   * declared.
+   */
+  readonly runnerFailed: boolean
+  /**
    * The user modules the file loaded (its `deps` event, rebuilt from the worker's table);
    * `undefined` until that event has arrived. T9.12's affected-test selection reads it.
    */
@@ -79,6 +85,7 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
   const nodes = new Map<TaskId, TaskNode>()
   let result: TaskResult | undefined
   let tests = 0
+  let runnerFailed = false
   let deps: readonly string[] | undefined
   /** The table of a file run on its own: no worker's earlier files to share ids with. */
   const ownTable = createDepsTable()
@@ -153,6 +160,7 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
         return await bus.emit('console', file, event)
       case 'unhandled-error':
         onUnhandled(event.error)
+        if (event.origin === 'runner') runnerFailed = true
         // An error charged to the run, not to a task, belongs to no file.
         return await bus.emit('unhandled', event.ownerId === null ? null : file, event)
       case 'file-end':
@@ -172,6 +180,9 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
     },
     get tests() {
       return tests
+    },
+    get runnerFailed() {
+      return runnerFailed
     },
     get deps() {
       return deps

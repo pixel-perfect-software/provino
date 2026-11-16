@@ -1,0 +1,25 @@
+{
+  "description": "A file that declares no test whose environment's teardown() throws. Jest's runTest awaits the teardown inside its try, so the throw rejects runTest and the scheduler's onFailure takes that error: the file prints the teardown's error, and onResult's \"Your test suite must contain at least one test.\" check, which only looks at a result runTest returned, never runs. A file that has no test and no such error still prints the no-tests text (cli/empty-test-file). One Jest worker, the default reporter and --json.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "testEnvironment": "<rootDir>/throwing-env.cjs"
+    }
+  },
+  "files": {
+    "jest": {
+      "throwing-env.cjs": "const { TestEnvironment } = require('jest-environment-node')\n\nmodule.exports = class ThrowingTeardownEnvironment extends TestEnvironment {\n  async teardown() {\n    await super.teardown()\n    throw new Error('environment teardown failed')\n  }\n}\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--useStderr"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL|SKIP) |^Test Suites:|^Tests:|must contain|environment teardown failed",
+    "sortStdout": true,
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

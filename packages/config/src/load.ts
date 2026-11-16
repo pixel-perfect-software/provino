@@ -25,16 +25,51 @@ const nodeRequire = createRequire(import.meta.url)
  * module. That is a small, accepted leak for config files. Only the config file itself is busted:
  * a module it imports or requires is still served from Node's caches.
  */
-function freshUrl(file: string): string {
-  try {
-    delete nodeRequire.cache[nodeRequire.resolve(file)]
-  } catch {
-    // Not resolvable, so nothing is cached under it; the import below reports why the file can't
-    // be read.
-  }
+function freshUrl(file: string, cacheKey: string): string {
+  delete nodeRequire.cache[cacheKey]
   const url = pathToFileURL(file)
   url.searchParams.set('provino-load', randomUUID())
   return url.href
+}
+
+/**
+ * The fresh load of each file that hasn't settled yet, by real path (the key of Node's CommonJS
+ * cache, so two spellings of one file share an entry). An `import()` of a CommonJS file puts the
+ * file's module in that cache when it reads the file, and checks, when it runs it, that the entry
+ * is still that module: Node 24's `loadCJSModuleWithModuleLoad` (`internal/modules/esm/translators`)
+ * asserts it, and the failure is `ERR_INTERNAL_ASSERTION`. A second fresh load of the same file in
+ * between deletes that entry (`freshUrl`), so the loads of one file run one after another: two
+ * `run()` calls that overlap on one config file reach it. It lives at module level because the
+ * cache it guards is the process's, and it holds a file only while a load of that file is running.
+ */
+const loading = new Map<string, Promise<void>>()
+
+/**
+ * The key of `file` in Node's CommonJS cache, which is also the key of `loading`: what
+ * `require.resolve` gives, the file's real path. A file that doesn't resolve is cached under
+ * nothing, so it is its own key, and the import says why it can't be read.
+ */
+function cacheKeyOf(file: string): string {
+  try {
+    return nodeRequire.resolve(file)
+  } catch {
+    return file
+  }
+}
+
+/** `import()` of `freshUrl(file)`, after any fresh load of the same file still running. */
+function importFresh(file: string): Promise<unknown> {
+  const key = cacheKeyOf(file)
+  const load = (loading.get(key) ?? Promise.resolve()).then(() => import(freshUrl(file, key)))
+  const settled = load.then(
+    () => undefined,
+    () => undefined,
+  )
+  loading.set(key, settled)
+  void settled.then(() => {
+    if (loading.get(key) === settled) loading.delete(key)
+  })
+  return load
 }
 
 /**
@@ -51,34 +86,24 @@ export function interopDefault(value: unknown): unknown {
 }
 
 /**
- * Imports a config module and returns its default export, unwrapped as `interopRequireDefault`
- * does for a CommonJS file compiled from `export default`. The shared loading step of every config
- * file Provino reads (build-plan §6: `provino.config.*` here, `jest.config.*` in the Jest dialect).
- * Node's own loader reads the file, so `.mjs`, `.js` (per the nearest `package.json`'s `type`),
- * `.mts` and `.ts` load as Node loads them (type stripping needs Node 22.18+, or
- * `--experimental-strip-types`). Every call reads the file again (see `freshUrl`).
- *
- * A module with no default export is `CONFIG_INVALID`, unless `withoutDefault` is `'namespace'`:
- * then its namespace is the value, as `require()` of such a module gives it (Jest reads a
- * `jest.config.ts` with only named exports that way).
+ * Imports a `provino.config.*` and returns its default export, unwrapped as
+ * `interopRequireDefault` does for a CommonJS file compiled from `export default`: how
+ * `loadConfigFile` reads it (build-plan §6). The Jest dialect reads Jest's files as jest-util's
+ * `requireOrImportModule` does instead (cached, as in Jest). Node's own loader reads the file, so
+ * `.mjs`, `.js` (per the nearest `package.json`'s `type`), `.mts` and `.ts` load as Node loads them
+ * (type stripping needs Node 22.18+, or `--experimental-strip-types`). Every call reads the file
+ * again (see `freshUrl`).
  *
  * Throws `ConfigError`: `CONFIG_LOAD_FAILED` when the import throws (the error is the `cause`),
- * `CONFIG_INVALID` when the module has no default export (see above).
- * @public
+ * `CONFIG_INVALID` when the module has no default export.
  */
-export async function importConfigModule(
-  path: string,
-  options: { readonly withoutDefault?: 'error' | 'namespace' } = {},
-): Promise<unknown> {
+async function importConfigModule(path: string): Promise<unknown> {
   const file = resolve(path)
   let namespace: unknown
   try {
-    namespace = await import(freshUrl(file))
+    namespace = await importFresh(file)
   } catch (cause) {
     throw new ConfigError('CONFIG_LOAD_FAILED', `can't load the config file "${file}"`, { cause })
-  }
-  if (isRecord(namespace) && !('default' in namespace) && options.withoutDefault === 'namespace') {
-    return namespace
   }
   if (!isRecord(namespace) || !('default' in namespace)) {
     throw new ConfigError(

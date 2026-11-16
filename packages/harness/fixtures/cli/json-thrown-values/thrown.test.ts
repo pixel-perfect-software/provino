@@ -16,3 +16,15 @@ test('an error with its own stack', () => {
   })
   throw error
 })
+
+test('an object with only a stack', () => {
+  throw { stack: 'only a stack' }
+})
+
+test('an object with a message and a stack', () => {
+  throw { message: 'the message', stack: 'the stack' }
+})
+
+test('an object with a message and a toJSON', () => {
+  throw { message: 'kept', toJSON: () => ({ other: 1 }) }
+})

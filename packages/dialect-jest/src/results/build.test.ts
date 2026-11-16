@@ -262,18 +262,21 @@ describe('toAssertionResult', () => {
       return built.failureDetails[0] as Record<string, unknown>
     }
 
-    it('keeps a shaped node:assert error`s message enumerable, its name hidden, and hides our frames', () => {
+    it('keeps a shaped node:assert error`s message enumerable, its name and stack hidden, and hides our frames', () => {
+      // What the worker sends for `shapeTestError`'s `{ message }`: only `message` enumerates.
       const message = `assert.equal(received, expected)\n    at t (/a.test.ts:1:1)\n${provinoFrame}`
       const shaped = details({
         name: 'AssertionError',
-        code: 'ERR_ASSERTION',
         message,
         stack: message,
         details: { message },
+        enumerableFields: ['message'],
       })
+      const text = 'assert.equal(received, expected)\n    at t (/a.test.ts:1:1)'
       assert.deepEqual(Object.keys(shaped), ['message'])
-      assert.equal(shaped.message, 'assert.equal(received, expected)\n    at t (/a.test.ts:1:1)')
+      assert.equal(shaped.message, text)
       assert.equal(shaped.name, 'AssertionError')
+      assert.equal(shaped.stack, text)
     })
 
     it('leaves every other error as it was: the message hidden, our frames dropped', () => {
@@ -305,6 +308,18 @@ describe('toAssertionResult', () => {
       assert.equal(JSON.stringify(thrown), '{"message":42,"code":"E"}')
     })
 
+    it('hides a message the value had as its own key but its toJSON left out (cli/json-thrown-values)', () => {
+      // `throw { message: 'kept', toJSON: () => ({ other: 1 }) }`: Jest's JSON is what `toJSON` gave.
+      const thrown = details({
+        name: 'Error',
+        message: 'kept',
+        details: { other: 1 },
+        enumerableFields: ['message'],
+      })
+      assert.equal(JSON.stringify(thrown), '{"other":1}')
+      assert.equal((thrown as { message: string }).message, 'kept')
+    })
+
     it('hides our frames in an own enumerable stack', () => {
       const stack = `Error: own\n    at t (/a.test.ts:1:1)\n${provinoFrame}`
       const thrown = details({
@@ -323,6 +338,14 @@ describe('toAssertionResult', () => {
 })
 
 describe('flattenSerializedError', () => {
+  it('is a thrown object’s own text: its stack, or its message, as core read them off it', () => {
+    // `throw { stack }` has no message and `throw { message }` no stack (jest-message-util
+    // `flattenErrorStack`: the stack, else the message; the message first when the stack lacks it).
+    assert.equal(flattenSerializedError({ name: 'Error', message: '', stack: 'S' }), 'S')
+    assert.equal(flattenSerializedError({ name: 'Error', message: 'M' }), 'M')
+    assert.equal(flattenSerializedError({ name: 'Error', message: 'M', stack: 'S' }), 'MS')
+  })
+
   it('prepends a message the stack lacks, and appends causes and aggregate errors', () => {
     const error: SerializedError = {
       name: 'Error',
@@ -464,6 +487,16 @@ describe('toTestResult', () => {
     assert.equal(built.numPassingTests, 0)
   })
 
+  it('a file with no test that also leaks reads "must contain": onResult checks the length before leaks', () => {
+    // TestScheduler.ts L144 (`testResults.length === 0`) comes before L153 (`testResult.leaks`).
+    const built = toTestResult(
+      events([], {}, { state: 'fail', leaks: true, resultsDiscarded: true, errors: [] }),
+      OPTIONS,
+    )
+    assert.equal(built.testExecError?.message, NO_TESTS_MESSAGE)
+    assert.notEqual(built.testExecError?.message, LEAK_MESSAGE)
+  })
+
   it('a file’s heap (--logHeapUsage) is the result’s memoryUsage', () => {
     const built = toTestResult(
       events([{ task: test('a', 'file'), result: result('pass') }], {}, { heapUsedBytes: 123_456 }),
@@ -480,6 +513,60 @@ describe('toTestResult', () => {
   it('a file with no test fails with Jest’s message', () => {
     const built = toTestResult(events([], {}, { state: 'fail' }), OPTIONS)
     assert.equal(built.testExecError?.message, NO_TESTS_MESSAGE)
+  })
+
+  it('a file that loaded and has no test result has Jest’s message whatever errors it holds: onResult tests only the length', () => {
+    // `cli/empty-test-file-error-timing` (circus's own error) and `cli/empty-test-file-timer-throws`.
+    const circus = events(
+      [],
+      {},
+      {
+        state: 'fail',
+        errors: [
+          failure('Invalid: beforeEach() may not be used in a describe block containing no tests.'),
+        ],
+      },
+    )
+    const timer = events([], { unhandled: [failure('thrown from a timer')] }, { state: 'fail' })
+    // The error the orchestrator gives a file it failed for declaring no test (`ORCH_NO_TESTS`):
+    // Provino's own text, which Jest's replaces.
+    const orchestrator = events(
+      [],
+      {},
+      {
+        state: 'fail',
+        errors: [{ name: 'Error', message: 'The file declares no tests', code: 'ORCH_NO_TESTS' }],
+      },
+    )
+    for (const file of [circus, timer, orchestrator]) {
+      const built = toTestResult(file, OPTIONS)
+      assert.equal(built.testExecError?.message, NO_TESTS_MESSAGE)
+      assert.deepEqual(built.testResults, [])
+      assert.equal(built.numFailingTests, 0)
+    }
+  })
+
+  it('a file the worker’s runner failed after it ran keeps that error: runTest rejects, so onResult’s check never ran', () => {
+    // A custom environment's `teardown()` that throws, a mock or clock dispose, `sendCoverage`.
+    const teardown = failure('teardown failed')
+    const built = toTestResult(
+      events([], { runnerFailed: true, unhandled: [teardown] }, { state: 'fail' }),
+      OPTIONS,
+    )
+    assert.equal(built.testExecError?.message, 'teardown failed')
+    assert.deepEqual(built.testResults, [])
+    // Without the mark the same error is a timer's or a hook's, which Jest drops.
+    const unmarked = toTestResult(events([], { unhandled: [teardown] }, { state: 'fail' }), OPTIONS)
+    assert.equal(unmarked.testExecError?.message, NO_TESTS_MESSAGE)
+  })
+
+  it('a file that never loaded keeps its own error, with a tree or without one', () => {
+    // `cli/empty-test-file-error-timing`: a throw while the file loads is `onFailure`'s.
+    const errors = [failure('thrown while loading')]
+    for (const patch of [{ loadFailed: true as const }, { tree: undefined }]) {
+      const built = toTestResult(events([], patch, { state: 'fail', errors }), OPTIONS)
+      assert.equal(built.testExecError?.message, 'thrown while loading')
+    }
   })
 
   it('errors beside tests that ran are the file’s exec error, joined as Jest joins them', () => {

@@ -106,9 +106,9 @@ export const RECEIVED_COLOR: typeof MatcherUtils.RECEIVED_COLOR = lazyChalk('REC
 /** @internal */
 export const diff: typeof MatcherUtils.diff = matcher('diff')
 
-/** The Chalk `jest-matcher-utils` colours with, loaded on first use. */
+/** The Chalk `jest-matcher-utils` colours with (its path is resolved above), loaded on first use. */
 const chalkOfMatcherUtilsInstance: () => { readonly reset: (text: string) => string } = once(() =>
-  createRequire(matcherUtilsPath)('chalk'),
+  require(chalkOfMatcherUtils),
 )
 
 /**

@@ -139,6 +139,37 @@ const shardSplit = (g: Golden): string => {
 
 /** What a recorded black-box run printed on stderr (Jest writes its report there). */
 const stderrOf = (g: Golden): string => observedOf(g).stderr ?? ''
+/**
+ * What a golden's files with no test (`empty`) ended as, from the reporter's header lines: `fail`
+ * when all are FAIL, `pass` when all are PASS, and a golden that shows neither (or a mix) is not
+ * evidence. A file that declared tests (`declared`: only skipped or todo ones, or every one left
+ * out by `-t`) is never this rule's, so a golden where one of them failed is no evidence either:
+ * it would read a rule that fails too much as Jest's.
+ */
+const noTestsFileOf = (
+  g: Golden,
+  {
+    empty,
+    declared = [],
+  }: { readonly empty: readonly string[]; readonly declared?: readonly string[] },
+): string => {
+  const lines = stderrOf(g).split('\n')
+  const states = empty.map((file) => {
+    const header = lines.find((line) => /^(PASS|FAIL) /.test(line) && line.endsWith(file))
+    return header?.slice(0, 4)
+  })
+  for (const file of declared) {
+    const status = g.files.find((candidate) => candidate.file === file)?.status
+    if (status === undefined || status === 'crashed' || status === 'failed') {
+      throw new Error(
+        `${g.suite} (${g.runner}): ${file} declares tests, so it can't have ${status}`,
+      )
+    }
+  }
+  if (states.every((state) => state === 'FAIL')) return 'fail'
+  if (states.every((state) => state === 'PASS')) return 'pass'
+  throw new Error(`${g.suite} (${g.runner}): the empty files have no common PASS or FAIL line`)
+}
 
 /** The pragmas whose file failed to start, in the order a file with both shows they win. */
 const pragmasRead = (g: Golden): readonly string[] => {
@@ -363,6 +394,41 @@ export const orchestratorClaims: Claims = {
       read: (g) => (stderrOf(g).includes('PASS ./todo-only.test.ts') ? 'pass' : 'skip'),
     }),
     pending('T11.16', 'no Vitest fixture records what a file of only todo tests ends as'),
+  ),
+  // A matched file that declares no test (a helper under `__tests__`, a file of one empty
+  // `describe`) is a FAIL line and a failed suite, "Your test suite must contain at least one
+  // test.", with and without `--passWithNoTests`; the passing file next to them is read too. A
+  // file whose tests are only todo or skipped, or that `-t` left none of, is not one of them
+  // (`noTestsFileOf`'s `declared` throws on a golden that fails them).
+  'orchestrator.noTestsFile': each(
+    [
+      golden('cli/empty-test-file', {
+        read: (g) => noTestsFileOf(g, { empty: ['describe-only.test.ts', '__tests__/helper.ts'] }),
+      }),
+      golden('cli/empty-test-file-pass-with-no-tests', {
+        read: (g) => noTestsFileOf(g, { empty: ['describe-only.test.ts', '__tests__/helper.ts'] }),
+      }),
+      golden('cli/empty-test-file-skipped-and-todo', {
+        read: (g) =>
+          noTestsFileOf(g, {
+            empty: ['describe-only.test.ts'],
+            declared: [
+              'todo-only.test.ts',
+              'skip-only.test.ts',
+              'skipped-describe.test.ts',
+              'passes.test.ts',
+            ],
+          }),
+      }),
+      golden('cli/empty-test-file-name-pattern', {
+        read: (g) =>
+          noTestsFileOf(g, { empty: ['describe-only.test.ts'], declared: ['has-tests.test.ts'] }),
+      }),
+    ],
+    pending(
+      'T11.16',
+      "no Vitest fixture records what a file with no test ends as (5.0.5's `runFiles` fails it unless `passWithNoTests`)",
+    ),
   ),
   // Jest's console entries keep the call site, and its text prints it under each entry.
   'orchestrator.consoleOrigin': each(

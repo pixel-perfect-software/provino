@@ -15,6 +15,7 @@ import type {
   FileResult,
   IsolationTier,
   OpenHandle,
+  OrchestratorPolicy,
   PoolKind,
   PoolOptions,
   RecyclePolicy,
@@ -71,7 +72,7 @@ import {
 import { mergeTimings, readTimings, TIMINGS_FILE_NAME, writeTimings } from './timings.ts'
 import { transportFor } from './transport/for-kind.ts'
 import { describeExit } from './transport/shared.ts'
-import { BATCH, mapInBatches, messageOf } from './util.ts'
+import { BATCH, mapInBatches, messageOf, passesWithNoTests } from './util.ts'
 
 /** `orchestrator.inBand` that never puts a run in band by itself. */
 const NO_AUTOMATIC_IN_BAND = { single: false, fastFileCount: 0, slowMs: 0 } as const
@@ -167,6 +168,12 @@ export interface RunProjectOptions {
   readonly testNamePattern?: string
   /** Rewrite the snapshots that differ (`-u`). Default `false`: new ones are written, unless this is a CI run. */
   readonly update?: boolean
+  /**
+   * `--passWithNoTests`; absent: each project's `orchestrator.passWithNoTests`. A run that finds no
+   * file passes (`exitCodeFor` reads it too) and, under `noTestsFile:
+   * 'fail-unless-pass-with-no-tests'`, so does a file that declares no test.
+   */
+  readonly passWithNoTests?: boolean
   /** Where the policy's snapshot update variable is read (Vitest's `UPDATE_SNAPSHOT`). Default: `process.env`. */
   readonly env?: Readonly<Record<string, string | undefined>>
   /**
@@ -398,15 +405,26 @@ interface QueuedFile {
 }
 
 /**
+ * What the policy decides about a file once it has ended, with what the file's events showed: how
+ * many tests ended `todo` (`todoOnlyFile`, DV50) and how many it collected (`noTestsFile`).
+ */
+interface FileRules {
+  readonly ended: number
+  readonly collected: number
+  /** The worker's runner failed the file after it ran (`FileDispatch.runnerFailed`). */
+  readonly runnerFailed: boolean
+  readonly todoOnlyFile: 'pass' | 'skip'
+  /** Whether a file that declares no test fails: `noTestsFile` with `passWithNoTests` applied. */
+  readonly failsWithNoTests: boolean
+}
+
+/**
  * A file's state for reporters, decided here once (the reporters, the results cache and
  * `normalized-json` all read it): `todo` and `queued` ran nothing (`skip`), `running` never
  * finished (`fail`), and a `skip` file with a test that ended `todo` is the policy's
  * `todoOnlyFile` (Jest passes it, DV50).
  */
-function stateOf(
-  state: TaskState,
-  todo: { readonly ended: number; readonly todoOnlyFile: 'pass' | 'skip' },
-): FileResult['state'] {
+function stateOf(state: TaskState, rules: FileRules): FileResult['state'] {
   switch (state) {
     case 'pass':
     case 'fail':
@@ -414,12 +432,44 @@ function stateOf(
     case 'skip':
     case 'todo':
     case 'queued':
-      return todo.ended > 0 ? todo.todoOnlyFile : 'skip'
+      return rules.ended > 0 ? rules.todoOnlyFile : 'skip'
     case 'running':
       return 'fail'
     default:
       return state satisfies never
   }
+}
+
+/**
+ * Whether a file that declares no test fails (`noTestsFile`): always under `fail`, and under
+ * `fail-unless-pass-with-no-tests` unless the run passes with no tests, the option first and the
+ * project's `passWithNoTests` otherwise (as `exitCodeFor` reads it).
+ */
+function failsWithNoTests(
+  orchestrator: Pick<OrchestratorPolicy, 'noTestsFile' | 'passWithNoTests'>,
+  passWithNoTests: boolean | undefined,
+): boolean {
+  switch (orchestrator.noTestsFile) {
+    case 'fail':
+      return true
+    case 'fail-unless-pass-with-no-tests':
+      return !passesWithNoTests(passWithNoTests, orchestrator)
+    case 'pass':
+      return false
+    default:
+      return orchestrator.noTestsFile satisfies never
+  }
+}
+
+/**
+ * The error of a file that declares no test and fails for it: Provino's own text. A dialect with a
+ * wording of its own replaces it (the Jest dialect's result builder does, for any file that loaded
+ * and has no test result).
+ */
+const NO_TESTS_ERROR: SerializedError = {
+  name: 'Error',
+  message: 'The file declares no tests',
+  code: 'ORCH_NO_TESTS',
 }
 
 function crashError(file: FileInfo, exit: WorkerExit): SerializedError {
@@ -1031,7 +1081,13 @@ export async function runProjectsOn(
       const elapsedMs = takenAt === undefined ? 0 : performance.now() - takenAt
       const reported = resultOf(entry.info, outcome, dispatch.result, elapsedMs, {
         ended: dispatch.todo,
+        collected: dispatch.tests,
+        runnerFailed: dispatch.runnerFailed,
         todoOnlyFile: member.project.policy.orchestrator.todoOnlyFile,
+        failsWithNoTests: failsWithNoTests(
+          member.project.policy.orchestrator,
+          options.passWithNoTests,
+        ),
       })
       // The worker finished the file and the inline snapshot write failed it.
       const result: FileResult =
@@ -1624,7 +1680,7 @@ function resultOf(
   outcome: PoolOutcome,
   end: TaskResult | undefined,
   elapsedMs: number,
-  todo: { readonly ended: number; readonly todoOnlyFile: 'pass' | 'skip' },
+  rules: FileRules,
 ): FileResult {
   const failed = (
     durationMs: number,
@@ -1652,25 +1708,39 @@ function resultOf(
       return failed(elapsedMs, [serializeError(outcome.error)])
     case 'start-failed':
       return failed(0, [serializeError(outcome.error)], outcome.exit)
-    case 'done':
-      return end === undefined
-        ? failed(elapsedMs, [
-            {
-              name: 'Error',
-              message: `The worker finished ${file.path} without reporting its result`,
-            },
-          ])
-        : {
-            file,
-            state: stateOf(end.state, todo),
-            durationMs: end.durationMs,
-            errors: end.errors,
-            ...(outcome.done.snapshot === undefined ? {} : { snapshot: outcome.done.snapshot }),
-            ...(end.childOrder === undefined ? {} : { childOrder: end.childOrder }),
-            ...(outcome.done.heapUsedBytes === undefined
-              ? {}
-              : { heapUsedBytes: outcome.done.heapUsedBytes }),
-          }
+    case 'done': {
+      if (end === undefined) {
+        return failed(elapsedMs, [
+          {
+            name: 'Error',
+            message: `The worker finished ${file.path} without reporting its result`,
+          },
+        ])
+      }
+      // A file the worker's runner failed after it ran (its environment's teardown threw) is
+      // failed whole, as Jest's `runTest` rejecting is: the error is the file's, whatever it
+      // declared and however its tests ended.
+      const state = rules.runnerFailed ? 'fail' : stateOf(end.state, rules)
+      // A file that ended with no error and collected no test declared none, which Jest fails
+      // ("Your test suite must contain at least one test."): collected is what counts, so a file
+      // whose tests are all skipped or todo is not this.
+      const noTests =
+        state !== 'fail' &&
+        rules.failsWithNoTests &&
+        rules.collected === 0 &&
+        end.errors.length === 0
+      return {
+        file,
+        state: noTests ? 'fail' : state,
+        durationMs: end.durationMs,
+        errors: noTests ? [NO_TESTS_ERROR] : end.errors,
+        ...(outcome.done.snapshot === undefined ? {} : { snapshot: outcome.done.snapshot }),
+        ...(end.childOrder === undefined ? {} : { childOrder: end.childOrder }),
+        ...(outcome.done.heapUsedBytes === undefined
+          ? {}
+          : { heapUsedBytes: outcome.done.heapUsedBytes }),
+      }
+    }
     default:
       return outcome satisfies never
   }

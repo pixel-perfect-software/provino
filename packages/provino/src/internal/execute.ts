@@ -191,6 +191,7 @@ function run(
     bus,
     ...(options.testNamePattern === undefined ? {} : { testNamePattern: options.testNamePattern }),
     ...(options.update === true ? { update: true } : {}),
+    ...(options.passWithNoTests === undefined ? {} : { passWithNoTests: options.passWithNoTests }),
     ...(options.collectOnly === true ? { collectOnly: true } : {}),
     ...(options.fileFilters === undefined ? {} : { fileFilters: options.fileFilters }),
     ...(options.selection === undefined ? {} : { selection: options.selection }),

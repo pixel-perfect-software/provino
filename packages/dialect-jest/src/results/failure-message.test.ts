@@ -100,6 +100,35 @@ describe('the failure text of an install', () => {
     assert.equal(text?.split('<body />').length, 2)
   })
 
+  it('prints a thrown object with a message and a stack from its flattened text, as Jest does', async () => {
+    // Jest formats the thrown value's own `stack` only when it is an Error
+    // (`failureDetailsToErrorOrStack`); a plain `{ message, stack }` is formatted from
+    // `failureMessages`, which puts the message in front of the stack (`flattenErrorStack`): its
+    // `message` and `stack` are enumerable, as an Error's are not.
+    const jest = await import('jest-message-util')
+    const thrown = { message: 'the message', stack: 'the stack' }
+    const withDetail = {
+      ...assertion,
+      failureDetails: [thrown],
+      failureMessages: [jest.flattenErrorStack(thrown as Error)],
+    } as unknown as AssertionResult
+    assert.equal(withDetail.failureMessages[0], 'the messagethe stack')
+    const expected = jest.formatResultsErrors(
+      [withDetail] as unknown as Parameters<typeof jest.formatResultsErrors>[0],
+      config as unknown as Parameters<typeof jest.formatResultsErrors>[1],
+      { noStackTrace: false },
+      '/app/a.test.ts',
+    )
+    const text = await formatTestFailures(
+      [withDetail],
+      config,
+      { noStackTrace: false },
+      '/app/a.test.ts',
+    )
+    assert.equal(text, expected)
+    assert.match(text ?? '', /the messagethe stack/)
+  })
+
   it('has none for an error that kept the file from running', async () => {
     const text = await formatFileError(
       { message: 'boom', stack: INSTALLED },
