@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// `pnpm bench:loader <check|isolation|graph|claims|per-file|ui-library|e2e>`: Track 2's Spike A,
+// `pnpm bench:loader <check|isolation|graph|claims|per-file|ui-library|megamorphic|e2e>`: Track 2's Spike A,
 // ported (B06), and the loader benches added since.
 //   check      run the fixture through the loader; the bar is 600/600 and 0 isolation
 //              violations under `registry` (`--tier none` shows the check can fail)
@@ -15,10 +15,15 @@
 //              files 2..N and the memory after each file (`--files n --runs n --only
 //              provino,jest,baseline --baseline <checkout> --idle-memory-limit <limit> --esm --keep`;
 //              no bar)
+//   megamorphic a per-file package with a class and a hot loop over its instances, under jsdom:
+//              `provino jest -w 1` against Jest 30.5 (and a `--baseline <checkout>`), interleaved;
+//              each file's hot loop, files 2-5 against the last 5 (`--files n --runs n --only
+//              provino,jest,baseline --baseline <checkout> --keep`; no bar)
 //   e2e        bench-e2e: process start to exit for 200 files and 1 file, Provino's loader vs
 //              Jest 30.5 with @swc/jest; a first per-file signal, not a gate
 // Every number is labelled `local`, and none is a Track 12 R5 BenchRecord (`provino-bench run`
-// writes those). `ui-library` and `e2e` time child processes; the others run in this process.
+// writes those). `ui-library`, `megamorphic` and `e2e` time child processes; the others run in
+// this process.
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -28,9 +33,11 @@ import { claimsLines } from './claims.ts'
 import { e2eLines, isolationLines, measureE2e, measureIsolation } from './e2e.ts'
 import { FIXTURE_FILES, TESTS_PER_FILE, writeLoaderFixture } from './fixture.ts'
 import { graphChild, graphCommand } from './graph-cli.ts'
+import { MEGAMORPHIC_TESTS, megamorphicLines } from './megamorphic.ts'
 import { perFileLines } from './per-file.ts'
 import { createFixtureLoader, type LoaderTier, runFixture } from './run.ts'
-import { type Subject, UI_LIBRARY_TESTS, uiLibraryLines } from './ui-library.ts'
+import type { Subject } from './subjects.ts'
+import { UI_LIBRARY_TESTS, uiLibraryLines } from './ui-library.ts'
 
 const { positionals, values: args } = parseArgs({
   allowPositionals: true,
@@ -67,45 +74,65 @@ if (command === 'graph') {
   process.exit(exitCode)
 }
 
-if (command === 'ui-library') {
-  const count = (name: string, value: string | undefined, fallback: number): number => {
-    const parsed = value === undefined ? fallback : Number(value)
-    if (!Number.isInteger(parsed) || parsed < 1) {
-      process.stderr.write(`--${name} must be a positive integer, got ${value}\n`)
-      process.exit(2)
-    }
-    return parsed
+const usage = (message: string): never => {
+  process.stderr.write(`${message}\n`)
+  process.exit(2)
+}
+
+const count = (name: string, value: string | undefined, fallback: number): number => {
+  const parsed = value === undefined ? fallback : Number(value)
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    usage(`--${name} must be a positive integer, got ${value}`)
   }
-  const usage = (message: string): never => {
-    process.stderr.write(`${message}\n`)
-    process.exit(2)
-  }
+  return parsed
+}
+
+/**
+ * The subjects of a command that runs child processes (`--only`); by default every one that can
+ * run: the baseline only with a checkout, Jest only on CommonJS.
+ */
+function subjectsOf(esm: boolean): Subject[] {
   const subjects: Subject[] = []
-  // By default every subject that can run: the baseline only with a checkout, Jest only on CommonJS.
-  const only =
-    args.only ??
-    [
-      'provino',
-      ...(args.esm ? [] : ['jest']),
-      ...(args.baseline === undefined ? [] : ['baseline']),
-    ].join(',')
-  for (const name of only.split(',')) {
+  const defaults = [
+    'provino',
+    ...(esm ? [] : ['jest']),
+    ...(args.baseline === undefined ? [] : ['baseline']),
+  ]
+  for (const name of (args.only ?? defaults.join(',')).split(',')) {
     if (name !== 'provino' && name !== 'jest' && name !== 'baseline') {
       usage(`--only takes provino, jest and baseline, got ${name}`)
     } else if (name === 'baseline' && args.baseline === undefined) {
       usage('--only baseline needs --baseline <checkout>')
-    } else if (name === 'jest' && args.esm) {
+    } else if (name === 'jest' && esm) {
       usage('--esm runs Provino only: Jest leaves ES modules untransformed')
     } else {
       subjects.push(name)
     }
   }
+  return subjects
+}
+
+if (command === 'megamorphic') {
+  const files = count('files', args.files, MEGAMORPHIC_TESTS)
+  if (files < 10) usage(`--files must be at least 10 (files 2-5 and the last 5), got ${files}`)
+  const lines = await megamorphicLines({
+    files,
+    runs: count('runs', args.runs, 3),
+    keep: args.keep,
+    subjects: subjectsOf(false),
+    ...(args.baseline === undefined ? {} : { baseline: args.baseline }),
+  })
+  process.stdout.write(`${lines.join('\n')}\n`)
+  process.exit(0)
+}
+
+if (command === 'ui-library') {
   const lines = await uiLibraryLines({
     files: count('files', args.files, UI_LIBRARY_TESTS),
     runs: count('runs', args.runs, 3),
     keep: args.keep,
     esm: args.esm,
-    subjects,
+    subjects: subjectsOf(args.esm),
     ...(args.baseline === undefined ? {} : { baseline: args.baseline }),
     ...(args['idle-memory-limit'] === undefined
       ? {}
@@ -159,7 +186,7 @@ try {
   } else {
     ok = false
     lines.push(
-      'usage: bench:loader <check|isolation|graph|claims|per-file|ui-library|e2e> [--tier registry|none] [--heavy] [--max-overhead-ms N] [--max-cold-ms N --max-warm-ms N]',
+      'usage: bench:loader <check|isolation|graph|claims|per-file|ui-library|megamorphic|e2e> [--tier registry|none] [--heavy] [--max-overhead-ms N] [--max-cold-ms N --max-warm-ms N]',
     )
   }
 } finally {
