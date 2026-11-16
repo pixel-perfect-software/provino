@@ -32,6 +32,11 @@ describe('timers on a Jest window environment, against Jest 30.5.2', () => {
     assertMatchesGolden(id, await provinoOn(id, { parent: PARENT }))
   })
 
+  it("env/jsdom-shared-timer-flag-nested: a package whose timer the test's own timer's callback set goes per file too", async () => {
+    const id = 'env/jsdom-shared-timer-flag-nested'
+    assertMatchesGolden(id, await provinoOn(id, { parent: PARENT }))
+  })
+
   it('env/jsdom-timer-captured-early: a package a node file loaded first still sets noted timers', async () => {
     const id = 'env/jsdom-timer-captured-early'
     assertMatchesGolden(id, await provinoOn(id, { parent: PARENT }))
@@ -43,6 +48,7 @@ describe('timers on a Jest window environment, against Jest 30.5.2', () => {
     'ecosystem/react-work-after-teardown',
     'ecosystem/react-scheduler-loop',
     'env/jsdom-shared-timer-flag',
+    'env/jsdom-shared-timer-flag-nested',
   ]) {
     it(`${id}, in band (-i): the same outcome as with one worker`, async () => {
       assertMatchesGolden(id, await provinoOn(id, { parent: PARENT, argv: ['-i'] }))

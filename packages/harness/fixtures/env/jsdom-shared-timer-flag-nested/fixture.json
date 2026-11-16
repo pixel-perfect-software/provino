@@ -1,0 +1,24 @@
+{
+  "description": "`env/jsdom-shared-timer-flag` with the package's timer set from the callback of the test's own timer. The package's module-level flag (`running`, until the queued work runs) is cleared only by its own timer's callback, 100 ms after `schedule`, on jest-environment-jsdom with one worker. `leaves-work` is the larger file, so it runs first: its test sets a timer whose callback queues work, waits for that callback, and ends while the package's timer is still pending. `runs-work` queues work and waits for it. Jest passes both: each file evaluates the package again, so the second file's copy has its own flag.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "packages": {
+    "pending-flag": {
+      "package.json": "{ \"name\": \"pending-flag\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "// The flag stays set until the timer's callback runs the queue, as a scheduler's message loop does.\nlet running = false\nconst queue = []\nexports.schedule = (work) => {\n  queue.push(work)\n  if (!running) {\n    running = true\n    setTimeout(() => {\n      running = false\n      while (queue.length > 0) queue.shift()()\n    }, 100)\n  }\n}\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^    [A-Z]",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
