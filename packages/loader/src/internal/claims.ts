@@ -35,6 +35,8 @@ export interface ClaimsState {
   readonly ignore: RegExp | null
   /** Each `node_modules` file asked about. A `native` one becomes `user` when Node can't parse it. */
   readonly verdicts: Map<string, ClaimVerdict>
+  /** The files whose verdict is `user`, in the order they were found: seeds of the per-file set. */
+  readonly users: string[]
 }
 
 function compiled<T>(what: string, make: () => T): T {
@@ -62,7 +64,7 @@ export function compileClaims(
   const ignore = compiled('ignorePatterns (joined with "|")', () =>
     ignoreRegExp(claims.ignorePatterns),
   )
-  return { ...shared, patterns, ignore, verdicts: new Map() }
+  return { ...shared, patterns, ignore, verdicts: new Map(), users: [] }
 }
 
 /**
@@ -125,6 +127,7 @@ function claimVerdict(claims: ClaimsState, path: string): ClaimVerdict {
           : 'native'
     }
     claims.verdicts.set(path, verdict)
+    if (verdict === 'user') claims.users.push(path)
   }
   return verdict
 }
@@ -209,6 +212,7 @@ function compilesAsCommonJs(path: string): boolean {
 export function demoteOnParseFailure(claims: ClaimsState, path: string, error: unknown): boolean {
   if (!isSyntaxError(error) || !/\.c?js$/.test(path) || compilesAsCommonJs(path)) return false
   claims.verdicts.set(path, 'user')
+  claims.users.push(path)
   claims.inline.claimed.clear()
   return true
 }

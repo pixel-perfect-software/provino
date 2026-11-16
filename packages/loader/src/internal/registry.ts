@@ -25,7 +25,7 @@ import {
   mockedReach,
   noteInlined,
   packageClosure,
-  reevaluatedReach,
+  perFileReach,
   servedReach,
 } from './inline.ts'
 import { actualView, cjsNamespace, createInteropCache, esmExports } from './interop.ts'
@@ -598,12 +598,13 @@ export class Registry {
     const state = this.#state
     const policy = state.options.policy
     // Externals evaluated per file (D127): one is, or its closure reaches one.
+    const claims = state.claims
+    // Externals evaluated per file (D127, D132): a seed, what reaches one, what only they import.
     const perFile =
       policy.reevaluateHookingExternals &&
       !this.#sharedAcrossFiles &&
-      state.reevaluate.active.size > 0
+      (state.reevaluate.active.size > 0 || (claims !== null && claims.users.length > 0))
     const served = state.options.moduleScope?.modules ?? NO_MODULES
-    const claims = state.claims
     const mocks = runner || !policy.mocksReachShared ? null : this.context.mocks
     if (!perFile && served.length === 0 && claims === null && mocks === null) return false
     const map = this.#instances
@@ -619,7 +620,18 @@ export class Registry {
         const userEdges = (user: string) => userEdgesOf(state, user)
         if (
           (perFile &&
-            reevaluatedReach(state.inline, state.options, path, state.reevaluate, userEdges)) ||
+            perFileReach(
+              state.inline,
+              state.options,
+              path,
+              state.reevaluate,
+              {
+                claimed: claims?.users ?? NO_MODULES,
+                loaded: state.required.keys(),
+                keep: (file) => isEvaluableExternal(file, state.inlineRules),
+              },
+              userEdges,
+            )) ||
           (served.length > 0 &&
             servedReach(state.inline, state.options, path, served, userEdges)) ||
           (claims !== null &&

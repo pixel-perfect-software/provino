@@ -19,7 +19,12 @@ import {
   scanSource,
   type ThirdPartyGraph,
 } from '../graph/index.ts'
-import type { ReevaluateState } from './reevaluate.ts'
+import {
+  linkPerFile,
+  type PerFileGraph,
+  type ReevaluateState,
+  selectPerFile,
+} from './reevaluate.ts'
 import { readSource } from './source.ts'
 
 /** The default for `LoaderOptions.inlineBudget`. */
@@ -319,21 +324,98 @@ function reachesTarget(
 }
 
 /**
- * Whether `path` is an external evaluated per file (`active`, D127), or its static closure reaches
- * one. Loaded natively, such an external would `require` Node's one cached copy of what it
- * reaches, while the file's own code and inlined externals get the file's copy: two instances of
- * a singleton (`react` under a component library, an "Invalid hook call"). So it is inlined too.
- * The verdict is kept in `reach` until `active` grows (`activate` clears it).
+ * Puts the edges of `path`'s static closure into `perFile` (each file once per worker), through
+ * the node_modules files the graph holds and the user modules an edge leads to (`userEdges`), and
+ * says whether anything was new. A file's own edges are read from its graph node, not from the
+ * closure's deduplicated list, which names only the first importer of each request.
  */
-export function reevaluatedReach(
+function indexClosure(
+  state: InlineState,
+  options: LoaderOptions,
+  perFile: PerFileGraph,
+  path: string,
+  userEdges: UserEdges,
+): boolean {
+  if (perFile.indexed.has(path)) return false
+  const graph = graphOf(state, options)
+  const stack = [path]
+  const follow = (importer: string, edges: readonly GraphEdge[]): void => {
+    for (const { target } of edges) {
+      if (target === null || target.startsWith('node:')) continue
+      linkPerFile(perFile, importer, target)
+      if (!inGraph(target)) stack.push(target)
+    }
+  }
+  while (stack.length > 0) {
+    const current = stack.pop()
+    if (current === undefined || perFile.indexed.has(current)) continue
+    if (!inGraph(current)) {
+      perFile.indexed.add(current)
+      follow(current, userEdges(current) ?? [])
+      continue
+    }
+    for (const member of graph.edgesOf(current).paths) {
+      if (perFile.indexed.has(member)) continue
+      perFile.indexed.add(member)
+      follow(member, graph.nodeOf(member)?.edges ?? [])
+    }
+    perFile.indexed.add(current)
+  }
+  return true
+}
+
+/** What the per-file set is made from, besides the graph: the claimed seeds and what the worker loaded. */
+export interface PerFileSources {
+  /** The `node_modules` files the transforms made user modules, in the order they were found (D130). */
+  readonly claimed: readonly string[]
+  /** The externals the worker has loaded natively so far (by path, or a builtin's `node:` id). */
+  readonly loaded: Iterable<string>
+  /** Whether a file can be evaluated per file at all (a node_modules file, no addon or WebAssembly). */
+  readonly keep: (path: string) => boolean
+}
+
+/**
+ * Whether the external at `path` is evaluated per file (D127, D129, D132): it is a seed (`active`,
+ * or a claimed user module), it imports one through any chain of edges (so it shares the file's
+ * copy, never Node's cached one: a component library over a learned `react`, an "Invalid hook
+ * call"), or it is a dependency of such a package that only such packages import (`joinsPerFile`:
+ * a registry a per-file package writes into as it loads, which would otherwise keep the first
+ * file's entries).
+ *
+ * The graph it decides over is the closures of what the worker loaded natively (indexed whenever
+ * the seeds grow, so a shared importer an earlier file loaded counts) and of every external an
+ * edge asks about since. It is settled again only when the graph or the seeds grew, and it only
+ * grows: a package once evaluated per file stays so, and a shared importer of it seen later
+ * reaches it, so is inlined too, keeping one copy in a file. Once the graph is known, a question
+ * costs a `Set` lookup.
+ */
+export function perFileReach(
   state: InlineState,
   options: LoaderOptions,
   path: string,
-  { active, reach }: ReevaluateState,
+  reevaluate: ReevaluateState,
+  sources: PerFileSources,
   userEdges: UserEdges,
 ): boolean {
-  if (active.has(path)) return true
-  return reachesTarget(reach, state, options, path, (target) => active.has(target), userEdges)
+  const { perFile, active } = reevaluate
+  const { claimed } = sources
+  if (perFile.primedActive !== active.size || perFile.primedClaimed !== claimed.length) {
+    for (const loaded of sources.loaded) {
+      if (inGraph(loaded)) indexClosure(state, options, perFile, loaded, userEdges)
+    }
+    for (const seed of active) indexClosure(state, options, perFile, seed, userEdges)
+    for (const seed of claimed) indexClosure(state, options, perFile, seed, userEdges)
+    perFile.primedActive = active.size
+    perFile.primedClaimed = claimed.length
+    perFile.stale = true
+  }
+  if (indexClosure(state, options, perFile, path, userEdges)) perFile.stale = true
+  if (perFile.stale) {
+    // The set only grows: what was evaluated per file stays so, in this file and the next.
+    perFile.members = selectPerFile(perFile, [...active, ...claimed], sources.keep, perFile.members)
+    perFile.stale = false
+  }
+  return perFile.members.has(path)
 }
 
 /**

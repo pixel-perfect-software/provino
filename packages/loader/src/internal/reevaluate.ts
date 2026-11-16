@@ -19,13 +19,119 @@ export interface ReevaluateState {
   /** What was learned since `takeLearned` last said so, in the order it was (never a seeded one). */
   readonly learned: string[]
   readonly watchers: Set<ExternalLoadWatcher>
-  /**
-   * Whether each node_modules file is in `active` or its closure reaches one (`reevaluatedReach`),
-   * per worker; cleared whenever `active` grows.
-   */
-  readonly reach: Map<string, boolean>
+  /** Which externals are evaluated per file, from the seeds and the known graph (D132). */
+  readonly perFile: PerFileGraph
   /** Whether a watched load is running: a load inside it is part of it, never a window of its own. */
   watching: boolean
+}
+
+/**
+ * The part of the node_modules graph the worker knows (D132): the edges of the static closure of
+ * every external it loaded from a file or asked about at an edge, both ways, and the set of
+ * externals evaluated per file that `selectPerFile` makes of it. The seeds are the externals
+ * evaluated per file for a reason of their own (`active`, D127 and D129; a file the transforms
+ * make a user module, D130).
+ *
+ * The set only grows: a file never holds two copies of a package because the worker learned more
+ * of the graph halfway through it, and a package is never evaluated per file in one file and
+ * shared in the next.
+ */
+export interface PerFileGraph {
+  /** Each known target's importers (node_modules files, and user modules a closure went through). */
+  readonly importers: Map<string, Set<string>>
+  /** Each known importer's targets. */
+  readonly imports: Map<string, Set<string>>
+  /** The files whose edges are in the two maps. */
+  readonly indexed: Set<string>
+  /** The externals evaluated per file now. */
+  members: ReadonlySet<string>
+  /** Whether the graph or the seeds changed since `members` was settled. */
+  stale: boolean
+  /** How many of `active`, and of the claims' user modules, have been indexed as seeds. */
+  primedActive: number
+  primedClaimed: number
+}
+
+function createPerFileGraph(): PerFileGraph {
+  return {
+    importers: new Map(),
+    imports: new Map(),
+    indexed: new Set(),
+    members: new Set(),
+    stale: false,
+    primedActive: 0,
+    primedClaimed: 0,
+  }
+}
+
+/** Records that `importer` has an edge to `target`. */
+export function linkPerFile(graph: PerFileGraph, importer: string, target: string): void {
+  let importers = graph.importers.get(target)
+  if (importers === undefined) {
+    importers = new Set()
+    graph.importers.set(target, importers)
+  }
+  importers.add(importer)
+  let imports = graph.imports.get(importer)
+  if (imports === undefined) {
+    imports = new Set()
+    graph.imports.set(importer, imports)
+  }
+  imports.add(target)
+}
+
+const NO_IMPORTERS: ReadonlySet<string> = new Set()
+
+/**
+ * D132's rule for a dependency of a package evaluated per file: it is evaluated per file too only
+ * when every importer the worker knows is. So a package the shared part of the graph imports
+ * (`react` under a component library) stays shared, and nothing evaluated per file pulls a shared
+ * package's dependencies along. The one place the rule is decided: `selectPerFile` takes it to a
+ * fixed point.
+ */
+export function joinsPerFile(
+  importers: ReadonlySet<string>,
+  members: ReadonlySet<string>,
+): boolean {
+  for (const importer of importers) if (!members.has(importer)) return false
+  return true
+}
+
+/**
+ * The externals evaluated per file: the seeds (and `base`, what was evaluated per file before), everything that imports one of them, through any chain of known edges (the
+ * reach rule, so a shared importer never loads Node's copy of what the file has its own of), and
+ * every dependency `joinsPerFile` lets in, with what imports it, until nothing changes. `keep` says
+ * which files can be evaluated per file at all (no addon, WebAssembly or builtin).
+ */
+export function selectPerFile(
+  graph: PerFileGraph,
+  seeds: Iterable<string>,
+  keep: (path: string) => boolean,
+  base: Iterable<string> = [],
+): Set<string> {
+  const members = new Set<string>()
+  const added: string[] = []
+  const add = (path: string): void => {
+    const up = [path]
+    while (up.length > 0) {
+      const current = up.pop()
+      if (current === undefined || members.has(current)) continue
+      members.add(current)
+      added.push(current)
+      for (const importer of graph.importers.get(current) ?? NO_IMPORTERS) up.push(importer)
+    }
+  }
+  for (const path of base) add(path)
+  for (const path of seeds) add(path)
+  while (added.length > 0) {
+    const member = added.pop()
+    if (member === undefined) break
+    for (const target of graph.imports.get(member) ?? NO_IMPORTERS) {
+      if (members.has(target) || !keep(target)) continue
+      if (joinsPerFile(graph.importers.get(target) ?? NO_IMPORTERS, members)) add(target)
+    }
+  }
+  return members
 }
 
 export function createReevaluateState(): ReevaluateState {
@@ -34,16 +140,14 @@ export function createReevaluateState(): ReevaluateState {
     pending: new Set(),
     learned: [],
     watchers: new Set(),
-    reach: new Map(),
+    perFile: createPerFileGraph(),
     watching: false,
   }
 }
 
-/** Makes `paths` active (an earlier run's set), and drops the reach verdicts they may change. */
+/** Makes `paths` active (an earlier run's set); the per-file set sees them on its next question. */
 export function activate(state: ReevaluateState, paths: Iterable<string>): void {
-  const size = state.active.size
   for (const path of paths) state.active.add(path)
-  if (state.active.size !== size) state.reach.clear()
 }
 
 /** Learns `file`, unless it is evaluated per file already: pending, and one more for `takeLearned`. */

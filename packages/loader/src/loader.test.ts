@@ -1253,6 +1253,141 @@ test('reevaluateHookingExternals: a seeded set inlines a library that requires a
   })
 })
 
+/**
+ * D132: a per-file package (`plugin`, which reads `document` as it loads) registers into a package
+ * it reaches through a re-export barrel (`registry`, which throws on a duplicate id), and shares a
+ * dependency with a shared package (`core-lib`, also imported by `widget`). `late` is a shared
+ * importer of the registry that only the third file loads.
+ */
+const CLOSURE = {
+  'node_modules/registry/package.json': JSON.stringify({ name: 'registry', main: 'index.js' }),
+  'node_modules/registry/index.js': [
+    ';(globalThis.__provinoClosureEvals ??= []).push(__filename)',
+    'const ids = new Map()',
+    'class Entry {}',
+    'function register(id, entry) {',
+    "  if (ids.has(id)) throw new RangeError('Duplicate use of id ' + id)",
+    '  ids.set(id, entry)',
+    '  return entry',
+    '}',
+    'module.exports = { Entry, register, lookup: (id) => ids.get(id) }',
+    '',
+  ].join('\n'),
+  'node_modules/registry-barrel/package.json': JSON.stringify({
+    name: 'registry-barrel',
+    main: 'index.js',
+  }),
+  'node_modules/registry-barrel/index.js': "module.exports = require('registry')\n",
+  'node_modules/dom-reader/package.json': JSON.stringify({ name: 'dom-reader', main: 'index.js' }),
+  'node_modules/dom-reader/index.js': 'module.exports = { document: document }\n',
+  'node_modules/core-lib/package.json': JSON.stringify({ name: 'core-lib', main: 'index.js' }),
+  'node_modules/core-lib/index.js':
+    ';(globalThis.__provinoClosureEvals ??= []).push(__filename)\nmodule.exports = { token: {} }\n',
+  'node_modules/plugin/package.json': JSON.stringify({ name: 'plugin', main: 'index.js' }),
+  'node_modules/plugin/index.js': [
+    "const registry = require('registry-barrel')",
+    "require('dom-reader')",
+    "const core = require('core-lib')",
+    'class PluginEntry extends registry.Entry {}',
+    "module.exports = { entry: registry.register('plugin', new PluginEntry()), registry, core }",
+    '',
+  ].join('\n'),
+  'node_modules/widget/package.json': JSON.stringify({ name: 'widget', main: 'index.js' }),
+  'node_modules/widget/index.js': "module.exports = { core: require('core-lib') }\n",
+  'node_modules/late/package.json': JSON.stringify({ name: 'late', main: 'index.js' }),
+  'node_modules/late/index.js': "module.exports = { registry: require('registry') }\n",
+  'a.test.js':
+    "module.exports = { registry: require('registry'), widget: require('widget'), plugin: require('plugin') }\n",
+  'b.test.js':
+    "module.exports = { registry: require('registry'), widget: require('widget'), plugin: require('plugin') }\n",
+  'c.test.js':
+    "module.exports = { registry: require('registry'), widget: require('widget'), plugin: require('plugin'), late: require('late') }\n",
+}
+
+interface Registry {
+  readonly Entry: abstract new () => object
+  readonly lookup: (id: string) => object | undefined
+}
+
+interface ClosureLoaded {
+  readonly registry: Registry
+  readonly widget: { readonly core: { readonly token: object } }
+  readonly plugin: {
+    readonly entry: object
+    readonly registry: Registry
+    readonly core: { readonly token: object }
+  }
+  readonly late?: { readonly registry: Registry }
+}
+
+/** The packages under `root` evaluated since the last call, by name, in order. */
+function closureEvals(root: string): string[] {
+  const all = Reflect.get(globalThis, '__provinoClosureEvals') as string[] | undefined
+  Reflect.set(globalThis, '__provinoClosureEvals', [])
+  return (all ?? [])
+    .filter((path) => path.startsWith(root))
+    .map((path) => path.slice(root.length + '/node_modules/'.length).split('/')[0] ?? '')
+}
+
+function closureLoader(root: string): (name: string) => ClosureLoaded {
+  const loader = loaderFor(root, { reevaluateHookingExternals: true, interopDefault: 'babel' })
+  loader.watchExternalLoads(probe([]))
+  return (name) =>
+    loader
+      .createFileRegistry(join(root, name), { tier: 'registry' })
+      .require<ClosureLoaded>(join(root, name))
+}
+
+test('reevaluateHookingExternals (D132): a dependency only per-file packages import is evaluated per file, through a re-export', async () => {
+  const root = writeTree(CLOSURE)
+  const load = closureLoader(root)
+  await withFileGlobals(async () => {
+    closureEvals(root)
+    const first = load('a.test.js')
+    assert.deepEqual(closureEvals(root), ['registry', 'core-lib'])
+    for (const name of ['b.test.js', 'c.test.js']) {
+      const loaded = load(name)
+      assert.ok(closureEvals(root).includes('registry'), `the registry is ${name}’s own`)
+      assert.notEqual(loaded.registry, first.registry)
+      assert.equal(loaded.plugin.registry, loaded.registry, 'the plugin writes into it')
+      assert.equal(loaded.registry.lookup('plugin'), loaded.plugin.entry, 'registered once')
+      assert.ok(loaded.plugin.entry instanceof loaded.registry.Entry)
+    }
+  })
+})
+
+test('reevaluateHookingExternals (D132): a dependency a shared package imports too stays shared', async () => {
+  const root = writeTree(CLOSURE)
+  const load = closureLoader(root)
+  await withFileGlobals(async () => {
+    closureEvals(root)
+    const first = load('a.test.js')
+    const second = load('b.test.js')
+    assert.deepEqual(
+      closureEvals(root).filter((name) => name === 'core-lib'),
+      ['core-lib'],
+      'core-lib is evaluated once per worker',
+    )
+    assert.equal(second.widget.core, first.widget.core, 'widget stays shared')
+    assert.equal(second.plugin.core, second.widget.core, 'the per-file plugin sees the shared one')
+    assert.notEqual(second.plugin.entry, first.plugin.entry, 'the plugin itself is per file')
+  })
+})
+
+test('reevaluateHookingExternals (D132): a shared importer of a per-file dependency, seen later, is inlined too', async () => {
+  const root = writeTree(CLOSURE)
+  const load = closureLoader(root)
+  await withFileGlobals(async () => {
+    load('a.test.js')
+    load('b.test.js')
+    const third = load('c.test.js')
+    assert.equal(third.late?.registry, third.registry, 'late shares the file’s registry')
+    const fourth = load('c.test.js')
+    assert.equal(fourth.late?.registry, fourth.registry, 'and the registry stays per file')
+    assert.equal(fourth.registry.lookup('plugin'), fourth.plugin.entry)
+  })
+})
+
 test('isolation none: an external inlined for a served module is evaluated once per worker, not again per file', () => {
   const root = writeTree({
     'node_modules/@jest/globals/package.json': JSON.stringify({
