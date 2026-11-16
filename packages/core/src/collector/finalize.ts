@@ -12,13 +12,20 @@ import type {
   CorePolicy,
   FileTask,
   RunMode,
+  SourceLocation,
   SuiteTask,
   TaskId,
   TaskNode,
   TestTask,
 } from '@provino/types'
 import { CoreError } from '../errors.ts'
-import type { FileState, NodeSkipReason, SuiteNode, TestNode } from '../internal/model.ts'
+import type {
+  DeclaredHookKind,
+  FileState,
+  NodeSkipReason,
+  SuiteNode,
+  TestNode,
+} from '../internal/model.ts'
 import { parseSite, toPath } from './location.ts'
 import { walk } from './nodes.ts'
 
@@ -379,17 +386,21 @@ function checkEmpty(file: FileState, nodes: Nodes, policy: CorePolicy): void {
   for (const node of nodes) {
     if (node.type === 'test' || withTests.has(node)) continue
     for (const kind of ['beforeAll', 'beforeEach', 'afterEach', 'afterAll'] as const) {
-      file.errors.push(
-        ...node.hooks[kind].map(
-          () =>
-            new CoreError(
-              'CORE_EMPTY_DESCRIBE',
-              `Invalid: ${kind}() may not be used in a describe block containing no tests.`,
-            ),
-        ),
-      )
+      file.errors.push(...node.hooks[kind].map((hook) => emptyDescribeError(kind, hook.location)))
     }
   }
+}
+
+/**
+ * A hook in a describe with no tests. jest-circus reports the hook's own `asyncError` with this
+ * message (`eventHandler.ts` L59-L63), so the stack is the message (no class name before it) at the
+ * place the hook was registered, not the frames of the finalize step (`cli/hooks-only-describe`).
+ */
+function emptyDescribeError(kind: DeclaredHookKind, at: SourceLocation | null): CoreError {
+  const message = `Invalid: ${kind}() may not be used in a describe block containing no tests.`
+  const error = new CoreError('CORE_EMPTY_DESCRIBE', message)
+  error.stack = at === null ? message : `${message}\n    at ${at.file}:${at.line}:${at.column}`
+  return error
 }
 
 /**
