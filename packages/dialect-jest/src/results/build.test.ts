@@ -262,18 +262,21 @@ describe('toAssertionResult', () => {
       return built.failureDetails[0] as Record<string, unknown>
     }
 
-    it('keeps a shaped node:assert error`s message enumerable, its name hidden, and hides our frames', () => {
+    it('keeps a shaped node:assert error`s message enumerable, its name and stack hidden, and hides our frames', () => {
+      // What the worker sends for `shapeTestError`'s `{ message }`: only `message` enumerates.
       const message = `assert.equal(received, expected)\n    at t (/a.test.ts:1:1)\n${provinoFrame}`
       const shaped = details({
         name: 'AssertionError',
-        code: 'ERR_ASSERTION',
         message,
         stack: message,
         details: { message },
+        enumerableFields: ['message'],
       })
+      const text = 'assert.equal(received, expected)\n    at t (/a.test.ts:1:1)'
       assert.deepEqual(Object.keys(shaped), ['message'])
-      assert.equal(shaped.message, 'assert.equal(received, expected)\n    at t (/a.test.ts:1:1)')
+      assert.equal(shaped.message, text)
       assert.equal(shaped.name, 'AssertionError')
+      assert.equal(shaped.stack, text)
     })
 
     it('leaves every other error as it was: the message hidden, our frames dropped', () => {

@@ -18,10 +18,9 @@ export const shapeTestError: ShapeTestError = (error, { expand }) => {
   // enumerable key Jest's `failureDetails[i]` has: `stack` is the message too, and hidden.
   const replaced = { message }
   Object.defineProperty(replaced, 'stack', { value: message, enumerable: false })
-  // `name` and `code` stay what the assertion error had (`AssertionError`, `ERR_ASSERTION`) for what
-  // reads them off the serialized error (a JUnit `type`); hidden, so `--json` still holds `{ message }`.
-  const { name, code } = error as { name?: unknown; code?: unknown }
+  // `name` stays what the assertion error had (`AssertionError`) for what reads it off the
+  // serialized error (a JUnit `type`); hidden, so `--json` still holds `{ message }`.
+  const { name } = error as { name?: unknown }
   if (typeof name === 'string') Object.defineProperty(replaced, 'name', { value: name })
-  if (typeof code === 'string') Object.defineProperty(replaced, 'code', { value: code })
   return replaced
 }

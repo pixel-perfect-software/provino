@@ -128,20 +128,18 @@ test('every recorded node:assert failure is what Jest printed', () => {
       want.trimEnd(),
       result.fullName,
     )
-    // `failureDetails[0]` is `{ message }` as well (`--json` writes it); name and code ride hidden.
+    // `failureDetails[0]` is `{ message }` as well (`--json` writes it); the name rides hidden.
     assert.deepEqual(Object.keys(shaped), ['message'])
   }
   assert.deepEqual([...unmatched], [], 'every case matched a recorded test')
   assert.deepEqual(skipped, Object.keys(SKIPPED))
 })
 
-test('the shaped value keeps the assertion error name and code, hidden', () => {
+test('the shaped value keeps the assertion error name, hidden', () => {
   const shaped = shapeTestError(thrownBy(THROWN.equal as () => unknown), EXPAND) as {
     name?: string
-    code?: string
   }
   assert.equal(shaped.name, 'AssertionError')
-  assert.equal(shaped.code, 'ERR_ASSERTION')
   assert.deepEqual(Object.keys(shaped), ['message'])
 })
 
