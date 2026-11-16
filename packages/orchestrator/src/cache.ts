@@ -217,27 +217,28 @@ function hasOwner(projects: Projects, learned: Externals, project: string): bool
   return (projects.get(project)?.size ?? 0) > 0 || (learned.get(project)?.size ?? 0) > 0
 }
 
+/** The entry of `map` under `key`, made and kept by `make` when there is none. */
+function entryOf<K, V>(map: Map<K, V>, key: K, make: () => V): V {
+  let entry = map.get(key)
+  if (entry === undefined) {
+    entry = make()
+    map.set(key, entry)
+  }
+  return entry
+}
+
 /** Adds `entries` to the project's files in `externals`. */
 function addExternals(
   externals: Externals,
   project: string,
   entries: Iterable<readonly [string, string]>,
 ): void {
-  let known = externals.get(project)
-  if (known === undefined) {
-    known = new Map()
-    externals.set(project, known)
-  }
+  const known = entryOf(externals, project, () => new Map())
   for (const [path, version] of entries) known.set(path, version)
 }
 
 function filesOf(projects: Projects, project: string): Map<string, FileHistory> {
-  let files = projects.get(project)
-  if (files === undefined) {
-    files = new Map()
-    projects.set(project, files)
-  }
-  return files
+  return entryOf(projects, project, () => new Map())
 }
 
 /** Removes the entries whose path is not in `keep`. */
@@ -282,15 +283,9 @@ export function createResultsCache(dir: string): ResultsCache {
       const list = [...entries]
       addExternals(externals, project, list)
       addExternals(learned, project, list)
-      const dropped = forgotten.get(project)
-      if (dropped !== undefined) for (const [path] of list) dropped.delete(path)
     },
     forgetExternals(project, paths) {
-      let dropped = forgotten.get(project)
-      if (dropped === undefined) {
-        dropped = new Set()
-        forgotten.set(project, dropped)
-      }
+      const dropped = entryOf(forgotten, project, () => new Set<string>())
       for (const path of paths) {
         dropped.add(path)
         externals.get(project)?.delete(path)
