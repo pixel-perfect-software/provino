@@ -555,10 +555,11 @@ export interface FileResult {
    */
   readonly leaks?: true
   /**
-   * The file collected no test and had no error, and the policy's `noTestsFile` is `fail`: `state`
-   * is `fail` and `errors` hold Provino's own text, which a dialect with a wording of its own
-   * replaces (the Jest dialect's result builder does, with Jest's "Your test suite must contain
-   * at least one test.").
+   * The file collected no test and had no error, and the policy's `noTestsFile` fails it (`fail`,
+   * or `fail-unless-pass-with-no-tests` with the run not passing with no tests): `state` is `fail`
+   * and `errors` hold Provino's own text, which a dialect with a wording of its own replaces (the
+   * Jest dialect's result builder does, with Jest's "Your test suite must contain at least one
+   * test.").
    */
   readonly noTests?: true
   /** The heap in bytes the worker reported after the file (`--logHeapUsage`). */

@@ -76,7 +76,11 @@ export interface RunOptions {
    * block. Default: `process.env`.
    */
   readonly env?: Readonly<Record<string, string | undefined>>
-  /** A run that finds no test files passes. Default: the policy's `orchestrator.passWithNoTests`. */
+  /**
+   * A run that finds no test files passes, and so does a test file that declares no test (the
+   * neutral policy fails one otherwise: `orchestrator.noTestsFile`). Default: the policy's
+   * `orchestrator.passWithNoTests`.
+   */
   readonly passWithNoTests?: boolean
   /** Run only the tests whose full name matches this regular expression (`-t`). */
   readonly testNamePattern?: string

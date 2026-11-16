@@ -176,10 +176,11 @@ export const vitestPolicy: PolicyOverrides = {
     globMatchesOn: 'root-relative-path',
     // Vitest's rule is not recorded yet (T11.16): a file where nothing ran is skipped.
     todoOnlyFile: 'skip',
-    // Not recorded yet (T11.16): a file that declares no test passes. Vitest 5.0.5's `runFiles`
-    // fails an empty file unless `passWithNoTests` is set (`runner/run.ts`: "No test suite found in
-    // file"), so T11.16's recording decides this value.
-    noTestsFile: 'pass',
+    // Not recorded yet (T11.16): read from Vitest 5.0.5's source. `runFiles` fails a file with no
+    // task unless `passWithNoTests` is set (`runner/run.ts`: "No test suite found in file"), and
+    // `runSuite` fails a `describe` with no test the same way ("No test found in suite"), which this
+    // file-level key doesn't see. T11.16's recording decides both.
+    noTestsFile: 'fail-unless-pass-with-no-tests',
     // Not recorded yet (T11.16): no call site is kept.
     consoleOrigin: 'none',
     // Vitest 5.0.5's node environment (`integrations/env/node.ts`) builds no global, so a test sees

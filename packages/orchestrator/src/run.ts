@@ -15,6 +15,7 @@ import type {
   FileResult,
   IsolationTier,
   OpenHandle,
+  OrchestratorPolicy,
   PoolKind,
   PoolOptions,
   RecyclePolicy,
@@ -167,6 +168,12 @@ export interface RunProjectOptions {
   readonly testNamePattern?: string
   /** Rewrite the snapshots that differ (`-u`). Default `false`: new ones are written, unless this is a CI run. */
   readonly update?: boolean
+  /**
+   * `--passWithNoTests`; absent: each project's `orchestrator.passWithNoTests`. A run that finds no
+   * file passes (`exitCodeFor` reads it too) and, under `noTestsFile:
+   * 'fail-unless-pass-with-no-tests'`, so does a file that declares no test.
+   */
+  readonly passWithNoTests?: boolean
   /** Where the policy's snapshot update variable is read (Vitest's `UPDATE_SNAPSHOT`). Default: `process.env`. */
   readonly env?: Readonly<Record<string, string | undefined>>
   /**
@@ -405,7 +412,8 @@ interface FileRules {
   readonly ended: number
   readonly collected: number
   readonly todoOnlyFile: 'pass' | 'skip'
-  readonly noTestsFile: 'fail' | 'pass'
+  /** Whether a file that declares no test fails: `noTestsFile` with `passWithNoTests` applied. */
+  readonly failsWithNoTests: boolean
 }
 
 /**
@@ -431,7 +439,28 @@ function stateOf(state: TaskState, rules: FileRules): FileResult['state'] {
 }
 
 /**
- * The error of a file that declares no test under `noTestsFile: 'fail'`: Provino's own text,
+ * Whether a file that declares no test fails (`noTestsFile`): always under `fail`, and under
+ * `fail-unless-pass-with-no-tests` unless the run passes with no tests, the option first and the
+ * project's `passWithNoTests` otherwise (as `exitCodeFor` reads it).
+ */
+function failsWithNoTests(
+  orchestrator: Pick<OrchestratorPolicy, 'noTestsFile' | 'passWithNoTests'>,
+  passWithNoTests: boolean | undefined,
+): boolean {
+  switch (orchestrator.noTestsFile) {
+    case 'fail':
+      return true
+    case 'fail-unless-pass-with-no-tests':
+      return !(passWithNoTests ?? orchestrator.passWithNoTests)
+    case 'pass':
+      return false
+    default:
+      return orchestrator.noTestsFile satisfies never
+  }
+}
+
+/**
+ * The error of a file that declares no test and fails for it: Provino's own text,
  * which a dialect with a wording of its own replaces where it reads `FileResult.noTests` (the Jest
  * dialect's result builder does).
  */
@@ -1052,7 +1081,10 @@ export async function runProjectsOn(
         ended: dispatch.todo,
         collected: dispatch.tests,
         todoOnlyFile: member.project.policy.orchestrator.todoOnlyFile,
-        noTestsFile: member.project.policy.orchestrator.noTestsFile,
+        failsWithNoTests: failsWithNoTests(
+          member.project.policy.orchestrator,
+          options.passWithNoTests,
+        ),
       })
       // The worker finished the file and the inline snapshot write failed it.
       const result: FileResult =
@@ -1688,7 +1720,7 @@ function resultOf(
       // whose tests are all skipped or todo is not this.
       const noTests =
         state !== 'fail' &&
-        rules.noTestsFile === 'fail' &&
+        rules.failsWithNoTests &&
         rules.collected === 0 &&
         end.errors.length === 0
       return {

@@ -240,10 +240,12 @@ export const neutralPolicy: Policy = deepFreeze({
     globMatchesOn: 'root-relative-path',
     // Ours: a file where nothing ran is skipped.
     todoOnlyFile: 'skip',
-    // Ours: a file that declares no test passes, as it always has (nothing ran and nothing
-    // failed). Failing it, as Jest and Vitest both do, is a change to `provino run` that waits for
-    // a decision.
-    noTestsFile: 'pass',
+    // Ours (Tyler's decision, B23e): a file that declares no test fails, as Jest's and Vitest's do,
+    // unless the run passes with no tests (`--passWithNoTests`): the rule Vitest 5.0.5's `runFiles`
+    // applies (`runner/run.ts`: "No test suite found in file"), where Jest's has no exception. A
+    // helper under `__tests__` or an `it` that was never written is a mistake to hear about, and
+    // `passWithNoTests` is the run's own way to say none is expected.
+    noTestsFile: 'fail-unless-pass-with-no-tests',
     // Ours: no call site is kept with a console write.
     consoleOrigin: 'none',
     // Ours: a file's `process` listeners and `env` changes stay in the file.
