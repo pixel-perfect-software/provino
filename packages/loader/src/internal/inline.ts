@@ -321,7 +321,8 @@ function cachedReach(
  *
  * The external's own edges are read first: one that requests a served module itself is inlined
  * without building its closure (`requestsDirectly`). Only otherwise is the closure walked (on a
- * cold graph, about 0.15 s for jsdom's closure, `local`; read from the graph cache on later runs).
+ * cold graph, about 170 ms for jsdom's 1,107 files, `local`; read from the graph cache on later
+ * runs).
  *
  * Limit: a request the scan can't read (a computed `require(name)` or `import(name)`, the closure's
  * `dynamic` flag) is not seen, so a package that reaches a served module only that way stays shared
