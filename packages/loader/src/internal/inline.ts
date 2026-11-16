@@ -414,6 +414,11 @@ function dynamicBound(state: InlineState, path: string): ReadonlySet<string> | n
  * (`userEdges`). A file's own edges are read from its graph node, not from the closure's
  * deduplicated list, which names only the first importer of each request. `elsewhere` says which
  * files are evaluated per file for another reason (a served module), `null` when none can be.
+ *
+ * The walk goes node by node (`ThirdPartyGraph.visitNode`) and does not descend into a file that is
+ * indexed already: every walk indexes a whole closure, so that file's closure is indexed too. A
+ * walk from an external whose closure is mostly known (a component beside the ones a file loaded
+ * before it) costs the files that are new, not the whole closure each time.
  */
 function indexClosure(
   state: InlineState,
@@ -430,22 +435,18 @@ function indexClosure(
   while (stack.length > 0) {
     const current = stack.pop()
     if (current === undefined || perFile.edges.has(current)) continue
-    if (!inGraph(current)) {
-      const targets = fileTargets(userEdges(current) ?? NO_EDGES)
+    let targets: readonly string[]
+    if (inGraph(current)) {
+      const node = graph.visitNode(current)
+      if (node === undefined) continue
+      targets = fileTargets(node.edges)
+      const bound = node.dynamic ? dynamicBound(state, current) : null
+      indexFile(perFile, current, targets, bound, elsewhere?.(current) ?? false, keep)
+    } else {
+      targets = fileTargets(userEdges(current) ?? NO_EDGES)
       indexFile(perFile, current, targets, null, elsewhere?.(current) ?? false, keep)
-      for (const target of targets) if (!perFile.edges.has(target)) stack.push(target)
-      continue
     }
-    graph.add(current)
-    for (const { path: member, node } of graph.reachable(current)) {
-      if (perFile.edges.has(member)) continue
-      const targets = fileTargets(node.edges)
-      const bound = node.dynamic ? dynamicBound(state, member) : null
-      indexFile(perFile, member, targets, bound, elsewhere?.(member) ?? false, keep)
-      for (const target of targets) {
-        if (!inGraph(target) && !perFile.edges.has(target)) stack.push(target)
-      }
-    }
+    for (const target of targets) if (!perFile.edges.has(target)) stack.push(target)
   }
 }
 
