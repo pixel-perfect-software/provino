@@ -100,6 +100,13 @@ function formattedSource(content: string, detail: unknown): string {
   const { message, stack } = detail as { readonly message?: unknown; readonly stack?: unknown }
   if (typeof message !== 'string' || typeof stack !== 'string' || stack === '') return content
   if (message === '' || stack.includes(message)) return content
+  // Jest formats the thrown value's own `stack` only when it is an Error (`isErrorLike`); any
+  // other object is formatted from the flattened text, which puts the message in front of the
+  // stack. An Error's `message` and `stack` are not enumerable and a plain object's are, and
+  // `failureDetails[i]` has them so only when the thrown value did.
+  const enumerable = (key: string): boolean =>
+    Object.prototype.propertyIsEnumerable.call(detail, key)
+  if (enumerable('message') && enumerable('stack')) return content
   return content === message + stack.replace(/^Error:?\s*\n/, '\n') ? stack : content
 }
 

@@ -364,6 +364,54 @@ describe('serializeError of a value that is not an error', () => {
   })
 })
 
+// An object that only has a `message` or a `stack` is no error, but it is read as one wherever a
+// failure is described (jest-circus's `_getError`: a string `stack` or a truthy `message`), so what
+// is printed is what the value holds, not its string form.
+describe('serializeError of an object with only a message or a stack', () => {
+  test('a stack alone is the stack, with no message', () => {
+    const serialized = serializeError({ stack: 'S' })
+    assert.equal(serialized.stack, 'S')
+    assert.equal(serialized.message, '')
+    assert.equal(serialized.name, 'Error')
+  })
+
+  test('a message alone is the message, with no stack', () => {
+    const serialized = serializeError({ message: 'M' })
+    assert.equal(serialized.message, 'M')
+    assert.equal('stack' in serialized, false)
+  })
+
+  test('a message past the details limit, or beside a toJSON, is still the message', () => {
+    const long = serializeError({ message: `long ${'x'.repeat(100_000)}` })
+    assert.equal(long.message.length, 100_005)
+    assert.equal('details' in long, false)
+    const json = serializeError({ message: 'kept', toJSON: () => ({ other: 1 }) })
+    assert.equal(json.message, 'kept')
+    assert.deepEqual(json.details, { other: 1 })
+  })
+
+  test('a message that is not a string, or an empty one, is still the value’s string form', () => {
+    assert.equal(serializeError({ message: 5 }).message, '[object Object]')
+    assert.equal(serializeError({ message: '' }).message, '[object Object]')
+    assert.equal(serializeError({ stack: 5 }).message, '[object Object]')
+  })
+
+  test('only the thrown value is read so, not a cause or an aggregate’s entry', () => {
+    const serialized = serializeError(new Error('outer', { cause: { message: 'inner' } }))
+    assert.equal(serialized.cause?.message, '[object Object]')
+  })
+
+  test('a field that can’t be read leaves the string form, as for any other value', () => {
+    const throwing = Object.defineProperty({}, 'message', {
+      get() {
+        throw new Error('trap')
+      },
+      enumerable: true,
+    })
+    assert.equal(serializeError(throwing).message, '[object Object]')
+  })
+})
+
 describe('the error classes', () => {
   test('a CoreError is an Error with a stable code', () => {
     const error = new CoreError('CORE_BUSY', 'busy', { cause: 'x' })

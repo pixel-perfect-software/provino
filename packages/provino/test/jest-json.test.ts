@@ -162,14 +162,15 @@ describe('provino jest --json: thrown values that are not plain Errors', () => {
       })),
     ])
 
-  // A thrown `{ message }` has no frame to name, so the location checks above don't apply. Its
-  // failure text is its `message`, as circus's `getErrorStack` reads a value with no string stack.
+  // A thrown `{ message }` or `{ stack }` has no frame to name, so the location checks above don't
+  // apply. Its failure text is `flattenErrorStack`'s: the stack, or the message when there is none,
+  // with the message put in front of a stack that lacks it (`{ message: 'M', stack: 'S' }` is `MS`).
   it('each fails with its message and is the JSON of the value as it was thrown (cli/json-thrown-values)', async () => {
     const id = 'cli/json-thrown-values'
     const run = await view(id)
     assert.equal(run.code, run.recordedCode, run.stderr)
     const recorded = detailsOf(run.recorded)
-    assert.equal(recorded.length, 4, 'the recording has the file and its three tests')
+    assert.equal(recorded.length, 7, 'the recording has the file and its six tests')
     assert.deepEqual(detailsOf(JSON.parse(run.keys ?? 'null') as Json), recorded)
     assertTimes(run.raw, run.timeKeys, id)
   })

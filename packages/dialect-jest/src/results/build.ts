@@ -86,8 +86,7 @@ export function flattenSerializedError(error: SerializedError): string {
 }
 
 function flatten(error: SerializedError, seen: Set<SerializedError>): string {
-  const { stack } = error
-  const message = thrownMessage(error)
+  const { message, stack } = error
   let flattened: string
   if (typeof stack === 'string' && stack !== '') {
     // Some errors don't embed the message in the stack; prepend it so it isn't lost.
@@ -105,21 +104,6 @@ function flatten(error: SerializedError, seen: Set<SerializedError>): string {
   }
   seen.delete(error)
   return flattened
-}
-
-/**
- * The message `flattenErrorStack` reads off what was thrown. A value that is no error
- * (`throw { message }`) is serialized with its string form as its message (`[object Object]`), but
- * circus's `_getError` (utils.ts L449-L451) hands on such a value itself when it has a `message`,
- * so the text is that `message`, which `details` (the value's JSON) holds.
- */
-function thrownMessage(error: SerializedError): string {
-  const { details } = error
-  if (error.stack !== undefined || typeof details !== 'object' || details === null) {
-    return error.message
-  }
-  const own = (details as { readonly message?: unknown }).message
-  return typeof own === 'string' ? own : error.message
 }
 
 /** The status Jest reports for a test that ended in `state` (utils.ts L507-L516). */
@@ -469,9 +453,12 @@ function failureDetailOf(error: SerializedError): unknown {
   // of the error keeps it, with the value as thrown (`details`, the JSON of the value: a thrown
   // `{ message: 'boom' }` is `{"message":"boom"}`, not the serializer's text for it). The worker
   // says which (`enumerableFields`): an own key of `details` may come from the value's `toJSON`
-  // instead, and is then hidden, with the serializer's value.
+  // instead, and is then hidden, with the serializer's value, as is an own key of the value that
+  // the `toJSON` left out of `details`.
   const field = (key: 'name' | 'message' | 'stack', value: unknown): void => {
-    const enumerable = error.enumerableFields?.includes(key) === true
+    const enumerable =
+      error.enumerableFields?.includes(key) === true &&
+      (error.details === undefined || Object.hasOwn(detail, key))
     // `detail` still holds `details`' own copy of this key: only the keys `field` already ran for
     // are redefined.
     const kept = enumerable && Object.hasOwn(detail, key) ? detail[key] : value

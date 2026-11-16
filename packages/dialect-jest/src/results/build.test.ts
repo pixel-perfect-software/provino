@@ -308,6 +308,18 @@ describe('toAssertionResult', () => {
       assert.equal(JSON.stringify(thrown), '{"message":42,"code":"E"}')
     })
 
+    it('hides a message the value had as its own key but its toJSON left out (cli/json-thrown-values)', () => {
+      // `throw { message: 'kept', toJSON: () => ({ other: 1 }) }`: Jest's JSON is what `toJSON` gave.
+      const thrown = details({
+        name: 'Error',
+        message: 'kept',
+        details: { other: 1 },
+        enumerableFields: ['message'],
+      })
+      assert.equal(JSON.stringify(thrown), '{"other":1}')
+      assert.equal((thrown as { message: string }).message, 'kept')
+    })
+
     it('hides our frames in an own enumerable stack', () => {
       const stack = `Error: own\n    at t (/a.test.ts:1:1)\n${provinoFrame}`
       const thrown = details({
@@ -326,6 +338,14 @@ describe('toAssertionResult', () => {
 })
 
 describe('flattenSerializedError', () => {
+  it('is a thrown object’s own text: its stack, or its message, as core read them off it', () => {
+    // `throw { stack }` has no message and `throw { message }` no stack (jest-message-util
+    // `flattenErrorStack`: the stack, else the message; the message first when the stack lacks it).
+    assert.equal(flattenSerializedError({ name: 'Error', message: '', stack: 'S' }), 'S')
+    assert.equal(flattenSerializedError({ name: 'Error', message: 'M' }), 'M')
+    assert.equal(flattenSerializedError({ name: 'Error', message: 'M', stack: 'S' }), 'MS')
+  })
+
   it('prepends a message the stack lacks, and appends causes and aggregate errors', () => {
     const error: SerializedError = {
       name: 'Error',
