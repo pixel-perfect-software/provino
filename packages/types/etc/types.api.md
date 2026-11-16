@@ -1102,7 +1102,6 @@ export interface FileResult {
     readonly file: FileInfo;
     readonly heapUsedBytes?: number;
     readonly leaks?: true;
-    readonly noTests?: true;
     readonly resultsDiscarded?: true;
     readonly snapshot?: SnapshotFileReport;
     // (undocumented)

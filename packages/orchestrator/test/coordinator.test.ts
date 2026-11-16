@@ -493,7 +493,6 @@ describe('runProject over inline workers', () => {
       assert.equal(summary.reason, fails ? 'failed' : 'passed', why)
       for (const name of ['empty.test.js', 'describe-only.test.js']) {
         const result = ends.get(name)
-        assert.equal(result?.noTests, fails ? true : undefined, `${why}: ${name}: noTests`)
         assert.deepEqual(
           result?.errors.map((error) => error.code),
           fails ? ['ORCH_NO_TESTS'] : [],

@@ -492,24 +492,6 @@ describe('toTestResult', () => {
     assert.equal(built.testExecError?.message, NO_TESTS_MESSAGE)
   })
 
-  it('a file the orchestrator failed for declaring no test has Jest’s message, not the orchestrator’s own', () => {
-    const built = toTestResult(
-      events(
-        [],
-        {},
-        {
-          state: 'fail',
-          noTests: true,
-          errors: [{ name: 'Error', message: 'The file declares no tests', code: 'ORCH_NO_TESTS' }],
-        },
-      ),
-      OPTIONS,
-    )
-    assert.equal(built.testExecError?.message, NO_TESTS_MESSAGE)
-    assert.deepEqual(built.testResults, [])
-    assert.equal(built.numFailingTests, 0)
-  })
-
   it('a file that loaded and has no test result has Jest’s message whatever errors it holds: onResult tests only the length', () => {
     // `cli/empty-test-file-error-timing` (circus's own error) and `cli/empty-test-file-timer-throws`.
     const circus = events(
@@ -523,7 +505,17 @@ describe('toTestResult', () => {
       },
     )
     const timer = events([], { unhandled: [failure('thrown from a timer')] }, { state: 'fail' })
-    for (const file of [circus, timer]) {
+    // The error the orchestrator gives a file it failed for declaring no test (`ORCH_NO_TESTS`):
+    // Provino's own text, which Jest's replaces.
+    const orchestrator = events(
+      [],
+      {},
+      {
+        state: 'fail',
+        errors: [{ name: 'Error', message: 'The file declares no tests', code: 'ORCH_NO_TESTS' }],
+      },
+    )
+    for (const file of [circus, timer, orchestrator]) {
       const built = toTestResult(file, OPTIONS)
       assert.equal(built.testExecError?.message, NO_TESTS_MESSAGE)
       assert.deepEqual(built.testResults, [])

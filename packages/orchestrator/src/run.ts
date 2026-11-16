@@ -462,9 +462,9 @@ function failsWithNoTests(
 }
 
 /**
- * The error of a file that declares no test and fails for it: Provino's own text,
- * which a dialect with a wording of its own replaces where it reads `FileResult.noTests` (the Jest
- * dialect's result builder does).
+ * The error of a file that declares no test and fails for it: Provino's own text. A dialect with a
+ * wording of its own replaces it (the Jest dialect's result builder does, for any file that loaded
+ * and has no test result).
  */
 const NO_TESTS_ERROR: SerializedError = {
   name: 'Error',
@@ -1734,7 +1734,6 @@ function resultOf(
         state: noTests ? 'fail' : state,
         durationMs: end.durationMs,
         errors: noTests ? [NO_TESTS_ERROR] : end.errors,
-        ...(noTests ? { noTests: true as const } : {}),
         ...(outcome.done.snapshot === undefined ? {} : { snapshot: outcome.done.snapshot }),
         ...(end.childOrder === undefined ? {} : { childOrder: end.childOrder }),
         ...(outcome.done.heapUsedBytes === undefined
