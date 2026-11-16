@@ -61,7 +61,9 @@ jobs:
         run: |
           echo "core_pattern was: $(cat /proc/sys/kernel/core_pattern)"
           echo core | sudo tee /proc/sys/kernel/core_pattern || echo "::warning::could not change core_pattern; crash tests will be slow"
-      - run: ulimit -c 0 && pnpm test
+      # Stream each task's output as it comes (Turborepo groups it per task on CI by default), so a
+      # job cut off at its time limit still shows which test files ran and how long each took.
+      - run: ulimit -c 0 && pnpm test --log-order=stream
         env:
           NODE_OPTIONS: ${{ matrix.node-options }}
 
