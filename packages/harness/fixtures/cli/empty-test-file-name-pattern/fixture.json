@@ -1,0 +1,19 @@
+{
+  "description": "A name pattern that matches no test of a file that has tests (-t): every test of the file is left out, so the file has results (all pending) and is not \"Your test suite must contain at least one test.\" (TestScheduler.ts onResult). The file of an empty describe in the same run has none either way and still fails with that text. One Jest worker, the default reporter and --json.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--useStderr", "-t", "matches no test"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL|SKIP) |^Test Suites:|^Tests:|must contain",
+    "sortStdout": true,
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

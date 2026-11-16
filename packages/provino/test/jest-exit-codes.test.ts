@@ -22,6 +22,22 @@ const CASES: readonly Case[] = [
     name: 'a test file with no tests, under --passWithNoTests',
     fixture: 'cli/empty-test-file-pass-with-no-tests',
   },
+  {
+    name: 'a test file with only todo and skipped tests, beside one with none',
+    fixture: 'cli/empty-test-file-skipped-and-todo',
+  },
+  {
+    name: 'a name pattern that matches no test, beside a file with none',
+    fixture: 'cli/empty-test-file-name-pattern',
+  },
+  {
+    name: 'files with no test and an error, and one that throws on load',
+    fixture: 'cli/empty-test-file-error-timing',
+  },
+  {
+    name: 'a test file with no test whose timer throws',
+    fixture: 'cli/empty-test-file-timer-throws',
+  },
   { name: 'a flag Jest does not know', fixture: 'cli/unknown-flag' },
   { name: 'the singular --testPathPattern', fixture: 'cli/jest-test-path-pattern' },
   { name: 'a config Jest refuses', fixture: 'cli/bad-config' },
