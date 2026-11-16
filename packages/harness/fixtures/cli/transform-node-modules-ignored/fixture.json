@@ -1,0 +1,17 @@
+{
+  "description": "Jest's default `transformIgnorePatterns` (`/node_modules/` and `\\\\.pnp\\\\.[^\\\\/]+$`) ignore `esm-pkg`, ES module source with no `type`, so Jest 30.5.2 runs it untransformed as CommonJS: the `import` is a `SyntaxError`, which `CjsLoader` (no `--experimental-vm-modules`, so no synchronous ES module evaluation) turns into its `ERR_REQUIRE_ESM` error, `Must use import to load ES Module: <path>` and the three ways out, and the test file fails to run (exit 1). The transform is the recorder's, widened to `.js` by `jestTransformJs`, so only the patterns keep the package out. Read by `provino`'s `transform-node-modules.test.ts` and by the policy claim for `module.messages.require-esm`. A black-box run.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "jestTransformJs": true,
+  "packages": {
+    "esm-pkg": {
+      "package.json": "{ \"name\": \"esm-pkg\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "import { config } from './config'\n\nexport function describeConfig() {\n  return 'config: ' + config.name\n}\n",
+      "config.js": "export const config = { name: 'esm' }\n"
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests):|^  ● |^    \\S|^      - "
+  }
+}

@@ -197,13 +197,20 @@ export function jestProjectToNeutral(
   const coverage = collects
     ? jestCoverageFilter(project, globalConfig, { babelInstruments })
     : undefined
-  const transforms: NeutralTransform[] = skipImplicit
-    ? []
-    : project.transform.map(([pattern, module, options]) => ({
+  // One pass: the entries become transforms, or, when the Oxc path stands in for them, only their
+  // patterns, which still claim what they match.
+  const transforms: NeutralTransform[] = []
+  const standInTransformPatterns: string[] = []
+  for (const [pattern, module, options] of project.transform) {
+    if (skipImplicit) standInTransformPatterns.push(pattern)
+    else {
+      transforms.push({
         pattern,
         module,
         options: jsonObject(options, `transform["${pattern}"]`, diagnostics),
-      }))
+      })
+    }
+  }
   const mock = {
     between: {
       clear: project.clearMocks,
@@ -343,6 +350,10 @@ export function jestProjectToNeutral(
       ...(project.skipNodeResolution === true ? { skipNodeResolution: true } : {}),
     },
     transforms,
+    // The default entry the Oxc path stands in for still takes what it matches (`\.[jt]sx?$`), as
+    // `ScriptTransformer.shouldTransform` asks of every module, `node_modules` ones included: a
+    // package `transformIgnorePatterns` lets through is transformed (B23e, D115).
+    ...(skipImplicit ? { standInTransformPatterns } : {}),
     transformIgnorePatterns: [...project.transformIgnorePatterns],
     // What a transformer reads as `config`: the project config as JSON (ts-jest reads `rootDir`,
     // `cwd`, `globals` and `testMatch` from it). Nothing in a normalized config fails to clone.

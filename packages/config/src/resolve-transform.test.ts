@@ -113,3 +113,143 @@ test('a transform or ignore pattern that is not a regular expression is CONFIG_I
   )
   assert.match(ignore.message, /transformIgnorePatterns\[0\]/)
 })
+
+test('the files the transforms take reach the loader, stand-ins included, even with no transform', async () => {
+  const none = await resolveNeutralProject(neutral(), options)
+  assert.equal(none.config.loader.transformClaims, undefined)
+  // Jest's default babel-jest, which the Oxc path stands in for: `transforms` is empty.
+  const standIn = await resolveNeutralProject(
+    neutral({
+      standInTransformPatterns: ['\\.[jt]sx?$'],
+      transformIgnorePatterns: ['/node_modules/(?!(esm-pkg)/)'],
+    }),
+    options,
+  )
+  assert.equal(standIn.config.loader.transform, undefined)
+  assert.deepEqual(standIn.config.loader.transformClaims, {
+    patterns: ['\\.[jt]sx?$'],
+    ignorePatterns: ['/node_modules/(?!(esm-pkg)/)'],
+  })
+  const transformer = await temp.write('t3.cjs', 'module.exports = {}')
+  const named = await resolveNeutralProject(
+    neutral({
+      transforms: [
+        { pattern: '\\.ts$', module: transformer, options: {} },
+        { pattern: '\\.js$', module: transformer, options: {} },
+      ],
+      transformIgnorePatterns: ['/node_modules/(?!(esm-pkg)/)'],
+    }),
+    options,
+  )
+  assert.deepEqual(named.config.loader.transformClaims, {
+    patterns: ['\\.ts$', '\\.js$'],
+    ignorePatterns: ['/node_modules/(?!(esm-pkg)/)'],
+  })
+  assert.deepEqual(structuredClone(named.config), named.config)
+})
+
+test('a stand-in or ignore pattern that is not a regular expression is CONFIG_INVALID with no rule', async () => {
+  const bad = await rejectsWith(
+    resolveNeutralProject(neutral({ standInTransformPatterns: ['('] }), options),
+    'CONFIG_INVALID',
+  )
+  assert.match(bad.message, /standInTransformPatterns\[0\]/)
+  const ignore = await rejectsWith(
+    resolveNeutralProject(
+      neutral({ standInTransformPatterns: ['x'], transformIgnorePatterns: ['['] }),
+      options,
+    ),
+    'CONFIG_INVALID',
+  )
+  assert.match(ignore.message, /transformIgnorePatterns\[0\]/)
+})
+
+test('transformIgnorePatterns are checked with no transform at all (`transform: {}`), alone and joined with |', async () => {
+  // Jest builds `new RegExp(transformIgnorePatterns.join('|'))` in its ScriptTransformer whatever
+  // `transform` holds, and every test file fails on it; here it is one config error, before a run.
+  const single = await rejectsWith(
+    resolveNeutralProject(neutral({ transformIgnorePatterns: ['['] }), options),
+    'CONFIG_INVALID',
+  )
+  assert.match(single.message, /transformIgnorePatterns\[0\] is not a regular expression/)
+  // Each compiles alone (no named group, `\k<b>` is the letters); joined, the second's group makes
+  // the first a reference to a group named `b`, which there is none of. On every V8.
+  for (const project of [
+    neutral({ transformIgnorePatterns: ['\\k<b>', '(?<a>x)'] }),
+    neutral({
+      standInTransformPatterns: ['\\.js$'],
+      transformIgnorePatterns: ['\\k<b>', '(?<a>x)'],
+    }),
+  ]) {
+    const joined = await rejectsWith(resolveNeutralProject(project, options), 'CONFIG_INVALID')
+    assert.match(
+      joined.message,
+      /transformIgnorePatterns \(joined with "\|", as Jest joins them\) is not a regular expression/,
+    )
+  }
+  const transformer = await temp.write('t4.cjs', 'module.exports = {}')
+  const named = await rejectsWith(
+    resolveNeutralProject(
+      neutral({
+        transforms: [{ pattern: 'x', module: transformer, options: {} }],
+        transformIgnorePatterns: ['\\k<b>', '(?<a>x)'],
+      }),
+      options,
+    ),
+    'CONFIG_INVALID',
+  )
+  assert.match(named.message, /joined with "\|"/)
+})
+
+test('a project with a bad rule pattern and a bad ignore pattern reports the ignore pattern first', async () => {
+  const transformer = await temp.write('t5.cjs', 'module.exports = {}')
+  const both = await rejectsWith(
+    resolveNeutralProject(
+      neutral({
+        transforms: [{ pattern: '(', module: transformer, options: {} }],
+        standInTransformPatterns: ['('],
+        transformIgnorePatterns: ['['],
+      }),
+      options,
+    ),
+    'CONFIG_INVALID',
+  )
+  assert.match(both.message, /transformIgnorePatterns\[0\]/)
+})
+
+test("Jest's default ignore patterns take no node_modules file: no claims, and the patterns are still checked", async () => {
+  // Every spelling of "ignore every package" turns the claims off, so no worker asks about a file.
+  for (const ignore of [
+    ['/node_modules/', '\\.pnp\\.[^\\/]+$'],
+    ['/node_modules'],
+    ['node_modules/'],
+    ['node_modules'],
+  ]) {
+    const resolved = await resolveNeutralProject(
+      neutral({ standInTransformPatterns: ['\\.[jt]sx?$'], transformIgnorePatterns: ignore }),
+      options,
+    )
+    assert.equal(resolved.config.loader.transformClaims, undefined, ignore.join(' '))
+  }
+  // An allowlist ignores some packages only: the claims stay.
+  const allowlist = await resolveNeutralProject(
+    neutral({
+      standInTransformPatterns: ['\\.[jt]sx?$'],
+      transformIgnorePatterns: ['/node_modules/(?!(esm-pkg)/)'],
+    }),
+    options,
+  )
+  assert.notEqual(allowlist.config.loader.transformClaims, undefined)
+  // Off, and still validated: a pair that fails joined is one config error.
+  const joined = await rejectsWith(
+    resolveNeutralProject(
+      neutral({
+        standInTransformPatterns: ['\\.js$'],
+        transformIgnorePatterns: ['/node_modules/', '\\k<b>', '(?<a>x)'],
+      }),
+      options,
+    ),
+    'CONFIG_INVALID',
+  )
+  assert.match(joined.message, /joined with "\|"/)
+})

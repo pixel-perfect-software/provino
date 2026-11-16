@@ -179,6 +179,13 @@ export interface NeutralProject {
   /** Shuffle each file's suites with the seed (Jest's `randomize`). Absent means the declared order. */
   readonly randomize?: true
   readonly transforms: readonly NeutralTransform[]
+  /**
+   * The patterns of the transform entries the dialect left out of `transforms` because Provino's
+   * own pipeline stands in for them (Jest's default `babel-jest` with no Babel config): a file one
+   * matches is still taken by a transform, which `transformIgnorePatterns` can opt out of. Absent
+   * means none.
+   */
+  readonly standInTransformPatterns?: readonly string[]
   /** Regular expressions' sources: files they match are not transformed. */
   readonly transformIgnorePatterns: readonly string[]
   /**

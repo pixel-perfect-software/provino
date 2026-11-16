@@ -29,7 +29,15 @@ import { after } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
 import { createResolver } from '@provino/resolver'
 import { createPipeline } from '@provino/transform'
-import type { FileRegistry, Loader, ModulePolicy } from '@provino/types'
+import type {
+  FileRegistry,
+  HoistPolicy,
+  Loader,
+  LoaderOptions,
+  ModulePolicy,
+  Resolver,
+  TransformClaims,
+} from '@provino/types'
 import { createLoader } from '../loader.ts'
 
 /** What one run of an entry observed. JSON round-tripped, so both sides compare as plain data. */
@@ -252,4 +260,42 @@ export function findInstalledAddon(): string | null {
     }
   }
   return null
+}
+
+/** What a test varies in the options of a loader made over a temp tree. */
+export interface LoaderOptionsExtra {
+  readonly policy?: Partial<ModulePolicy>
+  readonly resolver?: Resolver
+  readonly hoist?: HoistPolicy
+  readonly moduleScope?: {
+    readonly names: readonly string[]
+    readonly modules?: readonly string[]
+  }
+  readonly transformClaims?: TransformClaims
+}
+
+/** The loader options over the tree at `root`: the neutral policy, Oxc, the usual extensions. */
+export function loaderOptionsFor(root: string, extra: LoaderOptionsExtra = {}): LoaderOptions {
+  return {
+    root,
+    engine: 'runner',
+    resolver:
+      extra.resolver ??
+      createResolver({
+        root,
+        mappers: [],
+        extensions: ['.ts', '.tsx', '.js', '.mjs', '.cjs', '.json'],
+        tsconfig: false,
+      }),
+    transformer: createPipeline({
+      root,
+      typescript: 'oxc',
+      tsconfig: false,
+      hoist: extra.hoist ?? null,
+      cache: false,
+    }),
+    policy: { ...neutralPolicy.module, ...extra.policy },
+    ...(extra.moduleScope === undefined ? {} : { moduleScope: extra.moduleScope }),
+    ...(extra.transformClaims === undefined ? {} : { transformClaims: extra.transformClaims }),
+  }
 }

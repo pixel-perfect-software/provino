@@ -15,11 +15,20 @@ import type {
   SourceMapV3,
 } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
-import { type GraphEdge, inGraph } from '../graph/index.ts'
-import { createEdgeKindState, type EdgeKindState, edgeConditions, edgeKind } from './edge-kind.ts'
+import type { GraphEdge } from '../graph/index.ts'
+import { type ClaimsState, compileClaims, isClaimedExternal } from './claims.ts'
+import {
+  createEdgeKindState,
+  type EdgeKindState,
+  edgeConditions,
+  edgeKind,
+  type RuntimeCapabilities,
+} from './edge-kind.ts'
 import { createInlineState, type InlineState } from './inline.ts'
 import { loaderMessage } from './messages.ts'
 import { createReevaluateState, type ReevaluateState } from './reevaluate.ts'
+import { blankHashbang, CJS_PARAMS } from './source.ts'
+import { type InlineRules, isThirdParty, NO_RULES } from './third-party.ts'
 
 /**
  * Where a specifier leads. `missing` is a specifier that doesn't resolve, and `failed` a user module
@@ -104,7 +113,6 @@ export interface ModuleRecord {
 /** The wrapper parameters, in order. ESM gets Vite's linkers and the late import; CJS gets Node's wrapper. */
 const DYNAMIC_IMPORT = '__vite_ssr_dynamic_import__'
 const ESM_PARAMS = `__vite_ssr_exports__, __vite_ssr_import_meta__, __vite_ssr_import__, ${DYNAMIC_IMPORT}, __vite_ssr_exportAll__, ${LATE_IMPORT}`
-const CJS_PARAMS = 'exports, require, module, __filename, __dirname'
 /** What an ES module gets under `ModulePolicy.injectCjsGlobals`, when its source names them. */
 const CJS_GLOBALS: readonly string[] = ['require', '__filename', '__dirname']
 
@@ -113,18 +121,14 @@ export function toModuleId(path: string): ModuleId {
 }
 
 /**
- * Whether a file is a node_modules file the loader could evaluate itself, as a module it inlines:
- * third party, and no addon or WebAssembly.
+ * Whether a resolved file loads natively, shared by the worker: an addon, or a `node_modules` file
+ * `inline` doesn't name and no transform takes as a user module.
  */
-export function isEvaluableExternal(path: string, inline: readonly (string | RegExp)[]): boolean {
-  return !/\.(?:node|wasm)$/.test(path) && isThirdParty(path, inline)
-}
-
-function isThirdParty(path: string, inline: readonly (string | RegExp)[]): boolean {
-  if (!inGraph(path)) return false
-  return !inline.some((rule) =>
-    typeof rule === 'string' ? path.includes(`/node_modules/${rule}/`) : rule.test(path),
-  )
+function isExternal(state: Records, path: string): boolean {
+  if (path.endsWith('.node')) return true
+  return state.claims === null
+    ? isThirdParty(path, state.inlineRules)
+    : isClaimedExternal(state.claims, path)
 }
 
 export interface Records {
@@ -141,6 +145,10 @@ export interface Records {
   readonly reevaluate: ReevaluateState
   /** Which importers run as ES modules, for `ModulePolicy.edgeResolveKind`. */
   readonly edgeKinds: EdgeKindState
+  /** `LoaderOptions.inline`, normalized once. */
+  readonly inlineRules: InlineRules
+  /** The files the transforms take (`LoaderOptions.transformClaims`); `null` for none. */
+  readonly claims: ClaimsState | null
   /** The scope names a module of each format can be given, in order. */
   readonly scopeNames: { readonly esm: readonly string[]; readonly cjs: readonly string[] }
   /** One word-scan pattern per scope name. */
@@ -158,7 +166,8 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-export function createRecords(options: LoaderOptions): Records {
+/** `runtime` is what this Node can do, probed when first asked for; a test passes its own. */
+export function createRecords(options: LoaderOptions, runtime?: RuntimeCapabilities): Records {
   const dialect = options.moduleScope?.names ?? []
   const esm = [
     ...dialect,
@@ -169,15 +178,22 @@ export function createRecords(options: LoaderOptions): Records {
   const scopePatterns = new Map(
     esm.map((name) => [name, new RegExp(`(?<![\\w$])${escapeRegExp(name)}(?![\\w$])`)]),
   )
+  const inline = createInlineState()
+  const externals = new Map<string, object>()
+  const required = new Map<string, unknown>()
+  const edgeKinds = createEdgeKindState(options, runtime)
+  const inlineRules = options.inline ?? NO_RULES
   return {
     options,
-    inline: createInlineState(),
+    inline,
     records: new Map(),
-    externals: new Map(),
-    required: new Map(),
+    externals,
+    required,
     listeners: new Set(),
     reevaluate: createReevaluateState(),
-    edgeKinds: createEdgeKindState(options),
+    edgeKinds,
+    inlineRules,
+    claims: compileClaims(options, { edgeKinds, inline, inlineRules, required, externals }),
     scopeNames: { esm, cjs: dialect },
     scopePatterns,
     asyncGraphsStale: false,
@@ -284,7 +300,7 @@ export function resolveOrMissing(
   })
   if (result.type === 'builtin') return { kind: 'builtin', id: result.id }
   if (result.type === 'file') {
-    if (result.format === 'addon' || isThirdParty(result.path, state.options.inline ?? [])) {
+    if (result.format === 'addon' || isExternal(state, result.path)) {
       return { kind: 'external', path: result.path }
     }
     return { kind: 'user', id: toModuleId(result.path) }
@@ -315,14 +331,12 @@ export function resolveTarget(
 
 /**
  * The target behind an id the module-mock registry hands back (`loadActual`): `node:<name>` is a
- * builtin, a path under `node_modules` that `inline` doesn't match (or an addon) is an external,
- * any other path a user module.
+ * builtin, a path under `node_modules` that `inline` doesn't match and no transform takes (or an
+ * addon) is an external, any other path a user module.
  */
 export function targetOfId(state: Records, id: string): Found {
   if (id.startsWith('node:')) return { kind: 'builtin', id }
-  if (id.endsWith('.node') || isThirdParty(id, state.options.inline ?? [])) {
-    return { kind: 'external', path: id }
-  }
+  if (isExternal(state, id)) return { kind: 'external', path: id }
   return { kind: 'user', id: toModuleId(id) }
 }
 
@@ -366,8 +380,9 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
   if (existing !== undefined) return existing
   const path: string = id
   const text = readFileSync(path, 'utf8')
-  // A node_modules file only gets here when a mock made it inline (T2.6), or `inline` names it.
-  const thirdParty = isThirdParty(path, state.options.inline ?? [])
+  // A node_modules file only gets here when a mock made it inline (T2.6), a transform takes it
+  // (B23e), or `inline` names it.
+  const thirdParty = isThirdParty(path, state.inlineRules)
   let record: ModuleRecord
   let transformKeyOf = ''
   if (path.endsWith('.json')) {
@@ -617,7 +632,7 @@ export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'as
   const scope = scopeOf(state, record)
   // A hashbang is legal only at the start of a script or module, and the wrapper puts the body
   // inside a function, so it becomes a line comment of the same length: columns and the map hold.
-  let body = record.source.startsWith('#!') ? `//${record.source.slice(2)}` : record.source
+  let body = blankHashbang(record.source)
   let inner: string
   let head = ''
   if (record.format === 'esm') {
