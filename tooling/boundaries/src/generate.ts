@@ -200,11 +200,11 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
       {
         name: 'not-to-unresolvable',
         comment:
-          "Every import resolves. A deep import past a package's exports fails here. The harness's mod-* and env/conditions-import-* fixtures, snapshot/inline-no-frame and cli/transform-node-modules-* are exempt: they import packages the recorder installs at run time (`packages`), and modules that are meant to be missing. So are coverage/v8-commonjs's tests, which import the JavaScript module the recorder writes from `files` (no `.js` is committed, D13), and the self-test sample's crash.test.ts, whose missing import is the crash it records.",
+          "Every import resolves. A deep import past a package's exports fails here. The harness's mod-* and env/conditions-import-* fixtures, snapshot/inline-no-frame, cli/transform-node-modules-* and ecosystem/per-file-registry are exempt: they import packages the recorder installs at run time (`packages`), and modules that are meant to be missing. So are coverage/v8-commonjs's tests, which import the JavaScript module the recorder writes from `files` (no `.js` is committed, D13), and the self-test sample's crash.test.ts, whose missing import is the crash it records.",
         severity: 'error',
         from: {
           pathNot:
-            '^packages/harness/(?:fixtures/mocking/mod-[^/]+/|fixtures/env/conditions-import-[^/]+/|fixtures/snapshot/inline-no-frame/|fixtures/cli/transform-node-modules-[^/]+/|fixtures/coverage/v8-commonjs/tests/|sample/crash\\.test\\.ts$)',
+            '^packages/harness/(?:fixtures/mocking/mod-[^/]+/|fixtures/env/conditions-import-[^/]+/|fixtures/snapshot/inline-no-frame/|fixtures/cli/transform-node-modules-[^/]+/|fixtures/ecosystem/per-file-registry/|fixtures/coverage/v8-commonjs/tests/|sample/crash\\.test\\.ts$)',
         },
         to: { couldNotResolve: true },
       },

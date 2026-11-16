@@ -1,0 +1,44 @@
+{
+  "description": "A package that reads navigator and document while it loads (dom-reader) makes the package that imports it (registering-plugin) one whose per-file evaluation by Jest shows: the plugin registers an entry id into a module-level registry (entry-registry, reached through the re-export entry-registry-barrel) while it loads, and the registry throws on an id it already holds. A third package (core-lib) is imported by the plugin and by a package with no per-file read (plain-widget), and notes each evaluation in core-lib-loads.txt. Three files on one worker under jest-environment-jsdom, each importing the registry, the widget and the plugin in that order (the package names keep that order under the import sorting): in each the entry is registered once, is an instance of the registry’s Entry, and the plugin and the widget see one core-lib. Jest evaluates every module per file, so core-lib-loads.txt holds one line per file. The PASS lines are not kept: the order of three files of one size varies between runs.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "packages": {
+    "entry-registry": {
+      "package.json": "{\"name\": \"entry-registry\", \"version\": \"1.0.0\", \"main\": \"index.js\"}\n",
+      "index.js": "// A module-level registry that refuses an id it already holds.\nconst ids = new Map()\nclass Entry {\n  constructor(id) {\n    this.id = id\n  }\n}\nexports.Entry = Entry\nexports.register = (id, entry) => {\n  if (ids.has(id)) throw new RangeError('Duplicate use of entry id ' + id)\n  ids.set(id, entry)\n  return entry\n}\nexports.lookup = (id) => ids.get(id)\n"
+    },
+    "entry-registry-barrel": {
+      "package.json": "{\"name\": \"entry-registry-barrel\", \"version\": \"1.0.0\", \"main\": \"index.js\"}\n",
+      "index.js": "// Re-exports the registry, as a package's sub-entry does.\nmodule.exports = require('entry-registry')\n"
+    },
+    "dom-reader": {
+      "package.json": "{\"name\": \"dom-reader\", \"version\": \"1.0.0\", \"main\": \"index.js\"}\n",
+      "index.js": "// Reads the environment's navigator and document while it loads.\nexports.agent = /jsdom/.test(navigator.userAgent) ? 'jsdom' : 'other'\nexports.hasBody = document.body !== null\n"
+    },
+    "core-lib": {
+      "package.json": "{\"name\": \"core-lib\", \"version\": \"1.0.0\", \"main\": \"index.js\"}\n",
+      "index.js": "// Notes each evaluation in a file under the working directory.\nrequire('fs').appendFileSync(require('path').join(process.cwd(), 'core-lib-loads.txt'), 'evaluated\\n')\nexports.token = {}\n"
+    },
+    "registering-plugin": {
+      "package.json": "{\"name\": \"registering-plugin\", \"version\": \"1.0.0\", \"main\": \"index.js\"}\n",
+      "index.js": "// Registers an entry while it loads, through the barrel, and reads the DOM through dom-reader.\nconst registry = require('entry-registry-barrel')\nconst domReader = require('dom-reader')\nconst core = require('core-lib')\nclass PluginEntry extends registry.Entry {}\nexports.entry = registry.register('plugin', new PluginEntry('plugin'))\nexports.agent = domReader.agent\nexports.core = core\n"
+    },
+    "plain-widget": {
+      "package.json": "{\"name\": \"plain-widget\", \"version\": \"1.0.0\", \"main\": \"index.js\"}\n",
+      "index.js": "// A package that imports core-lib and nothing per file.\nexports.core = require('core-lib')\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json", "file:core-lib-loads.txt"],
+    "keepLines": "^(Test Suites|Tests|Snapshots):|^ +● |^ › |^ +↳ |^ +• |^    [A-Z]|^Snapshot Summary$",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
