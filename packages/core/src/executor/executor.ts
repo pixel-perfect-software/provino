@@ -22,7 +22,6 @@ import type {
   OrderHooks,
   RuntimeEvent,
   RuntimeHookKind,
-  ShapeTestError,
   SkipReason,
   SourceLocation,
   SuiteHandle,
@@ -61,10 +60,11 @@ import { createLimiter, type Limiter, unlimited } from './limiter.ts'
 export interface ExecutorConfig {
   readonly policy: CorePolicy
   readonly orderHooks: OrderHooks | undefined
-  /** `CorePolicy.shapeTestError`, loaded: replaces a failed test's error before it is reported. */
-  readonly shapeTestError: ShapeTestError | undefined
-  /** The run's `--expand`, handed to `shapeTestError`. */
-  readonly expand: boolean
+  /**
+   * `CorePolicy.shapeTestError`, loaded and bound to the run's options (`expand`): replaces a failed
+   * test's error before it is reported.
+   */
+  readonly shapeTestError: ((error: unknown) => unknown) | undefined
   readonly sink: EventSink
   /** Every user call's deadline. */
   readonly deadlines: Deadlines
@@ -1846,7 +1846,7 @@ export class Executor {
     const shape = this.#config.shapeTestError
     if (shape === undefined) return serializeError(error)
     try {
-      return serializeError(shape(error, { expand: this.#config.expand }))
+      return serializeError(shape(error))
     } catch {
       // A shaper that throws must not turn a test's failure into the shaper's: the error is
       // reported as thrown, which is what the neutral policy does with every error.
