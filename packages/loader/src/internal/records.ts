@@ -154,12 +154,17 @@ export interface Records {
   /** One word-scan pattern per scope name. */
   readonly scopePatterns: ReadonlyMap<string, RegExp>
   /**
-   * Whether anything `markAsyncGraphs` reads has changed since it last ran: a new record, a record
-   * linked, a resolved target. It is on the state, not in a walk, so a walk that throws partway
-   * leaves it set for the next call. A link that changes nothing (every cached `require`) skips the
-   * scan of every record in the worker.
+   * The records that name each module id as a `user` target in `resolved` (a reverse edge index,
+   * for `markAsyncGraphs`): an over-approximation, since a target `setResolved` overwrote is not
+   * taken out, which only costs a record a needless look at its targets.
    */
-  asyncGraphsStale: boolean
+  readonly importers: Map<ModuleId, Set<ModuleRecord>>
+  /**
+   * The records whose `asyncGraph`/`lateGraph` may be behind what their targets say, since
+   * `markAsyncGraphs` last ran: one linked, one whose `resolved` changed, and the importers of a
+   * module whose record was made. `markAsyncGraphs` empties it.
+   */
+  readonly graphsDirty: Set<ModuleRecord>
 }
 
 function escapeRegExp(text: string): string {
@@ -196,7 +201,8 @@ export function createRecords(options: LoaderOptions, runtime?: RuntimeCapabilit
     claims: compileClaims(options, { edgeKinds, inline, inlineRules, required, externals }),
     scopeNames: { esm, cjs: dialect },
     scopePatterns,
-    asyncGraphsStale: false,
+    importers: new Map(),
+    graphsDirty: new Set(),
   }
 }
 
@@ -467,7 +473,10 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
   }
   if (!path.endsWith('.json')) record.transformKey = transformKeyOf
   state.records.set(id, record)
-  state.asyncGraphsStale = true
+  // A record that already names this id (a target resolved before its module was transformed, or a
+  // module dropped and made again) now has a dep to read.
+  const importers = state.importers.get(id)
+  if (importers !== undefined) for (const importer of importers) state.graphsDirty.add(importer)
   return record
 }
 
@@ -562,7 +571,7 @@ export async function linkAsync(state: Records, root: ModuleRecord): Promise<voi
     const record = stack.pop()
     if (record === undefined || record.linked) continue
     record.linked = true
-    state.asyncGraphsStale = true
+    state.graphsDirty.add(record)
     for (const specifier of record.deps) {
       const target = linkDep(state, record, specifier, stack)
       if (record.format === 'esm') await preloadAsync(state, target)
@@ -577,13 +586,16 @@ export function linkSync(state: Records, root: ModuleRecord): void {
     const record = stack.pop()
     if (record === undefined || record.linked) continue
     record.linked = true
-    state.asyncGraphsStale = true
+    state.graphsDirty.add(record)
     for (const specifier of record.deps) linkDep(state, record, specifier, stack)
   }
   markAsyncGraphs(state)
 }
 
-/** Sets `specifier`'s target on `record`. The only writer of `resolved`, so it can mark the state stale. */
+/**
+ * Sets `specifier`'s target on `record`. The only writer of `resolved`, so it can keep the
+ * importers index and mark `record` for `markAsyncGraphs`.
+ */
 export function setResolved(
   state: Records,
   record: ModuleRecord,
@@ -591,35 +603,56 @@ export function setResolved(
   target: Target,
 ): void {
   record.resolved.set(specifier, target)
-  state.asyncGraphsStale = true
+  if (target.kind !== 'user') return
+  let importers = state.importers.get(target.id)
+  if (importers === undefined) {
+    importers = new Set()
+    state.importers.set(target.id, importers)
+  }
+  importers.add(record)
+  state.graphsDirty.add(record)
 }
 
 /**
  * Marks every module whose static subgraph has top-level await (`asyncGraph`) or late deps
- * (`lateGraph`), to a fixed point over cycles. A no-op unless something it reads has changed since
- * the last run, so it is safe to call after every link.
+ * (`lateGraph`), to a fixed point over cycles.
+ *
+ * Incremental: only the records whose inputs changed since the last run (`Records.graphsDirty`: a
+ * record linked, a `resolved` write, a dep's record made) are looked at, and a record that gains a
+ * flag puts its importers (`Records.importers`) on the worklist, so a run costs the edges around
+ * what changed, not every record in the worker. The result is the one a scan of every record to a
+ * fixed point gives: the flags only ever go from `false` to `true`, a linked record takes a flag
+ * when a `user` target's live record has it, and a record whose inputs did not change already
+ * satisfies that from the last run. A record that is no longer the live one for its id
+ * (`dropRecords`) is skipped, as the scan of `records` skipped it.
  */
 function markAsyncGraphs(state: Records): void {
-  if (!state.asyncGraphsStale) return
-  state.asyncGraphsStale = false
-  let changed = true
-  while (changed) {
-    changed = false
-    for (const record of state.records.values()) {
-      if (!record.linked || (record.asyncGraph && record.lateGraph)) continue
-      for (const target of record.resolved.values()) {
-        // A `missing` or `failed` target has no record: it adds nothing to the graph.
-        const dep = target.kind === 'user' ? state.records.get(target.id) : undefined
-        if (dep === undefined) continue
-        if (dep.asyncGraph && !record.asyncGraph) {
-          record.asyncGraph = true
-          changed = true
-        }
-        if (dep.lateGraph && !record.lateGraph) {
-          record.lateGraph = true
-          changed = true
-        }
+  const dirty = state.graphsDirty
+  if (dirty.size === 0) return
+  const work = [...dirty]
+  dirty.clear()
+  while (work.length > 0) {
+    const record = work.pop()
+    if (record === undefined) continue
+    if (!record.linked || (record.asyncGraph && record.lateGraph)) continue
+    if (state.records.get(record.id) !== record) continue
+    let changed = false
+    for (const target of record.resolved.values()) {
+      // A `missing` or `failed` target has no record: it adds nothing to the graph.
+      const dep = target.kind === 'user' ? state.records.get(target.id) : undefined
+      if (dep === undefined) continue
+      if (dep.asyncGraph && !record.asyncGraph) {
+        record.asyncGraph = true
+        changed = true
       }
+      if (dep.lateGraph && !record.lateGraph) {
+        record.lateGraph = true
+        changed = true
+      }
+    }
+    if (changed) {
+      const importers = state.importers.get(record.id)
+      if (importers !== undefined) for (const importer of importers) work.push(importer)
     }
   }
 }
@@ -697,10 +730,20 @@ export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'as
 
 /**
  * Forgets the records of these modules (absolute paths), so the next load reads and compiles them
- * again. Watch mode's stale modules (B23c). A path with no record is skipped; the module graphs are
- * marked stale because a record they pointed at is gone.
+ * again. Watch mode's stale modules (B23c). A path with no record is skipped. The flags of the
+ * records that pointed at one stay (they only ever rise, as before); the record made next marks its
+ * importers for `markAsyncGraphs`.
  */
 export function dropRecords(state: Records, paths: readonly string[]): void {
-  for (const path of paths) state.records.delete(toModuleId(path))
-  state.asyncGraphsStale = true
+  for (const path of paths) {
+    const id = toModuleId(path)
+    const record = state.records.get(id)
+    if (record === undefined) continue
+    state.records.delete(id)
+    // As an importer it is gone; its own importers keep their entry, for the record made next.
+    for (const target of record.resolved.values()) {
+      if (target.kind === 'user') state.importers.get(target.id)?.delete(record)
+    }
+    state.graphsDirty.delete(record)
+  }
 }
