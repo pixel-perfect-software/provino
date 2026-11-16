@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs'
 import { relative, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { runInThisContext } from 'node:vm'
+import { Script } from 'node:vm'
 import { LATE_IMPORT, toModuleRunner, usesModuleRunnerForm } from '@provino/transform'
 import type {
   CompiledModuleEvent,
@@ -63,6 +63,18 @@ export type UserFormat = 'esm' | 'cjs' | 'json'
 /** A compiled wrapper. With scope bindings it is the outer function, which returns the wrapper. */
 export type Compiled = (...args: unknown[]) => unknown
 
+/**
+ * A record's wrapper in one mode: the script, compiled once per worker, whose run makes the wrapper
+ * function. Each run of the same script makes a new function with feedback of its own, from the
+ * script's compiled code: nothing is parsed again (V8 recompiles only a function whose bytecode it
+ * flushed, as it would under one wrapper).
+ */
+export interface WrapperScript {
+  readonly script: Script
+  /** The function the script's first run made, which a registry shared across files calls again. */
+  shared: Compiled | null
+}
+
 /** One user module, as every registry in the worker shares it. */
 export interface ModuleRecord {
   readonly id: ModuleId
@@ -101,8 +113,8 @@ export interface ModuleRecord {
   readonly resolved: Map<string, Target>
   linked: boolean
   /** The plain wrapper (`await` stripped from its import calls) and the async one, each compiled on first use. */
-  compiledSync: Compiled | null
-  compiledAsync: Compiled | null
+  compiledSync: WrapperScript | null
+  compiledAsync: WrapperScript | null
   /**
    * The scope bindings this module's source names, in the worker's order (B13c Gap 2): the
    * dialect's per-module names, and for ES modules under `injectCjsGlobals` `require`,
@@ -696,12 +708,51 @@ export function scopeOf(state: Records, record: ModuleRecord): readonly string[]
 }
 
 /**
- * Compiles a record's wrapper once per worker and mode (filename = the real path, for stacks and
- * coverage). `sync` strips the `await` from the import calls, which only the sync path may do;
- * `async` keeps them. A module with scope bindings gets an outer function taking them, so a
- * module's own `const require = …` shadows the binding instead of clashing with a parameter.
+ * A record's wrapper function for one evaluation in `mode`. The script is compiled once per worker
+ * and mode (`wrapperScript`). `fresh` (an evaluation in a registry of one file) runs it again for a
+ * new function; otherwise (a registry shared across files, which evaluates a module once) the
+ * function of its first run is called again.
+ *
+ * Why fresh: V8 keeps a function's feedback (its inline caches, and the optimized code built on
+ * them) in a cell its closure shares with every closure the same enclosing function object made. A
+ * module evaluated in every file through one wrapper function would give every file's copy of its
+ * functions one feedback vector, and each file's new classes (new hidden classes) would add maps to
+ * the same inline caches until they went megamorphic. A new run of the script makes a new wrapper
+ * with feedback of its own, as Jest's compile of each module for every test file does, at the cost
+ * of one script run and of each file's copy warming up again, as it does in Jest
+ * (`pnpm bench:loader megamorphic` shows what the shared feedback cost).
  */
-export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'async'): Compiled {
+export function compile(
+  state: Records,
+  record: ModuleRecord,
+  mode: 'sync' | 'async',
+  fresh: boolean,
+): Compiled {
+  const wrapper = wrapperScript(state, record, mode)
+  if (fresh) return runWrapper(wrapper.script, record)
+  wrapper.shared ??= runWrapper(wrapper.script, record)
+  return wrapper.shared
+}
+
+function runWrapper(script: Script, record: ModuleRecord): Compiled {
+  const compiled: unknown = script.runInThisContext()
+  if (typeof compiled !== 'function')
+    throw new Error(`the wrapper for ${record.path} is not a function`)
+  return compiled as Compiled
+}
+
+/**
+ * Compiles a record's wrapper script once per worker and mode (filename = the real path, for
+ * stacks and coverage), and reports it to the compile listeners then, once. `sync` strips the
+ * `await` from the import calls, which only the sync path may do; `async` keeps them. A module
+ * with scope bindings gets an outer function taking them, so a module's own `const require = …`
+ * shadows the binding instead of clashing with a parameter.
+ */
+function wrapperScript(
+  state: Records,
+  record: ModuleRecord,
+  mode: 'sync' | 'async',
+): WrapperScript {
   const cached = mode === 'sync' ? record.compiledSync : record.compiledAsync
   if (cached !== null) return cached
   const scope = scopeOf(state, record)
@@ -730,15 +781,15 @@ export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'as
   const suffix = scope.length === 0 ? '\n})' : '\n}})'
   // The wrapper opens on the body's first line; the offset takes it back out of that line's
   // columns, so every frame is a position in the body, which is what the record's map reads.
-  const compiled: unknown = runInThisContext(`${prefix}${body}${suffix}`, {
-    filename: record.path,
-    columnOffset: -prefix.length,
-  })
-  if (typeof compiled !== 'function')
-    throw new Error(`the wrapper for ${record.path} is not a function`)
-  const fn = compiled as Compiled
-  if (mode === 'sync') record.compiledSync = fn
-  else record.compiledAsync = fn
+  const wrapper: WrapperScript = {
+    script: new Script(`${prefix}${body}${suffix}`, {
+      filename: record.path,
+      columnOffset: -prefix.length,
+    }),
+    shared: null,
+  }
+  if (mode === 'sync') record.compiledSync = wrapper
+  else record.compiledAsync = wrapper
   record.wrapperLength = prefix.length
   for (const listener of state.listeners) {
     listener({
@@ -752,7 +803,7 @@ export function compile(state: Records, record: ModuleRecord, mode: 'sync' | 'as
       transformKey: record.transformKey,
     })
   }
-  return fn
+  return wrapper
 }
 
 /**

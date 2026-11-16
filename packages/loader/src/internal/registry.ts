@@ -1,6 +1,7 @@
 // The per-file half of the engine (Track 2 R1 steps 3–4, F3): instances of the worker's records,
 // evaluated synchronously unless something in their reach can make them wait. A registry never
-// compiles or transforms; it calls the records' compiled wrappers with fresh linkers.
+// compiles or transforms; it calls the records' compiled wrappers with fresh linkers (a registry of
+// one file through a fresh run of the record's script each time, `compile`'s `fresh`).
 //
 // Every edge (a static import, `require`, `import()`, and a late import, D38) resolves, then asks
 // the running file's module-mock registry (T2.5 + T4.8): a mocked edge gets `materialize`'s value,
@@ -191,11 +192,19 @@ export class Registry {
    * again under `none` by design, so neither is an external.
    */
   readonly #reevaluates: boolean
+  /**
+   * Whether each evaluation runs a fresh wrapper function (`compile`'s `fresh`): in a registry of
+   * one file, every module evaluated here is evaluated again in the next file's, and a fresh
+   * wrapper keeps one file's feedback out of the next. A registry shared across files (`none`)
+   * evaluates a module once, and calls the one wrapper the worker made.
+   */
+  readonly #freshWrappers: boolean
 
   constructor(state: Records, sharedAcrossFiles = false) {
     this.#state = state
     this.#maps = [new Map()]
     this.#reevaluates = state.options.policy.reevaluateHookingExternals && !sharedAcrossFiles
+    this.#freshWrappers = !sharedAcrossFiles
   }
 
   get #instances(): Map<ModuleId, Instance> {
@@ -933,9 +942,9 @@ export class Registry {
     return instance.promise
   }
 
-  /** The record's wrapper for `mode`, with its scope bindings applied. */
+  /** The record's wrapper for one evaluation in `mode`, with its scope bindings applied. */
   #wrapper(record: ModuleRecord, mode: Mode): Compiled {
-    const compiled = compile(this.#state, record, mode)
+    const compiled = compile(this.#state, record, mode, this.#freshWrappers)
     const scope = scopeOf(this.#state, record)
     if (scope.length === 0) return compiled
     return compiled(...this.#scopeValues(record, scope)) as Compiled
