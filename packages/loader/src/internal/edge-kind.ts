@@ -81,17 +81,24 @@ export function createEdgeKindState(
   }
 }
 
-/** Whether the `package.json` at `manifest` says `"type": "module"`; an unreadable or broken one does not. */
-function readsModuleType(manifest: string): boolean {
+/** The `type` the `package.json` at `manifest` gives; an unreadable or broken one gives none. */
+function readsType(manifest: string): unknown {
   try {
     const parsed: unknown = JSON.parse(readFileSync(manifest, 'utf8'))
-    return (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      (parsed as { readonly type?: unknown }).type === 'module'
-    )
+    return typeof parsed === 'object' && parsed !== null
+      ? (parsed as { readonly type?: unknown }).type
+      : undefined
   } catch {
-    return false
+    return undefined
+  }
+}
+
+/** The nearest `package.json` at or above `dir`, or `undefined` for none (or one Node can't parse). */
+function nearestManifest(dir: string): string | undefined {
+  try {
+    return findPackageJSON(pathToFileURL(join(dir, sep)).href)
+  } catch {
+    return undefined
   }
 }
 
@@ -100,16 +107,11 @@ function readsModuleType(manifest: string): boolean {
  * cannot parse (it throws), is CommonJS, as Jest has it; each manifest is read once.
  */
 function moduleTypeFrom(state: EdgeKindState, dir: string): boolean {
-  let manifest: string | undefined
-  try {
-    manifest = findPackageJSON(pathToFileURL(join(dir, sep)).href)
-  } catch {
-    return false
-  }
+  const manifest = nearestManifest(dir)
   if (manifest === undefined) return false
   let answer = state.moduleTypeByManifest.get(manifest)
   if (answer === undefined) {
-    answer = readsModuleType(manifest)
+    answer = readsType(manifest) === 'module'
     state.moduleTypeByManifest.set(manifest, answer)
   }
   return answer
@@ -118,6 +120,20 @@ function moduleTypeFrom(state: EdgeKindState, dir: string): boolean {
 /** Whether the nearest `package.json` above the file at `path` says `"type": "module"`. */
 export function inModulePackage(state: EdgeKindState, path: string): boolean {
   return moduleTypeFrom(state, dirname(path))
+}
+
+/**
+ * Whether the file at `path` is CommonJS by its name or its package, whatever its source holds:
+ * `.cjs`, or a `.js` whose nearest `package.json` says `"type": "commonjs"` (jest-runtime's
+ * `Resolution.isExplicitlyCommonjs`, jest-resolve's `isExplicitlyCommonjsPackage`). Read only
+ * after a native load failed, so the manifest is not cached.
+ */
+export function isExplicitlyCommonjs(path: string): boolean {
+  const extension = extname(path)
+  if (extension === '.cjs') return true
+  if (extension !== '.js') return false
+  const manifest = nearestManifest(dirname(path))
+  return manifest !== undefined && readsType(manifest) === 'commonjs'
 }
 
 /** Whether the module at `path` runs as an ES module under `importer-format`. */

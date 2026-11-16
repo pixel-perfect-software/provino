@@ -96,16 +96,17 @@ function literalAfter(
 
 /**
  * Whether `source` has ES module syntax: an `import` or `export` declaration, or `import.meta`
- * (`import()` alone is CommonJS too). A file the lexer can't parse that has the words is taken to
- * have it: what the lexer rejects (JSX, say) Node can't run either.
+ * (`import()` alone is CommonJS too). A file the lexer can't parse that has the words is
+ * `rejected` (default `true`: what the lexer rejects, JSX say, Node can't run either; jest-runtime's
+ * `esmLexer.ts` `hasEsmSyntax` reads it as `false`).
  * @public
  */
-export function hasEsmSyntax(source: string): boolean {
+export function hasEsmSyntax(source: string, rejected = true): boolean {
   if (!MODULE_SYNTAX.test(source)) return false
   try {
     return parse(source)[3]
   } catch {
-    return true
+    return rejected
   }
 }
 

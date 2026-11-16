@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs'
 import { extname, relative, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { runInThisContext } from 'node:vm'
+import { compileFunction, runInThisContext } from 'node:vm'
 import { LATE_IMPORT, toModuleRunner, usesModuleRunnerForm } from '@provino/transform'
 import type {
   CompiledModuleEvent,
@@ -22,6 +22,8 @@ import {
   edgeConditions,
   edgeKind,
   inModulePackage,
+  isExplicitlyCommonjs,
+  type RuntimeCapabilities,
 } from './edge-kind.ts'
 import { createInlineState, type InlineState } from './inline.ts'
 import { loaderMessage } from './messages.ts'
@@ -133,24 +135,71 @@ function isThirdParty(path: string, inline: readonly (string | RegExp)[]): boole
   )
 }
 
+/**
+ * What the claims make of a `node_modules` file: no transform's (`ignored`), a transform's but
+ * loaded by Node (`native`: CommonJS that Node can parse, as far as is known), or a user module
+ * (`user`: transformed and evaluated per file).
+ */
+type ClaimVerdict = 'ignored' | 'native' | 'user'
+
 /** `LoaderOptions.transformClaims`, compiled once per worker. */
 interface CompiledClaims {
   readonly patterns: readonly RegExp[]
   /** The ignore patterns joined with `|`, as Jest joins them; `null` for none. */
   readonly ignore: RegExp | null
-  /** Each `node_modules` file asked about: whether it is a user module. */
-  readonly verdicts: Map<string, boolean>
+  /** Each `node_modules` file asked about. A `native` one becomes `user` when Node can't parse it. */
+  readonly verdicts: Map<string, ClaimVerdict>
+  /** The `native` files whose load threw a `SyntaxError` and which do parse: it was the module's own. */
+  readonly parses: Set<string>
+  /**
+   * Whether a shared external's static closure reaches a claimed user module (`claimedReach`), kept
+   * for the worker and cleared when a `native` file becomes `user`.
+   */
+  readonly reach: Map<string, boolean>
+}
+
+/**
+ * Ignore patterns that match every path with a `node_modules` directory in it (Jest's default is
+ * `/node_modules/`): with one, no `node_modules` file is any transform's, and the claims are off.
+ */
+const IGNORES_EVERY_PACKAGE: ReadonlySet<string> = new Set([
+  '/node_modules/',
+  '/node_modules',
+  'node_modules/',
+  'node_modules',
+])
+
+function claimsRegExp(source: string, what: string): RegExp {
+  try {
+    return new RegExp(source)
+  } catch (cause) {
+    throw new LoaderError(
+      'LOADER_INVALID_TRANSFORM_CLAIMS',
+      `transformClaims.${what} is not a regular expression: ${(cause as Error).message}`,
+      { cause },
+    )
+  }
 }
 
 function compileClaims(options: LoaderOptions): CompiledClaims | null {
   const claims = options.transformClaims
   if (claims === undefined || claims.patterns.length === 0) return null
-  return {
-    patterns: claims.patterns.map((pattern) => new RegExp(pattern)),
-    ignore: claims.ignorePatterns.length === 0 ? null : new RegExp(claims.ignorePatterns.join('|')),
-    verdicts: new Map(),
-  }
+  const patterns = claims.patterns.map((pattern, index) =>
+    claimsRegExp(pattern, `patterns[${index}]`),
+  )
+  const ignore =
+    claims.ignorePatterns.length === 0
+      ? null
+      : claimsRegExp(claims.ignorePatterns.join('|'), 'ignorePatterns (joined with "|")')
+  if (claims.ignorePatterns.some((pattern) => IGNORES_EVERY_PACKAGE.has(pattern))) return null
+  return { patterns, ignore, verdicts: new Map(), parses: new Set(), reach: new Map() }
 }
+
+/**
+ * Files Node can't load from `node_modules` whatever their syntax: it strips no types there, and
+ * runs no JSX. A claimed one is always a user module.
+ */
+const NEVER_NATIVE = /\.(?:[cm]?ts|tsx|jsx)$/
 
 /**
  * Whether the file at `path` has ES module syntax, as Node decides a format: `.mjs` does, `.cjs`
@@ -174,37 +223,147 @@ function hasModuleSyntax(state: Records, path: string): boolean {
 }
 
 /**
- * Whether a `node_modules` file is a user module because a transform takes it and Node could not
- * run it as Jest runs the transform's output (B23e, D115): a rule's pattern matches its real path,
- * no ignore pattern does (Jest's `ScriptTransformer.shouldTransform`), and it has ES module
- * syntax. A CommonJS file a transform takes stays shared, loaded by Node. One regular expression
- * test for a file the ignore patterns opt out (Jest's default: every `node_modules` file), and each
- * verdict is kept for the worker.
+ * What the claims make of a `node_modules` file (B23e, D115): a transform takes it when a rule's
+ * pattern matches its real path and no ignore pattern does (Jest's
+ * `ScriptTransformer.shouldTransform`), and it is transformed only when Node can't load it
+ * natively: a TypeScript or JSX extension (`NEVER_NATIVE`), or ES module syntax, whose imports Jest
+ * resolves as `require`s. A CommonJS file a transform takes is `native`, shared and loaded by Node,
+ * until its native load fails to parse (`nativeParseFailure`). One regular expression test for a
+ * file the ignore patterns opt out, and each verdict is kept for the worker.
  */
-function takenByTransform(state: Records, path: string): boolean {
+function claimVerdict(state: Records, path: string): ClaimVerdict {
   const claims = state.claims
-  if (claims === null) return false
+  if (claims === null) return 'ignored'
   let verdict = claims.verdicts.get(path)
   if (verdict === undefined) {
-    verdict =
-      claims.ignore?.test(path) !== true &&
-      claims.patterns.some((pattern) => pattern.test(path)) &&
-      hasModuleSyntax(state, path)
+    if (claims.ignore?.test(path) === true || !claims.patterns.some((p) => p.test(path))) {
+      verdict = 'ignored'
+    } else {
+      verdict = NEVER_NATIVE.test(path) || hasModuleSyntax(state, path) ? 'user' : 'native'
+    }
     claims.verdicts.set(path, verdict)
   }
   return verdict
 }
 
 /**
- * The error for a shared external whose native load threw (`require-esm`): the dialect's text when
- * the file has ES module syntax, which a runner that runs untransformed `node_modules` files as
- * CommonJS (Jest) refuses before it runs them; `undefined` otherwise, so the load's own error
- * stands. Read only after a load failed, so a load that works pays nothing.
+ * Whether a `node_modules` file is a user module because a transform takes it (`claimVerdict`), so
+ * a shared external whose closure reaches it is inlined too (`claimedReach`): loaded natively, it
+ * would `require` Node's copy, a second instance, or a crash on what the transform resolves.
  */
-export function requireEsmError(state: Records, path: string): RequireEsmError | undefined {
+export function isClaimedUserModule(state: Records, path: string): boolean {
+  return (
+    state.claims !== null &&
+    isThirdParty(path, state.options.inline ?? []) &&
+    claimVerdict(state, path) === 'user'
+  )
+}
+
+/** Whether `error` is a `SyntaxError`, by name as jest-runtime tests it (any realm's). */
+function isSyntaxError(error: unknown): boolean {
+  return error instanceof Error && error.name === 'SyntaxError'
+}
+
+/** The parameters of Node's CommonJS wrapper. */
+const CJS_WRAPPER: readonly string[] = ['exports', 'require', 'module', '__filename', '__dirname']
+
+/**
+ * Whether the file at `path` compiles as Node compiles a CommonJS module (its wrapper, a hashbang
+ * and a byte order mark dropped). A file that can't be read is taken to: its load's error stands.
+ */
+function compilesAsCommonJs(path: string): boolean {
+  let source: string
+  try {
+    source = readFileSync(path, 'utf8')
+  } catch {
+    return true
+  }
+  if (source.charCodeAt(0) === 0xfeff) source = source.slice(1)
+  if (source.startsWith('#!')) source = `//${source.slice(2)}`
+  try {
+    compileFunction(source, [...CJS_WRAPPER], { filename: path })
+    return true
+  } catch (error) {
+    return !isSyntaxError(error)
+  }
+}
+
+/**
+ * Whether the native load of a `native` claimed file threw because Node can't parse it (JSX, Flow
+ * or TypeScript syntax in a CommonJS `.js` file: a React Native package under
+ * `transformIgnorePatterns: ['node_modules/(?!react-native/)']`). Nothing of it ran, so it becomes a
+ * user module for the worker (transformed, and evaluated per file) and the edge takes that route.
+ * A `SyntaxError` the module's own code threw (`JSON.parse`, `new Function`) leaves it `native`:
+ * it ran, and running it again would repeat what it did. So would a file that requires a module
+ * Node can't parse: the error is that module's, and the file itself parses. Asked only after a
+ * native load threw, so a load that works pays nothing; the compile is once per file.
+ */
+export function nativeParseFailure(state: Records, path: string, error: unknown): boolean {
+  const claims = state.claims
+  if (
+    claims === null ||
+    !isSyntaxError(error) ||
+    claims.verdicts.get(path) !== 'native' ||
+    !/\.c?js$/.test(path) ||
+    claims.parses.has(path)
+  ) {
+    return false
+  }
+  if (compilesAsCommonJs(path)) {
+    claims.parses.add(path)
+    return false
+  }
+  claims.verdicts.set(path, 'user')
+  claims.reach.clear()
+  return true
+}
+
+/** Whether the claims made an external of `path` a user module since it was resolved. */
+export function becameUserModule(state: Records, path: string): boolean {
+  return state.claims?.verdicts.get(path) === 'user'
+}
+
+/** Whether `path` is a claimed file Node loads (`native`) that has not loaded yet in this worker. */
+export function loadsNativelyUntried(state: Records, path: string): boolean {
+  return (
+    state.claims?.verdicts.get(path) === 'native' &&
+    !state.required.has(path) &&
+    !state.externals.has(path)
+  )
+}
+
+/**
+ * The error for a shared external whose native load threw (`require-esm`), as jest-runtime's
+ * `CjsLoader` raises it (L171-L180, `createRequireEsmError` L336-L349): the dialect's text when the
+ * file has ES module syntax (`hasEsmSyntax`, a file the lexer rejects counting as none), is not
+ * explicitly CommonJS (`.cjs`, or `"type": "commonjs"` for a `.js`), and Node can't evaluate an ES
+ * module graph synchronously (`supportsSyncEvaluate`, where Jest loads it as an ES module instead).
+ * `undefined` otherwise, so the load's own error stands; with it, that error is the `cause`.
+ *
+ * Jest's third condition, a `SyntaxError`, is its own CommonJS compile of the file, which every
+ * file with ES module syntax fails: Jest never runs one. Node loads it as an ES module
+ * (`require(esm)`), so its error is whatever that load met (`ERR_MODULE_NOT_FOUND` for an
+ * extensionless import, `cli/transform-node-modules-ignored`), and any error stands for Jest's.
+ * Read only after a load failed, so a load that works pays nothing.
+ */
+export function requireEsmError(
+  state: Records,
+  path: string,
+  error: unknown,
+): RequireEsmError | undefined {
   const message = loaderMessage(state.options.policy, 'require-esm', { path })
-  if (message === undefined || !inGraph(path) || !hasModuleSyntax(state, path)) return undefined
-  return new RequireEsmError(message)
+  if (message === undefined || !inGraph(path) || state.edgeKinds.runtime().syncEvaluate) {
+    return undefined
+  }
+  if (isExplicitlyCommonjs(path)) return undefined
+  let source: string
+  try {
+    source = readFileSync(path, 'utf8')
+  } catch {
+    return undefined
+  }
+  if (!hasEsmSyntax(source, false)) return undefined
+  return new RequireEsmError(message, { cause: error })
 }
 
 /**
@@ -213,7 +372,7 @@ export function requireEsmError(state: Records, path: string): RequireEsmError |
  */
 function isExternal(state: Records, path: string): boolean {
   if (path.endsWith('.node')) return true
-  return isThirdParty(path, state.options.inline ?? []) && !takenByTransform(state, path)
+  return isThirdParty(path, state.options.inline ?? []) && claimVerdict(state, path) !== 'user'
 }
 
 export interface Records {
@@ -249,7 +408,8 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
-export function createRecords(options: LoaderOptions): Records {
+/** `runtime` is what this Node can do, probed when first asked for; a test passes its own. */
+export function createRecords(options: LoaderOptions, runtime?: RuntimeCapabilities): Records {
   const dialect = options.moduleScope?.names ?? []
   const esm = [
     ...dialect,
@@ -268,7 +428,7 @@ export function createRecords(options: LoaderOptions): Records {
     required: new Map(),
     listeners: new Set(),
     reevaluate: createReevaluateState(),
-    edgeKinds: createEdgeKindState(options),
+    edgeKinds: createEdgeKindState(options, runtime),
     claims: compileClaims(options),
     scopeNames: { esm, cjs: dialect },
     scopePatterns,

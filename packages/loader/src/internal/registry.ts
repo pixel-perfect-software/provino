@@ -19,6 +19,7 @@ import { pathToFileURL } from 'node:url'
 import type { ModuleId, ModuleMockRegistry, ModuleScopeValues, ResolveKind } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
 import {
+  claimedReach,
   createLedger,
   mockedReach,
   noteInlined,
@@ -28,14 +29,18 @@ import {
 } from './inline.ts'
 import { actualView, cjsNamespace, createInteropCache, esmExports } from './interop.ts'
 import {
+  becameUserModule,
   type Compiled,
   compile,
   externalKey,
   type Found,
+  isClaimedUserModule,
   isEvaluableExternal,
   linkAsync,
   linkSync,
+  loadsNativelyUntried,
   type ModuleRecord,
+  nativeParseFailure,
   preloadAsync,
   type Records,
   recordFor,
@@ -551,27 +556,59 @@ export class Registry {
 
   /**
    * An external as the edge should load it: the same external, or a user module (inlined) for one
-   * of three reasons. It is evaluated again per file (`reevaluateHookingExternals`: its first load
+   * of four reasons. It is evaluated again per file (`reevaluateHookingExternals`: its first load
    * in this worker read a per-file global, D127, or its closure reaches such an external, so it
    * shares the file's copy and never Node's cached one); its closure reaches a module the dialect
-   * serves (`@jest/globals`, which only the registry can serve); or `mocksReachShared` is on and the
-   * file's mocks take an edge in its graph closure. The answer is kept for the instance map in
-   * play, and later edges follow it. The runner's own loads (`runner`) never ask the mocks, as
-   * the module itself is never mocked.
+   * serves (`@jest/globals`, which only the registry can serve); its closure reaches a
+   * `node_modules` file the transforms make a user module (B23e, `claimedReach`); or
+   * `mocksReachShared` is on and the file's mocks take an edge in its graph closure. The answer is
+   * kept for the instance map in play, and later edges follow it. The runner's own loads (`runner`)
+   * never ask the mocks, as the module itself is never mocked.
+   *
+   * A claimed file Node loads (`native`) is also loaded here, the first time, so that a native load
+   * Node can't parse turns it into a user module before the edge takes its route
+   * (`nativeParseFailure`); a file that became one since it was resolved goes that way too.
    */
   #maybeInline(target: Found, runner = false): Found {
     if (target.kind !== 'external') return target
+    const path = target.path
+    if (this.#inlines(path, runner) || this.#claimedUserModule(target)) {
+      return { kind: 'user', id: toModuleId(path) }
+    }
+    return target
+  }
+
+  /**
+   * Whether a claimed external is a user module for this edge: it became one after its native load
+   * failed to parse, or its first native load, made now, fails to parse. Nothing without claims.
+   */
+  #claimedUserModule(target: Extract<Found, { readonly kind: 'external' }>): boolean {
+    const state = this.#state
+    if (state.claims === null) return false
+    if (becameUserModule(state, target.path)) return true
+    if (!loadsNativelyUntried(state, target.path)) return false
+    try {
+      this.#requireExternal(target)
+    } catch (error) {
+      if (nativeParseFailure(state, target.path, error)) return true
+      throw error
+    }
+    return false
+  }
+
+  /** Whether the external at `path` is inlined for the instance map in play (`#maybeInline`). */
+  #inlines(path: string, runner: boolean): boolean {
     const state = this.#state
     const policy = state.options.policy
-    const path = target.path
     // Externals evaluated per file (D127): one is, or its closure reaches one.
     const perFile =
       policy.reevaluateHookingExternals &&
       !this.#sharedAcrossFiles &&
       state.reevaluate.active.size > 0
     const served = state.options.moduleScope?.modules ?? NO_MODULES
+    const claims = state.claims
     const mocks = runner || !policy.mocksReachShared ? null : this.context.mocks
-    if (!perFile && served.length === 0 && mocks === null) return target
+    if (!perFile && served.length === 0 && claims === null && mocks === null) return false
     const map = this.#instances
     let memory = this.#memory.get(map)
     if (memory === undefined) {
@@ -583,6 +620,7 @@ export class Registry {
       inlined = false
       if (!path.endsWith('.node')) {
         const userEdges = (user: string) => userEdgesOf(state, user)
+        const claimed = (file: string) => isClaimedUserModule(state, file)
         if (
           perFile &&
           reevaluatedReach(state.inline, state.options, path, state.reevaluate, userEdges)
@@ -591,6 +629,11 @@ export class Registry {
         } else if (
           served.length > 0 &&
           servedReach(state.inline, state.options, path, served, userEdges)
+        ) {
+          inlined = 'kept'
+        } else if (
+          claims !== null &&
+          claimedReach(state.inline, state.options, path, claims.reach, claimed, userEdges)
         ) {
           inlined = 'kept'
         } else if (mocks?.active()) {
@@ -603,7 +646,7 @@ export class Registry {
       }
       memory.set(path, inlined)
     }
-    return inlined === false ? target : { kind: 'user', id: toModuleId(path) }
+    return inlined !== false
   }
 
   /** The record of a module an edge inlined, linked now: nothing linked it ahead. */
@@ -631,7 +674,7 @@ export class Registry {
       try {
         return createRequire(target.path)(key)
       } catch (error) {
-        throw requireEsmError(state, target.path) ?? error
+        throw requireEsmError(state, target.path, error) ?? error
       }
     }
     const value: unknown =

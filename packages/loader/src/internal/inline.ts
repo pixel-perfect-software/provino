@@ -310,6 +310,32 @@ export function reevaluatedReach(
 }
 
 /**
+ * Whether `path`'s static closure has an edge to a `node_modules` file the project's transforms
+ * make a user module (`claimed`, B23e, D115). Loaded natively, such an external would `require`
+ * Node's own copy of that file while the file's code gets its per-file one (two instances), or fail
+ * on what only the transform resolves (an extensionless import). So it is inlined too. The verdict
+ * is kept in `known` (the claims' `reach`), which is cleared when a claimed file becomes a user
+ * module after Node failed to parse it.
+ */
+export function claimedReach(
+  state: InlineState,
+  options: LoaderOptions,
+  path: string,
+  known: Map<string, boolean>,
+  claimed: (path: string) => boolean,
+  userEdges: UserEdges,
+): boolean {
+  return cachedReach(
+    known,
+    state,
+    options,
+    path,
+    (edge) => (edge.target !== null && claimed(edge.target) ? edge.target : null),
+    userEdges,
+  )
+}
+
+/**
  * Whether the file at `path` itself requests one of `served`: its edges when the graph (if one was
  * built) already holds them, else its text (a cheap test first, then the scan).
  */

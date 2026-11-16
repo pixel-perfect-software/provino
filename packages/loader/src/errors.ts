@@ -12,6 +12,7 @@ export type LoaderErrorCode =
   | 'LOADER_NO_MODULE_MOCKS'
   | 'LOADER_NO_REAL_MODULE'
   | 'LOADER_UNRESOLVED_MOCK'
+  | 'LOADER_INVALID_TRANSFORM_CLAIMS'
   | 'ERR_REQUIRE_ASYNC_MODULE'
 
 /**
@@ -32,7 +33,7 @@ export class ModuleNotFoundError extends Error {
 /**
  * A `node_modules` file with ES module syntax that no transform takes and Node could not load,
  * in the dialect's words (`require-esm`, Jest's `Must use import to load ES Module`). Its `name`
- * stays `Error` and its code is Node's, as Jest's own error has them.
+ * stays `Error` and its code is Node's, as Jest's own error has them; its `cause` is Node's error.
  * @public
  */
 export class RequireEsmError extends Error {
