@@ -1,0 +1,9 @@
+{
+  "description": "The jsdom environment's globalThis is the window: methods inherited from EventTarget.prototype (addEventListener, removeEventListener, dispatchEvent) and window methods (getComputedStyle, requestAnimationFrame) work called on the global, on `window`, and through `document.defaultView`. Under Jest, with the environment package the project installs.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom"
+    }
+  }
+}
