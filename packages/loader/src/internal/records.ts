@@ -161,7 +161,7 @@ function compileClaims(options: LoaderOptions): CompiledClaims | null {
 function hasModuleSyntax(state: Records, path: string): boolean {
   const extension = extname(path)
   if (extension === '.mjs') return true
-  if (extension === '.cjs' || extension === '.json') return false
+  if (extension === '.cjs' || extension === '.json' || extension === '.wasm') return false
   if (extension === '.js' && inModulePackage(state.edgeKinds, path)) return true
   let source: string
   try {
