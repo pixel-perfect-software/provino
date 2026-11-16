@@ -21,6 +21,13 @@ export interface PopulateOptions {
    * `this`, and jsdom prefers the implementation behind symbols the global doesn't have.
    */
   readonly bindFunctions?: boolean
+  /**
+   * With `bindFunctions`, leave a function that carries static members of its own unbound, as a
+   * bound function has none of them. A lower-case key can hold one (Jest's jsdom environment
+   * exposes `Symbol` as `jest-symbol-do-not-touch`, and `webkitURL` has `canParse`). Default
+   * `false`, which is Vitest's rule.
+   */
+  readonly keepStatics?: boolean
   /** Keys to copy besides the window's own names and the built-in list. */
   readonly additionalKeys?: readonly string[]
   /**
@@ -50,6 +57,19 @@ export interface Populated extends GlobalReadWatch {
 
 function isClassLikeName(name: string): boolean {
   return name[0] === name[0]?.toUpperCase()
+}
+
+const FUNCTION_OWN: ReadonlySet<string> = new Set([
+  'length',
+  'name',
+  'prototype',
+  'arguments',
+  'caller',
+])
+
+/** Whether a function has own members besides the ones every function has. */
+function hasStatics(member: object): boolean {
+  return Reflect.ownKeys(member).some((key) => typeof key === 'symbol' || !FUNCTION_OWN.has(key))
 }
 
 type Loose = Record<string | symbol, unknown>
@@ -85,7 +105,7 @@ export function populateGlobal(
 ): Populated {
   const target = global as Loose
   const source = win as Loose
-  const { bindFunctions = false, selfReferences = true } = options
+  const { bindFunctions = false, keepStatics = false, selfReferences = true } = options
   const keys = new Set(windowKeys(target, source, options.additionalKeys ?? []))
   const originals = new Map<string | symbol, PropertyDescriptor>()
   const overrides = new Map<string | symbol, unknown>()
@@ -124,7 +144,10 @@ export function populateGlobal(
   for (const key of keys) {
     const member = source[key]
     const bound =
-      bindFunctions && typeof member === 'function' && !isClassLikeName(key)
+      bindFunctions &&
+      typeof member === 'function' &&
+      !isClassLikeName(key) &&
+      !(keepStatics && hasStatics(member))
         ? (member as (...args: unknown[]) => unknown).bind(win)
         : undefined
     // Vitest captures only a listed key that exists; every own key about to be redefined is the

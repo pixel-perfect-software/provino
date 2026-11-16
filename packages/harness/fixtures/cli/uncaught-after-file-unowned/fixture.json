@@ -1,0 +1,11 @@
+{
+  "description": "Jest 30.5.2 with two workers (`maxWorkers: 2`, one file each): a timer `first.test.ts` set at module scope throws 300 ms after the file loaded, long after the file ended, while `second.test.ts` runs for 1.5 s in the other worker. No circus is listening in the idle worker: Jest prints the worker's `Error:` line, `first.test.ts` stays passed, the run succeeds, exit 0. Kept: the `PASS`/`FAIL` headers, the `Error:` lines and the test count. A black-box run, read by `provino`'s `jest-uncaught.test.ts`.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 2 } },
+  "run": {
+    "argv": { "jest": ["--useStderr"] },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^\\s*● |^Error: |^Tests:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

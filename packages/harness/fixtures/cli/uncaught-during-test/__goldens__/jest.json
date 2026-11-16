@@ -1,0 +1,595 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/uncaught-during-test",
+  "files": [
+    {
+      "file": "reject-after-test.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "reject-after-test.test.ts",
+            "path": [
+              "a schedules a rejection and ends first"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: rejected after its test ended",
+              "userFrame": "<root>/reject-after-test.test.ts:3:25"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "reject-after-test.test.ts",
+            "path": [
+              "b is running when the rejection is made"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "reject-while-running.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "reject-while-running.test.ts",
+            "path": [
+              "a rejection nobody handles while the test awaits"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: rejected while its test runs",
+              "userFrame": "<root>/reject-while-running.test.ts:2:23"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "throw-after-last-test.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "throw-after-last-test.test.ts",
+            "path": [
+              "the last test schedules a timer and ends first"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: thrown after the last test",
+              "userFrame": "<root>/throw-after-last-test.test.ts:5:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 3,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "throw-after-test.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "throw-after-test.test.ts",
+            "path": [
+              "a schedules a timer and ends first"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: thrown after its test ended",
+              "userFrame": "<root>/throw-after-test.test.ts:3:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "throw-after-test.test.ts",
+            "path": [
+              "b is running when the timer fires"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 7,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "throw-between-tests.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "throw-between-tests.test.ts",
+            "path": [
+              "a schedules a timer and ends first"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: thrown between tests",
+              "userFrame": "<root>/throw-between-tests.test.ts:3:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "throw-between-tests.test.ts",
+            "path": [
+              "later",
+              "b starts after the timer fired"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "throw-from-module-scope.test.ts",
+      "status": "failed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    thrown by a timer no test owns",
+        "userFrame": "<root>/throw-from-module-scope.test.ts:2:9"
+      },
+      "tests": [
+        {
+          "id": {
+            "file": "throw-from-module-scope.test.ts",
+            "path": [
+              "the test is running when the timer fires"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 5,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "throw-while-running.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "throw-while-running.test.ts",
+            "path": [
+              "a timer throws while the test awaits"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: thrown while its test runs",
+              "userFrame": "<root>/throw-while-running.test.ts:3:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./reject-after-test.test.ts\n  ● a schedules a rejection and ends first\n    rejected after its test ended\nFAIL ./throw-between-tests.test.ts\n  ● a schedules a timer and ends first\n    thrown between tests\nFAIL ./throw-after-test.test.ts\n  ● a schedules a timer and ends first\n    thrown after its test ended\nFAIL ./throw-after-last-test.test.ts\n  ● the last test schedules a timer and ends first\n    thrown after the last test\nFAIL ./throw-from-module-scope.test.ts\n  ● Test suite failed to run\n    thrown by a timer no test owns\nFAIL ./throw-while-running.test.ts\n  ● a timer throws while the test awaits\n    thrown while its test runs\nFAIL ./reject-while-running.test.ts\n  ● a rejection nobody handles while the test awaits\n    rejected while its test runs",
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 7,
+        "numFailedTests": 6,
+        "numPassedTestSuites": 0,
+        "numPassedTests": 4,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 1,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 7,
+        "numTotalTests": 10,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {}
+                ],
+                "failureMessages": [
+                  "Error: rejected after its test ended\n<frames>"
+                ],
+                "fullName": "a schedules a rejection and ends first",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 1
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "a schedules a rejection and ends first",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "b is running when the rejection is made",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 7
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "b is running when the rejection is made",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● a schedules a rejection and ends first\n\n    rejected after its test ended\n\n      1 | test('a schedules a rejection and ends first', () => {\n      2 |   setTimeout(() => {\n    > 3 |     void Promise.reject(new Error('rejected after its test ended'))\n        |                         ^\n      4 |   }, 0)\n      5 | })\n      6 |\n\n<frames>\n",
+            "name": "<root>/reject-after-test.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {}
+                ],
+                "failureMessages": [
+                  "Error: rejected while its test runs\n<frames>"
+                ],
+                "fullName": "a rejection nobody handles while the test awaits",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 1
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "a rejection nobody handles while the test awaits",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● a rejection nobody handles while the test awaits\n\n    rejected while its test runs\n\n      1 | test('a rejection nobody handles while the test awaits', async () => {\n    > 2 |   void Promise.reject(new Error('rejected while its test runs'))\n        |                       ^\n      3 |   await new Promise((resolve) => setTimeout(resolve, 30))\n      4 | })\n      5 |\n\n<frames>\n",
+            "name": "<root>/reject-while-running.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {}
+                ],
+                "failureMessages": [
+                  "Error: thrown after the last test\n<frames>"
+                ],
+                "fullName": "the last test schedules a timer and ends first",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 3
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "the last test schedules a timer and ends first",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● the last test schedules a timer and ends first\n\n    thrown after the last test\n\n      3 | test('the last test schedules a timer and ends first', () => {\n      4 |   setTimeout(() => {\n    > 5 |     throw new Error('thrown after the last test')\n        |           ^\n      6 |   }, 0)\n      7 | })\n      8 |\n\n<frames>\n",
+            "name": "<root>/throw-after-last-test.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {}
+                ],
+                "failureMessages": [
+                  "Error: thrown after its test ended\n<frames>"
+                ],
+                "fullName": "a schedules a timer and ends first",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 1
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "a schedules a timer and ends first",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "b is running when the timer fires",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 7
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "b is running when the timer fires",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● a schedules a timer and ends first\n\n    thrown after its test ended\n\n      1 | test('a schedules a timer and ends first', () => {\n      2 |   setTimeout(() => {\n    > 3 |     throw new Error('thrown after its test ended')\n        |           ^\n      4 |   }, 0)\n      5 | })\n      6 |\n\n<frames>\n",
+            "name": "<root>/throw-after-test.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {}
+                ],
+                "failureMessages": [
+                  "Error: thrown between tests\n<frames>"
+                ],
+                "fullName": "a schedules a timer and ends first",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 1
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "a schedules a timer and ends first",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "later"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "later b starts after the timer fired",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 10
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "b starts after the timer fired",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● a schedules a timer and ends first\n\n    thrown between tests\n\n      1 | test('a schedules a timer and ends first', () => {\n      2 |   setTimeout(() => {\n    > 3 |     throw new Error('thrown between tests')\n        |           ^\n      4 |   }, 0)\n      5 | })\n      6 |\n\n<frames>\n",
+            "name": "<root>/throw-between-tests.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "the test is running when the timer fires",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 5
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "the test is running when the timer fires",
+                "startAt": "<time>"
+              }
+            ],
+            "coverage": {},
+            "endTime": "<time>",
+            "message": "\n\n  ● Test suite failed to run\n\n    thrown by a timer no test owns\n\n      1 | setTimeout(() => {\n    > 2 |   throw new Error('thrown by a timer no test owns')\n        |         ^\n      3 | }, 0)\n      4 |\n      5 | test('the test is running when the timer fires', async () => {\n\n<frames>\n",
+            "name": "<root>/throw-from-module-scope.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {}
+                ],
+                "failureMessages": [
+                  "Error: thrown while its test runs\n<frames>"
+                ],
+                "fullName": "a timer throws while the test awaits",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 1
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "a timer throws while the test awaits",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● a timer throws while the test awaits\n\n    thrown while its test runs\n\n      1 | test('a timer throws while the test awaits', async () => {\n      2 |   setTimeout(() => {\n    > 3 |     throw new Error('thrown while its test runs')\n        |           ^\n      4 |   }, 0)\n      5 |   await new Promise((resolve) => setTimeout(resolve, 30))\n      6 | })\n\n<frames>\n",
+            "name": "<root>/throw-while-running.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

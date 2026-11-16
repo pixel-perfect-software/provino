@@ -141,7 +141,10 @@ function preloadedResolver(path: string): Promise<LoadedResolver> {
  * come from (see `JestRequireResolve`).
  * @public
  */
-export function createJestResolution(requireResolve: JestRequireResolve): JestResolution {
+export function createJestResolution(
+  requireResolve: JestRequireResolve,
+  nodePaths: readonly string[] = [],
+): JestResolution {
   const resolvers = new Map<string, Resolver>()
   const custom = new Map<string, LoadedResolver>()
 
@@ -169,16 +172,28 @@ export function createJestResolution(requireResolve: JestRequireResolve): JestRe
     extensions: readonly string[] | undefined,
     conditions: readonly string[] | undefined,
     moduleDirectories: readonly string[] | undefined,
+    paths: readonly string[] | undefined,
   ): string | null => {
     if (isBuiltin(path)) return path
-    const result = resolverFor(extensions ?? DEFAULT_EXTENSIONS, moduleDirectories).resolve(path, {
+    const context = {
       importer: join(basedir, '__provino_jest_config__.js'),
       kind: 'require',
       // `kind: 'require'` adds `require`, so the default is Jest's `require`, `node`, `default`.
       conditions: conditions ?? ['node', 'default'],
-    })
+    } as const
+    const exts = extensions ?? DEFAULT_EXTENSIONS
+    const result = resolverFor(exts, moduleDirectories).resolve(path, context)
     if (result.type === 'file') return result.path
     if (result.type === 'builtin') return path
+    // `resolveWithPathsFallback` (L208-L237): `require.paths` semantics. Nothing resolved in the
+    // module directories, so retry once with the caller's paths as the module directories, less any
+    // already among them.
+    if (paths === undefined || paths.length === 0) return null
+    const fallback = paths.filter((entry) => !(moduleDirectories ?? []).includes(entry))
+    if (fallback.length === 0) return null
+    const retried = resolverFor(exts, fallback).resolve(path, context)
+    if (retried.type === 'file') return retried.path
+    if (retried.type === 'builtin') return path
     return null
   }
 
@@ -189,6 +204,7 @@ export function createJestResolution(requireResolve: JestRequireResolve): JestRe
       options.extensions,
       options.conditions,
       options.moduleDirectory,
+      options.paths,
     )
     if (found === null) throw new Error(`Cannot find module '${path}' from '${options.basedir}'`)
     return found
@@ -203,7 +219,7 @@ export function createJestResolution(requireResolve: JestRequireResolve): JestRe
         resolve = loaded.sync as SyncResolver
       }
       if (resolve === undefined) {
-        return base(path, options.basedir, options.extensions, undefined, undefined)
+        return base(path, options.basedir, options.extensions, undefined, undefined, nodePaths)
       }
       try {
         const found = resolve(path, {
@@ -214,7 +230,9 @@ export function createJestResolution(requireResolve: JestRequireResolve): JestRe
           defaultResolver,
           extensions: options.extensions,
           moduleDirectory: undefined,
-          paths: undefined,
+          // `findNodeModule` (L131-L172): `NODE_PATH` is every resolver's `paths`. The config-time
+          // callers (`jest-config` `utils.ts`) pass no `rootDir`, so it stays undefined, as in Jest.
+          paths: nodePaths.length === 0 ? undefined : nodePaths,
           rootDir: undefined,
         })
         return typeof found === 'string' ? found : null

@@ -295,17 +295,25 @@ export function createCollector(options: CollectorOptions = {}): Collector {
     },
 
     unhandled(file, event) {
-      if (file === null) {
+      const entry = file === null ? undefined : fileRecord(file.fileId)
+      if (file !== null && entry === undefined) return
+      const { ownerId } = event
+      // Only an error charged to the file or one of its tasks is the file's: one charged to a task
+      // of another file (a timer of an earlier file's test, reported while this one ran) is the
+      // run's, as one charged to no task is, so the file's text can't claim to have shown it.
+      if (
+        file === null ||
+        entry === undefined ||
+        ownerId === null ||
+        (ownerId !== file.fileId && !entry.tasks.some((task) => task.id === ownerId))
+      ) {
         record.runErrors.push({ error: event.error, unhandled: true })
         return
       }
-      const entry = fileRecord(file.fileId)
-      if (entry === undefined) return
       // An error charged to one of the file's tests is that test's failure.
-      const owned = event.ownerId !== null && entry.tests.has(event.ownerId)
-      if (owned) {
-        const late = entry.late.get(event.ownerId)
-        if (late === undefined) entry.late.set(event.ownerId, [event.error])
+      if (entry.tests.has(ownerId)) {
+        const late = entry.late.get(ownerId)
+        if (late === undefined) entry.late.set(ownerId, [event.error])
         else late.push(event.error)
       } else {
         entry.unhandled.push(event.error)
