@@ -1,0 +1,20 @@
+{
+  "description": "`cli/transform-swc-factory-scope`'s test (a `jest.mock` factory that reads `window` and a module-scope variable not prefixed `mock`) with the preset's entry naming `babel-jest` instead, and no Babel config: babel-jest runs babel-preset-jest, whose babel-plugin-jest-hoist refuses the factory, so Jest 30.5.2 fails the file at transform with `The module factory of jest.mock() is not allowed to reference any out-of-scope variables.` and `Invalid variable access: window` (the file holds no TypeScript or JSX syntax, so Babel parses it as it is; `suffix` is `String('!')`, which the plugin does not hoist as a pure constant). Under `testEnvironment: 'node'`: the plugin allows every name on the global of the process that transforms, and Provino transforms in the worker, whose global a DOM environment has filled, so under jsdom Provino's babel-jest would allow `window` where Jest's refuses it. The kept lines leave out the `Allowed objects:` list (it follows the Node version) and the stack. Read by `provino`'s `transform-factory-scope.test.ts`. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "preset": "<rootDir>/babel-preset/jest-preset.json",
+      "testEnvironment": "node",
+      "testMatch": ["<rootDir>/**/*.test.tsx"]
+    }
+  },
+  "files": {
+    "jest": {
+      "babel-preset/jest-preset.json": "{\n  \"transform\": {\n    \"^.+\\\\.(js|ts|tsx|jsx)$\": \"babel-jest\"\n  }\n}\n"
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests):|^  ● |Invalid variable access|out-of-scope"
+  }
+}
