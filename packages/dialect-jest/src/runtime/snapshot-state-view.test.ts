@@ -306,7 +306,10 @@ describe('jestSnapshotStateView', () => {
     assert.match(firstFrames[1] ?? '', /\bnestedViaView\b.*snapshot-state-view\.test\.ts/)
     for (const call of calls) {
       assert.ok(call[0] === 'match')
-      assert.doesNotMatch(call[1].stack?.split('\n')[0] ?? '', /__EXTERNAL_MATCHER_TRAP__|throwingMatcher/)
+      assert.doesNotMatch(
+        call[1].stack?.split('\n')[0] ?? '',
+        /__EXTERNAL_MATCHER_TRAP__|throwingMatcher/,
+      )
     }
   })
 
