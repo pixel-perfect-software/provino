@@ -55,13 +55,12 @@
 // stale copy's flag is no later file's. A callback a file hands a shared package (a helper that
 // calls the timer it kept from a node file) is not the package's own, so nothing is reported.
 //
-// While a window file runs, every timer's stack is captured: a `setTimeout` and `clearTimeout`
-// cost about 1.7 µs more than Node's own, set from the file or inside one of its timers'
-// callbacks, and a timer set inside the callback of a timer no other has been set inside yet also
-// reads that timer's verdict, so each slice of a self-rescheduling loop costs about 3.5 µs in all
-// (`local`, Node 24, `Error.stackTraceLimit` as the process has it; the walk stops at the first
-// frame that decides). Outside a window file the wrapper passes `arguments` through and allocates
-// nothing: within the noise of Node's own (under 10 ns).
+// Costs (`local`, Node 24, `Error.stackTraceLimit` as the process has it). While a window file
+// runs, every timer's stack is captured: a `setTimeout` and `clearTimeout` cost about 1.7 µs more
+// than Node's own. The first timer set inside a callback also reads the running timer's verdict,
+// so each slice of a self-rescheduling loop, a new parent every time, costs about 3.5 µs. The walk
+// stops at the first frame that decides. Outside a window file the wrapper passes `arguments`
+// through and allocates nothing: within the noise of Node's own (under 10 ns).
 import { readFileSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -290,25 +289,36 @@ export function installWindowTimers(
         if (stopped) return NONE
         stopped = true
         if (noting === tracking) noting = null
-        const { notes } = tracking
-        if (notes.size === 0) return NONE
-        const own = fileModulesOf(state.fileModules)
-        const owners = new Set<string>()
-        for (const [handle, noted] of notes) {
-          const { origin } = noted
-          let verdict = FILES
-          if (own !== null) {
-            verdict = origin.verdict ?? verdictOf(origin, own, tracking)
-            origin.verdict = verdict
-          }
-          if (!verdict.files) continue
-          noted.clear(handle)
-          if (verdict.owner !== undefined) owners.add(verdict.owner)
-        }
-        return owners.size === 0 ? NONE : [...owners]
+        const owners = cancelPending(tracking)
+        // A timer left running (Provino's own) keeps this tracking through its wrapper's closure:
+        // drop what was read for the file, the shared packages' sources above all.
+        tracking.notes.clear()
+        tracking.files.clear()
+        tracking.sources.clear()
+        tracking.own = undefined
+        return owners
       }
     },
   }
+  /** Cancels the file's timers still pending, and returns the shared modules that owned one. */
+  const cancelPending = (tracking: Tracking): readonly string[] => {
+    if (tracking.notes.size === 0) return NONE
+    const own = fileModulesOf(state.fileModules)
+    const owners = new Set<string>()
+    for (const [handle, noted] of tracking.notes) {
+      const { origin } = noted
+      let verdict = FILES
+      if (own !== null) {
+        verdict = origin.verdict ?? verdictOf(origin, own, tracking)
+        origin.verdict = verdict
+      }
+      if (!verdict.files) continue
+      noted.clear(handle)
+      if (verdict.owner !== undefined) owners.add(verdict.owner)
+    }
+    return owners.size === 0 ? NONE : [...owners]
+  }
+
   installed.set(global, { timers, state })
   return timers
 }
