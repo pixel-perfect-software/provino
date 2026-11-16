@@ -7,6 +7,8 @@
 //   graph      T2.6's node_modules graph: the corpus, its edges against oxc-parser, and the cold and
 //              warm medians (`--max-cold-ms 300 --max-warm-ms 20`)
 //   claims     the cost of the claims verdicts over 2,000 claimed files of one package (no bar)
+//   per-file   the cost of settling the per-file set (D132) on a hub with 3,000 per-file
+//              importers and one shared one (no bar)
 //   e2e        bench-e2e: process start to exit for 200 files and 1 file, Provino's loader vs
 //              Jest 30.5 with @swc/jest; a first per-file signal, not a gate
 // Every number is labelled `local`. These are in-process micro-benchmarks from the spike, not
@@ -20,6 +22,7 @@ import { claimsLines } from './claims.ts'
 import { e2eLines, isolationLines, measureE2e, measureIsolation } from './e2e.ts'
 import { FIXTURE_FILES, TESTS_PER_FILE, writeLoaderFixture } from './fixture.ts'
 import { graphChild, graphCommand } from './graph-cli.ts'
+import { perFileLines } from './per-file.ts'
 import { createFixtureLoader, type LoaderTier, runFixture } from './run.ts'
 
 const { positionals, values: args } = parseArgs({
@@ -52,6 +55,11 @@ if (command === 'graph') {
 
 if (command === 'claims') {
   process.stdout.write(`${(await claimsLines()).join('\n')}\n`)
+  process.exit(0)
+}
+
+if (command === 'per-file') {
+  process.stdout.write(`${perFileLines().join('\n')}\n`)
   process.exit(0)
 }
 
@@ -89,7 +97,7 @@ try {
   } else {
     ok = false
     lines.push(
-      'usage: bench:loader <check|isolation|graph|e2e> [--tier registry|none] [--heavy] [--max-overhead-ms N] [--max-cold-ms N --max-warm-ms N]',
+      'usage: bench:loader <check|isolation|graph|claims|per-file|e2e> [--tier registry|none] [--heavy] [--max-overhead-ms N] [--max-cold-ms N --max-warm-ms N]',
     )
   }
 } finally {
