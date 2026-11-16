@@ -133,6 +133,16 @@ export interface BenchSubject {
 }
 
 // @public
+export interface BoundaryTurns {
+    readonly fnEnd: number;
+    readonly fnStart: number;
+    readonly hookEnd: number;
+    readonly hookStart: number;
+    readonly testEnd: number;
+    readonly testStart: number;
+}
+
+// @public
 export type BuiltinEnvironmentName = keyof EnvironmentOptionsMap;
 
 // @public
@@ -356,6 +366,7 @@ export interface CorePolicy {
     readonly allowGeneratorFns: boolean;
     readonly allowOnly: "always" | "not-in-ci";
     readonly asyncDescribe: "throw" | "await";
+    readonly boundaryTurns: BoundaryTurns;
     readonly collect: {
         readonly describeBody: "immediate" | "deferred";
         readonly describeReturnValue: "error" | "ignore";

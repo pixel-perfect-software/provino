@@ -101,6 +101,8 @@ export const neutralPolicy: Policy = deepFreeze({
     orderHooks: null,
     shuffle: null,
     shapeTestError: null,
+    // No turns are given or counted: the next function starts as soon as core's own code gets to it.
+    boundaryTurns: { hookStart: 0, hookEnd: 0, fnStart: 0, fnEnd: 0, testStart: 0, testEnd: 0 },
   },
   lazy: { readInBeforeAll: 'error' },
   mock: {

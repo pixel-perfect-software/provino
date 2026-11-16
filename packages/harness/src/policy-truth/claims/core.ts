@@ -428,6 +428,19 @@ export const coreClaims: Claims = {
     null,
     "Provino's escape hatch for an order no HookOrder names; null hands the order to hookOrder",
   ),
+  // The turns a promise chain gets between two functions (`runtime/microtask-turns`, under node and
+  // jsdom): each trace line is the count from one function's end to the next one's start, the sum
+  // of the boundaries passed, so a turn more at any one of them changes a line. The recordings give
+  // the sums (hookEnd + hookStart = 21, fnEnd + hookStart = 20, hookEnd + testEnd + testStart +
+  // hookStart = 67, …), not where each turn sits: the split follows jest-circus's code, one
+  // dispatch of 7 turns before a hook or a test's function.
+  'core.boundaryTurns': each(
+    corpus('runtime', 'runtime/microtask-turns', 'runtime/microtask-turns-jsdom'),
+    pending(
+      'T11.16',
+      "Vitest's turns between hooks and tests aren't recorded: the neutral 0s stand",
+    ),
+  ),
 }
 
 export const lazyClaims: Claims = {
