@@ -4,7 +4,7 @@ import { describe, test } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
 import { SnapshotError } from '@provino/snapshot'
 import type { SnapshotViewFactory, SnapshotViewSource } from '@provino/types'
-import { unwrapMatcherSnapshotState } from './context.ts'
+import { unwrapMatcherSnapshotState } from './matcher-state.ts'
 import { openFileSnapshots } from './open.ts'
 import { jsonPrinter, policy, tempDir } from './test-support.ts'
 

@@ -386,7 +386,7 @@ describe('inline snapshots with a writer (B23d B1)', () => {
   test('a missing one passes, counts as added and is reported at its frame, 0-based column', () => {
     const dir = tempDir()
     const state = stateIn(dir, { inlineWrites: true })
-    const result = state.match({ testName: 't', received: 1, isInline: true, stack: STACK })
+    const result = state.match({ testName: 't', received: 1, isInline: true, stack: () => STACK })
     assert.equal(result.pass, true)
     const report = state.finish()
     assert.equal(report.added, 1)
@@ -402,7 +402,7 @@ describe('inline snapshots with a writer (B23d B1)', () => {
     const state = stateIn(dir, { inlineWrites: true })
     const stack =
       'Error\n    at x (/p/node_modules/lib/index.js:9:9)\n    at file:///src/b.test.ts:7:2'
-    state.match({ testName: 't', received: 1, isInline: true, stack })
+    state.match({ testName: 't', received: 1, isInline: true, stack: () => stack })
     assert.deepEqual(state.finish().inline?.[0], {
       file: '/src/b.test.ts',
       line: 7,
@@ -414,8 +414,20 @@ describe('inline snapshots with a writer (B23d B1)', () => {
   test('`all` over a differing one counts as updated; over a matching one, a match with no edit', () => {
     const dir = tempDir()
     const state = stateIn(dir, { inlineWrites: true, update: 'all' })
-    state.match({ testName: 't', received: 2, isInline: true, inlineSnapshot: '1', stack: STACK })
-    state.match({ testName: 't', received: 1, isInline: true, inlineSnapshot: '1', stack: STACK })
+    state.match({
+      testName: 't',
+      received: 2,
+      isInline: true,
+      inlineSnapshot: '1',
+      stack: () => STACK,
+    })
+    state.match({
+      testName: 't',
+      received: 1,
+      isInline: true,
+      inlineSnapshot: '1',
+      stack: () => STACK,
+    })
     const report = state.finish()
     assert.equal(report.updated, 1)
     assert.equal(report.matched, 1)
@@ -425,7 +437,7 @@ describe('inline snapshots with a writer (B23d B1)', () => {
   test('under `none` nothing is recorded and the missing one fails', () => {
     const dir = tempDir()
     const state = stateIn(dir, { inlineWrites: true, update: 'none' })
-    const result = state.match({ testName: 't', received: 1, isInline: true, stack: STACK })
+    const result = state.match({ testName: 't', received: 1, isInline: true, stack: () => STACK })
     assert.equal(result.pass, false)
     assert.equal(state.finish().inline, undefined)
   })
@@ -433,20 +445,35 @@ describe('inline snapshots with a writer (B23d B1)', () => {
   test('a retried attempt takes back the edits it recorded', () => {
     const dir = tempDir()
     const state = stateIn(dir, { inlineWrites: true })
-    state.match({ testName: 't', testId: 'a', received: 1, isInline: true, stack: STACK })
+    state.match({ testName: 't', testId: 'a', received: 1, isInline: true, stack: () => STACK })
     state.clearTest('a')
-    state.match({ testName: 't', testId: 'a', received: 2, isInline: true, stack: STACK })
+    state.match({ testName: 't', testId: 'a', received: 2, isInline: true, stack: () => STACK })
     assert.deepEqual(
       state.finish().inline?.map((edit) => edit.snapshot),
       ['2'],
     )
   })
 
+  test('the stack is taken only when a snapshot is written into the source', () => {
+    const dir = tempDir()
+    let taken = 0
+    const stack = (): string => {
+      taken++
+      return STACK
+    }
+    const state = stateIn(dir, { inlineWrites: true })
+    state.match({ testName: 't', received: 1, isInline: true, inlineSnapshot: '1', stack })
+    state.match({ testName: 't', received: 2, isInline: true, inlineSnapshot: '1', stack })
+    assert.equal(taken, 0, 'a match and a mismatch read no stack')
+    state.match({ testName: 'u', received: 1, isInline: true, stack })
+    assert.equal(taken, 1, 'the write reads it once')
+  })
+
   test('a stack with no frame is an error with a code', () => {
     const dir = tempDir()
     const state = stateIn(dir, { inlineWrites: true })
     assert.throws(
-      () => state.match({ testName: 't', received: 1, isInline: true, stack: 'Error' }),
+      () => state.match({ testName: 't', received: 1, isInline: true, stack: () => 'Error' }),
       (error) => error instanceof SnapshotError && error.code === 'SNAPSHOT_NO_INLINE_FRAME',
     )
   })
@@ -459,7 +486,7 @@ describe('inline snapshots with a writer (B23d B1)', () => {
       printer: { ...jsonPrinter, messages: { ...jsonPrinter.messages, noInlineFrame: () => own } },
     })
     assert.throws(
-      () => state.match({ testName: 't', received: 1, isInline: true, stack: 'Error' }),
+      () => state.match({ testName: 't', received: 1, isInline: true, stack: () => 'Error' }),
       (error) => error === own,
     )
   })
@@ -552,6 +579,17 @@ describe('matchRaw', () => {
     state.matchRaw({ testName: 't', received: { a: 1 }, file, existing: undefined })
     state.finish()
     assert.equal(readFileSync(file, 'utf8'), '{\n  "a": 1\n}')
+  })
+})
+
+describe('currentTestId (B23e, D128)', () => {
+  test('is the attempt the worker`s lookup names now, and none without one', () => {
+    let running: string | undefined = 'a'
+    const state = stateIn(tempDir(), { currentTestId: () => running })
+    assert.equal(state.currentTestId(), 'a')
+    running = undefined
+    assert.equal(state.currentTestId(), undefined)
+    assert.equal(stateIn(tempDir()).currentTestId(), undefined)
   })
 })
 

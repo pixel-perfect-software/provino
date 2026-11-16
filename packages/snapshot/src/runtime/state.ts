@@ -23,6 +23,8 @@ import type {
   SnapshotPlugin,
   SnapshotPolicy,
   SnapshotPrinter,
+  SnapshotViewMatchOptions,
+  SnapshotViewMatchResult,
   SnapshotViewSource,
 } from '@provino/types'
 import { readSnapFile, writeFileAtomically } from './files.ts'
@@ -56,44 +58,25 @@ export interface SnapshotStateOptions {
    * writer) such a snapshot fails instead.
    */
   readonly inlineWrites?: boolean
-}
-
-/**
- * One snapshot assertion.
- * @public
- */
-export interface MatchOptions {
-  /** The test's full name, with the hint joined on. */
-  readonly testName: string
-  /** The test, so a retry can take back what this attempt did. */
-  readonly testId?: string
-  readonly received: unknown
-  /** The key to store it under; absent or `''`, the policy's key of the name and its count. */
-  readonly key?: string
-  readonly inlineSnapshot?: string
-  readonly isInline: boolean
-  /** The test is `test.failing`: a mismatch is the expected outcome and keeps what is stored. */
-  readonly testFailing?: boolean
   /**
-   * The stack of the inline matcher's call, its first frame the call (the worker's stacks are
-   * source-mapped): where an inline snapshot that must be written goes.
+   * The id of the test attempt running now (`SnapshotViewSource.currentTestId`): the worker's
+   * current-test lookup, the one the snapshot matchers read their `testId` from. Without it a
+   * view's snapshots belong to no attempt.
    */
-  readonly stack?: string
+  readonly currentTestId?: (() => string | undefined) | undefined
 }
 
 /**
- * How an assertion went.
+ * One snapshot assertion: the view's (`SnapshotViewMatchOptions`), which is the matchers' too.
  * @public
  */
-export interface MatchResult {
-  readonly pass: boolean
-  /** The 1-based count of this snapshot in its test name. */
-  readonly count: number
-  readonly key: string
-  /** The received value, serialized, without the extra line breaks; `''` on a pass. */
-  readonly actual: string
-  /** The stored snapshot, without the extra line breaks; `undefined` when there is none. */
-  readonly expected: string | undefined
+export type MatchOptions = SnapshotViewMatchOptions
+
+/**
+ * How an assertion went: what a view gets, and whether an inline snapshot could not be written.
+ * @public
+ */
+export interface MatchResult extends SnapshotViewMatchResult {
   /**
    * The snapshot would have been written into the test's source, and nothing writes there yet
    * (T7.11). `pass` is `false`.
@@ -147,8 +130,8 @@ export class SnapshotState implements SnapshotViewSource {
   readonly snapshotPath: string
   readonly update: SnapshotUpdateMode
   expand: boolean
-  /** The pretty-format options every snapshot of the file is serialized with. */
-  readonly format: Readonly<Record<string, unknown>>
+  /** The pretty-format options every snapshot of the file is serialized with (the policy's `format`). */
+  readonly serializeFormat: Readonly<Record<string, unknown>>
   added = 0
   matched = 0
   unmatched = 0
@@ -181,7 +164,7 @@ export class SnapshotState implements SnapshotViewSource {
     this.update = options.update
     this.expand = options.expand
     const { escapeString, printBasicPrototype, maxOutputLength, extra } = options.policy.format
-    this.format = Object.freeze({
+    this.serializeFormat = Object.freeze({
       escapeString,
       printBasicPrototype,
       ...(maxOutputLength === null ? {} : { maxOutputLength }),
@@ -302,10 +285,15 @@ export class SnapshotState implements SnapshotViewSource {
    */
   fail(testName: string, testId?: string, key?: string): string {
     const count = this.bumpCounter(testName, testId)
-    if (key === undefined || key === '') key = this.options.key(testName, count)
-    this.markKeyChecked(key, testId)
+    const stored = key || this.options.key(testName, count)
+    this.markKeyChecked(stored, testId)
     this.incrementCount('unmatched', testId)
-    return key
+    return stored
+  }
+
+  /** The attempt running now, as the worker's current-test lookup names it (`SnapshotViewSource`). */
+  currentTestId(): string | undefined {
+    return this.options.currentTestId?.()
   }
 
   /** Compares one value with its stored snapshot, and writes it when the mode says to. */
@@ -320,10 +308,7 @@ export class SnapshotState implements SnapshotViewSource {
       stack,
     } = options
     const count = this.bumpCounter(testName, testId)
-    const key =
-      options.key === undefined || options.key === ''
-        ? this.options.key(testName, count)
-        : options.key
+    const key = options.key || this.options.key(testName, count)
 
     // An inline snapshot beside a stored one doesn't check the stored key, so `-u` can remove it.
     if (!(isInline && this.data[key] !== undefined)) this.markKeyChecked(key, testId)
@@ -512,7 +497,10 @@ export class SnapshotState implements SnapshotViewSource {
 
   private serialize(received: unknown): string {
     return normalizeNewlines(
-      this.options.printer.serialize(received, { format: this.format, plugins: this.plugins }),
+      this.options.printer.serialize(received, {
+        format: this.serializeFormat,
+        plugins: this.plugins,
+      }),
     )
   }
 
@@ -605,11 +593,16 @@ export class SnapshotState implements SnapshotViewSource {
 
   /**
    * An inline snapshot to write (State.ts L167-L184): where the call is comes from the top frame
-   * of its stack, so the coordinator's writer can find it in the source.
+   * of its stack, so the coordinator's writer can find it in the source. The stack is taken only
+   * here, the one place it is read, still inside the matcher's call.
    */
-  private addInline(snapshot: string, stack: string | undefined, testId: string | undefined): void {
+  private addInline(
+    snapshot: string,
+    stack: (() => string) | undefined,
+    testId: string | undefined,
+  ): void {
     this.noteWrite(testId)
-    const frame = stack === undefined ? undefined : topFrame(stack)
+    const frame = stack === undefined ? undefined : topFrame(stack())
     if (frame === undefined) {
       const own = this.messages.noInlineFrame?.()
       if (own !== undefined) throw own

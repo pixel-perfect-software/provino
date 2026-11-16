@@ -1043,6 +1043,9 @@ export function createRuntimeRunner(): WorkerRunner {
               worker.modules.policy.snapshot.extension,
             ),
             contextView,
+            // The attempt a view's snapshot belongs to: the one the snapshot matchers' own
+            // `currentTestId` names, so a retry takes it back too.
+            currentTestId: () => worker.source.current().currentTestId,
           })
           Object.assign(worker.source.file(), { snapshotState: snapshots.matcherSnapshotState })
           return snapshots

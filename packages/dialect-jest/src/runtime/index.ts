@@ -31,7 +31,6 @@ export { jestSnapshotPrinter } from './snapshot-printer.ts'
 export { jestSnapshotResolver } from './snapshot-resolver.ts'
 export {
   type JestSnapshotMatchOptions,
-  type JestSnapshotMatchResult,
   type JestSnapshotStateView,
   jestSnapshotStateView,
 } from './snapshot-state-view.ts'

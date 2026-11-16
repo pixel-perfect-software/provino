@@ -9,11 +9,13 @@
 //   `snapshotFormat` and `snapshotPath` (index.ts `_toMatchSnapshot`, `_toThrowErrorMatchingSnapshot`).
 // The view gives every public member of Jest's state a matcher can use over Provino's state, so a
 // count written or a snapshot taken through it is the one the file's report and the Snapshot
-// Summary add up. What it leaves out, and why, is `NOT_CARRIED` in its test. Provino's own
+// Summary add up, and a snapshot taken through it belongs to the running test attempt, which a
+// retry takes back. What it leaves out, and why, is `NOT_CARRIED` in its test. Provino's own
 // snapshot matchers work on the state underneath (`@provino/snapshot/runtime`'s
 // `unwrapMatcherSnapshotState`). The faster path, `null` (the state itself), is the neutral value;
 // this one is loaded only by the Jest dialect.
-import type { SnapshotViewMatchOptions, SnapshotViewSource } from '@provino/types'
+import { matcherCallStack } from '@provino/expect'
+import type { SnapshotViewMatchResult, SnapshotViewSource } from '@provino/types'
 
 /**
  * What jest-snapshot's matchers pass to `SnapshotState.match` (State.ts `SnapshotMatchOptions`).
@@ -21,7 +23,12 @@ import type { SnapshotViewMatchOptions, SnapshotViewSource } from '@provino/type
  */
 export interface JestSnapshotMatchOptions {
   readonly testName: string
-  /** The test (jest-circus's), for a retry to take back what the attempt did. */
+  /**
+   * jest-circus's test, from the matcher's `currentTestIdentity` (jest-snapshot index.ts L294):
+   * Jest's state records the attempt's work against it, for `clear(test)` on a retry. Provino's
+   * matcher state has no `currentTestIdentity`, so jest-snapshot passes `undefined`; the view
+   * records the snapshot against the attempt the state names (`SnapshotViewSource.currentTestId`).
+   */
   readonly testIdentity?: object | undefined
   readonly received: unknown
   readonly key?: string | undefined
@@ -30,19 +37,6 @@ export interface JestSnapshotMatchOptions {
   /** The error made at a `.resolves`/`.rejects` call: where an inline snapshot is written. */
   readonly error?: Error | undefined
   readonly testFailing?: boolean | undefined
-}
-
-/**
- * What `SnapshotState.match` returns in jest-snapshot (State.ts `SnapshotReturnOptions`).
- * @public
- */
-export interface JestSnapshotMatchResult {
-  readonly actual: string
-  readonly count: number
-  /** The stored snapshot; `''` on a pass, `undefined` when there is none. */
-  readonly expected: string | undefined
-  readonly key: string
-  readonly pass: boolean
 }
 
 /**
@@ -69,9 +63,15 @@ export interface JestSnapshotStateView {
   readonly snapshotFormat: Readonly<Record<string, unknown>>
   /** The file's snapshot file. */
   readonly snapshotPath: string
-  /** Compares a value with its stored snapshot, and writes it when the update mode says to. */
-  match(options: JestSnapshotMatchOptions): JestSnapshotMatchResult
-  /** A snapshot that couldn't be taken (its property matchers failed); returns its key. */
+  /**
+   * Compares a value with its stored snapshot, and writes it when the update mode says to, as the
+   * running test attempt's (State.ts `SnapshotReturnOptions`).
+   */
+  match(options: JestSnapshotMatchOptions): SnapshotViewMatchResult
+  /**
+   * A snapshot that couldn't be taken (its property matchers failed), as the running test
+   * attempt's; returns its key.
+   */
   fail(testName: string, received: unknown, key?: string, testIdentity?: object): string
   /** Marks a test's stored snapshots as checked, so they are not reported obsolete. */
   markSnapshotsAsCheckedForTest(testName: string): void
@@ -79,36 +79,6 @@ export interface JestSnapshotStateView {
   getUncheckedCount(): number
   /** The keys of those snapshots. */
   getUncheckedKeys(): string[]
-}
-
-/** The frame jest-snapshot cuts the stack below (utils.ts `removeLinesBeforeExternalMatcherTrap`). */
-const TRAP = '__EXTERNAL_MATCHER_TRAP__'
-
-/** The engine's frame that calls the trap: in Jest it is under `node_modules`, so never the top frame. */
-const ENGINE_FRAME = /\bthrowingMatcher\b/
-
-/**
- * Where an inline snapshot taken through the view goes, as State.ts `_addSnapshot` finds it: the
- * error of a `.resolves`/`.rejects` call, else a new one, its lines after the first matcher trap.
- * The engine's frames right below the trap are cut too: run from source, Provino's are outside
- * `node_modules`, where Jest's never are.
- */
-function inlineStack(error: Error | undefined): string {
-  if (error?.stack !== undefined) return error.stack
-  const holder: { stack?: string } = {}
-  const limit = Error.stackTraceLimit
-  Error.stackTraceLimit = Math.max(limit, 30)
-  try {
-    Error.captureStackTrace(holder, inlineStack)
-  } finally {
-    Error.stackTraceLimit = limit
-  }
-  const lines = (holder.stack ?? '').split('\n')
-  const trap = lines.findIndex((line) => line.includes(TRAP))
-  if (trap === -1) return lines.join('\n')
-  let at = trap + 1
-  while (at < lines.length && ENGINE_FRAME.test(lines[at] ?? '')) at++
-  return lines.slice(at).join('\n')
 }
 
 /**
@@ -154,30 +124,32 @@ export function jestSnapshotStateView(state: SnapshotViewSource): JestSnapshotSt
       state.expand = expand
     },
     get snapshotFormat() {
-      return state.format
+      return state.serializeFormat
     },
     get snapshotPath() {
       return state.snapshotPath
     },
-    // A test's identity is not passed on: Provino's state tracks an attempt by its test id, which
-    // the matcher context doesn't hand jest-snapshot, so what a snapshot taken here wrote is no
-    // attempt's and a retry keeps it, as a write to the fields above is.
-    match(options) {
-      const { testName, received, key, inlineSnapshot, isInline, error, testFailing } = options
-      const request: SnapshotViewMatchOptions = {
+    match({ testName, received, key, inlineSnapshot, isInline, error, testFailing }) {
+      const {
+        actual,
+        count,
+        expected,
+        key: stored,
+        pass,
+      } = state.match({
         testName,
+        testId: state.currentTestId(),
         received,
+        key,
+        inlineSnapshot,
         isInline,
-        ...(key === undefined ? {} : { key }),
-        ...(inlineSnapshot === undefined ? {} : { inlineSnapshot }),
-        ...(testFailing === undefined ? {} : { testFailing }),
-        ...(isInline ? { stack: inlineStack(error) } : {}),
-      }
-      const { actual, count, expected, key: stored, pass } = state.match(request)
+        testFailing,
+        stack: isInline ? matcherCallStack(error) : undefined,
+      })
       return { actual, count, expected, key: stored, pass }
     },
     fail(testName, _received, key) {
-      return state.fail(testName, undefined, key)
+      return state.fail(testName, state.currentTestId(), key)
     },
     markSnapshotsAsCheckedForTest(testName) {
       state.markCheckedForTest(testName)

@@ -3311,14 +3311,15 @@ export type SnapshotViewFactory = (state: SnapshotViewSource) => object;
 // @public
 export interface SnapshotViewMatchOptions {
     // (undocumented)
-    readonly inlineSnapshot?: string;
+    readonly inlineSnapshot?: string | undefined;
     // (undocumented)
     readonly isInline: boolean;
-    readonly key?: string;
+    readonly key?: string | undefined;
     // (undocumented)
     readonly received: unknown;
-    readonly stack?: string;
-    readonly testFailing?: boolean;
+    readonly stack?: (() => string) | undefined;
+    readonly testFailing?: boolean | undefined;
+    readonly testId?: string | undefined;
     readonly testName: string;
 }
 
@@ -3336,15 +3337,16 @@ export interface SnapshotViewMatchResult {
 // @public
 export interface SnapshotViewSource {
     added: number;
+    currentTestId(): string | undefined;
     expand: boolean;
     fail(testName: string, testId?: string, key?: string): string;
-    readonly format: Readonly<Record<string, unknown>>;
     getUncheckedCount(): number;
     getUncheckedKeys(): string[];
     readonly liveCounters: Map<string, number>;
     markCheckedForTest(testName: string): void;
     match(options: SnapshotViewMatchOptions): SnapshotViewMatchResult;
     matched: number;
+    readonly serializeFormat: Readonly<Record<string, unknown>>;
     readonly snapshotPath: string;
     unmatched: number;
     readonly update: "all" | "new" | "none";

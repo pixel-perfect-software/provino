@@ -17,7 +17,7 @@ import type {
   SnapshotViewSource,
 } from '@provino/types'
 import { jestPolicy } from '../dialect.ts'
-import { requireFromJest } from './internal/test-support.ts'
+import { requireFromJest, setUpJestExpect } from './internal/test-support.ts'
 import { jestSnapshotStateView } from './snapshot-state-view.ts'
 
 const jestSnapshot = requireFromJest('jest-snapshot') as {
@@ -35,7 +35,7 @@ const NOT_CARRIED: Readonly<Record<string, string>> = {
   constructor: 'not a member a matcher uses',
   save: 'the runner saves at the end of the file (`finish`); a matcher saving mid-file would write a half-checked file',
   clear:
-    'the runner clears a retried attempt by its test id (`clearTest`); a matcher has no test id to give',
+    "the runner takes a retried attempt back itself (`clearTest`, by the test's id), and what a matcher takes through `match` and `fail` is the attempt's (`currentTestId`): a matcher clearing would take back its own test's other snapshots mid-attempt",
   removeUncheckedKeys: 'the runner removes obsolete snapshots at the end of the file',
   _dirty: 'private: whether the file must be written',
   _snapshotData: "private: the file's stored snapshots, which `match` reads",
@@ -56,14 +56,20 @@ const NOT_CARRIED: Readonly<Record<string, string>> = {
 const dir = mkdtempSync(join(tmpdir(), 'provino-snapshot-view-'))
 after(() => rmSync(dir, { recursive: true, force: true }))
 
+/** A match as the view asked it, its stack thunk called as the state would call it, in the call. */
+type RecordedMatch = Omit<SnapshotViewMatchOptions, 'stack'> & { readonly stack?: string }
+
 /** What the view asked the state underneath. */
 type Call =
-  | readonly ['match', SnapshotViewMatchOptions]
+  | readonly ['match', RecordedMatch]
   | readonly ['fail', string, string | undefined, string | undefined]
   | readonly ['markCheckedForTest', string]
 
-/** A state with nothing behind it but its fields, which records the calls made to it. */
-function source(update: SnapshotViewSource['update'] = 'new') {
+/**
+ * A state with nothing behind it but its fields, which records the calls made to it. `running` is
+ * the attempt its `currentTestId` names, as the worker's lookup would.
+ */
+function source(update: SnapshotViewSource['update'] = 'new', running = 'attempt-1') {
   const calls: Call[] = []
   const result: SnapshotViewMatchResult = {
     pass: false,
@@ -81,9 +87,14 @@ function source(update: SnapshotViewSource['update'] = 'new') {
     update,
     liveCounters: new Map(),
     snapshotPath: join(dir, '__snapshots__', 'a.test.ts.snap'),
-    format: Object.freeze({ escapeString: false, printBasicPrototype: false }),
-    match(options) {
-      calls.push(['match', options])
+    serializeFormat: Object.freeze({ escapeString: false, printBasicPrototype: false }),
+    currentTestId: () => running,
+    match({ stack, ...options }) {
+      // The options the view gave, without those it left `undefined`.
+      const given = Object.fromEntries(
+        Object.entries(options).filter(([, value]) => value !== undefined),
+      ) as RecordedMatch
+      calls.push(['match', stack === undefined ? given : { ...given, stack: stack() }])
       // Provino's result also says whether an inline snapshot could not be written.
       return Object.assign({ inlineNotWritten: false }, result)
     },
@@ -177,7 +188,7 @@ describe('jestSnapshotStateView', () => {
   test('snapshotFormat and snapshotPath are the state`s', () => {
     const { state } = source()
     const view = jestSnapshotStateView(state)
-    assert.equal(view.snapshotFormat, state.format, 'one object for the file')
+    assert.equal(view.snapshotFormat, state.serializeFormat, 'one object for the file')
     assert.equal(view.snapshotPath, state.snapshotPath)
   })
 
@@ -209,7 +220,33 @@ describe('jestSnapshotStateView', () => {
       pass: result.pass,
     })
     assert.deepEqual(calls, [
-      ['match', { testName: 't: hint', received: { a: 1 }, isInline: false, testFailing: false }],
+      [
+        'match',
+        {
+          testName: 't: hint',
+          testId: 'attempt-1',
+          received: { a: 1 },
+          isInline: false,
+          testFailing: false,
+        },
+      ],
+    ])
+  })
+
+  // jest-snapshot hands `match` and `fail` the matcher's `currentTestIdentity` (index.ts L294),
+  // which Provino's matcher state lacks; the snapshot is the running attempt's all the same, so a
+  // retry takes it back (`ecosystem/custom-snapshot-retry`).
+  test('match and fail take the snapshot as the running attempt`s', () => {
+    let running = 'attempt-1'
+    const { state, calls } = source()
+    state.currentTestId = () => running
+    const view = jestSnapshotStateView(state)
+    view.match({ testName: 't', received: 1, isInline: false, testIdentity: undefined })
+    running = 'attempt-2'
+    view.fail('t', 1, undefined, undefined)
+    assert.deepEqual(calls, [
+      ['match', { testName: 't', testId: 'attempt-1', received: 1, isInline: false }],
+      ['fail', 't', 'attempt-2', undefined],
     ])
   })
 
@@ -220,33 +257,57 @@ describe('jestSnapshotStateView', () => {
     const error = new Error('at the call')
     view.match({ testName: 't', received: 1, isInline: true, inlineSnapshot: '1', error })
     assert.deepEqual(calls, [
-      ['match', { testName: 't', received: 1, isInline: false, key: 'mine' }],
+      ['match', { testName: 't', testId: 'attempt-1', received: 1, isInline: false, key: 'mine' }],
       [
         'match',
-        { testName: 't', received: 1, isInline: true, inlineSnapshot: '1', stack: error.stack },
+        {
+          testName: 't',
+          testId: 'attempt-1',
+          received: 1,
+          isInline: true,
+          inlineSnapshot: '1',
+          stack: error.stack,
+        },
       ],
     ])
   })
 
-  test('an inline match with no error takes the stack below the matcher trap', () => {
+  // Through the real engine (`@provino/expect`'s frames, as the worker builds it), with Jest's
+  // rule: the lines after the innermost external-matcher trap, then the engine's frames below it.
+  test('an inline match with no error takes the stack below the innermost matcher trap', (t) => {
     const { state, calls } = source()
     const view = jestSnapshotStateView(state)
-    // The engine's `throwingMatcher` calls a custom matcher inside a frame of the trap's name
-    // (`@provino/expect`'s `expect.ts`), as Jest's does: the user's call is the frame below both.
-    function throwingMatcher() {
-      ;(function __EXTERNAL_MATCHER_TRAP__() {
-        view.match({ testName: 't', received: 1, isInline: true })
-      })()
-    }
+    const { expect } = setUpJestExpect(t)
+    const pass = { pass: true, message: () => '' }
+    expect.extend({
+      viaView(received: unknown) {
+        view.match({ testName: 't', received, isInline: true })
+        return pass
+      },
+      // A custom matcher that calls another through `expect`: the inner call is in its body.
+      nestedViaView(received: unknown) {
+        ;(expect(received) as unknown as { viaView(): void }).viaView()
+        return pass
+      },
+    })
+    const loose = (value: unknown) => expect(value) as unknown as Record<string, () => void>
     function usersCall() {
-      throwingMatcher()
+      loose(1).viaView?.()
+    }
+    function usersNestedCall() {
+      loose(1).nestedViaView?.()
     }
     usersCall()
-    const [call] = calls
-    assert.ok(call !== undefined && call[0] === 'match')
-    const stack = call[1].stack ?? ''
-    assert.doesNotMatch(stack, /__EXTERNAL_MATCHER_TRAP__|inlineStack|throwingMatcher/)
-    assert.match(stack.split('\n')[0] ?? '', /\busersCall\b.*snapshot-state-view\.test\.ts/)
+    usersNestedCall()
+    const firstFrames = calls.map((call) =>
+      call[0] === 'match' ? (call[1].stack ?? '').split('\n')[0] : undefined,
+    )
+    assert.match(firstFrames[0] ?? '', /\busersCall\b.*snapshot-state-view\.test\.ts/)
+    assert.match(firstFrames[1] ?? '', /\bnestedViaView\b.*snapshot-state-view\.test\.ts/)
+    for (const call of calls) {
+      assert.ok(call[0] === 'match')
+      assert.doesNotMatch(call[1].stack?.split('\n')[0] ?? '', /__EXTERNAL_MATCHER_TRAP__|throwingMatcher/)
+    }
   })
 
   test('fail, markSnapshotsAsCheckedForTest and the unchecked keys reach the state', () => {
@@ -257,8 +318,8 @@ describe('jestSnapshotStateView', () => {
     assert.equal(view.fail('u', { a: 1 }, 'u mine'), 'u 1')
     view.markSnapshotsAsCheckedForTest('v')
     assert.deepEqual(calls, [
-      ['fail', 'u', undefined, undefined],
-      ['fail', 'u', undefined, 'u mine'],
+      ['fail', 'u', 'attempt-1', undefined],
+      ['fail', 'u', 'attempt-1', 'u mine'],
       ['markCheckedForTest', 'v'],
     ])
     assert.equal(view.getUncheckedCount(), 3)

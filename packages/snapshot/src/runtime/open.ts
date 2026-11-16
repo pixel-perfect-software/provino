@@ -6,8 +6,8 @@ import type {
   SnapshotPrinter,
   SnapshotViewFactory,
 } from '@provino/types'
-import { matcherSnapshotStateOf } from './context.ts'
 import { type SnapshotLifecycle, trackSnapshots } from './lifecycle.ts'
+import { matcherSnapshotStateOf } from './matcher-state.ts'
 import { SnapshotState } from './state.ts'
 
 /**
@@ -27,6 +27,11 @@ export interface OpenSnapshotsOptions {
   readonly resolvePath: ResolveSnapshotPath | null
   /** `null`: a matcher's `this.snapshotState` is the state itself, not a view of it. */
   readonly contextView: SnapshotViewFactory | null
+  /**
+   * The id of the test attempt running now (`SnapshotStateOptions.currentTestId`), from the
+   * worker's current-test lookup: what a view's snapshots are recorded against.
+   */
+  readonly currentTestId?: () => string | undefined
 }
 
 /**
@@ -71,6 +76,7 @@ export function openFileSnapshots(options: OpenSnapshotsOptions): {
     key: options.key,
     printer: options.printer ?? missingPrinter(),
     inlineWrites: policy.inline.writer !== null,
+    currentTestId: options.currentTestId,
   })
   return {
     state,

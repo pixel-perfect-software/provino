@@ -334,8 +334,9 @@ export const jestPolicy: PolicyOverrides = {
       'jestSnapshotResolver',
     ),
     // Provino's own key (B23e, D128, compat): `this.snapshotState` as jest-snapshot 30.5.2's
-    // `SnapshotState` shows it to a matcher (`_counters`, `_updateSnapshot`, the four counts), over
-    // Provino's state; `ecosystem/image-snapshot-*` hold jest-image-snapshot's reads and writes.
+    // `SnapshotState` shows it to a matcher, over Provino's state (`jestSnapshotStateView` says
+    // which members); `ecosystem/image-snapshot-*` hold jest-image-snapshot's reads and writes, and
+    // `ecosystem/custom-snapshot-*` jest-snapshot's own matchers called from a custom one.
     contextView: moduleRef<SnapshotViewFactory>(
       import.meta.resolve('@provino/dialect-jest/runtime'),
       'jestSnapshotStateView',

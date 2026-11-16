@@ -174,7 +174,11 @@ function setup(options: Options = {}): Setup {
 
 /** A matcher the types don't list, or called with arguments they don't allow, as user code does. */
 type Loose = Record<
-  'toMatchSnapshot' | 'toThrowErrorMatchingInlineSnapshot' | 'toMatchFileSnapshot',
+  | 'toMatchSnapshot'
+  | 'toThrowErrorMatchingInlineSnapshot'
+  | 'toMatchFileSnapshot'
+  | 'toMatchWrapped'
+  | 'toMatchTwiceWrapped',
   (...args: unknown[]) => unknown
 >
 const loose = (value: unknown): Loose => value as Loose
@@ -553,6 +557,54 @@ describe('inline snapshots', () => {
     assert.equal(edit?.line, line)
     const text = readFileSync(import.meta.filename, 'utf8').split('\n')[line - 1] ?? ''
     assert.match(text.slice(edit?.column ?? 0), /^toMatchInlineSnapshot/)
+  })
+
+  // Jest's rule (`removeLinesBeforeExternalMatcherTrap` below the innermost matcher call), recorded
+  // by `ecosystem/custom-snapshot-inline-nested`: a built-in called through `expect` in a custom
+  // matcher writes into the matcher's body, also two custom matchers down.
+  test('with a writer, one taken inside custom matchers is recorded at the call in the innermost body', () => {
+    const { expect, inTest, state } = setup({ inlineWrites: true })
+    const lines: Record<string, number> = {}
+    const passed = { pass: true, message: () => '' }
+    expect.extend({
+      toMatchWrapped(received: unknown) {
+        lines.wrapped = nextLine()
+        expect(received).toMatchInlineSnapshot()
+        return passed
+      },
+      toMatchTwiceWrapped(received: unknown) {
+        loose(expect(received)).toMatchWrapped()
+        return passed
+      },
+    })
+    inTest(['t'], () => loose(expect(1)).toMatchWrapped())
+    const outer = lines.wrapped
+    inTest(['u'], () => loose(expect(2)).toMatchTwiceWrapped())
+    assert.deepEqual(
+      state.finish().inline?.map(({ file, line }) => ({ file, line })),
+      [
+        { file: import.meta.filename, line: outer },
+        { file: import.meta.filename, line: lines.wrapped },
+      ],
+    )
+  })
+
+  test('the stack is taken only for a snapshot that is written', () => {
+    const { expect, inTest } = setup({ update: 'none' })
+    const capture = Error.captureStackTrace
+    let taken = 0
+    // The engine anchors its errors with it too; the stack for the writer is taken on a holder.
+    Error.captureStackTrace = (...args) => {
+      if (!(args[0] instanceof Error)) taken++
+      capture(...args)
+    }
+    try {
+      inTest(['t'], () => expect(1).toMatchInlineSnapshot('1'))
+      assert.throws(() => inTest(['t'], () => expect(2).toMatchInlineSnapshot('1')), /mismatch/)
+    } finally {
+      Error.captureStackTrace = capture
+    }
+    assert.equal(taken, 0, 'a match and a mismatch take no stack for the writer')
   })
 
   test('a missing one under `none` fails as a snapshot that was not written, not as T7.11', () => {

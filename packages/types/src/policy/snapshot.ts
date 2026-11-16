@@ -168,21 +168,30 @@ export interface SnapshotResolver {
 export type SnapshotResolverFactory = (exports: unknown, extension: string) => SnapshotResolver
 
 /**
- * One snapshot assertion made through a dialect's view (`SnapshotViewSource.match`).
+ * One snapshot assertion (`SnapshotViewSource.match`), made by the snapshot matchers or through a
+ * dialect's view.
  * @public
  */
 export interface SnapshotViewMatchOptions {
   /** The test's full name, with the hint joined on. */
   readonly testName: string
+  /**
+   * The test attempt that takes the snapshot (`SnapshotViewSource.currentTestId`), so a retry
+   * takes back what the attempt did; absent outside a test.
+   */
+  readonly testId?: string | undefined
   readonly received: unknown
-  /** The snapshot's key, in place of the policy's key of the name and its count. */
-  readonly key?: string
-  readonly inlineSnapshot?: string
+  /** The snapshot's key; absent or `''`, the policy's key of the name and its count. */
+  readonly key?: string | undefined
+  readonly inlineSnapshot?: string | undefined
   readonly isInline: boolean
   /** The test is expected to fail: a mismatch keeps what is stored. */
-  readonly testFailing?: boolean
-  /** The call's stack, its first frame the call: where an inline snapshot that must be written goes. */
-  readonly stack?: string
+  readonly testFailing?: boolean | undefined
+  /**
+   * The call's stack, its first frame the call (the worker's stacks are source-mapped): where an
+   * inline snapshot that must be written goes. Called only then, synchronously within `match`.
+   */
+  readonly stack?: (() => string) | undefined
 }
 
 /**
@@ -228,7 +237,13 @@ export interface SnapshotViewSource {
   /** The file's snapshot file. */
   readonly snapshotPath: string
   /** The pretty-format options the state serializes with, one object for the file. */
-  readonly format: Readonly<Record<string, unknown>>
+  readonly serializeFormat: Readonly<Record<string, unknown>>
+  /**
+   * The id of the test attempt running now, as the snapshot matchers' own state names it, or
+   * `undefined` outside a test. A view passes it to `match` and `fail`, so a snapshot taken
+   * through it belongs to the attempt, as one the snapshot matchers take does.
+   */
+  currentTestId(): string | undefined
   /** Compares a value with its stored snapshot, and writes it when the update mode says to. */
   match(options: SnapshotViewMatchOptions): SnapshotViewMatchResult
   /** A snapshot that couldn't be taken: the count moves on and the key is checked. Returns the key. */
@@ -342,12 +357,12 @@ export interface SnapshotPolicy {
    */
   readonly resolverFactory: Behaviour<SnapshotResolverFactory> | null
   /**
-   * The shape a matcher's `this.snapshotState` has, or `null` for the file's snapshot state itself.
-   * Jest: `@provino/dialect-jest/runtime` `jestSnapshotStateView`, the members of jest-snapshot
-   * 30.5's `SnapshotState` that a matcher outside Jest reads, writes and calls (`_counters`,
-   * `_updateSnapshot`, the four counts, `match`, `fail`, ...: jest-image-snapshot, and
-   * jest-snapshot's own matchers called from a custom one). Vitest: `null` until T7.6 records what its matchers
-   * read. Provino's own key.
+   * The shape a matcher's `this.snapshotState` has, or `null` for the file's snapshot state
+   * itself. Jest: `@provino/dialect-jest/runtime` `jestSnapshotStateView`, the members of
+   * jest-snapshot 30.5's `SnapshotState` that a matcher outside Jest reads, writes and calls
+   * (`_counters`, `_updateSnapshot`, the four counts, `match`, `fail`, ...: jest-image-snapshot,
+   * and jest-snapshot's own matchers called from a custom one). Vitest: `null` until T7.6 records
+   * what its matchers read. Provino's own key.
    */
   readonly contextView: Behaviour<SnapshotViewFactory> | null
 }

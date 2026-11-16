@@ -25,6 +25,7 @@ import { RuntimeApi } from '@provino/core';
 import { ShapeTestError } from '@provino/types';
 import { SnapshotPrinter } from '@provino/types';
 import { SnapshotResolverFactory } from '@provino/types';
+import { SnapshotViewMatchResult } from '@provino/types';
 import { SnapshotViewSource } from '@provino/types';
 import { SpiedGetter } from '@provino/mock';
 import { SpiedMethod } from '@provino/mock';
@@ -217,19 +218,6 @@ export interface JestSnapshotMatchOptions {
 }
 
 // @public
-export interface JestSnapshotMatchResult {
-    // (undocumented)
-    readonly actual: string;
-    // (undocumented)
-    readonly count: number;
-    readonly expected: string | undefined;
-    // (undocumented)
-    readonly key: string;
-    // (undocumented)
-    readonly pass: boolean;
-}
-
-// @public
 export function jestSnapshotPrinter(): SnapshotPrinter;
 
 // @public
@@ -244,7 +232,7 @@ export interface JestSnapshotStateView {
     getUncheckedCount(): number;
     getUncheckedKeys(): string[];
     markSnapshotsAsCheckedForTest(testName: string): void;
-    match(options: JestSnapshotMatchOptions): JestSnapshotMatchResult;
+    match(options: JestSnapshotMatchOptions): SnapshotViewMatchResult;
     matched: number;
     readonly snapshotFormat: Readonly<Record<string, unknown>>;
     readonly snapshotPath: string;

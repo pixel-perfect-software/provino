@@ -14,7 +14,6 @@ import {
   type JestModuleObject,
   type JestObject,
   type JestSnapshotMatchOptions,
-  type JestSnapshotMatchResult,
   type JestSnapshotStateView,
   jestExpectTable,
   jestGlobals,
@@ -40,6 +39,7 @@ import type {
   ProvinoConfigInput,
   SnapshotResolverFactory,
   SnapshotViewFactory,
+  SnapshotViewMatchResult,
   SnapshotViewSource,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
@@ -221,8 +221,8 @@ view.matched = '1'
 jestSnapshotStateView({ added: 0 })
 // What jest-snapshot's matchers call on it: Jest's `match` arguments and result, and `fail`.
 expectTypeOf(view.match).parameters.toEqualTypeOf<[JestSnapshotMatchOptions]>()
-expectTypeOf(view.match).returns.toEqualTypeOf<JestSnapshotMatchResult>()
-expectTypeOf<JestSnapshotMatchResult['expected']>().toEqualTypeOf<string | undefined>()
+expectTypeOf(view.match).returns.toEqualTypeOf<SnapshotViewMatchResult>()
+expectTypeOf<SnapshotViewMatchResult['expected']>().toEqualTypeOf<string | undefined>()
 expectTypeOf(view.fail).returns.toEqualTypeOf<string>()
 expectTypeOf(view.snapshotFormat).toEqualTypeOf<Readonly<Record<string, unknown>>>()
 expectTypeOf(view.expand).toEqualTypeOf<boolean>()
