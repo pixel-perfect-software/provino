@@ -265,6 +265,7 @@ export interface RunEnd {
     readonly reporterFailed: boolean;
     // (undocumented)
     readonly snapshots: SnapshotRunSummary | undefined;
+    readonly unownedError?: boolean;
 }
 
 // @public

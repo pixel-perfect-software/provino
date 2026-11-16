@@ -160,7 +160,7 @@ export function createJestHooks(): JestHooks;
 export function createJestReporterHost<Config extends ProjectConfigLike>(options: JestReporterHostOptions<Config>): Reporter[];
 
 // @public
-export function createJestResolution(requireResolve: JestRequireResolve): JestResolution;
+export function createJestResolution(requireResolve: JestRequireResolve, nodePaths?: readonly string[]): JestResolution;
 
 // @public
 export function createJestResults<Config extends ProjectConfigLike>(options: JestResultsOptions<Config>): JestResults<Config>;
@@ -1601,6 +1601,7 @@ export interface RunEnd {
     readonly reporterFailed: boolean;
     // (undocumented)
     readonly snapshots: SnapshotRunSummary | undefined;
+    readonly unownedError?: boolean;
 }
 
 // @public
