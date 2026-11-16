@@ -386,7 +386,7 @@ function checkEmpty(file: FileState, nodes: Nodes, policy: CorePolicy): void {
   for (const node of nodes) {
     if (node.type === 'test' || withTests.has(node)) continue
     for (const kind of ['beforeAll', 'beforeEach', 'afterEach', 'afterAll'] as const) {
-      file.errors.push(...node.hooks[kind].map((hook) => emptyDescribeError(kind, hook.location)))
+      for (const hook of node.hooks[kind]) file.errors.push(emptyDescribeError(kind, hook.location))
     }
   }
 }
