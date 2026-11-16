@@ -1,0 +1,229 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ecosystem/custom-snapshot-add",
+  "files": [
+    {
+      "file": "trimmed.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "trimmed.test.ts",
+            "path": [
+              "trimmed"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 3,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "trimmed.test.ts",
+            "path": [
+              "beside toMatchSnapshot"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 3,
+          "location": {
+            "line": 7,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "trimmed.test.ts",
+            "path": [
+              "with properties"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 13,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "trimmed.test.ts",
+            "path": [
+              "a thrown error"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 17,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 6,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 6,
+      "filesAdded": 1,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/trimmed.test.ts.snap",
+        "sha256": "98d76e4d94c4c94b27125ef3e58da88c3cf99d1c4c82fed50af37e4f17fb1f4c"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "PASS ./trimmed.test.ts\n › 6 snapshots written.\nSnapshot Summary\n › 6 snapshots written from 1 test suite.\nTest Suites: 1 passed, 1 total\nTests:       4 passed, 4 total\nSnapshots:   6 written, 6 total",
+    "files": {
+      "__snapshots__/trimmed.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`a thrown error: trimmed 1`] = `\"boom, and more\"`;\n\nexports[`beside toMatchSnapshot 1`] = `\"first\"`;\n\nexports[`beside toMatchSnapshot 2`] = `\"third\"`;\n\nexports[`beside toMatchSnapshot: toMatchTrimmedSnapshot 1`] = `\"second\"`;\n\nexports[`trimmed: toMatchTrimmedSnapshot 1`] = `\"extra long\"`;\n\nexports[`with properties 1`] = `\n{\n  \"id\": Any<Number>,\n  \"name\": \"seven\",\n}\n`;\n"
+    },
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 0,
+        "numFailedTests": 0,
+        "numPassedTestSuites": 1,
+        "numPassedTests": 4,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 1,
+        "numTotalTests": 4,
+        "openHandles": [],
+        "snapshot": {
+          "added": 6,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 1,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 6,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": true,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "trimmed",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 3
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "trimmed",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "beside toMatchSnapshot",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 7
+                },
+                "numPassingAsserts": 3,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "beside toMatchSnapshot",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "with properties",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 13
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "with properties",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "a thrown error",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 17
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "a thrown error",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/trimmed.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}

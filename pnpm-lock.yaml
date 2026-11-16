@@ -404,6 +404,9 @@ catalogs:
     jest-silent-reporter:
       specifier: 0.6.0
       version: 0.6.0
+    jest-snapshot:
+      specifier: 30.5.2
+      version: 30.5.2
     jest-sonar-reporter:
       specifier: 2.0.0
       version: 2.0.0
@@ -1083,6 +1086,9 @@ importers:
       jest-silent-reporter:
         specifier: 'catalog:'
         version: 0.6.0
+      jest-snapshot:
+        specifier: 'catalog:'
+        version: 30.5.2(supports-color@8.1.1)
       jest-sonar-reporter:
         specifier: 'catalog:'
         version: 2.0.0
@@ -1412,6 +1418,9 @@ importers:
       jest-silent-reporter:
         specifier: 'catalog:'
         version: 0.6.0
+      jest-snapshot:
+        specifier: 'catalog:'
+        version: 30.5.2(supports-color@8.1.1)
       jest-sonar-reporter:
         specifier: 'catalog:'
         version: 2.0.0

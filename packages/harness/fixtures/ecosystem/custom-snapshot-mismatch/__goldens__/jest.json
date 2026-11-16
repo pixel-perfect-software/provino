@@ -1,0 +1,232 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ecosystem/custom-snapshot-mismatch",
+  "files": [
+    {
+      "file": "trimmed.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "trimmed.test.ts",
+            "path": [
+              "trimmed"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toMatchSnapshot(hint)\n\nSnapshot name: `trimmed: toMatchTrimmedSnapshot 1`\n\nSnapshot: \"extra long\"\nReceived: \"EXTRA long\"",
+              "matcher": "toMatchSnapshot",
+              "userFrame": "<root>/trimmed.test.ts:11:84"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 10,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "trimmed.test.ts",
+            "path": [
+              "beside toMatchSnapshot"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 3,
+          "location": {
+            "line": 14,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "trimmed.test.ts",
+            "path": [
+              "with properties"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expect(received).toMatchSnapshot(properties)\n\nSnapshot name: `with properties 1`\n\n- Expected properties  - 1\n+ Received value       + 1\n\n  Object {\n-   \"id\": Any<Number>,\n+   \"id\": \"seven\",\n  }",
+              "matcher": "toMatchSnapshot",
+              "userFrame": "<root>/trimmed.test.ts:21:78"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 20,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 3,
+      "unmatched": 2,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 5,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 1,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/trimmed.test.ts.snap",
+        "sha256": "4ed2057a8cf655206a09e727a4536dc699898bd875a846757f8a83f21067a5f8"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./trimmed.test.ts\n  ● trimmed\n    expect(received).toMatchSnapshot(hint)\n    Snapshot name: `trimmed: toMatchTrimmedSnapshot 1`\n    Snapshot: \"extra long\"\n    Received: \"EXTRA long\"\n  ● with properties\n    expect(received).toMatchSnapshot(properties)\n    Snapshot name: `with properties 1`\n    - Expected properties  - 1\n    + Received value       + 1\n    -   \"id\": Any<Number>,\n    +   \"id\": \"seven\",\n › 2 snapshots failed.\nSnapshot Summary\n › 2 snapshots failed from 1 test suite. Inspect your code changes or re-run jest with `-u` to update them.\nTest Suites: 1 failed, 1 total\nTests:       2 failed, 1 passed, 3 total\nSnapshots:   2 failed, 3 passed, 5 total",
+    "files": {
+      "__snapshots__/trimmed.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`beside toMatchSnapshot 1`] = `\"first\"`;\n\nexports[`beside toMatchSnapshot 2`] = `\"third\"`;\n\nexports[`beside toMatchSnapshot: toMatchTrimmedSnapshot 1`] = `\"second\"`;\n\nexports[`trimmed: toMatchTrimmedSnapshot 1`] = `\"extra long\"`;\n\nexports[`with properties 1`] = `\n{\n  \"id\": Any<Number>,\n  \"name\": \"seven\",\n}\n`;\n"
+    },
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 1,
+        "numFailedTests": 2,
+        "numPassedTestSuites": 0,
+        "numPassedTests": 1,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 1,
+        "numTotalTests": 3,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": true,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 1,
+          "filesUpdated": 0,
+          "matched": 3,
+          "total": 5,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 2,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "actual": "\"EXTRA long\"",
+                      "expected": "\"extra long\"",
+                      "message": "expect(received).toMatchSnapshot(hint)\n\nSnapshot name: `trimmed: toMatchTrimmedSnapshot 1`\n\nSnapshot: \"extra long\"\nReceived: \"EXTRA long\"",
+                      "name": "toMatchSnapshot",
+                      "pass": false,
+                      "snapshotPath": "<root>/__snapshots__/trimmed.test.ts.snap"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(received).toMatchSnapshot(hint)\n\nSnapshot name: `trimmed: toMatchTrimmedSnapshot 1`\n\nSnapshot: \"extra long\"\nReceived: \"EXTRA long\"\n<frames>"
+                ],
+                "fullName": "trimmed",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 10
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "trimmed",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "beside toMatchSnapshot",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 14
+                },
+                "numPassingAsserts": 3,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "beside toMatchSnapshot",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [
+                  {
+                    "matcherResult": {
+                      "message": "expect(received).toMatchSnapshot(properties)\n\nSnapshot name: `with properties 1`\n\n- Expected properties  - 1\n+ Received value       + 1\n\n  Object {\n-   \"id\": Any<Number>,\n+   \"id\": \"seven\",\n  }",
+                      "name": "toMatchSnapshot",
+                      "pass": false,
+                      "snapshotPath": "<root>/__snapshots__/trimmed.test.ts.snap"
+                    }
+                  }
+                ],
+                "failureMessages": [
+                  "Error: expect(received).toMatchSnapshot(properties)\n\nSnapshot name: `with properties 1`\n\n- Expected properties  - 1\n+ Received value       + 1\n\n  Object {\n-   \"id\": Any<Number>,\n+   \"id\": \"seven\",\n  }\n<frames>"
+                ],
+                "fullName": "with properties",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 20
+                },
+                "numPassingAsserts": 0,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "failed",
+                "title": "with properties",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "  ● trimmed\n\n    expect(received).toMatchSnapshot(hint)\n\n    Snapshot name: `trimmed: toMatchTrimmedSnapshot 1`\n\n    Snapshot: \"extra long\"\n    Received: \"EXTRA long\"\n\n       9 |\n      10 | test('trimmed', () => {\n    > 11 |   expect(stored ? 'EXTRA long string oh my gerd' : 'extra long string oh my gerd').toMatchTrimmedSnapshot(10)\n         |                                                                                    ^\n      12 | })\n      13 |\n      14 | test('beside toMatchSnapshot', () => {\n\n<frames>\n\n  ● with properties\n\n    expect(received).toMatchSnapshot(properties)\n\n    Snapshot name: `with properties 1`\n\n    - Expected properties  - 1\n    + Received value       + 1\n\n      Object {\n    -   \"id\": Any<Number>,\n    +   \"id\": \"seven\",\n      }\n\n      19 |\n      20 | test('with properties', () => {\n    > 21 |   expect(stored ? { id: 'seven', name: 'seven' } : { id: 7, name: 'seven' }).toMatchIdSnapshot()\n         |                                                                              ^\n      22 | })\n      23 |\n\n<frames>\n",
+            "name": "<root>/trimmed.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}
