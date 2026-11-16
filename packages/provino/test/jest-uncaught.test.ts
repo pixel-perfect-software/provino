@@ -1,80 +1,213 @@
-// An error the code never handles, raised while a file runs, is charged as Jest 30.5.2 charges it.
-// `cli/uncaught-during-test` records one file per timing: a timer that throws while its test runs,
-// after its test ended (while the next test runs, during a later describe's `beforeAll`, during the
-// file's `afterAll`), a rejection nobody handles while its test runs and one made after it ended,
-// and a timer no test owns. jest-circus keeps each error in its owner's `test.errors` (the test whose
-// async context raised it, even an ended one) and reads them when the run ends, so the owner is a
-// failed test in the results and the file fails; an error no test owns fails the file as `Test
-// suite failed to run`. `provino jest` must print the same and write the same results file.
+// An error the code never handles is charged as Jest 30.5.2 charges it. `cli/uncaught-during-test`
+// records one file per timing while a file runs: a timer that throws while its test runs, after its
+// test ended (while the next test runs, during a later describe's `beforeAll`, during the file's
+// `afterAll`), a rejection nobody handles while its test runs and one made after it ended, and a
+// timer no test owns. jest-circus keeps each error in its owner's `test.errors` (the test whose async
+// context raised it, even an ended one) and reads them when the run ends, so the owner is a failed
+// test in the results and the file fails; an error no test owns fails the file as `Test suite failed
+// to run`. `provino jest` must print the same and write the same results file.
 //
-// What the last test leaves after the run is over has no recording: Jest 30.5.2 in band exits with
-// Node's own report of the error (its handlers are gone by then), and a worker dies. Provino keeps
-// that outcome, a failed run, and says which test it was where it still can.
-import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
-import { assertMatchesGolden, provinoOn } from './recorded-run.ts'
-import { spawnCli } from './support.ts'
+// After circus has torn its handlers down, Jest has no outcome of its own: Node's report of the
+// error ends Jest's process (in band) or kills the worker. Provino keeps a clean failure there
+// (D7): the declared differences below pin both sides.
+import { describe, it } from 'node:test'
+import { assertMatchesGolden, type DeclaredDifference, provinoOn } from './recorded-run.ts'
 
-const made: string[] = []
-after(async () => {
-  await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })))
-})
+const RESULTS = 'json:.harness-out/jest.json'
 
-describe('provino jest charges an unhandled error to its owner as Jest 30.5.2 does', () => {
-  it('cli/uncaught-during-test: the exit code, the failure blocks and the results file', async () => {
-    const run = await provinoOn('cli/uncaught-during-test')
-    assertMatchesGolden('cli/uncaught-during-test', run)
-  })
-
-  it('cli/hooks-only-describe: each hook of a describe with no tests is the file’s error, with no class name', async () => {
-    const run = await provinoOn('cli/hooks-only-describe')
-    assertMatchesGolden('cli/hooks-only-describe', run)
-  })
-})
-
-/** `provino jest --ci --json` over one test file, in band (one file). */
-async function runOne(source: string): Promise<{
-  readonly code: number | null
-  readonly stderr: string
-  readonly results: { readonly success: boolean; readonly numFailedTests: number }
-}> {
-  const dir = await mkdtemp(join(tmpdir(), 'provino-uncaught-'))
-  made.push(dir)
-  await writeFile(join(dir, 'package.json'), '{"name":"uncaught","type":"commonjs"}\n')
-  await writeFile(join(dir, 'jest.config.json'), '{}\n')
-  await writeFile(join(dir, 'last.test.js'), source)
-  const ended = await spawnCli(['jest', '--ci', '--json', '--outputFile', 'results.json'], {
-    cwd: dir,
-  })
-  const results = JSON.parse(await readFile(join(dir, 'results.json'), 'utf8')) as {
-    success: boolean
-    numFailedTests: number
+/** The part of a results file the after-run pins are about. */
+function outcome(capture: unknown): unknown {
+  if (capture === null || typeof capture !== 'object') return capture
+  const run = capture as Readonly<Record<string, unknown>>
+  const files = (run.testResults ?? []) as readonly Readonly<Record<string, unknown>>[]
+  return {
+    success: run.success,
+    numFailedTests: run.numFailedTests,
+    numRuntimeErrorTestSuites: run.numRuntimeErrorTestSuites,
+    files: files.map((file) => ({
+      name: file.name,
+      status: file.status,
+      message: file.message,
+      tests: ((file.assertionResults ?? []) as readonly Readonly<Record<string, unknown>>[]).map(
+        (test) => [test.fullName, test.status],
+      ),
+    })),
   }
-  return { code: ended.code, stderr: ended.stderr, results }
 }
 
-describe('what the last test leaves when the run is over still fails the run', () => {
-  it('a rejection it left, reported in the file’s last turn, fails that test and its file', async () => {
-    const run = await runOne(
-      "test('leaves a rejection', () => {\n  void Promise.reject(new Error('left behind'))\n})\n",
-    )
-    assert.equal(run.code, 1, run.stderr)
-    assert.match(run.stderr, /^FAIL \.\/last\.test\.js$/m)
-    assert.match(run.stderr, /● leaves a rejection\n\n {4}left behind/)
-    assert.doesNotMatch(run.stderr, /Unhandled error/, 'shown once, under its test')
-    assert.equal(run.results.success, false)
-    assert.equal(run.results.numFailedTests, 1)
-  })
+/** What Provino gives for the file whose last test leaves a rejection, in band or in a worker. */
+const FAILS_THE_TEST: {
+  readonly stderr: string
+  readonly results: unknown
+} = {
+  stderr: [
+    'FAIL ./leaves-rejection.test.ts',
+    '  ● leaves a rejection nobody handles',
+    'Tests:       1 failed, 1 total',
+  ].join('\n'),
+  results: {
+    success: false,
+    numFailedTests: 1,
+    numRuntimeErrorTestSuites: 0,
+    files: [
+      {
+        name: '<root>/leaves-rejection.test.ts',
+        status: 'failed',
+        message: [
+          '  ● leaves a rejection nobody handles',
+          '',
+          '    rejected as its test ends',
+          '',
+          "      1 | test('leaves a rejection nobody handles', () => {",
+          "    > 2 |   void Promise.reject(new Error('rejected as its test ends'))",
+          '        |                       ^',
+          '      3 | })',
+          '      4 |',
+          '',
+          '<frames>',
+          '',
+        ].join('\n'),
+        tests: [['leaves a rejection nobody handles', 'failed']],
+      },
+    ],
+  },
+}
 
-  it('a timer of it that throws once the file is over fails the run, with the error', async () => {
-    const run = await runOne(
-      "test('schedules a timer', () => {\n  setTimeout(() => {\n    throw new Error('after the file')\n  }, 0)\n})\n",
-    )
-    assert.equal(run.code, 1, run.stderr)
-    assert.match(run.stderr, /after the file/)
-    assert.equal(run.results.success, false)
-  })
+const AFTER_CIRCUS =
+  'D7: the rejection the last test left is reported after circus tore its handlers down, and Node’s report ends Jest’s process or worker; Provino still listens, and fails the test, as circus would have a turn earlier'
+
+const DECLARED: Readonly<Record<string, Readonly<Record<string, DeclaredDifference>>>> = {
+  'cli/uncaught-after-run': {
+    stderr: {
+      golden: 'Error: rejected as its test ends',
+      provino: FAILS_THE_TEST.stderr,
+      reason: `${AFTER_CIRCUS}: Jest prints Node’s report and no header`,
+    },
+    [RESULTS]: {
+      golden: null,
+      provino: FAILS_THE_TEST.results,
+      reason: `${AFTER_CIRCUS}: Jest writes no results file`,
+      view: outcome,
+    },
+  },
+  'cli/uncaught-after-run-worker': {
+    stderr: {
+      golden: [
+        'Error: rejected as its test ends',
+        'Error: rejected as its test ends',
+        'Error: rejected as its test ends',
+        'Error: rejected as its test ends',
+        'FAIL ./leaves-rejection.test.ts',
+        '  ● Test suite failed to run',
+        '    Jest worker encountered 4 child process exceptions, exceeding retry limit',
+        'Tests:       0 total',
+      ].join('\n'),
+      provino: FAILS_THE_TEST.stderr,
+      reason: `${AFTER_CIRCUS}: jest-worker runs the file in 4 workers, then fails it to run`,
+    },
+    [RESULTS]: {
+      golden: {
+        success: false,
+        numFailedTests: 0,
+        numRuntimeErrorTestSuites: 1,
+        files: [
+          {
+            name: '<root>/leaves-rejection.test.ts',
+            status: 'failed',
+            message: [
+              '  ● Test suite failed to run',
+              '',
+              '    Jest worker encountered 4 child process exceptions, exceeding retry limit',
+              '',
+              '<frames>',
+              '',
+            ].join('\n'),
+            tests: [],
+          },
+        ],
+      },
+      provino: FAILS_THE_TEST.results,
+      reason: `${AFTER_CIRCUS}: Jest's file has no test result, only the worker's testExecError`,
+      view: outcome,
+    },
+  },
+  'cli/uncaught-after-file-unowned': {
+    stderr: {
+      golden: [
+        'PASS ./first.test.ts',
+        'Error: thrown by a timer no test owns',
+        'PASS ./second.test.ts',
+        'Tests:       2 passed, 2 total',
+      ].join('\n'),
+      provino: [
+        'PASS ./first.test.ts',
+        'PASS ./second.test.ts',
+        'Tests:       2 passed, 2 total',
+      ].join('\n'),
+      reason:
+        'the first file’s worker is idle when the timer throws: Jest’s worker prints the error on its stderr, which Jest passes on; Provino stops a worker with no file left to run before the timer fires',
+    },
+  },
+  'cli/uncaught-timer-of-earlier-file': {
+    stderr: {
+      golden: [
+        'PASS ./first.test.ts',
+        'FAIL ./second.test.ts',
+        '  ● b fails on its own',
+        '    the second file fails anyway',
+        '  ● Test suite failed to run',
+        '    thrown by a timer of the first file',
+        'Tests:       1 failed, 2 passed, 3 total',
+      ].join('\n'),
+      provino: [
+        'PASS ./first.test.ts',
+        'FAIL ./second.test.ts',
+        '  ● b fails on its own',
+        '    the second file fails anyway',
+        '  ● Unhandled error',
+        '    thrown by a timer of the first file',
+        'Tests:       1 failed, 2 passed, 3 total',
+      ].join('\n'),
+      reason:
+        'circus is loaded per file, so the second file’s handlers take the first file’s timer as their own unowned error (its testExecError); Provino charges it to the first file’s test, whose async context raised it, and, that file being over, prints it as the run’s',
+    },
+    [RESULTS]: {
+      golden: { second: 'failed', numRuntimeErrorTestSuites: 1, timerInSecond: true },
+      provino: { second: 'failed', numRuntimeErrorTestSuites: 0, timerInSecond: false },
+      reason: 'as stderr: the error is not the second file’s testExecError under Provino',
+      view: (capture) => {
+        const run = outcome(capture) as {
+          readonly numRuntimeErrorTestSuites: unknown
+          readonly files: readonly { readonly status: unknown; readonly message: unknown }[]
+        }
+        const second = run.files[1]
+        return {
+          second: second?.status,
+          numRuntimeErrorTestSuites: run.numRuntimeErrorTestSuites,
+          timerInSecond: String(second?.message).includes('thrown by a timer of the first file'),
+        }
+      },
+    },
+  },
+}
+
+describe('provino jest charges an unhandled error to its owner as Jest 30.5.2 does', () => {
+  for (const [id, what] of [
+    ['cli/uncaught-during-test', 'the exit code, the failure blocks and the results file'],
+    ['cli/hooks-only-describe', 'each hook of a describe with no tests is the file’s error'],
+    [
+      'cli/retry-entire-describe-unowned-rejection',
+      'an unowned rejection during a describe attempt ends its retries',
+    ],
+    ['cli/uncaught-after-run-timer', 'a timer that throws once the run is over ends the process'],
+    ['cli/uncaught-after-file-unowned', 'an error no test owns, in an idle worker, fails no file'],
+    ['cli/uncaught-timer-of-earlier-file', 'a timer of the first file fires while the second runs'],
+    ['cli/uncaught-after-run', 'a rejection the last test leaves, in band, fails that test'],
+    ['cli/uncaught-after-run-worker', 'a rejection the last test leaves, in a worker, fails it'],
+  ] as const) {
+    it(`${id}: ${what}`, async () => {
+      const declared = DECLARED[id]
+      assertMatchesGolden(id, await provinoOn(id), declared === undefined ? {} : { declared })
+    })
+  }
 })

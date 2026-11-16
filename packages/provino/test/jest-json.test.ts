@@ -200,6 +200,21 @@ describe('assertMatchesGolden (the shared comparison)', () => {
       }),
     )
     assert.throws(() => assertMatchesGolden('cli/json-no-location', { ...run, code: 7 }))
+    const moved = { ...run, code: 7 }
+    const declared = (view?: (capture: unknown) => unknown) => ({
+      exitCode: {
+        golden: view === undefined ? run.code : view(run.code),
+        provino: view === undefined ? 7 : view(7),
+        reason: 'pinned',
+        ...(view === undefined ? {} : { view }),
+      },
+    })
+    assertMatchesGolden('cli/json-no-location', moved, { declared: declared() })
+    // Both sides are read through the view, so one that hides the difference makes it gone.
+    assert.throws(
+      () => assertMatchesGolden('cli/json-no-location', moved, { declared: declared(() => 'x') }),
+      /the declared difference is gone/,
+    )
   })
 })
 
