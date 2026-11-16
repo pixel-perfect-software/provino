@@ -12,6 +12,7 @@ import type {
 import { currentStore, newStore, runInStore } from '../current/current-test.ts'
 import { CoreError } from '../errors.ts'
 import { resolveTimeout } from '../executor/deadline.ts'
+import { callUser } from '../executor/user-call.ts'
 import type {
   DeclaredHookKind,
   FileState,
@@ -478,9 +479,7 @@ export class Collector {
     const body = suite.body
     suite.body = undefined
     if (body === undefined) return undefined
-    const result = runInStore(collectStore(suite), () =>
-      Reflect.apply(body, undefined, suite.bodyArgs),
-    )
+    const result = runInStore(collectStore(suite), () => callUser(body, undefined, suite.bodyArgs))
     if (isThenable(result)) {
       if (this.#config.policy.asyncDescribe === 'throw') {
         // Settle it quietly: the error below is what the user sees.

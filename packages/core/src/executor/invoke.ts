@@ -8,6 +8,7 @@ import type { CorePolicy, FormatValue } from '@provino/types'
 import { CoreError } from '../errors.ts'
 import type { UserFn } from '../internal/model.ts'
 import { isThenable } from '../internal/thenable.ts'
+import { callUser } from './user-call.ts'
 
 /** How a user function is called. */
 export interface Invocation {
@@ -53,7 +54,7 @@ export function invoke(env: InvokeEnv, call: Invocation): unknown {
   if (isGenerator(fn) && policy.allowGeneratorFns) {
     return drive(Reflect.apply(fn, thisArg, all) as Generator)
   }
-  const result = Reflect.apply(fn, thisArg, all)
+  const result = callUser(fn, thisArg, all)
   if (
     call.isTest &&
     policy.nonPromiseReturn === 'fail' &&
@@ -126,7 +127,7 @@ function invokeWithDone(env: InvokeEnv, call: Invocation): Promise<void> {
       })
     }
     // A throw here rejects the promise, as a throw in the executor of `new Promise` does.
-    returned = Reflect.apply(call.fn, call.thisArg, [...call.args, done])
+    returned = callUser(call.fn, call.thisArg, [...call.args, done])
   })
 }
 
@@ -135,15 +136,19 @@ function isGenerator(fn: UserFn): boolean {
   return tag === '[object GeneratorFunction]' || tag === '[object AsyncGeneratorFunction]'
 }
 
-/** Runs a generator to completion, awaiting each yielded value (co's semantics). */
+/**
+ * Runs a generator to completion, awaiting each yielded value (co's semantics). Each step runs the
+ * generator's own code, so it goes through `callUser`'s frame as any other user call does.
+ */
 async function drive(generator: Generator | AsyncGenerator): Promise<unknown> {
-  let step = await generator.next()
+  const { next, throw: raise } = generator
+  let step = (await callUser(next, generator, [])) as IteratorResult<unknown>
   while (step.done !== true) {
     try {
       const value: unknown = await step.value
-      step = await generator.next(value)
+      step = (await callUser(next, generator, [value])) as IteratorResult<unknown>
     } catch (error) {
-      step = await generator.throw(error)
+      step = (await callUser(raise, generator, [error])) as IteratorResult<unknown>
     }
   }
   return step.value
