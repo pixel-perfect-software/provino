@@ -473,13 +473,19 @@ export async function installPackages(fixture: Fixture, workDir: string): Promis
   }
 }
 
-function jestEsmOption(fixture: Fixture): { jestEsm?: true } {
-  return fixture.manifest.jestEsm === true ? { jestEsm: true } : {}
-}
-
 function jestTypeScriptOption(fixture: Fixture): { jestTypeScript?: 'babel' } {
   const { jestTypeScript } = fixture.manifest
   return jestTypeScript === undefined ? {} : { jestTypeScript }
+}
+
+/** `{ [key]: true }` when the fixture sets the Jest-only boolean `key`, else nothing. */
+function jestTrueOption<K extends 'jestEsm' | 'jestTransformJs'>(
+  fixture: Fixture,
+  key: K,
+): Partial<Record<K, true>> {
+  const option: Partial<Record<K, true>> = {}
+  if (fixture.manifest[key] === true) option[key] = true
+  return option
 }
 
 function jestConfigOption(fixture: Fixture): { jestConfig?: JestFixtureConfig } {
@@ -530,8 +536,9 @@ async function runUnderRunner(
   const configOptions = {
     observeSetupFile,
     ...mockCleanupOption(fixture),
-    ...jestEsmOption(fixture),
+    ...jestTrueOption(fixture, 'jestEsm'),
     ...jestTypeScriptOption(fixture),
+    ...jestTrueOption(fixture, 'jestTransformJs'),
     ...jestConfigOption(fixture),
     ...(overlay === undefined ? {} : { overlay }),
   }

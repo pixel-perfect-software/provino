@@ -18,15 +18,11 @@ import { LoaderError } from './errors.ts'
 import { edgeConditions } from './internal/edge-kind.ts'
 import { saveGraph } from './internal/inline.ts'
 import { loaderMessage } from './internal/messages.ts'
-import {
-  createRecords,
-  dropRecords,
-  isEvaluableExternal,
-  resolveOrMissing,
-  toModuleId,
-} from './internal/records.ts'
+import { createRecords, dropRecords, resolveOrMissing, toModuleId } from './internal/records.ts'
 import { activate, promoteLearned, takeLearned } from './internal/reevaluate.ts'
 import { type FileContext, NO_FILE, Registry } from './internal/registry.ts'
+import { blankHashbang } from './internal/source.ts'
+import { isEvaluableExternal } from './internal/third-party.ts'
 import { tierFor } from './tier.ts'
 
 function notYet(what: string, task: string): LoaderError {
@@ -203,7 +199,7 @@ export const createLoader: CreateLoader = (options) => {
       return {
         path: record.path,
         // What V8 compiled after the wrapper (the hashbang a comment, the same length).
-        code: record.source.startsWith('#!') ? `//${record.source.slice(2)}` : record.source,
+        code: blankHashbang(record.source),
         wrapperLength: record.wrapperLength,
         map: record.map,
         transformKey: record.transformKey,
@@ -224,7 +220,7 @@ export const createLoader: CreateLoader = (options) => {
       // evaluate itself: those stay shared.
       activate(
         state.reevaluate,
-        paths.filter((path) => isEvaluableExternal(path, options.inline ?? []) && existsSync(path)),
+        paths.filter((path) => isEvaluableExternal(path, state.inlineRules) && existsSync(path)),
       )
     },
     [Symbol.dispose]: () => {

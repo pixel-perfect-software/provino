@@ -276,6 +276,12 @@ export const jestPolicy: PolicyOverrides = {
       // `resolver.ts` L523 (`_throwModNotFoundError`), `{from}` relative to the root. Recorded:
       // `mod-root-package-uninstalled` ("load after dontMock").
       'module-not-found': "Cannot find module '{specifier}' from '{from}'",
+      // The loader's text for a `node_modules` file with ES module syntax that
+      // `transformIgnorePatterns` keep from the transform, when Node can't load it: jest-runtime
+      // `internals/CjsLoader.ts` L336-L349 (`createRequireEsmError`), which Jest throws for every
+      // such file it runs as CommonJS. Recorded: `cli/transform-node-modules-ignored`.
+      'require-esm':
+        'Must use import to load ES Module: {path}\n\nThe file contains ESM syntax (import/export) that could not be executed as CommonJS. Either:\n  - Configure a transform (e.g. babel-jest) that compiles this file to CommonJS (see https://jestjs.io/docs/code-transformation)\n  - If the file is in "node_modules", allow it to be transformed by adjusting "transformIgnorePatterns" (see https://jestjs.io/docs/configuration#transformignorepatterns-arraystring)\n  - Use Node v24.9+ where Jest supports require(esm) natively (see https://jestjs.io/docs/ecmascript-modules#require-of-esm)',
     },
     // jest-resolve `resolver.ts` L1024-L1052 (`createNoMappedModuleFoundError`): a
     // `moduleNameMapper` rule matched and none of its targets resolved. Recorded: `resolve/mapper-miss`.

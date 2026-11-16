@@ -10,7 +10,7 @@ import { threadId } from 'node:worker_threads'
 import type { EdgeKind } from './scan.ts'
 
 /** The cache file's layout version: bumped when a node's shape or the scan's meaning changes. */
-export const GRAPH_FORMAT = 2
+export const GRAPH_FORMAT = 3
 
 /**
  * A target of an edge: a real path, a `node:` builtin, or `null` for one that doesn't resolve.
@@ -29,20 +29,23 @@ export interface GraphEdge {
 }
 
 /**
- * One scanned file: its edges, and whether it has a specifier the scan couldn't read.
+ * One scanned file: its edges, whether it has a specifier the scan couldn't read, and whether it
+ * has ES module syntax (`Scan.esm`).
  * @public
  */
 export interface GraphNode {
   readonly edges: readonly GraphEdge[]
   readonly dynamic: boolean
+  readonly esm: boolean
 }
 
 /**
- * A node as the file holds it: `[dynamic, [specifier, kind, target][], mtimeMs, size]`. The two
+ * A node as the file holds it: `[dynamic, esm, [specifier, kind, target][], mtimeMs, size]`. The two
  * numbers are the file's stamp when it was scanned, checked on the node's first visit in a worker.
  * @internal
  */
 export type StoredNode = readonly [
+  0 | 1,
   0 | 1,
   ReadonlyArray<readonly [string, 0 | 1, EdgeTarget]>,
   number,
@@ -130,7 +133,8 @@ export function fromStored(stored: StoredNode): GraphNode | null {
   try {
     return {
       dynamic: stored[0] === 1,
-      edges: stored[1].map(([specifier, kind, target]) => ({
+      esm: stored[1] === 1,
+      edges: stored[2].map(([specifier, kind, target]) => ({
         specifier,
         kind: kind === 1 ? 'require' : 'import',
         target,
@@ -144,6 +148,7 @@ export function fromStored(stored: StoredNode): GraphNode | null {
 export function toStored(node: GraphNode, stamp: FileStamp): StoredNode {
   return [
     node.dynamic ? 1 : 0,
+    node.esm ? 1 : 0,
     node.edges.map((edge) => [edge.specifier, edge.kind === 'require' ? 1 : 0, edge.target]),
     stamp.mtimeMs,
     stamp.size,

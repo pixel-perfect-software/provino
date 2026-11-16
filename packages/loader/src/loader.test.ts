@@ -3,17 +3,19 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, test } from 'node:test'
-import { neutralPolicy } from '@provino/policy'
 import { createResolver } from '@provino/resolver'
-import { createPipeline } from '@provino/transform'
 import type {
   CompiledModuleEvent,
   HoistPolicy,
   Loader,
   ModuleId,
+  ModuleMockRegistry,
   ModulePolicy,
   Resolver,
+  TransformClaims,
 } from '@provino/types'
+import { RequireEsmError } from './errors.ts'
+import { type LoaderOptionsExtra, loaderOptionsFor } from './internal/test-support.ts'
 import { createLoader } from './loader.ts'
 import { tierFor } from './tier.ts'
 
@@ -35,36 +37,9 @@ function writeTree(files: Readonly<Record<string, string>>): string {
 function loaderFor(
   root: string,
   policy: Partial<ModulePolicy> = {},
-  extra: {
-    readonly resolver?: Resolver
-    readonly hoist?: HoistPolicy
-    readonly moduleScope?: {
-      readonly names: readonly string[]
-      readonly modules?: readonly string[]
-    }
-  } = {},
+  extra: Omit<LoaderOptionsExtra, 'policy'> = {},
 ): Loader {
-  return createLoader({
-    root,
-    engine: 'runner',
-    resolver:
-      extra.resolver ??
-      createResolver({
-        root,
-        mappers: [],
-        extensions: ['.ts', '.tsx', '.js', '.mjs', '.cjs', '.json'],
-        tsconfig: false,
-      }),
-    transformer: createPipeline({
-      root,
-      typescript: 'oxc',
-      tsconfig: false,
-      hoist: extra.hoist ?? null,
-      cache: false,
-    }),
-    policy: { ...neutralPolicy.module, ...policy },
-    ...(extra.moduleScope === undefined ? {} : { moduleScope: extra.moduleScope }),
-  })
+  return createLoader(loaderOptionsFor(root, { ...extra, policy }))
 }
 
 interface CounterModule {
@@ -1518,4 +1493,382 @@ test('moduleSyncCondition: an import edge adds module-sync, a require only where
     },
     { import: 'import', require: 'require', dynamic: 'import' },
   )
+})
+
+/** A `package.json` for `name` with an `index.js` entry, and whatever else the test says. */
+function pkgJson(name: string, extra: Readonly<Record<string, unknown>> = {}): string {
+  return JSON.stringify({ name, main: 'index.js', ...extra })
+}
+
+/** The tree entries of an installed package: its manifest and `files`, under `node_modules/<name>`. */
+function nodeModule(
+  name: string,
+  files: Readonly<Record<string, string>>,
+  manifest: Readonly<Record<string, unknown>> = {},
+): Record<string, string> {
+  const entries: Record<string, string> = {
+    [`node_modules/${name}/package.json`]: pkgJson(name, manifest),
+  }
+  for (const [file, text] of Object.entries(files)) entries[`node_modules/${name}/${file}`] = text
+  return entries
+}
+
+/** Imports `file` from two registries of one loader, the second after the first. */
+async function twice<T>(loader: Loader, root: string, file: string): Promise<readonly [T, T]> {
+  const first = await importFrom<T>(loader, root, file)
+  return [first, await importFrom<T>(loader, root, file)]
+}
+
+/**
+ * `esm-pkg`: ES module source with no `type` (Node's syntax detection reads it as ESM), whose
+ * index imports `./config` with no extension, which Node's own ESM resolver never finds.
+ */
+const ESM_PACKAGE = nodeModule(
+  'esm-pkg',
+  {
+    'index.js':
+      "import { config } from './config'\nexport const token = {}\nexport const name = config.name\n",
+    'config.js': "export const config = { name: 'esm' }\n",
+  },
+  { version: '1.0.0' },
+)
+
+/** The default `babel-jest` entry the Oxc path stands in for, with patterns that ignore no package. */
+const TAKES_ALL: TransformClaims = {
+  patterns: ['\\.[jt]sx?$'],
+  ignorePatterns: ['^.+\\.module\\.(css|sass|scss)$'],
+}
+
+/** Jest's default `transformIgnorePatterns`: no file under `node_modules` is transformed. */
+const JEST_DEFAULT_IGNORE: TransformClaims = {
+  patterns: ['\\.[jt]sx?$'],
+  ignorePatterns: ['/node_modules/', '\\.pnp\\.[^\\/]+$'],
+}
+
+function importFrom<T>(loader: Loader, root: string, file: string): Promise<T> {
+  return loader
+    .createFileRegistry(join(root, file), { tier: 'registry' })
+    .import<T>(join(root, file))
+}
+
+test('transformClaims: an ES module package a transform takes is a user module, transformed and evaluated per file', async () => {
+  const root = writeTree({
+    ...ESM_PACKAGE,
+    // `type: module`, and `.mjs`, are ES modules whatever their text says.
+    'node_modules/typed/package.json': JSON.stringify({ name: 'typed', type: 'module' }),
+    'node_modules/typed/index.js': 'export const token = {}\n',
+    'node_modules/typed/other.mjs': 'export const token = {}\n',
+    'entry.test.ts':
+      "export { name, token } from 'esm-pkg'\nexport { token as typed } from 'typed'\nexport { token as mjs } from 'typed/other.mjs'\n",
+  })
+  type Loaded = { name: string; token: object; typed: object; mjs: object }
+  // `next/jest`'s own transform pattern, which takes `.mjs` (Jest's default `\.[jt]sx?$` does not).
+  const nextPattern = { ...TAKES_ALL, patterns: ['^.+\\.(js|jsx|ts|tsx|mjs)$'] }
+  // The D127 window is for a native load: a user module opens none, and is evaluated per file anyway.
+  const loader = loaderFor(
+    root,
+    { reevaluateHookingExternals: true },
+    { transformClaims: nextPattern },
+  )
+  const watched: string[] = []
+  loader.watchExternalLoads(probe(watched))
+  const events: CompiledModuleEvent[] = []
+  const stop = loader.onModuleCompiled((event) => events.push(event))
+  const [first, second] = await twice<Loaded>(loader, root, 'entry.test.ts')
+  stop()
+  assert.equal(
+    first.name,
+    'esm',
+    "its extensionless import found, as the transform's output finds it",
+  )
+  assert.notEqual(first.token, second.token, 'evaluated per file')
+  assert.notEqual(first.typed, second.typed, 'a type: module package too')
+  assert.notEqual(first.mjs, second.mjs, 'and an .mjs file')
+  const packageFiles = events
+    .map((event) => event.scriptUrl.slice(root.length))
+    .filter((path) => path.startsWith('/node_modules/'))
+  assert.deepEqual(packageFiles.toSorted(), [
+    '/node_modules/esm-pkg/config.js',
+    '/node_modules/esm-pkg/index.js',
+    '/node_modules/typed/index.js',
+    '/node_modules/typed/other.mjs',
+  ])
+  assert.ok(
+    events.filter((event) => event.scriptUrl.includes('/node_modules/')).every((e) => e.thirdParty),
+    'reported to coverage as third party',
+  )
+  assert.deepEqual(watched, [], 'no native load was watched')
+  assert.deepEqual(loader.takeLearnedExternals(), [])
+  // A file no pattern matches is no transform's: Jest's default leaves `.mjs` to Node.
+  const byDefault = loaderFor(root, {}, { transformClaims: TAKES_ALL })
+  const [one, two] = await twice<Loaded>(byDefault, root, 'entry.test.ts')
+  assert.notEqual(one.typed, two.typed)
+  assert.equal(one.mjs, two.mjs, 'an .mjs file the pattern does not take stays shared')
+})
+
+test("transformClaims: Jest's default patterns leave every package to Node: shared, with Node's error or the dialect's require-esm text", async () => {
+  const root = writeTree({
+    ...ESM_PACKAGE,
+    'node_modules/esm-ok/package.json': JSON.stringify({
+      name: 'esm-ok',
+      type: 'module',
+      exports: './index.js',
+    }),
+    'node_modules/esm-ok/index.js': 'export const token = {}\n',
+    'node_modules/cjs-throws/package.json': JSON.stringify({
+      name: 'cjs-throws',
+      main: 'index.js',
+    }),
+    'node_modules/cjs-throws/index.js': "throw new Error('cjs-throws failed as it loaded')\n",
+    'ok.test.ts': "export { token } from 'esm-ok'\n",
+    'entry.test.ts': "export { name } from 'esm-pkg'\n",
+    'cjs.test.ts': "export * from 'cjs-throws'\n",
+  })
+  const shared = loaderFor(root, {}, { transformClaims: JEST_DEFAULT_IGNORE })
+  const ok = () => importFrom<{ token: object }>(shared, root, 'ok.test.ts')
+  assert.equal((await ok()).token, (await ok()).token, 'shared by the worker')
+  // Under `babel` interop an edge requires the external when it runs, as Jest's CommonJS output does.
+  const babel = { interopDefault: 'babel' } as const
+  await assert.rejects(
+    importFrom(
+      loaderFor(root, babel, { transformClaims: JEST_DEFAULT_IGNORE }),
+      root,
+      'entry.test.ts',
+    ),
+    { code: 'ERR_MODULE_NOT_FOUND' },
+    "Node's own error without the dialect's text",
+  )
+  const jestish = loaderFor(
+    root,
+    { ...babel, messages: { 'require-esm': 'Must use import to load ES Module: {path}' } },
+    { transformClaims: JEST_DEFAULT_IGNORE },
+  )
+  const index = join(root, 'node_modules/esm-pkg/index.js')
+  await assert.rejects(importFrom(jestish, root, 'entry.test.ts'), (error: unknown) => {
+    assert.ok(error instanceof RequireEsmError)
+    assert.equal(error.name, 'Error')
+    assert.equal(error.code, 'ERR_REQUIRE_ESM')
+    assert.equal(error.message, `Must use import to load ES Module: ${index}`)
+    return true
+  })
+  await assert.rejects(importFrom(jestish, root, 'cjs.test.ts'), {
+    message: 'cjs-throws failed as it loaded',
+  })
+})
+
+test('transformClaims: a CommonJS package a transform takes stays shared, loaded by Node', async () => {
+  const root = writeTree({
+    'node_modules/cjs-pkg/package.json': JSON.stringify({
+      name: 'cjs-pkg',
+      type: 'commonjs',
+      main: 'index.js',
+    }),
+    'node_modules/cjs-pkg/index.js': "exports.token = require('./helper').token\n",
+    'node_modules/cjs-pkg/helper.js': 'exports.token = {}\n',
+    // No `type`: the source decides, and an `import()` is CommonJS too.
+    'node_modules/plain-cjs/package.json': pkgJson('plain-cjs'),
+    'node_modules/plain-cjs/index.js':
+      "// import and export, in a comment\nmodule.exports = { token: {}, later: () => import('node:os') }\n",
+    'entry.test.ts':
+      "import cjs from 'cjs-pkg'\nimport plain from 'plain-cjs'\nexport const a = cjs.token\nexport const b = plain.token\n",
+  })
+  const loader = loaderFor(root, {}, { transformClaims: TAKES_ALL })
+  const events: CompiledModuleEvent[] = []
+  const stop = loader.onModuleCompiled((event) => events.push(event))
+  type Loaded = { a: object; b: object }
+  const [first, second] = await twice<Loaded>(loader, root, 'entry.test.ts')
+  stop()
+  assert.equal(first.a, second.a, 'type: commonjs, shared')
+  assert.equal(first.b, second.b, 'CommonJS syntax, shared')
+  assert.deepEqual(
+    events.filter((event) => event.scriptUrl.includes('/node_modules/')),
+    [],
+    'no package file was compiled by the loader',
+  )
+})
+
+test("transformClaims: under pnpm the patterns read the real path, .pnpm/<name>@<v>/node_modules/<name>, as Jest's do", async () => {
+  const store = 'node_modules/.pnpm'
+  const esm = `${store}/esm-pkg@1.0.0/node_modules/esm-pkg`
+  const other = `${store}/other@2.0.0/node_modules/other`
+  const root = writeTree({
+    ...Object.fromEntries(
+      Object.entries(ESM_PACKAGE).map(([path, text]) => [
+        path.replace('node_modules/esm-pkg', esm),
+        text,
+      ]),
+    ),
+    [`${other}/package.json`]: JSON.stringify({
+      name: 'other',
+      type: 'module',
+      exports: './index.js',
+    }),
+    [`${other}/index.js`]: 'export const token = {}\n',
+    'entry.test.ts':
+      "export { name, token } from 'esm-pkg'\nexport { token as other } from 'other'\n",
+  })
+  symlinkSync(join(root, esm), join(root, 'node_modules/esm-pkg'))
+  symlinkSync(join(root, other), join(root, 'node_modules/other'))
+  // What `next/jest` (next 16) writes for `transpilePackages: ['esm-pkg']`.
+  const nextJest: TransformClaims = {
+    patterns: ['\\.[jt]sx?$'],
+    ignorePatterns: [
+      '/node_modules/(?!.pnpm)(?!(esm-pkg)/)',
+      '/node_modules/.pnpm/(?!(esm-pkg)@)',
+      '^.+\\.module\\.(css|sass|scss)$',
+    ],
+  }
+  const loader = loaderFor(root, {}, { transformClaims: nextJest })
+  type Loaded = { name: string; token: object; other: object }
+  const [first, second] = await twice<Loaded>(loader, root, 'entry.test.ts')
+  assert.equal(first.name, 'esm')
+  assert.notEqual(first.token, second.token, 'the listed package is transformed, per file')
+  assert.equal(first.other, second.other, 'another package stays shared')
+})
+
+test('transformClaims: a package made a user module meets the file’s mocks and served modules on its own edges', async () => {
+  const root = writeTree({
+    'node_modules/esm-pkg/package.json': pkgJson('esm-pkg'),
+    'node_modules/esm-pkg/index.js':
+      "import { who } from './who'\nimport { marker } from '@jest/globals'\nexport { marker, who }\n",
+    'node_modules/esm-pkg/who.js': "export { who } from 'dep'\n",
+    'node_modules/dep/package.json': pkgJson('dep'),
+    'node_modules/dep/index.js': "exports.who = 'real'\n",
+    'node_modules/@jest/globals/package.json': JSON.stringify({
+      name: '@jest/globals',
+      main: 'index.js',
+    }),
+    'node_modules/@jest/globals/index.js': "throw new Error('not outside Jest')\n",
+    'entry.test.ts': "export { marker, who } from 'esm-pkg'\n",
+  })
+  const dep = join(root, 'node_modules/dep/index.js')
+  const fail = (): never => {
+    throw new Error('not part of the test')
+  }
+  const mocks: ModuleMockRegistry = {
+    register: fail,
+    decide: (id) => (id === dep ? { mocked: true, id } : { mocked: false }),
+    decideUnresolved: () => ({ mocked: false }),
+    active: () => true,
+    generation: () => 0,
+    materialize: () => ({ who: 'mock' }),
+    mockFor: fail,
+    createMockFromModule: fail,
+    onResetModules: () => {},
+    setAutomock: fail,
+    onGenerateMock: fail,
+    enterIsolation: fail,
+    exitIsolation: fail,
+    dispose: () => {},
+  }
+  const loader = loaderFor(
+    root,
+    {},
+    { moduleScope: { names: [], modules: ['@jest/globals'] }, transformClaims: TAKES_ALL },
+  )
+  const marker = {}
+  const loaded = await loader
+    .createFileRegistry(join(root, 'entry.test.ts'), {
+      tier: 'registry',
+      moduleMocks: () => mocks,
+      moduleScope: () => ({ '@jest/globals': { marker } }),
+    })
+    .import<{ marker: object; who: string }>(join(root, 'entry.test.ts'))
+  assert.equal(loaded.who, 'mock', 'the mock reaches the package’s import')
+  assert.equal(loaded.marker, marker, 'the served module, not the real one')
+})
+
+test('transformClaims: a claimed .ts or .jsx file is a user module whatever its syntax, since Node runs neither from node_modules', async () => {
+  const root = writeTree({
+    'node_modules/typed-cjs/package.json': pkgJson('typed-cjs', { main: 'index.ts' }),
+    'node_modules/typed-cjs/index.ts':
+      'const double = (x: number): number => x * 2\nmodule.exports = { double, token: {} }\n',
+    'node_modules/jsx-cjs/package.json': pkgJson('jsx-cjs', { main: 'index.jsx' }),
+    'node_modules/jsx-cjs/index.jsx':
+      '/** @jsxRuntime classic */\n/** @jsx h */\nconst h = (tag) => ({ tag })\nmodule.exports = { el: <b />, token: {} }\n',
+    'entry.test.ts':
+      "import typed from 'typed-cjs'\nimport jsx from 'jsx-cjs'\nexport const four = typed.double(2)\nexport const tag = jsx.el.tag\nexport const tokens = [typed.token, jsx.token]\n",
+  })
+  // The Oxc path stands in for the default `babel-jest` entry, whose `\.[jt]sx?$` takes both.
+  const loader = loaderFor(root, { interopDefault: 'babel' }, { transformClaims: TAKES_ALL })
+  type Loaded = { four: number; tag: string; tokens: readonly [object, object] }
+  const [first, second] = await twice<Loaded>(loader, root, 'entry.test.ts')
+  assert.equal(first.four, 4, 'the TypeScript file, transformed')
+  assert.equal(first.tag, 'b', 'the JSX file, transformed')
+  assert.notEqual(first.tokens[0], second.tokens[0], 'evaluated per file')
+  assert.notEqual(first.tokens[1], second.tokens[1], 'evaluated per file')
+})
+
+test('transformClaims: a claimed CommonJS file whose load threw a SyntaxError it did parse is not run again on another route', async () => {
+  const runs = (): number => Reflect.get(globalThis, '__claimRuns') as number
+  const bump = 'globalThis.__claimRuns = (globalThis.__claimRuns ?? 0) + 1\n'
+  const root = writeTree({
+    'node_modules/throws/package.json': pkgJson('throws', { main: 'json.js' }),
+    'node_modules/throws/json.js': `${bump}JSON.parse('{')\n`,
+    'node_modules/throws/function.js': `${bump}new Function('<')\n`,
+    // Its own code parses; what it requires does not, and the error is that file's.
+    'node_modules/throws/parent.js': `${bump}module.exports = require('./jsx')\n`,
+    'node_modules/throws/jsx.js': 'module.exports = <b />\n',
+    'json.test.ts': "import 'throws'\n",
+    'function.test.ts': "import 'throws/function.js'\n",
+    'parent.test.ts': "import 'throws/parent.js'\n",
+  })
+  // Under `babel` interop the edge requires the package when it runs, as Jest's CommonJS output does.
+  const loader = loaderFor(root, { interopDefault: 'babel' }, { transformClaims: TAKES_ALL })
+  for (const [file, message] of [
+    ['json.test.ts', /JSON/],
+    ['function.test.ts', /Unexpected token '<'/],
+    ['parent.test.ts', /Unexpected token '<'/],
+  ] as const) {
+    Reflect.set(globalThis, '__claimRuns', 0)
+    await assert.rejects(importFrom(loader, root, file), (error: unknown) => {
+      assert.ok(error instanceof SyntaxError, file)
+      assert.match(error.message, message)
+      return true
+    })
+    assert.equal(runs(), 1, `${file}: its module ran once`)
+  }
+})
+
+/** CommonJS packages that require a claimed ES module, as mixpanel's CommonJS build requires its ES module helpers. */
+const REQUIRES_CLAIMED = {
+  ...ESM_PACKAGE,
+  'node_modules/esm-plain/package.json': pkgJson('esm-plain'),
+  'node_modules/esm-plain/index.js': 'export const token = {}\n',
+  'node_modules/cjs-pkg-user/package.json': JSON.stringify({
+    name: 'cjs-pkg-user',
+    main: 'index.js',
+  }),
+  'node_modules/cjs-pkg-user/index.js': "module.exports = require('esm-pkg')\n",
+  'node_modules/cjs-plain-user/package.json': JSON.stringify({
+    name: 'cjs-plain-user',
+    main: 'index.js',
+  }),
+  'node_modules/cjs-plain-user/index.js': "module.exports = require('esm-plain')\n",
+  // Named imports: `module.exports = require(esm)` carries `__esModule`, so a default import is
+  // `undefined` under `babel` interop, as in Jest.
+  'crash.test.ts': "export { name } from 'cjs-pkg-user'\n",
+  'instance.test.ts':
+    "import { token as viaCjs } from 'cjs-plain-user'\nimport { token } from 'esm-plain'\nexport const same = viaCjs === token\n",
+}
+
+test('transformClaims: a shared CommonJS package that requires a claimed ES module is inlined: no crash, and one instance', async () => {
+  const root = writeTree(REQUIRES_CLAIMED)
+  // `next/jest`'s shape: the ES modules are let through, the CommonJS packages that require them are
+  // not; then patterns that ignore no package, where the CommonJS ones are claimed and loaded by Node.
+  const allowlist: TransformClaims = {
+    patterns: ['\\.[jt]sx?$'],
+    ignorePatterns: ['/node_modules/(?!(esm-pkg|esm-plain)/)'],
+  }
+  for (const claims of [allowlist, TAKES_ALL]) {
+    const loader = loaderFor(root, { interopDefault: 'babel' }, { transformClaims: claims })
+    const crash = await importFrom<{ name: string }>(loader, root, 'crash.test.ts')
+    assert.equal(
+      crash.name,
+      'esm',
+      "its require of esm-pkg is the transformed one, './config' found",
+    )
+    const instance = await importFrom<{ same: boolean }>(loader, root, 'instance.test.ts')
+    assert.equal(instance.same, true, "the package's copy is the file's own, not Node's")
+  }
 })

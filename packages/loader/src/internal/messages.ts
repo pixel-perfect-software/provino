@@ -13,8 +13,15 @@ import type { ModulePolicy } from '@provino/types'
  * - `unresolved-mock-import`: loading a test file failed on a mock that can't stand in for a
  *   relative path (`unresolved-relative-mock`). `{message}` is that error's text, `{importer}` the
  *   test file. No neutral text: the error is as thrown unless the dialect gives one.
+ * - `require-esm`: Node could not load a `node_modules` file with ES module syntax that no
+ *   transform takes (its native load threw). `{path}` is the file. No neutral text: Node's own
+ *   error stands unless the dialect gives one.
  */
-export type LoaderMessageCode = 'transform-failed' | 'module-not-found' | 'unresolved-mock-import'
+export type LoaderMessageCode =
+  | 'transform-failed'
+  | 'module-not-found'
+  | 'unresolved-mock-import'
+  | 'require-esm'
 
 const NEUTRAL: Readonly<Partial<Record<LoaderMessageCode, string>>> = {
   'transform-failed': '{file}{where}: {message}',

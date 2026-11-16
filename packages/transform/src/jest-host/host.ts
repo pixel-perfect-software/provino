@@ -17,6 +17,7 @@ import type {
 } from '@provino/types'
 import { hashParts, stableJson } from '../cache/fingerprint.ts'
 import { TransformError } from '../errors.ts'
+import { ignoreRegExp } from '../ignore-patterns.ts'
 import { toSourceMapV3 } from '../internal/maps.ts'
 
 /**
@@ -230,8 +231,7 @@ function invalidReturn(path: string): TransformError {
  */
 export async function createJestHost(config: SerializedTransformConfig): Promise<JestHost> {
   const rules = await Promise.all(config.rules.map(loadRule))
-  const ignore =
-    config.ignorePatterns.length === 0 ? null : new RegExp(config.ignorePatterns.join('|'))
+  const ignore = ignoreRegExp(config.ignorePatterns)
   const configString = stableJson(config.config)
   const cacheFS = new Map<string, string>()
   const fingerprint = hashParts([

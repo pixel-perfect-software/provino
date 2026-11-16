@@ -69,6 +69,7 @@ These are the gaps the code itself names. Any other difference from Jest is a bu
 | A `snapshotResolver` that is broken | Each file fails with Jest's text and the run ends with no totals, exit 1, as in Jest; the error prints as `Provino: unexpected error:` with its stack, where Jest prints it red | Not planned |
 | Inline snapshots with Prettier 2 | Written unformatted, with a warning (Prettier 3 formats as Jest does) | Not planned |
 | Legacy fake timers | `legacyFakeTimers: true` throws when a test installs the timers, with a hint to use the modern ones. `jest.runAllImmediates` throws | Not planned |
+| A CommonJS package that `transformIgnorePatterns` let through (`next/jest`'s `transpilePackages`) | Loaded by Node, once per worker, untransformed, when Node can load it: it works, but its module state is shared by the worker's files, and the transform's plugins never run on it. A file Node can't load (ES module syntax, a TypeScript or JSX extension, or JSX or Flow that Node fails to parse, as in React Native) is transformed and loaded per file, as Jest does, and so is a CommonJS package that requires one. A plain file that requires one Node can't parse fails with Node's `SyntaxError` | Not planned |
 | `provino vitest` | Refused | Next |
 | RSpec-style lazy variables | A Provino extra, not a Jest feature: `import { lazy } from 'provino'` in a test file. It is never a global, and works with `injectGlobals: false` ([lazy variables](lazy-variables.md)) | Built |
 

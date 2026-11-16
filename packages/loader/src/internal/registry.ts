@@ -18,7 +18,9 @@ import { dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ModuleId, ModuleMockRegistry, ModuleScopeValues, ResolveKind } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
+import { claimedLoad, demoteOnParseFailure, isClaimedUserModule } from './claims.ts'
 import {
+  claimedReach,
   createLedger,
   mockedReach,
   noteInlined,
@@ -32,7 +34,6 @@ import {
   compile,
   externalKey,
   type Found,
-  isEvaluableExternal,
   linkAsync,
   linkSync,
   type ModuleRecord,
@@ -49,6 +50,8 @@ import {
   userEdgesOf,
 } from './records.ts'
 import { watchedLoad } from './reevaluate.ts'
+import { requireEsmError } from './require-esm.ts'
+import { isEvaluableExternal } from './third-party.ts'
 
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
 type Style = 'esm' | 'cjs'
@@ -550,27 +553,59 @@ export class Registry {
 
   /**
    * An external as the edge should load it: the same external, or a user module (inlined) for one
-   * of three reasons. It is evaluated again per file (`reevaluateHookingExternals`: its first load
+   * of four reasons. It is evaluated again per file (`reevaluateHookingExternals`: its first load
    * in this worker read a per-file global, D127, or its closure reaches such an external, so it
    * shares the file's copy and never Node's cached one); its closure reaches a module the dialect
-   * serves (`@jest/globals`, which only the registry can serve); or `mocksReachShared` is on and the
-   * file's mocks take an edge in its graph closure. The answer is kept for the instance map in
-   * play, and later edges follow it. The runner's own loads (`runner`) never ask the mocks, as
-   * the module itself is never mocked.
+   * serves (`@jest/globals`, which only the registry can serve); its closure reaches a
+   * `node_modules` file the transforms make a user module (B23e, `claimedReach`); or
+   * `mocksReachShared` is on and the file's mocks take an edge in its graph closure. The answer is
+   * kept for the instance map in play, and later edges follow it. The runner's own loads (`runner`)
+   * never ask the mocks, as the module itself is never mocked.
+   *
+   * A claimed file Node loads (`native`) is also loaded here, the first time, so that a native load
+   * Node can't parse turns it into a user module before the edge takes its route
+   * (`demoteOnParseFailure`); a file that became one since it was resolved goes that way too.
    */
   #maybeInline(target: Found, runner = false): Found {
     if (target.kind !== 'external') return target
+    const path = target.path
+    if (this.#inlines(path, runner) || this.#loadClaimedNatively(target)) {
+      return { kind: 'user', id: toModuleId(path) }
+    }
+    return target
+  }
+
+  /**
+   * Whether a claimed external is a user module for this edge: it became one after its native load
+   * failed to parse, or its first native load, made now, fails to parse. Nothing without claims.
+   */
+  #loadClaimedNatively(target: Extract<Found, { readonly kind: 'external' }>): boolean {
+    const claims = this.#state.claims
+    if (claims === null) return false
+    const load = claimedLoad(claims, target.path)
+    if (load !== 'untried') return load === 'user'
+    try {
+      this.#requireExternal(target)
+    } catch (error) {
+      if (demoteOnParseFailure(claims, target.path, error)) return true
+      throw error
+    }
+    return false
+  }
+
+  /** Whether the external at `path` is inlined for the instance map in play (`#maybeInline`). */
+  #inlines(path: string, runner: boolean): boolean {
     const state = this.#state
     const policy = state.options.policy
-    const path = target.path
     // Externals evaluated per file (D127): one is, or its closure reaches one.
     const perFile =
       policy.reevaluateHookingExternals &&
       !this.#sharedAcrossFiles &&
       state.reevaluate.active.size > 0
     const served = state.options.moduleScope?.modules ?? NO_MODULES
+    const claims = state.claims
     const mocks = runner || !policy.mocksReachShared ? null : this.context.mocks
-    if (!perFile && served.length === 0 && mocks === null) return target
+    if (!perFile && served.length === 0 && claims === null && mocks === null) return false
     const map = this.#instances
     let memory = this.#memory.get(map)
     if (memory === undefined) {
@@ -583,13 +618,18 @@ export class Registry {
       if (!path.endsWith('.node')) {
         const userEdges = (user: string) => userEdgesOf(state, user)
         if (
-          perFile &&
-          reevaluatedReach(state.inline, state.options, path, state.reevaluate, userEdges)
-        ) {
-          inlined = 'kept'
-        } else if (
-          served.length > 0 &&
-          servedReach(state.inline, state.options, path, served, userEdges)
+          (perFile &&
+            reevaluatedReach(state.inline, state.options, path, state.reevaluate, userEdges)) ||
+          (served.length > 0 &&
+            servedReach(state.inline, state.options, path, served, userEdges)) ||
+          (claims !== null &&
+            claimedReach(
+              state.inline,
+              state.options,
+              path,
+              (file) => isClaimedUserModule(claims, file),
+              userEdges,
+            ))
         ) {
           inlined = 'kept'
         } else if (mocks?.active()) {
@@ -602,7 +642,7 @@ export class Registry {
       }
       memory.set(path, inlined)
     }
-    return inlined === false ? target : { kind: 'user', id: toModuleId(path) }
+    return inlined !== false
   }
 
   /** The record of a module an edge inlined, linked now: nothing linked it ahead. */
@@ -624,15 +664,22 @@ export class Registry {
       state.required.set(key, value)
       return value
     }
-    // The external's first native load in this worker: a window the worker may watch (D127).
-    const load = (): unknown => createRequire(target.path)(key)
+    // The external's first native load in this worker: a window the worker may watch (D127). One
+    // that throws on an ES module the transforms leave out is the dialect's `require-esm` error.
+    const load = (): unknown => {
+      try {
+        return createRequire(target.path)(key)
+      } catch (error) {
+        throw requireEsmError(state.options, state.edgeKinds, target.path, error) ?? error
+      }
+    }
     const value: unknown =
       state.options.policy.reevaluateHookingExternals && !this.#sharedAcrossFiles
         ? watchedLoad(
             state.reevaluate,
             target.path,
             load,
-            (file) => isEvaluableExternal(file, state.options.inline ?? []),
+            (file) => isEvaluableExternal(file, state.inlineRules),
             (file) => packageClosure(state.inline, state.options, file),
           )
         : load()

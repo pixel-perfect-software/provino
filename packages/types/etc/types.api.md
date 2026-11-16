@@ -1734,6 +1734,7 @@ export interface LoaderOptions {
     // (undocumented)
     readonly root: string;
     readonly shouldInstrument?: (path: string) => boolean;
+    readonly transformClaims?: TransformClaims;
     // (undocumented)
     readonly transformer: ModuleTransformer;
 }
@@ -2236,6 +2237,7 @@ export interface NeutralProject {
     readonly setupFilesAfterEnv: readonly string[];
     readonly snapshotResolver?: string;
     readonly snapshotSerializers: readonly string[];
+    readonly standInTransformPatterns?: readonly string[];
     readonly transformConfig?: Readonly<Record<string, JsonValue>>;
     readonly transformHoistedMarkers?: readonly string[];
     readonly transformIgnorePatterns: readonly string[];
@@ -3065,6 +3067,7 @@ export interface SerializedLoaderConfig {
     readonly scopeModules?: readonly string[];
     readonly skipNodeResolution?: boolean;
     readonly transform?: SerializedTransformConfig;
+    readonly transformClaims?: TransformClaims;
     readonly tsconfig: "auto" | false | string;
     readonly typescript: "oxc" | "blank" | "node-strip" | "off";
 }
@@ -3626,6 +3629,12 @@ export interface TraceEntry {
     // (undocumented)
     readonly outcome?: "ok" | "error";
     readonly owner: readonly string[];
+}
+
+// @public
+export interface TransformClaims {
+    readonly ignorePatterns: readonly string[];
+    readonly patterns: readonly string[];
 }
 
 // @public

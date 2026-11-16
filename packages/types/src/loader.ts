@@ -100,6 +100,22 @@ export interface LoaderWarning {
 }
 
 /**
+ * Which files a project's transforms take, as Jest's `ScriptTransformer.shouldTransform` and its
+ * first-matching rule decide: a path one of `patterns` matches and none of `ignorePatterns` does.
+ * Regular expressions' sources, so it crosses to a worker as data.
+ * @public
+ */
+export interface TransformClaims {
+  /**
+   * A path one matches is taken by a transform: the rules' patterns, and those of a transform the
+   * dialect left out because Provino's own pipeline stands in for it (Jest's default `babel-jest`).
+   */
+  readonly patterns: readonly string[]
+  /** A path one matches is not transformed (Jest's `transformIgnorePatterns`, joined with `|`). */
+  readonly ignorePatterns: readonly string[]
+}
+
+/**
  * Options for one worker's loader.
  * @public
  */
@@ -129,6 +145,17 @@ export interface LoaderOptions {
   readonly formatMapperMiss?: FormatMapperMiss
   /** Modules always loaded per file (Vitest `server.deps.inline`). */
   readonly inline?: readonly (string | RegExp)[]
+  /**
+   * The files the project's transforms take. A `node_modules` file they take (a rule's pattern
+   * matches its real path and no ignore pattern does) is transformed and evaluated per file, as
+   * Jest does, only when Node can't load it natively: its extension is not one Node runs as
+   * JavaScript (anything but `.js`, `.cjs`, `.mjs`, `.json`, `.node`, `.wasm` or none: `.ts`,
+   * `.tsx`, `.jsx`, and assets such as `.css`), it has ES module syntax in a CommonJS context
+   * (`.mjs`, a `.js` under a `"type": "module"` package, or `import`/`export` in its source), or
+   * its native load fails to parse (CommonJS with JSX, Flow or TypeScript syntax). Any other
+   * claimed file stays shared, loaded by Node. Absent: no `node_modules` file is.
+   */
+  readonly transformClaims?: TransformClaims
   /**
    * How many modules inlined for one mocked module before the loader warns (`PROVINO_INLINE_BUDGET`,
    * once per mocked id per worker); it still inlines. Default 400.

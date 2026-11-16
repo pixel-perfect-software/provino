@@ -165,3 +165,68 @@ test('a require of a served runner module gets the per-module value', async () =
   })
   assert.equal(registry.require<{ same: boolean }>(join(root, 'entry.test.cjs')).same, true)
 })
+
+// What a Babel preset with JSX and Flow does for a React Native package, in two rules: `<b />`
+// becomes `'b'`, and a `: number` or `: string` annotation goes. Each call is recorded.
+const REACT_NATIVE_ISH = `
+const calls = (globalThis.__strippedCalls ??= [])
+module.exports = {
+  createTransformer: () => ({
+    process: (source, path) => {
+      calls.push(path)
+      return { code: source.replace(/<(\\w+) \\/>/g, "'$1'").replace(/: (?:number|string)\\b/g, '') }
+    },
+  }),
+}
+`
+
+test('a claimed CommonJS node_modules file Node cannot parse (JSX, Flow) is transformed by the rule that takes it, per file', async () => {
+  const root = writeTree({
+    'strip.cjs': REACT_NATIVE_ISH,
+    'node_modules/rn-like/package.json': JSON.stringify({ name: 'rn-like', main: 'index.js' }),
+    'node_modules/rn-like/index.js':
+      "'use strict'\nconst { half } = require('./half')\nconst h = (tag) => ({ tag })\nmodule.exports = { el: <b />, half, token: {} }\n",
+    // Its own edge, reached through the registry, falls back the same way.
+    'node_modules/rn-like/half.js':
+      '// @flow\nfunction half(x: number): number {\n  return x / 2\n}\nexports.half = half\n',
+    'node_modules/rn-plain/package.json': JSON.stringify({ name: 'rn-plain', main: 'index.js' }),
+    'node_modules/rn-plain/index.js': 'exports.token = {}\n',
+    'entry.test.ts':
+      "import { el, half, token } from 'rn-like'\nimport { token as plain } from 'rn-plain'\nexport const values = { el, two: half(4), token, plain }\n",
+  })
+  const rule = {
+    pattern: '\\.js$',
+    transformer: { module: join(root, 'strip.cjs'), export: 'default' },
+    options: {},
+  }
+  const loader = await createProjectLoader(
+    root,
+    config(
+      root,
+      { rules: [rule], ignorePatterns: [] },
+      { transformClaims: { patterns: ['\\.js$'], ignorePatterns: [] } },
+    ),
+    { ...neutralPolicy.module, interopDefault: 'babel' },
+  )
+  type Values = { readonly el: string; two: number; token: object; plain: object }
+  const run = async (): Promise<Values> => {
+    const registry = loader.createFileRegistry(join(root, 'entry.test.ts'), { tier: 'registry' })
+    return (await registry.import<{ values: Values }>(join(root, 'entry.test.ts'))).values
+  }
+  const first = await run()
+  const second = await run()
+  assert.equal(first.el, 'b', 'the JSX, through the rule')
+  assert.equal(first.two, 2, 'the Flow annotations, through the rule')
+  assert.notEqual(first.token, second.token, 'evaluated per file, as Jest does')
+  assert.equal(
+    first.plain,
+    second.plain,
+    'a claimed CommonJS file Node parses stays on the native path',
+  )
+  const calls = Reflect.get(globalThis, '__strippedCalls') as string[]
+  assert.deepEqual(
+    calls.filter((path) => path.startsWith(root)).toSorted(),
+    [join(root, 'node_modules/rn-like/half.js'), join(root, 'node_modules/rn-like/index.js')],
+    'each transformed once per worker; the native one never',
+  )
+})

@@ -218,6 +218,17 @@ test('jestEsm gives the transformer its config; without it the transform is the 
   })
 })
 
+test('jestTransformJs widens the transform to .js, .cjs and .mjs files, and nothing else', () => {
+  const on = jestConfig('/work/x', '/t.ts', '/s.ts', { jestTransformJs: true, jestEsm: true })
+  assert.deepEqual(on.transform, { '\\.[cm]?[jt]s$': ['/t.ts', { jestEsm: true }] })
+  const [pattern] = Object.keys(on.transform)
+  const claims = new RegExp(pattern ?? '')
+  for (const file of ['a.ts', 'a.mts', 'a.cts', 'a.js', 'a.mjs', 'a.cjs']) {
+    assert.ok(claims.test(file), file)
+  }
+  for (const file of ['a.json', 'a.jsx', 'a.tsx', 'a.css']) assert.ok(!claims.test(file), file)
+})
+
 test("jestTypeScript 'babel' is babel-jest with preset-typescript, no stripping first (D123)", () => {
   const plain = jestConfig('/work/x', '/t.ts', '/s.ts', { jestTypeScript: 'babel' })
   const esm = jestConfig('/work/x', '/t.ts', '/s.ts', { jestTypeScript: 'babel', jestEsm: true })

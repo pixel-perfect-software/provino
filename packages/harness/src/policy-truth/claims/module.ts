@@ -205,6 +205,11 @@ export const moduleClaims: Claims = {
       matches: (g, value) => templateIn(value, observedMessage(g, 'load after dontMock')),
     }),
   ],
+  // An ES module package `transformIgnorePatterns` keep from the transform: the crash's cause is
+  // the whole text (`provino`'s `transform-node-modules.test.ts` holds the run to it).
+  'module.messages.require-esm': golden('cli/transform-node-modules-ignored', {
+    matches: (g, value) => templateIn(value, fileErrorOf(g)),
+  }),
   // Jest's error for a `moduleNameMapper` rule that matched and resolved to nothing, for a single
   // target and for a list (`resolve/mapper-miss`): the ref names the formatter, and its tests hold
   // the text to the recorded one. Vitest has no name mapper.

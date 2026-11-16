@@ -170,6 +170,7 @@ export type {
   TierChoice,
   TierSource,
   TierSources,
+  TransformClaims,
 } from './loader.ts'
 export type { NativeStatus, NativeTriple, NativeUnavailableReason } from './native.ts'
 export type {
