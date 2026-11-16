@@ -606,7 +606,8 @@ export class Registry {
     const state = this.#state
     const policy = state.options.policy
     const claims = state.claims
-    // Externals evaluated per file (D127, D132): a seed, what reaches a member, what only they import.
+    // Externals evaluated per file (D127, D132): a seed, what reaches a member, what only they
+    // import.
     const seeded =
       this.#reevaluates &&
       (state.reevaluate.active.size > 0 || (claims !== null && claims.users.length > 0))

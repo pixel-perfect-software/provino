@@ -417,7 +417,7 @@ function indexClosure(
 /** What `evaluatedPerFile` reads besides the graph, built once per worker. */
 export interface InlinePerFileSources extends PerFileSources {
   readonly userEdges: UserEdges
-  /** Whether a file is inlined in every file for another reason (`servedReach`); `null` for none. */
+  /** Whether a file is inlined in every file for another reason (`servedReach`); `null`: none. */
   readonly elsewhere: ((path: string) => boolean) | null
 }
 

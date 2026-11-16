@@ -53,16 +53,16 @@ export interface PerFileGraph {
    * externals, and the user modules a closure went through that are only loaded per file.
    */
   readonly members: Set<string>
-  /** What joined the set once the running file had asked about an external: members from the next file. */
+  /** What joined once the running file had asked about an external: members from the next file. */
   readonly pending: Set<string>
   /**
    * The join's candidates: files a file of the set reaches downward that are not in it (and that
    * the loader could evaluate), each kept out so far by an importer outside the set.
    */
   readonly region: Set<string>
-  /** Files evaluated in every file for another reason (a served module, D132): never block a join. */
+  /** Files evaluated in every file for another reason (a served module): never block a join. */
   readonly elsewhere: Set<string>
-  /** By package name, the indexed files that scan as dynamic and could load that package natively. */
+  /** By package name, the indexed files that scan as dynamic and could load that package. */
   readonly dynamicByName: Map<string, string[]>
   /** Each dynamic file's bound (the package names it could load), for when it joins the set. */
   readonly dynamic: Map<string, ReadonlySet<string>>
@@ -393,7 +393,7 @@ export function settlePerFile(
   return refusals.length === 0 ? NO_REFUSALS : refusals
 }
 
-/** Makes what joined the set while the last file ran a member: called as a file's registry is created. */
+/** Makes what joined while the last file ran a member: called as a file's registry is created. */
 function promotePerFile(graph: PerFileGraph): void {
   graph.answered = false
   if (graph.pending.size === 0) return
