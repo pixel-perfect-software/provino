@@ -168,17 +168,65 @@ export interface SnapshotResolver {
 export type SnapshotResolverFactory = (exports: unknown, extension: string) => SnapshotResolver
 
 /**
- * What a snapshot context view is built over: the running file's snapshot state
+ * One snapshot assertion (`SnapshotViewSource.match`), made by the snapshot matchers or through a
+ * dialect's view.
+ * @public
+ */
+export interface SnapshotViewMatchOptions {
+  /** The test's full name, with the hint joined on. */
+  readonly testName: string
+  /**
+   * The test attempt that takes the snapshot (`SnapshotViewSource.currentTestId`), so a retry
+   * takes back what the attempt did; absent outside a test.
+   */
+  readonly testId?: string | undefined
+  readonly received: unknown
+  /** The snapshot's key; absent or `''`, the policy's key of the name and its count. */
+  readonly key?: string | undefined
+  readonly inlineSnapshot?: string | undefined
+  readonly isInline: boolean
+  /** The test is expected to fail: a mismatch keeps what is stored. */
+  readonly testFailing?: boolean | undefined
+  /**
+   * The call's stack, its first frame the call (the worker's stacks are source-mapped): where an
+   * inline snapshot that must be written goes. Called only then, synchronously within `match`.
+   */
+  readonly stack?: (() => string) | undefined
+}
+
+/**
+ * How an assertion made through a dialect's view went.
+ * @public
+ */
+export interface SnapshotViewMatchResult {
+  readonly pass: boolean
+  /** The 1-based count of this snapshot in its test name. */
+  readonly count: number
+  readonly key: string
+  /** The received value, serialized, without the extra line breaks; `''` on a pass. */
+  readonly actual: string
+  /** The stored snapshot, without the extra line breaks; `undefined` when there is none. */
+  readonly expected: string | undefined
+}
+
+/**
+ * What a snapshot view is built over: the running file's snapshot state
  * (`@provino/snapshot/runtime`'s `SnapshotState`), as far as a matcher outside Provino may reach
  * it. The four counts are the ones the file's report and the run's totals add up, so a write to
  * one is a snapshot written, matched, failed or updated.
  * @public
  */
-export interface SnapshotContextSource {
+export interface SnapshotViewSource {
+  /** Snapshots written in this file. */
   added: number
+  /** Snapshots that matched the stored ones. */
   matched: number
+  /** Snapshots that failed. */
   unmatched: number
+  /** Stored snapshots rewritten (`-u`). */
   updated: number
+  /** Whether diffs show every line. */
+  expand: boolean
   /** What may be written: `all` (`-u`), `new`, or `none` (CI). */
   readonly update: 'all' | 'new' | 'none'
   /**
@@ -186,6 +234,26 @@ export interface SnapshotContextSource {
    * set here is the number the next snapshot of that name follows.
    */
   readonly liveCounters: Map<string, number>
+  /** The file's snapshot file. */
+  readonly snapshotPath: string
+  /** The pretty-format options the state serializes with, one object for the file. */
+  readonly serializeFormat: Readonly<Record<string, unknown>>
+  /**
+   * The id of the test attempt running now, as the snapshot matchers' own state names it, or
+   * `undefined` outside a test. A view passes it to `match` and `fail`, so a snapshot taken
+   * through it belongs to the attempt, as one the snapshot matchers take does.
+   */
+  currentTestId(): string | undefined
+  /** Compares a value with its stored snapshot, and writes it when the update mode says to. */
+  match(options: SnapshotViewMatchOptions): SnapshotViewMatchResult
+  /** A snapshot that couldn't be taken: the count moves on and the key is checked. Returns the key. */
+  fail(testName: string, testId?: string, key?: string): string
+  /** Marks a test's stored snapshots as checked, so they are not reported obsolete. */
+  markCheckedForTest(testName: string): void
+  /** How many stored snapshots no test has checked yet. */
+  getUncheckedCount(): number
+  /** The keys of those snapshots. */
+  getUncheckedKeys(): string[]
 }
 
 /**
@@ -193,7 +261,7 @@ export interface SnapshotContextSource {
  * worker once per test file; the snapshot matchers still reach the state itself.
  * @public
  */
-export type SnapshotContextViewFactory = (state: SnapshotContextSource) => object
+export type SnapshotViewFactory = (state: SnapshotViewSource) => object
 
 /**
  * The `snapshot` slice, read by `@provino/snapshot` (Track 7).
@@ -289,11 +357,12 @@ export interface SnapshotPolicy {
    */
   readonly resolverFactory: Behaviour<SnapshotResolverFactory> | null
   /**
-   * The shape a matcher's `this.snapshotState` has, or `null` for the file's snapshot state itself.
-   * Jest: `@provino/dialect-jest/runtime` `jestSnapshotStateView`, jest-snapshot 30.5's
-   * `SnapshotState` fields that third-party matchers read and write (`_counters`, `_updateSnapshot`,
-   * the four counts; jest-image-snapshot). Vitest: `null` until T7.6 records what its matchers
-   * read. Provino's own key.
+   * The shape a matcher's `this.snapshotState` has, or `null` for the file's snapshot state
+   * itself. Jest: `@provino/dialect-jest/runtime` `jestSnapshotStateView`, the members of
+   * jest-snapshot 30.5's `SnapshotState` that a matcher outside Jest reads, writes and calls
+   * (`_counters`, `_updateSnapshot`, the four counts, `match`, `fail`, ...: jest-image-snapshot,
+   * and jest-snapshot's own matchers called from a custom one). Vitest: `null` until T7.6 records
+   * what its matchers read. Provino's own key.
    */
-  readonly contextView: Behaviour<SnapshotContextViewFactory> | null
+  readonly contextView: Behaviour<SnapshotViewFactory> | null
 }

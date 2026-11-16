@@ -16,7 +16,15 @@ import type { EnvironmentRequest, GlobalSetupFailure } from '@provino/types'
 import { defaultFixturesRoot } from '../../fixture.ts'
 import type { Golden } from '../../golden.ts'
 import { type Claims, each, golden, own, pending } from '../evidence.ts'
-import { capturedFile, observation, observedOf, oneOf, statusOf, titlesOf } from '../observe.ts'
+import {
+  capturedFile,
+  observation,
+  observedOf,
+  oneOf,
+  refTo,
+  statusOf,
+  titlesOf,
+} from '../observe.ts'
 
 const exitCode = (g: Golden): unknown => observedOf(g).exitCode
 /** The one test whose title starts with `prefix`, read for what follows it. */
@@ -66,13 +74,9 @@ const lists = (g: Golden, files: readonly string[]): boolean =>
  * one they read apart (a commented `require` and a `jest.requireActual`; a `...require(`).
  */
 const extractorMatches = (g: Golden, value: unknown): boolean => {
-  const ref = value as { readonly module?: unknown; readonly export?: unknown } | null
   let extract: (code: string) => readonly string[]
   if (value === null) extract = (code) => scanSource(code).edges.map((edge) => edge.specifier)
-  else if (
-    ref?.module === import.meta.resolve('@provino/dialect-jest/affected') &&
-    ref.export === 'jestDependencyExtractor'
-  ) {
+  else if (refTo('@provino/dialect-jest/affected', 'jestDependencyExtractor')(value)) {
     const extractor = jestDependencyExtractor()
     extract = (code) => [...extractor.extract(code, '', () => new Set<string>())]
   } else return false
@@ -235,8 +239,8 @@ const THROWN_BY_FIXTURE: Readonly<Record<string, () => unknown>> = {
 
 /** The behaviours a `globalSetup.failure` ref can name, by the module it is in. */
 const FAILURES: readonly { readonly module: string; readonly fn: GlobalSetupFailure }[] = [
-  { module: import.meta.resolve('@provino/dialect-jest/global-setup'), fn: jestGlobalSetupFailure },
-  { module: import.meta.resolve('@provino/policy/behaviours'), fn: neutralGlobalSetupFailure },
+  { module: '@provino/dialect-jest/global-setup', fn: jestGlobalSetupFailure },
+  { module: '@provino/policy/behaviours', fn: neutralGlobalSetupFailure },
 ]
 
 /**
@@ -245,10 +249,7 @@ const FAILURES: readonly { readonly module: string; readonly fn: GlobalSetupFail
  * golden's whole stderr, which `keepLines` cut to the lines that are no stack frame.
  */
 const failureMatches = (g: Golden, value: unknown): boolean => {
-  const ref = value as { readonly module?: unknown; readonly export?: unknown } | null
-  const failure = FAILURES.find(
-    (known) => known.module === ref?.module && ref?.export === 'globalSetupFailure',
-  )
+  const failure = FAILURES.find((known) => refTo(known.module, 'globalSetupFailure')(value))
   const thrown = THROWN_BY_FIXTURE[g.suite]
   if (thrown === undefined) throw new Error(`no setup is known for ${g.suite}`)
   if (failure === undefined) return false

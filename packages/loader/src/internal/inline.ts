@@ -9,6 +9,7 @@
 // it as they were written, with the specifier as written and the resolved id. It has no side effect
 // that matters here: `decide` remembers a specifier for an id and, under automock-all, a deep
 // unmock's imports, each of which the real edge would do on its own a moment later.
+import { readFileSync } from 'node:fs'
 import type { LoaderOptions, LoaderWarning, ModuleId, ModuleMockRegistry } from '@provino/types'
 import { conditionsOf } from '../graph/conditions.ts'
 import {
@@ -19,7 +20,12 @@ import {
   scanSource,
   type ThirdPartyGraph,
 } from '../graph/index.ts'
-import type { ReevaluateState } from './reevaluate.ts'
+import {
+  indexFile,
+  type PerFileSources,
+  type ReevaluateState,
+  settlePerFile,
+} from './reevaluate.ts'
 import { readSource } from './source.ts'
 
 /** The default for `LoaderOptions.inlineBudget`. */
@@ -51,6 +57,8 @@ export interface InlineState {
    * `user`.
    */
   readonly claimed: Map<string, boolean>
+  /** Per package directory, the package names a file of it that scans as dynamic could load (D132). */
+  readonly declared: Map<string, ReadonlySet<string>>
 }
 
 export function createInlineState(): InlineState {
@@ -60,6 +68,7 @@ export function createInlineState(): InlineState {
     verdicts: new WeakMap(),
     served: new Map(),
     claimed: new Map(),
+    declared: new Map(),
   }
 }
 
@@ -108,6 +117,13 @@ export function saveGraph(state: InlineState): void {
  */
 export type UserEdges = (path: string) => readonly GraphEdge[] | null
 
+const NO_EDGES: readonly GraphEdge[] = []
+
+/** Whether an edge's resolved target is a file: not a builtin (`node:`), and resolved. */
+function isFileTarget(target: string | null): target is string {
+  return target !== null && !target.startsWith('node:')
+}
+
 function verdictsOf(state: InlineState, mocks: ModuleMockRegistry): Verdicts {
   const generation = mocks.generation()
   let verdicts = state.verdicts.get(mocks)
@@ -153,9 +169,7 @@ function walkClosure(
         found = takes(edge, importer)
         if (found !== null) break
         // An edge out of node_modules that `takes` passes is a user module the loader can read.
-        if (edge.target !== null && !edge.target.startsWith('node:') && !inGraph(edge.target)) {
-          stack.push(edge.target)
-        }
+        if (isFileTarget(edge.target) && !inGraph(edge.target)) stack.push(edge.target)
       }
     } else {
       const edges = userEdges(current)
@@ -166,7 +180,7 @@ function walkClosure(
       for (const edge of edges) {
         found = takes(edge, current)
         if (found !== null) break
-        if (edge.target !== null && !edge.target.startsWith('node:')) stack.push(edge.target)
+        if (isFileTarget(edge.target)) stack.push(edge.target)
       }
     }
   }
@@ -318,22 +332,129 @@ function reachesTarget(
   )
 }
 
+/** The distinct targets of `edges` that are files (no builtin, nothing unresolved). */
+function fileTargets(edges: readonly GraphEdge[]): readonly string[] {
+  const targets: string[] = []
+  for (const { target } of edges) {
+    if (isFileTarget(target) && !targets.includes(target)) targets.push(target)
+  }
+  return targets
+}
+
 /**
- * Whether `path` is an external evaluated per file (`active`, D127), or its static closure reaches
- * one. Loaded natively, such an external would `require` Node's one cached copy of what it
- * reaches, while the file's own code and inlined externals get the file's copy: two instances of
- * a singleton (`react` under a component library, an "Invalid hook call"). So it is inlined too.
- * The verdict is kept in `reach` until `active` grows (`activate` clears it).
+ * The package names a file that scans as dynamic could load natively: its own package's, and the
+ * ones its `package.json` declares (`dependencies`, `optionalDependencies`, `peerDependencies`).
+ * A computed `require(name)` resolves from the file's own directory, and a strict layout (pnpm's)
+ * finds only these there; a hoisted one finds more, but a package that loads one it does not
+ * declare is broken under pnpm already. The package directories its static closure reaches would be
+ * no bound at all: a computed `require` is how a package loads what it does not import statically.
+ * Kept per package directory; `null` outside one (a user module, which the registry loads anyway).
  */
-export function reevaluatedReach(
+function dynamicBound(state: InlineState, path: string): ReadonlySet<string> | null {
+  const dir = packageDirOf(path)
+  if (dir === null) return null
+  const known = state.declared.get(dir)
+  if (known !== undefined) return known
+  const names = new Set<string>([dir.slice(dir.lastIndexOf('/node_modules/') + 14)])
+  try {
+    const manifest: unknown = JSON.parse(readFileSync(`${dir}/package.json`, 'utf8'))
+    if (typeof manifest === 'object' && manifest !== null) {
+      for (const key of ['dependencies', 'optionalDependencies', 'peerDependencies']) {
+        const declared: unknown = Reflect.get(manifest, key)
+        if (typeof declared === 'object' && declared !== null) {
+          for (const name of Object.keys(declared)) names.add(name)
+        }
+      }
+    }
+  } catch {
+    // No readable manifest: the package's own files are the bound.
+  }
+  state.declared.set(dir, names)
+  return names
+}
+
+/**
+ * Puts the edges of `path`'s static closure into the per-file graph (each file once per worker),
+ * through the node_modules files the graph holds and the user modules an edge leads to
+ * (`userEdges`). A file's own edges are read from its graph node, not from the closure's
+ * deduplicated list, which names only the first importer of each request. `elsewhere` says which
+ * files are evaluated per file for another reason (a served module), `null` when none can be.
+ */
+function indexClosure(
+  state: InlineState,
+  options: LoaderOptions,
+  reevaluate: ReevaluateState,
+  sources: InlinePerFileSources,
+  path: string,
+): void {
+  const perFile = reevaluate.perFile
+  if (perFile.edges.has(path)) return
+  const graph = graphOf(state, options)
+  const { keep, userEdges, elsewhere } = sources
+  const stack = [path]
+  while (stack.length > 0) {
+    const current = stack.pop()
+    if (current === undefined || perFile.edges.has(current)) continue
+    if (!inGraph(current)) {
+      const targets = fileTargets(userEdges(current) ?? NO_EDGES)
+      indexFile(perFile, current, targets, null, elsewhere?.(current) ?? false, keep)
+      for (const target of targets) if (!perFile.edges.has(target)) stack.push(target)
+      continue
+    }
+    graph.add(current)
+    for (const { path: member, node } of graph.reachable(current)) {
+      if (perFile.edges.has(member)) continue
+      const targets = fileTargets(node.edges)
+      const bound = node.dynamic ? dynamicBound(state, member) : null
+      indexFile(perFile, member, targets, bound, elsewhere?.(member) ?? false, keep)
+      for (const target of targets) {
+        if (!inGraph(target) && !perFile.edges.has(target)) stack.push(target)
+      }
+    }
+  }
+}
+
+/** What `evaluatedPerFile` reads besides the graph, built once per worker. */
+export interface InlinePerFileSources extends PerFileSources {
+  readonly userEdges: UserEdges
+  /** Whether a file is inlined in every file for another reason (`servedReach`); `null`: none. */
+  readonly elsewhere: ((path: string) => boolean) | null
+}
+
+/**
+ * Whether the external at `path` is evaluated per file in the running file (D127, D129, D132): it
+ * is a seed (`active`, or a claimed user module), it imports a member through any chain of edges
+ * (so it shares the file's copy, never Node's cached one: a component library over a learned
+ * `react`, an "Invalid hook call"), or it is a dependency of members that only files evaluated per
+ * file import (a registry a per-file package writes into as it loads, which would otherwise keep
+ * the first file's entries). `settlePerFile` keeps the set; a join this file can't take yet
+ * (it asked about an external already) is the next file's. A join a dynamic file refused is
+ * reported once as `PROVINO_INLINE_DYNAMIC`. Once the graph is known, a question costs a lookup.
+ */
+export function evaluatedPerFile(
   state: InlineState,
   options: LoaderOptions,
   path: string,
-  { active, reach }: ReevaluateState,
-  userEdges: UserEdges,
+  reevaluate: ReevaluateState,
+  sources: InlinePerFileSources,
 ): boolean {
-  if (active.has(path)) return true
-  return reachesTarget(reach, state, options, path, (target) => active.has(target), userEdges)
+  const refusals = settlePerFile(
+    reevaluate,
+    sources,
+    (file) => indexClosure(state, options, reevaluate, sources, file),
+    path,
+  )
+  for (const { target, dynamic } of refusals) {
+    const key = `per-file\0${target}`
+    if (state.warned.has(key)) continue
+    state.warned.add(key)
+    warn(options, {
+      code: 'PROVINO_INLINE_DYNAMIC',
+      level: 'debug',
+      message: `${dynamic} has a require the graph can't follow, and could load ${target} with it, so ${target} stays shared: evaluated per file, it would be a second copy beside the one ${dynamic} loads natively.`,
+    })
+  }
+  return reevaluate.perFile.members.has(path)
 }
 
 /**

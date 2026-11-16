@@ -10,7 +10,13 @@ import { readFile } from 'node:fs/promises'
 import path from 'node:path'
 import { after, before, describe, test } from 'node:test'
 import { isDeepStrictEqual } from 'node:util'
-import type { HoistPolicy } from '@provino/types'
+import {
+  type JestSnapshotMatchOptions,
+  type JestSnapshotStateView,
+  jestSnapshotStateView,
+} from '@provino/dialect-jest/runtime'
+import { isModuleRef } from '@provino/policy'
+import type { HoistPolicy, SnapshotViewSource } from '@provino/types'
 import {
   checkedOnNode,
   defaultFixturesRoot,
@@ -18,10 +24,11 @@ import {
   type FixtureRunner,
   findFixtures,
 } from '../fixture.ts'
-import { readGolden } from '../golden.ts'
+import { type Golden, readGolden } from '../golden.ts'
 import { FLIPS, type Flip } from '../hoist-corpus/flips.ts'
 import { isNodeModules, walkFiles } from '../internal/walk.ts'
 import { CLAIMS } from './claims/index.ts'
+import { jestSnapshotRunsOn } from './claims/snapshot.ts'
 import {
   captureStrayErrors,
   corpusProblems,
@@ -29,7 +36,15 @@ import {
   type RunCorpus,
   type StrayErrors,
 } from './corpora.ts'
-import { type CorpusEvidence, corpus, type Evidence, evidenceFor, inert, own } from './evidence.ts'
+import {
+  type CorpusEvidence,
+  corpus,
+  type Evidence,
+  evidenceFor,
+  golden,
+  inert,
+  own,
+} from './evidence.ts'
 import { DOMAINS, flipsOf } from './flip.ts'
 import { coveringKey, policyLeaves, withLeaf } from './leaves.ts'
 import { observation, observations } from './observe.ts'
@@ -493,6 +508,81 @@ describe('the checks catch a wrong value', () => {
       (await check(corpus('runtime', fixture), leaf, leaf, value, flips, jest, jestLeaves)).size
     assert.equal(await rejects('runtime/hook-order'), 0)
     assert.equal(await rejects('runtime/each-tokens'), 1)
+  })
+
+  test('a contextView claim must pin the ref and use the view, or a flip gets through', async () => {
+    // The flips are the neutral `null` and two refs that name no view (`flip.ts`). A claim that
+    // checks only the export lets the other module through; one that checks only that the value
+    // is a ref, or never builds the view, lets `null` or a wrong ref through. The real claim, which
+    // builds `this.snapshotState` under the value, rejects all three.
+    const leaf = 'snapshot.contextView'
+    const value = jestLeaves.get(leaf)
+    const flips = flipsOf(leaf, value)
+    assert.equal(flips.length, 3)
+    const fixture = 'ecosystem/custom-snapshot-add'
+    const rejected = async (matches: (g: Golden, v: unknown) => boolean): Promise<number> =>
+      (await check(golden(fixture, { matches }), leaf, leaf, value, flips, jest, jestLeaves)).size
+    const exportOnly = (_: Golden, v: unknown) =>
+      isModuleRef(v) && v.export === 'jestSnapshotStateView'
+    const anyRefOrNull = (_: Golden, v: unknown) => v === null || isModuleRef(v)
+    assert.ok((await rejected(exportOnly)) < flips.length, 'the export alone')
+    assert.ok((await rejected(anyRefOrNull)) < flips.length, 'no ref check at all')
+    const real = evidenceOf(leaf, 'jest').find(
+      (piece) => piece.kind === 'golden' && piece.fixture === fixture,
+    )
+    assert.ok(real !== undefined)
+    assert.equal((await check(real, leaf, leaf, value, flips, jest, jestLeaves)).size, flips.length)
+  })
+
+  test('the custom-snapshot claim fails a view that maps an argument or a result wrongly', () => {
+    // The real view passes; each planted view is the real one with one mapping wrong, and the
+    // claim (`jestSnapshotRunsOn`, which every `custom-snapshot-*` piece calls) must refuse it.
+    assert.equal(jestSnapshotRunsOn(jestSnapshotStateView), true)
+    const over =
+      (wrap: (view: JestSnapshotStateView, source: SnapshotViewSource) => object) =>
+      (source: SnapshotViewSource): object =>
+        wrap(jestSnapshotStateView(source), source)
+    const planted: Readonly<Record<string, (source: SnapshotViewSource) => object>> = {
+      'the attempt left out (H1)': (source) =>
+        jestSnapshotStateView({ ...source, currentTestId: () => undefined }),
+      'actual and expected swapped': over((view) => ({
+        ...view,
+        match: (o: JestSnapshotMatchOptions) => {
+          const r = view.match(o)
+          return { ...r, actual: r.expected ?? '', expected: r.actual }
+        },
+      })),
+      'the key dropped': over((view) => ({
+        ...view,
+        match: (o: JestSnapshotMatchOptions) => view.match({ ...o, key: undefined }),
+      })),
+      'the received value replaced': over((view) => ({
+        ...view,
+        match: (o: JestSnapshotMatchOptions) => view.match({ ...o, received: String(o.received) }),
+      })),
+      'isInline turned off': over((view) => ({
+        ...view,
+        match: (o: JestSnapshotMatchOptions) => view.match({ ...o, isInline: false }),
+      })),
+      'the test name for the key': over((view) => ({
+        ...view,
+        match: (o: JestSnapshotMatchOptions) => view.match({ ...o, testName: o.key ?? o.testName }),
+      })),
+      'fail returns its own key': over((view) => ({
+        ...view,
+        fail: (name: string, received: unknown, key?: string) => {
+          view.fail(name, received, key)
+          return key ?? name
+        },
+      })),
+      'fail drops the key': over((view) => ({
+        ...view,
+        fail: (name: string, received: unknown) => view.fail(name, received),
+      })),
+    }
+    for (const [what, build] of Object.entries(planted)) {
+      assert.equal(jestSnapshotRunsOn(build), false, what)
+    }
   })
 
   test('an own claim fails when it names another value than the dialect`s', async () => {

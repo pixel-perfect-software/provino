@@ -4,8 +4,14 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { iterableEquality, subsetEquality } from '@jest/expect-utils'
-import { SnapshotError, SnapshotState, snapshotContextOf } from '@provino/snapshot/runtime'
-import type { ExpectStatic, SnapshotMessageInfo, SnapshotPrinter } from '@provino/types'
+import { neutralPolicy } from '@provino/policy'
+import { openFileSnapshots, SnapshotError, type SnapshotState } from '@provino/snapshot/runtime'
+import type {
+  ExpectStatic,
+  SnapshotMessageInfo,
+  SnapshotPrinter,
+  SnapshotViewFactory,
+} from '@provino/types'
 import { createEndOfTest } from './end-of-test.ts'
 import { createExpect, MatcherResultError } from './expect.ts'
 import { manualCurrentTest, testPolicy, testTable, testTask } from './internal/test-support.ts'
@@ -53,6 +59,8 @@ interface Options {
   hintJoin?: string
   /** The policy has an inline snapshot writer (B23d B1). */
   inlineWrites?: boolean
+  /** The policy's `snapshot.contextView`, loaded: what the matchers find as `this.snapshotState`. */
+  contextView?: SnapshotViewFactory
 }
 
 interface Setup {
@@ -60,6 +68,8 @@ interface Setup {
   readonly source: StateSource
   readonly dir: string
   readonly state: SnapshotState
+  /** What the matcher state holds as `snapshotState`: the state, or the view built over it. */
+  readonly matcherSnapshotState: object
   readonly snapPath: string
   /**
    * Runs `fn` as the test with this title path, then the end-of-test check the runtime runs: the
@@ -100,23 +110,28 @@ function setup(options: Options = {}): Setup {
   })
   const snapPath = join(dir, '__snapshots__', 'a.test.ts.snap')
   if (options.stored !== undefined) put(snapPath, options.stored)
-  const state = new SnapshotState({
+  // Opened as the worker opens a file's snapshots. The inline writer is a stand-in ref: the
+  // state only asks whether there is one.
+  const writer = { module: 'inline-writer', export: 'writer' }
+  const { state, matcherSnapshotState } = openFileSnapshots({
     testPath: join(dir, 'a.test.ts'),
-    snapshotPath: snapPath,
     update: options.update ?? 'new',
     expand: false,
     policy: {
+      ...neutralPolicy.snapshot,
       header: HEADER,
       keyJoin,
       hintJoin: options.hintJoin ?? ': ',
       throwErrorBody: options.throwErrorBody ?? 'message',
       format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null, extra: {} },
+      inline: { ...neutralPolicy.snapshot.inline, writer: options.inlineWrites ? writer : null },
     },
     key: (name, count) => `${name} ${count}`,
     printer,
-    inlineWrites: options.inlineWrites ?? false,
+    resolvePath: () => snapPath,
+    contextView: options.contextView ?? null,
   })
-  expect.setState({ snapshotState: state })
+  expect.setState({ snapshotState: matcherSnapshotState })
   function inRawTest<T>(titlePath: string[], fn: () => T, id = titlePath.join('/')): T {
     current.enter(testTask(id, titlePath))
     try {
@@ -130,6 +145,7 @@ function setup(options: Options = {}): Setup {
     source,
     dir,
     state,
+    matcherSnapshotState,
     snapPath,
     inRawTest,
     inTest(titlePath, fn, id = titlePath.join('/')) {
@@ -158,7 +174,11 @@ function setup(options: Options = {}): Setup {
 
 /** A matcher the types don't list, or called with arguments they don't allow, as user code does. */
 type Loose = Record<
-  'toMatchSnapshot' | 'toThrowErrorMatchingInlineSnapshot' | 'toMatchFileSnapshot',
+  | 'toMatchSnapshot'
+  | 'toThrowErrorMatchingInlineSnapshot'
+  | 'toMatchFileSnapshot'
+  | 'toMatchWrapped'
+  | 'toMatchTwiceWrapped',
   (...args: unknown[]) => unknown
 >
 const loose = (value: unknown): Loose => value as Loose
@@ -539,6 +559,54 @@ describe('inline snapshots', () => {
     assert.match(text.slice(edit?.column ?? 0), /^toMatchInlineSnapshot/)
   })
 
+  // Jest's rule (`removeLinesBeforeExternalMatcherTrap` below the innermost matcher call), recorded
+  // by `ecosystem/custom-snapshot-inline-nested`: a built-in called through `expect` in a custom
+  // matcher writes into the matcher's body, also two custom matchers down.
+  test('with a writer, one taken inside custom matchers is recorded at the call in the innermost body', () => {
+    const { expect, inTest, state } = setup({ inlineWrites: true })
+    const lines: Record<string, number> = {}
+    const passed = { pass: true, message: () => '' }
+    expect.extend({
+      toMatchWrapped(received: unknown) {
+        lines.wrapped = nextLine()
+        expect(received).toMatchInlineSnapshot()
+        return passed
+      },
+      toMatchTwiceWrapped(received: unknown) {
+        loose(expect(received)).toMatchWrapped()
+        return passed
+      },
+    })
+    inTest(['t'], () => loose(expect(1)).toMatchWrapped())
+    const outer = lines.wrapped
+    inTest(['u'], () => loose(expect(2)).toMatchTwiceWrapped())
+    assert.deepEqual(
+      state.finish().inline?.map(({ file, line }) => ({ file, line })),
+      [
+        { file: import.meta.filename, line: outer },
+        { file: import.meta.filename, line: lines.wrapped },
+      ],
+    )
+  })
+
+  test('the stack is taken only for a snapshot that is written', () => {
+    const { expect, inTest } = setup({ update: 'none' })
+    const capture = Error.captureStackTrace
+    let taken = 0
+    // The engine anchors its errors with it too; the stack for the writer is taken on a holder.
+    Error.captureStackTrace = (...args) => {
+      if (!(args[0] instanceof Error)) taken++
+      capture(...args)
+    }
+    try {
+      inTest(['t'], () => expect(1).toMatchInlineSnapshot('1'))
+      assert.throws(() => inTest(['t'], () => expect(2).toMatchInlineSnapshot('1')), /mismatch/)
+    } finally {
+      Error.captureStackTrace = capture
+    }
+    assert.equal(taken, 0, 'a match and a mismatch take no stack for the writer')
+  })
+
   test('a missing one under `none` fails as a snapshot that was not written, not as T7.11', () => {
     const { expect, inTest } = setup({ update: 'none' })
     assert.throws(
@@ -614,10 +682,9 @@ describe('expect.addSnapshotSerializer', () => {
 describe('a dialect`s view as this.snapshotState (B23e, D128)', () => {
   /** The setup with the matcher state holding a view over the file's state, as the worker puts it. */
   const viewed = () => {
-    const set = setup()
-    const view = snapshotContextOf(set.state, () => ({ shape: 'dialect' }))
-    set.expect.setState({ snapshotState: view })
-    return { ...set, view }
+    const set = setup({ contextView: () => ({ shape: 'dialect' }) })
+    assert.notEqual(set.matcherSnapshotState, set.state, 'the matchers are handed the view')
+    return { ...set, view: set.matcherSnapshotState }
   }
 
   test('the snapshot matchers work on the state the view was built over', () => {

@@ -209,7 +209,8 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
       try {
         potentialResult = internal
           ? callable.call(matcherContext, actual, ...args)
-          : // The frame name lets an inline snapshot find the custom matcher's call (Jest's trap).
+          : // The frame name lets an inline snapshot find the custom matcher's call (Jest's trap;
+            // `call-stack.ts` cuts at it and at `throwingMatcher`).
             (function __EXTERNAL_MATCHER_TRAP__() {
               return callable.call(matcherContext, actual, ...args)
             })()

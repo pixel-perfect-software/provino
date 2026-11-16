@@ -1,0 +1,23 @@
+{
+  "description": "`custom-snapshot-retry` on a first local run (`--ci=false`, nothing stored): each first attempt writes its snapshots through jest-snapshot 30.5.2's `this.snapshotState.match` and fails, and jest-circus's `snapshotState.clear(test)` takes the writes back with the counts, so the retry writes the same keys again and the .snap holds only them, each counted once in the totals (`added`). The same `setup.ts` and test file as `custom-snapshot-retry`. One file, one worker.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "setupFilesAfterEnv": ["<rootDir>/setup.ts"]
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false", "--testLocationInResults", "-w", "1"]
+    },
+    "capture": [
+      "exitCode",
+      "stderr",
+      "json:.harness-out/jest.json",
+      "file:__snapshots__/retried.test.ts.snap"
+    ],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Snapshot Summary|^ › |^ +● |^    [A-Z]|^    expect\\(|^    [-+] ",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
