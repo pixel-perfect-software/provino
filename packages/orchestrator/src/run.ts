@@ -413,6 +413,8 @@ interface FileRules {
   readonly collected: number
   /** The worker's runner failed the file after it ran (`FileDispatch.runnerFailed`). */
   readonly runnerFailed: boolean
+  /** An error was charged to the file after its `file-end` (`FileDispatch.failedAfterEnd`). */
+  readonly failedAfterEnd: boolean
   readonly todoOnlyFile: 'pass' | 'skip'
   /** Whether a file that declares no test fails: `noTestsFile` with `passWithNoTests` applied. */
   readonly failsWithNoTests: boolean
@@ -1083,6 +1085,7 @@ export async function runProjectsOn(
         ended: dispatch.todo,
         collected: dispatch.tests,
         runnerFailed: dispatch.runnerFailed,
+        failedAfterEnd: dispatch.failedAfterEnd,
         todoOnlyFile: member.project.policy.orchestrator.todoOnlyFile,
         failsWithNoTests: failsWithNoTests(
           member.project.policy.orchestrator,
@@ -1674,7 +1677,10 @@ function leakedResult(reported: FileResult): FileResult {
   }
 }
 
-/** How a file's pool outcome becomes its result; `end` is the `file-end` result its events carried, if any. */
+/**
+ * How a file's pool outcome becomes its result; `end` is the result the file's `file-end` carried
+ * (`FileDispatch.result`, as the worker sent it), if any.
+ */
 function resultOf(
   file: FileInfo,
   outcome: PoolOutcome,
@@ -1720,7 +1726,11 @@ function resultOf(
       // A file the worker's runner failed after it ran (its environment's teardown threw) is
       // failed whole, as Jest's `runTest` rejecting is: the error is the file's, whatever it
       // declared and however its tests ended.
-      const state = rules.runnerFailed ? 'fail' : stateOf(end.state, rules)
+      // A file that passed and had an error charged to it after its `file-end` fails too.
+      const state =
+        rules.runnerFailed || (rules.failedAfterEnd && end.state === 'pass')
+          ? 'fail'
+          : stateOf(end.state, rules)
       // A file that ended with no error and collected no test declared none, which Jest fails
       // ("Your test suite must contain at least one test."): collected is what counts, so a file
       // whose tests are all skipped or todo is not this.
