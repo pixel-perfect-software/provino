@@ -146,12 +146,17 @@ describe('fail-owner', () => {
     const process = new EventEmitter()
     const result = await runScript(({ test }, _step, runtime) => {
       runtime.captureProcessErrors(process)
-      // Scheduled as the file loads: the timer runs in no test's or hook's context.
-      setTimeout(
-        () => process.emit('uncaughtException', new Error('module scope'), 'uncaughtException'),
-        5,
-      )
-      test('t', () => sleep(40))
+      const { promise: started, resolve: start } = Promise.withResolvers<void>()
+      const { promise: raised, resolve: raise } = Promise.withResolvers<void>()
+      // Registered as the file loads: the reaction runs in no test's or hook's context.
+      void started.then(() => {
+        process.emit('uncaughtException', new Error('module scope'), 'uncaughtException')
+        raise()
+      })
+      test('t', async () => {
+        start()
+        await raised
+      })
     }, owner)
     const [event, ...rest] = eventsOf(result.events, 'unhandled-error')
     assert.equal(rest.length, 0)
@@ -165,13 +170,23 @@ describe('fail-owner', () => {
     const process = new EventEmitter()
     const result = await runScript(({ test }, _step, runtime) => {
       runtime.captureProcessErrors(process)
-      setTimeout(() => {
-        process.emit('unhandledRejection', new Error('left'), Promise.resolve())
-        const handled = Promise.resolve()
-        process.emit('unhandledRejection', new Error('handled later'), handled)
-        setTimeout(() => process.emit('rejectionHandled', handled), 5)
-      }, 5)
-      test('t', () => sleep(40))
+      const { promise: started, resolve: start } = Promise.withResolvers<void>()
+      const { promise: raised, resolve: raise } = Promise.withResolvers<void>()
+      // Registered as the file loads: the reactions run in no test's or hook's context.
+      const handled = Promise.resolve()
+      void started
+        .then(() => {
+          process.emit('unhandledRejection', new Error('left'), Promise.resolve())
+          process.emit('unhandledRejection', new Error('handled later'), handled)
+        })
+        .then(() => {
+          process.emit('rejectionHandled', handled)
+          raise()
+        })
+      test('t', async () => {
+        start()
+        await raised
+      })
     }, owner)
     const charged = eventsOf(result.events, 'unhandled-error')
     assert.deepEqual(
