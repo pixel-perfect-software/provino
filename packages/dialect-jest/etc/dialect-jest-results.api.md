@@ -140,6 +140,7 @@ export interface FileEvents {
     readonly records: ReadonlyMap<TaskId, TestRecord>;
     // (undocumented)
     readonly result: FileResult;
+    readonly runnerFailed?: true;
     readonly startedAt: number;
     readonly testFilePath: string;
     readonly tree: readonly TaskNode[] | undefined;

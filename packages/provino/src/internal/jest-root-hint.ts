@@ -3,9 +3,9 @@
 // own, one line on stderr before the run says so and names `--projects`. Jest runs a root with no
 // config over its defaults, so a monorepo root finds every package's tests and runs each with the
 // defaults, which fails them in ways that look like Provino's; the line points at the way out.
-import { readdirSync, readFileSync } from 'node:fs'
+import { readdirSync } from 'node:fs'
 import { dirname, join, relative, sep } from 'node:path'
-import { JEST_CONFIG_CANDIDATES } from '@provino/dialect-jest/node'
+import { JEST_CONFIG_CANDIDATES, packageJsonKey } from '@provino/dialect-jest/node'
 import type { FileInfo, Reporter, RunInfo } from '@provino/types'
 
 /** The directories named in the line before it says "…". */
@@ -18,21 +18,7 @@ const CONFIG_FILES: ReadonlySet<string> = new Set(
 
 /** Whether `package.json` in `directory` has a `jest` key (an unreadable file has none). */
 function hasJestKey(directory: string): boolean {
-  try {
-    const parsed: unknown = JSON.parse(readFileSync(join(directory, 'package.json'), 'utf8'))
-    return typeof parsed === 'object' && parsed !== null && Boolean(Reflect.get(parsed, 'jest'))
-  } catch {
-    return false
-  }
-}
-
-/**
- * Whether a package.json found for the run holds no Jest config of its own: Jest's finder stops at
- * the first package.json it meets, with a `jest` key or not, and reads `{}` from one without.
- * @internal
- */
-export function packageJsonHasNoJestKey(path: string): boolean {
-  return !hasJestKey(dirname(path))
+  return Boolean(packageJsonKey(join(directory, 'package.json'), 'jest'))
 }
 
 /**

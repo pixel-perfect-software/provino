@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
 import { JestConfigError } from './errors.ts'
-import { findJestConfig, JEST_CONFIG_CANDIDATES } from './find.ts'
+import { findJestConfig, JEST_CONFIG_CANDIDATES, packageJsonKey } from './find.ts'
 import {
   loadOracle,
   type Oracle,
@@ -245,4 +245,17 @@ test('inline JSON (`--config {…}`) is an inline source', () => {
     path: '/x',
     text: '{"testTimeout":1}',
   })
+})
+
+test("`packageJsonKey` reads one key of a package.json, and nothing from one it can't read", () => {
+  const root = tree({
+    'package.json': '{ "name": "a", "jest": { "testTimeout": 1 }, "off": false }\n',
+    'broken/package.json': '{ not json',
+  })
+  const file = join(root, 'package.json')
+  assert.deepEqual(packageJsonKey(file, 'jest'), { testTimeout: 1 })
+  assert.equal(packageJsonKey(file, 'off'), false)
+  assert.equal(packageJsonKey(file, 'absent'), undefined)
+  assert.equal(packageJsonKey(join(root, 'broken', 'package.json'), 'jest'), undefined)
+  assert.equal(packageJsonKey(join(root, 'missing', 'package.json'), 'jest'), undefined)
 })

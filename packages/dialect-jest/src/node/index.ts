@@ -56,6 +56,7 @@ export {
   isJSONString,
   JEST_CONFIG_CANDIDATES,
   JEST_CONFIG_EXT_ORDER,
+  packageJsonKey,
   resolveJestConfigPath,
 } from './find.ts'
 export { jestRunGlobalHooks } from './global-hooks.ts'

@@ -28,6 +28,7 @@ import {
   jestNodeDialect,
   jestRunGlobalHooks,
   loadJestFilter,
+  packageJsonKey,
   processJestResults,
   readJestConfigs,
 } from '@provino/dialect-jest/node'
@@ -53,7 +54,7 @@ import type { CoverageReporter } from './coverage-reporter.ts'
 import { usageMessage } from './describe.ts'
 import { type ExecuteOptions, executeProject, timingsOf } from './execute.ts'
 import { setUpJestReporters } from './jest-reporters.ts'
-import { noRootConfigHintReporter, packageJsonHasNoJestKey } from './jest-root-hint.ts'
+import { noRootConfigHintReporter } from './jest-root-hint.ts'
 import {
   isScmCommandFailure,
   type JestSelection,
@@ -267,7 +268,7 @@ async function readProjects(
     noConfig =
       request.configPath === undefined &&
       (found === undefined ||
-        (found.kind === 'package-json' && packageJsonHasNoJestKey(found.path)))
+        (found.kind === 'package-json' && !packageJsonKey(found.path, 'jest')))
     const raw = await reader.load(source)
     resolved = await reader.resolve(raw, source)
   }
