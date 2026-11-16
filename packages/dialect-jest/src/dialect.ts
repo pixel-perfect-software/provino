@@ -233,6 +233,10 @@ export const jestPolicy: PolicyOverrides = {
     mockResolveKind: 'require',
     // Recorded, Jest 30.5.2: `mod-shared-dep` and `mod-shared-dep-root` (a mock reaches the packages that require it).
     mocksReachShared: true,
+    // Recorded, Jest 30.5.2: `ecosystem/rtl-cleanup` and `ecosystem/jest-canvas-mock` (jest-runtime
+    // evaluates node_modules again in every file's registry, so a package's import-time hooks and
+    // globals are the file's own; D127, P42).
+    reevaluateHookingExternals: true,
     // jest-source-map names a frame after the map's name at its own position (`cli/failure-frames`).
     stackFrameNames: 'mapped-name',
     // research: track-04 L314

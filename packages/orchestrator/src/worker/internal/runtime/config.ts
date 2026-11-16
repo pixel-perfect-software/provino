@@ -256,6 +256,9 @@ function loaderConfig(value: unknown): SerializedLoaderConfig {
     ...(loader.cacheDir === undefined
       ? {}
       : { cacheDir: absolutePath(loader.cacheDir, 'loader.cacheDir') }),
+    ...(loader.reevaluate === undefined
+      ? {}
+      : { reevaluate: absolutePaths(loader.reevaluate, 'loader.reevaluate') }),
   }
 }
 

@@ -3,10 +3,19 @@
 // a project supplies by ref: an environment that records its calls, a matcher table, and a globals
 // factory. They write to `globalThis.__trace`, which an inline worker shares with the test.
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { MATCHERS_SLOT } from '@provino/expect'
-import { createDepsTable } from '@provino/orchestrator'
+import {
+  createDepsTable,
+  createResultsCache,
+  defaultCacheDir,
+  projectCacheKey,
+  runProjects,
+} from '@provino/orchestrator'
 import { moduleRef } from '@provino/policy'
+import { createReporterBus } from '@provino/reporters'
 import type {
   FileJob,
   GlobalsFactory,
@@ -17,12 +26,15 @@ import type {
   WorkerEvent,
 } from '@provino/types'
 import {
+  Collect,
   eventsOf,
   fixture,
+  run,
   runJobs,
   runtimeConfig,
   runtimeJob,
   runtimePolicy,
+  runtimeProject,
   trackedProjects,
 } from './support.ts'
 
@@ -1355,5 +1367,106 @@ describe('isolation tiers', () => {
       ),
       trace.filter((step) => step.startsWith('b sees')).join(),
     )
+  })
+})
+
+describe('a shared external that reads a per-file global as it loads (D127, P42)', () => {
+  // `hooker` registers an `afterEach` as it loads and notes each evaluation in `loads.txt`.
+  const files = {
+    'node_modules/hooker/package.json': JSON.stringify({ name: 'hooker', main: 'index.js' }),
+    'node_modules/hooker/index.js': [
+      "const { appendFileSync } = require('node:fs')",
+      "appendFileSync(require('node:path').join(__dirname, 'loads.txt'), 'x')",
+      'afterEach(() => {})',
+      'module.exports = {}',
+    ].join('\n'),
+    'node_modules/plain/package.json': JSON.stringify({ name: 'plain', main: 'index.js' }),
+    'node_modules/plain/index.js': 'module.exports = {}',
+    'a.test.js': "require('hooker')\nrequire('plain')\ntest('a', () => {})",
+    'b.test.js': "require('hooker')\nrequire('plain')\ntest('b', () => {})",
+  }
+  const loads = async (dir: string): Promise<number> =>
+    (await readFile(join(dir, 'node_modules/hooker/loads.txt'), 'utf8')).length
+  const reevaluating = runtimePolicy({ module: { reevaluateHookingExternals: true } })
+
+  it('is evaluated again for the next file, and fileDone names what the worker learned', async () => {
+    const p = await project(files)
+    const config = runtimeConfig(p.dir, { policy: reevaluating })
+    const { done } = await runJobs({
+      config,
+      jobs: [runtimeJob(config, p.path('a.test.js')), runtimeJob(config, p.path('b.test.js'))],
+    })
+    assert.equal(await loads(p.dir), 2, 'once natively for a.test.js, once inlined for b.test.js')
+    assert.deepEqual(done[0]?.reevaluated, [p.path('node_modules/hooker/index.js')])
+    assert.equal(done[1]?.reevaluated, undefined, 'nothing new to tell')
+  })
+
+  it('under the neutral value, is evaluated once per worker and nothing is reported', async () => {
+    const p = await project(files)
+    const config = runtimeConfig(p.dir)
+    const { done } = await runJobs({
+      config,
+      jobs: [runtimeJob(config, p.path('a.test.js')), runtimeJob(config, p.path('b.test.js'))],
+    })
+    assert.equal(await loads(p.dir), 1)
+    assert.deepEqual(
+      done.map((entry) => entry.reevaluated),
+      [undefined, undefined],
+    )
+  })
+
+  it('is carried in the results cache: the next run inlines it from its first file', async () => {
+    const p = await project(files)
+    const cache = createResultsCache(defaultCacheDir(p.dir))
+    const target = runtimeProject(p.dir, {
+      policy: { module: { reevaluateHookingExternals: true } },
+    })
+    await run(target, { cache, pool: { kind: 'inline', maxWorkers: 1 } })
+    assert.equal(await loads(p.dir), 2)
+    const reread = createResultsCache(defaultCacheDir(p.dir))
+    assert.deepEqual(
+      [...reread.externals(projectCacheKey(target))],
+      [['node_modules/hooker/index.js', '']],
+      'with its package’s version (none here)',
+    )
+
+    // A new run, a new worker: its first file evaluates `hooker` through its registry. (An inline
+    // worker shares this process, so a native load would find Node's cached copy and add none.)
+    await run(target, { cache: reread, pool: { kind: 'inline', maxWorkers: 1 } })
+    assert.equal(await loads(p.dir), 4, 'both files of the second run evaluated it')
+  })
+
+  it('is read under the key it was written under, also for projects that share a cache key', async () => {
+    // `n` for a native load (Node's module has an id), `i` for one through a file's registry.
+    const p = await project({
+      ...files,
+      'node_modules/hooker/index.js': [
+        "const { appendFileSync } = require('node:fs')",
+        "appendFileSync(require('node:path').join(__dirname, 'loads.txt'), typeof module.id === 'string' ? 'n' : 'i')",
+        'afterEach(() => {})',
+        'module.exports = {}',
+      ].join('\n'),
+    })
+    // One name, root and globs (one cache key), told apart by their environment's options.
+    const projects = ['one', 'two'].map((tag) =>
+      runtimeProject(p.dir, {
+        policy: { module: { reevaluateHookingExternals: true } },
+        environmentOptions: { tag },
+      }),
+    )
+    const once = async (): Promise<void> => {
+      await runProjects(projects, {
+        bus: createReporterBus([]),
+        stderr: new Collect(),
+        pool: { kind: 'forks', maxWorkers: 1 },
+        cache: createResultsCache(defaultCacheDir(p.dir)),
+      })
+    }
+    const read = async (): Promise<string> =>
+      readFile(join(p.dir, 'node_modules/hooker/loads.txt'), 'utf8')
+    await once()
+    assert.equal(await read(), 'nini', 'each project’s worker learns it on its first file')
+    await once()
+    assert.equal((await read()).slice(4), 'iiii', 'the second run inlines it from each first file')
   })
 })

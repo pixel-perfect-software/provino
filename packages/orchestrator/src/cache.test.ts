@@ -84,6 +84,100 @@ describe('createResultsCache', () => {
     assert.deepEqual(third.get('p', 'new.test.ts'), history(7))
   })
 
+  it('keeps the externals each project learned (D127), merged with what another run wrote', async () => {
+    const dir = await scratch()
+    const first = createResultsCache(dir)
+    const second = createResultsCache(dir)
+    first.learnExternals('p', [['node_modules/a/index.js', '1.0.0']])
+    first.learnExternals('p', [
+      ['node_modules/a/index.js', '1.0.0'],
+      ['node_modules/a/dep.js', '1.0.0'],
+    ])
+    second.learnExternals('p', [['node_modules/b/index.js', '']])
+    second.learnExternals('q', [['node_modules/c/index.js', '2.0.0']])
+    assert.deepEqual(
+      [...first.externals('p').keys()],
+      ['node_modules/a/index.js', 'node_modules/a/dep.js'],
+    )
+    await first.write()
+    await second.write()
+    const merged = createResultsCache(dir)
+    assert.deepEqual(
+      [...merged.externals('p')],
+      [
+        ['node_modules/a/index.js', '1.0.0'],
+        ['node_modules/a/dep.js', '1.0.0'],
+        ['node_modules/b/index.js', ''],
+      ],
+    )
+    assert.deepEqual([...merged.externals('q')], [['node_modules/c/index.js', '2.0.0']])
+    assert.equal(merged.externals('none').size, 0)
+  })
+
+  it('forgets an external here and in the disk’s copy at write, and learning it again keeps it', async () => {
+    const dir = await scratch()
+    const writer = createResultsCache(dir)
+    writer.learnExternals('p', [
+      ['node_modules/a/index.js', '1.0.0'],
+      ['node_modules/b/index.js', '1.0.0'],
+    ])
+    await writer.write()
+    const reader = createResultsCache(dir)
+    reader.forgetExternals('p', ['node_modules/a/index.js', 'node_modules/b/index.js'])
+    reader.learnExternals('p', [['node_modules/b/index.js', '2.0.0']])
+    assert.deepEqual([...reader.externals('p')], [['node_modules/b/index.js', '2.0.0']])
+    await reader.write()
+    assert.deepEqual(
+      [...createResultsCache(dir).externals('p')],
+      [['node_modules/b/index.js', '2.0.0']],
+    )
+  })
+
+  it('drops the externals of a project key with no history when it writes (a project removed, or its globs changed)', async () => {
+    const dir = await scratch()
+    await mkdir(dir, { recursive: true })
+    await writeFile(
+      join(dir, 'results.json'),
+      JSON.stringify({
+        version: 3,
+        projects: { p: { 'a.test.js': history(5) }, emptied: { 'b.test.js': history(5) } },
+        externals: {
+          p: { 'node_modules/a/index.js': '1.0.0' },
+          gone: { 'node_modules/b/index.js': '1.0.0' },
+          emptied: { 'node_modules/c/index.js': '1.0.0' },
+        },
+      }),
+    )
+    const cache = createResultsCache(dir)
+    cache.prune('emptied', new Set())
+    cache.learnExternals('fresh', [['node_modules/d/index.js', '1.0.0']])
+    await cache.write()
+    const reread = createResultsCache(dir)
+    assert.deepEqual(
+      ['p', 'gone', 'emptied', 'fresh'].map((project) => [...reread.externals(project).keys()]),
+      [['node_modules/a/index.js'], [], [], ['node_modules/d/index.js']],
+      'kept for a project with history or one this run learned for, dropped for the others',
+    )
+  })
+
+  it('reads no externals from an entry that is not a record of versions', async () => {
+    const dir = await scratch()
+    await mkdir(dir, { recursive: true })
+    await writeFile(
+      join(dir, 'results.json'),
+      JSON.stringify({
+        version: 3,
+        projects: {},
+        externals: { p: 'x', q: ['old.js'], r: { 'ok.js': '1.0.0' }, s: { 'bad.js': 1 } },
+      }),
+    )
+    const cache = createResultsCache(dir)
+    assert.deepEqual(
+      ['p', 'q', 'r', 's'].map((project) => [...cache.externals(project)]),
+      [[], [], [['ok.js', '1.0.0']], []],
+    )
+  })
+
   it('keeps what a run that overlapped wrote: two caches opened from one file, each with its own entry', async () => {
     const dir = await scratch()
     const seed = createResultsCache(dir)

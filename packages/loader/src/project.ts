@@ -176,7 +176,9 @@ export async function buildProjectLoader(
       ? undefined
       : await loadCustomResolver(behaviours, config.resolver)
   // The lexer's WebAssembly build starts here, once per worker, where an `await` is free (B13d Gap 9).
-  if (policy.mocksReachShared) await initLexer()
+  // The node_modules graph is walked for a mock's reach and for a served module's (`servedReach`).
+  const walksGraph = policy.mocksReachShared || (config.scopeModules ?? []).length > 0
+  if (walksGraph) await initLexer()
   const pipeline = createPipeline({
     root,
     typescript: config.typescript,
@@ -203,8 +205,7 @@ export async function buildProjectLoader(
     root,
     engine: 'runner',
     graphCache: config.cacheDir ?? null,
-    lockfileHash:
-      policy.mocksReachShared && config.cacheDir !== undefined ? lockfileHash(root) : null,
+    lockfileHash: walksGraph && config.cacheDir !== undefined ? lockfileHash(root) : null,
     resolver,
     transformer: pipeline,
     policy,
@@ -226,5 +227,7 @@ export async function buildProjectLoader(
           },
         }),
   })
+  // What an earlier run learned to evaluate per file (D127), from the results cache.
+  if (config.reevaluate !== undefined) loader.reevaluateExternals(config.reevaluate)
   return { loader, pipeline, resolver }
 }

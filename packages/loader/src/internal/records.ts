@@ -19,6 +19,7 @@ import { conditionsOf } from '../graph/conditions.ts'
 import { type GraphEdge, inGraph } from '../graph/index.ts'
 import { createInlineState, type InlineState } from './inline.ts'
 import { loaderMessage } from './messages.ts'
+import { createReevaluateState, type ReevaluateState } from './reevaluate.ts'
 
 /**
  * Where a specifier leads. `missing` is a specifier that doesn't resolve, and `failed` a user module
@@ -111,6 +112,14 @@ export function toModuleId(path: string): ModuleId {
   return path as ModuleId
 }
 
+/**
+ * Whether a file is a node_modules file the loader could evaluate itself, as a module it inlines:
+ * third party, and no addon or WebAssembly.
+ */
+export function isEvaluableExternal(path: string, inline: readonly (string | RegExp)[]): boolean {
+  return !/\.(?:node|wasm)$/.test(path) && isThirdParty(path, inline)
+}
+
 function isThirdParty(path: string, inline: readonly (string | RegExp)[]): boolean {
   if (!inGraph(path)) return false
   return !inline.some((rule) =>
@@ -128,6 +137,8 @@ export interface Records {
   /** Natively required values of shared externals and builtins, by path or `node:` id. */
   readonly required: Map<string, unknown>
   readonly listeners: Set<(event: CompiledModuleEvent) => void>
+  /** The shared externals evaluated per file because their first load read a per-file global (D127). */
+  readonly reevaluate: ReevaluateState
   /** The scope names a module of each format can be given, in order. */
   readonly scopeNames: { readonly esm: readonly string[]; readonly cjs: readonly string[] }
   /** One word-scan pattern per scope name. */
@@ -163,6 +174,7 @@ export function createRecords(options: LoaderOptions): Records {
     externals: new Map(),
     required: new Map(),
     listeners: new Set(),
+    reevaluate: createReevaluateState(),
     scopeNames: { esm, cjs: dialect },
     scopePatterns,
     asyncGraphsStale: false,

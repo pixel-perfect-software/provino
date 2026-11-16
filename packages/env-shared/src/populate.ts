@@ -5,6 +5,7 @@
 // make the restore exact: descriptors are captured (as Vitest does for the keys it overrides)
 // for every key it touches, `window` and its three siblings included, and `restore` puts back
 // exactly those and deletes the rest.
+import type { GlobalReadWatch } from '@provino/types'
 import { KEYS } from './vendor/vitest/jsdom-keys.ts'
 
 const SKIP_KEYS: readonly string[] = ['window', 'self', 'top', 'parent']
@@ -34,7 +35,7 @@ export interface PopulateOptions {
  * What `populateGlobal` did, and the means to undo it.
  * @public
  */
-export interface Populated {
+export interface Populated extends GlobalReadWatch {
   /** Every key defined on the global, the four self-references included. */
   readonly keys: ReadonlySet<string>
   /** The descriptors the global held for a key before, by key. */
@@ -88,6 +89,29 @@ export function populateGlobal(
   const keys = new Set(windowKeys(target, source, options.additionalKeys ?? []))
   const originals = new Map<string | symbol, PropertyDescriptor>()
   const overrides = new Map<string | symbol, unknown>()
+  /**
+   * Each copied key's getter, as defined, in the order of `keys`. A list, not a map by key: this
+   * runs for every key of every file, and only `covers` (a worker that watches external loads)
+   * ever looks one up, so `gettersByKey` makes the map on that first call.
+   */
+  const defined: (() => unknown)[] = []
+  let getters: ReadonlyMap<string, () => unknown> | undefined
+  const gettersByKey = (): ReadonlyMap<string, () => unknown> => {
+    if (getters === undefined) {
+      const byKey = new Map<string, () => unknown>()
+      let at = 0
+      for (const key of keys) {
+        const get = defined[at++]
+        if (get === undefined) break
+        byKey.set(key, get)
+      }
+      getters = byKey
+    }
+    return getters
+  }
+  // `watch`'s listener. One check per access when nobody listens: the accessors exist anyway, so
+  // a watcher hears their reads without redefining a key (`GlobalReadWatch`).
+  let onRead: (() => void) | null = null
 
   const capture = (key: string): void => {
     if (!Object.hasOwn(target, key)) return
@@ -106,13 +130,17 @@ export function populateGlobal(
     // Vitest captures only a listed key that exists; every own key about to be redefined is the
     // same for those and exact for the rest.
     capture(key)
+    const get = (): unknown => {
+      if (onRead !== null) onRead()
+      if (overrides.has(key)) return overrides.get(key)
+      if (bound !== undefined) return bound
+      return source[key]
+    }
+    defined.push(get)
     Object.defineProperty(target, key, {
-      get() {
-        if (overrides.has(key)) return overrides.get(key)
-        if (bound !== undefined) return bound
-        return source[key]
-      },
+      get,
       set(value: unknown) {
+        if (onRead !== null) onRead()
         overrides.set(key, value)
         // Propagate to the window, which can change how its other APIs behave
         // (`innerWidth` and `matchMedia`).
@@ -150,6 +178,16 @@ export function populateGlobal(
   return {
     keys,
     originals,
+    covers(key, descriptor) {
+      const get = descriptor.get
+      return get !== undefined && gettersByKey().get(key) === get
+    },
+    watch(listener) {
+      onRead = listener
+      return () => {
+        if (onRead === listener) onRead = null
+      }
+    },
     restore() {
       for (const key of keys) delete target[key]
       for (const [key, descriptor] of originals) Object.defineProperty(target, key, descriptor)

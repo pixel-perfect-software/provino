@@ -319,6 +319,7 @@ export interface P {
 export interface p<G extends object = typeof globalThis> {
     readonly context?: Context;
     readonly global: G;
+    readonly globalReads?: GlobalReadWatch;
     onTestEvent?(event: LifecycleEvent): void | Promise<void>;
     teardown(): void | y | Promise<void | y>;
 }
@@ -335,6 +336,7 @@ export interface Q {
         readonly expected: string;
         readonly actual: string;
     };
+    readonly enumerableFields?: readonly ("name" | "message" | "stack")[];
     // (undocumented)
     readonly errors?: readonly Q[];
     // (undocumented)

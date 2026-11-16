@@ -777,6 +777,7 @@ export type EnvironmentHelper = <const N extends string>(config: N extends Built
 export interface EnvironmentInstance<G extends object = typeof globalThis> {
     readonly context?: Context;
     readonly global: G;
+    readonly globalReads?: GlobalReadWatch;
     onTestEvent?(event: LifecycleEvent): void | Promise<void>;
     teardown(): void | EnvironmentTeardownReport | Promise<void | EnvironmentTeardownReport>;
 }
@@ -976,6 +977,9 @@ export interface ExpectTable {
 }
 
 // @public
+export type ExternalLoadWatcher = (path: string) => (() => boolean) | null;
+
+// @public
 export interface FactoryReferenceRule {
     // (undocumented)
     readonly allowGlobals: ReadonlySet<string>;
@@ -1153,6 +1157,12 @@ export interface Frame {
     readonly repeat: number;
     // (undocumented)
     readonly test: TestTask | null;
+}
+
+// @public
+export interface GlobalReadWatch {
+    covers(key: string, descriptor: PropertyDescriptor): boolean;
+    watch(onRead: () => void): () => void;
 }
 
 // @public
@@ -1695,7 +1705,10 @@ export interface Loader extends Disposable {
     // (undocumented)
     getSourceMap(id: ModuleId): SourceMapV3 | null;
     onModuleCompiled(listener: (event: CompiledModuleEvent) => void): () => void;
+    reevaluateExternals(paths: readonly string[]): void;
+    takeLearnedExternals(): readonly string[];
     tierFor(testFile: string, sources: TierSources): TierChoice;
+    watchExternalLoads(watcher: ExternalLoadWatcher): () => void;
 }
 
 // @public
@@ -2071,6 +2084,7 @@ export interface ModulePolicy {
     readonly mockResolveKind: "require" | "import";
     readonly mocksReachShared: boolean;
     readonly mockValueOwner: "module-registry" | "registration";
+    readonly reevaluateHookingExternals: boolean;
     readonly requireVirtualFlag: boolean;
     readonly resetModulesBetween: boolean;
     readonly resetModulesClearsMocks: boolean;
@@ -3009,6 +3023,7 @@ export interface SerializedError {
         readonly expected: string;
         readonly actual: string;
     };
+    readonly enumerableFields?: readonly ("name" | "message" | "stack")[];
     // (undocumented)
     readonly errors?: readonly SerializedError[];
     // (undocumented)
@@ -3037,6 +3052,7 @@ export interface SerializedLoaderConfig {
     readonly moduleDirectories?: readonly string[];
     readonly modulePaths?: readonly string[];
     readonly moduleScope: readonly string[];
+    readonly reevaluate?: readonly string[];
     readonly resolver?: ModuleRef;
     readonly scopeMappable?: readonly string[];
     readonly scopeModules?: readonly string[];
@@ -3832,6 +3848,7 @@ export type WorkerToCoordinator = {
     readonly snapshot?: SnapshotFileReport;
     readonly leaks?: true;
     readonly heapUsedBytes?: number;
+    readonly reevaluated?: readonly string[];
 } | {
     readonly t: "stopped";
 } | RpcCall<CoordinatorMethods> | RpcReply<WorkerMethods>;

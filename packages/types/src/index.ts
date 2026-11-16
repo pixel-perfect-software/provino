@@ -90,6 +90,7 @@ export type {
   EnvironmentScope,
   EnvironmentSetupContext,
   EnvironmentTeardownReport,
+  GlobalReadWatch,
   Pragmas,
   ProcessObject,
 } from './environment.ts'
@@ -143,6 +144,7 @@ export type {
   CompiledModuleInfo,
   CreateLoader,
   EngineKind,
+  ExternalLoadWatcher,
   FileRegistry,
   FileRegistryOptions,
   LeakOptions,

@@ -168,6 +168,8 @@ export const neutralPolicy: Policy = deepFreeze({
     mockResolveKind: 'import',
     // T2.6: R3 makes mock-aware inlining the default (D39, B13d Gap 11).
     mocksReachShared: true,
+    // Ours (speed): a shared package loads once per worker, whatever it reads while it loads (D127).
+    reevaluateHookingExternals: false,
     // Ours: a frame keeps the name V8 gave it.
     stackFrameNames: 'engine',
     automockShape: 'deep',

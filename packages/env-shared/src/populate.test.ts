@@ -125,3 +125,27 @@ it('a key already on the global that is not in the built-in list stays, and is n
   close()
   assert.equal(global.mine, 1)
 })
+
+it('reports reads and writes of its accessors to one listener, and covers only keys it still holds', () => {
+  const global = freshGlobal()
+  const { win, close } = windows()[0]?.[1]() ?? assert.fail()
+  const populated = populateGlobal(global, win)
+  const descriptorOf = (key: string): PropertyDescriptor =>
+    Object.getOwnPropertyDescriptor(global, key) ?? assert.fail(key)
+  assert.equal(populated.covers('document', descriptorOf('document')), true)
+  assert.equal(populated.covers('window', descriptorOf('window')), false, 'a data self-reference')
+  let reads = 0
+  const stop = populated.watch(() => {
+    reads++
+  })
+  void global.document
+  global.innerWidth = 10
+  assert.equal(reads, 2)
+  stop()
+  void global.document
+  assert.equal(reads, 2, 'nothing is heard once it stops')
+  Object.defineProperty(global, 'document', { configurable: true, value: 'replaced' })
+  assert.equal(populated.covers('document', descriptorOf('document')), false)
+  populated.restore()
+  close()
+})

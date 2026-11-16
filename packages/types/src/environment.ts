@@ -67,6 +67,25 @@ export interface EnvironmentTeardownReport {
 }
 
 /**
+ * The reads of the globals an environment installed for a file, heard from the accessors it
+ * installed (`EnvironmentInstance.globalReads`), so a watcher need not redefine them.
+ * @public
+ */
+export interface GlobalReadWatch {
+  /**
+   * Whether a read or write of `key`, whose descriptor on the global is now `descriptor`, reaches
+   * the listener: the key is one this environment installed and its accessor is still the one
+   * installed (not redefined since).
+   */
+  covers(key: string, descriptor: PropertyDescriptor): boolean
+  /**
+   * Calls `onRead` for each read or write of a covered key until the returned function is called.
+   * One listener at a time: a second call replaces the first.
+   */
+  watch(onRead: () => void): () => void
+}
+
+/**
  * A set-up environment.
  * @public
  */
@@ -75,6 +94,13 @@ export interface EnvironmentInstance<G extends object = typeof globalThis> {
   readonly global: G
   /** Present exactly when the realm is `context`. */
   readonly context?: Context
+  /**
+   * The globals this environment installed for the file as accessors, with a way to hear their
+   * reads without redefining them. The worker uses it while it watches a shared package's first
+   * load (`ModulePolicy.reevaluateHookingExternals`); a key it does not cover is watched by
+   * turning it into an accessor for that load. Absent: every changed key is watched that way.
+   */
+  readonly globalReads?: GlobalReadWatch
   /** Jest's `handleTestEvent`: sees every lifecycle event of the file (worker-local; see `LifecycleEvent`). */
   onTestEvent?(event: LifecycleEvent): void | Promise<void>
   /**

@@ -3,6 +3,7 @@
 // `none` shares one instance map across the worker. Mocks (T2.5 + T4.8, B13c) reach every edge
 // through the file's module-mock registry. `realm` (T2.8), leak restore (T2.7), docblock
 // escalation (T2.11) and the native engine (T2.10) arrive with their tasks.
+import { existsSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import type {
   CreateLoader,
@@ -17,7 +18,14 @@ import { LoaderError } from './errors.ts'
 import { conditionsOf } from './graph/conditions.ts'
 import { saveGraph } from './internal/inline.ts'
 import { loaderMessage } from './internal/messages.ts'
-import { createRecords, dropRecords, resolveOrMissing, toModuleId } from './internal/records.ts'
+import {
+  createRecords,
+  dropRecords,
+  isEvaluableExternal,
+  resolveOrMissing,
+  toModuleId,
+} from './internal/records.ts'
+import { activate, promoteLearned, takeLearned } from './internal/reevaluate.ts'
 import { type FileContext, NO_FILE, Registry } from './internal/registry.ts'
 import { tierFor } from './tier.ts'
 
@@ -37,10 +45,12 @@ export const createLoader: CreateLoader = (options) => {
   const state = createRecords(options)
   const conditions = conditionsOf(options)
   // The `none` tier: one instance map for every file in the worker.
-  const shared = new Registry(state)
+  const shared = new Registry(state, true)
 
   function fileRegistry(testFile: string, registryOptions: FileRegistryOptions): FileRegistry {
     if (registryOptions.tier === 'realm') throw notYet('the realm tier', 'T2.8')
+    // What an earlier file's loads learned is evaluated per file from this one on (D127).
+    promoteLearned(state.reevaluate)
     const registry = registryOptions.tier === 'none' ? shared : new Registry(state)
     const importer = (parent: ModuleId | null | undefined): string => parent ?? testFile
 
@@ -198,6 +208,24 @@ export const createLoader: CreateLoader = (options) => {
         transformKey: record.transformKey,
       }
     },
+    watchExternalLoads: (watcher) => {
+      // With the policy off nothing is watched, so no window is ever opened.
+      if (!options.policy.reevaluateHookingExternals) return () => {}
+      state.reevaluate.watchers.add(watcher)
+      return () => {
+        state.reevaluate.watchers.delete(watcher)
+      }
+    },
+    takeLearnedExternals: () => takeLearned(state.reevaluate),
+    reevaluateExternals: (paths) => {
+      if (!options.policy.reevaluateHookingExternals) return
+      // A set from an earlier run may name a file a reinstall removed, or one the loader can't
+      // evaluate itself: those stay shared.
+      activate(
+        state.reevaluate,
+        paths.filter((path) => isEvaluableExternal(path, options.inline ?? []) && existsSync(path)),
+      )
+    },
     [Symbol.dispose]: () => {
       // Once per worker, with everything its files scanned.
       saveGraph(state.inline)
@@ -205,6 +233,7 @@ export const createLoader: CreateLoader = (options) => {
       state.externals.clear()
       state.required.clear()
       state.listeners.clear()
+      state.reevaluate.watchers.clear()
       shared.reset()
       shared.context = NO_FILE
     },

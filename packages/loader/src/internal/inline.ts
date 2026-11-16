@@ -9,14 +9,18 @@
 // it as they were written, with the specifier as written and the resolved id. It has no side effect
 // that matters here: `decide` remembers a specifier for an id and, under automock-all, a deep
 // unmock's imports, each of which the real edge would do on its own a moment later.
+import { readFileSync } from 'node:fs'
 import type { LoaderOptions, LoaderWarning, ModuleId, ModuleMockRegistry } from '@provino/types'
 import { conditionsOf } from '../graph/conditions.ts'
 import {
   buildThirdPartyGraph,
   type GraphEdge,
   inGraph,
+  packageDirOf,
+  scanSource,
   type ThirdPartyGraph,
 } from '../graph/index.ts'
+import type { ReevaluateState } from './reevaluate.ts'
 
 /** The default for `LoaderOptions.inlineBudget`. */
 export const DEFAULT_INLINE_BUDGET = 400
@@ -39,10 +43,12 @@ export interface InlineState {
   readonly warned: Set<string>
   /** The verdicts of each file's mocks; a registry that is gone takes its verdicts with it. */
   readonly verdicts: WeakMap<ModuleMockRegistry, Verdicts>
+  /** Whether each node_modules path's closure reaches a module the dialect serves (`servedReach`). */
+  readonly served: Map<string, boolean>
 }
 
 export function createInlineState(): InlineState {
-  return { graph: null, warned: new Set(), verdicts: new WeakMap() }
+  return { graph: null, warned: new Set(), verdicts: new WeakMap(), served: new Map() }
 }
 
 /** What a file keeps about its inlining: for the budget and for `LeakReport.inlinedForMocks`. */
@@ -100,6 +106,61 @@ function verdictsOf(state: InlineState, mocks: ModuleMockRegistry): Verdicts {
   return verdicts
 }
 
+/** What a closure walk found: the first edge `takes` named, the paths it covered, and whether one was dynamic. */
+interface Walk {
+  readonly found: string | null
+  readonly done: ReadonlySet<string>
+  readonly dynamic: boolean
+}
+
+/**
+ * Walks `path`'s closure, through node_modules files (the graph) and the user modules an edge leads
+ * to (`userEdges`), until `takes` names an edge.
+ */
+function walkClosure(
+  state: InlineState,
+  options: LoaderOptions,
+  path: string,
+  takes: (edge: GraphEdge, importer: string) => string | null,
+  userEdges: UserEdges,
+): Walk {
+  const graph = graphOf(state, options)
+  const done = new Set<string>()
+  const stack = [path]
+  let dynamic = false
+  let found: string | null = null
+  while (found === null && stack.length > 0) {
+    const current = stack.pop()
+    if (current === undefined || done.has(current)) continue
+    done.add(current)
+    if (inGraph(current)) {
+      const closure = graph.edgesOf(current)
+      for (const member of closure.paths) done.add(member)
+      if (closure.dynamic) dynamic = true
+      for (const { importer, edge } of closure.edges) {
+        found = takes(edge, importer)
+        if (found !== null) break
+        // An edge out of node_modules that `takes` passes is a user module the loader can read.
+        if (edge.target !== null && !edge.target.startsWith('node:') && !inGraph(edge.target)) {
+          stack.push(edge.target)
+        }
+      }
+    } else {
+      const edges = userEdges(current)
+      if (edges === null) {
+        dynamic = true
+        continue
+      }
+      for (const edge of edges) {
+        found = takes(edge, current)
+        if (found !== null) break
+        if (edge.target !== null && !edge.target.startsWith('node:')) stack.push(edge.target)
+      }
+    }
+  }
+  return { found, done, dynamic }
+}
+
 /**
  * The first id among the edges `path` reaches that `mocks` takes, or `null` when none is. `path` is
  * a real file under `node_modules`; the graph is extended to its closure first. The walk goes on
@@ -117,11 +178,7 @@ export function mockedReach(
   const verdicts = verdictsOf(state, mocks)
   const known = verdicts.byPath.get(path)
   if (known !== undefined) return known
-  const graph = graphOf(state, options)
   const asked = new Set<string>()
-  const done = new Set<string>()
-  const stack = [path]
-  let dynamic = false
 
   /** The mocked id an edge reaches, or `null`. */
   const takes = (edge: GraphEdge, importer: string): string | null => {
@@ -146,36 +203,7 @@ export function mockedReach(
     return decision.mocked ? decision.id : null
   }
 
-  let found: string | null = null
-  while (found === null && stack.length > 0) {
-    const current = stack.pop()
-    if (current === undefined || done.has(current)) continue
-    done.add(current)
-    if (inGraph(current)) {
-      const closure = graph.edgesOf(current)
-      for (const member of closure.paths) done.add(member)
-      if (closure.dynamic) dynamic = true
-      for (const { importer, edge } of closure.edges) {
-        found = takes(edge, importer)
-        if (found !== null) break
-        // An edge out of node_modules that no mock takes is a user module the loader can read.
-        if (edge.target !== null && !edge.target.startsWith('node:') && !inGraph(edge.target)) {
-          stack.push(edge.target)
-        }
-      }
-    } else {
-      const edges = userEdges(current)
-      if (edges === null) {
-        dynamic = true
-        continue
-      }
-      for (const edge of edges) {
-        found = takes(edge, current)
-        if (found !== null) break
-        if (edge.target !== null && !edge.target.startsWith('node:')) stack.push(edge.target)
-      }
-    }
-  }
+  const { found, done, dynamic } = walkClosure(state, options, path, takes, userEdges)
   if (found !== null) {
     verdicts.byPath.set(path, found)
     return found
@@ -191,6 +219,111 @@ export function mockedReach(
     })
   }
   return null
+}
+
+/**
+ * `path`'s verdict in `known`, or the closure walk's: true when `direct` (a check of the file
+ * itself, made before any walk) holds or `takes` names an edge of its closure. A positive verdict
+ * is kept for `path`, and a negative one for every node_modules file the walk covered, since each
+ * reaches no more than `path` does.
+ */
+function cachedReach(
+  known: Map<string, boolean>,
+  state: InlineState,
+  options: LoaderOptions,
+  path: string,
+  takes: (edge: GraphEdge) => string | null,
+  userEdges: UserEdges,
+  direct?: () => boolean,
+): boolean {
+  const cached = known.get(path)
+  if (cached !== undefined) return cached
+  if (direct?.() === true) {
+    known.set(path, true)
+    return true
+  }
+  const { found, done } = walkClosure(state, options, path, takes, userEdges)
+  if (found !== null) {
+    known.set(path, true)
+    return true
+  }
+  for (const member of done) if (inGraph(member)) known.set(member, false)
+  return false
+}
+
+/**
+ * Whether `path`'s closure has an edge to a module the dialect serves (`ModuleScope.modules`, such
+ * as `@jest/globals`). Loaded natively, such a package would reach the real module (whose own code
+ * may refuse to load outside its runner), so it is inlined, and its edge gets the served module, as
+ * a user file's does. Kept per worker; a negative verdict holds for every node_modules file the
+ * walk covered.
+ *
+ * The external's own edges are read first: one that requests a served module itself is inlined
+ * without building its closure (`requestsDirectly`). Only otherwise is the closure walked (on a
+ * cold graph, about 0.15 s for jsdom's closure, `local`; read from the graph cache on later runs).
+ *
+ * Limit: a request the scan can't read (a computed `require(name)` or `import(name)`, the closure's
+ * `dynamic` flag) is not seen, so a package that reaches a served module only that way stays shared
+ * and meets the real module.
+ */
+export function servedReach(
+  state: InlineState,
+  options: LoaderOptions,
+  path: string,
+  served: readonly string[],
+  userEdges: UserEdges,
+): boolean {
+  return cachedReach(
+    state.served,
+    state,
+    options,
+    path,
+    (edge) => (served.includes(edge.specifier) ? edge.specifier : null),
+    userEdges,
+    () => requestsDirectly(state, path, served),
+  )
+}
+
+/**
+ * Whether `path` is an external evaluated per file (`active`, D127), or its static closure reaches
+ * one. Loaded natively, such an external would `require` Node's one cached copy of what it
+ * reaches, while the file's own code and inlined externals get the file's copy: two instances of
+ * a singleton (`react` under a component library, an "Invalid hook call"). So it is inlined too.
+ * The verdict is kept in `reach` until `active` grows (`activate` clears it).
+ */
+export function reevaluatedReach(
+  state: InlineState,
+  options: LoaderOptions,
+  path: string,
+  { active, reach }: ReevaluateState,
+  userEdges: UserEdges,
+): boolean {
+  if (active.has(path)) return true
+  return cachedReach(
+    reach,
+    state,
+    options,
+    path,
+    (edge) => (edge.target !== null && active.has(edge.target) ? edge.target : null),
+    userEdges,
+  )
+}
+
+/**
+ * Whether the file at `path` itself requests one of `served`: its edges when the graph (if one was
+ * built) already holds them, else its text (a cheap test first, then the scan).
+ */
+function requestsDirectly(state: InlineState, path: string, served: readonly string[]): boolean {
+  const node = state.graph?.nodeOf(path)
+  if (node !== undefined) return node.edges.some((edge) => served.includes(edge.specifier))
+  let source: string
+  try {
+    source = readFileSync(path, 'utf8')
+  } catch {
+    return false
+  }
+  if (!served.some((specifier) => source.includes(specifier))) return false
+  return scanSource(source).edges.some((edge) => served.includes(edge.specifier))
 }
 
 /**
@@ -220,4 +353,22 @@ export function noteInlined(
       message: `Mocking ${mockedId} loads ${modules.size} modules per test file (the budget is ${budget}). They still load per file; mock a module nearer to your code to avoid this cost.`,
     })
   }
+}
+
+/**
+ * The files of `path`'s own package that its static closure reaches (`path` among them). An
+ * external evaluated per file takes them along (D127): Node's module cache shows what a CommonJS
+ * load evaluated, but not the ES modules a `require(esm)` evaluated, and a package split between a
+ * per-file entry and shared internals would be two half copies of itself.
+ */
+export function packageClosure(
+  state: InlineState,
+  options: LoaderOptions,
+  path: string,
+): readonly string[] {
+  const own = packageDirOf(path)
+  if (own === null) return []
+  return graphOf(state, options)
+    .edgesOf(path)
+    .paths.filter((member) => packageDirOf(member) === own)
 }

@@ -131,6 +131,22 @@ export interface ModulePolicy {
    * by `mod-shared-dep` and `mod-shared-dep-root` (Jest 30.5.2, Vitest 5.0.5). Neutral: `true`.
    */
   readonly mocksReachShared: boolean
+  /**
+   * Whether a shared node_modules package that reads a per-file global while it first loads is
+   * evaluated again in each later test file (D127, P42). When `true`, the worker watches each
+   * package's first native load from a user module or the runner: one that reads a test global
+   * (a hook, `jest`, `expect`, …) or a global the file's environment installed (`document`,
+   * `window`, …) is, with the modules that load did, loaded through each later file's registry
+   * (inlined), so its top-level code binds that file's globals. What a worker learns is kept in the
+   * results cache. When `false`, every such package stays shared, loaded natively once per worker.
+   * A no-op under isolation `none`, where no file is evaluated again by design.
+   *
+   * Jest: `true`, as jest-runtime evaluates node_modules again in every test file's registry;
+   * recorded by `ecosystem/rtl-cleanup` and `ecosystem/jest-canvas-mock` (Jest 30.5.2). Vitest:
+   * `false`, pending T11.16 (externalized dependencies load once per worker). Neutral: `false`
+   * (speed: one evaluation per worker).
+   */
+  readonly reevaluateHookingExternals: boolean
   /** Paths `automock` leaves real (Jest `unmockedModulePathPatterns`). Jest: `[]`. Vitest: `[]`. research: track-04 L316 */
   readonly unmockedPathPatterns: readonly RegExp[]
   /**

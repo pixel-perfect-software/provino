@@ -18,13 +18,21 @@ import { dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ModuleId, ModuleMockRegistry, ModuleScopeValues, ResolveKind } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
-import { createLedger, mockedReach, noteInlined } from './inline.ts'
+import {
+  createLedger,
+  mockedReach,
+  noteInlined,
+  packageClosure,
+  reevaluatedReach,
+  servedReach,
+} from './inline.ts'
 import { actualView, cjsNamespace, createInteropCache, esmExports } from './interop.ts'
 import {
   type Compiled,
   compile,
   externalKey,
   type Found,
+  isEvaluableExternal,
   linkAsync,
   linkSync,
   type ModuleRecord,
@@ -40,12 +48,19 @@ import {
   toModuleId,
   userEdgesOf,
 } from './records.ts'
+import { watchedLoad } from './reevaluate.ts'
 
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
 type Style = 'esm' | 'cjs'
 
 /** How the module making the edge evaluates: a plain wrapper can't wait, an async one can. */
 type Mode = 'sync' | 'async'
+
+/** What `#maybeInline` decided for an external: shared, or inlined for the file's mocks or not. */
+type Inlined = false | 'mocks' | 'kept'
+
+/** The served modules of a dialect that serves none. */
+const NO_MODULES: readonly string[] = []
 
 interface Instance {
   status: 'evaluating' | 'done' | 'errored'
@@ -142,12 +157,14 @@ export class Registry {
   /** How many scratch loads are running: with none, `#instances` asks no async context. */
   #scratchLoads = 0
   /**
-   * Whether each node_modules file was served shared (`false`) or inlined (`true`), per instance map
-   * (T2.6, B13d Gap 3): a module already served keeps its instance, so a `doMock` that comes after
-   * its first load doesn't change it, `resetModules` forgets it, and an `isolateModules` layer
-   * decides afresh.
+   * How each node_modules file was served, per instance map (T2.6, B13d Gap 3): shared (`false`),
+   * inlined because the file's mocks reach it (`'mocks'`, the ones `dropInlined` drops under
+   * `none`), or inlined for another reason (`'kept'`: a served module, or evaluated per file, which
+   * is the worker's for good). A module already served keeps its instance, so a `doMock` that comes
+   * after its first load doesn't change it, `resetModules` forgets it, and an `isolateModules`
+   * layer decides afresh.
    */
-  readonly #memory = new WeakMap<Map<ModuleId, Instance>, Map<string, boolean>>()
+  readonly #memory = new WeakMap<Map<ModuleId, Instance>, Map<string, Inlined>>()
   /** What this file inlined, for the budget and `LeakReport.inlinedForMocks`. */
   #ledger = createLedger()
   /** The running file's context. Under `none` the registry is shared, and each file sets its own. */
@@ -166,9 +183,17 @@ export class Registry {
    */
   readonly #dynamicLoads = new Map<ModuleId, Set<ModuleId>>()
 
-  constructor(state: Records, base: Map<ModuleId, Instance> = new Map()) {
+  /**
+   * Whether the registry outlives its files (isolation `none`): it keeps every module it evaluated,
+   * so `reevaluateHookingExternals` neither watches nor inlines for it (D127). Each file is not
+   * evaluated again under `none` by design, so neither is an external.
+   */
+  readonly #sharedAcrossFiles: boolean
+
+  constructor(state: Records, sharedAcrossFiles = false) {
     this.#state = state
-    this.#maps = [base]
+    this.#maps = [new Map()]
+    this.#sharedAcrossFiles = sharedAcrossFiles
   }
 
   get #instances(): Map<ModuleId, Instance> {
@@ -272,16 +297,20 @@ export class Registry {
   }
 
   /**
-   * Ends the file's inlining under `none`: the registry is shared and outlives the file, so the
-   * inlined instances go and the next file sees the shared module, and so does what was
-   * remembered. Any other tier's registry is the file's own and is reset instead.
+   * Ends the file's inlining for its mocks under `none`: the registry is shared and outlives the
+   * file, so the instances inlined for its mocks go and the next file sees the shared module, and
+   * every verdict but a positive one for a served module is forgotten (the next file's mocks
+   * decide afresh). An external inlined for a served module keeps its instance: under `none` no
+   * module is evaluated again. Any other tier's registry is the file's own and is reset instead.
    */
   dropInlined(): void {
     for (const map of this.#maps) {
-      const served = this.#memory.get(map)
-      if (served === undefined) continue
-      for (const [path, inlined] of served) if (inlined) map.delete(toModuleId(path))
-      this.#memory.delete(map)
+      const memory = this.#memory.get(map)
+      if (memory === undefined) continue
+      for (const [path, inlined] of memory) {
+        if (inlined === 'mocks') map.delete(toModuleId(path))
+        if (inlined !== 'kept') memory.delete(path)
+      }
     }
     this.#ledger = createLedger()
   }
@@ -360,7 +389,10 @@ export class Registry {
 
   /** The runner's `import(specifier)` of a setup or test file: link asynchronously, then evaluate. */
   async load(specifier: string, importer: string, isTest: boolean): Promise<object> {
-    const target = resolveTarget(this.#state, specifier, importer, 'import')
+    const target = this.#maybeInline(
+      resolveTarget(this.#state, specifier, importer, 'import'),
+      true,
+    )
     if (target.kind !== 'user') return this.#externalAsync(target)
     // An entry the file asked for: no edge of another module leads to it.
     this.#touched?.add(target.id)
@@ -371,7 +403,10 @@ export class Registry {
 
   /** The runner's `require(specifier)`: link and evaluate synchronously. */
   loadSync(specifier: string, importer: string, isTest: boolean): unknown {
-    const target = resolveTarget(this.#state, specifier, importer, 'require')
+    const target = this.#maybeInline(
+      resolveTarget(this.#state, specifier, importer, 'require'),
+      true,
+    )
     if (target.kind !== 'user') return this.#requireExternal(target)
     this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, isTest)
@@ -514,37 +549,60 @@ export class Registry {
   // ---- inlining (T2.6) ----
 
   /**
-   * An external as the edge should load it: the same external, or a user module when a mock reaches
-   * it. It is inlined when `mocksReachShared` is on and the file's mocks take an edge in its graph
-   * closure; the answer is kept for the instance map in play, and later edges follow it.
+   * An external as the edge should load it: the same external, or a user module (inlined) for one
+   * of three reasons. It is evaluated again per file (`reevaluateHookingExternals`: its first load
+   * in this worker read a per-file global, D127, or its closure reaches such an external, so it
+   * shares the file's copy and never Node's cached one); its closure reaches a module the dialect
+   * serves (`@jest/globals`, which only the registry can serve); or `mocksReachShared` is on and the
+   * file's mocks take an edge in its graph closure. The answer is kept for the instance map in
+   * play, and later edges follow it. The runner's own loads (`runner`) never ask the mocks, as
+   * the module itself is never mocked.
    */
-  #maybeInline(target: Found): Found {
+  #maybeInline(target: Found, runner = false): Found {
     if (target.kind !== 'external') return target
     const state = this.#state
-    const mocks = this.context.mocks
-    if (mocks === null || !state.options.policy.mocksReachShared) return target
+    const policy = state.options.policy
     const path = target.path
+    // Externals evaluated per file (D127): one is, or its closure reaches one.
+    const perFile =
+      policy.reevaluateHookingExternals &&
+      !this.#sharedAcrossFiles &&
+      state.reevaluate.active.size > 0
+    const served = state.options.moduleScope?.modules ?? NO_MODULES
+    const mocks = runner || !policy.mocksReachShared ? null : this.context.mocks
+    if (!perFile && served.length === 0 && mocks === null) return target
     const map = this.#instances
-    let served = this.#memory.get(map)
-    if (served === undefined) {
-      served = new Map()
-      this.#memory.set(map, served)
+    let memory = this.#memory.get(map)
+    if (memory === undefined) {
+      memory = new Map()
+      this.#memory.set(map, memory)
     }
-    let inlined = served.get(path)
+    let inlined = memory.get(path)
     if (inlined === undefined) {
       inlined = false
-      if (mocks.active() && !path.endsWith('.node')) {
-        const mockedId = mockedReach(state.inline, state.options, path, mocks, (user) =>
-          userEdgesOf(state, user),
-        )
-        if (mockedId !== null) {
-          inlined = true
-          noteInlined(state.inline, state.options, this.#ledger, toModuleId(path), mockedId)
+      if (!path.endsWith('.node')) {
+        const userEdges = (user: string) => userEdgesOf(state, user)
+        if (
+          perFile &&
+          reevaluatedReach(state.inline, state.options, path, state.reevaluate, userEdges)
+        ) {
+          inlined = 'kept'
+        } else if (
+          served.length > 0 &&
+          servedReach(state.inline, state.options, path, served, userEdges)
+        ) {
+          inlined = 'kept'
+        } else if (mocks?.active()) {
+          const mockedId = mockedReach(state.inline, state.options, path, mocks, userEdges)
+          if (mockedId !== null) {
+            inlined = 'mocks'
+            noteInlined(state.inline, state.options, this.#ledger, toModuleId(path), mockedId)
+          }
         }
       }
-      served.set(path, inlined)
+      memory.set(path, inlined)
     }
-    return inlined ? { kind: 'user', id: toModuleId(path) } : target
+    return inlined === false ? target : { kind: 'user', id: toModuleId(path) }
   }
 
   /** The record of a module an edge inlined, linked now: nothing linked it ahead. */
@@ -561,9 +619,23 @@ export class Registry {
     const key = externalKey(target)
     const state = this.#state
     if (state.required.has(key)) return state.required.get(key)
-    const value: unknown = createRequire(
-      target.kind === 'external' ? target.path : state.options.root,
-    )(key)
+    if (target.kind !== 'external') {
+      const value: unknown = createRequire(state.options.root)(key)
+      state.required.set(key, value)
+      return value
+    }
+    // The external's first native load in this worker: a window the worker may watch (D127).
+    const load = (): unknown => createRequire(target.path)(key)
+    const value: unknown =
+      state.options.policy.reevaluateHookingExternals && !this.#sharedAcrossFiles
+        ? watchedLoad(
+            state.reevaluate,
+            target.path,
+            load,
+            (file) => isEvaluableExternal(file, state.options.inline ?? []),
+            (file) => packageClosure(state.inline, state.options, file),
+          )
+        : load()
     state.required.set(key, value)
     return value
   }

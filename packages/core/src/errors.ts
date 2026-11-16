@@ -115,7 +115,27 @@ interface Walk {
 export function serializeError(value: unknown): SerializedError {
   const serialized = serialize(value, 0, { seen: new Set(), count: 0 })
   const details = detailsOf(value)
-  return details === undefined ? serialized : { ...serialized, details }
+  if (details === undefined) return serialized
+  const enumerable = enumerableFieldsOf(value)
+  return {
+    ...serialized,
+    details,
+    ...(enumerable.length === 0 ? {} : { enumerableFields: enumerable }),
+  }
+}
+
+/** Which of `name`, `message` and `stack` are own enumerable properties of the thrown value. */
+function enumerableFieldsOf(value: unknown): ('name' | 'message' | 'stack')[] {
+  if (typeof value !== 'object' || value === null) return []
+  const fields: ('name' | 'message' | 'stack')[] = []
+  for (const key of ['name', 'message', 'stack'] as const) {
+    try {
+      if (Object.prototype.propertyIsEnumerable.call(value, key)) fields.push(key)
+    } catch {
+      // A proxy that throws: not one.
+    }
+  }
+  return fields
 }
 
 /**

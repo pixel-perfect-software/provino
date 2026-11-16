@@ -94,7 +94,7 @@ export async function createCoordinatorLoader(
   } = await buildProjectLoader(
     root,
     withoutMocks(config),
-    { ...policy, mocksReachShared: false },
+    { ...policy, mocksReachShared: false, reevaluateHookingExternals: false },
     options,
   )
   const { loader, pipeline, resolver } = built

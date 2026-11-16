@@ -4,7 +4,14 @@
 // `babel-plugin-jest-hoist` and `@vitest/mocker` and flips each `HoistPolicy` key itself.
 import type { Golden } from '../../golden.ts'
 import { type Claims, corpus, each, golden, inert, own, pending } from '../evidence.ts'
-import { fileErrorOf, ObservationError, observation, observedOf, templateIn } from '../observe.ts'
+import {
+  fileErrorOf,
+  ObservationError,
+  observation,
+  observedOf,
+  statusOf,
+  templateIn,
+} from '../observe.ts'
 
 const mod = (...fixtures: readonly string[]) =>
   corpus('mod', ...fixtures.map((name) => `mocking/${name}`))
@@ -24,6 +31,17 @@ function observedMessage(g: Golden, id: string): string {
   }
   return message
 }
+
+/**
+ * Whether the golden's later file still had what a package did as it loaded (D127, P42): every
+ * test of the file Jest ran second passed. A runner that evaluated the package once per worker
+ * fails them (RTL's `screen` and `cleanup` bound to the first file's `document`; a `getContext`
+ * mock that is `null`).
+ */
+const reevaluatedIn =
+  (...titles: readonly string[]) =>
+  (g: Golden): boolean =>
+    titles.every((title) => statusOf(g, title) === 'passed')
 
 export const moduleClaims: Claims = {
   'module.factoryShape': mod('mod-factory-shape', 'mod-automock-all', 'mod-automock-cjs'),
@@ -58,6 +76,27 @@ export const moduleClaims: Claims = {
   'module.mockValueOwner': mod('mod-reregister', 'mod-reset-modules'),
   'module.mockResolveKind': mod('mod-conditions'),
   'module.mocksReachShared': mod('mod-shared-dep', 'mod-shared-dep-root'),
+  'module.reevaluateHookingExternals': each(
+    [
+      golden('ecosystem/rtl-cleanup', {
+        read: reevaluatedIn(
+          'second: the first render',
+          'second: a second test starts on an empty body',
+        ),
+      }),
+      golden('ecosystem/jest-canvas-mock', {
+        read: reevaluatedIn(
+          'after the re-setup the context still records draw calls',
+          'each test sees a fresh mock',
+          'measureText still answers after the reset',
+        ),
+      }),
+    ],
+    pending(
+      'T11.16',
+      'no Vitest fixture records a package that reads a per-file global as it loads',
+    ),
+  ),
   'module.automockShape': mod('mod-automock-shape', 'mod-automock-inherited'),
   // Jest's source-map support names a failing frame after the map's name at its own position.
   'module.stackFrameNames': each(

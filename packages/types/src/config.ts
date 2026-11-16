@@ -198,6 +198,12 @@ export interface SerializedLoaderConfig {
    * means `false`.
    */
   readonly skipNodeResolution?: boolean
+  /**
+   * The node_modules files an earlier run's workers learned to evaluate per file
+   * (`ModulePolicy.reevaluateHookingExternals`, D127), as absolute paths, from the results cache:
+   * the worker inlines them from its first file. Absent means none.
+   */
+  readonly reevaluate?: readonly string[]
 }
 
 /**
