@@ -482,6 +482,10 @@ function jestTypeScriptOption(fixture: Fixture): { jestTypeScript?: 'babel' } {
   return jestTypeScript === undefined ? {} : { jestTypeScript }
 }
 
+function jestTransformJsOption(fixture: Fixture): { jestTransformJs?: true } {
+  return fixture.manifest.jestTransformJs === true ? { jestTransformJs: true } : {}
+}
+
 function jestConfigOption(fixture: Fixture): { jestConfig?: JestFixtureConfig } {
   const { jestConfig } = fixture.manifest
   return jestConfig === undefined ? {} : { jestConfig }
@@ -532,6 +536,7 @@ async function runUnderRunner(
     ...mockCleanupOption(fixture),
     ...jestEsmOption(fixture),
     ...jestTypeScriptOption(fixture),
+    ...jestTransformJsOption(fixture),
     ...jestConfigOption(fixture),
     ...(overlay === undefined ? {} : { overlay }),
   }

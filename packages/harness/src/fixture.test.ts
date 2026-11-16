@@ -529,6 +529,27 @@ test("jestTypeScript is optional, 'babel' only, and needs a fixture that runs Je
   )
 })
 
+test('jestTransformJs is optional, true only, and needs a fixture that runs Jest', () => {
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, jestTransformJs: true })), {
+    ...VALID,
+    jestTransformJs: true,
+  })
+  assert.equal('jestTransformJs' in parseFixtureManifest(JSON.stringify(VALID)), false)
+  for (const jestTransformJs of [false, 'js', 1, null]) {
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, jestTransformJs })),
+      rejects('HARNESS_FIXTURE_BAD_JEST_TRANSFORM_JS'),
+    )
+  }
+  assert.throws(
+    () =>
+      parseFixtureManifest(
+        JSON.stringify({ ...VALID, runners: ['vitest'], jestTransformJs: true }),
+      ),
+    rejects('HARNESS_FIXTURE_BAD_JEST_TRANSFORM_JS'),
+  )
+})
+
 test('packages keeps plain and scoped packages with their files', () => {
   const packages = {
     left: { 'package.json': '{"main":"index.js"}', 'index.js': 'module.exports = 1' },

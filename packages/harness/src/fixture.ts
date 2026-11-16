@@ -106,6 +106,14 @@ export interface FixtureManifest {
    */
   readonly jestTypeScript?: 'babel'
   /**
+   * `true`: for this fixture only, the recorder's Jest transformer also takes `.js`, `.cjs` and
+   * `.mjs` files (`\.[cm]?[jt]s$`, where it takes `\.[cm]?ts$`), as Jest's default `babel-jest`
+   * entry (`\.[jt]sx?$`) takes them: a file under `node_modules` that the fixture's
+   * `transformIgnorePatterns` leave in goes through it (with `jestEsm`, its `import`s become
+   * `require`s). Absent means off, and Jest's output is unchanged.
+   */
+  readonly jestTransformJs?: true
+  /**
    * Jest options a module-mock case needs, for a fixture that lists `jest`: `roots` (directories
    * relative to the fixture, where Jest looks for `__mocks__` and tests; the tests then have to
    * live under one) and `unmockedModulePathPatterns` (regular expression sources that automock
@@ -383,6 +391,7 @@ const KNOWN_KEYS: ReadonlySet<string> = new Set([
   'packages',
   'jestEsm',
   'jestTypeScript',
+  'jestTransformJs',
   'jestConfig',
   'config',
   'files',
@@ -423,7 +432,7 @@ export function parseFixtureManifest(
     if (!KNOWN_KEYS.has(key)) {
       throw new HarnessError(
         'HARNESS_FIXTURE_UNKNOWN_KEY',
-        `${source}: unknown key "${key}" (expected description, runners, env, nodeFlags, nodeMajors, expectCrash, mockCleanup, packages, jestEsm, jestTypeScript, jestConfig, config, files, run, scm, before, watch)`,
+        `${source}: unknown key "${key}" (expected description, runners, env, nodeFlags, nodeMajors, expectCrash, mockCleanup, packages, jestEsm, jestTypeScript, jestTransformJs, jestConfig, config, files, run, scm, before, watch)`,
         { path: source },
       )
     }
@@ -439,6 +448,7 @@ export function parseFixtureManifest(
     packages,
     jestEsm,
     jestTypeScript,
+    jestTransformJs,
     jestConfig,
     config,
     files,
@@ -500,6 +510,9 @@ export function parseFixtureManifest(
     ...(jestTypeScript === undefined
       ? {}
       : { jestTypeScript: parseJestTypeScript(jestTypeScript, runners, source) }),
+    ...(jestTransformJs === undefined
+      ? {}
+      : { jestTransformJs: parseJestTransformJs(jestTransformJs, runners, source) }),
     ...(jestConfig === undefined
       ? {}
       : { jestConfig: parseJestConfig(jestConfig, runners, source) }),
@@ -1499,6 +1512,29 @@ function parseJestTypeScript(
     )
   }
   return 'babel'
+}
+
+/** `jestTransformJs` is `true` or absent, and only means something for a fixture that runs Jest. */
+function parseJestTransformJs(
+  jestTransformJs: unknown,
+  runners: readonly FixtureProfile[],
+  source: string,
+): true {
+  if (jestTransformJs !== true) {
+    throw new HarnessError(
+      'HARNESS_FIXTURE_BAD_JEST_TRANSFORM_JS',
+      `${source}: "jestTransformJs" must be true (leave it out for off)`,
+      { path: source },
+    )
+  }
+  if (!runners.includes('jest')) {
+    throw new HarnessError(
+      'HARNESS_FIXTURE_BAD_JEST_TRANSFORM_JS',
+      `${source}: "jestTransformJs" is set but "runners" does not list "jest"`,
+      { path: source },
+    )
+  }
+  return true
 }
 
 /** A package name as npm spells it: `name` or `@scope/name`, lowercase, no path tricks. */
