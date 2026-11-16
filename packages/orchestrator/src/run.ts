@@ -72,7 +72,7 @@ import {
 import { mergeTimings, readTimings, TIMINGS_FILE_NAME, writeTimings } from './timings.ts'
 import { transportFor } from './transport/for-kind.ts'
 import { describeExit } from './transport/shared.ts'
-import { BATCH, mapInBatches, messageOf } from './util.ts'
+import { BATCH, mapInBatches, messageOf, passesWithNoTests } from './util.ts'
 
 /** `orchestrator.inBand` that never puts a run in band by itself. */
 const NO_AUTOMATIC_IN_BAND = { single: false, fastFileCount: 0, slowMs: 0 } as const
@@ -453,7 +453,7 @@ function failsWithNoTests(
     case 'fail':
       return true
     case 'fail-unless-pass-with-no-tests':
-      return !(passWithNoTests ?? orchestrator.passWithNoTests)
+      return !passesWithNoTests(passWithNoTests, orchestrator)
     case 'pass':
       return false
     default:

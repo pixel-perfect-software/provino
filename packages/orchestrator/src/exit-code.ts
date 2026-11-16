@@ -2,6 +2,7 @@
 // are the dialect's (`orchestrator.exitCodes`; Jest and Vitest both use 1); the rest are fixed.
 import { snapshotRunFails } from '@provino/snapshot/node'
 import type { Policy, RunSummary } from '@provino/types'
+import { passesWithNoTests } from './util.ts'
 
 /**
  * The exit codes that don't depend on the dialect. A usage or config error is 2 (Jest uses 1; a
@@ -83,8 +84,9 @@ export function exitCodeFor(summary: RunSummary, options: ExitCodeOptions): numb
   for (const { reason, exitCode } of Object.values(RUN_SIGNALS)) {
     if (summary.reason === reason) return exitCode
   }
-  const passWithNoTests = options.passWithNoTests ?? orchestrator.passWithNoTests
-  if (summary.files.length === 0 && !passWithNoTests) return orchestrator.exitCodes.noTests
+  if (summary.files.length === 0 && !passesWithNoTests(options.passWithNoTests, orchestrator)) {
+    return orchestrator.exitCodes.noTests
+  }
   if (summary.files.some((file) => file.state === 'fail')) return orchestrator.exitCodes.failure
   if (summary.snapshotsFail ?? snapshotRunFails(summary.snapshots, options.policy.snapshot)) {
     return orchestrator.exitCodes.failure
