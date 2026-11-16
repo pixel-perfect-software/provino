@@ -35,8 +35,17 @@ export interface ClaimsState {
   readonly ignore: RegExp | null
   /** Each `node_modules` file asked about. A `native` one becomes `user` when Node can't parse it. */
   readonly verdicts: Map<string, ClaimVerdict>
-  /** The files whose verdict is `user`, in the order they were found: seeds of the per-file set. */
+  /**
+   * The files whose verdict is `user`: seeds of the per-file set (D132). Append-only, written by
+   * `markUser` alone, since the set reads its length as a watermark of the seeds it has taken.
+   */
   readonly users: string[]
+}
+
+/** Gives `path` the verdict `user`, and makes it a seed of the per-file set. */
+function markUser(claims: ClaimsState, path: string): void {
+  claims.verdicts.set(path, 'user')
+  claims.users.push(path)
 }
 
 function compiled<T>(what: string, make: () => T): T {
@@ -126,8 +135,8 @@ function claimVerdict(claims: ClaimsState, path: string): ClaimVerdict {
           ? 'user'
           : 'native'
     }
-    claims.verdicts.set(path, verdict)
-    if (verdict === 'user') claims.users.push(path)
+    if (verdict === 'user') markUser(claims, path)
+    else claims.verdicts.set(path, verdict)
   }
   return verdict
 }
@@ -211,8 +220,7 @@ function compilesAsCommonJs(path: string): boolean {
  */
 export function demoteOnParseFailure(claims: ClaimsState, path: string, error: unknown): boolean {
   if (!isSyntaxError(error) || !/\.c?js$/.test(path) || compilesAsCommonJs(path)) return false
-  claims.verdicts.set(path, 'user')
-  claims.users.push(path)
+  markUser(claims, path)
   claims.inline.claimed.clear()
   return true
 }
