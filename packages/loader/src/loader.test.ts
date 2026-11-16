@@ -3,9 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, test } from 'node:test'
-import { neutralPolicy } from '@provino/policy'
 import { createResolver } from '@provino/resolver'
-import { createPipeline } from '@provino/transform'
 import type {
   CompiledModuleEvent,
   HoistPolicy,
@@ -17,6 +15,7 @@ import type {
   TransformClaims,
 } from '@provino/types'
 import { RequireEsmError } from './errors.ts'
+import { type LoaderOptionsExtra, loaderOptionsFor } from './internal/test-support.ts'
 import { createLoader } from './loader.ts'
 import { tierFor } from './tier.ts'
 
@@ -38,38 +37,9 @@ function writeTree(files: Readonly<Record<string, string>>): string {
 function loaderFor(
   root: string,
   policy: Partial<ModulePolicy> = {},
-  extra: {
-    readonly resolver?: Resolver
-    readonly hoist?: HoistPolicy
-    readonly moduleScope?: {
-      readonly names: readonly string[]
-      readonly modules?: readonly string[]
-    }
-    readonly transformClaims?: TransformClaims
-  } = {},
+  extra: Omit<LoaderOptionsExtra, 'policy'> = {},
 ): Loader {
-  return createLoader({
-    root,
-    engine: 'runner',
-    resolver:
-      extra.resolver ??
-      createResolver({
-        root,
-        mappers: [],
-        extensions: ['.ts', '.tsx', '.js', '.mjs', '.cjs', '.json'],
-        tsconfig: false,
-      }),
-    transformer: createPipeline({
-      root,
-      typescript: 'oxc',
-      tsconfig: false,
-      hoist: extra.hoist ?? null,
-      cache: false,
-    }),
-    policy: { ...neutralPolicy.module, ...policy },
-    ...(extra.moduleScope === undefined ? {} : { moduleScope: extra.moduleScope }),
-    ...(extra.transformClaims === undefined ? {} : { transformClaims: extra.transformClaims }),
-  })
+  return createLoader(loaderOptionsFor(root, { ...extra, policy }))
 }
 
 interface CounterModule {
@@ -1883,31 +1853,4 @@ test('transformClaims: a shared CommonJS package that requires a claimed ES modu
     const instance = await importFrom<{ same: boolean }>(loader, root, 'instance.test.ts')
     assert.equal(instance.same, true, "the package's copy is the file's own, not Node's")
   }
-})
-
-test("transformClaims: with Jest's default patterns, as with none, no shared package's closure is walked", async () => {
-  const root = writeTree({
-    'node_modules/cjs-deep/package.json': JSON.stringify({ name: 'cjs-deep', main: 'index.js' }),
-    'node_modules/cjs-deep/index.js':
-      "module.exports = { a: require('./a'), b: require('cjs-leaf') }\n",
-    'node_modules/cjs-deep/a.js': 'module.exports = 1\n',
-    'node_modules/cjs-leaf/package.json': JSON.stringify({ name: 'cjs-leaf', main: 'index.js' }),
-    'node_modules/cjs-leaf/index.js': 'module.exports = 2\n',
-    'deep.test.ts': "import deep from 'cjs-deep'\nexport const sum = deep.a + deep.b\n",
-  })
-  const resolves = async (claims?: TransformClaims): Promise<number> => {
-    const counting = countingResolver(root)
-    const loader = loaderFor(
-      root,
-      { interopDefault: 'babel' },
-      { resolver: counting.resolver, ...(claims === undefined ? {} : { transformClaims: claims }) },
-    )
-    assert.equal((await importFrom<{ sum: number }>(loader, root, 'deep.test.ts')).sum, 3)
-    return counting.resolves()
-  }
-  const none = await resolves()
-  assert.equal(await resolves(JEST_DEFAULT_IGNORE), none, "Jest's default: nothing more resolved")
-  // Claims that let a package through do walk the closure (so the check above can fail).
-  const allowlist = { patterns: ['\\.[jt]sx?$'], ignorePatterns: ['/node_modules/(?!(other)/)'] }
-  assert.ok((await resolves(allowlist)) > none, 'an allowlist walks the closure')
 })

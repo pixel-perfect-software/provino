@@ -189,8 +189,8 @@ export function buildThirdPartyGraph(options: GraphOptions): ThirdPartyGraph {
       const slot: Slot = {
         node: null,
         stored,
-        stamp: { mtimeMs: stored[2], size: stored[3] },
-        edgeCount: stored[1].length,
+        stamp: { mtimeMs: stored[3], size: stored[4] },
+        edgeCount: stored[2].length,
         verified: false,
       }
       slots.set(path, slot)
@@ -226,7 +226,11 @@ export function buildThirdPartyGraph(options: GraphOptions): ThirdPartyGraph {
       }
       return { specifier, kind, target }
     })
-    return { node: { edges, dynamic: scanned.dynamic || transient }, stamp, transient }
+    return {
+      node: { edges, dynamic: scanned.dynamic || transient, esm: scanned.esm },
+      stamp,
+      transient,
+    }
   }
 
   /** Puts a scanned file in the graph in place of what was there. */

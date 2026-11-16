@@ -32,6 +32,12 @@ export interface Scan {
    * one): an edge the graph can't see.
    */
   readonly dynamic: boolean
+  /**
+   * The file has ES module syntax (`import`/`export` declarations, `import.meta`), as
+   * `esmSyntaxOf` reads it, a file the lexer rejects counting as having it: what Node, which can't
+   * run it either, would meet.
+   */
+  readonly esm: boolean
 }
 
 /**
@@ -96,17 +102,17 @@ function literalAfter(
 
 /**
  * Whether `source` has ES module syntax: an `import` or `export` declaration, or `import.meta`
- * (`import()` alone is CommonJS too). A file the lexer can't parse that has the words is
- * `rejected` (default `true`: what the lexer rejects, JSX say, Node can't run either; jest-runtime's
- * `esmLexer.ts` `hasEsmSyntax` reads it as `false`).
+ * (`import()` alone is CommonJS too). `null` when the file has the words and the lexer can't parse
+ * it: a caller says what a file nothing can run counts as (Node reads it as ES module syntax,
+ * jest-runtime's `esmLexer.ts` `hasEsmSyntax` as none).
  * @public
  */
-export function hasEsmSyntax(source: string, rejected = true): boolean {
+export function esmSyntaxOf(source: string): boolean | null {
   if (!MODULE_SYNTAX.test(source)) return false
   try {
     return parse(source)[3]
   } catch {
-    return rejected
+    return null
   }
 }
 
@@ -125,10 +131,12 @@ export function scanSource(source: string): Scan {
     edges.push({ specifier, kind })
   }
   let dynamic = false
+  let esm = false
   // The lexer is the slow part of a scan, and a file with module syntax says so.
   if (MODULE_SYNTAX.test(source)) {
     try {
-      const [imports] = parse(source)
+      const [imports, , , hasModuleSyntax] = parse(source)
+      esm = hasModuleSyntax
       for (const found of imports) {
         if (found.type === 'import-meta') continue
         if (found.type === 'dynamic') {
@@ -139,6 +147,7 @@ export function scanSource(source: string): Scan {
     } catch {
       // Its ES edges are lost: say so, and let the `require` scan below still apply.
       dynamic = true
+      esm = true
     }
   }
   if (source.includes('createRequire')) dynamic = true
@@ -163,5 +172,5 @@ export function scanSource(source: string): Scan {
       REQUIRE.lastIndex = literal.end
     }
   }
-  return { edges, dynamic }
+  return { edges, dynamic, esm }
 }

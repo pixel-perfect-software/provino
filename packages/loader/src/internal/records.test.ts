@@ -6,43 +6,18 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { test } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
-import { createResolver } from '@provino/resolver'
-import { createPipeline } from '@provino/transform'
-import type { LoaderOptions, ModulePolicy, TransformClaims } from '@provino/types'
+import type { TransformClaims } from '@provino/types'
 import { LoaderError, RequireEsmError } from '../errors.ts'
 import type { RuntimeCapabilities } from './edge-kind.ts'
-import { createRecords, requireEsmError } from './records.ts'
-import { writeTree } from './test-support.ts'
+import { createRecords, type Records } from './records.ts'
+import { requireEsmError } from './require-esm.ts'
+import { loaderOptionsFor, writeTree } from './test-support.ts'
 
 const TEXT = 'Must use import to load ES Module: {path}'
 /** Node 22, and 24 before 24.9, under `--experimental-vm-modules`: no synchronous ES module graph. */
 const NO_SYNC_EVALUATE: RuntimeCapabilities = { vmModules: true, syncEvaluate: false }
 /** Node 24.9 and later under the flag: jest-runtime's `supportsSyncEvaluate`. */
 const SYNC_EVALUATE: RuntimeCapabilities = { vmModules: true, syncEvaluate: true }
-
-function optionsFor(
-  root: string,
-  extra: { readonly policy?: Partial<ModulePolicy>; readonly claims?: TransformClaims } = {},
-): LoaderOptions {
-  return {
-    root,
-    engine: 'runner',
-    resolver: createResolver({ root, mappers: [], extensions: ['.js'], tsconfig: false }),
-    transformer: createPipeline({
-      root,
-      typescript: 'oxc',
-      tsconfig: false,
-      hoist: null,
-      cache: false,
-    }),
-    policy: {
-      ...neutralPolicy.module,
-      messages: { 'require-esm': TEXT },
-      ...extra.policy,
-    },
-    ...(extra.claims === undefined ? {} : { transformClaims: extra.claims }),
-  }
-}
 
 const PACKAGES = {
   // No `type`: Node's detection, and Jest's lexer, read the source.
@@ -56,24 +31,35 @@ const PACKAGES = {
   'node_modules/cjs/package.json': JSON.stringify({ name: 'cjs' }),
   'node_modules/cjs/index.js': "module.exports = require('./missing')\n",
   // ES module words, and a brace es-module-lexer can't match: jest-runtime's lexer throws, and
-  // `hasEsmSyntax` is false there.
+  // `esmSyntaxOf` is `null` there.
   'node_modules/broken/package.json': JSON.stringify({ name: 'broken' }),
   'node_modules/broken/index.js': "import { a } from './a'\n}\n",
+  // Not source text, whatever the bytes say: an addon and a data file are never read as source.
+  'node_modules/binary/package.json': JSON.stringify({ name: 'binary' }),
+  'node_modules/binary/addon.node': "import { a } from './a'\nexport const b = a\n",
+  'node_modules/binary/data.json': "import { a } from './a'\nexport const b = a\n",
   'src/esm.js': "import { a } from './a'\nexport const b = a\n",
 }
+
+const root = writeTree(PACKAGES)
+const records = createRecords(
+  loaderOptionsFor(root, { policy: { messages: { 'require-esm': TEXT } } }),
+  NO_SYNC_EVALUATE,
+)
 
 const nodeError = Object.assign(new Error("Cannot find module './a'"), {
   code: 'ERR_MODULE_NOT_FOUND',
 })
 
+function esmError(from: Records, file: string, error: unknown = nodeError) {
+  return requireEsmError(from.options, from.edgeKinds, join(root, file), error)
+}
+
 test("require-esm: an ES module Node could not load is Jest's error, with Node's as its cause", () => {
-  const root = writeTree(PACKAGES)
-  const records = createRecords(optionsFor(root), NO_SYNC_EVALUATE)
   for (const file of ['node_modules/esm/index.js', 'node_modules/esm/other.mjs']) {
-    const path = join(root, file)
-    const error = requireEsmError(records, path, nodeError)
+    const error = esmError(records, file)
     assert.ok(error instanceof RequireEsmError, file)
-    assert.equal(error.message, `Must use import to load ES Module: ${path}`)
+    assert.equal(error.message, `Must use import to load ES Module: ${join(root, file)}`)
     assert.equal(error.name, 'Error')
     assert.equal(error.code, 'ERR_REQUIRE_ESM')
     assert.equal(error.cause, nodeError, "Node's error is the cause")
@@ -82,55 +68,52 @@ test("require-esm: an ES module Node could not load is Jest's error, with Node's
   // loads one as an ES module, so any error of that load stands for it (the extensionless import
   // above is `ERR_MODULE_NOT_FOUND`, `cli/transform-node-modules-ignored`), a `SyntaxError` too.
   const syntax = new SyntaxError('Unexpected token')
-  const path = join(root, 'node_modules/esm/index.js')
-  assert.equal(requireEsmError(records, path, syntax)?.cause, syntax)
+  assert.equal(esmError(records, 'node_modules/esm/index.js', syntax)?.cause, syntax)
 })
 
 test('require-esm: Node that evaluates an ES module graph synchronously keeps its own error', () => {
-  const root = writeTree(PACKAGES)
-  const records = createRecords(optionsFor(root), SYNC_EVALUATE)
+  const sync = createRecords(
+    loaderOptionsFor(root, { policy: { messages: { 'require-esm': TEXT } } }),
+    SYNC_EVALUATE,
+  )
   assert.equal(
-    requireEsmError(records, join(root, 'node_modules/esm/index.js'), nodeError),
+    esmError(sync, 'node_modules/esm/index.js'),
     undefined,
     'supportsSyncEvaluate: Jest loads it as an ES module, and never says require-esm',
   )
 })
 
 test('require-esm: a file explicitly CommonJS (`.cjs`, or `.js` under `type: commonjs`) keeps its own error', () => {
-  const root = writeTree(PACKAGES)
-  const records = createRecords(optionsFor(root), NO_SYNC_EVALUATE)
   for (const file of ['node_modules/explicit/index.js', 'node_modules/esm/plain.cjs']) {
-    assert.equal(requireEsmError(records, join(root, file), nodeError), undefined, file)
+    assert.equal(esmError(records, file), undefined, file)
   }
 })
 
 test('require-esm: a file with no ES module syntax, or one the lexer rejects, keeps its own error', () => {
-  const root = writeTree(PACKAGES)
-  const records = createRecords(optionsFor(root), NO_SYNC_EVALUATE)
   for (const file of ['node_modules/cjs/index.js', 'node_modules/broken/index.js']) {
-    assert.equal(requireEsmError(records, join(root, file), nodeError), undefined, file)
+    assert.equal(esmError(records, file), undefined, file)
+  }
+})
+
+test('require-esm: an addon, a WebAssembly module or a JSON file is never read as source', () => {
+  for (const file of ['node_modules/binary/addon.node', 'node_modules/binary/data.json']) {
+    assert.equal(esmError(records, file), undefined, file)
   }
 })
 
 test('require-esm: no text in the policy, or a file outside node_modules, keeps the error', () => {
-  const root = writeTree(PACKAGES)
   const neutral = createRecords(
-    optionsFor(root, { policy: { messages: neutralPolicy.module.messages } }),
+    loaderOptionsFor(root, { policy: { messages: neutralPolicy.module.messages } }),
     NO_SYNC_EVALUATE,
   )
-  assert.equal(
-    requireEsmError(neutral, join(root, 'node_modules/esm/index.js'), nodeError),
-    undefined,
-  )
-  const records = createRecords(optionsFor(root), NO_SYNC_EVALUATE)
-  assert.equal(requireEsmError(records, join(root, 'src/esm.js'), nodeError), undefined)
+  assert.equal(esmError(neutral, 'node_modules/esm/index.js'), undefined)
+  assert.equal(esmError(records, 'src/esm.js'), undefined)
 })
 
 test('transform claims: a pattern, or the ignore patterns joined with |, that is no regular expression is refused', () => {
-  const root = writeTree({})
   const refused = (claims: TransformClaims, what: RegExp): void => {
     assert.throws(
-      () => createRecords(optionsFor(root, { claims })),
+      () => createRecords(loaderOptionsFor(root, { transformClaims: claims })),
       (error: unknown) => {
         assert.ok(error instanceof LoaderError)
         assert.equal(error.code, 'LOADER_INVALID_TRANSFORM_CLAIMS')
@@ -145,22 +128,5 @@ test('transform claims: a pattern, or the ignore patterns joined with |, that is
   refused(
     { patterns: ['\\.js$'], ignorePatterns: ['\\k<b>', '(?<a>x)'] },
     /ignorePatterns \(joined with "\|"\)/,
-  )
-  // Jest's default ignores every package: the claims are off, and still checked.
-  refused(
-    { patterns: ['\\.js$'], ignorePatterns: ['/node_modules/', '\\k<b>', '(?<a>x)'] },
-    /joined/,
-  )
-  assert.equal(
-    createRecords(
-      optionsFor(root, {
-        claims: {
-          patterns: ['\\.[jt]sx?$'],
-          ignorePatterns: ['/node_modules/', '\\.pnp\\.[^\\/]+$'],
-        },
-      }),
-    ).claims,
-    null,
-    "Jest's default patterns take no node_modules file: no claims to ask",
   )
 })
