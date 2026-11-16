@@ -5,7 +5,8 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import {AssertionError} from 'node:assert';
+import type {AssertionError} from 'node:assert'; // provino: the class loads on first use (`isAssertionError`), not when every Jest worker boots
+import process from 'node:process';
 import {
   DIM_COLOR,
   EXPECTED_COLOR,
@@ -167,14 +168,22 @@ function assertionErrorMessage(
   );
 }
 
+// provino: `node:assert`'s `AssertionError`, loaded the first time a value passes neither the name
+// nor the code test.
+let assertionErrorClass: typeof AssertionError | undefined;
+const loadedAssertionError = (): typeof AssertionError =>
+  (assertionErrorClass ??= process.getBuiltinModule('node:assert').AssertionError);
+
 function isAssertionError(error: unknown): error is AssertionErrorWithStack {
-  // provino: `error` is `unknown` here, so the property reads go through a cast; the test is jest-circus's.
+  // provino: `error` is `unknown` here, so the property reads go through a cast; jest-circus's three
+  // tests, the name (`AssertionError.name`) and code first and `instanceof` last, so `node:assert`
+  // loads only for a value that is neither: the same answer.
   const candidate = error as {name?: unknown; code?: unknown} | null | undefined;
   return Boolean(
     candidate &&
-      (error instanceof AssertionError ||
-        candidate.name === AssertionError.name ||
-        candidate.code === 'ERR_ASSERTION'),
+      (candidate.name === 'AssertionError' ||
+        candidate.code === 'ERR_ASSERTION' ||
+        error instanceof loadedAssertionError()),
   );
 }
 
