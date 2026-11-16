@@ -142,6 +142,47 @@ describe('fail-owner', () => {
     assert.equal(result.states.t, 'pass')
   })
 
+  test('an error no test or hook raised, while a file runs, is charged to that file', async () => {
+    const process = new EventEmitter()
+    const result = await runScript(({ test }, _step, runtime) => {
+      runtime.captureProcessErrors(process)
+      // Scheduled as the file loads: the timer runs in no test's or hook's context.
+      setTimeout(
+        () => process.emit('uncaughtException', new Error('module scope'), 'uncaughtException'),
+        5,
+      )
+      test('t', () => sleep(40))
+    }, owner)
+    const [event, ...rest] = eventsOf(result.events, 'unhandled-error')
+    assert.equal(rest.length, 0)
+    assert.equal(event?.ownerId, result.tasks.find((task) => task.type === 'file')?.id)
+    assert.equal(event?.error.message, 'module scope')
+    assert.equal(result.states.t, 'pass')
+    assert.equal(result.file.state, 'fail')
+  })
+
+  test('a rejection no test or hook made is held to the end of the file, then charged to it', async () => {
+    const process = new EventEmitter()
+    const result = await runScript(({ test }, _step, runtime) => {
+      runtime.captureProcessErrors(process)
+      setTimeout(() => {
+        process.emit('unhandledRejection', new Error('left'), Promise.resolve())
+        const handled = Promise.resolve()
+        process.emit('unhandledRejection', new Error('handled later'), handled)
+        setTimeout(() => process.emit('rejectionHandled', handled), 5)
+      }, 5)
+      test('t', () => sleep(40))
+    }, owner)
+    const charged = eventsOf(result.events, 'unhandled-error')
+    assert.deepEqual(
+      charged.map((event) => [event.ownerId, event.origin, event.error.message]),
+      [[result.tasks.find((task) => task.type === 'file')?.id, 'unhandledRejection', 'left']],
+    )
+    const types = result.events.map((e) => e.type)
+    assert.ok(types.indexOf('unhandled-error') < types.indexOf('file-end'))
+    assert.equal(result.file.state, 'fail')
+  })
+
   test('an error with no owner is charged to the run', async () => {
     const process = new EventEmitter()
     const result = await runScript(({ test }, _step, runtime) => {
@@ -175,6 +216,31 @@ describe('report-run', () => {
         [null, 'unhandledRejection', 'y'],
       ],
     )
+    assert.equal(result.states.t, 'pass')
+    assert.equal(result.file.state, 'pass')
+  })
+
+  test('an error no test or hook raised, while a file runs, is still the run’s, at once', async () => {
+    const process = new EventEmitter()
+    const result = await runScript(({ test }, _step, runtime) => {
+      runtime.captureProcessErrors(process)
+      // Scheduled as the file loads: under `fail-owner` this would be the file's.
+      setTimeout(() => {
+        process.emit('uncaughtException', new Error('module scope'), 'uncaughtException')
+        process.emit('unhandledRejection', new Error('left'), Promise.resolve())
+      }, 5)
+      test('t', () => sleep(40))
+    }, run)
+    const events = eventsOf(result.events, 'unhandled-error')
+    assert.deepEqual(
+      events.map((event) => [event.ownerId, event.origin, event.error.message]),
+      [
+        [null, 'uncaughtException', 'module scope'],
+        [null, 'unhandledRejection', 'left'],
+      ],
+    )
+    const types = result.events.map((e) => e.type)
+    assert.ok(types.indexOf('unhandled-error') < types.indexOf('test-end'), 'at once')
     assert.equal(result.states.t, 'pass')
     assert.equal(result.file.state, 'pass')
   })

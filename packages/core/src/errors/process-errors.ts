@@ -7,7 +7,10 @@
 //   that test has ended. An exception fails a running test at once; a rejection waits in a map
 //   keyed by its promise until the test's body is over (a `rejectionHandled` in between drops it).
 //   Whatever is left for an ended test, or for a hook's suite, is reported as `unhandled-error`
-//   events charged to that task when the file ends. An error with no owner is charged to the run.
+//   events charged to that task when the file ends. An error no test or hook raised (a timer the
+//   file's module scope set) is the running file's, as circus files it under `state.unhandledErrors`
+//   (its rejection under `state.unhandledRejectionErrorByPromise`, until `run_finish`), which is
+//   the file's `testExecError` (`cli/uncaught-during-test`); between files it is the run's.
 // - `report-run` (Vitest 5.0): every such error is an `unhandled-error` charged to the run, at once.
 //
 // Core never installs a listener by itself: `captureProcessErrors` does, for the worker.
@@ -35,10 +38,10 @@ export interface ProcessErrorsConfig {
   readonly lastTestId: () => TaskId | null
 }
 
-/** A rejection nobody has handled yet, and who it is charged to. */
+/** A rejection nobody has handled yet, and who it is charged to: no frame is the running file. */
 interface Pending {
   readonly error: unknown
-  readonly frame: Frame
+  readonly frame: Frame | undefined
 }
 
 /** The runtime's attribution of errors the code did not handle. */
@@ -95,8 +98,8 @@ export class ProcessErrors {
    */
   report(origin: UnhandledErrorOrigin, error: unknown, promise?: Promise<unknown>): void {
     const frame = this.#config.frame()
-    // The run's own error: the policy says so, or no test or hook of any file is running.
-    if (this.#config.lateErrors === 'report-run' || frame === undefined) {
+    // The run's own error: the policy says so, or no test or hook raised it and no file is running.
+    if (this.#config.lateErrors === 'report-run' || (frame === undefined && !this.#active)) {
       this.#emit(null, frame, origin, error)
       return
     }
@@ -106,7 +109,8 @@ export class ProcessErrors {
       this.#pending.set(promise, { error, frame })
       return
     }
-    this.#charge(frame, origin, error)
+    if (frame === undefined) this.#chargeFile(origin, error)
+    else this.#charge(frame, origin, error)
   }
 
   /** A rejection got its handler after all: it is no longer an error. */
@@ -122,6 +126,7 @@ export class ProcessErrors {
     const taken: unknown[] = []
     for (const [promise, pending] of this.#pending) {
       if (
+        pending.frame !== undefined &&
         pending.frame.test !== null &&
         frame.test !== null &&
         pending.frame.test.id === frame.test.id &&
@@ -139,9 +144,16 @@ export class ProcessErrors {
   flush(): void {
     this.#active = false
     for (const pending of this.#pending.values()) {
-      this.#charge(pending.frame, 'unhandledRejection', pending.error)
+      if (pending.frame === undefined) this.#chargeFile('unhandledRejection', pending.error)
+      else this.#charge(pending.frame, 'unhandledRejection', pending.error)
     }
     this.#pending.clear()
+  }
+
+  /** Charges an error no test or hook raised to the file that is running. */
+  #chargeFile(origin: UnhandledErrorOrigin, error: unknown): void {
+    this.#chargedFiles++
+    this.#emit(this.#fileId ?? null, undefined, origin, error)
   }
 
   /** Charges an error to the test or hook the frame is in. */
