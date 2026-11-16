@@ -1,0 +1,26 @@
+{
+  "description": "A CommonJS package (`cjs-pkg`, `type: commonjs`, which requires `./helper` with no extension) that `next/jest`-shaped `transformIgnorePatterns` let through, as `transform-node-modules-allowlist` lets `esm-pkg` through: Jest 30.5.2 transforms it (the recorder's transform, widened to `.js` by `jestTransformJs`) and the test passes. Provino leaves a CommonJS package Node can load on the native path, shared by the worker's files (a DIVERGENCES candidate: its module state is per worker, not per file, and a transform's plugins don't run on it); the test passes under both. Read by `provino`'s `transform-node-modules.test.ts`. A black-box run.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "jestTransformJs": true,
+  "packages": {
+    "cjs-pkg": {
+      "package.json": "{ \"name\": \"cjs-pkg\", \"version\": \"1.0.0\", \"type\": \"commonjs\", \"main\": \"index.js\" }\n",
+      "index.js": "const { suffix } = require('./helper')\n\nexports.greet = (name) => 'hello ' + name + suffix\n",
+      "helper.js": "exports.suffix = '!'\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "transformIgnorePatterns": [
+        "/node_modules/(?!.pnpm)(?!(cjs-pkg)/)",
+        "/node_modules/.pnpm/(?!(cjs-pkg)@)",
+        "^.+\\.module\\.(css|sass|scss)$"
+      ]
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests):|^  ● "
+  }
+}
