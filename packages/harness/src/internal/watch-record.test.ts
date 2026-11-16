@@ -68,7 +68,10 @@ function fakeSpawn(
       output: () => output,
       async waitFor(match, from = 0) {
         if (typeof match === 'string' && output.indexOf(match, from) !== -1) return output.length
-        throw new HarnessError('HARNESS_WATCH_FAILED', `never showed ${String(match)}`)
+        throw new HarnessError(
+          'HARNESS_WATCH_FAILED',
+          `never showed ${String(match)}. Output tail:\n${output.slice(-2000)}`,
+        )
       },
       exit,
       childPgid: 1,
@@ -84,16 +87,33 @@ function fakeSpawn(
   return { spawn, state }
 }
 
-/** `spawn`, whose output also holds Jest's "results written" line `shown()` times. */
+/** What Jest prints, after it has written `--outputFile`, once per run. */
+const WRITTEN_LINE = 'Test results written to: out.json\r\n'
+
+/**
+ * `spawn`, whose output also holds Jest's "results written" line `shown()` times. A wait for text
+ * that is not there yet lets `next` (a run of Jest's finishing, which prints one more line)
+ * happen first, until the text is there; with no `next` it is the session's own wait.
+ */
 function printing(
   spawn: NonNullable<WatchRecordOptions['spawn']>,
   shown: () => number,
+  next?: () => Promise<void>,
 ): NonNullable<WatchRecordOptions['spawn']> {
   return async (...args) => {
     const session = await spawn(...args)
+    const output = (): string => session.output() + WRITTEN_LINE.repeat(shown())
     return {
       ...session,
-      output: () => session.output() + 'Test results written to: out.json\r\n'.repeat(shown()),
+      output,
+      async waitFor(match, from = 0) {
+        for (;;) {
+          const at = typeof match === 'string' ? output().indexOf(match, from) : -1
+          if (at !== -1) return at + match.length
+          if (next === undefined) return session.waitFor(match, from)
+          await next()
+        }
+      },
     }
   }
 }
@@ -528,24 +548,25 @@ test('a captureFile step whose file is not there fails the recording', async () 
 test('a captureFile step waits for Jest to say it wrote the file, once per capture', async () => {
   await withWorkDir(async (dir) => {
     const out = path.join(dir, 'out.json')
-    // The run log has its line (waitRun passed) while Jest has written nothing yet: each poll
-    // is Jest finishing the next run's file and printing its line.
+    // The run log has its line (waitRun passed) while Jest has written nothing yet: each wait is
+    // Jest finishing the next run's file and printing its line.
     let shown = 0
     const { spawn: bare } = fakeSpawn()
-    const spawn = printing(bare, () => shown)
+    const spawn = printing(
+      bare,
+      () => shown,
+      async () => {
+        shown += 1
+        await writeFile(out, JSON.stringify({ run: shown }))
+      },
+    )
     const watch: FixtureWatch = {
       argv: ['--watchAll'],
       tty: false,
       steps: [{ waitRun: 1 }, { captureFile: 'out.json' }, { captureFile: 'out.json' }],
       capture: ['runs'],
     }
-    const observed = await recordWatchSession({
-      ...optionsFor(dir, watch, spawn),
-      poll: async () => {
-        shown += 1
-        await writeFile(out, JSON.stringify({ run: shown }))
-      },
-    })
+    const observed = await recordWatchSession(optionsFor(dir, watch, spawn))
     // Run 1's file is still there when the second capture starts: it must not be read as run 2's.
     assert.deepEqual(observed.json, { 'out.json#1': { run: 1 }, 'out.json#2': { run: 2 } })
   })
@@ -564,7 +585,9 @@ test('a captureFile step whose session ends before the line fails, with the outp
     await assert.rejects(
       recordWatchSession(optionsFor(dir, watch, spawn)),
       (error: unknown) =>
-        error instanceof HarnessError && /before Jest wrote its results file/.test(error.message),
+        error instanceof HarnessError &&
+        /Jest never wrote its results file for capture out\.json#1/.test(error.message) &&
+        /Output tail:[\s\S]*Watch Usage/.test(error.message),
     )
   })
 })

@@ -1,6 +1,7 @@
 // A watch fixture's steps, played against a session (B23c Phase 3). The session and the run log
 // are the host's, so the unit tests drive a fake terminal and the recorder a real one
 // (`internal/watch-record.ts`).
+import type { JsonValue } from '@provino/types'
 import { HarnessError } from '../errors.ts'
 import { type ScmStep, WATCH_KEYS, type WatchStep } from '../fixture.ts'
 import type { PtyExit, PtyMatch } from '../pty.ts'
@@ -25,8 +26,12 @@ export interface WatchHost {
   waitRuns(count: number): Promise<void>
   /** Applies a change to the work directory: `write`, `remove`, or one step of an `scm` list. */
   change(step: ScmStep): Promise<void>
-  /** Records the text of a file now (a `captureFile` step), in the order the steps ask. */
-  captureFile(file: string): Promise<void>
+  /**
+   * Reads a file now (a `captureFile` step, once Jest has said it wrote its results: the steps
+   * wait for that) as the golden keeps it: parsed and normalized. `key` is the capture's name,
+   * `<file>#<n>` for the n-th capture of that file, for the host's errors.
+   */
+  captureFile(file: string, key: string): Promise<JsonValue>
 }
 
 /** How the steps ended. */
@@ -35,7 +40,12 @@ export interface WatchStepsResult {
   readonly runs: number
   /** The session's end, when the last step was `exit`. */
   readonly exit?: PtyExit
+  /** What each `captureFile` step read, by key (`<file>#<n>`), in the order the steps asked. */
+  readonly captures: Readonly<Record<string, JsonValue>>
 }
+
+/** What Jest prints, after it has written `--outputFile`, once per run. */
+export const RESULTS_WRITTEN = 'Test results written to'
 
 /** The bytes a `key` step sends. */
 export function keyBytes(key: string): string {
@@ -57,7 +67,10 @@ export const PATTERN_CARET = ' pattern \u203a '
  * prompt draws that line while it handles the character. The text alone is not that echo: the
  * matches the prompt lists after its line hold it too (`foo` in ` › ./foo.test.ts`), and they can
  * still be arriving when the next character is written. An `exit` step that sees another exit
- * code is `HARNESS_WATCH_FAILED`.
+ * code is `HARNESS_WATCH_FAILED`. A `captureFile` step waits for the next `RESULTS_WRITTEN` line
+ * (the n-th for the n-th capture: the run log's reporter finishes before Jest writes
+ * `--outputFile`, so waiting on the log alone read no file, or the run before's), then asks the
+ * host to read the file; the session's one deadline, or its end, is the wait's error.
  */
 export async function runWatchSteps(
   steps: readonly WatchStep[],
@@ -65,7 +78,10 @@ export async function runWatchSteps(
 ): Promise<WatchStepsResult> {
   const { session } = host
   let mark = 0
+  let resultsMark = 0
   let runs = 0
+  const captures: Record<string, JsonValue> = {}
+  const counted = new Map<string, number>()
   for (const step of steps) {
     if ('waitRun' in step) {
       await host.waitRuns(step.waitRun)
@@ -95,7 +111,19 @@ export async function runWatchSteps(
     } else if ('scm' in step) {
       for (const inner of step.scm) await host.change(inner)
     } else if ('captureFile' in step) {
-      await host.captureFile(step.captureFile)
+      const count = (counted.get(step.captureFile) ?? 0) + 1
+      counted.set(step.captureFile, count)
+      const key = `${step.captureFile}#${count}`
+      try {
+        resultsMark = await session.waitFor(RESULTS_WRITTEN, resultsMark)
+      } catch (error) {
+        throw new HarnessError(
+          'HARNESS_WATCH_FAILED',
+          `Jest never wrote its results file for capture ${key} (${JSON.stringify(RESULTS_WRITTEN)}). ${error instanceof Error ? error.message : String(error)}`,
+          { cause: error },
+        )
+      }
+      captures[key] = await host.captureFile(step.captureFile, key)
     } else if ('exit' in step) {
       const exit = await session.exit
       if (exit.exitCode !== step.exit) {
@@ -104,10 +132,10 @@ export async function runWatchSteps(
           `the session ended with exit code ${exit.exitCode}${exit.killed ? ' (killed)' : ''}, but the "exit" step expects ${step.exit}. Output tail:\n${session.output().slice(-2000)}`,
         )
       }
-      return { runs, exit }
+      return { runs, exit, captures }
     } else {
       await host.change(step)
     }
   }
-  return { runs }
+  return { runs, captures }
 }

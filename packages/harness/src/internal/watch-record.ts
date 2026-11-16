@@ -158,13 +158,6 @@ export interface WatchRecordOptions {
   readonly poll?: () => Promise<void>
 }
 
-/** What Jest prints, after it has written `--outputFile`, once per run. */
-const RESULTS_WRITTEN = 'Test results written to'
-
-function countOf(text: string, needle: string): number {
-  return text.split(needle).length - 1
-}
-
 function defaultSpawn(tty: boolean) {
   return (
     argv: readonly string[],
@@ -207,7 +200,7 @@ export async function recordWatchSessionExit(
   const spawn = options.spawn ?? defaultSpawn(watch.tty)
   const poll = options.poll ?? (() => sleep(POLL_MS))
   let session: PtyProcess | undefined
-  const captures: { readonly file: string; readonly text: string | null }[] = []
+  let captures: Readonly<Record<string, JsonValue>> = {}
   let cause: 'the deadline passed' | 'the session ended' | undefined
   let runs = 0
   let exitCode: number | null | undefined
@@ -260,25 +253,30 @@ export async function recordWatchSessionExit(
         }
       },
       change: (step) => runScmStep(options.repo, step),
-      async captureFile(file) {
-        // The run log's line comes from a reporter, before Jest writes `--outputFile`, so the file
-        // is read once Jest has said it wrote it: the n-th such line for the n-th capture.
-        const written = captures.length + 1
-        for (;;) {
-          if (countOf(session?.output() ?? '', RESULTS_WRITTEN) >= written) break
-          if (cause !== undefined) {
-            throw new HarnessError(
-              'HARNESS_WATCH_FAILED',
-              `${source}: ${cause} before Jest wrote its results file for capture ${written} ("${RESULTS_WRITTEN}"). Output tail:\n${session?.output().slice(-2000) ?? ''}`,
-            )
-          }
-          await poll()
+      async captureFile(file, key) {
+        const text = await readIfThere(path.join(options.workDir, file))
+        if (text === null || text.trim() === '') {
+          throw new HarnessError(
+            'HARNESS_WATCH_FAILED',
+            `${source}: "captureFile" ${key}: the session left no file there, or an empty one`,
+          )
         }
-        captures.push({ file, text: await readIfThere(path.join(options.workDir, file)) })
+        let value: JsonValue
+        try {
+          value = JSON.parse(text) as JsonValue
+        } catch (error) {
+          throw new HarnessError(
+            'HARNESS_WATCH_FAILED',
+            `${source}: "captureFile" ${key} is not JSON`,
+            { cause: error },
+          )
+        }
+        return options.normalizeJson === undefined ? value : options.normalizeJson(value)
       },
     }
     const result = await runWatchSteps(watch.steps, host)
     runs = result.runs
+    captures = result.captures
     exitCode = result.exit?.exitCode
   } catch (error) {
     failure = { error }
@@ -333,36 +331,6 @@ export async function recordWatchSessionExit(
     }
     transcript = lines.join('\n')
   }
-  const seenFiles = new Map<string, number>()
-  const json = Object.fromEntries(
-    captures.map(({ file, text }) => {
-      const count = (seenFiles.get(file) ?? 0) + 1
-      seenFiles.set(file, count)
-      const key = `${file}#${count}`
-      if (text === null || text.trim() === '') {
-        throw new HarnessError(
-          'HARNESS_WATCH_FAILED',
-          `${source}: "captureFile" ${file} (capture ${count}): the session left no file there, or an empty one`,
-        )
-      }
-      let value: JsonValue
-      try {
-        value = JSON.parse(text) as JsonValue
-      } catch (cause) {
-        throw new HarnessError(
-          'HARNESS_WATCH_FAILED',
-          `${source}: "captureFile" ${key} is not JSON`,
-          {
-            cause,
-          },
-        )
-      }
-      return [
-        key,
-        options.normalizeJson === undefined ? value : options.normalizeJson(value),
-      ] as const
-    }),
-  )
   const observed: GoldenObserved = {
     ...(captured('exitCode') ? { exitCode: exitCode ?? null } : {}),
     ...(files.length === 0
@@ -378,7 +346,7 @@ export async function recordWatchSessionExit(
             ),
           ),
         }),
-    ...(captures.length === 0 ? {} : { json }),
+    ...(Object.keys(captures).length === 0 ? {} : { json: captures }),
     ...(captured('runs')
       ? { runs: entries.map((entry) => JSON.parse(rooted(JSON.stringify(entry))) as JsonValue) }
       : {}),
