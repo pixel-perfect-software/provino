@@ -11,8 +11,13 @@ import formatNodeAssertErrors from './vendor/jest-circus/formatNodeAssertErrors.
  * @public
  */
 export const shapeTestError: ShapeTestError = (error, { expand }) => {
-  const shaped = formatNodeAssertErrors(error, expand)
-  if (shaped === error || typeof shaped !== 'object' || shaped === null) return error
+  // Core hands over what a body or hook threw, which circus keeps as `[error, asyncError]`; a value
+  // with no stack is swapped there for `asyncError`, an ordinary Error that is no assertion error,
+  // so it is left as it was thrown (`cli/node-assert`). The pair needs no `asyncError` of ours.
+  if (!(error as { readonly stack?: unknown } | null | undefined)?.stack) return error
+  const entry = [error, undefined]
+  const shaped = formatNodeAssertErrors(entry, expand)
+  if (shaped === entry) return error
   const { message } = shaped as { message: string }
   // The result reads as an error to the serializer (`message` and `stack`) and has the one
   // enumerable key Jest's `failureDetails[i]` has: `stack` is the message too, and hidden.

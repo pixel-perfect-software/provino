@@ -4,9 +4,10 @@
 // the fixture's test throws; its text up to the first frame must be the recorded one.
 import assert from 'node:assert'
 import { readFileSync } from 'node:fs'
-import { test } from 'node:test'
+import { describe, test } from 'node:test'
 import { stripVTControlCharacters } from 'node:util'
 import { shapeTestError } from './node-assert-errors.ts'
+import formatNodeAssertErrors from './vendor/jest-circus/formatNodeAssertErrors.ts'
 
 interface Recorded {
   readonly testResults: readonly {
@@ -160,4 +161,70 @@ test('an error that is no assertion error is returned as it is', () => {
   assert.equal(shapeTestError('text', EXPAND), 'text')
   assert.equal(shapeTestError(undefined, EXPAND), undefined)
   assert.equal(shapeTestError(null, EXPAND), null)
+})
+
+// jest-circus maps each entry of `test.errors` at `test_done` (`formatNodeAssertErrors.ts` L46-L74):
+// a pair `[error, asyncError]` is read by its error, with `asyncError` (circus's own, an ordinary
+// Error) standing in for one that has no stack, and any other entry is the error itself. Only the
+// pair's branch looks at the stack.
+describe('formatNodeAssertErrors takes an entry as circus keeps it', () => {
+  const assertionError = (): unknown => thrownBy(() => assert.strictEqual(1, 2))
+  const lookalike = (extra: object = {}): Record<string, unknown> => ({
+    code: 'ERR_ASSERTION',
+    message: 'm',
+    actual: 1,
+    expected: 2,
+    operator: '==',
+    ...extra,
+  })
+  const messageOf = (shaped: unknown): string => (shaped as { message: string }).message
+
+  test('a bare entry is read as the error: an empty stack is not set aside', () => {
+    // Circus checks `.stack` only for a pair, so a bare entry is formatted.
+    const bare = lookalike({ stack: '' })
+    const shaped = formatNodeAssertErrors(bare, false)
+    assert.notEqual(shaped, bare)
+    assert.ok(stripColour(messageOf(shaped)).startsWith('assert.equal(received, expected)'))
+    assert.deepEqual(Object.keys(shaped as object), ['message'])
+  })
+
+  test('a bare value with no stack at all is circus’s TypeError (`stack.replace`)', () => {
+    assert.throws(() => formatNodeAssertErrors(lookalike(), false), TypeError)
+  })
+
+  test('a pair is read by its error when that has a stack', () => {
+    const shaped = formatNodeAssertErrors([assertionError(), new Error()], false)
+    assert.ok(stripColour(messageOf(shaped)).startsWith('assert.strictEqual(received, expected)'))
+  })
+
+  test('a pair whose error has no stack falls back to its asyncError, which takes the error’s message', () => {
+    const asyncError = new Error('registered here')
+    const pair = [lookalike(), asyncError]
+    assert.equal(formatNodeAssertErrors(pair, false), pair)
+    assert.equal(asyncError.message, 'm')
+    const noMessage = new Error()
+    const other = [{ code: 'ERR_ASSERTION', actual: 1 }, noMessage]
+    assert.equal(formatNodeAssertErrors(other, false), other)
+    assert.equal(
+      noMessage.message,
+      'thrown: Object {\n  "actual": 1,\n  "code": "ERR_ASSERTION",\n}',
+    )
+  })
+
+  test('a pair with no error is read by its asyncError, and a pair with neither is left', () => {
+    const shaped = formatNodeAssertErrors([undefined, assertionError()], false)
+    assert.ok(stripColour(messageOf(shaped)).startsWith('assert.strictEqual(received, expected)'))
+    const lone = [lookalike(), undefined]
+    assert.equal(formatNodeAssertErrors(lone, false), lone)
+    const nothing = [null, undefined]
+    assert.equal(formatNodeAssertErrors(nothing, false), nothing)
+  })
+
+  test('an entry that is no assertion error is the entry itself, in either shape', () => {
+    const pair = [new Error('plain'), new Error()]
+    assert.equal(formatNodeAssertErrors(pair, false), pair)
+    const error = new Error('plain')
+    assert.equal(formatNodeAssertErrors(error, false), error)
+    assert.equal(formatNodeAssertErrors('text', false), 'text')
+  })
 })

@@ -7,6 +7,7 @@
 
 import type {AssertionError} from 'node:assert'; // provino: the class loads on first use (`isAssertionError`), not when every Jest worker boots
 import process from 'node:process';
+import {format as prettyFormat} from 'pretty-format';
 import {
   DIM_COLOR,
   EXPECTED_COLOR,
@@ -40,14 +41,45 @@ const humanReadableOperators: Record<string, string> = {
   strictEqual: 'to strictly be equal',
 };
 
-// provino: jest-circus maps every error of a finished test (`test_done`); the runtime hands each
-// error here as it serializes it and takes the result in its place. `expand` is `state.expand`.
-// circus formats a thrown value only when it has a stack: one with none is swapped for circus's own
-// `asyncError`, an ordinary Error, which is left as it is (`cli/node-assert`).
-const formatNodeAssertErrors = (error: unknown, expand: boolean): unknown =>
-  isAssertionError(error) && typeof error.stack === 'string' && error.stack !== ''
+// provino: the `test_done` handler's `event.test.errors.map(errors => …)` callback, as a function of
+// one entry and `expand` (`state.expand`); its caller maps the entries and keeps the result in
+// their place. An entry is what circus keeps in `test.errors`: a pair `[originalError, asyncError]`
+// or the error itself. Only the pair's branch looks at the stack (L47-L72), as upstream.
+interface Thrown {
+  stack?: unknown;
+  message?: string;
+}
+const formatNodeAssertErrors = (errors: unknown, expand: boolean): unknown => {
+  let error;
+  if (Array.isArray(errors)) {
+    const [originalError, asyncError] = errors as [
+      Thrown | null | undefined,
+      Error | undefined,
+    ];
+
+    if (originalError == null) {
+      error = asyncError;
+    } else if (originalError.stack) {
+      error = originalError;
+    } else if (asyncError) {
+      error = asyncError;
+
+      error.message =
+        originalError.message ||
+        `thrown: ${prettyFormat(originalError, {maxDepth: 3})}`;
+    } else {
+      error = new Error(
+        originalError.message ||
+          `thrown: ${prettyFormat(originalError, {maxDepth: 3})}`,
+      );
+    }
+  } else {
+    error = errors;
+  }
+  return isAssertionError(error)
     ? {message: assertionErrorMessage(error, {expand})}
-    : error;
+    : errors;
+};
 
 const getOperatorName = (operator: string | undefined, stack: string) => {
   if (typeof operator === 'string') {

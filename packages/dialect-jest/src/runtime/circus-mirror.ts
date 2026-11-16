@@ -18,8 +18,6 @@
 //   as the recorded case (synchronous bodies within `maxConcurrency`);
 // - a handler that throws at the adapter's own root `beforeEach` (the first `hook_success` of every
 //   test) ends the file, where circus fails that test: the hook is this mirror's, not the runtime's;
-// - at `test_done`, circus's `formatNodeAssertErrors` also copies the message of a value thrown with
-//   no stack into the pair's `asyncError`; here that `asyncError` keeps its own (empty) message.
 import type { LifecycleEvent, LifecycleHookRef, LifecycleRef } from '@provino/types'
 import formatNodeAssertErrors from './vendor/jest-circus/formatNodeAssertErrors.ts'
 
@@ -157,17 +155,6 @@ function testsUnder(block: DescribeBlock): TestEntry[] {
     else found.push(...testsUnder(child))
   }
   return found
-}
-
-/**
- * One entry of `test.errors` as jest-circus's `formatNodeAssertErrors` leaves it at `test_done`: a
- * `node:assert` AssertionError is replaced by `{ message }` (circus's text), anything else stays.
- * An `[error, asyncError]` pair is read by its error.
- */
-function formatted(entry: unknown, expand: boolean): unknown {
-  const error = Array.isArray(entry) ? entry[0] : entry
-  const shaped = formatNodeAssertErrors(error, expand)
-  return shaped === error ? entry : shaped
 }
 
 function messageOf(error: unknown): string {
@@ -518,7 +505,7 @@ export function createCircusMirror(
         // assertion error already formatted, and `test_retry` moves those into `retryReasons`.
         // `state.expand` is Jest's `globalConfig.expand`, `false` unless `--expand`.
         const expand = state.expand === true
-        entry.errors = entry.errors.map((have) => formatted(have, expand))
+        entry.errors = entry.errors.map((have) => formatNodeAssertErrors(have, expand))
         entry.duration = entry.startedAt === null ? null : Date.now() - entry.startedAt
         entry.status = 'done'
         state.currentlyRunningTest = null
