@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/empty-test-file-teardown-throws",
+  "files": [
+    {
+      "file": "empty.test.ts",
+      "status": "crashed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    environment teardown failed",
+        "userFrame": "<root>/throwing-env.cjs:6:11"
+      },
+      "tests": []
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "    environment teardown failed\nFAIL ./empty.test.ts\nTest Suites: 1 failed, 1 total\nTests:       0 total",
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 1,
+        "numFailedTests": 0,
+        "numPassedTestSuites": 0,
+        "numPassedTests": 0,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 1,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 1,
+        "numTotalTests": 0,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [],
+            "coverage": {},
+            "endTime": "<time>",
+            "message": "  ● Test suite failed to run\n\n    environment teardown failed\n\n      4 |   async teardown() {\n      5 |     await super.teardown()\n    > 6 |     throw new Error('environment teardown failed')\n        |           ^\n      7 |   }\n      8 | }\n      9 |\n\n<frames>\n",
+            "name": "<root>/empty.test.ts",
+            "startTime": "<time>",
+            "status": "failed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}
