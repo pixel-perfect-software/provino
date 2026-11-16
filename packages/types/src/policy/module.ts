@@ -153,7 +153,7 @@ export interface ModulePolicy {
    *
    * Jest: `import-and-sync-require`, as jest-runtime builds its ESM conditions with `module-sync`
    * and its CJS ones with it only when `supportsSyncEvaluate` (`internals/Resolution.ts` L35-48,
-   * `nodeCapabilities.ts`); recorded by `env/conditions-module-sync-esm` (Jest 30.5.2). Vitest:
+   * `nodeCapabilities.ts`); recorded by `env/conditions-import-module-sync` (Jest 30.5.2). Vitest:
    * `never`, pending T11.16. Neutral: `never` (speed: no capability probe, as before).
    */
   readonly moduleSyncCondition: 'never' | 'import-and-sync-require'

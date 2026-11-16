@@ -234,7 +234,7 @@ export const jestPolicy: PolicyOverrides = {
     // Recorded, Jest 30.5.2: `env/conditions-import-node`, `-jsdom`, `-custom` (an `import` in a file
     // Jest runs as CommonJS takes the `require` entry) and `-esm` (an ES module's, the `import` one).
     edgeResolveKind: 'importer-format',
-    // Recorded, Jest 30.5.2: `env/conditions-module-sync-esm` (an ES module's edge takes the
+    // Recorded, Jest 30.5.2: `env/conditions-import-module-sync` (an ES module's edge takes the
     // `module-sync` entry). The `require` half is gated on Node's sync evaluation, as jest-runtime's
     // `supportsSyncEvaluate` (`Resolution.ts` L35-48), which differs by Node version: the loader's
     // `edge-kind.test.ts` holds the gate on its capability seam.
