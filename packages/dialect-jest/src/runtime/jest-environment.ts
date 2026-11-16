@@ -112,6 +112,24 @@ function circusConfigOf(globalConfig: object): CircusConfig {
 /** The canceller of a file that is not a window's: nothing was noted. */
 const noTimers = (): readonly string[] => []
 
+/**
+ * Node's fetch API, which the worker's global has. Jest's jsdom window has no `fetch`, `Request` or
+ * `Response` (its `Headers` is jsdom's own; `env/jsdom-no-fetch`), and in Jest a window file's
+ * global is the window, so a package that looks for `fetch` as it loads there finds none and makes
+ * no request (`@iconify/react` loads its icons over the network when it finds one). Here the window
+ * is populated onto the worker's global, so each of these the window lacks is taken off for the
+ * file and put back by the snapshot's restore. A key the window has (jsdom's `Headers`, or the
+ * fetch jest-fixed-jsdom puts there) is the window's, populated or Node's own, and stays.
+ */
+const NODE_FETCH_GLOBALS: readonly string[] = ['fetch', 'Request', 'Response', 'Headers']
+
+/** Takes each of Node's fetch globals the window lacks off the worker's global, for the file. */
+function hideNodeFetch(window: object): void {
+  for (const key of NODE_FETCH_GLOBALS) {
+    if (!(key in window)) Reflect.deleteProperty(globalThis, key)
+  }
+}
+
 async function setUpJest(
   context: EnvironmentSetupContext<{ readonly [key: string]: JsonValue }>,
   EnvironmentClass: JestEnvironmentClass,
@@ -146,6 +164,7 @@ async function setUpJest(
       bindFunctions: isWindow,
       keepStatics: true,
     })
+    if (isWindow) hideNodeFetch(environment.global)
     // Jest's environments give each file a copy of `process` (jest-util's `installCommonGlobals`),
     // which `populateGlobal` doesn't carry over: the worker already has a `process`. Through the
     // snapshot's wrapped setter, so teardown puts the worker's back.
