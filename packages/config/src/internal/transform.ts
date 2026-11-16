@@ -18,6 +18,26 @@ function assertRegExp(source: string, path: string): void {
 }
 
 /**
+ * Checks `transformIgnorePatterns`: each pattern, then all of them joined with `|`, the one regular
+ * expression Jest builds (`ScriptTransformer.ts` `calcIgnorePatternRegExp`, L1072-L1081) and the
+ * loader and a transformer host build, whether or not a transform is configured. Two patterns that
+ * compile alone can fail joined (`\k<b>` and `(?<a>x)`: the second makes the first a reference to
+ * a group that isn't there). Jest fails every test file on it; here it is one config error.
+ */
+function assertIgnorePatterns(neutral: NeutralProject): void {
+  const patterns = neutral.transformIgnorePatterns
+  patterns.forEach((pattern, index) => {
+    assertRegExp(pattern, `transformIgnorePatterns[${index}]`)
+  })
+  if (patterns.length > 1) {
+    assertRegExp(
+      patterns.join('|'),
+      'transformIgnorePatterns (joined with "|", as Jest joins them)',
+    )
+  }
+}
+
+/**
  * A transformer's module as the absolute path a worker can import (D21). A path stays as it is; a
  * package name (a transformer a dialect left bare, such as Jest's own `babel-jest` with no Jest
  * install to resolve it from) resolves from the project's root, as a transformer is the project's
@@ -42,10 +62,8 @@ function resolveTransformer(module: string, rootDir: string, path: string): stri
  * @internal
  */
 export function resolveTransforms(neutral: NeutralProject): SerializedTransformConfig | undefined {
+  assertIgnorePatterns(neutral)
   if (neutral.transforms.length === 0) return undefined
-  neutral.transformIgnorePatterns.forEach((pattern, index) => {
-    assertRegExp(pattern, `transformIgnorePatterns[${index}]`)
-  })
   return {
     rules: neutral.transforms.map((rule, index) => {
       const path = `transform[${index}]`
@@ -75,13 +93,11 @@ export function resolveTransforms(neutral: NeutralProject): SerializedTransformC
  */
 export function resolveTransformClaims(neutral: NeutralProject): TransformClaims | undefined {
   const standIns = neutral.standInTransformPatterns ?? []
-  if (neutral.transforms.length === 0 && standIns.length === 0) return undefined
   standIns.forEach((pattern, index) => {
     assertRegExp(pattern, `standInTransformPatterns[${index}]`)
   })
-  neutral.transformIgnorePatterns.forEach((pattern, index) => {
-    assertRegExp(pattern, `transformIgnorePatterns[${index}]`)
-  })
+  assertIgnorePatterns(neutral)
+  if (neutral.transforms.length === 0 && standIns.length === 0) return undefined
   return {
     patterns: [...neutral.transforms.map((rule) => rule.pattern), ...standIns],
     ignorePatterns: [...neutral.transformIgnorePatterns],

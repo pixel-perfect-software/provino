@@ -163,3 +163,40 @@ test('a stand-in or ignore pattern that is not a regular expression is CONFIG_IN
   )
   assert.match(ignore.message, /transformIgnorePatterns\[0\]/)
 })
+
+test('transformIgnorePatterns are checked with no transform at all (`transform: {}`), alone and joined with |', async () => {
+  // Jest builds `new RegExp(transformIgnorePatterns.join('|'))` in its ScriptTransformer whatever
+  // `transform` holds, and every test file fails on it; here it is one config error, before a run.
+  const single = await rejectsWith(
+    resolveNeutralProject(neutral({ transformIgnorePatterns: ['['] }), options),
+    'CONFIG_INVALID',
+  )
+  assert.match(single.message, /transformIgnorePatterns\[0\] is not a regular expression/)
+  // Each compiles alone (no named group, `\k<b>` is the letters); joined, the second's group makes
+  // the first a reference to a group named `b`, which there is none of. On every V8.
+  for (const project of [
+    neutral({ transformIgnorePatterns: ['\\k<b>', '(?<a>x)'] }),
+    neutral({
+      standInTransformPatterns: ['\\.js$'],
+      transformIgnorePatterns: ['\\k<b>', '(?<a>x)'],
+    }),
+  ]) {
+    const joined = await rejectsWith(resolveNeutralProject(project, options), 'CONFIG_INVALID')
+    assert.match(
+      joined.message,
+      /transformIgnorePatterns \(joined with "\|", as Jest joins them\) is not a regular expression/,
+    )
+  }
+  const transformer = await temp.write('t4.cjs', 'module.exports = {}')
+  const named = await rejectsWith(
+    resolveNeutralProject(
+      neutral({
+        transforms: [{ pattern: 'x', module: transformer, options: {} }],
+        transformIgnorePatterns: ['\\k<b>', '(?<a>x)'],
+      }),
+      options,
+    ),
+    'CONFIG_INVALID',
+  )
+  assert.match(named.message, /joined with "\|"/)
+})
