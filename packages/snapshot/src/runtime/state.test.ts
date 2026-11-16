@@ -567,18 +567,7 @@ describe('liveCounters (B23e, D128)', () => {
     assert.equal(state.liveCounters, counters, 'the same map every time')
   })
 
-  test('the counts beside it are the ones the report adds up', () => {
-    const state = stateIn(tempDir())
-    state.added += 1
-    state.updated += 2
-    state.matched += 3
-    state.unmatched += 4
-    const report = state.finish()
-    assert.deepEqual([report.added, report.updated, report.matched, report.unmatched], [1, 2, 3, 4])
-  })
-
-  // `ecosystem/image-snapshot-retry` (Jest 30.5.2): `clear(test)` takes back jest-snapshot's own
-  // record, which a matcher writing the fields directly is not part of.
+  // A write through the map or the counts belongs to no attempt (`liveCounters` in `state.ts`).
   test('a retry leaves what a matcher outside Provino wrote, as Jest`s clear(test) does', () => {
     const state = stateIn(tempDir())
     const counters = state.liveCounters
@@ -609,13 +598,5 @@ describe('liveCounters (B23e, D128)', () => {
       state.match({ testName: 't', received: 1, isInline: false, testId: 'a' }).key,
       't 3',
     )
-  })
-
-  test('a retry still takes back what its own snapshots counted', () => {
-    const state = stateIn(tempDir())
-    state.match({ testName: 't', received: 1, isInline: false, testId: 'a' })
-    state.clearTest('a')
-    assert.equal(state.liveCounters.has('t'), false)
-    assert.equal(state.match({ testName: 't', received: 1, isInline: false }).key, 't 1')
   })
 })

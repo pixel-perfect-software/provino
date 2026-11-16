@@ -93,8 +93,6 @@ export type {
   InlineSnapshotWriterFactory,
   LegacySnapshotSerializer,
   ResolveSnapshotPath,
-  SnapshotContextSource,
-  SnapshotContextViewFactory,
   SnapshotKey,
   SnapshotMessageInfo,
   SnapshotMessages,
@@ -105,5 +103,7 @@ export type {
   SnapshotResolver,
   SnapshotResolverFactory,
   SnapshotSerializeOptions,
+  SnapshotViewFactory,
+  SnapshotViewSource,
 } from './snapshot.ts'
 export type { TimersPolicy } from './timers.ts'

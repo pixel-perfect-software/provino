@@ -1,18 +1,18 @@
 import { defaultSnapshotPath, SnapshotError, type SnapshotUpdateMode } from '@provino/snapshot'
 import type {
   ResolveSnapshotPath,
-  SnapshotContextViewFactory,
   SnapshotKey,
   SnapshotPolicy,
   SnapshotPrinter,
+  SnapshotViewFactory,
 } from '@provino/types'
-import { snapshotContextOf } from './context.ts'
+import { matcherSnapshotStateOf } from './context.ts'
 import { type SnapshotLifecycle, trackSnapshots } from './lifecycle.ts'
 import { SnapshotState } from './state.ts'
 
 /**
  * What a worker needs to open one test file's snapshots. The behaviours (`key`, `printer`,
- * `resolvePath`) are the policy's refs, loaded once per worker.
+ * `resolvePath`, `contextView`) are the policy's refs, loaded once per worker.
  * @public
  */
 export interface OpenSnapshotsOptions {
@@ -25,11 +25,8 @@ export interface OpenSnapshotsOptions {
   readonly printer: SnapshotPrinter | null
   /** `null`: the default layout beside the test file. */
   readonly resolvePath: ResolveSnapshotPath | null
-  /**
-   * The policy's `snapshot.contextView`, loaded: what a matcher sees as `this.snapshotState`.
-   * Absent or `null`: the state itself.
-   */
-  readonly contextView?: SnapshotContextViewFactory | null
+  /** `null`: a matcher's `this.snapshotState` is the state itself, not a view of it. */
+  readonly contextView: SnapshotViewFactory | null
 }
 
 /**
@@ -51,14 +48,14 @@ function missingPrinter(): SnapshotPrinter {
 
 /**
  * Opens a test file's snapshots: its state (reading the `.snap` file), the lifecycle that follows
- * the file's events, and `context`, the value the matcher state holds as `snapshotState` (the
- * state, or the policy's view of it; `unwrapSnapshotContext` gives the state back).
+ * the file's events, and `matcherSnapshotState`, what a matcher finds as `this.snapshotState` (the
+ * state, or the policy's view of it; `unwrapMatcherSnapshotState` gives the state back).
  * @public
  */
 export function openFileSnapshots(options: OpenSnapshotsOptions): {
   readonly state: SnapshotState
   readonly lifecycle: SnapshotLifecycle
-  readonly context: object
+  readonly matcherSnapshotState: object
 } {
   const { testPath, policy } = options
   const snapshotPath =
@@ -78,6 +75,6 @@ export function openFileSnapshots(options: OpenSnapshotsOptions): {
   return {
     state,
     lifecycle: trackSnapshots(state, { keyJoin: policy.keyJoin }),
-    context: snapshotContextOf(state, options.contextView ?? null),
+    matcherSnapshotState: matcherSnapshotStateOf(state, options.contextView),
   }
 }

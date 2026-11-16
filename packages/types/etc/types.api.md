@@ -3138,23 +3138,6 @@ export type SkipReason = "modifier" | "only-filter" | "name-filter" | "condition
 export type SliceName = keyof PolicySlices;
 
 // @public
-export interface SnapshotContextSource {
-    // (undocumented)
-    added: number;
-    readonly liveCounters: Map<string, number>;
-    // (undocumented)
-    matched: number;
-    // (undocumented)
-    unmatched: number;
-    readonly update: "all" | "new" | "none";
-    // (undocumented)
-    updated: number;
-}
-
-// @public
-export type SnapshotContextViewFactory = (state: SnapshotContextSource) => object;
-
-// @public
 export interface SnapshotCounters {
     // (undocumented)
     readonly added: number;
@@ -3236,7 +3219,7 @@ export type SnapshotPlugin = SnapshotSerializer | LegacySnapshotSerializer;
 // @public
 export interface SnapshotPolicy {
     readonly ciUpdate: "new" | "none";
-    readonly contextView: Behaviour<SnapshotContextViewFactory> | null;
+    readonly contextView: Behaviour<SnapshotViewFactory> | null;
     readonly dirName: string;
     readonly extension: string;
     readonly format: {
@@ -3317,6 +3300,19 @@ export interface SnapshotSerializer {
     serialize(value: unknown, ...rest: never[]): string;
     // (undocumented)
     test(value: unknown): boolean;
+}
+
+// @public
+export type SnapshotViewFactory = (state: SnapshotViewSource) => object;
+
+// @public
+export interface SnapshotViewSource {
+    added: number;
+    readonly liveCounters: Map<string, number>;
+    matched: number;
+    unmatched: number;
+    readonly update: "all" | "new" | "none";
+    updated: number;
 }
 
 // @public

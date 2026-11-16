@@ -168,16 +168,20 @@ export interface SnapshotResolver {
 export type SnapshotResolverFactory = (exports: unknown, extension: string) => SnapshotResolver
 
 /**
- * What a snapshot context view is built over: the running file's snapshot state
+ * What a snapshot view is built over: the running file's snapshot state
  * (`@provino/snapshot/runtime`'s `SnapshotState`), as far as a matcher outside Provino may reach
  * it. The four counts are the ones the file's report and the run's totals add up, so a write to
  * one is a snapshot written, matched, failed or updated.
  * @public
  */
-export interface SnapshotContextSource {
+export interface SnapshotViewSource {
+  /** Snapshots written in this file. */
   added: number
+  /** Snapshots that matched the stored ones. */
   matched: number
+  /** Snapshots that failed. */
   unmatched: number
+  /** Stored snapshots rewritten (`-u`). */
   updated: number
   /** What may be written: `all` (`-u`), `new`, or `none` (CI). */
   readonly update: 'all' | 'new' | 'none'
@@ -193,7 +197,7 @@ export interface SnapshotContextSource {
  * worker once per test file; the snapshot matchers still reach the state itself.
  * @public
  */
-export type SnapshotContextViewFactory = (state: SnapshotContextSource) => object
+export type SnapshotViewFactory = (state: SnapshotViewSource) => object
 
 /**
  * The `snapshot` slice, read by `@provino/snapshot` (Track 7).
@@ -295,5 +299,5 @@ export interface SnapshotPolicy {
    * the four counts; jest-image-snapshot). Vitest: `null` until T7.6 records what its matchers
    * read. Provino's own key.
    */
-  readonly contextView: Behaviour<SnapshotContextViewFactory> | null
+  readonly contextView: Behaviour<SnapshotViewFactory> | null
 }

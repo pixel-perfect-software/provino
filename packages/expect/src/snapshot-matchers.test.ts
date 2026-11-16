@@ -4,8 +4,14 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { iterableEquality, subsetEquality } from '@jest/expect-utils'
-import { SnapshotError, SnapshotState, snapshotContextOf } from '@provino/snapshot/runtime'
-import type { ExpectStatic, SnapshotMessageInfo, SnapshotPrinter } from '@provino/types'
+import { neutralPolicy } from '@provino/policy'
+import { openFileSnapshots, SnapshotError, type SnapshotState } from '@provino/snapshot/runtime'
+import type {
+  ExpectStatic,
+  SnapshotMessageInfo,
+  SnapshotPrinter,
+  SnapshotViewFactory,
+} from '@provino/types'
 import { createEndOfTest } from './end-of-test.ts'
 import { createExpect, MatcherResultError } from './expect.ts'
 import { manualCurrentTest, testPolicy, testTable, testTask } from './internal/test-support.ts'
@@ -53,6 +59,8 @@ interface Options {
   hintJoin?: string
   /** The policy has an inline snapshot writer (B23d B1). */
   inlineWrites?: boolean
+  /** The policy's `snapshot.contextView`, loaded: what the matchers find as `this.snapshotState`. */
+  contextView?: SnapshotViewFactory
 }
 
 interface Setup {
@@ -60,6 +68,8 @@ interface Setup {
   readonly source: StateSource
   readonly dir: string
   readonly state: SnapshotState
+  /** What the matcher state holds as `snapshotState`: the state, or the view built over it. */
+  readonly matcherSnapshotState: object
   readonly snapPath: string
   /**
    * Runs `fn` as the test with this title path, then the end-of-test check the runtime runs: the
@@ -100,23 +110,28 @@ function setup(options: Options = {}): Setup {
   })
   const snapPath = join(dir, '__snapshots__', 'a.test.ts.snap')
   if (options.stored !== undefined) put(snapPath, options.stored)
-  const state = new SnapshotState({
+  // Opened as the worker opens a file's snapshots. The inline writer is a stand-in ref: the
+  // state only asks whether there is one.
+  const writer = { module: 'inline-writer', export: 'writer' }
+  const { state, matcherSnapshotState } = openFileSnapshots({
     testPath: join(dir, 'a.test.ts'),
-    snapshotPath: snapPath,
     update: options.update ?? 'new',
     expand: false,
     policy: {
+      ...neutralPolicy.snapshot,
       header: HEADER,
       keyJoin,
       hintJoin: options.hintJoin ?? ': ',
       throwErrorBody: options.throwErrorBody ?? 'message',
       format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null, extra: {} },
+      inline: { ...neutralPolicy.snapshot.inline, writer: options.inlineWrites ? writer : null },
     },
     key: (name, count) => `${name} ${count}`,
     printer,
-    inlineWrites: options.inlineWrites ?? false,
+    resolvePath: () => snapPath,
+    contextView: options.contextView ?? null,
   })
-  expect.setState({ snapshotState: state })
+  expect.setState({ snapshotState: matcherSnapshotState })
   function inRawTest<T>(titlePath: string[], fn: () => T, id = titlePath.join('/')): T {
     current.enter(testTask(id, titlePath))
     try {
@@ -130,6 +145,7 @@ function setup(options: Options = {}): Setup {
     source,
     dir,
     state,
+    matcherSnapshotState,
     snapPath,
     inRawTest,
     inTest(titlePath, fn, id = titlePath.join('/')) {
@@ -614,10 +630,9 @@ describe('expect.addSnapshotSerializer', () => {
 describe('a dialect`s view as this.snapshotState (B23e, D128)', () => {
   /** The setup with the matcher state holding a view over the file's state, as the worker puts it. */
   const viewed = () => {
-    const set = setup()
-    const view = snapshotContextOf(set.state, () => ({ shape: 'dialect' }))
-    set.expect.setState({ snapshotState: view })
-    return { ...set, view }
+    const set = setup({ contextView: () => ({ shape: 'dialect' }) })
+    assert.notEqual(set.matcherSnapshotState, set.state, 'the matchers are handed the view')
+    return { ...set, view: set.matcherSnapshotState }
   }
 
   test('the snapshot matchers work on the state the view was built over', () => {

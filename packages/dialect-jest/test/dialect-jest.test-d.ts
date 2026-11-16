@@ -36,9 +36,9 @@ import type {
   PolicyOverrides,
   ProjectConfig,
   ProvinoConfigInput,
-  SnapshotContextSource,
-  SnapshotContextViewFactory,
   SnapshotResolverFactory,
+  SnapshotViewFactory,
+  SnapshotViewSource,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
@@ -198,14 +198,14 @@ void jestInlineSnapshotWriter()([], {})
 jestSnapshotResolver({})
 
 // B23e (D128): Jest's `this.snapshotState` over the file's state, behind `snapshot.contextView`.
-expectTypeOf(jestSnapshotStateView).toExtend<SnapshotContextViewFactory>()
-expectTypeOf(jestSnapshotStateView).parameters.toEqualTypeOf<[SnapshotContextSource]>()
+expectTypeOf(jestSnapshotStateView).toExtend<SnapshotViewFactory>()
+expectTypeOf(jestSnapshotStateView).parameters.toEqualTypeOf<[SnapshotViewSource]>()
 expectTypeOf(jestSnapshotStateView).returns.toEqualTypeOf<JestSnapshotStateView>()
 expectTypeOf<JestSnapshotStateView['_counters']>().toEqualTypeOf<Map<string, number>>()
 expectTypeOf<JestSnapshotStateView['_updateSnapshot']>().toEqualTypeOf<'all' | 'new' | 'none'>()
 expectTypeOf<JestSnapshotStateView['added']>().toEqualTypeOf<number>()
 expectTypeOf(jestPolicy.snapshot?.contextView).toEqualTypeOf<
-  ModuleRef<SnapshotContextViewFactory> | SnapshotContextViewFactory | null | undefined
+  ModuleRef<SnapshotViewFactory> | SnapshotViewFactory | null | undefined
 >()
 declare const view: JestSnapshotStateView
 view.added += 1

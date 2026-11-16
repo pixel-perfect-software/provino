@@ -77,12 +77,12 @@ import type {
   ResolveSnapshotPath,
   RuntimeEvent,
   SerializedCoverageConfig,
-  SnapshotContextViewFactory,
   SnapshotFileReport,
   SnapshotKey,
   SnapshotPlugin,
   SnapshotPrinter,
   SnapshotResolverFactory,
+  SnapshotViewFactory,
   TaskId,
   WorkerEvent,
 } from '@provino/types'
@@ -263,7 +263,7 @@ interface SnapshotBehaviours {
   /** `null`: the default layout beside the test file. */
   readonly resolvePath: ResolveSnapshotPath | null
   /** `snapshot.contextView`: what a matcher sees as `this.snapshotState`; `null` for the state. */
-  readonly contextView: SnapshotContextViewFactory | null
+  readonly contextView: SnapshotViewFactory | null
   /** The project's own resolver module (`SerializedProjectConfig.snapshotResolver`), if any. */
   readonly customResolver?: {
     readonly module: string
@@ -1044,7 +1044,7 @@ export function createRuntimeRunner(): WorkerRunner {
             ),
             contextView,
           })
-          Object.assign(worker.source.file(), { snapshotState: snapshots.context })
+          Object.assign(worker.source.file(), { snapshotState: snapshots.matcherSnapshotState })
           return snapshots
         }
         if (worker.snapshots.customResolver === undefined) openSnapshots = await open()

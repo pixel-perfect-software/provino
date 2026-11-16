@@ -8,9 +8,9 @@
 // report and the run's Snapshot Summary add up. Those writes go to the fields, not to the attempt's
 // record, so a retry keeps them, as Jest's `clear(test)` does (`ecosystem/image-snapshot-retry`:
 // a retried image counts on both attempts). The snapshot matchers themselves work on the state
-// underneath (`@provino/snapshot/runtime`'s `unwrapSnapshotContext`). The faster path, `null`
+// underneath (`@provino/snapshot/runtime`'s `unwrapMatcherSnapshotState`). The faster path, `null`
 // (the state itself), is the neutral value; this one is loaded only by the Jest dialect.
-import type { SnapshotContextSource } from '@provino/types'
+import type { SnapshotViewSource } from '@provino/types'
 
 /**
  * The fields of jest-snapshot's `SnapshotState` that the view carries. Each is an accessor over
@@ -21,10 +21,14 @@ export interface JestSnapshotStateView {
   /** How many snapshots each test name has taken: the state's live map. */
   readonly _counters: Map<string, number>
   /** `all` (`-u`), `new`, or `none` (CI). */
-  readonly _updateSnapshot: 'all' | 'new' | 'none'
+  readonly _updateSnapshot: SnapshotViewSource['update']
+  /** Snapshots written in this file. */
   added: number
+  /** Snapshots that matched the stored ones. */
   matched: number
+  /** Snapshots that failed. */
   unmatched: number
+  /** Stored snapshots rewritten (`-u`). */
   updated: number
 }
 
@@ -32,7 +36,7 @@ export interface JestSnapshotStateView {
  * Builds Jest's view of a file's snapshot state (`snapshot.contextView`), once per test file.
  * @public
  */
-export function jestSnapshotStateView(state: SnapshotContextSource): JestSnapshotStateView {
+export function jestSnapshotStateView(state: SnapshotViewSource): JestSnapshotStateView {
   return {
     get _counters() {
       return state.liveCounters

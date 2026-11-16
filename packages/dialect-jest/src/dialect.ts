@@ -35,9 +35,9 @@ import type {
   PolicyOverrides,
   ShapeTestError,
   ShuffleFactory,
-  SnapshotContextViewFactory,
   SnapshotPrinterFactory,
   SnapshotResolverFactory,
+  SnapshotViewFactory,
 } from '@provino/types'
 import { jestExpectPolicy } from './expect-policy.ts'
 import { jestHoistPolicy } from './hoist-policy.ts'
@@ -330,7 +330,7 @@ export const jestPolicy: PolicyOverrides = {
     // Provino's own key (B23e, D128, compat): `this.snapshotState` as jest-snapshot 30.5.2's
     // `SnapshotState` shows it to a matcher (`_counters`, `_updateSnapshot`, the four counts), over
     // Provino's state; `ecosystem/image-snapshot-*` hold jest-image-snapshot's reads and writes.
-    contextView: moduleRef<SnapshotContextViewFactory>(
+    contextView: moduleRef<SnapshotViewFactory>(
       import.meta.resolve('@provino/dialect-jest/runtime'),
       'jestSnapshotStateView',
     ),

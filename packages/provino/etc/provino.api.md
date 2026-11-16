@@ -124,18 +124,7 @@ export interface E extends TaskBase {
 }
 
 // @public
-export interface et {
-    // (undocumented)
-    added: number;
-    readonly liveCounters: Map<string, number>;
-    // (undocumented)
-    matched: number;
-    // (undocumented)
-    unmatched: number;
-    readonly update: "all" | "new" | "none";
-    // (undocumented)
-    updated: number;
-}
+export type et = (fullName: string, count: number) => string;
 
 // @public
 export type F = (received: never, ...expected: never[]) => MatcherResult | Promise<MatcherResult>;
@@ -288,11 +277,7 @@ export type N = string | number | boolean | null | readonly N[] | {
 export type n = (options: ChangedFilesOptions) => Promise<ChangedFiles>;
 
 // @public
-export interface nt {
-    // (undocumented)
-    readonly messages: SnapshotMessages;
-    serialize(value: unknown, options: SnapshotSerializeOptions): string;
-}
+export type nt = (exports: unknown, extension: string) => SnapshotResolver;
 
 // @public
 export type O = (miss: MapperMiss) => string;
@@ -400,7 +385,14 @@ export interface r {
 }
 
 // @public
-export type rt = (exports: unknown, extension: string) => SnapshotResolver;
+export interface rt {
+    added: number;
+    readonly liveCounters: Map<string, number>;
+    matched: number;
+    unmatched: number;
+    readonly update: "all" | "new" | "none";
+    updated: number;
+}
 
 // @public
 export interface S extends InvertibleAsymmetric {
@@ -513,7 +505,11 @@ export interface t {
 }
 
 // @public
-export type tt = (fullName: string, count: number) => string;
+export interface tt {
+    // (undocumented)
+    readonly messages: SnapshotMessages;
+    serialize(value: unknown, options: SnapshotSerializeOptions): string;
+}
 
 // @public
 export type U = "per-file" | "shared";

@@ -18,7 +18,7 @@ import {
   type MatchResult,
   SnapshotError,
   SnapshotState,
-  unwrapSnapshotContext,
+  unwrapMatcherSnapshotState,
 } from '@provino/snapshot/runtime'
 import type {
   Matcher,
@@ -110,19 +110,25 @@ function isError(value: unknown): value is Error {
   }
 }
 
+/**
+ * The file's snapshot state, from a matcher state's `snapshotState`, which may hold the dialect's
+ * view of it (`snapshot.contextView`); `undefined` when there is none.
+ */
+function snapshotStateIn(value: unknown): SnapshotState | undefined {
+  const state = unwrapMatcherSnapshotState(value)
+  return isSnapshotState(state) ? state : undefined
+}
+
 const isSnapshotState = (value: unknown): value is SnapshotState =>
   typeof value === 'object' &&
   value !== null &&
   typeof Reflect.get(value, 'match') === 'function' &&
   typeof Reflect.get(value, 'testName') === 'function'
 
-/**
- * The file's snapshot state: Jest's "Snapshot state must be initialized". The context may hold the
- * dialect's view of it (`snapshot.contextView`), which unwraps to the state.
- */
+/** The file's snapshot state: Jest's "Snapshot state must be initialized". */
 function stateOf(context: MatcherContext, matcherName: string): SnapshotState {
-  const snapshotState = unwrapSnapshotContext(context.snapshotState)
-  if (!isSnapshotState(snapshotState)) {
+  const snapshotState = snapshotStateIn(context.snapshotState)
+  if (snapshotState === undefined) {
     throw new SnapshotError(
       'SNAPSHOT_NOT_INITIALIZED',
       `expect(received).${matcherName}()\n\nSnapshot state must be initialized: the matcher ran outside a test file's run`,
@@ -535,8 +541,8 @@ export function addSnapshotSerializer(
   context: { snapshotState?: unknown },
   plugin: SnapshotPlugin,
 ): void {
-  const snapshotState = unwrapSnapshotContext(context.snapshotState)
-  if (!isSnapshotState(snapshotState)) {
+  const snapshotState = snapshotStateIn(context.snapshotState)
+  if (snapshotState === undefined) {
     throw new SnapshotError(
       'SNAPSHOT_NOT_INITIALIZED',
       "expect.addSnapshotSerializer() ran outside a test file's run: there is no snapshot state to add the serializer to",

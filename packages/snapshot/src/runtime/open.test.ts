@@ -3,8 +3,8 @@ import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
 import { SnapshotError } from '@provino/snapshot'
-import type { SnapshotContextSource, SnapshotContextViewFactory } from '@provino/types'
-import { unwrapSnapshotContext } from './context.ts'
+import type { SnapshotViewFactory, SnapshotViewSource } from '@provino/types'
+import { unwrapMatcherSnapshotState } from './context.ts'
 import { openFileSnapshots } from './open.ts'
 import { jsonPrinter, policy, tempDir } from './test-support.ts'
 
@@ -22,6 +22,7 @@ describe('openFileSnapshots', () => {
       key,
       printer: jsonPrinter,
       resolvePath: null,
+      contextView: null,
     })
     assert.equal(state.snapshotPath, join(dir, 'sub', '__snaps__', 'a.test.ts.out'))
   })
@@ -39,6 +40,7 @@ describe('openFileSnapshots', () => {
         calls.push([testPath, extension])
         return '/elsewhere/a.snap'
       },
+      contextView: null,
     })
     assert.equal(state.snapshotPath, '/elsewhere/a.snap')
     assert.deepEqual(calls, [['/p/a.test.ts', '.snap']])
@@ -53,6 +55,7 @@ describe('openFileSnapshots', () => {
       key,
       printer: null,
       resolvePath: null,
+      contextView: null,
     })
     assert.throws(
       () => state.match({ testName: 't', received: 1, isInline: false }),
@@ -69,13 +72,14 @@ describe('openFileSnapshots', () => {
       key,
       printer: jsonPrinter,
       resolvePath: null,
+      contextView: null,
     })
     assert.equal(lifecycle.finish(), null)
   })
 })
 
-describe('the matcher context`s snapshotState (B23e, D128)', () => {
-  const open = (contextView?: SnapshotContextViewFactory | null) =>
+describe('a matcher`s snapshotState (B23e, D128)', () => {
+  const open = (contextView: SnapshotViewFactory | null) =>
     openFileSnapshots({
       testPath: join(tempDir(), 'a.test.ts'),
       update: 'new',
@@ -84,44 +88,53 @@ describe('the matcher context`s snapshotState (B23e, D128)', () => {
       key,
       printer: jsonPrinter,
       resolvePath: null,
-      ...(contextView === undefined ? {} : { contextView }),
+      contextView,
     })
 
-  test('is the state itself with no view, absent or null', () => {
-    for (const opened of [open(), open(null)]) {
-      assert.equal(opened.context, opened.state)
-      assert.equal(unwrapSnapshotContext(opened.context), opened.state)
-    }
+  test('is the state itself with no view', () => {
+    const opened = open(null)
+    assert.equal(opened.matcherSnapshotState, opened.state)
+    assert.equal(unwrapMatcherSnapshotState(opened.matcherSnapshotState), opened.state)
   })
 
   test('is the view the policy builds over the state, which unwraps to it', () => {
-    const seen: SnapshotContextSource[] = []
+    const seen: SnapshotViewSource[] = []
     const opened = open((state) => {
       seen.push(state)
       return { shape: 'dialect' }
     })
     assert.deepEqual(seen, [opened.state], 'built once, over the file`s state')
-    assert.deepEqual(Object.keys(opened.context), ['shape'], 'the state is not an own key to see')
-    assert.equal(unwrapSnapshotContext(opened.context), opened.state)
+    assert.deepEqual(
+      Object.keys(opened.matcherSnapshotState),
+      ['shape'],
+      'the state is not an own key to see',
+    )
+    assert.equal(unwrapMatcherSnapshotState(opened.matcherSnapshotState), opened.state)
   })
 
   test('may be a frozen object, which is linked to the state without being written to', () => {
     const view = Object.freeze({ shape: 'frozen' })
     const opened = open(() => view)
-    assert.equal(opened.context, view)
+    assert.equal(opened.matcherSnapshotState, view)
     assert.deepEqual(Reflect.ownKeys(view), ['shape'], 'nothing was defined on it')
-    assert.equal(unwrapSnapshotContext(opened.context), opened.state)
+    assert.equal(unwrapMatcherSnapshotState(opened.matcherSnapshotState), opened.state)
+  })
+
+  test('may be a function, which unwraps as an object does', () => {
+    const view = Object.assign(() => {}, { shape: 'callable' })
+    const opened = open(() => view)
+    assert.equal(unwrapMatcherSnapshotState(view), opened.state)
   })
 
   test('a look-alike of a view is not one: only the object the factory built unwraps', () => {
     const opened = open(() => ({ shape: 'dialect' }))
-    const copy = { ...opened.context }
-    assert.equal(unwrapSnapshotContext(copy), copy)
+    const copy = { ...opened.matcherSnapshotState }
+    assert.equal(unwrapMatcherSnapshotState(copy), copy)
   })
 
   test('anything else unwraps to itself, so the matchers can refuse it', () => {
     for (const value of [undefined, null, 1, 'state', { match() {} }]) {
-      assert.equal(unwrapSnapshotContext(value), value)
+      assert.equal(unwrapMatcherSnapshotState(value), value)
     }
   })
 })
@@ -136,6 +149,7 @@ describe('SnapshotState.testName', () => {
       key,
       printer: jsonPrinter,
       resolvePath: null,
+      contextView: null,
     }).state
 
   test('joins the title path with the key join and the hint with the hint join', () => {

@@ -18,12 +18,12 @@ import {
 } from '@provino/snapshot'
 import type {
   InlineSnapshotEdit,
-  SnapshotContextSource,
   SnapshotFileReport,
   SnapshotKey,
   SnapshotPlugin,
   SnapshotPolicy,
   SnapshotPrinter,
+  SnapshotViewSource,
 } from '@provino/types'
 import { readSnapFile, writeFileAtomically } from './files.ts'
 import { topFrame } from './frame.ts'
@@ -140,7 +140,7 @@ interface AttemptRecord {
  * The snapshot state of one test file.
  * @public
  */
-export class SnapshotState implements SnapshotContextSource {
+export class SnapshotState implements SnapshotViewSource {
   readonly testPath: string
   readonly snapshotPath: string
   readonly update: SnapshotUpdateMode
@@ -150,7 +150,14 @@ export class SnapshotState implements SnapshotContextSource {
   unmatched = 0
   updated = 0
 
-  private readonly counters = new Map<string, number>()
+  /**
+   * The count of snapshots taken per test name, as a live map: the next key of a name follows the
+   * count set here. It is there for a dialect's view (`snapshot.contextView`), whose matchers count
+   * snapshots of their own; Provino's matchers never read it. A write here, like one to the four
+   * counts, belongs to no attempt: `clearTest` keeps it, and puts back only the counters the
+   * test's own snapshots touched, each to its value before the test's first snapshot of that name.
+   */
+  readonly liveCounters: Map<string, number> = new Map()
   private dirty: boolean
   private fileExists: boolean
   private readonly data: SnapshotData
@@ -175,18 +182,6 @@ export class SnapshotState implements SnapshotContextSource {
     this.fileExists = read.exists
     this.uncheckedKeys = new Set(Object.keys(this.data))
     this.plugins = [...(options.serializers ?? [])]
-  }
-
-  /**
-   * The count of snapshots taken per test name, as a live map: the next key of a name follows the
-   * count set here. For a dialect's context view (`snapshot.contextView`), whose matchers count
-   * snapshots of their own (Jest's `_counters`); Provino's matchers never read it. A write here,
-   * like one to the four counts, is no attempt's: `clearTest` keeps it, as jest-snapshot 30.5.2's
-   * `clear(test)` keeps what a matcher wrote to its fields (`ecosystem/image-snapshot-retry`), and
-   * puts back only the counters the test's own snapshots touched, to their value before that.
-   */
-  get liveCounters(): Map<string, number> {
-    return this.counters
   }
 
   /** The serializers in the order they are tried: the one added last first. */
@@ -273,8 +268,8 @@ export class SnapshotState implements SnapshotContextSource {
       this.inlineEdits.splice(this.inlineEdits.indexOf(edit), 1)
     for (const key of record.checkedKeys) this.uncheckedKeys.add(key)
     for (const [testName, previous] of record.counters) {
-      if (previous === undefined) this.counters.delete(testName)
-      else this.counters.set(testName, previous)
+      if (previous === undefined) this.liveCounters.delete(testName)
+      else this.liveCounters.set(testName, previous)
     }
     // The dirty flag can only be undone when every write since this test's first was its own; a
     // foreign write in between keeps the flag earned.
@@ -566,10 +561,10 @@ export class SnapshotState implements SnapshotContextSource {
   private bumpCounter(testName: string, testId: string | undefined): number {
     const record = this.recordFor(testId)
     if (record !== undefined && !record.counters.has(testName)) {
-      record.counters.set(testName, this.counters.get(testName))
+      record.counters.set(testName, this.liveCounters.get(testName))
     }
-    const count = (this.counters.get(testName) ?? 0) + 1
-    this.counters.set(testName, count)
+    const count = (this.liveCounters.get(testName) ?? 0) + 1
+    this.liveCounters.set(testName, count)
     return count
   }
 

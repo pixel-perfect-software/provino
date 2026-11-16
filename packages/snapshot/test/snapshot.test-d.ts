@@ -26,17 +26,16 @@ import {
   type SnapshotLifecycle,
   SnapshotState,
   type SnapshotStateOptions,
-  snapshotContextOf,
   trackSnapshots,
-  unwrapSnapshotContext,
+  unwrapMatcherSnapshotState,
 } from '@provino/snapshot/runtime'
 import type {
-  SnapshotContextSource,
-  SnapshotContextViewFactory,
   SnapshotFileReport,
   SnapshotPolicy,
   SnapshotPrinter,
   SnapshotRunSummary,
+  SnapshotViewFactory,
+  SnapshotViewSource,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
@@ -104,28 +103,26 @@ trackSnapshots(state, {})
 expectTypeOf(openFileSnapshots).returns.toEqualTypeOf<{
   readonly state: SnapshotState
   readonly lifecycle: SnapshotLifecycle
-  readonly context: object
+  readonly matcherSnapshotState: object
 }>()
 
 // B23e (D128): the live counters a dialect's view is built over, and the view's wrap and unwrap.
 expectTypeOf(state.liveCounters).toEqualTypeOf<Map<string, number>>()
-expectTypeOf(state).toExtend<SnapshotContextSource>()
+expectTypeOf(state).toExtend<SnapshotViewSource>()
 // @ts-expect-error the live map is the state's own: it can't be replaced
 state.liveCounters = new Map()
-expectTypeOf(snapshotContextOf).parameters.toEqualTypeOf<
-  [SnapshotState, SnapshotContextViewFactory | null]
->()
-expectTypeOf(snapshotContextOf(state, null)).toEqualTypeOf<object>()
-expectTypeOf(unwrapSnapshotContext).parameters.toEqualTypeOf<[unknown]>()
-expectTypeOf(unwrapSnapshotContext(state)).toEqualTypeOf<unknown>()
-// @ts-expect-error a view needs the factory or `null`, not nothing
-snapshotContextOf(state)
-// @ts-expect-error a view is built over the state, not a number
-snapshotContextOf(state, (count: number) => ({ count }))
-// @ts-expect-error a view is an object, not text
-snapshotContextOf(state, () => 'view')
+expectTypeOf(unwrapMatcherSnapshotState).parameters.toEqualTypeOf<[unknown]>()
+expectTypeOf(unwrapMatcherSnapshotState(state)).toEqualTypeOf<unknown>()
 declare const openOptions: Parameters<typeof openFileSnapshots>[0]
+expectTypeOf(openOptions.contextView).toEqualTypeOf<SnapshotViewFactory | null>()
 openFileSnapshots({ ...openOptions, contextView: (source) => ({ added: source.added }) })
+openFileSnapshots({ ...openOptions, contextView: null })
+// @ts-expect-error a view is built over the state, not a number
+openFileSnapshots({ ...openOptions, contextView: (count: number) => ({ count }) })
+// @ts-expect-error a view is an object, not text
+openFileSnapshots({ ...openOptions, contextView: () => 'view' })
+// @ts-expect-error `contextView` is required: `null` for the state itself
+openFileSnapshots({ ...openOptions, contextView: undefined })
 // @ts-expect-error the policy's view is a loaded function, not its ref
 openFileSnapshots({ ...openOptions, contextView: { module: 'x', export: 'y' } })
 

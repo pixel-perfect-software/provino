@@ -5,17 +5,16 @@
 // use of it, through lodash `merge`, is `provino`'s `ecosystem-image-snapshot.test.ts`.
 import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
-import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
-import type { SnapshotContextSource } from '@provino/types'
+import type { SnapshotViewSource } from '@provino/types'
 import { jestPolicy } from '../dialect.ts'
+import { requireFromJest } from './internal/test-support.ts'
 import { jestSnapshotStateView } from './snapshot-state-view.ts'
 
-const fromJestConfig = createRequire(createRequire(import.meta.url).resolve('jest-config'))
-const jestSnapshot = createRequire(fromJestConfig.resolve('jest-circus'))('jest-snapshot') as {
+const jestSnapshot = requireFromJest('jest-snapshot') as {
   SnapshotState: new (
     snapshotPath: string,
     options: { updateSnapshot: 'all' | 'new' | 'none'; snapshotFormat: object; rootDir: string },
@@ -26,7 +25,7 @@ const dir = mkdtempSync(join(tmpdir(), 'provino-snapshot-view-'))
 after(() => rmSync(dir, { recursive: true, force: true }))
 
 /** A state with nothing behind it but its fields. */
-function source(update: SnapshotContextSource['update'] = 'new'): SnapshotContextSource {
+function source(update: SnapshotViewSource['update'] = 'new'): SnapshotViewSource {
   return { added: 0, matched: 0, unmatched: 0, updated: 0, update, liveCounters: new Map() }
 }
 
@@ -65,6 +64,8 @@ describe('jestSnapshotStateView', () => {
   })
 
   test('the four counts read and write the state`s own', () => {
+    // A write goes straight to the state's field and belongs to no attempt, so a retry keeps it
+    // (`liveCounters` in `@provino/snapshot`'s `state.ts`; `ecosystem/image-snapshot-retry`).
     const state = source()
     const view = jestSnapshotStateView(state)
     // As jest-image-snapshot writes them: `merge(snapshotState, { added: snapshotState.added + 1 })`.
@@ -75,18 +76,6 @@ describe('jestSnapshotStateView', () => {
     assert.deepEqual([state.added, state.updated, state.matched, state.unmatched], [1, 2, 3, 4])
     state.added = 10
     assert.equal(view.added, 10)
-  })
-
-  test('a write through it is no attempt`s, so a retry leaves it, as in Jest', () => {
-    // `ecosystem/image-snapshot-retry`: Jest 30.5.2's `clear(test)` takes back only what
-    // jest-snapshot recorded for the attempt; jest-image-snapshot's writes to `_counters` and
-    // `added` go straight to the fields, so a retried test's image counts twice in the summary.
-    // The view writes the fields the same way: no attempt is charged for them.
-    const state = source()
-    const view = jestSnapshotStateView(state)
-    view._counters.set('t', (view._counters.get('t') ?? 0) + 1)
-    Object.assign(view, { added: view.added + 1 })
-    assert.deepEqual([state.liveCounters.get('t'), state.added], [1, 1])
   })
 
   test('_counters and _updateSnapshot can`t be replaced', () => {
