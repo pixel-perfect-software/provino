@@ -16,8 +16,18 @@ import {
   type RecordedFixture,
   type RecordedManifest,
 } from './recorded.ts'
-import { recorderText } from './recorder-text.ts'
 import { outputFree, spawnCli } from './support.ts'
+
+// The recorder's text normalizer, loaded by path: `provino` may not import `@provino/harness` (the
+// harness depends on it), as `watch-goldens.ts` loads the harness's watch pieces.
+const { createNormalizer } = (await import(
+  new URL('../../harness/src/normalize.ts', import.meta.url).href
+)) as {
+  readonly createNormalizer: (context: {
+    readonly rootDir: string
+    readonly extraRoots?: readonly string[]
+  }) => { readonly text: (text: string) => string }
+}
 
 /** Inside this package, so the packages a fixture's config names resolve from `node_modules`. */
 export const WORK: string = fileURLToPath(new URL('../.work/', import.meta.url))
@@ -74,15 +84,17 @@ type RunSpec = NonNullable<RecordedManifest['run']>
 
 /**
  * The text as the recorder normalized it before anything else (`record.ts`): under `run.raw` the
- * roots as `<root>` alone, else its normalizer's `text` (`recorder-text.ts`: the roots, and the
- * code frames, durations, placeholders and stacks it reduces).
+ * roots as `<root>` alone, else the harness's normalizer's `text` (the roots, and the code frames,
+ * durations, placeholders and stacks it reduces).
  */
 function normalizedForRecording(
   text: string,
   spec: RunSpec | undefined,
   roots: readonly string[],
 ): string {
-  return spec?.raw === true ? observedText(text, { roots }) : recorderText(roots)(text)
+  if (spec?.raw === true) return observedText(text, { roots })
+  const [rootDir = '', ...extraRoots] = roots
+  return createNormalizer({ rootDir, extraRoots }).text(text)
 }
 
 /**
