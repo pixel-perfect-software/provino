@@ -38,9 +38,10 @@ export interface ProcessErrorsConfig {
   readonly lastTestId: () => TaskId | null
 }
 
-/** A rejection nobody has handled yet, and who it is charged to: no frame is the running file. */
+/** A rejection nobody has handled yet, and who it is charged to. */
 interface Pending {
   readonly error: unknown
+  /** `undefined` for an error no test or hook raised: it is charged to the running file. */
   readonly frame: Frame | undefined
 }
 
@@ -54,7 +55,9 @@ export class ProcessErrors {
   /**
    * Errors no test owned (the run's, or a hook's outside any test), over the runtime's life: a
    * describe retry compares it, as circus's `processErrorGeneration`. One charged to an ended test
-   * is that test's, not counted here.
+   * is that test's, not counted here. A rejection no test or hook made is counted as it is held,
+   * not when `flush` charges it: circus raises the generation as such a rejection is reported
+   * (`eventHandler.ts` `case 'error'`), so it stops the retry even if it is handled later.
    */
   #unowned = 0
   /** Whether a file is running: a rejection reported outside one is charged at once. */
@@ -106,11 +109,11 @@ export class ProcessErrors {
     // Between files nothing is left to wait for: a rejection Node reports after the file ended (the
     // worker yields a turn for it) is charged to its test at once.
     if (promise !== undefined && this.#active) {
+      if (frame === undefined) this.#unowned++
       this.#pending.set(promise, { error, frame })
       return
     }
-    if (frame === undefined) this.#chargeFile(origin, error)
-    else this.#charge(frame, origin, error)
+    this.#charge(frame, origin, error)
   }
 
   /** A rejection got its handler after all: it is no longer an error. */
@@ -143,22 +146,24 @@ export class ProcessErrors {
   /** The file is over: every rejection still held is charged now, to the task that owned it. */
   flush(): void {
     this.#active = false
-    for (const pending of this.#pending.values()) {
-      if (pending.frame === undefined) this.#chargeFile('unhandledRejection', pending.error)
-      else this.#charge(pending.frame, 'unhandledRejection', pending.error)
+    for (const { frame, error } of this.#pending.values()) {
+      // One no test or hook made was counted as it was held (`unowned`).
+      this.#charge(frame, 'unhandledRejection', error, frame === undefined)
     }
     this.#pending.clear()
   }
 
-  /** Charges an error no test or hook raised to the file that is running. */
-  #chargeFile(origin: UnhandledErrorOrigin, error: unknown): void {
-    this.#chargedFiles++
-    this.#emit(this.#fileId ?? null, undefined, origin, error)
-  }
-
-  /** Charges an error to the test or hook the frame is in. */
-  #charge(frame: Frame, origin: UnhandledErrorOrigin, error: unknown): void {
-    if (frame.test !== null) {
+  /**
+   * Charges an error to the test or hook the frame is in, or, with no frame (no test or hook
+   * raised it), to the file that is running. `counted`: it is already in `unowned`.
+   */
+  #charge(
+    frame: Frame | undefined,
+    origin: UnhandledErrorOrigin,
+    error: unknown,
+    counted = false,
+  ): void {
+    if (frame !== undefined && frame.test !== null) {
       const attempt = this.#config.runningAttempt(frame)
       if (attempt !== undefined) {
         attempt.errors.push(error)
@@ -170,9 +175,9 @@ export class ProcessErrors {
       this.#emit(frame.test.id, frame, origin, error)
       return
     }
-    // A hook outside any test (beforeAll, afterAll): the file fails.
-    if (frame.fileId === this.#fileId) this.#chargedFiles++
-    this.#emit(frame.fileId, frame, origin, error)
+    // A hook outside any test (beforeAll, afterAll), or no test or hook at all: the file fails.
+    if (frame === undefined || frame.fileId === this.#fileId) this.#chargedFiles++
+    this.#emit(frame?.fileId ?? this.#fileId ?? null, frame, origin, error, counted)
   }
 
   #emit(
@@ -180,8 +185,9 @@ export class ProcessErrors {
     frame: Frame | undefined,
     origin: UnhandledErrorOrigin,
     error: unknown,
+    counted = false,
   ): void {
-    if (ownerId === null || frame?.test == null) this.#unowned++
+    if (!counted && (ownerId === null || frame?.test == null)) this.#unowned++
     this.#config.emit({
       type: 'unhandled-error',
       ownerId,
