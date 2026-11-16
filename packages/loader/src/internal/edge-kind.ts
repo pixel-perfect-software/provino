@@ -38,8 +38,8 @@ export interface EdgeKindState {
   readonly withModuleSync: readonly string[]
   /** Whether a module runs as an ES module, by its path. */
   readonly esmByPath: Map<string, boolean>
-  /** Whether a `package.json` says `"type": "module"`, by the manifest's path. */
-  readonly moduleTypeByManifest: Map<string, boolean>
+  /** The `"type"` a `package.json` gives (`undefined` for none), by the manifest's path. */
+  readonly typeByManifest: Map<string, string | undefined>
 }
 
 /** A member of `node:vm` this Node may lack, read without its type (the flags decide). */
@@ -77,42 +77,54 @@ export function createEdgeKindState(
       ? conditions
       : [...conditions, 'module-sync'],
     esmByPath: new Map(),
-    moduleTypeByManifest: new Map(),
+    typeByManifest: new Map(),
   }
 }
 
-/** Whether the `package.json` at `manifest` says `"type": "module"`; an unreadable or broken one does not. */
-function readsModuleType(manifest: string): boolean {
+/** The `type` the `package.json` at `manifest` gives; an unreadable or broken one gives none. */
+function packageTypeOf(manifest: string): string | undefined {
   try {
     const parsed: unknown = JSON.parse(readFileSync(manifest, 'utf8'))
-    return (
-      typeof parsed === 'object' &&
-      parsed !== null &&
-      (parsed as { readonly type?: unknown }).type === 'module'
-    )
+    if (typeof parsed !== 'object' || parsed === null) return undefined
+    const type = (parsed as { readonly type?: unknown }).type
+    return typeof type === 'string' ? type : undefined
   } catch {
-    return false
+    return undefined
+  }
+}
+
+/** The nearest `package.json` at or above `dir`, or `undefined` for none (or one Node can't parse). */
+function nearestManifest(dir: string): string | undefined {
+  try {
+    return findPackageJSON(pathToFileURL(join(dir, sep)).href)
+  } catch {
+    return undefined
   }
 }
 
 /**
- * Whether the nearest `package.json` at or above `dir` says `"type": "module"`. None, or one Node
- * cannot parse (it throws), is CommonJS, as Jest has it; each manifest is read once.
+ * The `type` of the nearest `package.json` at or above the file at `path` (`"module"`,
+ * `"commonjs"`), or `undefined` for none, or one Node cannot parse (it throws): CommonJS, as Jest
+ * has it. Each manifest is read once.
  */
-function moduleTypeFrom(state: EdgeKindState, dir: string): boolean {
-  let manifest: string | undefined
-  try {
-    manifest = findPackageJSON(pathToFileURL(join(dir, sep)).href)
-  } catch {
-    return false
-  }
-  if (manifest === undefined) return false
-  let answer = state.moduleTypeByManifest.get(manifest)
-  if (answer === undefined) {
-    answer = readsModuleType(manifest)
-    state.moduleTypeByManifest.set(manifest, answer)
-  }
-  return answer
+export function packageTypeAt(state: EdgeKindState, path: string): string | undefined {
+  const manifest = nearestManifest(dirname(path))
+  if (manifest === undefined) return undefined
+  if (state.typeByManifest.has(manifest)) return state.typeByManifest.get(manifest)
+  const type = packageTypeOf(manifest)
+  state.typeByManifest.set(manifest, type)
+  return type
+}
+
+/**
+ * Whether the file at `path` is CommonJS by its name or its package, whatever its source holds:
+ * `.cjs`, or a `.js` whose nearest `package.json` says `"type": "commonjs"` (jest-runtime's
+ * `Resolution.isExplicitlyCommonjs`, jest-resolve's `isExplicitlyCommonjsPackage`).
+ */
+export function isExplicitlyCommonjs(state: EdgeKindState, path: string): boolean {
+  const extension = extname(path)
+  if (extension === '.cjs') return true
+  return extension === '.js' && packageTypeAt(state, path) === 'commonjs'
 }
 
 /** Whether the module at `path` runs as an ES module under `importer-format`. */
@@ -124,7 +136,7 @@ export function runsAsEsm(state: EdgeKindState, path: string): boolean {
   let answer: boolean
   if (extension === '.mjs' || extension === '.wasm') answer = true
   else if (extension === '.cjs') answer = false
-  else if (extension === '.js') answer = moduleTypeFrom(state, dirname(path))
+  else if (extension === '.js') answer = packageTypeAt(state, path) === 'module'
   else answer = (state.options.esmExtensions ?? []).includes(extension)
   state.esmByPath.set(path, answer)
   return answer

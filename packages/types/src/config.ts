@@ -15,6 +15,7 @@ import type { EnvironmentRef, EnvironmentResolver } from './environment.ts'
 import type { PluginRegistry, ProvinoPlugin } from './extensions.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { IsolationTier } from './isolation.ts'
+import type { TransformClaims } from './loader.ts'
 import type { ModuleRef, SerializedPolicy } from './policy/index.ts'
 import type { SerializedModuleMapper } from './resolve.ts'
 
@@ -169,6 +170,12 @@ export interface SerializedLoaderConfig {
   readonly typescript: 'oxc' | 'blank' | 'node-strip' | 'off'
   /** User transformers (T3.8); absent for none, where every file takes the Oxc pipeline. */
   readonly transform?: SerializedTransformConfig
+  /**
+   * The files the project's transforms take, the ones Provino's pipeline stands in for included
+   * (`LoaderOptions.transformClaims`), so a `node_modules` file a transform takes is known even when
+   * `transform` is absent. Absent: no transform, so no `node_modules` file is taken.
+   */
+  readonly transformClaims?: TransformClaims
   /**
    * The transform cache's directory (T3.6), an absolute path; absent for no cache (`--no-cache`).
    * The coordinator makes it ready before any worker starts, so a worker only reads and writes

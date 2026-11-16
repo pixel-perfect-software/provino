@@ -1,0 +1,22 @@
+{
+  "description": "`transformIgnorePatterns` that ignore no file under `node_modules` (a config that lists only `^.+\\\\.module\\\\.(css|sass|scss)$`): Jest 30.5.2 transforms every module a transform claims, so `esm-pkg`, ES module source with no `type` whose `index.js` imports `./config` with no extension, goes through the transform (the recorder's, widened to `.js` by `jestTransformJs`) and the test passes. Read by `provino`'s `transform-node-modules.test.ts`. A black-box run.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "jestTransformJs": true,
+  "packages": {
+    "esm-pkg": {
+      "package.json": "{ \"name\": \"esm-pkg\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "import { config } from './config'\n\nexport function describeConfig() {\n  return 'config: ' + config.name\n}\n",
+      "config.js": "export const config = { name: 'esm' }\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "transformIgnorePatterns": ["^.+\\.module\\.(css|sass|scss)$"]
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests):|^  ● "
+  }
+}

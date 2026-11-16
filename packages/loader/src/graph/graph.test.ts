@@ -20,6 +20,7 @@ import { after, before, describe, test } from 'node:test'
 import { createResolver } from '@provino/resolver'
 import {
   buildThirdPartyGraph,
+  esmSyntaxOf,
   graphCacheKey,
   importersOf,
   initLexer,
@@ -117,6 +118,18 @@ describe('scanSource', () => {
       scan.edges.map((edge) => `${edge.kind} ${edge.specifier}`),
       ['import a', 'require a'],
     )
+  })
+
+  test('records ES module syntax: a declaration or import.meta, not import() or a require', () => {
+    assert.equal(scanSource("import a from 'a'").esm, true)
+    assert.equal(scanSource('export const a = 1').esm, true)
+    assert.equal(scanSource('export const a = import.meta.url').esm, true)
+    assert.equal(scanSource("import('a')").esm, false)
+    assert.equal(scanSource("require('a')").esm, false)
+    // The words, and a brace the lexer can't match: what no engine runs counts as ES module syntax.
+    assert.equal(scanSource("import { a } from './a'\n}\n").esm, true)
+    assert.equal(esmSyntaxOf("import { a } from './a'\n}\n"), null)
+    assert.equal(esmSyntaxOf("module.exports = require('a')"), false)
   })
 })
 

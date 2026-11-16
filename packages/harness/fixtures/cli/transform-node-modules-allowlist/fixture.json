@@ -1,0 +1,26 @@
+{
+  "description": "A package `transformIgnorePatterns` lets through, shaped as `next/jest` (next 16) writes them for `transpilePackages: ['esm-pkg']`: `/node_modules/(?!.pnpm)(?!(esm-pkg)/)`, the `.pnpm` form, then the CSS-modules pattern. `esm-pkg` is ES module source with no `type` (Node's syntax detection reads it as ESM) whose `index.js` imports `./config` with no extension. Jest 30.5.2 asks `ScriptTransformer.shouldTransform` of every module (a transform claims it and no ignore pattern matches), so the package goes through the transform (here the recorder's, widened to `.js` by `jestTransformJs`), its `import` becomes a `require` and jest-resolve finds `./config.js` by extension: the test passes. Read by `provino`'s `transform-node-modules.test.ts`, where Provino's Oxc path stands in for the transform (the default `babel-jest` entry). A black-box run.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "jestTransformJs": true,
+  "packages": {
+    "esm-pkg": {
+      "package.json": "{ \"name\": \"esm-pkg\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "import { config } from './config'\n\nexport function describeConfig() {\n  return 'config: ' + config.name\n}\n",
+      "config.js": "export const config = { name: 'esm' }\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "transformIgnorePatterns": [
+        "/node_modules/(?!.pnpm)(?!(esm-pkg)/)",
+        "/node_modules/.pnpm/(?!(esm-pkg)@)",
+        "^.+\\.module\\.(css|sass|scss)$"
+      ]
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests):|^  ● "
+  }
+}

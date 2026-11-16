@@ -79,6 +79,8 @@ export interface RunnerConfigOptions {
   readonly jestEsm?: true
   /** The fixture's `jestTypeScript`: Jest's documented TypeScript setup in place of the recorder's. */
   readonly jestTypeScript?: 'babel'
+  /** The fixture's `jestTransformJs`: Jest's transformer also takes `.js`, `.cjs` and `.mjs` files. */
+  readonly jestTransformJs?: true
   /** The fixture's `jestConfig`: Jest's `roots` and `unmockedModulePathPatterns`. */
   readonly jestConfig?: JestFixtureConfig
   /** The fixture's `config` overlay for this runner, applied last (`applyOverlay`). */
@@ -243,7 +245,7 @@ export function jestConfig(
   const base: JestConfigFile = {
     rootDir: workDir,
     transform: {
-      '\\.[cm]?ts$':
+      [options.jestTransformJs === true ? '\\.[cm]?[jt]s$' : '\\.[cm]?ts$']:
         options.jestTypeScript === 'babel'
           ? babelTypeScript(options)
           : options.jestEsm === true

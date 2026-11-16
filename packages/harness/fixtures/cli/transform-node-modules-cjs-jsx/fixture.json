@@ -1,0 +1,27 @@
+{
+  "description": "A CommonJS package Node can't parse (`rn-like`: `require` and `module.exports` with JSX in `index.js`, and Flow-style `: number` annotations in the `./half` it requires), under a preset shaped like React Native's: `transform` names `babel-jest` for `\\.jsx?$` and `transformIgnorePatterns` lets the package through. Jest 30.5.2 transforms both files with babel-jest and the project's `babel.config.json` (`@babel/preset-typescript` for every extension with TSX, `@babel/preset-react` with `h` as the pragma) and the test passes. Provino tries the native path first, as for any claimed CommonJS file; Node's `SyntaxError` at parse time sends each file to the same babel-jest, evaluated per file. The recorder's own transform takes the `.ts` test file. Read by `provino`'s `transform-node-modules.test.ts`. A black-box run.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "packages": {
+    "rn-like": {
+      "package.json": "{ \"name\": \"rn-like\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "'use strict'\n\nconst { half } = require('./half')\n\nconst h = (tag) => ({ tag })\n\nmodule.exports = { el: <b />, half }\n",
+      "half.js": "// @flow\nfunction half(x: number): number {\n  return x / 2\n}\n\nexports.half = half\n"
+    }
+  },
+  "files": {
+    "jest": {
+      "rn-preset/jest-preset.json": "{\n  \"transform\": {\n    \"\\\\.jsx?$\": \"babel-jest\"\n  },\n  \"transformIgnorePatterns\": [\"/node_modules/(?!(rn-like)/)\"]\n}\n",
+      "babel.config.json": "{\n  \"presets\": [\n    [\"@babel/preset-typescript\", { \"isTSX\": true, \"allExtensions\": true }],\n    [\"@babel/preset-react\", { \"pragma\": \"h\" }]\n  ]\n}\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "preset": "<rootDir>/rn-preset/jest-preset.json"
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests):|^  ● "
+  }
+}

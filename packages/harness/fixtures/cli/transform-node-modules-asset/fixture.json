@@ -1,0 +1,28 @@
+{
+  "description": "A package under `node_modules` (`styled-pkg`) whose CommonJS entry requires its own `styles.css`, under a preset whose `transform` takes `\\.css$` with a transformer the fixture carries (`css-transform.cjs`, which returns the class names as a CommonJS module) and whose `transformIgnorePatterns` lets the package through. Jest 30.5.2 runs the claiming transform on the `.css` file, whatever its text holds, so the test gets the class names. Provino loads a claimed file Node doesn't run as JavaScript as a user module, transformed and evaluated per file, where Node's own `require` of a `.css` file is a `SyntaxError`. Read by `provino`'s `transform-node-modules.test.ts`. A black-box run.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "jestTransformJs": true,
+  "packages": {
+    "styled-pkg": {
+      "package.json": "{ \"name\": \"styled-pkg\", \"version\": \"1.0.0\", \"type\": \"commonjs\", \"main\": \"index.js\" }\n",
+      "index.js": "exports.classes = require('./styles.css')\n",
+      "styles.css": ".title { color: red; }\n.box { margin: 0; }\n"
+    }
+  },
+  "files": {
+    "jest": {
+      "css-preset/jest-preset.json": "{\n  \"transform\": {\n    \"\\\\.css$\": \"<rootDir>/css-transform.cjs\"\n  },\n  \"transformIgnorePatterns\": [\"/node_modules/(?!(styled-pkg)/)\"]\n}\n",
+      "css-transform.cjs": "module.exports = {\n  process(source) {\n    const names = {}\n    for (const match of source.matchAll(/\\.([a-z-]+)\\s*\\{/g)) names[match[1]] = match[1]\n    return { code: `module.exports = ${JSON.stringify(names)};` }\n  },\n}\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "preset": "<rootDir>/css-preset/jest-preset.json"
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests):|^  ● "
+  }
+}

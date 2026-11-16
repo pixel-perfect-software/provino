@@ -100,7 +100,7 @@ test('importer-format: one manifest answers every .js file under it, read once',
   for (const file of ['a.js', 'x/b.js', 'x/y/c.js']) {
     assert.equal(runsAsEsm(state, join(root, file)), true, file)
   }
-  assert.deepEqual([...state.moduleTypeByManifest], [[join(root, 'package.json'), true]])
+  assert.deepEqual([...state.typeByManifest], [[join(root, 'package.json'), 'module']])
 })
 
 test('importer-format without vm modules: every module is CommonJS, as Jest has it', () => {

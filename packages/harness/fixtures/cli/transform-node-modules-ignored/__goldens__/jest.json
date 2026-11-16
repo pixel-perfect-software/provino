@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/transform-node-modules-ignored",
+  "files": [
+    {
+      "file": "uses-package.test.ts",
+      "status": "crashed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    Must use import to load ES Module: <root>/node_modules/esm-pkg/index.js\n\n    The file contains ESM syntax (import/export) that could not be executed as CommonJS. Either:\n      - Configure a transform (e.g. babel-jest) that compiles this file to CommonJS (see https://jestjs.io/docs/code-transformation)\n      - If the file is in \"node_modules\", allow it to be transformed by adjusting \"transformIgnorePatterns\" (see https://jestjs.io/docs/configuration#transformignorepatterns-arraystring)\n      - Use Node v24.9+ where Jest supports require(esm) natively (see https://jestjs.io/docs/ecmascript-modules#require-of-esm)",
+        "userFrame": "<root>/uses-package.test.ts:1:1"
+      },
+      "tests": []
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./uses-package.test.ts\n  ● Test suite failed to run\n    Must use import to load ES Module: <root>/node_modules/esm-pkg/index.js\n    The file contains ESM syntax (import/export) that could not be executed as CommonJS. Either:\n      - Configure a transform (e.g. babel-jest) that compiles this file to CommonJS (see https://jestjs.io/docs/code-transformation)\n      - If the file is in \"node_modules\", allow it to be transformed by adjusting \"transformIgnorePatterns\" (see https://jestjs.io/docs/configuration#transformignorepatterns-arraystring)\n      - Use Node v24.9+ where Jest supports require(esm) natively (see https://jestjs.io/docs/ecmascript-modules#require-of-esm)\nTest Suites: 1 failed, 1 total\nTests:       0 total"
+  }
+}

@@ -534,6 +534,9 @@ test('the default babel-jest transform stays on the Oxc path: no entries, no con
   assert.deepEqual(project?.transforms, [])
   assert.equal(project?.transformConfig, undefined)
   assert.equal(project?.transformHoistedMarkers, undefined)
+  // The entry still takes what it matches, for `transformIgnorePatterns` (B23e).
+  assert.deepEqual(project?.standInTransformPatterns, ['\\.[jt]sx?$'])
+  assert.deepEqual(project?.transformIgnorePatterns, ['/node_modules/', '\\.pnp\\.[^\\/]+$'])
 })
 
 test('a named transform carries the project config as JSON and the hoisted marker', async () => {
@@ -544,6 +547,7 @@ test('a named transform carries the project config as JSON and the hoisted marke
   const { neutral } = await readNeutral(root)
   const [project] = neutral.value
   assert.equal(project?.transforms.length, 1)
+  assert.equal(project?.standInTransformPatterns, undefined)
   assert.equal(project?.transformConfig?.rootDir, project?.rootDir)
   assert.equal(project?.transformConfig?.cwd, project?.rootDir)
   assert.deepEqual(project?.transformHoistedMarkers, ['_getJestObj'])

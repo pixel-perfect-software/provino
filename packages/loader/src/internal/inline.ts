@@ -9,7 +9,6 @@
 // it as they were written, with the specifier as written and the resolved id. It has no side effect
 // that matters here: `decide` remembers a specifier for an id and, under automock-all, a deep
 // unmock's imports, each of which the real edge would do on its own a moment later.
-import { readFileSync } from 'node:fs'
 import type { LoaderOptions, LoaderWarning, ModuleId, ModuleMockRegistry } from '@provino/types'
 import { conditionsOf } from '../graph/conditions.ts'
 import {
@@ -21,6 +20,7 @@ import {
   type ThirdPartyGraph,
 } from '../graph/index.ts'
 import type { ReevaluateState } from './reevaluate.ts'
+import { readSource } from './source.ts'
 
 /** The default for `LoaderOptions.inlineBudget`. */
 export const DEFAULT_INLINE_BUDGET = 400
@@ -45,10 +45,22 @@ export interface InlineState {
   readonly verdicts: WeakMap<ModuleMockRegistry, Verdicts>
   /** Whether each node_modules path's closure reaches a module the dialect serves (`servedReach`). */
   readonly served: Map<string, boolean>
+  /**
+   * Whether each node_modules path's closure reaches a `node_modules` file the transforms make a
+   * user module (`claimedReach`), kept for the worker and cleared when a `native` file becomes
+   * `user`.
+   */
+  readonly claimed: Map<string, boolean>
 }
 
 export function createInlineState(): InlineState {
-  return { graph: null, warned: new Set(), verdicts: new WeakMap(), served: new Map() }
+  return {
+    graph: null,
+    warned: new Set(),
+    verdicts: new WeakMap(),
+    served: new Map(),
+    claimed: new Map(),
+  }
 }
 
 /** What a file keeps about its inlining: for the budget and for `LeakReport.inlinedForMocks`. */
@@ -285,6 +297,28 @@ export function servedReach(
 }
 
 /**
+ * Whether `path`'s closure has an edge whose resolved target `reaches` names, with the verdict kept
+ * in `known` (`cachedReach`).
+ */
+function reachesTarget(
+  known: Map<string, boolean>,
+  state: InlineState,
+  options: LoaderOptions,
+  path: string,
+  reaches: (target: string) => boolean,
+  userEdges: UserEdges,
+): boolean {
+  return cachedReach(
+    known,
+    state,
+    options,
+    path,
+    (edge) => (edge.target !== null && reaches(edge.target) ? edge.target : null),
+    userEdges,
+  )
+}
+
+/**
  * Whether `path` is an external evaluated per file (`active`, D127), or its static closure reaches
  * one. Loaded natively, such an external would `require` Node's one cached copy of what it
  * reaches, while the file's own code and inlined externals get the file's copy: two instances of
@@ -299,14 +333,25 @@ export function reevaluatedReach(
   userEdges: UserEdges,
 ): boolean {
   if (active.has(path)) return true
-  return cachedReach(
-    reach,
-    state,
-    options,
-    path,
-    (edge) => (edge.target !== null && active.has(edge.target) ? edge.target : null),
-    userEdges,
-  )
+  return reachesTarget(reach, state, options, path, (target) => active.has(target), userEdges)
+}
+
+/**
+ * Whether `path`'s static closure has an edge to a `node_modules` file the project's transforms
+ * make a user module (`claimed`, B23e, D115). Loaded natively, such an external would `require`
+ * Node's own copy of that file while the file's code gets its per-file one (two instances), or fail
+ * on what only the transform resolves (an extensionless import). So it is inlined too. The verdict
+ * is kept in `InlineState.claimed`, which is cleared when a claimed file becomes a user module
+ * after Node failed to parse it.
+ */
+export function claimedReach(
+  state: InlineState,
+  options: LoaderOptions,
+  path: string,
+  claimed: (path: string) => boolean,
+  userEdges: UserEdges,
+): boolean {
+  return reachesTarget(state.claimed, state, options, path, claimed, userEdges)
 }
 
 /**
@@ -316,12 +361,8 @@ export function reevaluatedReach(
 function requestsDirectly(state: InlineState, path: string, served: readonly string[]): boolean {
   const node = state.graph?.nodeOf(path)
   if (node !== undefined) return node.edges.some((edge) => served.includes(edge.specifier))
-  let source: string
-  try {
-    source = readFileSync(path, 'utf8')
-  } catch {
-    return false
-  }
+  const source = readSource(path)
+  if (source === undefined) return false
   if (!served.some((specifier) => source.includes(specifier))) return false
   return scanSource(source).edges.some((edge) => served.includes(edge.specifier))
 }
