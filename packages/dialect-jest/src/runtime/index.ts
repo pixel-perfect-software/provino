@@ -29,4 +29,9 @@ export { shapeTestError } from './node-assert-errors.ts'
 export { jestShuffle } from './shuffle.ts'
 export { jestSnapshotPrinter } from './snapshot-printer.ts'
 export { jestSnapshotResolver } from './snapshot-resolver.ts'
-export { type JestSnapshotStateView, jestSnapshotStateView } from './snapshot-state-view.ts'
+export {
+  type JestSnapshotMatchOptions,
+  type JestSnapshotMatchResult,
+  type JestSnapshotStateView,
+  jestSnapshotStateView,
+} from './snapshot-state-view.ts'

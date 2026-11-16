@@ -68,6 +68,8 @@ export interface MatchOptions {
   /** The test, so a retry can take back what this attempt did. */
   readonly testId?: string
   readonly received: unknown
+  /** The key to store it under; absent or `''`, the policy's key of the name and its count. */
+  readonly key?: string
   readonly inlineSnapshot?: string
   readonly isInline: boolean
   /** The test is `test.failing`: a mismatch is the expected outcome and keeps what is stored. */
@@ -145,6 +147,8 @@ export class SnapshotState implements SnapshotViewSource {
   readonly snapshotPath: string
   readonly update: SnapshotUpdateMode
   expand: boolean
+  /** The pretty-format options every snapshot of the file is serialized with. */
+  readonly format: Readonly<Record<string, unknown>>
   added = 0
   matched = 0
   unmatched = 0
@@ -176,6 +180,13 @@ export class SnapshotState implements SnapshotViewSource {
     this.snapshotPath = options.snapshotPath
     this.update = options.update
     this.expand = options.expand
+    const { escapeString, printBasicPrototype, maxOutputLength, extra } = options.policy.format
+    this.format = Object.freeze({
+      escapeString,
+      printBasicPrototype,
+      ...(maxOutputLength === null ? {} : { maxOutputLength }),
+      ...extra,
+    })
     const read = readSnapFile(options.snapshotPath, options.update, options.policy.header)
     this.data = read.data
     this.dirty = read.dirty
@@ -289,9 +300,9 @@ export class SnapshotState implements SnapshotViewSource {
    * A snapshot that couldn't be taken (the property matchers failed): the count moves on and
    * the key is checked, so the test's other snapshots keep their numbers.
    */
-  fail(testName: string, testId?: string): string {
+  fail(testName: string, testId?: string, key?: string): string {
     const count = this.bumpCounter(testName, testId)
-    const key = this.options.key(testName, count)
+    if (key === undefined || key === '') key = this.options.key(testName, count)
     this.markKeyChecked(key, testId)
     this.incrementCount('unmatched', testId)
     return key
@@ -309,7 +320,8 @@ export class SnapshotState implements SnapshotViewSource {
       stack,
     } = options
     const count = this.bumpCounter(testName, testId)
-    const key = this.options.key(testName, count)
+    const key =
+      options.key === undefined || options.key === '' ? this.options.key(testName, count) : options.key
 
     // An inline snapshot beside a stored one doesn't check the stored key, so `-u` can remove it.
     if (!(isInline && this.data[key] !== undefined)) this.markKeyChecked(key, testId)
@@ -497,18 +509,8 @@ export class SnapshotState implements SnapshotViewSource {
   }
 
   private serialize(received: unknown): string {
-    const { format } = this.options.policy
-    const { escapeString, printBasicPrototype, maxOutputLength, extra } = format
     return normalizeNewlines(
-      this.options.printer.serialize(received, {
-        format: {
-          escapeString,
-          printBasicPrototype,
-          ...(maxOutputLength === null ? {} : { maxOutputLength }),
-          ...extra,
-        },
-        plugins: this.plugins,
-      }),
+      this.options.printer.serialize(received, { format: this.format, plugins: this.plugins }),
     )
   }
 

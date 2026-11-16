@@ -3306,10 +3306,43 @@ export interface SnapshotSerializer {
 export type SnapshotViewFactory = (state: SnapshotViewSource) => object;
 
 // @public
+export interface SnapshotViewMatchOptions {
+    // (undocumented)
+    readonly inlineSnapshot?: string;
+    // (undocumented)
+    readonly isInline: boolean;
+    readonly key?: string;
+    // (undocumented)
+    readonly received: unknown;
+    readonly stack?: string;
+    readonly testFailing?: boolean;
+    readonly testName: string;
+}
+
+// @public
+export interface SnapshotViewMatchResult {
+    readonly actual: string;
+    readonly count: number;
+    readonly expected: string | undefined;
+    // (undocumented)
+    readonly key: string;
+    // (undocumented)
+    readonly pass: boolean;
+}
+
+// @public
 export interface SnapshotViewSource {
     added: number;
+    expand: boolean;
+    fail(testName: string, testId?: string, key?: string): string;
+    readonly format: Readonly<Record<string, unknown>>;
+    getUncheckedCount(): number;
+    getUncheckedKeys(): string[];
     readonly liveCounters: Map<string, number>;
+    markCheckedForTest(testName: string): void;
+    match(options: SnapshotViewMatchOptions): SnapshotViewMatchResult;
     matched: number;
+    readonly snapshotPath: string;
     unmatched: number;
     readonly update: "all" | "new" | "none";
     updated: number;

@@ -13,6 +13,8 @@ import {
   type JestGlobalsHost,
   type JestModuleObject,
   type JestObject,
+  type JestSnapshotMatchOptions,
+  type JestSnapshotMatchResult,
   type JestSnapshotStateView,
   jestExpectTable,
   jestGlobals,
@@ -217,3 +219,20 @@ view._updateSnapshot = 'all'
 view.matched = '1'
 // @ts-expect-error the view is built over the file's state
 jestSnapshotStateView({ added: 0 })
+// What jest-snapshot's matchers call on it: Jest's `match` arguments and result, and `fail`.
+expectTypeOf(view.match).parameters.toEqualTypeOf<[JestSnapshotMatchOptions]>()
+expectTypeOf(view.match).returns.toEqualTypeOf<JestSnapshotMatchResult>()
+expectTypeOf<JestSnapshotMatchResult['expected']>().toEqualTypeOf<string | undefined>()
+expectTypeOf(view.fail).returns.toEqualTypeOf<string>()
+expectTypeOf(view.snapshotFormat).toEqualTypeOf<Readonly<Record<string, unknown>>>()
+expectTypeOf(view.expand).toEqualTypeOf<boolean>()
+// As `_toMatchSnapshot` passes them: `error` and `inlineSnapshot` may be `undefined`.
+view.match({ testName: 't', received: 1, isInline: false, error: undefined, testIdentity: {} })
+// @ts-expect-error a match says whether it is inline
+view.match({ testName: 't', received: 1 })
+// @ts-expect-error the stored snapshot's key is text
+view.match({ testName: 't', received: 1, isInline: false, key: 1 })
+// @ts-expect-error `fail` takes the test's name first
+view.fail({ testName: 't' }, 1)
+// @ts-expect-error `snapshotPath` is the state's
+view.snapshotPath = '/elsewhere.snap'

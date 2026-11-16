@@ -109,6 +109,11 @@ expectTypeOf(openFileSnapshots).returns.toEqualTypeOf<{
 // B23e (D128): the live counters a dialect's view is built over, and the view's wrap and unwrap.
 expectTypeOf(state.liveCounters).toEqualTypeOf<Map<string, number>>()
 expectTypeOf(state).toExtend<SnapshotViewSource>()
+expectTypeOf(state.format).toEqualTypeOf<Readonly<Record<string, unknown>>>()
+expectTypeOf(state.fail).toBeCallableWith('t', undefined, 'mine')
+state.match({ testName: 't', received: 1, isInline: false, key: 'mine' })
+// @ts-expect-error a key is text
+state.match({ testName: 't', received: 1, isInline: false, key: 1 })
 // @ts-expect-error the live map is the state's own: it can't be replaced
 state.liveCounters = new Map()
 expectTypeOf(unwrapMatcherSnapshotState).parameters.toEqualTypeOf<[unknown]>()

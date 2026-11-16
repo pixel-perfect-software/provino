@@ -199,6 +199,37 @@ export interface JestObject extends JestTimerMembers<JestObject> {
 export function jestShuffle(seed: number): <T>(items: T[]) => T[];
 
 // @public
+export interface JestSnapshotMatchOptions {
+    readonly error?: Error | undefined;
+    // (undocumented)
+    readonly inlineSnapshot?: string | undefined;
+    // (undocumented)
+    readonly isInline: boolean;
+    // (undocumented)
+    readonly key?: string | undefined;
+    // (undocumented)
+    readonly received: unknown;
+    // (undocumented)
+    readonly testFailing?: boolean | undefined;
+    readonly testIdentity?: object | undefined;
+    // (undocumented)
+    readonly testName: string;
+}
+
+// @public
+export interface JestSnapshotMatchResult {
+    // (undocumented)
+    readonly actual: string;
+    // (undocumented)
+    readonly count: number;
+    readonly expected: string | undefined;
+    // (undocumented)
+    readonly key: string;
+    // (undocumented)
+    readonly pass: boolean;
+}
+
+// @public
 export function jestSnapshotPrinter(): SnapshotPrinter;
 
 // @public
@@ -208,7 +239,15 @@ export const jestSnapshotResolver: SnapshotResolverFactory;
 export interface JestSnapshotStateView {
     added: number;
     readonly _counters: Map<string, number>;
+    expand: boolean;
+    fail(testName: string, received: unknown, key?: string, testIdentity?: object): string;
+    getUncheckedCount(): number;
+    getUncheckedKeys(): string[];
+    markSnapshotsAsCheckedForTest(testName: string): void;
+    match(options: JestSnapshotMatchOptions): JestSnapshotMatchResult;
     matched: number;
+    readonly snapshotFormat: Readonly<Record<string, unknown>>;
+    readonly snapshotPath: string;
     unmatched: number;
     updated: number;
     readonly _updateSnapshot: SnapshotViewSource["update"];

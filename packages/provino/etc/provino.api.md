@@ -387,8 +387,16 @@ export interface r {
 // @public
 export interface rt {
     added: number;
+    expand: boolean;
+    fail(testName: string, testId?: string, key?: string): string;
+    readonly format: Readonly<Record<string, unknown>>;
+    getUncheckedCount(): number;
+    getUncheckedKeys(): string[];
     readonly liveCounters: Map<string, number>;
+    markCheckedForTest(testName: string): void;
+    match(options: SnapshotViewMatchOptions): SnapshotViewMatchResult;
     matched: number;
+    readonly snapshotPath: string;
     unmatched: number;
     readonly update: "all" | "new" | "none";
     updated: number;

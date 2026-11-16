@@ -104,6 +104,8 @@ export type {
   SnapshotResolverFactory,
   SnapshotSerializeOptions,
   SnapshotViewFactory,
+  SnapshotViewMatchOptions,
+  SnapshotViewMatchResult,
   SnapshotViewSource,
 } from './snapshot.ts'
 export type { TimersPolicy } from './timers.ts'
