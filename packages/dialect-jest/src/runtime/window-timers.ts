@@ -12,11 +12,11 @@
 // default environment: a shared package that captures `setTimeout` as it loads, in a node file or
 // a window file, captures the wrapper, the same one in every file, so the timers are no per-file
 // global (D129) and nothing is evaluated again for them. While a window file runs (`track`), the
-// wrapper notes each timer it hands out, with the stack that set it; when the window closes, the
-// file's timers still pending are cancelled.
+// wrapper notes each timer it hands out, with the stack that set it (or the origin it inherits,
+// below); when the window closes, the file's timers still pending are cancelled.
 //
 // **Which timers are the file's** is read from that stack, outward from where the timer was set,
-// only for the timers still pending at the end:
+// only when it is asked (a timer still pending at the end, or one whose callback sets another):
 // - a frame in a module the file's registry evaluated (the test file, its modules, the externals
 //   evaluated per file) makes it the file's;
 // - a frame in Provino's own code (the coordinator's, in band; the loader's, whose parser keeps
@@ -24,6 +24,21 @@
 // - a frame of a shared package (a `node_modules` file Node loaded once for the worker, D127)
 //   whose source holds the callback makes that package the timer's owner, and the timer the file's.
 // A stack with none of these (no frame read) is not the file's.
+//
+// **A timer set from the callback of one of the file's is the file's too.** A loop that schedules
+// its next step from its own callback (React's scheduler: `performWorkUntilDeadline` calls
+// `setImmediate(performWorkUntilDeadline)` while work remains) sets each later timer with only its
+// own frames on the stack, below this wrapper's. So each noted timer's callback is wrapped to mark
+// its origin (the timer that was set with a stack) as running for its synchronous part, and a
+// timer set then takes that origin, with no stack captured, when the origin's own frames make it
+// the file's: it is the file's, owned by the origin's package when one owned it, and the package
+// goes per file as above once it is cancelled. The origin's verdict is read once (the file's
+// modules read again only when it seems not the file's, since a module may have loaded since the
+// last read), and kept: the frames don't change. A timer set from the callback of one that is not
+// the file's (Provino's own, in band) has its own stack read, so the file's code still claims what
+// it sets there. An interval's runs are the one timer under its one handle, noted once. A promise
+// continuation inside a callback is a microtask that runs after the synchronous part, so a timer it
+// sets is read from its own stack, as one set outside any callback is.
 //
 // **A shared package that owned one is evaluated per file from then on.** In Jest every module is
 // evaluated again in each file, so cancelling a window's timers loses nothing a later file needs.
@@ -35,8 +50,10 @@
 // stale copy's flag is no later file's. A callback a file hands a shared package (a helper that
 // calls the timer it kept from a node file) is not the package's own, so nothing is reported.
 //
-// Capturing the stack costs about 1.3 µs per timer while a window file runs (`local`, Node 24,
-// `Error.stackTraceLimit` as the process has it); nothing outside a window file.
+// While a window file runs, a timer set with its stack captured costs about 1.7 µs more than
+// Node's own `setTimeout` and `clearTimeout`, and one that inherits its origin about 0.13 µs more
+// (`local`, Node 24, `Error.stackTraceLimit` as the process has it). Outside a window file the
+// wrapper passes `arguments` through and allocates nothing: about 5 ns.
 import { readFileSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -65,12 +82,30 @@ export interface WindowTimersOptions {
 type Callback = (...args: unknown[]) => unknown
 type Clear = (handle: unknown) => void
 
-/** A timer noted while a window file ran: how to cancel it, what it calls, where it was set. */
+/**
+ * Where a noted timer's ownership comes from: the callback and stack of the timer that was set
+ * with a stack captured, shared by every timer set from its callback (and theirs) after it.
+ */
+interface Origin {
+  readonly callback: unknown
+  /** Holds the captured stack, read only when a verdict is needed. */
+  readonly site: { stack?: unknown }
+  /** Whose it is, once read (the frames it was set from don't change). */
+  verdict: Verdict | undefined
+}
+
+/** A timer noted while a window file ran: how to cancel it, and whose verdict it takes. */
 interface Noted {
   readonly clear: Clear
-  readonly callback: unknown
-  /** Holds the captured stack, read only if the timer is still pending at the end. */
-  readonly site: { stack?: unknown }
+  readonly origin: Origin
+}
+
+/** One window file's noting: its pending timers by handle, and the sources read for them. */
+interface Tracking {
+  readonly notes: Map<unknown, Noted>
+  readonly sources: Map<string, string | null>
+  /** The file's modules as last read for an inherited timer (`undefined` before the first). */
+  own: ReadonlySet<string> | undefined
 }
 
 /** Whose a pending timer is: the file's (with the shared module that owned it, if one did). */
@@ -120,8 +155,37 @@ export function installWindowTimers(
   }
   const target = global as Record<string, unknown>
   const state: Installed['state'] = { fileModules: options.fileModules }
-  // The timers of the window file being run, by handle; `null` outside one.
-  let noting: Map<unknown, Noted> | null = null
+  // The window file being run; `null` outside one.
+  let noting: Tracking | null = null
+  // While a noted timer's callback runs (its synchronous part): the file it was noted for, and its
+  // origin. A timer set then takes that origin when the origin is the file's (`inherited`).
+  let runningFor: Tracking | null = null
+  let runningOrigin: Origin | null = null
+
+  /** The origin of the callback running now when it is the file's, else `null`. */
+  const inherited = (tracking: Tracking): Origin | null => {
+    const origin = runningFor === tracking ? runningOrigin : null
+    if (origin === null) return null
+    // Read once per origin, with the modules the file has loaded so far: the frames it was set
+    // from had run, so their modules are among them, and a later read gives the same verdict.
+    let verdict = origin.verdict
+    if (verdict === undefined) {
+      // The modules are read once per file and again only when an origin seems not the file's,
+      // since one of its frames may be in a module loaded after the last read. A shared owner is
+      // the frame before any of the file's, so a stale read can't change a verdict that is.
+      let own = tracking.own === undefined ? fileModulesOf(state.fileModules) : tracking.own
+      if (own === null) return origin
+      verdict = verdictOf(origin, own, tracking.sources)
+      if (!verdict.files && tracking.own !== undefined) {
+        own = fileModulesOf(state.fileModules)
+        if (own === null) return origin
+        verdict = verdictOf(origin, own, tracking.sources)
+      }
+      tracking.own = own
+      origin.verdict = verdict
+    }
+    return verdict.files ? origin : null
+  }
 
   for (const { set, clear } of PAIRS) {
     const original = functionOn(target, set)
@@ -130,30 +194,43 @@ export function installWindowTimers(
     const once = set !== 'setInterval'
     const wrapped = {
       [set](this: unknown, callback: unknown): unknown {
-        const notes = noting
-        if (notes === null || typeof callback !== 'function') {
+        const tracking = noting
+        if (tracking === null || typeof callback !== 'function') {
           // biome-ignore lint/complexity/noArguments: the call goes through as it came, with no array built for it, on every timer outside a window file
           return Reflect.apply(original, this, arguments)
         }
-        const site: Noted['site'] = {}
-        Error.captureStackTrace(site, wrapped)
+        let origin = inherited(tracking)
+        if (origin === null) {
+          origin = { callback, site: {}, verdict: undefined }
+          Error.captureStackTrace(origin.site, wrapped)
+        }
+        const owner = origin
+        const { notes } = tracking
         // biome-ignore lint/complexity/noArguments: the parameter list stays one, for the path above
         const args: unknown[] = Array.prototype.slice.call(arguments)
         let handle: unknown
-        if (once) {
-          args[0] = function (this: unknown, ...given: unknown[]): unknown {
-            notes.delete(handle)
+        // An interval's repeats are the one timer under its one handle: each run is the same note.
+        args[0] = function (this: unknown, ...given: unknown[]): unknown {
+          if (once) notes.delete(handle)
+          const previousFor = runningFor
+          const previousOrigin = runningOrigin
+          runningFor = tracking
+          runningOrigin = owner
+          try {
             return Reflect.apply(callback as Callback, this, given)
+          } finally {
+            runningFor = previousFor
+            runningOrigin = previousOrigin
           }
         }
         handle = Reflect.apply(original, this, args)
-        notes.set(handle, { clear: originalClear, callback, site })
+        notes.set(handle, { clear: originalClear, origin })
         return handle
       },
     }[set] as Callback
     const wrappedClear = {
       [clear](this: unknown, handle: unknown): void {
-        noting?.delete(handle)
+        noting?.notes.delete(handle)
         originalClear.call(this, handle)
       },
     }[clear] as Clear
@@ -173,19 +250,25 @@ export function installWindowTimers(
 
   const timers: WindowTimers = {
     track() {
-      const notes = new Map<unknown, Noted>()
-      noting = notes
+      const tracking: Tracking = { notes: new Map(), sources: new Map(), own: undefined }
+      noting = tracking
       let stopped = false
       return () => {
         if (stopped) return NONE
         stopped = true
-        if (noting === notes) noting = null
+        if (noting === tracking) noting = null
+        const { notes, sources } = tracking
         if (notes.size === 0) return NONE
         const own = fileModulesOf(state.fileModules)
-        const sources = new Map<string, string | null>()
         const owners = new Set<string>()
         for (const [handle, noted] of notes) {
-          const verdict = own === null ? FILES : verdictOf(noted, own, sources)
+          const { origin } = noted
+          // A timer that inherited its origin takes the verdict that origin's frames give.
+          let verdict = FILES
+          if (own !== null) {
+            verdict = origin.verdict ?? verdictOf(origin, own, sources)
+            origin.verdict = verdict
+          }
           if (!verdict.files) continue
           noted.clear(handle)
           if (verdict.owner !== undefined) owners.add(verdict.owner)
@@ -214,15 +297,15 @@ function fileModulesOf(read: (() => Iterable<string>) | undefined): ReadonlySet<
 
 /** Whose a pending timer is, from the frames that set it (the header's three rules). */
 function verdictOf(
-  noted: Noted,
+  origin: Origin,
   own: ReadonlySet<string>,
   sources: Map<string, string | null>,
 ): Verdict {
-  const files = framesOf(noted.site)
+  const files = framesOf(origin.site)
   // No frame was kept (`Error.stackTraceLimit` is 0): the file's, as nothing tells otherwise.
   if (files.length === 0) return FILES
   // A bound or native callback has no source to look for: the shared frame that set it owns it.
-  const text = Function.prototype.toString.call(noted.callback)
+  const text = Function.prototype.toString.call(origin.callback)
   const readable = !text.includes('[native code]')
   let owner: string | undefined
   for (const file of files) {
@@ -237,7 +320,7 @@ function verdictOf(
 }
 
 /** The file of each captured frame, outermost last (`null` for one with no file on disk). */
-function framesOf(site: Noted['site']): readonly (string | null)[] {
+function framesOf(site: Origin['site']): readonly (string | null)[] {
   const previous = Error.prepareStackTrace
   Error.prepareStackTrace = (_error, frames) => frames
   let frames: unknown
