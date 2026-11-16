@@ -425,14 +425,20 @@ describe('colour', () => {
     assert.doesNotMatch((await run({ FORCE_COLOR: '0' })).stderr, new RegExp(ESC))
   })
 
-  it('provino jest --colors colours a pipe, --no-colors silences FORCE_COLOR', async () => {
+  it('provino jest --colors colours a pipe; a FORCE_COLOR in the environment outranks the flags, as Jest’s chalk has it', async () => {
     const project = await makeProject({ 'tests/ok.test.js': passing('ok') })
     const config = `--config=${jestConfigJson(project.dir)}`
     const coloured = await spawnCli(['jest', config, '--colors'], { cwd: project.dir })
     assert.match(coloured.stderr, new RegExp(`${ESC}\\[32m PASS `))
-    const off = await spawnCli(['jest', config, '--no-colors'], {
+    // Live Jest 30.5.2 gives the same answers: supports-color reads FORCE_COLOR after the flags.
+    const stays = await spawnCli(['jest', config, '--no-colors'], {
       cwd: project.dir,
       env: { FORCE_COLOR: '1' },
+    })
+    assert.match(stays.stderr, new RegExp(`${ESC}\\[32m PASS `))
+    const off = await spawnCli(['jest', config, '--colors'], {
+      cwd: project.dir,
+      env: { FORCE_COLOR: '0' },
     })
     assert.doesNotMatch(off.stderr, new RegExp(ESC))
   })

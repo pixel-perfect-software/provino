@@ -1,0 +1,318 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ide/vscode-jest-watch-all",
+  "files": [],
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "json": {
+      ".harness-out/jest_runner_ws_0.json#1": {
+        "numFailedTestSuites": 0,
+        "numFailedTests": 0,
+        "numPassedTestSuites": 2,
+        "numPassedTests": 3,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 2,
+        "numTotalTests": 3,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": true,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [
+                  "other"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "other is unrelated to src/sum.ts",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 2
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "is unrelated to src/sum.ts",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/other.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum adds",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 4
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "adds",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum adds negatives",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 7
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "adds negatives",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/sum.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      },
+      ".harness-out/jest_runner_ws_0.json#2": {
+        "numFailedTestSuites": 0,
+        "numFailedTests": 0,
+        "numPassedTestSuites": 2,
+        "numPassedTests": 3,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 2,
+        "numTotalTests": 3,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": true,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [
+                  "other"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "other is unrelated to src/sum.ts",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 2
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "is unrelated to src/sum.ts",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/other.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum adds",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 4
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "adds",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [
+                  "sum"
+                ],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "sum adds negatives",
+                "invocations": 1,
+                "location": {
+                  "column": 3,
+                  "line": 7
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "adds negatives",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/sum.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    },
+    "runs": [
+      {
+        "files": [
+          {
+            "path": "other.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "other is unrelated to src/sum.ts",
+                "status": "passed"
+              }
+            ]
+          },
+          {
+            "path": "sum.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "sum adds",
+                "status": "passed"
+              },
+              {
+                "fullName": "sum adds negatives",
+                "status": "passed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      },
+      {
+        "files": [
+          {
+            "path": "other.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "other is unrelated to src/sum.ts",
+                "status": "passed"
+              }
+            ]
+          },
+          {
+            "path": "sum.test.ts",
+            "status": "passed",
+            "tests": [
+              {
+                "fullName": "sum adds",
+                "status": "passed"
+              },
+              {
+                "fullName": "sum adds negatives",
+                "status": "passed"
+              }
+            ]
+          }
+        ],
+        "snapshot": {
+          "added": 0,
+          "updated": 0,
+          "unmatched": 0
+        },
+        "wasInterrupted": false
+      }
+    ],
+    "transcript": "onRunStart: numTotalTestSuites: 2\nonRunComplete\nTest results written to: .harness-out/jest_runner_ws_0.json\nonRunStart: numTotalTestSuites: 2\nonRunComplete\nTest results written to: .harness-out/jest_runner_ws_0.json"
+  }
+}
