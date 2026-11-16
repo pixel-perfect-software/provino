@@ -56,6 +56,12 @@ type Style = 'esm' | 'cjs'
 /** How the module making the edge evaluates: a plain wrapper can't wait, an async one can. */
 type Mode = 'sync' | 'async'
 
+/** What `#maybeInline` decided for an external: shared, or inlined for the file's mocks or not. */
+type Inlined = false | 'mocks' | 'kept'
+
+/** The served modules of a dialect that serves none. */
+const NO_MODULES: readonly string[] = []
+
 interface Instance {
   status: 'evaluating' | 'done' | 'errored'
   /** ESM: the exports object (`interop.ts`); JSON: its namespace. `null` for CJS. */
@@ -151,17 +157,14 @@ export class Registry {
   /** How many scratch loads are running: with none, `#instances` asks no async context. */
   #scratchLoads = 0
   /**
-   * Whether each node_modules file was served shared (`false`) or inlined (`true`), per instance map
-   * (T2.6, B13d Gap 3): a module already served keeps its instance, so a `doMock` that comes after
-   * its first load doesn't change it, `resetModules` forgets it, and an `isolateModules` layer
-   * decides afresh.
+   * How each node_modules file was served, per instance map (T2.6, B13d Gap 3): shared (`false`),
+   * inlined because the file's mocks reach it (`'mocks'`, the ones `dropInlined` drops under
+   * `none`), or inlined for another reason (`'kept'`: a served module, or evaluated per file, which
+   * is the worker's for good). A module already served keeps its instance, so a `doMock` that comes
+   * after its first load doesn't change it, `resetModules` forgets it, and an `isolateModules`
+   * layer decides afresh.
    */
-  readonly #memory = new WeakMap<Map<ModuleId, Instance>, Map<string, boolean>>()
-  /**
-   * The externals each instance map inlined because the file's mocks reach them: the ones
-   * `dropInlined` drops under `none`. One inlined for a served module is the worker's for good.
-   */
-  readonly #mockInlined = new WeakMap<Map<ModuleId, Instance>, Set<string>>()
+  readonly #memory = new WeakMap<Map<ModuleId, Instance>, Map<string, Inlined>>()
   /** What this file inlined, for the budget and `LeakReport.inlinedForMocks`. */
   #ledger = createLedger()
   /** The running file's context. Under `none` the registry is shared, and each file sets its own. */
@@ -185,16 +188,12 @@ export class Registry {
    * so `reevaluateHookingExternals` neither watches nor inlines for it (D127). Each file is not
    * evaluated again under `none` by design, so neither is an external.
    */
-  readonly sharedAcrossFiles: boolean
+  readonly #sharedAcrossFiles: boolean
 
-  constructor(
-    state: Records,
-    base: Map<ModuleId, Instance> = new Map(),
-    sharedAcrossFiles = false,
-  ) {
+  constructor(state: Records, sharedAcrossFiles = false) {
     this.#state = state
-    this.#maps = [base]
-    this.sharedAcrossFiles = sharedAcrossFiles
+    this.#maps = [new Map()]
+    this.#sharedAcrossFiles = sharedAcrossFiles
   }
 
   get #instances(): Map<ModuleId, Instance> {
@@ -289,7 +288,6 @@ export class Registry {
     for (const map of this.#maps) {
       map.clear()
       this.#memory.delete(map)
-      this.#mockInlined.delete(map)
     }
   }
 
@@ -309,25 +307,12 @@ export class Registry {
     for (const map of this.#maps) {
       const memory = this.#memory.get(map)
       if (memory === undefined) continue
-      const forMocks = this.#mockInlined.get(map)
       for (const [path, inlined] of memory) {
-        const forTheMocks = forMocks?.has(path) === true
-        if (forTheMocks) map.delete(toModuleId(path))
-        if (!inlined || forTheMocks) memory.delete(path)
+        if (inlined === 'mocks') map.delete(toModuleId(path))
+        if (inlined !== 'kept') memory.delete(path)
       }
-      this.#mockInlined.delete(map)
     }
     this.#ledger = createLedger()
-  }
-
-  /** The set of externals `map` inlined for the file's mocks. */
-  #forMocks(map: Map<ModuleId, Instance>): Set<string> {
-    let set = this.#mockInlined.get(map)
-    if (set === undefined) {
-      set = new Set()
-      this.#mockInlined.set(map, set)
-    }
-    return set
   }
 
   /**
@@ -581,9 +566,9 @@ export class Registry {
     // Externals evaluated per file (D127): one is, or its closure reaches one.
     const perFile =
       policy.reevaluateHookingExternals &&
-      !this.sharedAcrossFiles &&
+      !this.#sharedAcrossFiles &&
       state.reevaluate.active.size > 0
-    const served = state.options.moduleScope?.modules ?? []
+    const served = state.options.moduleScope?.modules ?? NO_MODULES
     const mocks = runner || !policy.mocksReachShared ? null : this.context.mocks
     if (!perFile && served.length === 0 && mocks === null) return target
     const map = this.#instances
@@ -601,24 +586,23 @@ export class Registry {
           perFile &&
           reevaluatedReach(state.inline, state.options, path, state.reevaluate, userEdges)
         ) {
-          inlined = true
+          inlined = 'kept'
         } else if (
           served.length > 0 &&
           servedReach(state.inline, state.options, path, served, userEdges)
         ) {
-          inlined = true
+          inlined = 'kept'
         } else if (mocks?.active()) {
           const mockedId = mockedReach(state.inline, state.options, path, mocks, userEdges)
           if (mockedId !== null) {
-            inlined = true
-            this.#forMocks(map).add(path)
+            inlined = 'mocks'
             noteInlined(state.inline, state.options, this.#ledger, toModuleId(path), mockedId)
           }
         }
       }
       memory.set(path, inlined)
     }
-    return inlined ? { kind: 'user', id: toModuleId(path) } : target
+    return inlined === false ? target : { kind: 'user', id: toModuleId(path) }
   }
 
   /** The record of a module an edge inlined, linked now: nothing linked it ahead. */
@@ -643,7 +627,7 @@ export class Registry {
     // The external's first native load in this worker: a window the worker may watch (D127).
     const load = (): unknown => createRequire(target.path)(key)
     const value: unknown =
-      state.options.policy.reevaluateHookingExternals && !this.sharedAcrossFiles
+      state.options.policy.reevaluateHookingExternals && !this.#sharedAcrossFiles
         ? watchedLoad(
             state.reevaluate,
             target.path,

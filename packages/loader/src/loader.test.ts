@@ -1023,7 +1023,7 @@ test('reevaluateHookingExternals: an external that reads a per-file global as it
     assert.equal(globals.hooks, 1)
     assert.deepEqual(
       loader
-        .reevaluatedExternals()
+        .takeLearnedExternals()
         .map((path) => path.slice(root.length + 1))
         .toSorted(),
       [
@@ -1034,6 +1034,7 @@ test('reevaluateHookingExternals: an external that reads a per-file global as it
       ],
       'learned: the three that read a per-file global, and the file hooks-ext’s load evaluated',
     )
+    assert.deepEqual(loader.takeLearnedExternals(), [], 'each is handed out once')
     const second = await load('b.test.js')
     assert.equal(globals.hooks, 2, 'the second file registers the hook again')
     assert.notEqual(second.hooks.token, first.hooks.token, 'hooks-ext is the second file’s own')
@@ -1059,7 +1060,7 @@ test('reevaluateHookingExternals: a learned set given to a new loader inlines fr
       .createFileRegistry(join(root, 'a.test.js'), { tier: 'registry' })
       .import(join(root, 'a.test.js'))
   })
-  const learned = learning.reevaluatedExternals()
+  const learned = learning.takeLearnedExternals()
   learning[Symbol.dispose]()
 
   const loader = loaderFor(root, policy)
@@ -1081,6 +1082,11 @@ test('reevaluateHookingExternals: a learned set given to a new loader inlines fr
       .import<Loaded>(join(root, 'b.test.js'))
     assert.equal(globals.hooks, 2)
     assert.notEqual(second.hooks.token, first.hooks.token)
+    assert.deepEqual(
+      loader.takeLearnedExternals(),
+      [],
+      'a seeded set is the caller’s own: none of it is handed back as learned',
+    )
   })
 })
 
@@ -1098,7 +1104,7 @@ test('reevaluateHookingExternals off (neutral): nothing is watched or inlined, e
     const first = await load('a.test.js')
     const second = await load('b.test.js')
     assert.deepEqual(watched, [])
-    assert.deepEqual(loader.reevaluatedExternals(), [])
+    assert.deepEqual(loader.takeLearnedExternals(), [])
     assert.equal(globals.hooks, 1, 'the hook is registered by the first file only')
     assert.equal(second.hooks.token, first.hooks.token)
     assert.equal(second.dom.token, first.dom.token)
@@ -1145,7 +1151,7 @@ test('reevaluateHookingExternals: every window ends even when one end throws, an
     )
     assert.deepEqual(Object.getOwnPropertyDescriptor(globalThis, 'afterEach'), before)
     assert.ok(
-      loader.reevaluatedExternals().some((path) => path.endsWith('hooks-ext/index.js')),
+      loader.takeLearnedExternals().some((path) => path.endsWith('hooks-ext/index.js')),
       'the other watcher’s answer still counts',
     )
   })
@@ -1170,7 +1176,7 @@ test('reevaluateHookingExternals: a load that throws after a per-file read is le
       loader.createFileRegistry(join(root, name), { tier: 'registry' }).import(join(root, name))
     await assert.rejects(load('a.test.js'), /throws-ext failed/)
     assert.deepEqual(
-      loader.reevaluatedExternals().map((path) => path.slice(root.length + 1)),
+      loader.takeLearnedExternals().map((path) => path.slice(root.length + 1)),
       ['node_modules/throws-ext/index.js'],
     )
     await assert.rejects(load('b.test.js'), /throws-ext failed/)
@@ -1238,7 +1244,7 @@ test('reevaluateHookingExternals: a shared external that requires a learned one 
     assert.equal(singletonEvals(root), 1)
     assert.equal(first.lib.singleton, first.singleton)
     assert.ok(
-      loader.reevaluatedExternals().some((path) => path.endsWith('singleton/index.js')),
+      loader.takeLearnedExternals().some((path) => path.endsWith('singleton/index.js')),
       'the singleton is learned through rtl-ext’s window',
     )
     const second = load('b.test.js')
