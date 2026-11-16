@@ -1,8 +1,9 @@
 // The timers of a file run on a Jest window environment (jest-environment-jsdom through the Jest
 // adapter) die with its window, as `window.close()` cancels jsdom's own timers in Jest: work a
 // file's last test left pending (a timer set by an effect's cleanup after unmount, a state update
-// from a timer, React's scheduler) never runs once the window is gone. Each fixture is held to the
-// run Jest 30.5.2 recorded for it, through `provino jest` with one worker.
+// from a timer, React's scheduler, a hook a shared package registered) never runs once the window
+// is gone, and with no `fetch` in the window no reply comes after it either. Each fixture is held
+// to the run Jest 30.5.2 recorded for it, through `provino jest` with one worker.
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
@@ -42,6 +43,16 @@ describe('timers on a Jest window environment, against Jest 30.5.2', () => {
     assertMatchesGolden(id, await provinoOn(id, { parent: PARENT }))
   })
 
+  it("env/jsdom-shared-hook-timer: a timer set from a shared package's own afterEach dies with the window", async () => {
+    const id = 'env/jsdom-shared-hook-timer'
+    assertMatchesGolden(id, await provinoOn(id, { parent: PARENT }))
+  })
+
+  it('env/jsdom-no-fetch: a window file has no fetch, so a package that looks for one as it loads finds none', async () => {
+    const id = 'env/jsdom-no-fetch'
+    assertMatchesGolden(id, await provinoOn(id, { parent: PARENT }))
+  })
+
   // In band the files run in the bin's own process, whose global timers the coordinator uses too:
   // only what a file's own code set dies with its window.
   for (const id of [
@@ -49,6 +60,8 @@ describe('timers on a Jest window environment, against Jest 30.5.2', () => {
     'ecosystem/react-scheduler-loop',
     'env/jsdom-shared-timer-flag',
     'env/jsdom-shared-timer-flag-nested',
+    'env/jsdom-shared-hook-timer',
+    'env/jsdom-no-fetch',
   ]) {
     it(`${id}, in band (-i): the same outcome as with one worker`, async () => {
       assertMatchesGolden(id, await provinoOn(id, { parent: PARENT, argv: ['-i'] }))
