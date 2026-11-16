@@ -19,6 +19,7 @@ expectTypeOf<Populated['originals']>().toEqualTypeOf<
 expectTypeOf<Populated['restore']>().toEqualTypeOf<() => void>()
 expectTypeOf<PopulateOptions>().toEqualTypeOf<{
   readonly bindFunctions?: boolean
+  readonly keepStatics?: boolean
   readonly additionalKeys?: readonly string[]
   readonly selfReferences?: boolean
 }>()
