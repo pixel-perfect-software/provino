@@ -89,8 +89,26 @@ export function populateGlobal(
   const keys = new Set(windowKeys(target, source, options.additionalKeys ?? []))
   const originals = new Map<string | symbol, PropertyDescriptor>()
   const overrides = new Map<string | symbol, unknown>()
-  /** Each copied key's getter, as defined: what `covers` checks the key still has. */
-  const getters = new Map<string, () => unknown>()
+  /**
+   * Each copied key's getter, as defined, in the order of `keys`. A list, not a map by key: this
+   * runs for every key of every file, and only `covers` (a worker that watches external loads)
+   * ever looks one up, so `gettersByKey` makes the map on that first call.
+   */
+  const defined: (() => unknown)[] = []
+  let getters: ReadonlyMap<string, () => unknown> | undefined
+  const gettersByKey = (): ReadonlyMap<string, () => unknown> => {
+    if (getters === undefined) {
+      const byKey = new Map<string, () => unknown>()
+      let at = 0
+      for (const key of keys) {
+        const get = defined[at++]
+        if (get === undefined) break
+        byKey.set(key, get)
+      }
+      getters = byKey
+    }
+    return getters
+  }
   // `watch`'s listener. One check per access when nobody listens: the accessors exist anyway, so
   // a watcher hears their reads without redefining a key (`GlobalReadWatch`).
   let onRead: (() => void) | null = null
@@ -118,7 +136,7 @@ export function populateGlobal(
       if (bound !== undefined) return bound
       return source[key]
     }
-    getters.set(key, get)
+    defined.push(get)
     Object.defineProperty(target, key, {
       get,
       set(value: unknown) {
@@ -162,7 +180,7 @@ export function populateGlobal(
     originals,
     covers(key, descriptor) {
       const get = descriptor.get
-      return get !== undefined && getters.get(key) === get
+      return get !== undefined && gettersByKey().get(key) === get
     },
     watch(listener) {
       onRead = listener
