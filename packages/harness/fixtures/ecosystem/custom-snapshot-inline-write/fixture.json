@@ -1,0 +1,25 @@
+{
+  "description": "The first run of `custom-snapshot-inline` (B23e, D128), captured: `toMatchTrimmedInlineSnapshot` calls jest-snapshot 30.5.2's `toMatchInlineSnapshot` with its `this`, and a local run (`--ci=false`) with nothing stored writes each inline snapshot into the test file at the custom matcher's call (`prettierPath: null`, so Babel's reprint alone) and the `toMatchSnapshot` beside them into the .snap: 3 snapshots written, each counted in the totals (`added`). The same `setup.ts` and test file as `custom-snapshot-inline`. One file, one worker.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "setupFilesAfterEnv": ["<rootDir>/setup.ts"],
+      "prettierPath": null
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false", "--testLocationInResults", "-w", "1"]
+    },
+    "capture": [
+      "exitCode",
+      "stderr",
+      "json:.harness-out/jest.json",
+      "file:inline.test.ts",
+      "file:__snapshots__/inline.test.ts.snap"
+    ],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Snapshot Summary|^ › |^ +● |^    [A-Z]|^    expect\\(|^    [-+] ",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

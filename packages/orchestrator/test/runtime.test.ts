@@ -1415,6 +1415,41 @@ describe('a shared external that reads a per-file global as it loads (D127, P42)
     )
   })
 
+  it('does not count a global the environment’s prepare installed, once per worker', async () => {
+    // `reader` reads it as it loads, as `scheduler` reads `setImmediate`: it is the worker's.
+    const name = '__provinoPreparedGlobal'
+    const p = await project({
+      ...files,
+      'node_modules/reader/package.json': JSON.stringify({ name: 'reader', main: 'index.js' }),
+      'node_modules/reader/index.js': [
+        "const { appendFileSync } = require('node:fs')",
+        "appendFileSync(require('node:path').join(__dirname, 'loads.txt'), 'x')",
+        `module.exports = typeof globalThis.${name}`,
+        '',
+      ].join('\n'),
+      'a.test.js': "require('reader')\ntest('a', () => {})",
+      'b.test.js': "require('reader')\ntest('b', () => {})",
+    })
+    const config = runtimeConfig(p.dir, {
+      policy: reevaluating,
+      environmentOptions: { prepareGlobal: name },
+    })
+    try {
+      const { done } = await runJobs({
+        config,
+        jobs: [runtimeJob(config, p.path('a.test.js')), runtimeJob(config, p.path('b.test.js'))],
+      })
+      const read = await readFile(join(p.dir, 'node_modules/reader/loads.txt'), 'utf8')
+      assert.equal(read.length, 1, 'evaluated once for the worker')
+      assert.deepEqual(
+        done.map((entry) => entry.reevaluated),
+        [undefined, undefined],
+      )
+    } finally {
+      Reflect.deleteProperty(globalThis, name)
+    }
+  })
+
   it('is carried in the results cache: the next run inlines it from its first file', async () => {
     const p = await project(files)
     const cache = createResultsCache(defaultCacheDir(p.dir))

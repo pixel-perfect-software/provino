@@ -8,20 +8,23 @@ import { vitestPolicy } from '@provino/dialect-vitest'
 import { neutralPolicy } from '@provino/policy'
 import type { Golden } from '../../golden.ts'
 import { type Claims, corpus, each, golden, own, pending } from '../evidence.ts'
-import { errorsOf, hasTest, observedOf, oneOf, statusOf, testOf, timeoutOf } from '../observe.ts'
+import {
+  errorsOf,
+  hasTest,
+  observedOf,
+  oneOf,
+  refTo,
+  statusOf,
+  testOf,
+  timeoutOf,
+} from '../observe.ts'
 
 /** The seed `cli/randomize-seed-flat` ran with (`--seed=1234`). */
 const FLAT_SEED = 1234
 
 /** Whether a behaviour ref is `name`, exported from `@provino/dialect-jest/runtime`. */
-const isJestRuntimeRef = (value: unknown, name: string): boolean => {
-  const ref = value as { readonly module?: unknown; readonly export?: unknown } | null
-  return (
-    ref !== null &&
-    ref.export === name &&
-    ref.module === import.meta.resolve('@provino/dialect-jest/runtime')
-  )
-}
+const isJestRuntimeRef = (value: unknown, name: string): boolean =>
+  refTo('@provino/dialect-jest/runtime', name)(value)
 
 /**
  * Whether the ref (the dialect's `core.shuffle`) is jest-circus's shuffle: `cli/randomize-seed-flat`

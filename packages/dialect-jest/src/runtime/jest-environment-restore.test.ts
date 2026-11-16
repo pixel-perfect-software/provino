@@ -42,6 +42,28 @@ function environmentClass(
 const cleanOf = (): boolean =>
   !('document' in global) && !('__fromFakeEnvironment' in global) && !('__added' in global)
 
+test('a class that adds its document in `setup()` is a window: populated, and its timers die with it', async () => {
+  class LateWindow {
+    readonly global: Record<string, unknown> = { __fromFakeEnvironment: 1 }
+    async setup(): Promise<void> {
+      this.global.document = { title: 'late' }
+    }
+    async teardown(): Promise<void> {}
+  }
+  const instance = await fromJestEnvironment(LateWindow as unknown as JestEnvironmentClass).setup(
+    context(),
+    undefined,
+  )
+  assert.ok('window' in global, 'its self-references are on the global')
+  const fired: string[] = []
+  setImmediate(() => fired.push('the file’s'))
+  await instance.teardown()
+  // Immediates run in the order they were set: the file's would run before this one.
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.deepEqual(fired, [], 'cancelled when the window closed')
+  assert.ok(cleanOf())
+})
+
 test('a teardown that throws still puts the global back, and the error is rethrown', async () => {
   const { Class } = environmentClass({
     teardown: async () => {

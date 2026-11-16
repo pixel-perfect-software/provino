@@ -33,6 +33,7 @@ import type {
   ModuleId,
   TimersPolicy,
 } from '@provino/types'
+import { installWindowTimers } from './window-timers.ts'
 
 /**
  * What `jestGlobals` builds the globals from: `GlobalsHost` with the real types of the
@@ -360,8 +361,12 @@ function jestDefaultRetry(numRetries: number, options: JestRetryOptions | undefi
  * (`JestGlobals.ts` L295-L301), as they were given. Core takes the retry from `setDefaultRetry`;
  * these are for code outside the runner that reads them: jest-image-snapshot 6.5.2 reads
  * `Symbol.for('RETRY_TIMES')` (`parseInt(..., 10) || 0`) to refuse a retried image with no
- * `customSnapshotIdentifier` and to count a mismatch once (`ecosystem/image-snapshot-retry`). The
- * environment's restore removes them when the file ends, as it removes any key a file added.
+ * `customSnapshotIdentifier` and to count a mismatch once (`ecosystem/image-snapshot-retry`).
+ * They go on the worker's `globalThis`, which is the global a test file's code runs in: the node
+ * and jsdom environments and the Jest environment adapter all populate it and hand it back as
+ * their `global`, and no isolation tier built gives a file a realm of its own (`realm` is T2.8's,
+ * which would need the host's global here). The environment's restore removes them when the file
+ * ends, as it removes any key a file added.
  */
 function publishRetryGlobals(numRetries: number, options: JestRetryOptions | undefined): void {
   Reflect.set(globalThis, Symbol.for('RETRY_TIMES'), numRetries)
@@ -647,6 +652,11 @@ function expectModule(expect: JestGlobals['expect']): Readonly<Record<string, un
 export function jestModuleScope(
   host: JestGlobalsHost,
 ): (from: string) => Readonly<Record<string, unknown>> {
+  // The worker's boot (the one call of the Jest dialect's runtime before any file loads, whatever
+  // the project's environment): the timer wrappers go on the global now, so a package a node file
+  // loads first captures them too; a window file's timers are then told apart by the modules its
+  // registry evaluated (`window-timers.ts`).
+  installWindowTimers(globalThis, { fileModules: () => host.registry().loadedModules() })
   // One record of isolating registries for every module's `jest`, apart from the global's: the
   // file's module-mock registry refuses a nested isolation between the two (`nested-isolation`).
   const isolating: Isolating = new WeakSet()

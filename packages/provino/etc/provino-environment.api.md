@@ -77,6 +77,7 @@ export interface EnvironmentSetupContext<Options> {
 // @public
 export interface EnvironmentTeardownReport {
     readonly leakedGlobals: readonly string[];
+    readonly perFileModules?: readonly string[];
 }
 
 // @public

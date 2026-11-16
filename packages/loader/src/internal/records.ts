@@ -15,7 +15,7 @@ import type {
   SourceMapV3,
 } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
-import type { GraphEdge } from '../graph/index.ts'
+import { type GraphEdge, inGraph } from '../graph/index.ts'
 import { type ClaimsState, compileClaims, isClaimedExternal } from './claims.ts'
 import {
   createEdgeKindState,
@@ -24,11 +24,17 @@ import {
   edgeKind,
   type RuntimeCapabilities,
 } from './edge-kind.ts'
-import { createInlineState, type InlineState } from './inline.ts'
+import {
+  createInlineState,
+  type InlinePerFileSources,
+  type InlineState,
+  servedReach,
+  type UserEdges,
+} from './inline.ts'
 import { loaderMessage } from './messages.ts'
 import { createReevaluateState, type ReevaluateState } from './reevaluate.ts'
 import { blankHashbang, CJS_PARAMS } from './source.ts'
-import { type InlineRules, isThirdParty, NO_RULES } from './third-party.ts'
+import { type InlineRules, isEvaluableExternal, isThirdParty, NO_RULES } from './third-party.ts'
 
 /**
  * Where a specifier leads. `missing` is a specifier that doesn't resolve, and `failed` a user module
@@ -149,6 +155,12 @@ export interface Records {
   readonly inlineRules: InlineRules
   /** The files the transforms take (`LoaderOptions.transformClaims`); `null` for none. */
   readonly claims: ClaimsState | null
+  /** Whether a node_modules file could be evaluated per file (`isEvaluableExternal`), built once. */
+  readonly evaluable: (path: string) => boolean
+  /** `userEdgesOf` for this worker, built once. */
+  readonly userEdges: UserEdges
+  /** What the per-file set (D132) reads besides its graph, built once. */
+  readonly perFileSources: InlinePerFileSources
   /** The scope names a module of each format can be given, in order. */
   readonly scopeNames: { readonly esm: readonly string[]; readonly cjs: readonly string[] }
   /** One word-scan pattern per scope name. */
@@ -188,7 +200,11 @@ export function createRecords(options: LoaderOptions, runtime?: RuntimeCapabilit
   const required = new Map<string, unknown>()
   const edgeKinds = createEdgeKindState(options, runtime)
   const inlineRules = options.inline ?? NO_RULES
-  return {
+  const claims = compileClaims(options, { edgeKinds, inline, inlineRules, required, externals })
+  const evaluable = (path: string): boolean => isEvaluableExternal(path, inlineRules)
+  const userEdges: UserEdges = (path) => userEdgesOf(state, path)
+  const served = options.moduleScope?.modules ?? []
+  const state: Records = {
     options,
     inline,
     records: new Map(),
@@ -198,12 +214,25 @@ export function createRecords(options: LoaderOptions, runtime?: RuntimeCapabilit
     reevaluate: createReevaluateState(),
     edgeKinds,
     inlineRules,
-    claims: compileClaims(options, { edgeKinds, inline, inlineRules, required, externals }),
+    claims,
+    evaluable,
+    userEdges,
+    perFileSources: {
+      claimed: claims?.users ?? [],
+      loaded: required,
+      keep: evaluable,
+      userEdges,
+      elsewhere:
+        served.length === 0
+          ? null
+          : (path) => inGraph(path) && servedReach(inline, options, path, served, userEdges),
+    },
     scopeNames: { esm, cjs: dialect },
     scopePatterns,
     importers: new Map(),
     graphsDirty: new Set(),
   }
+  return state
 }
 
 /**

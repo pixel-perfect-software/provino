@@ -1,0 +1,28 @@
+{
+  "description": "Jest's documented custom snapshot matcher (B23e, D128) on multi-line values that differ: a first local run stores them, then the captured run under `--ci` (the test file sends other values once the .snap exists) fails both with jest-snapshot 30.5.2's own diff, which it prints with `this.snapshotState.expand` (on, `--expand`: every line of the long list) and, for a multi-line received value, serializes again with `this.snapshotState.snapshotFormat` (`escapeString` and `printBasicPrototype` false: quotes stay bare, no `Object` or `Array` prefix). `custom-snapshot-format` is the same run without it. One file, one worker.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "setupFilesAfterEnv": ["<rootDir>/setup.ts"]
+    }
+  },
+  "before": [
+    {
+      "argv": ["--ci=false", "-w", "1"]
+    }
+  ],
+  "run": {
+    "argv": {
+      "jest": ["--ci", "--expand", "--testLocationInResults", "-w", "1"]
+    },
+    "capture": [
+      "exitCode",
+      "stderr",
+      "json:.harness-out/jest.json",
+      "file:__snapshots__/shapes.test.ts.snap"
+    ],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Snapshot Summary|^ › |^ +● |^    [A-Z]|^    expect\\(|^    [-+@] |^      (?!at )",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

@@ -138,6 +138,9 @@ catalog:
   jest-html-reporters: 3.1.7
   jest-junit: 17.0.0
   jest-silent-reporter: 0.6.0
+  # The version `jest@30.5.2` installs: the `ecosystem/custom-snapshot-*` fixtures call its
+  # matchers from a custom matcher, as Jest documents (B23e, D128). Dev only, never ours.
+  jest-snapshot: 30.5.2
   jest-sonar-reporter: 2.0.0
   jest-serializer-vue: 3.1.0
   jest-util: 30.5.1

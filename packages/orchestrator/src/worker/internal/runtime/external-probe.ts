@@ -24,20 +24,51 @@
 // @internal
 import type { GlobalReadWatch } from '@provino/types'
 
-/** The global's own string keys and their descriptors, read once when the worker boots. */
-export type GlobalBaseline = ReadonlyMap<string, PropertyDescriptor>
+/**
+ * The global's own string keys and their descriptors, read once when the worker boots, with what
+ * a worker-wide setup step installed taken in since (`adoptingGlobals`).
+ */
+export type GlobalBaseline = Map<string, PropertyDescriptor>
 
 /** Keys never watched: see the header. */
 const UNWATCHED: ReadonlySet<string> = new Set(['process'])
 
 /** The global's own string keys as the worker found them: what no file's setup has touched. */
 export function readGlobalBaseline(global: object = globalThis): GlobalBaseline {
-  const baseline = new Map<string, PropertyDescriptor>()
+  const baseline: GlobalBaseline = new Map()
   for (const key of Object.getOwnPropertyNames(global)) {
     const descriptor = Object.getOwnPropertyDescriptor(global, key)
     if (descriptor !== undefined) baseline.set(key, descriptor)
   }
   return baseline
+}
+
+/**
+ * Runs a step the worker takes once, before any file (an environment's `prepare`, a dialect's
+ * boot factory), and takes what it changed on the global into `baseline`: it is the same in every
+ * file, so it is no per-file global (a wrapper an environment's `prepare` puts on a timer
+ * function, which a shared package captures as it loads). A key it removed leaves the baseline
+ * too. With no baseline (the policy doesn't watch external loads) the step just runs.
+ */
+export async function adoptingGlobals<T>(
+  baseline: GlobalBaseline | undefined,
+  step: () => T | Promise<T>,
+  global: object = globalThis,
+): Promise<T> {
+  if (baseline === undefined) return await step()
+  const before = readGlobalBaseline(global)
+  const result = await step()
+  const now = readGlobalBaseline(global)
+  for (const [key, descriptor] of now) {
+    const previous = before.get(key)
+    if (previous === undefined || !sameDescriptor(previous, descriptor)) {
+      baseline.set(key, descriptor)
+    }
+  }
+  for (const key of before.keys()) {
+    if (!now.has(key)) baseline.delete(key)
+  }
+  return result
 }
 
 /**

@@ -7,6 +7,8 @@
 //   graph      T2.6's node_modules graph: the corpus, its edges against oxc-parser, and the cold and
 //              warm medians (`--max-cold-ms 300 --max-warm-ms 20`)
 //   claims     the cost of the claims verdicts over 2,000 claimed files of one package (no bar)
+//   per-file   the cost of settling the per-file set (D132) on a hub with 3,000 per-file
+//              importers and one shared one (no bar)
 //   per-file-graph  a UI library graph of about 3,000 CommonJS modules evaluated per file under
 //              jsdom: `provino jest -w 1` against Jest 30.5 on the same project, interleaved; file 1,
 //              files 2..N and the heap after each file (`--files n --runs n --only provino,jest
@@ -24,6 +26,7 @@ import { claimsLines } from './claims.ts'
 import { e2eLines, isolationLines, measureE2e, measureIsolation } from './e2e.ts'
 import { FIXTURE_FILES, TESTS_PER_FILE, writeLoaderFixture } from './fixture.ts'
 import { graphChild, graphCommand } from './graph-cli.ts'
+import { perFileLines } from './per-file.ts'
 import { PER_FILE_TESTS, perFileGraphLines, type Subject } from './per-file-graph.ts'
 import { createFixtureLoader, type LoaderTier, runFixture } from './run.ts'
 
@@ -97,6 +100,11 @@ if (command === 'claims') {
   process.exit(0)
 }
 
+if (command === 'per-file') {
+  process.stdout.write(`${perFileLines().join('\n')}\n`)
+  process.exit(0)
+}
+
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'provino-loader-fixture-')))
 const lines: string[] = []
 let ok = true
@@ -131,7 +139,7 @@ try {
   } else {
     ok = false
     lines.push(
-      'usage: bench:loader <check|isolation|graph|claims|per-file-graph|e2e> [--tier registry|none] [--heavy] [--max-overhead-ms N] [--max-cold-ms N --max-warm-ms N]',
+      'usage: bench:loader <check|isolation|graph|claims|per-file|per-file-graph|e2e> [--tier registry|none] [--heavy] [--max-overhead-ms N] [--max-cold-ms N --max-warm-ms N]',
     )
   }
 } finally {

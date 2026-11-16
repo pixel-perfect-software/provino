@@ -22,10 +22,10 @@ import { claimedLoad, demoteOnParseFailure, isClaimedUserModule } from './claims
 import {
   claimedReach,
   createLedger,
+  evaluatedPerFile,
   mockedReach,
   noteInlined,
   packageClosure,
-  reevaluatedReach,
   servedReach,
 } from './inline.ts'
 import { actualView, cjsNamespace, createInteropCache, esmExports } from './interop.ts'
@@ -47,11 +47,9 @@ import {
   type Target,
   targetOfId,
   toModuleId,
-  userEdgesOf,
 } from './records.ts'
 import { watchedLoad } from './reevaluate.ts'
 import { requireEsmError } from './require-esm.ts'
-import { isEvaluableExternal } from './third-party.ts'
 
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
 type Style = 'esm' | 'cjs'
@@ -187,16 +185,17 @@ export class Registry {
   readonly #dynamicLoads = new Map<ModuleId, Set<ModuleId>>()
 
   /**
-   * Whether the registry outlives its files (isolation `none`): it keeps every module it evaluated,
-   * so `reevaluateHookingExternals` neither watches nor inlines for it (D127). Each file is not
-   * evaluated again under `none` by design, so neither is an external.
+   * Whether this registry evaluates externals again per file (`reevaluateHookingExternals`, D127,
+   * D132): never one that outlives its files (`sharedAcrossFiles`, isolation `none`), which keeps
+   * every module it evaluated, so neither watches nor inlines for it. Each file is not evaluated
+   * again under `none` by design, so neither is an external.
    */
-  readonly #sharedAcrossFiles: boolean
+  readonly #reevaluates: boolean
 
   constructor(state: Records, sharedAcrossFiles = false) {
     this.#state = state
     this.#maps = [new Map()]
-    this.#sharedAcrossFiles = sharedAcrossFiles
+    this.#reevaluates = state.options.policy.reevaluateHookingExternals && !sharedAcrossFiles
   }
 
   get #instances(): Map<ModuleId, Instance> {
@@ -553,9 +552,11 @@ export class Registry {
 
   /**
    * An external as the edge should load it: the same external, or a user module (inlined) for one
-   * of four reasons. It is evaluated again per file (`reevaluateHookingExternals`: its first load
-   * in this worker read a per-file global, D127, or its closure reaches such an external, so it
-   * shares the file's copy and never Node's cached one); its closure reaches a module the dialect
+   * of four reasons. It is in the per-file set (`reevaluateHookingExternals`, `evaluatedPerFile`:
+   * its first load in this worker read a per-file global, D127, or the transforms make it a user
+   * module, D130; it imports such a file through any chain, so it shares the file's copy and never
+   * Node's cached one; or it is a dependency of the set that only files evaluated per file import,
+   * D132, such as a registry a per-file plugin writes into); its closure reaches a module the dialect
    * serves (`@jest/globals`, which only the registry can serve); its closure reaches a
    * `node_modules` file the transforms make a user module (B23e, `claimedReach`); or
    * `mocksReachShared` is on and the file's mocks take an edge in its graph closure. The answer is
@@ -595,17 +596,24 @@ export class Registry {
 
   /** Whether the external at `path` is inlined for the instance map in play (`#maybeInline`). */
   #inlines(path: string, runner: boolean): boolean {
+    const inlined = this.#decideInline(path, runner)
+    // From the file's first answer on, what joins the per-file set waits for the next file (D132).
+    if (this.#reevaluates) this.#state.reevaluate.perFile.answered = true
+    return inlined
+  }
+
+  #decideInline(path: string, runner: boolean): boolean {
     const state = this.#state
     const policy = state.options.policy
-    // Externals evaluated per file (D127): one is, or its closure reaches one.
-    const perFile =
-      policy.reevaluateHookingExternals &&
-      !this.#sharedAcrossFiles &&
-      state.reevaluate.active.size > 0
-    const served = state.options.moduleScope?.modules ?? NO_MODULES
     const claims = state.claims
+    // Externals evaluated per file (D127, D132): a seed, what reaches a member, what only they
+    // import.
+    const seeded =
+      this.#reevaluates &&
+      (state.reevaluate.active.size > 0 || (claims !== null && claims.users.length > 0))
+    const served = state.options.moduleScope?.modules ?? NO_MODULES
     const mocks = runner || !policy.mocksReachShared ? null : this.context.mocks
-    if (!perFile && served.length === 0 && claims === null && mocks === null) return false
+    if (!seeded && served.length === 0 && claims === null && mocks === null) return false
     const map = this.#instances
     let memory = this.#memory.get(map)
     if (memory === undefined) {
@@ -616,10 +624,16 @@ export class Registry {
     if (inlined === undefined) {
       inlined = false
       if (!path.endsWith('.node')) {
-        const userEdges = (user: string) => userEdgesOf(state, user)
+        const userEdges = state.userEdges
         if (
-          (perFile &&
-            reevaluatedReach(state.inline, state.options, path, state.reevaluate, userEdges)) ||
+          (seeded &&
+            evaluatedPerFile(
+              state.inline,
+              state.options,
+              path,
+              state.reevaluate,
+              state.perFileSources,
+            )) ||
           (served.length > 0 &&
             servedReach(state.inline, state.options, path, served, userEdges)) ||
           (claims !== null &&
@@ -673,16 +687,11 @@ export class Registry {
         throw requireEsmError(state.options, state.edgeKinds, target.path, error) ?? error
       }
     }
-    const value: unknown =
-      state.options.policy.reevaluateHookingExternals && !this.#sharedAcrossFiles
-        ? watchedLoad(
-            state.reevaluate,
-            target.path,
-            load,
-            (file) => isEvaluableExternal(file, state.inlineRules),
-            (file) => packageClosure(state.inline, state.options, file),
-          )
-        : load()
+    const value: unknown = this.#reevaluates
+      ? watchedLoad(state.reevaluate, target.path, load, state.evaluable, (file) =>
+          packageClosure(state.inline, state.options, file),
+        )
+      : load()
     state.required.set(key, value)
     return value
   }

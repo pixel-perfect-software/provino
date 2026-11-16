@@ -6,9 +6,10 @@
 // every capture through the same steps the recorder applies (roots, `keepLines`, `sortStdout`,
 // `mask`, times) and compares it with the golden's, with no step of its own.
 import assert from 'node:assert/strict'
-import { mkdir, readFile, rm, symlink } from 'node:fs/promises'
+import { mkdir, readdir, readFile, rm, symlink } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
+import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { type Json, normalizedJson, observedText } from './mask.ts'
 import {
@@ -61,6 +62,11 @@ export interface ProvinoOnOptions {
   readonly parent?: string
   /** A run still going after this is killed (default 120 s). */
   readonly deadlineMs?: number
+  /**
+   * The captured run's own arguments in place of the fixture's `run.argv.jest`, for the same
+   * project under another flag (`-i` in place of `-w 1`) held to the same golden.
+   */
+  readonly argv?: readonly string[]
 }
 
 /** One `provino jest` run of a fixture, read as the recorder reads its own. */
@@ -287,7 +293,7 @@ export async function runFixture(
       await start(entry.argv)
       await rm(join(root, RESULTS), { force: true })
     }
-    const ended = await start(spec?.argv?.jest ?? [])
+    const ended = await start(options.argv ?? spec?.argv?.jest ?? [])
 
     const roots = [root]
     const files: Record<string, string | null> = {}
@@ -454,4 +460,55 @@ export function assertMatchesGolden(
       compare(entry, golden, run.json[file])
     }
   }
+}
+
+/** A fixture a group holds to its golden: its id, or its id and what it shows (the test's title). */
+export type RecordedEntry = string | readonly [id: string, shows: string]
+
+/** What `describeRecorded` takes beside the group and its fixtures. */
+export interface DescribeRecordedOptions {
+  /** Recorded fixtures of the group not held yet; the caller says why beside the list. */
+  readonly leftOut?: readonly string[]
+  /** How each fixture is run (`provinoOn`'s options). */
+  readonly run?: ProvinoOnOptions
+}
+
+/**
+ * A `describe` block that holds a group of recorded fixtures to their goldens with
+ * `assertMatchesGolden`, after checking the group is complete: the fixtures named (held or left
+ * out) are exactly the group's on disk. `group` is an id prefix (`ecosystem/custom-snapshot-`:
+ * every fixture whose id starts with it) or the group's ids, each of which must be recorded.
+ */
+export function describeRecorded(
+  title: string,
+  group: string | ReadonlySet<string>,
+  fixtures: readonly RecordedEntry[],
+  options: DescribeRecordedOptions = {},
+): void {
+  const entries = fixtures.map((entry) =>
+    typeof entry === 'string' ? ([entry, ''] as const) : entry,
+  )
+  const named = [...entries.map(([id]) => id), ...(options.leftOut ?? [])].toSorted()
+  const inGroup = (id: string): boolean =>
+    typeof group === 'string' ? id.startsWith(group) : group.has(id)
+  const areas = new Set(
+    (typeof group === 'string' ? [group] : [...group]).map((id) => id.slice(0, id.indexOf('/'))),
+  )
+  describe(title, () => {
+    it('holds every recorded fixture of the group, or leaves it out by name', async () => {
+      const recorded: string[] = []
+      for (const area of areas) {
+        for (const name of await readdir(join(FIXTURES, area))) {
+          if (inGroup(`${area}/${name}`)) recorded.push(`${area}/${name}`)
+        }
+      }
+      assert.deepEqual(named, recorded.toSorted(), 'the fixtures named are the group on disk')
+      if (typeof group !== 'string') assert.deepEqual(named, [...group].toSorted())
+    })
+    for (const [id, shows] of entries) {
+      it(shows === '' ? `${id} gives Jest's results` : `${id}: ${shows}`, async () => {
+        assertMatchesGolden(id, await provinoOn(id, options.run))
+      })
+    }
+  })
 }

@@ -64,6 +64,13 @@ export interface EnvironmentSetupContext<Options> {
 export interface EnvironmentTeardownReport {
   /** Global keys the teardown could not restore, as strings (`String(symbol)` for a symbol key): a key a test added that can't be deleted, or a changed key that can't be redefined. Later files in this worker still see them. */
   readonly leakedGlobals: readonly string[]
+  /**
+   * Shared modules (`node_modules` files the worker loads once, absolute paths) that the file left
+   * holding its own work: a timer of the module's own that the teardown cancelled, whose callback
+   * alone would have reset the module's state. Under `module.reevaluateHookingExternals` the worker
+   * evaluates each again in every later file (D127), so no later file meets that state.
+   */
+  readonly perFileModules?: readonly string[]
 }
 
 /**

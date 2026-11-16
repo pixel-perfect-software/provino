@@ -3,12 +3,7 @@
 // same project (`ecosystem/*`): the exit code, the kept stderr lines and the whole results file.
 // Each fixture has two test files under `-w 1`, so the second file runs in a worker that already
 // loaded the package for the first.
-import assert from 'node:assert/strict'
-import { readdir } from 'node:fs/promises'
-import { join } from 'node:path'
-import { describe, it } from 'node:test'
-import { FIXTURES as FIXTURE_ROOT } from './recorded.ts'
-import { assertMatchesGolden, provinoOn } from './recorded-run.ts'
+import { describeRecorded } from './recorded-run.ts'
 
 const FIXTURES = [
   ['ecosystem/identity-obj-proxy', "a CSS mapper and Babel's interop over __esModule: false"],
@@ -47,17 +42,6 @@ const PHASE_2B: ReadonlySet<string> = new Set([
   'ecosystem/expect-type',
 ])
 
-describe('ecosystem matchers, mocks and network, against Jest 30.5.2', () => {
-  it('runs every Phase 2b fixture or names why it does not', async () => {
-    const phase2b = (await readdir(join(FIXTURE_ROOT, 'ecosystem')))
-      .map((name) => `ecosystem/${name}`)
-      .filter((id) => PHASE_2B.has(id))
-    assert.deepEqual([...FIXTURES.map(([id]) => id), ...LEFT_OUT].toSorted(), phase2b.toSorted())
-  })
-
-  for (const [id, title] of FIXTURES) {
-    it(`${id}: ${title}`, async () => {
-      assertMatchesGolden(id, await provinoOn(id))
-    })
-  }
+describeRecorded('ecosystem matchers, mocks and network, against Jest 30.5.2', PHASE_2B, FIXTURES, {
+  leftOut: LEFT_OUT,
 })

@@ -1,0 +1,17 @@
+{
+  "description": "Which timers a test sees on jest-environment-jsdom: each test's title holds `typeof` of `setImmediate`, `clearImmediate`, `MessageChannel` and `queueMicrotask`, and whether the global's `setTimeout`, `setInterval` and `clearTimeout` are the window's own. jest-environment-jsdom gives the test the window as its global, and the window has no `setImmediate`.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^    [A-Z]",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

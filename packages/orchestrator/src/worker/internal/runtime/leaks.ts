@@ -26,6 +26,24 @@ export function leakedGlobalsOf(report: unknown, environmentName: string): reado
   return leakedGlobals
 }
 
+/**
+ * The shared modules a `teardown` reported the file left holding its own work
+ * (`EnvironmentTeardownReport.perFileModules`): none when the report has no such key. A value that
+ * is not an array of strings is `ORCH_BAD_ENVIRONMENT`, as for `leakedGlobals`.
+ * @internal
+ */
+export function perFileModulesOf(report: unknown, environmentName: string): readonly string[] {
+  if (!isRecord(report) || report.perFileModules === undefined) return []
+  const { perFileModules } = report
+  if (!isStringArray(perFileModules)) {
+    throw new WorkerError(
+      'ORCH_BAD_ENVIRONMENT',
+      `The environment "${environmentName}" returned a teardown report whose perFileModules is not an array of strings`,
+    )
+  }
+  return perFileModules
+}
+
 const globals = (keys: readonly string[]): string =>
   `${keys.length} ${keys.length === 1 ? 'global' : 'globals'}`
 

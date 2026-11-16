@@ -1,0 +1,28 @@
+{
+  "description": "Jest's documented custom snapshot matcher (B23e, D128) under `jest.retryTimes(1)`: each test's first attempt takes its snapshots through jest-snapshot 30.5.2's `this.snapshotState.match` (and `fail`, for property matchers its value lacks) and then fails; the retry passes. jest-snapshot hands `match` and `fail` the matcher's `currentTestIdentity`, so jest-circus's `snapshotState.clear(test)` takes back the attempt's counters, counts and checked keys, and under `--ci` with the snapshots stored (a first local run, `before`) the retry's snapshots have the first attempt's keys and match. One file, one worker.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "setupFilesAfterEnv": ["<rootDir>/setup.ts"]
+    }
+  },
+  "before": [
+    {
+      "argv": ["--ci=false", "-w", "1"]
+    }
+  ],
+  "run": {
+    "argv": {
+      "jest": ["--ci", "--testLocationInResults", "-w", "1"]
+    },
+    "capture": [
+      "exitCode",
+      "stderr",
+      "json:.harness-out/jest.json",
+      "file:__snapshots__/retried.test.ts.snap"
+    ],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Snapshot Summary|^ › |^ +● |^    [A-Z]|^    expect\\(|^    [-+] ",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

@@ -2,12 +2,10 @@
 // 30.5.2 recorded for it (`ecosystem/*`): the exit code, the kept stderr lines, the results JSON and
 // any `.snap` file, by `assertMatchesGolden` with no step of its own. Every fixture is two test
 // files on one worker, so a package loaded once per worker is seen by the second file too.
-import assert from 'node:assert/strict'
-import { readdir, rm } from 'node:fs/promises'
+import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { after, before, describe, it } from 'node:test'
-import { FIXTURES } from './recorded.ts'
-import { assertMatchesGolden, linkEnvironments, provinoOn, WORK } from './recorded-run.ts'
+import { after, before } from 'node:test'
+import { describeRecorded, linkEnvironments, WORK } from './recorded-run.ts'
 
 /**
  * Where the projects go: a directory of this file's own under `.work/`, whose `node_modules` holds
@@ -67,26 +65,9 @@ after(async () => {
   await rm(PARENT, { recursive: true, force: true })
 })
 
-describe('the ecosystem DOM packages through provino jest, against Jest 30.5.2', () => {
-  it('runs every Phase 2a fixture or names why it does not', async () => {
-    const phase2a = (await readdir(join(FIXTURES, 'ecosystem')))
-      .map((name) => `ecosystem/${name}`)
-      .filter((id) => PHASE_2A.has(id))
-    assert.deepEqual(
-      [...FIXTURE_IDS.map(([id]) => id), ...LEFT_OUT].toSorted(),
-      [...PHASE_2A].toSorted(),
-      'every Phase 2a fixture is held or left out with a reason',
-    )
-    assert.deepEqual(
-      phase2a.toSorted(),
-      [...PHASE_2A].toSorted(),
-      'every Phase 2a fixture is recorded',
-    )
-  })
-
-  for (const [id, title] of FIXTURE_IDS) {
-    it(`${id}: ${title}`, async () => {
-      assertMatchesGolden(id, await provinoOn(id, { parent: PARENT }))
-    })
-  }
-})
+describeRecorded(
+  'the ecosystem DOM packages through provino jest, against Jest 30.5.2',
+  PHASE_2A,
+  FIXTURE_IDS,
+  { leftOut: LEFT_OUT, run: { parent: PARENT } },
+)

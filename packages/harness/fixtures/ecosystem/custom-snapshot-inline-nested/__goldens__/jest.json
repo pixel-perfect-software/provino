@@ -1,0 +1,190 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ecosystem/custom-snapshot-inline-nested",
+  "files": [
+    {
+      "file": "nested.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "nested.test.ts",
+            "path": [
+              "a custom matcher over another"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "nested.test.ts",
+            "path": [
+              "the built-in inside a custom matcher"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 5,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "nested.test.ts",
+            "path": [
+              "the built-in two custom matchers down"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 3,
+          "location": {
+            "line": 9,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 3,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 3,
+      "filesAdded": 1,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "PASS ./nested.test.ts\n › 3 snapshots written.\nSnapshot Summary\n › 3 snapshots written from 1 test suite.\nTest Suites: 1 passed, 1 total\nTests:       3 passed, 3 total\nSnapshots:   3 written, 3 total",
+    "files": {
+      "setup.ts": "// Inline snapshot matchers called from inside other matchers. Where a snapshot is written is the\n// frame below the innermost matcher call: jest-snapshot cuts its stack at the innermost\n// external-matcher trap (`removeLinesBeforeExternalMatcherTrap`), and Jest registers its own\n// snapshot matchers with `expect.extend`, so they run inside a trap too. A matcher called through\n// `expect` inside another custom matcher therefore writes into that matcher's body, here.\nimport { toMatchInlineSnapshot } from 'jest-snapshot'\n\nconst passed = { pass: true, message: () => '' }\n\nexpect.extend({\n  // https://jestjs.io/docs/snapshot-testing#custom-inline-snapshot-matchers\n  toMatchTrimmedInlineSnapshot(received, ...rest) {\n    return toMatchInlineSnapshot.call(this, received.substring(0, 10), ...rest)\n  },\n  // A custom matcher over the one above, through `expect`.\n  toMatchShoutedInlineSnapshot(received) {\n    expect(received.toUpperCase()).toMatchTrimmedInlineSnapshot(`\"LOUD STRIN\"`)\n    return passed\n  },\n  // The built-in inline matcher inside a custom matcher.\n  toMatchBuiltInInlineSnapshot(received) {\n    expect(received).toMatchInlineSnapshot(`\"built in\"`)\n    return passed\n  },\n  // Another custom matcher over the built-in one, called from the matcher below.\n  toMatchInnerBuiltInInlineSnapshot(received) {\n    expect(received).toMatchInlineSnapshot(`\"deeper!\"`)\n    return passed\n  },\n  // The built-in two custom matchers down.\n  toMatchNestedBuiltInInlineSnapshot(received) {\n    expect(`${received}!`).toMatchInnerBuiltInInlineSnapshot()\n    return passed\n  },\n})\n",
+      "nested.test.ts": "test('a custom matcher over another', () => {\n  expect('loud string, trimmed').toMatchShoutedInlineSnapshot()\n})\n\ntest('the built-in inside a custom matcher', () => {\n  expect('built in').toMatchBuiltInInlineSnapshot()\n})\n\ntest('the built-in two custom matchers down', () => {\n  expect('deeper').toMatchNestedBuiltInInlineSnapshot()\n})\n"
+    },
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 0,
+        "numFailedTests": 0,
+        "numPassedTestSuites": 1,
+        "numPassedTests": 3,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 1,
+        "numTotalTests": 3,
+        "openHandles": [],
+        "snapshot": {
+          "added": 3,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 1,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 3,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": true,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "a custom matcher over another",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 1
+                },
+                "numPassingAsserts": 2,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "a custom matcher over another",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "the built-in inside a custom matcher",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 5
+                },
+                "numPassingAsserts": 2,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "the built-in inside a custom matcher",
+                "startAt": "<time>"
+              },
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "the built-in two custom matchers down",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 9
+                },
+                "numPassingAsserts": 3,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "the built-in two custom matchers down",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/nested.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}
