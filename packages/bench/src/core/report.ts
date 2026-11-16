@@ -4,21 +4,61 @@ import { BenchError } from '../errors.ts'
 import { errorMessage } from '../internal/guards.ts'
 import { overBar, parseLimit, pastLimit } from '../internal/limits.ts'
 import { median } from '../stats.ts'
-import type { CoreLocations } from './workload.ts'
+import type { CoreLocations, CoreTurns } from './workload.ts'
 
 /**
- * The configurations `bench:core` measures, the barred one first: locations off with ALS (the
- * spike's "Locations off + ALS `run()`" column, which T5.14's bar names), then locations on (how
- * the worker runs core today), a signal with no bar.
+ * A configuration `bench:core` measures: `off` (locations off with ALS and no boundary turns, the
+ * spike's "Locations off + ALS `run()`" column, which T5.14's bar names), `on` (locations on, how
+ * the worker runs core today), and `turns` (`off` with the Jest dialect's boundary turns, its whole
+ * core policy). The last two are signals with no bar.
  * @public
  */
-export const CORE_CONFIGS: readonly CoreLocations[] = ['off', 'on']
+export type CoreConfig = 'off' | 'on' | 'turns'
+
+/**
+ * The configurations, the barred one first.
+ * @public
+ */
+export const CORE_CONFIGS: readonly CoreConfig[] = ['off', 'on', 'turns']
+
+/**
+ * What each configuration runs: its locations and its boundary turns.
+ * @public
+ */
+export const CORE_SETUPS: Readonly<
+  Record<CoreConfig, { readonly locations: CoreLocations; readonly turns: CoreTurns }>
+> = {
+  off: { locations: 'off', turns: 'none' },
+  on: { locations: 'on', turns: 'none' },
+  turns: { locations: 'off', turns: 'jest' },
+}
 
 /**
  * The configuration T5.14's bar applies to.
  * @public
  */
-export const BARRED_CONFIG: CoreLocations = 'off'
+export const BARRED_CONFIG: CoreConfig = 'off'
+
+/**
+ * The configuration a child process was started for; a `BENCH_USAGE` error on anything else.
+ * @public
+ */
+export function coreConfigOf(arg: string | undefined): CoreConfig {
+  const found = CORE_CONFIGS.find((config) => config === arg)
+  if (found === undefined) {
+    throw new BenchError('BENCH_USAGE', `a core bench process takes off, on or turns, got "${arg}"`)
+  }
+  return found
+}
+
+/**
+ * What the Jest dialect's boundary turns cost a test: the `turns` configuration's µs per test less
+ * the barred one's (`local`, no bar).
+ * @public
+ */
+export function turnsCost(medians: Readonly<Record<CoreConfig, CoreSample>>): number {
+  return medians.turns.usPerTest - medians[BARRED_CONFIG].usPerTest
+}
 
 /**
  * One process's sample: the median µs per test of its kept rounds.
@@ -93,12 +133,22 @@ export function medianCore(samples: readonly CoreSample[]): CoreSample {
 }
 
 /**
+ * How each configuration is named in the lines `bench:core` prints.
+ * @public
+ */
+export const CORE_LABELS: Readonly<Record<CoreConfig, string>> = {
+  off: 'locations off + ALS (T5.14)',
+  on: 'locations on (signal)',
+  turns: "Jest's boundary turns (signal)",
+}
+
+/**
  * What missed: a configuration whose tests did not all pass, and the barred configuration over
  * `maxUs`. Empty when nothing missed.
  * @public
  */
 export function coreFailures(
-  medians: Readonly<Record<CoreLocations, CoreSample>>,
+  medians: Readonly<Record<CoreConfig, CoreSample>>,
   tests: number,
   maxUs: number | undefined,
 ): string[] {
@@ -106,7 +156,7 @@ export function coreFailures(
   for (const config of CORE_CONFIGS) {
     const { passed } = medians[config]
     if (passed !== tests) {
-      missed.push(`locations ${config}: ${passed}/${tests} tests passed; every one must`)
+      missed.push(`${CORE_LABELS[config]}: ${passed}/${tests} tests passed; every one must`)
     }
   }
   const barred = medians[BARRED_CONFIG].usPerTest
