@@ -321,6 +321,18 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     factory.maxWorkers ?? Number.POSITIVE_INFINITY,
   )
 
+  /**
+   * What a worker is started with: the caller's init, and the limit this pool compares its
+   * `fileDone.memoryBytes` with, so the worker collects its garbage once before it reports a heap
+   * over it (`WorkerInit.memoryLimitBytes`). Not for a worker that shares the process, which is
+   * never replaced for memory.
+   */
+  function initOf(key: WorkerKey, workerId: number): WorkerInit {
+    const init = deps.init(key, workerId)
+    if (sharesProcess || memoryLimitBytes === undefined) return init
+    return { ...init, memoryLimitBytes }
+  }
+
   const slots = new Set<Slot>()
   const waiters: Waiter[] = []
   const spawns = new Set<Promise<void>>()
@@ -531,7 +543,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     const route: Slot['route'] = { handler: undefined }
     let slot: Slot
     try {
-      const transport = await factory.create(deps.init(key, workerId), controller.signal)
+      const transport = await factory.create(initOf(key, workerId), controller.signal)
       const connection = connectWorker(transport, {
         methods: deps.methods,
         onEvents: (events) =>

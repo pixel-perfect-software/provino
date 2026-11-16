@@ -114,8 +114,10 @@ export interface RunOptions {
    */
   readonly detectOpenHandles?: boolean
   /**
-   * Replace a worker once it holds more than this many bytes after a file (`0`: after every
-   * file). Default: `max(512 MiB, 25% of the memory / maxWorkers)`; `Infinity` turns it off.
+   * Replace a worker once it holds more than this many bytes of heap after a file (`0`: after
+   * every file). A heap over the limit is collected once first, and the worker is replaced only if
+   * it is still over, so garbage a file left behind does not cost a replacement. Default:
+   * `max(512 MiB, 25% of the memory / maxWorkers)`; `Infinity` turns it off.
    */
   readonly workerMemoryLimit?: number
   /** Replace a worker after it has run this many files. Default: never. */

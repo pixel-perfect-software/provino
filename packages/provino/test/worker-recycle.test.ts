@@ -12,7 +12,8 @@ import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { createJestConfigReader, jestCli } from '@provino/dialect-jest/node'
 import type { ConfigSource } from '@provino/types'
-import { isRunning, trackedProjects } from './support.ts'
+import { run } from 'provino/node'
+import { Collect, isRunning, notedPids, QUIET_ENV, trackedProjects } from './support.ts'
 
 const makeProject = trackedProjects()
 
@@ -33,6 +34,7 @@ interface JestWorker {
   pid(): Promise<number>
   holdHeap(): Promise<number>
   holdNative(): Promise<number>
+  makeGarbage(): Promise<number>
   end(): Promise<unknown>
 }
 
@@ -108,7 +110,12 @@ describe('against jest-worker 30.5.1', () => {
     }
   }
 
-  /** What the pool does for a worker holding `heapBytes` after a file, under the limit `provino jest` maps. */
+  /**
+   * What the pool does for a worker holding `heapBytes` after a file, under the limit `provino jest`
+   * maps. The heaps here are live ones (what a child holds before it has done anything), which the
+   * worker's one collection before it reports leaves as they are: a heap that is only garbage is the
+   * divergence below.
+   */
   function poolReplaces(limit: number | undefined, heapBytes: number): boolean {
     const recycle = workerRecycle(limit).recycle
     return recycle !== undefined && heapBytes > recycle.memoryLimitBytes
@@ -153,7 +160,8 @@ describe('against jest-worker 30.5.1', () => {
    * What the child holds is what jest-worker compares: `process.memoryUsage().heapUsed`, so a
    * child that grows only native memory (a `Buffer` of 200 MB, which puts its RSS over the limit)
    * is kept, and one that grows its heap past the limit is replaced. The pool measures the same
-   * quantity in a fork (`worker-recycle` in `packages/orchestrator/test/pool-chaos.test.ts`).
+   * quantity in a fork (`worker-recycle` in `packages/orchestrator/test/pool-chaos.test.ts`),
+   * after one collection when it is over the limit: the two differ for garbage alone (below).
    */
   for (const [name, method, expected] of [
     ['a child that grows only native memory', 'holdNative', false],
@@ -189,4 +197,95 @@ describe('against jest-worker 30.5.1', () => {
       }
     })
   }
+})
+
+// DIVERGENCES: collect before recycling (Tyler 2026-11-16, speed, D115). jest-worker compares the
+// child's `heapUsed` as it is, garbage included, so a child that has only made garbage is replaced.
+// The pool asks the worker to collect once when its heap is over the limit and replaces it only if
+// it is still over: a replacement reloads every shared module for nothing. A test can't tell:
+// `JEST_WORKER_ID` and the files a worker runs are the same either way. Everything above is the
+// same in both; these three are the whole difference.
+describe('garbage alone: a deliberate difference from jest-worker 30.5.1', () => {
+  /** 240 MB of heap, nothing refers to it once the expression is done. */
+  const GARBAGE = 'new Array(30_000_000).fill(0)'
+  /** Over a bare child's heap and under what the garbage adds to it, with room on both sides. */
+  const LIMIT = 200 * 1024 * 1024
+
+  /** A test file that notes its worker's pid, then makes the garbage, and keeps it or not. */
+  function garbageFile(name: string, pidFile: string, keep: boolean): string {
+    return [
+      "const { appendFileSync } = require('node:fs')",
+      `test(${JSON.stringify(name)}, () => {`,
+      `  appendFileSync(${JSON.stringify(pidFile)}, process.pid + '\\n')`,
+      // A core module's exports are one object for the whole worker, whatever the file.
+      `  ${keep ? "require('node:v8').__held = " : 'const scratch = '}${GARBAGE}`,
+      `  expect(${keep ? "require('node:v8').__held" : 'scratch'}.length).toBe(30_000_000)`,
+      '})',
+      '',
+    ].join('\n')
+  }
+
+  /** The pid of each file's worker, in order, for four files on one fork. */
+  async function workersFor(keep: boolean): Promise<readonly number[]> {
+    const project = await makeProject((dir) => {
+      const pidFile = `${dir}/workers.pids`
+      return Object.fromEntries(
+        ['a', 'b', 'c', 'd'].map((name) => [
+          `tests/${name}.test.js`,
+          garbageFile(name, pidFile, keep),
+        ]),
+      )
+    })
+    const stderr = new Collect()
+    const result = await run({
+      config: project.config,
+      pool: 'forks',
+      maxWorkers: 1,
+      workerMemoryLimit: LIMIT,
+      stdout: new Collect(),
+      stderr,
+      env: QUIET_ENV,
+    })
+    assert.equal(result.exitCode, 0, stderr.text)
+    return notedPids(project.path('workers.pids'))
+  }
+
+  it('jest-worker replaces a child that only made garbage: it reads heapUsed as it is', async () => {
+    const project = await makeProject({
+      'worker.cjs': [
+        'exports.pid = () => process.pid',
+        `exports.makeGarbage = () => { ${GARBAGE}; return process.pid }`,
+        '',
+      ].join('\n'),
+    })
+    const Worker = jestWorker()
+    const worker = new Worker(project.path('worker.cjs'), {
+      numWorkers: 1,
+      enableWorkerThreads: false,
+      idleMemoryLimit: LIMIT,
+      exposedMethods: ['pid', 'makeGarbage'],
+    })
+    try {
+      const first = await worker.makeGarbage()
+      const until = Date.now() + RESTART_DEADLINE_MS
+      while (isRunning(first)) {
+        assert.ok(Date.now() <= until, 'the child that made the garbage is still there')
+        await sleep(25)
+      }
+    } finally {
+      await worker.end()
+    }
+  })
+
+  it('the pool keeps its worker: it collects the garbage before it compares the heap with the limit', async () => {
+    const pids = await workersFor(false)
+    assert.equal(pids.length, 4)
+    assert.equal(new Set(pids).size, 1, `one worker took every file, got ${pids.join(', ')}`)
+  })
+
+  it('the pool still replaces a worker that holds what it made: only garbage is collected away', async () => {
+    const pids = await workersFor(true)
+    assert.equal(pids.length, 4)
+    assert.equal(new Set(pids).size, 4, `a worker per file, got ${pids.join(', ')}`)
+  })
 })
