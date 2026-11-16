@@ -4,7 +4,9 @@
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { after, test } from 'node:test'
+import { JestConfigError } from './errors.ts'
 import { oracleRequireResolve, removeTree, writeTree } from './internal/test-support.ts'
+import { readJestConfigs } from './normalize.ts'
 import { createJestResolution } from './resolution.ts'
 
 const trees: string[] = []
@@ -45,6 +47,52 @@ test('a CommonJS resolver function is the resolver', async () => {
   const resolver = join(root, 'resolver.js')
   await resolution.preloadResolver(resolver)
   assert.equal(resolution.findNodeModule('@@x.js', { basedir: root, resolver }), join(root, 'x.js'))
+})
+
+// Each project's normalize preloads the resolver, and `readJestConfigs` reads the projects at once,
+// as Jest's `readConfigs` does. A CommonJS resolver loaded twice at the same time once failed with
+// Node's `ERR_INTERNAL_ASSERTION` (ts-jest-resolver's `dist/index.cjs` in a pnpm monorepo).
+test('projects read at once share a CommonJS resolver', async () => {
+  const config = JSON.stringify({ resolver: '<rootDir>/../resolver.cjs' })
+  const root = writeTree({
+    'resolver.cjs': [
+      "'use strict'",
+      "const { extname } = require('node:path')",
+      'module.exports = (path, options) =>',
+      "  options.defaultResolver(extname(path) === '' ? `${path}.js` : path, options)",
+      '',
+    ].join('\n'),
+    'a/jest.config.json': config,
+    'b/jest.config.json': config,
+    'c/jest.config.json': config,
+  })
+  trees.push(root)
+  const read = await readJestConfigs(
+    ['a', 'b', 'c'].map((project) => join(root, project)),
+    { cwd: root, requireResolve: oracleRequireResolve, ci: false, seed: 0 },
+  )
+  assert.deepEqual(
+    read.configs.map((project) => project.resolver),
+    ['a', 'b', 'c'].map(() => join(root, 'resolver.cjs')),
+  )
+})
+
+test("a resolver that can't load is refused with the underlying error's stack", async () => {
+  const root = writeTree({ 'resolver.cjs': "require('./missing-helper.cjs')\n" })
+  trees.push(root)
+  const resolver = join(root, 'resolver.cjs')
+  await assert.rejects(
+    createJestResolution(oracleRequireResolve).preloadResolver(resolver),
+    (error: unknown) => {
+      assert.ok(error instanceof JestConfigError)
+      assert.equal(error.code, 'JEST_CONFIG_LOAD_FAILED')
+      assert.match(
+        error.message,
+        /^can't load the resolver ".+resolver\.cjs": Error: Cannot find module '\.\/missing-helper\.cjs'\nRequire stack:\n- .+resolver\.cjs\n[\s\S]*\n {4}at /,
+      )
+      return true
+    },
+  )
 })
 
 test("a module that exports no resolver is refused with jest-resolve's text", async () => {

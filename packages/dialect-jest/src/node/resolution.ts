@@ -11,7 +11,7 @@ import { ConfigError, importConfigModule } from '@provino/config'
 import { createResolver } from '@provino/resolver'
 import type { Resolver } from '@provino/types'
 import { type JestRequireResolve, projectJestRequireResolve } from '../jest-require.ts'
-import { JestConfigError, messageOf } from './errors.ts'
+import { JestConfigError, stackOf } from './errors.ts'
 
 export { type JestRequireResolve, projectJestRequireResolve }
 
@@ -170,9 +170,11 @@ export function createJestResolution(requireResolve: JestRequireResolve): JestRe
         // exports make a resolver, as `toResolver` (L1084-L1113) accepts them.
         loaded = await importConfigModule(path, { withoutDefault: 'namespace' })
       } catch (error) {
+        // jest-cli prints the stack of what `requireOrImportModule` threw (`run.ts` L30-L38), so
+        // the text carries the underlying error's stack, not only its message.
         throw new JestConfigError(
           'JEST_CONFIG_LOAD_FAILED',
-          `can't load the resolver "${path}": ${messageOf(error instanceof ConfigError ? error.cause : error)}`,
+          `can't load the resolver "${path}": ${stackOf(error instanceof ConfigError ? error.cause : error)}`,
           { cause: error },
         )
       }

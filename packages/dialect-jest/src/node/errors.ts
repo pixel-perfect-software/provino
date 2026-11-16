@@ -80,3 +80,8 @@ export class JestCliError extends Error {
 export function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
+
+/** An error's stack (its message when it has none), or the text of whatever was thrown. */
+export function stackOf(error: unknown): string {
+  return error instanceof Error ? (error.stack ?? error.message) : String(error)
+}

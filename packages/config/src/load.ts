@@ -38,6 +38,32 @@ function freshUrl(file: string): string {
 }
 
 /**
+ * The fresh load of each file that hasn't settled yet, keyed by path. An `import()` of a CommonJS
+ * file puts the file's module in Node's CommonJS cache when it reads the file, and checks, when it
+ * runs it, that the cache entry is still that module: Node 24's `loadCJSModuleWithModuleLoad`
+ * (`internal/modules/esm/translators`) asserts it, and the failure is `ERR_INTERNAL_ASSERTION`. A
+ * second fresh load of the same file in between deletes that entry (`freshUrl`), so the loads of
+ * one file run one after another: Jest projects read at once load one file several times over (a
+ * shared custom `resolver` or preset). It lives at module level because the cache it guards is the
+ * process's, and it holds a file only while a load of that file is running.
+ */
+const loading = new Map<string, Promise<void>>()
+
+/** `import()` of `freshUrl(file)`, after any fresh load of the same file still running. */
+function importFresh(file: string): Promise<unknown> {
+  const load = (loading.get(file) ?? Promise.resolve()).then(() => import(freshUrl(file)))
+  const settled = load.then(
+    () => undefined,
+    () => undefined,
+  )
+  loading.set(file, settled)
+  void settled.then(() => {
+    if (loading.get(file) === settled) loading.delete(file)
+  })
+  return load
+}
+
+/**
  * A CommonJS file compiled from `export default` (tsc, Babel) sets `exports.__esModule = true` and
  * `exports.default = …`, which Node's ESM loader hands over as `default` = the whole `exports`
  * object. Unwraps it as Jest's `interopRequireDefault` does. Also how the coordinator reads the
@@ -73,7 +99,7 @@ export async function importConfigModule(
   const file = resolve(path)
   let namespace: unknown
   try {
-    namespace = await import(freshUrl(file))
+    namespace = await importFresh(file)
   } catch (cause) {
     throw new ConfigError('CONFIG_LOAD_FAILED', `can't load the config file "${file}"`, { cause })
   }

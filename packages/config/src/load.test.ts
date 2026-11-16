@@ -3,7 +3,7 @@ import { after, before, describe, test } from 'node:test'
 import type { ConfigEnv } from '@provino/types'
 import { ConfigError } from './errors.ts'
 import { makeTempDir, rejectsWith, type TempDir } from './internal/test-support.ts'
-import { loadConfigFile, loadProject } from './load.ts'
+import { importConfigModule, loadConfigFile, loadProject } from './load.ts'
 
 const ENV: ConfigEnv = { command: 'run', mode: 'test' }
 
@@ -259,6 +259,31 @@ describe('loading the same file again', () => {
       'export default { name: import.meta.filename, root: import.meta.dirname }\n',
     )
     assert.deepEqual(await loadConfigFile(path, ENV), { name: path, root: `${temp.dir}/meta` })
+  })
+
+  // Several Jest projects read at once load the custom `resolver` (or the preset) they share at
+  // once. Unserialized, the second load deletes the first one's CommonJS cache entry before Node
+  // runs the module, and Node's own assertion fails (`ERR_INTERNAL_ASSERTION`).
+  test('loads of one CommonJS file at the same time all succeed, and each runs the file', async () => {
+    const path = await temp.write(
+      'at-once/resolver.cjs',
+      [
+        "const { join } = require('node:path')",
+        'globalThis.__provinoAtOnceLoads = (globalThis.__provinoAtOnceLoads ?? 0) + 1',
+        'module.exports = (request, options) => join(options.basedir, request)',
+        '',
+      ].join('\n'),
+    )
+    Reflect.set(globalThis, '__provinoAtOnceLoads', 0)
+    try {
+      const loaded = await Promise.all(
+        Array.from({ length: 4 }, () => importConfigModule(path, { withoutDefault: 'namespace' })),
+      )
+      for (const resolver of loaded) assert.equal(typeof resolver, 'function')
+      assert.equal(Reflect.get(globalThis, '__provinoAtOnceLoads'), 4)
+    } finally {
+      Reflect.deleteProperty(globalThis, '__provinoAtOnceLoads')
+    }
   })
 
   test('loadProject reads the edited file too', async () => {
