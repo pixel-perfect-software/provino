@@ -129,17 +129,30 @@ describe('installWindowTimers', () => {
 describe('which pending timers are the file’s', () => {
   let dir = ''
   let load: NodeJS.Require
-  /** The file's own module: sets a timer, calls the package, hands it a callback. */
+  /** Another of the file's modules, one the registry loads after the file's modules were read. */
+  let late: { timer(global: Record<string, unknown>, fn: () => void): unknown; path: string }
+  /**
+   * The file's own module: sets a timer, calls the package, hands it a callback, and sets a timer
+   * whose callback (its own code) calls the function it is given.
+   */
   let user: {
     timer(global: Record<string, unknown>): unknown
     run<A extends unknown[]>(fn: (...args: A) => unknown, ...args: A): unknown
     laterVia(later: typeof shared.later, global: Record<string, unknown>): unknown
+    soon(global: Record<string, unknown>, fn: (global: Record<string, unknown>) => unknown): unknown
     path: string
   }
-  /** A shared package: its own timer (a flag only the callback clears), and a helper that sets one. */
+  /**
+   * A shared package: its own timer (a flag only the callback clears), a helper that sets one, a
+   * loop that sets its next timer from its own callback (as a scheduler does), an interval whose
+   * every run sets a timer, and a timer whose callback sets one from a promise continuation.
+   */
   let shared: {
     schedule(global: Record<string, unknown>): unknown
     later(global: Record<string, unknown>, fn: () => void): unknown
+    loop(global: Record<string, unknown>): unknown
+    every(global: Record<string, unknown>): unknown
+    settle(global: Record<string, unknown>): unknown
     path: string
   }
 
@@ -152,6 +165,7 @@ describe('which pending timers are the file’s', () => {
         'exports.timer = (global) => global.setTimeout(() => {}, 5)',
         'exports.run = (fn, ...args) => fn(...args)',
         'exports.laterVia = (later, global) => later(global, () => {})',
+        'exports.soon = (global, fn) => global.setTimeout(() => fn(global), 1)',
         'exports.path = __filename',
         '',
       ].join('\n'),
@@ -165,6 +179,19 @@ describe('which pending timers are the file’s', () => {
         '  return global.setTimeout(function flush() { running = false }, 0)',
         '}',
         'exports.later = (global, fn) => global.setTimeout(fn, 0)',
+        'exports.loop = (global) => global.setTimeout(function slice() { global.setTimeout(slice, 0) }, 0)',
+        'exports.every = (global) => global.setInterval(function tick() { global.setTimeout(function after() {}, 0) }, 10)',
+        'exports.settle = (global) => global.setTimeout(function settle() {',
+        '  return Promise.resolve().then(function later() { global.setTimeout(function late() {}, 0) })',
+        '}, 0)',
+        'exports.path = __filename',
+        '',
+      ].join('\n'),
+    )
+    await writeFile(
+      join(dir, 'late.cjs'),
+      [
+        'exports.timer = (global, fn) => global.setTimeout(fn, 0)',
         'exports.path = __filename',
         '',
       ].join('\n'),
@@ -172,6 +199,7 @@ describe('which pending timers are the file’s', () => {
     load = createRequire(join(dir, 'user.cjs'))
     user = load('./user.cjs')
     shared = load('flag-package')
+    late = load('./late.cjs')
   })
   after(async () => {
     await rm(dir, { recursive: true, force: true })
@@ -220,6 +248,110 @@ describe('which pending timers are the file’s', () => {
     const handle = call('setTimeout', () => {}, 5)
     assert.deepEqual(stop(), [])
     assert.deepEqual(cleared, [handle])
+  })
+
+  it("cancels the timer a shared package's loop set from its own callback, and names the package", () => {
+    const { global, cleared, scheduled, fire } = standIn()
+    const stop = installWindowTimers(global, { fileModules: () => [user.path] }).track()
+    user.run(shared.loop, global)
+    for (let slice = 0; slice < 3; slice++) {
+      const pending = scheduled.at(-1)
+      assert.ok(pending !== undefined)
+      fire(pending)
+    }
+    assert.equal(scheduled.length, 4, 'each slice set the next')
+    assert.deepEqual(stop(), [shared.path], 'the first slice was the file’s, so every later one is')
+    assert.deepEqual(cleared, [scheduled[3]], 'only the one still pending')
+  })
+
+  it("names the shared package that set a timer inside the callback of the file's own timer", () => {
+    const { global, cleared, scheduled, fire } = standIn()
+    const stop = installWindowTimers(global, { fileModules: () => [user.path] }).track()
+    const outer = user.soon(global, shared.schedule)
+    fire(outer as Parameters<typeof fire>[0])
+    assert.equal(scheduled.length, 2, 'the callback set the package’s timer')
+    assert.deepEqual(stop(), [shared.path], 'its flag is stuck, so it goes per file')
+    assert.deepEqual(cleared, [scheduled[1]])
+  })
+
+  it("leaves a timer Provino's code sets inside the callback of the file's own timer", () => {
+    const { global, cleared, scheduled, fire } = standIn()
+    const stop = installWindowTimers(global, { fileModules: () => [user.path] }).track()
+    const set = global.setTimeout as (fn: () => void, delay: number) => unknown
+    // The callback is this test's code, Provino's (as the loader's parser is, reached from a lazy
+    // `require`): its frame lies between the shared package's and the wrapper's.
+    const outer = user.run(set, () => shared.schedule(global), 1)
+    fire(outer as Parameters<typeof fire>[0])
+    assert.equal(scheduled.length, 2, 'the callback set the package’s timer')
+    assert.deepEqual(stop(), [])
+    assert.deepEqual(cleared, [], 'the outer timer fired, and the inner one is not the file’s')
+  })
+
+  it("reads the file's modules again for a timer set from a module loaded after the last read", () => {
+    const { global, cleared, scheduled, fire } = standIn()
+    const modules = [user.path]
+    const stop = installWindowTimers(global, { fileModules: () => modules }).track()
+    user.run(shared.loop, global)
+    const slice = scheduled[0]
+    assert.ok(slice !== undefined)
+    fire(slice) // the file's modules are read for the slice it sets
+    modules.push(late.path)
+    // A bound callback leaves no frame of its own: the loop's timer is set by the package alone,
+    // inside the late module's timer, whose verdict needs the late module among the file's.
+    const outer = late.timer(global, shared.loop.bind(null, global))
+    fire(outer as Parameters<typeof fire>[0])
+    assert.deepEqual(stop(), [shared.path])
+    assert.deepEqual(cleared, [scheduled[1], scheduled[3]], "the late module's timer set the last")
+  })
+
+  it("leaves a timer set from the callback of a timer that is not the file's", () => {
+    const { global, cleared, scheduled, call, fire } = standIn()
+    const stop = installWindowTimers(global, { fileModules: () => [user.path] }).track()
+    // Set here, in Provino's own code (as the coordinator's are, in band): not the file's.
+    const outer = call('setTimeout', () => shared.loop(global), 1)
+    fire(outer)
+    const loop = scheduled[1]
+    assert.ok(loop !== undefined)
+    fire(loop)
+    assert.deepEqual(stop(), [])
+    assert.deepEqual(cleared, [], 'nothing the file started is pending')
+  })
+
+  it("still takes a timer the file's own code sets from a callback that is not the file's", () => {
+    const { global, cleared, scheduled, call, fire } = standIn()
+    const stop = installWindowTimers(global, { fileModules: () => [user.path] }).track()
+    const outer = call('setTimeout', () => user.timer(global), 1)
+    fire(outer)
+    assert.deepEqual(stop(), [])
+    assert.deepEqual(cleared, [scheduled[1]], "the stack is read: the file's frame set it")
+  })
+
+  it('notes an interval once however often it runs, and cancels what each run set', () => {
+    const { global, cleared, scheduled, fire } = standIn()
+    const stop = installWindowTimers(global, { fileModules: () => [user.path] }).track()
+    const interval = user.run(shared.every, global)
+    const first = scheduled[0]
+    assert.ok(first !== undefined && first === interval)
+    fire(first)
+    fire(first)
+    assert.deepEqual(stop(), [shared.path])
+    assert.deepEqual(cleared, [interval, scheduled[1], scheduled[2]], 'each cancelled once')
+  })
+
+  it('reads a timer set from a promise continuation inside a callback from its own stack', async () => {
+    const { global, cleared, scheduled, fire } = standIn()
+    const stop = installWindowTimers(global, { fileModules: () => [user.path] }).track()
+    const first = scheduled.length
+    user.run(shared.settle, global)
+    const settle = scheduled[first]
+    assert.ok(settle !== undefined)
+    await fire(settle)
+    assert.equal(scheduled.length, first + 2, 'the continuation set a timer')
+    // The continuation runs after the callback's synchronous part, so no running timer's verdict
+    // applies (the first timer's, the file's, would cancel it): its own stack decides, and here its
+    // async frames reach this test's, Provino's code.
+    assert.deepEqual(stop(), [])
+    assert.deepEqual(cleared, [])
   })
 
   it('reads the stack with its own formatter, whatever the process installed', () => {

@@ -22,8 +22,18 @@ describe('timers on a Jest window environment, against Jest 30.5.2', () => {
     assertMatchesGolden(id, await provinoOn(id, { parent: PARENT }))
   })
 
+  it('ecosystem/react-scheduler-loop: a slice the scheduler schedules from its own callback dies with the window', async () => {
+    const id = 'ecosystem/react-scheduler-loop'
+    assertMatchesGolden(id, await provinoOn(id, { parent: PARENT }))
+  })
+
   it('env/jsdom-shared-timer-flag: the next file gets its own copy of a package whose timer the window cancelled', async () => {
     const id = 'env/jsdom-shared-timer-flag'
+    assertMatchesGolden(id, await provinoOn(id, { parent: PARENT }))
+  })
+
+  it("env/jsdom-shared-timer-flag-nested: a package whose timer the test's own timer's callback set goes per file too", async () => {
+    const id = 'env/jsdom-shared-timer-flag-nested'
     assertMatchesGolden(id, await provinoOn(id, { parent: PARENT }))
   })
 
@@ -34,7 +44,12 @@ describe('timers on a Jest window environment, against Jest 30.5.2', () => {
 
   // In band the files run in the bin's own process, whose global timers the coordinator uses too:
   // only what a file's own code set dies with its window.
-  for (const id of ['ecosystem/react-work-after-teardown', 'env/jsdom-shared-timer-flag']) {
+  for (const id of [
+    'ecosystem/react-work-after-teardown',
+    'ecosystem/react-scheduler-loop',
+    'env/jsdom-shared-timer-flag',
+    'env/jsdom-shared-timer-flag-nested',
+  ]) {
     it(`${id}, in band (-i): the same outcome as with one worker`, async () => {
       assertMatchesGolden(id, await provinoOn(id, { parent: PARENT, argv: ['-i'] }))
     })

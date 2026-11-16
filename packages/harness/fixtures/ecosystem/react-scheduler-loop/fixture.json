@@ -1,0 +1,18 @@
+{
+  "description": "A transition render a jsdom file leaves mid-flight when it ends, on jest-environment-jsdom with one worker. Each `transition-*` file starts a `startTransition` render of a list whose items each take a little time, waits 30 ms while React's scheduler runs a few slices, and ends without waiting for the rest: the scheduler yields every few milliseconds and schedules its next slice from its own callback, so the slice pending at the end was set with only the scheduler's frames on the stack. The render reads `window`. `wait` is the smallest file, so it runs last, on the node environment, and its `beforeAll` waits 400 ms while the others' slices would come due with no `window` defined. Jest passes all three: the scheduler's slices are the window's timers (the window has no `setImmediate` or `MessageChannel`), and `window.close()` at teardown cancels the next one.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^    [A-Z]",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

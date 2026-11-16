@@ -1,0 +1,167 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "env/jsdom-shared-timer-flag-nested",
+  "files": [
+    {
+      "file": "leaves-work.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "leaves-work.test.ts",
+            "path": [
+              "leaves-work: work queued from a timer is still pending at the end"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 6,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "runs-work.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "runs-work.test.ts",
+            "path": [
+              "runs-work: work queued here runs"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 3,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "PASS ./leaves-work.test.ts\nPASS ./runs-work.test.ts\nTest Suites: 2 passed, 2 total\nTests:       2 passed, 2 total\nSnapshots:   0 total",
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 0,
+        "numFailedTests": 0,
+        "numPassedTestSuites": 2,
+        "numPassedTests": 2,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 2,
+        "numTotalTests": 2,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": true,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "leaves-work: work queued from a timer is still pending at the end",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 6
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "leaves-work: work queued from a timer is still pending at the end",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/leaves-work.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "runs-work: work queued here runs",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 3
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "runs-work: work queued here runs",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/runs-work.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}
