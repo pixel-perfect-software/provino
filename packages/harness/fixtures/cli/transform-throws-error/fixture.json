@@ -1,0 +1,21 @@
+{
+  "description": "A project transformer that throws a `TypeError` whose message does not mention the file: Jest 30.5.2 fails the file at transform and prints the error's class and message as thrown, with no path added. Read by `provino`'s `transform-error-text.test.ts`. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "preset": "<rootDir>/p/jest-preset.json",
+      "testEnvironment": "node",
+      "testMatch": ["<rootDir>/**/*.test.tsx"]
+    }
+  },
+  "files": {
+    "jest": {
+      "p/jest-preset.json": "{\n  \"transform\": {\n    \"^.+\\\\.tsx$\": \"<rootDir>/throwing-transform.cjs\"\n  }\n}\n",
+      "throwing-transform.cjs": "module.exports = {\n  process() {\n    throw new TypeError('boom: the transformer refused this file');\n  },\n};\n"
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests):|^  ● |boom"
+  }
+}

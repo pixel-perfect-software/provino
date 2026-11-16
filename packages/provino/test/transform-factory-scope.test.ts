@@ -33,35 +33,12 @@ after(async () => {
   await rm(PARENT, { recursive: true, force: true })
 })
 
-/** Babel's error from the file's transform, as each runner heads it; the rest of the text is one. */
-function babelFailure(header: string): string {
-  return [
-    'FAIL ./factory-scope.test.tsx',
-    '  ● Test suite failed to run',
-    `    ${header}: The module factory of \`jest.mock()\` is not allowed to reference any out-of-scope variables.`,
-    '    Invalid variable access: window',
-    'Test Suites: 1 failed, 1 total',
-    'Tests:       0 total',
-  ].join('\n')
-}
-
 describe('a mock factory that reads outside names, by transformer, against Jest 30.5.2', () => {
   it(`${SWC}: @swc/jest hoists and checks nothing: the factory runs, both tests pass`, async () => {
     assertMatchesGolden(SWC, await provinoOn(SWC, { parent: PARENT }))
   })
 
   it(`${BABEL}: babel-jest refuses the factory with Babel's out-of-scope error, exit 1`, async () => {
-    assertMatchesGolden(BABEL, await provinoOn(BABEL, { parent: PARENT }), {
-      declared: {
-        stderr: {
-          golden: babelFailure('ReferenceError: <root>/factory-scope.test.tsx'),
-          provino: babelFailure(
-            'LoaderError: <root>/factory-scope.test.tsx: <root>/factory-scope.test.tsx',
-          ),
-          reason:
-            "the Jest dialect's `transform-failed` text puts the file before a hosted transformer's message, which Babel's already starts with, and the loader's error replaces the class the transformer threw (Babel's ReferenceError): the same for any transformer that throws, not this check's",
-        },
-      },
-    })
+    assertMatchesGolden(BABEL, await provinoOn(BABEL, { parent: PARENT }))
   })
 })

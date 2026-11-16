@@ -399,6 +399,21 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
     })
     transformKeyOf = transformed.cacheKey
     const error = transformed.diagnostics.find((diagnostic) => diagnostic.severity === 'error')
+    if (error?.thrown !== undefined) {
+      // A hosted transformer threw: its own error is what the file fails with, the class it threw
+      // as the name (a thrown string has none) and its message as it was, which already names the file.
+      const message =
+        loaderMessage(state.options.policy, 'transformer-failed', {
+          file: path,
+          message: error.message,
+        }) ?? error.message
+      const failure = new LoaderError(
+        'LOADER_TRANSFORM_FAILED',
+        error.codeFrame === undefined ? message : `${message}\n\n${error.codeFrame}`,
+      )
+      failure.name = error.thrown.name ?? 'Error'
+      throw failure
+    }
     if (error !== undefined) {
       const where = error.loc === undefined ? '' : `:${error.loc.line}:${error.loc.column}`
       const message =

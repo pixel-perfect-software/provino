@@ -456,6 +456,7 @@ export const createPipeline: CreatePipeline = (options) => {
           severity: 'error',
           code: 'TRANSFORMER_FAILED',
           message: error instanceof Error ? error.message : String(error),
+          thrown: { name: error instanceof Error ? error.name : null },
         },
       ],
       cacheKey: '',

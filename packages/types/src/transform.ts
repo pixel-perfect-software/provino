@@ -83,6 +83,11 @@ export interface TransformDiagnostic {
   readonly message: string
   readonly loc?: { readonly line: number; readonly column: number }
   readonly codeFrame?: string
+  /**
+   * Set when a hosted transformer threw (`TRANSFORMER_FAILED`): `name` is the class of what it
+   * threw, or `null` when the value was no `Error` (a thrown string), whose text is `message`.
+   */
+  readonly thrown?: { readonly name: string | null }
 }
 
 /**

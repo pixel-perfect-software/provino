@@ -1,0 +1,21 @@
+{
+  "description": "A project transformer that throws a string, not an Error: Jest 30.5.2 rethrows a non-Error as it is and fails the file at transform. Read by `provino`'s `transform-error-text.test.ts`. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "preset": "<rootDir>/p/jest-preset.json",
+      "testEnvironment": "node",
+      "testMatch": ["<rootDir>/**/*.test.tsx"]
+    }
+  },
+  "files": {
+    "jest": {
+      "p/jest-preset.json": "{\n  \"transform\": {\n    \"^.+\\\\.tsx$\": \"<rootDir>/throwing-transform.cjs\"\n  }\n}\n",
+      "throwing-transform.cjs": "module.exports = {\n  process() {\n    throw 'boom: a thrown string';\n  },\n};\n"
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests):|^  ● |boom"
+  }
+}

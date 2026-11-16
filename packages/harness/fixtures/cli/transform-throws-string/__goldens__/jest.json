@@ -1,0 +1,37 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "cli/transform-throws-string",
+  "files": [
+    {
+      "file": "broken.test.tsx",
+      "status": "crashed",
+      "fileError": {
+        "message": "● Test suite failed to run\n\n    boom: a thrown string"
+      },
+      "tests": []
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "stderr": "FAIL ./broken.test.tsx\n  ● Test suite failed to run\n    boom: a thrown string\nTest Suites: 1 failed, 1 total\nTests:       0 total"
+  }
+}

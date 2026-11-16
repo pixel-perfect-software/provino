@@ -314,6 +314,7 @@ describe('routing', () => {
     const record = pipeline.transform(request(testFile, 'const = ;'))
     assert.equal(record.diagnostics[0]?.severity, 'error')
     assert.equal(record.diagnostics[0]?.code, 'TRANSFORMER_FAILED')
+    assert.equal(record.diagnostics[0]?.thrown?.name, 'SyntaxError')
   })
 })
 
