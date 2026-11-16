@@ -133,6 +133,7 @@ async function setUpJest(
     populated = populateGlobal(globalThis, environment.global, {
       selfReferences: isWindow,
       bindFunctions: isWindow,
+      keepStatics: true,
     })
     // Jest's environments give each file a copy of `process` (jest-util's `installCommonGlobals`),
     // which `populateGlobal` doesn't carry over: the worker already has a `process`. Through the
