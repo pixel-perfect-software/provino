@@ -100,6 +100,10 @@ describe('provino jest --json writes what Jest 30.5.2 wrote', () => {
     ['cli/json-vscode-contract', 'the contract vscode-jest reads: statuses, locations, snapshot'],
     ['cli/json-no-location', '--testLocationInResults=false: every location is null'],
     ['cli/json-file-states', 'a file that fails to import, an all-skipped file and a focused one'],
+    [
+      'cli/empty-test-file',
+      'a matched file with no tests: failed, "must contain at least one test"',
+    ],
     ['cli/json-results-processor', 'a testResultsProcessor: its keys in, its return out'],
   ] as const) {
     it(`${what} (${id})`, async () => {

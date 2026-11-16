@@ -17,6 +17,11 @@ const CASES: readonly Case[] = [
   { name: 'a failing test', fixture: 'policy/orchestrator-exit-codes' },
   { name: 'no tests found', fixture: 'policy/orchestrator-no-tests' },
   { name: '--passWithNoTests', fixture: 'cli/pass-with-no-tests' },
+  { name: 'a test file with no tests', fixture: 'cli/empty-test-file' },
+  {
+    name: 'a test file with no tests, under --passWithNoTests',
+    fixture: 'cli/empty-test-file-pass-with-no-tests',
+  },
   { name: 'a flag Jest does not know', fixture: 'cli/unknown-flag' },
   { name: 'the singular --testPathPattern', fixture: 'cli/jest-test-path-pattern' },
   { name: 'a config Jest refuses', fixture: 'cli/bad-config' },

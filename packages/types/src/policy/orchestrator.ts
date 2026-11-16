@@ -144,6 +144,17 @@ export interface OrchestratorPolicy {
    */
   readonly todoOnlyFile: 'pass' | 'skip'
   /**
+   * What a file that declares no test at all (nothing collected, no error: a helper under
+   * `__tests__`, a file of one empty `describe`) ends as. Jest: `fail`, whose scheduler turns a
+   * result with no test results into "Your test suite must contain at least one test." (a runtime
+   * error, a failed suite, exit 1), also under `--passWithNoTests`, which is about finding no
+   * files; a file whose tests are all skipped or todo has results, so it is not this. Neutral
+   * and Vitest: `pass`, today's behaviour (nothing failed; Vitest 5.0.5 fails an empty file
+   * unless `passWithNoTests`, `runner/run.ts` `runFiles`, a rule no fixture records yet).
+   * Evidence: `cli/empty-test-file`, `cli/empty-test-file-pass-with-no-tests`.
+   */
+  readonly noTestsFile: 'fail' | 'pass'
+  /**
    * Whether the worker records where each `console` call was made (`ConsoleEvent.origin`: the
    * call site as one `at …` line, the way Jest's `BufferedConsole` keeps one). Jest: `stack`.
    * Neutral and Vitest: `none` (their text has no such line). Evidence:

@@ -398,15 +398,23 @@ interface QueuedFile {
 }
 
 /**
+ * What the policy decides about a file once it has ended, with what the file's events showed: how
+ * many tests ended `todo` (`todoOnlyFile`, DV50) and how many it collected (`noTestsFile`).
+ */
+interface FileRules {
+  readonly ended: number
+  readonly collected: number
+  readonly todoOnlyFile: 'pass' | 'skip'
+  readonly noTestsFile: 'fail' | 'pass'
+}
+
+/**
  * A file's state for reporters, decided here once (the reporters, the results cache and
  * `normalized-json` all read it): `todo` and `queued` ran nothing (`skip`), `running` never
  * finished (`fail`), and a `skip` file with a test that ended `todo` is the policy's
  * `todoOnlyFile` (Jest passes it, DV50).
  */
-function stateOf(
-  state: TaskState,
-  todo: { readonly ended: number; readonly todoOnlyFile: 'pass' | 'skip' },
-): FileResult['state'] {
+function stateOf(state: TaskState, rules: FileRules): FileResult['state'] {
   switch (state) {
     case 'pass':
     case 'fail':
@@ -414,12 +422,23 @@ function stateOf(
     case 'skip':
     case 'todo':
     case 'queued':
-      return todo.ended > 0 ? todo.todoOnlyFile : 'skip'
+      return rules.ended > 0 ? rules.todoOnlyFile : 'skip'
     case 'running':
       return 'fail'
     default:
       return state satisfies never
   }
+}
+
+/**
+ * The error of a file that declares no test under `noTestsFile: 'fail'`: Provino's own text,
+ * which a dialect with a wording of its own replaces where it reads `FileResult.noTests` (the Jest
+ * dialect's result builder does).
+ */
+const NO_TESTS_ERROR: SerializedError = {
+  name: 'Error',
+  message: 'The file declares no tests',
+  code: 'ORCH_NO_TESTS',
 }
 
 function crashError(file: FileInfo, exit: WorkerExit): SerializedError {
@@ -1031,7 +1050,9 @@ export async function runProjectsOn(
       const elapsedMs = takenAt === undefined ? 0 : performance.now() - takenAt
       const reported = resultOf(entry.info, outcome, dispatch.result, elapsedMs, {
         ended: dispatch.todo,
+        collected: dispatch.tests,
         todoOnlyFile: member.project.policy.orchestrator.todoOnlyFile,
+        noTestsFile: member.project.policy.orchestrator.noTestsFile,
       })
       // The worker finished the file and the inline snapshot write failed it.
       const result: FileResult =
@@ -1624,7 +1645,7 @@ function resultOf(
   outcome: PoolOutcome,
   end: TaskResult | undefined,
   elapsedMs: number,
-  todo: { readonly ended: number; readonly todoOnlyFile: 'pass' | 'skip' },
+  rules: FileRules,
 ): FileResult {
   const failed = (
     durationMs: number,
@@ -1652,25 +1673,37 @@ function resultOf(
       return failed(elapsedMs, [serializeError(outcome.error)])
     case 'start-failed':
       return failed(0, [serializeError(outcome.error)], outcome.exit)
-    case 'done':
-      return end === undefined
-        ? failed(elapsedMs, [
-            {
-              name: 'Error',
-              message: `The worker finished ${file.path} without reporting its result`,
-            },
-          ])
-        : {
-            file,
-            state: stateOf(end.state, todo),
-            durationMs: end.durationMs,
-            errors: end.errors,
-            ...(outcome.done.snapshot === undefined ? {} : { snapshot: outcome.done.snapshot }),
-            ...(end.childOrder === undefined ? {} : { childOrder: end.childOrder }),
-            ...(outcome.done.heapUsedBytes === undefined
-              ? {}
-              : { heapUsedBytes: outcome.done.heapUsedBytes }),
-          }
+    case 'done': {
+      if (end === undefined) {
+        return failed(elapsedMs, [
+          {
+            name: 'Error',
+            message: `The worker finished ${file.path} without reporting its result`,
+          },
+        ])
+      }
+      const state = stateOf(end.state, rules)
+      // A file that ended with no error and collected no test declared none, which Jest fails
+      // ("Your test suite must contain at least one test."): collected is what counts, so a file
+      // whose tests are all skipped or todo is not this.
+      const noTests =
+        state !== 'fail' &&
+        rules.noTestsFile === 'fail' &&
+        rules.collected === 0 &&
+        end.errors.length === 0
+      return {
+        file,
+        state: noTests ? 'fail' : state,
+        durationMs: end.durationMs,
+        errors: noTests ? [NO_TESTS_ERROR] : end.errors,
+        ...(noTests ? { noTests: true as const } : {}),
+        ...(outcome.done.snapshot === undefined ? {} : { snapshot: outcome.done.snapshot }),
+        ...(end.childOrder === undefined ? {} : { childOrder: end.childOrder }),
+        ...(outcome.done.heapUsedBytes === undefined
+          ? {}
+          : { heapUsedBytes: outcome.done.heapUsedBytes }),
+      }
+    }
     default:
       return outcome satisfies never
   }

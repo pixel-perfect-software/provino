@@ -240,6 +240,10 @@ export const neutralPolicy: Policy = deepFreeze({
     globMatchesOn: 'root-relative-path',
     // Ours: a file where nothing ran is skipped.
     todoOnlyFile: 'skip',
+    // Ours: a file that declares no test passes, as it always has (nothing ran and nothing
+    // failed). Failing it, as Jest and Vitest both do, is a change to `provino run` that waits for
+    // a decision.
+    noTestsFile: 'pass',
     // Ours: no call site is kept with a console write.
     consoleOrigin: 'none',
     // Ours: a file's `process` listeners and `env` changes stay in the file.

@@ -80,6 +80,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'orchestrator.watch.interruptedFiles': ['report', 'drop'],
   'orchestrator.globMatchesOn': ['absolute-path', 'root-relative-path'],
   'orchestrator.todoOnlyFile': ['pass', 'skip'],
+  'orchestrator.noTestsFile': ['fail', 'pass'],
   'orchestrator.consoleOrigin': ['stack', 'none'],
   'orchestrator.processObject': ['per-file', 'shared'],
   'orchestrator.unhandledErrors': ['fail-run', 'ignore'],

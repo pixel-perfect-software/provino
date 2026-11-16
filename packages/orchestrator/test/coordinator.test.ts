@@ -436,6 +436,72 @@ describe('runProject over inline workers', () => {
     }
   })
 
+  it('ends a file that declares no test as orchestrator.noTestsFile says; a file whose tests are skipped, todo or left out by -t declared some', async () => {
+    const files = {
+      'empty.test.js': '// declares nothing\n',
+      'describe-only.test.js': "describe('nothing in here', () => {})",
+      'all-skipped.test.js': "test.skip('a', () => {})",
+      'todo.test.js': "test.todo('later')",
+      'passes.test.js': passing(),
+    }
+    for (const [rule, expected] of [
+      ['fail', 'fail'],
+      ['pass', 'pass'],
+    ] as const) {
+      const p = await makeProject(files)
+      const project = runtimeProject(p.dir, { policy: { orchestrator: { noTestsFile: rule } } })
+      const { summary } = await run(project, {
+        defaultCache: true,
+        pool: { kind: 'inline', maxWorkers: 1 },
+      })
+      const ends = new Map(summary.files.map((result) => [result.file.path, result]))
+      assert.deepEqual(
+        [...ends].map(([name, result]) => [name, result.state]).toSorted(),
+        [
+          ['all-skipped.test.js', 'skip'],
+          ['describe-only.test.js', expected],
+          ['empty.test.js', expected],
+          ['passes.test.js', 'pass'],
+          ['todo.test.js', 'skip'],
+        ],
+        `noTestsFile: ${rule}; a file with skipped or todo tests collected some, so it is not this`,
+      )
+      assert.equal(summary.reason, rule === 'fail' ? 'failed' : 'passed')
+      for (const name of ['empty.test.js', 'describe-only.test.js']) {
+        const result = ends.get(name)
+        assert.equal(result?.noTests, rule === 'fail' ? true : undefined, `${name}: noTests`)
+        assert.deepEqual(
+          result?.errors.map((error) => error.code),
+          rule === 'fail' ? ['ORCH_NO_TESTS'] : [],
+          `${name}: errors`,
+        )
+      }
+      const cache = createResultsCache(defaultCacheDir(p.dir))
+      assert.equal(
+        cache.get(projectCacheKey(project), 'empty.test.js')?.failed,
+        rule === 'fail',
+        'the cache remembers the empty file as failed under fail, as passed under pass',
+      )
+    }
+  })
+
+  it('does not call a file that -t left no test to run a file with no test', async () => {
+    const p = await makeProject({ 'a.test.js': "test('alpha', () => {})", 'empty.test.js': '' })
+    const project = runtimeProject(p.dir, { policy: { orchestrator: { noTestsFile: 'fail' } } })
+    const { seen } = await run(project, {
+      testNamePattern: 'nothing matches this',
+      pool: { kind: 'inline', maxWorkers: 1 },
+    })
+    const states = seen
+      .filter((entry) => entry.name === 'file:end')
+      .map((entry) => [String(entry.path), String(entry.detail.state)])
+      .toSorted()
+    assert.deepEqual(states, [
+      ['a.test.js', 'skip'],
+      ['empty.test.js', 'fail'],
+    ])
+  })
+
   it('rejects an invalid test name pattern before anything starts', async () => {
     const p = await makeProject({ 'a.test.js': passing() })
     const { reporter, seen } = recorder()

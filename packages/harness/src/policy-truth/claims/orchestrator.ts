@@ -139,6 +139,21 @@ const shardSplit = (g: Golden): string => {
 
 /** What a recorded black-box run printed on stderr (Jest writes its report there). */
 const stderrOf = (g: Golden): string => observedOf(g).stderr ?? ''
+/**
+ * What a golden's two files with no test (`describe-only.test.ts`, `__tests__/helper.ts`) ended as,
+ * from the reporter's header lines: `fail` when both are FAIL, `pass` when both are PASS, and a
+ * golden that shows neither (or one of each) is not evidence.
+ */
+const noTestsFileOf = (g: Golden): string => {
+  const lines = stderrOf(g).split('\n')
+  const states = ['describe-only.test.ts', '__tests__/helper.ts'].map((file) => {
+    const header = lines.find((line) => /^(PASS|FAIL) /.test(line) && line.endsWith(file))
+    return header?.slice(0, 4)
+  })
+  if (states[0] === 'FAIL' && states[1] === 'FAIL') return 'fail'
+  if (states[0] === 'PASS' && states[1] === 'PASS') return 'pass'
+  throw new Error(`${g.suite} (${g.runner}): the two empty files have no common PASS or FAIL line`)
+}
 
 /** The pragmas whose file failed to start, in the order a file with both shows they win. */
 const pragmasRead = (g: Golden): readonly string[] => {
@@ -363,6 +378,19 @@ export const orchestratorClaims: Claims = {
       read: (g) => (stderrOf(g).includes('PASS ./todo-only.test.ts') ? 'pass' : 'skip'),
     }),
     pending('T11.16', 'no Vitest fixture records what a file of only todo tests ends as'),
+  ),
+  // A matched file that declares no test (a helper under `__tests__`, a file of one empty
+  // `describe`) is a FAIL line and a failed suite, "Your test suite must contain at least one
+  // test.", with and without `--passWithNoTests`; the passing file next to them is read too.
+  'orchestrator.noTestsFile': each(
+    [
+      golden('cli/empty-test-file', { read: (g) => noTestsFileOf(g) }),
+      golden('cli/empty-test-file-pass-with-no-tests', { read: (g) => noTestsFileOf(g) }),
+    ],
+    pending(
+      'T11.16',
+      "no Vitest fixture records what a file with no test ends as (5.0.5's `runFiles` fails it unless `passWithNoTests`)",
+    ),
   ),
   // Jest's console entries keep the call site, and its text prints it under each entry.
   'orchestrator.consoleOrigin': each(

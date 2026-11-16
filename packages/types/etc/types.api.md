@@ -1102,6 +1102,7 @@ export interface FileResult {
     readonly file: FileInfo;
     readonly heapUsedBytes?: number;
     readonly leaks?: true;
+    readonly noTests?: true;
     readonly resultsDiscarded?: true;
     readonly snapshot?: SnapshotFileReport;
     // (undocumented)
@@ -2394,6 +2395,7 @@ export interface OrchestratorPolicy {
         readonly default: IsolationTier;
         readonly byEnvironment: Readonly<Record<string, IsolationTier>>;
     };
+    readonly noTestsFile: "fail" | "pass";
     readonly passWithNoTests: boolean;
     readonly pool: {
         readonly default: PoolKind;

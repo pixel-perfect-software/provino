@@ -482,6 +482,24 @@ describe('toTestResult', () => {
     assert.equal(built.testExecError?.message, NO_TESTS_MESSAGE)
   })
 
+  it('a file the orchestrator failed for declaring no test has Jest’s message, not the orchestrator’s own', () => {
+    const built = toTestResult(
+      events(
+        [],
+        {},
+        {
+          state: 'fail',
+          noTests: true,
+          errors: [{ name: 'Error', message: 'The file declares no tests', code: 'ORCH_NO_TESTS' }],
+        },
+      ),
+      OPTIONS,
+    )
+    assert.equal(built.testExecError?.message, NO_TESTS_MESSAGE)
+    assert.deepEqual(built.testResults, [])
+    assert.equal(built.numFailingTests, 0)
+  })
+
   it('errors beside tests that ran are the file’s exec error, joined as Jest joins them', () => {
     const built = toTestResult(
       events([{ task: test('a', 'file'), result: result('pass') }], {

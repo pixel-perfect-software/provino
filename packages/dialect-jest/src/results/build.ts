@@ -302,6 +302,11 @@ export function toTestResult(file: FileEvents, options: BuildOptions): TestResul
       stack: `Error: ${LEAK_MESSAGE}\n    at TestScheduler.onResult (node_modules/@jest/core/build/index.js:1:1)`,
     })
   }
+  if (file.result.noTests === true) {
+    // The orchestrator found no test declared and no error (`orchestrator.noTestsFile`, `fail`
+    // here): `onResult`'s "must contain at least one test", a failure result of its own.
+    return noTestsResult(file.testFilePath)
+  }
   if (file.result.workerExit !== undefined || file.result.resultsDiscarded === true) {
     // A worker that died takes the file's results with it: Jest's runner fails the whole file
     // (`TestScheduler.ts` `onFailure`, L185-L200), so even tests that ended before the crash
