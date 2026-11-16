@@ -180,7 +180,7 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
         return await bus.emit('annotation', test(event, event.testId), event)
       case 'console':
         return await bus.emit('console', file, event)
-      case 'unhandled-error':
+      case 'unhandled-error': {
         onUnhandled(event.error)
         if (event.origin === 'runner') runnerFailed = true
         const { ownerId } = event
@@ -191,6 +191,7 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
         // Charged to one of the file's tests: that test fails, once reporters have heard of it.
         if (ownerId !== null && nodes.get(ownerId)?.type === 'test') failed(ownerId)
         return
+      }
       case 'file-end':
         result = event.result
         return
