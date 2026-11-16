@@ -5,6 +5,8 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { describe, test } from 'node:test'
+import { setFlagsFromString } from 'node:v8'
+import { runInNewContext } from 'node:vm'
 import {
   type BehaviourLoader,
   createBehaviourLoader,
@@ -39,6 +41,28 @@ function counting(): { readonly shape: ShapeTestError; readonly seen: string[] }
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** A fresh error, remembered by a `WeakRef` in `held`. */
+function thrown(held: WeakRef<object>[]): Error {
+  const error = new Error('thrown')
+  held.push(new WeakRef(error))
+  return error
+}
+
+/** Collects garbage until every error in `held` is gone, and fails when one stays. */
+async function collected(held: readonly WeakRef<object>[]): Promise<void> {
+  setFlagsFromString('--expose-gc')
+  const gc = runInNewContext('gc') as () => void
+  for (let round = 0; round < 10 && held.some((ref) => ref.deref() !== undefined); round++) {
+    await new Promise((resolve) => setImmediate(resolve))
+    gc()
+  }
+  assert.deepEqual(
+    held.map((ref) => ref.deref() === undefined),
+    held.map(() => true),
+    'every thrown error was collected',
+  )
+}
 
 describe('shapeTestError', () => {
   test('a retried test shapes each attempt error once, for the attempt and the result', async () => {
@@ -124,6 +148,44 @@ describe('shapeTestError', () => {
       end?.result.errors.map((error) => error.message),
       ['as thrown'],
     )
+  })
+
+  test('a failed test`s thrown value is not kept once its file has run', async () => {
+    const held: WeakRef<object>[] = []
+    // The runtime outlives the file, as a worker's does: nothing it keeps may hold the thrown value
+    // (`--detectLeaks` reads a file's leftovers, and the heap after a file counts them).
+    const run = await runScript(
+      ({ test }) => {
+        test('t', { retry: 1 }, () => {
+          throw thrown(held)
+        })
+      },
+      { shapeTestError: REF, retry: { keepEarlierErrors: true } },
+      { behaviours: withShaper((error) => error) },
+    )
+    await collected(held)
+    assert.equal(eventsOf(run.events, 'test-end')[0]?.result.errors[0]?.message, 'thrown')
+  })
+
+  test('nor is one a describe retry held for an error charged to it later', async () => {
+    const held: WeakRef<object>[] = []
+    // A describe attempt keeps what its tests failed with until the block settles, and the runtime
+    // remembers each test's last attempt for a late error: both go with the file.
+    const run = await runScript(
+      (_api, _step, runtime) => {
+        runtime.api.describe('block', () => {
+          runtime.setDescribeRetry({ numRetries: 2 })
+          runtime.api.test('t', () => {
+            throw thrown(held)
+          })
+        })
+      },
+      { shapeTestError: REF, errors: OWNER },
+      { behaviours: withShaper((error) => error) },
+    )
+    assert.equal(held.length, 3, 'the block ran in three attempts')
+    await collected(held)
+    assert.equal(eventsOf(run.events, 'test-end')[0]?.result.errors[0]?.message, 'thrown')
   })
 
   test('the shaper is told the run`s expand', async () => {

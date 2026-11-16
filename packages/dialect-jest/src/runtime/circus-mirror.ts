@@ -17,8 +17,9 @@
 // - in a concurrent group the state each event finds follows circus's microtask order only as far
 //   as the recorded case (synchronous bodies within `maxConcurrency`);
 // - a handler that throws at the adapter's own root `beforeEach` (the first `hook_success` of every
-//   test) ends the file, where circus fails that test: the hook is this mirror's, not the runtime's.
+//   test) ends the file, where circus fails that test: the hook is this mirror's, not the runtime's;
 import type { LifecycleEvent, LifecycleHookRef, LifecycleRef } from '@provino/types'
+import formatNodeAssertErrors from './vendor/jest-circus/formatNodeAssertErrors.ts'
 
 /** The part of Jest's `globalConfig` the mirror's state reads (JSON, from the environment's options). */
 export interface CircusConfig {
@@ -499,6 +500,12 @@ export function createCircusMirror(
           )
           if (!known && !standIns.has(error)) entry.errors.push(error)
         }
+        // circus's handlers are `[eventHandler, formatNodeAssertErrors]` with the environment's
+        // after them (`state.ts`, `jestAdapterInit.ts`), so the handler hears `test_done` with each
+        // assertion error already formatted, and `test_retry` moves those into `retryReasons`.
+        // `state.expand` is Jest's `globalConfig.expand`, `false` unless `--expand`.
+        const expand = state.expand === true
+        entry.errors = entry.errors.map((have) => formatNodeAssertErrors(have, expand))
         entry.duration = entry.startedAt === null ? null : Date.now() - entry.startedAt
         entry.status = 'done'
         state.currentlyRunningTest = null

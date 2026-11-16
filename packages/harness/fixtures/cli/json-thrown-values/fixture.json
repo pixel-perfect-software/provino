@@ -1,5 +1,5 @@
 {
-  "description": "--json's failureDetails for thrown values that are not plain Errors: an object with a message, one with a message and a code, and an Error whose stack is its own enumerable property. Jest's JSON of each is the thrown value's own enumerable keys, as they were thrown. (A non-string `message` is left out: Jest 30.5.2 fails the file on a number, and writes a `failureMessages` entry that is no string for an array.) Read by `provino`'s `jest-json.test.ts`.",
+  "description": "--json's failureDetails for thrown values that are not plain Errors: an object with a message, one with a message and a code, an Error whose stack is its own enumerable property, an object with only a stack (its text is the stack), one with a message and a stack (`flattenErrorStack` puts the message in front of a stack that lacks it, so `the messagethe stack`) and one with a `toJSON` (the text is its message, the JSON is what `toJSON` returned). Jest's JSON of each is the thrown value's own enumerable keys, as they were thrown. (A non-string `message` is left out: Jest 30.5.2 fails the file on a number, and writes a `failureMessages` entry that is no string for an array.) Read by `provino`'s `jest-json.test.ts`.",
   "runners": ["jest"],
   "run": {
     "argv": {

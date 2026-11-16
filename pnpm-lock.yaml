@@ -795,9 +795,6 @@ importers:
       '@jest/get-type':
         specifier: 'catalog:'
         version: 30.5.0
-      '@provino/config':
-        specifier: workspace:*
-        version: link:../config
       '@provino/core':
         specifier: workspace:*
         version: link:../core
@@ -847,6 +844,9 @@ importers:
       '@jest/test-result':
         specifier: 'catalog:'
         version: 30.5.2
+      '@provino/config':
+        specifier: workspace:*
+        version: link:../config
       expect:
         specifier: 'catalog:'
         version: 30.5.2

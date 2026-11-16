@@ -461,36 +461,6 @@ export function finishAggregated(aggregated: AggregatedResult, end: RunEnd): voi
 }
 
 /**
- * Whether the error is what the dialect's `shapeTestError` made of a failed `node:assert` call: a
- * `{ message }` object (jest-circus's `formatNodeAssertErrors`) that keeps the assertion error's own
- * `name` or `code`. Only that object enumerates a `message` (an `Error`'s is not enumerable), so it
- * is the one value whose `details` holds it: the serialized error carries no other mark, and every
- * other error's `failureDetails` stays as it was.
- */
-function isShapedAssertion(error: SerializedError, details: object): boolean {
-  const keys = Object.keys(details)
-  return (
-    keys.length === 1 &&
-    keys[0] === 'message' &&
-    (error.name === 'AssertionError' || error.code === 'ERR_ASSERTION') &&
-    (details as { message?: unknown }).message === error.message
-  )
-}
-
-/**
- * `failureDetails[i]` of a shaped assertion error: Jest's `{ message }` plain object, whose
- * `message` `--json` writes. Our frames stay out of its text, as of every message here (D104).
- */
-function shapedFailureDetailOf(error: SerializedError, details: object): unknown {
-  const message = hideProvinoFrames(error.message)
-  const detail: Record<string, unknown> = { ...details, message }
-  const hidden = { writable: true, configurable: true, enumerable: false }
-  Object.defineProperty(detail, 'name', { ...hidden, value: error.name })
-  Object.defineProperty(detail, 'stack', { ...hidden, value: message })
-  return detail
-}
-
-/**
  * What a reporter finds in `failureDetails[i]`: Jest hands it the error itself, so a hook reads
  * `detail.message` (jest-junit's `noStackTrace` does). `--json` writes only the own enumerable keys
  * (`details`, the JSON of the thrown value: only an assertion error keeps `matcherResult`), since
@@ -500,18 +470,18 @@ function shapedFailureDetailOf(error: SerializedError, details: object): unknown
 function failureDetailOf(error: SerializedError): unknown {
   const details = error.details ?? {}
   if (typeof details !== 'object' || details === null || Array.isArray(details)) return details
-  // The two rules combine by order: the shaper's output is Jest's `{ message }` (the shaped
-  // assertion), whatever `enumerableFields` says; every other error follows its own fields below.
-  if (isShapedAssertion(error, details)) return shapedFailureDetailOf(error, details)
   const detail: Record<string, unknown> = { ...details }
   // A key the thrown value had as its own enumerable property (`this.name = …` in a constructor,
   // as dom-testing-library's `TestingLibraryElementError` sets it) stays enumerable: Jest's JSON
   // of the error keeps it, with the value as thrown (`details`, the JSON of the value: a thrown
   // `{ message: 'boom' }` is `{"message":"boom"}`, not the serializer's text for it). The worker
   // says which (`enumerableFields`): an own key of `details` may come from the value's `toJSON`
-  // instead, and is then hidden, with the serializer's value.
+  // instead, and is then hidden, with the serializer's value, as is an own key of the value that
+  // the `toJSON` left out of `details`.
   const field = (key: 'name' | 'message' | 'stack', value: unknown): void => {
-    const enumerable = error.enumerableFields?.includes(key) === true
+    const enumerable =
+      error.enumerableFields?.includes(key) === true &&
+      (error.details === undefined || Object.hasOwn(detail, key))
     // `detail` still holds `details`' own copy of this key: only the keys `field` already ran for
     // are redefined.
     const kept = enumerable && Object.hasOwn(detail, key) ? detail[key] : value

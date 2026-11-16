@@ -7,6 +7,8 @@
  * - `JEST_CONFIG_NO_ROOT`: an explicit path that doesn't exist.
  * - `JEST_CONFIG_MULTIPLE`: more than one config in one directory ("Multiple configurations found").
  * - `JEST_CONFIG_LOAD_FAILED`: the file couldn't be read or run, or its function threw (`cause`).
+ * - `JEST_CONFIG_RESOLVER_LOAD_FAILED`: the custom `resolver` module threw as it loaded. Jest lets
+ *   that error out as it is and jest-cli prints its stack, so the `cause` is what to print.
  * - `JEST_CONFIG_TS_LOADER`: a TypeScript config Node can't strip, and no loader to fall back to.
  * - `JEST_CONFIG_INVALID`: a key has the wrong type or value (Jest's `ValidationError`).
  * - `JEST_CONFIG_PRESET`: the preset can't be found or loaded.
@@ -19,6 +21,7 @@ export type JestConfigErrorCode =
   | 'JEST_CONFIG_NO_ROOT'
   | 'JEST_CONFIG_MULTIPLE'
   | 'JEST_CONFIG_LOAD_FAILED'
+  | 'JEST_CONFIG_RESOLVER_LOAD_FAILED'
   | 'JEST_CONFIG_TS_LOADER'
   | 'JEST_CONFIG_INVALID'
   | 'JEST_CONFIG_PRESET'

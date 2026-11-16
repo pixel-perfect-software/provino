@@ -1,15 +1,15 @@
 // T11.4: Jest 30.5's config loader, `jest-config` `readConfigFileAndSetRootDir.ts` and
 // `readInitialOptions` (`index.ts` L326-L380) rebuilt. A `.json` file may hold comments; a
-// `package.json` gives its `jest` key (or `{}`); anything else is imported (`importConfigModule`
-// from `@provino/config`, the one config-module loader, build-plan §6), and a function export is
-// awaited. TypeScript loads through Node's type stripping (22.18+). When Node can't strip a file,
+// `package.json` gives its `jest` key (or `{}`); anything else is loaded as jest-util's
+// `requireOrImportModule` loads it (below: `require`, once per process, and `import()` for an ES
+// module `require` refuses), and a function export is awaited. TypeScript loads through Node's type stripping (22.18+). When Node can't strip a file,
 // Jest falls back to ts-node; Provino uses a TypeScript loader only when the file's
 // `@jest-config-loader` docblock names one (gap 12 of `bundles/B14.md`), and otherwise says how to
 // fix it. `rootDir` defaults to the file's directory, and a relative one is resolved against it.
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, isAbsolute, resolve } from 'node:path'
-import { ConfigError, importConfigModule } from '@provino/config'
+import { pathToFileURL } from 'node:url'
 import type { ConfigSource } from '@provino/types'
 import { extractDocblock, parsePragmas } from './docblock.ts'
 import { JestConfigError, messageOf } from './errors.ts'
@@ -126,6 +126,18 @@ function hasExplicitLoader(path: string): boolean {
 }
 
 /**
+ * jest-util's `interopRequireDefault(required).default`: the `default` of a module whose
+ * `__esModule` is truthy (an object or a function), else the module itself.
+ */
+function interopDefaultOf(required: unknown): unknown {
+  return (typeof required === 'object' || typeof required === 'function') &&
+    required !== null &&
+    Reflect.get(required, '__esModule')
+    ? Reflect.get(required, 'default')
+    : required
+}
+
+/**
  * `loadTSConfigFile` (L171-L203) for a loader the docblock names: `ts-node` or `esbuild-register`,
  * resolved from the config's own directory (Jest resolves it beside itself, which in a project is
  * the same install), registered for one `require` of the file, then turned off.
@@ -183,21 +195,12 @@ async function loadWithDocblockLoader(path: string): Promise<unknown> {
   }
   enable(true)
   try {
-    const required: unknown = requireFromConfig(path)
-    let value =
-      isRecord(required) && required.__esModule === true
-        ? Reflect.get(required, 'default')
-        : required
+    let value = interopDefaultOf(requireFromConfig(path))
     if (typeof value === 'function') value = await value()
     return value
   } finally {
     enable(false)
   }
-}
-
-/** The underlying error of a failed `importConfigModule`. */
-function importFailure(error: unknown): unknown {
-  return error instanceof ConfigError && error.code === 'CONFIG_LOAD_FAILED' ? error.cause : error
 }
 
 /**
@@ -227,8 +230,7 @@ async function loadTypeScript(path: string): Promise<unknown> {
   }
   try {
     return await requireOrImportModule(path)
-  } catch (thrown) {
-    const error = importFailure(thrown)
+  } catch (error) {
     if (isMts) {
       throw new TypeScriptLoadError(
         // L57-L61
@@ -274,35 +276,76 @@ function typeScriptFailure(path: string, error: unknown): JestConfigError {
   )
 }
 
+/** Node's CommonJS `require`, whose module cache is the process's, as jest-util's own is. */
+const nodeRequire = createRequire(import.meta.url)
+
+/** jest-util `importModule` (`requireOrImportModule.ts` L11-L44). */
+async function importEsModule(path: string, interop: boolean): Promise<unknown> {
+  const imported: unknown = await import(pathToFileURL(path).href)
+  if (!interop) return imported
+  const value = isRecord(imported) ? imported.default : undefined
+  if (!value) {
+    // L27-L31
+    throw new Error(`Jest: Failed to load ESM at ${path} - did you use a default export?`)
+  }
+  return value
+}
+
+/** How `requireOrImportModule` loads a module. */
+export interface RequireOrImportOptions {
+  /** jest-util's `applyInteropRequireDefault` (default `true`). */
+  readonly interop?: boolean
+  /**
+   * Deletes the file's `require.cache` entry first, so a CommonJS module runs again: what
+   * jest-config's `setupPreset` does before it loads a preset (`normalize.ts` L192-L195). The
+   * delete and the `require` are one synchronous step, so no other load of the file can come
+   * between them.
+   */
+  readonly fresh?: boolean
+}
+
 /**
- * `jest-util`'s `requireOrImportModule(path)` (with `interopRequireDefault`): a `.mjs` or `.mts`
- * file is imported and must have a default export; anything else is `require`d, and a module with
- * no default export is its namespace (`{ default: namespace }` unwrapped), named exports and all.
- * Configs and presets load this way. Throws `ConfigError` (`CONFIG_LOAD_FAILED`, the error as
- * `cause`).
+ * jest-util's `requireOrImportModule(path, applyInteropRequireDefault)` (`requireOrImportModule.ts`
+ * L46-L75): a `.mjs` or `.mts` file is imported, and with interop must have a default export;
+ * anything else is `require`d (once per process: Node's CommonJS cache, which `require(esm)`
+ * shares), with `interopRequireDefault` (an `__esModule` module's `default`, else the module
+ * itself, so a module with only named exports is its namespace), and imported when `require`
+ * refuses it (`ERR_REQUIRE_ESM`, `ERR_REQUIRE_ASYNC_MODULE`: a top-level await). Configs, presets,
+ * reporters, watch plugins, results processors and the custom resolver load this way. Throws what
+ * the module threw, unwrapped, as Jest's does.
  */
-export async function requireOrImportModule(path: string): Promise<unknown> {
-  const importOnly = path.endsWith('.mjs') || path.endsWith('.mts')
+export async function requireOrImportModule(
+  path: string,
+  options: RequireOrImportOptions = {},
+): Promise<unknown> {
+  const interop = options.interop ?? true
+  if (path.endsWith('.mjs') || path.endsWith('.mts')) return importEsModule(path, interop)
+  let required: unknown
   try {
-    return await importConfigModule(path, { withoutDefault: importOnly ? 'error' : 'namespace' })
+    let request = path
+    if (options.fresh === true) {
+      try {
+        request = nodeRequire.resolve(path)
+        delete nodeRequire.cache[request]
+      } catch {
+        // Not resolvable, so nothing is cached under it; the `require` below says why.
+      }
+    }
+    required = nodeRequire(request)
   } catch (error) {
-    if (importOnly && error instanceof ConfigError && error.code === 'CONFIG_INVALID') {
-      // jest-util `requireOrImportModule.ts` L27-L31
-      throw new ConfigError(
-        'CONFIG_LOAD_FAILED',
-        `Jest: Failed to load ESM at ${path} - did you use a default export?`,
-        { cause: new Error(`Jest: Failed to load ESM at ${path} - did you use a default export?`) },
-      )
+    const code: unknown = error instanceof Error ? Reflect.get(error, 'code') : undefined
+    if (code === 'ERR_REQUIRE_ESM' || code === 'ERR_REQUIRE_ASYNC_MODULE') {
+      return importEsModule(path, interop)
     }
     throw error
   }
+  return interop ? interopDefaultOf(required) : required
 }
 
 async function importModule(path: string): Promise<unknown> {
   try {
     return await requireOrImportModule(path)
-  } catch (thrown) {
-    const error = importFailure(thrown)
+  } catch (error) {
     if (error instanceof JestConfigError) throw error
     throw new JestConfigError('JEST_CONFIG_LOAD_FAILED', messageOf(error), { cause: error })
   }

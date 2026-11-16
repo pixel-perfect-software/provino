@@ -199,10 +199,14 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     policy.shuffle === null ? undefined : await options.behaviours.load(policy.shuffle)
   const orderHooks =
     policy.orderHooks === null ? undefined : await options.behaviours.load(policy.orderHooks)
-  const shapeTestError =
+  const shape =
     policy.shapeTestError === null
       ? undefined
       : await options.behaviours.load(policy.shapeTestError)
+  // One options object for every call: the run's `expand` does not change.
+  const shapeOptions = Object.freeze({ expand: options.expand ?? false })
+  const shapeTestError =
+    shape === undefined ? undefined : (error: unknown): unknown => shape(error, shapeOptions)
   const runs = createRunRegistry()
   const workerTeardowns: Array<() => unknown> = []
   const collector = new Collector({
@@ -238,7 +242,6 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     policy,
     orderHooks,
     shapeTestError,
-    expand: options.expand ?? false,
     sink,
     deadlines,
     timers,
