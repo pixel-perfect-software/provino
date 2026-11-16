@@ -55,9 +55,13 @@
 // stale copy's flag is no later file's. A callback a file hands a shared package (a helper that
 // calls the timer it kept from a node file) is not the package's own, so nothing is reported.
 //
-// While a window file runs, every timer's stack is captured: COST_PENDING (`local`, Node 24,
-// `Error.stackTraceLimit` as the process has it). Outside a window file the wrapper passes
-// `arguments` through and allocates nothing: about 5 ns over Node's own.
+// While a window file runs, every timer's stack is captured: a `setTimeout` and `clearTimeout`
+// cost about 1.7 µs more than Node's own, set from the file or inside one of its timers'
+// callbacks, and a timer set inside the callback of a timer no other has been set inside yet also
+// reads that timer's verdict, so each slice of a self-rescheduling loop costs about 3.5 µs in all
+// (`local`, Node 24, `Error.stackTraceLimit` as the process has it; the walk stops at the first
+// frame that decides). Outside a window file the wrapper passes `arguments` through and allocates
+// nothing: within the noise of Node's own (under 10 ns).
 import { readFileSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -115,9 +119,17 @@ interface CallbackFacts {
   readonly holds: Map<string, boolean>
 }
 
+/** A frame's file as the walk reads it: its path, and whose code it is. */
+interface FileFacts {
+  readonly path: string
+  readonly kind: 'provino' | 'shared' | 'other'
+}
+
 /** One window file's noting: its pending timers by handle, and what was read for them. */
 interface Tracking {
   readonly notes: Map<unknown, Noted>
+  /** Each frame's file by the name V8 gives it (`null`: not on disk). */
+  readonly files: Map<string, FileFacts | null>
   readonly sources: Map<string, string | null>
   readonly callbacks: WeakMap<object, CallbackFacts>
   /** The file's modules as last read for a running callback (`undefined` before the first). */
@@ -267,6 +279,7 @@ export function installWindowTimers(
     track() {
       const tracking: Tracking = {
         notes: new Map(),
+        files: new Map(),
         sources: new Map(),
         callbacks: new WeakMap(),
         own: undefined,
@@ -317,28 +330,29 @@ function fileModulesOf(read: (() => Iterable<string>) | undefined): ReadonlySet<
 /** The name of the function the wrappers hand Node's timers, which a stack walk stops at. */
 const WRAPPER_NAME = 'provinoWindowTimerCallback'
 
-/** A captured frame of the callback wrapper (`WRAPPER_NAME`). */
-const WRAPPER_FRAME: unique symbol = Symbol('window timer callback')
-
-type Frame = string | null | typeof WRAPPER_FRAME
-
-/** Whose a pending timer is, from the frames that set it (the header's rules). */
+/**
+ * Whose a pending timer is, from the frames that set it (the header's rules). The walk stops at
+ * the first frame that decides, so a frame past it is never read: turning a module's `file:` URL
+ * into a path costs more than the rest of the walk, and it is done once per name per file.
+ */
 function verdictOf(origin: Origin, own: ReadonlySet<string>, tracking: Tracking): Verdict {
-  const frames = framesOf(origin.site)
+  const frames = callSitesOf(origin.site)
   const { within } = origin
   // No frame was kept (`Error.stackTraceLimit` is 0): the callback's it was set inside, else the
   // file's, as nothing tells otherwise.
   if (frames.length === 0) return within ?? FILES
-  const facts = factsOf(origin.callback, tracking)
+  let facts: CallbackFacts | undefined
   let owner: string | undefined
   for (const frame of frames) {
-    if (frame === WRAPPER_FRAME) return inside(within, owner)
-    if (frame === null) continue
-    if (own.has(frame)) return { files: true, owner }
-    if (isProvinoFile(frame)) return NOT_FILES
-    if (owner === undefined && isSharedPackageFile(frame)) {
+    if (frame.getFunctionName() === WRAPPER_NAME) return inside(within, owner)
+    const file = fileOf(frame.getFileName(), tracking)
+    if (file === null) continue
+    if (own.has(file.path)) return { files: true, owner }
+    if (file.kind === 'provino') return NOT_FILES
+    if (owner === undefined && file.kind === 'shared') {
+      facts ??= factsOf(origin.callback, tracking)
       // A bound or native callback has no source to look for: the shared frame that set it owns it.
-      if (!facts.readable || holdsCallback(frame, facts, tracking)) owner = frame
+      if (!facts.readable || holdsCallback(file.path, facts, tracking)) owner = file.path
     }
   }
   // The stack was cut (`Error.stackTraceLimit`) before it reached the wrapper it was set inside.
@@ -358,8 +372,8 @@ function inside(within: Verdict | undefined, owner: string | undefined): Verdict
     : { files: true, owner: owner ?? within.owner }
 }
 
-/** Each captured frame, outermost last: the wrapper, or its file (`null` for one not on disk). */
-function framesOf(site: Origin['site']): readonly Frame[] {
+/** The captured frames, outermost last, read with our own formatter whatever the process has. */
+function callSitesOf(site: Origin['site']): readonly NodeJS.CallSite[] {
   const previous = Error.prepareStackTrace
   Error.prepareStackTrace = (_error, frames) => frames
   let frames: unknown
@@ -368,10 +382,27 @@ function framesOf(site: Origin['site']): readonly Frame[] {
   } finally {
     Error.prepareStackTrace = previous
   }
-  if (!Array.isArray(frames)) return NONE
-  return frames.map((frame: NodeJS.CallSite) =>
-    frame.getFunctionName() === WRAPPER_NAME ? WRAPPER_FRAME : pathOf(frame.getFileName()),
-  )
+  return Array.isArray(frames) ? (frames as NodeJS.CallSite[]) : NO_FRAMES
+}
+
+const NO_FRAMES: readonly NodeJS.CallSite[] = []
+
+/** A frame's file, once per file name per window file: `null` for one that is not on disk. */
+function fileOf(name: string | null | undefined, tracking: Tracking): FileFacts | null {
+  if (name === null || name === undefined) return null
+  let file = tracking.files.get(name)
+  if (file === undefined) {
+    const path = pathOf(name)
+    file =
+      path === null
+        ? null
+        : {
+            path,
+            kind: isProvinoFile(path) ? 'provino' : isSharedPackageFile(path) ? 'shared' : 'other',
+          }
+    tracking.files.set(name, file)
+  }
+  return file
 }
 
 function factsOf(callback: object, tracking: Tracking): CallbackFacts {
@@ -394,8 +425,7 @@ function holdsCallback(file: string, facts: CallbackFacts, tracking: Tracking): 
   return holds
 }
 
-function pathOf(name: string | null | undefined): string | null {
-  if (name === null || name === undefined) return null
+function pathOf(name: string): string | null {
   if (name.startsWith('file:')) return fileURLToPath(name)
   return isAbsolute(name) ? name : null
 }
