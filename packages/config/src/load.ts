@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto'
-import { realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -26,13 +25,8 @@ const nodeRequire = createRequire(import.meta.url)
  * module. That is a small, accepted leak for config files. Only the config file itself is busted:
  * a module it imports or requires is still served from Node's caches.
  */
-function freshUrl(file: string): string {
-  try {
-    delete nodeRequire.cache[nodeRequire.resolve(file)]
-  } catch {
-    // Not resolvable, so nothing is cached under it; the import below reports why the file can't
-    // be read.
-  }
+function freshUrl(file: string, cacheKey: string): string {
+  delete nodeRequire.cache[cacheKey]
   const url = pathToFileURL(file)
   url.searchParams.set('provino-load', randomUUID())
   return url.href
@@ -50,10 +44,14 @@ function freshUrl(file: string): string {
  */
 const loading = new Map<string, Promise<void>>()
 
-/** The real path of `file`, or `file` when it has none (a missing file: the import says why). */
-function realPathOf(file: string): string {
+/**
+ * The key of `file` in Node's CommonJS cache, which is also the key of `loading`: what
+ * `require.resolve` gives, the file's real path. A file that doesn't resolve is cached under
+ * nothing, so it is its own key, and the import says why it can't be read.
+ */
+function cacheKeyOf(file: string): string {
   try {
-    return realpathSync.native(file)
+    return nodeRequire.resolve(file)
   } catch {
     return file
   }
@@ -61,8 +59,8 @@ function realPathOf(file: string): string {
 
 /** `import()` of `freshUrl(file)`, after any fresh load of the same file still running. */
 function importFresh(file: string): Promise<unknown> {
-  const key = realPathOf(file)
-  const load = (loading.get(key) ?? Promise.resolve()).then(() => import(freshUrl(file)))
+  const key = cacheKeyOf(file)
+  const load = (loading.get(key) ?? Promise.resolve()).then(() => import(freshUrl(file, key)))
   const settled = load.then(
     () => undefined,
     () => undefined,
