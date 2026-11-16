@@ -256,8 +256,9 @@ export function buildThirdPartyGraph(options: GraphOptions): ThirdPartyGraph {
     scannedCount++
     if (scanned.transient) fresh.delete(path)
     else fresh.set(path, scanned)
-    // Whatever closure held the old edges is not worth keeping.
-    closures.clear()
+    // Whatever closure held the old edges is not worth keeping. A file new to the graph is in no
+    // memoised closure: each was walked whole, so it would have been installed then.
+    if (old !== undefined) closures.clear()
     return slot
   }
 
