@@ -28,6 +28,10 @@ const FIXTURES = [
     'cli/transform-node-modules-cjs-jsx',
     "a claimed CommonJS package Node can't parse (JSX, Flow) goes through the project's transform, and passes",
   ],
+  [
+    'cli/transform-node-modules-asset',
+    "a claimed asset (a package's own .css file) goes through the claiming transform, as in Jest, and passes",
+  ],
 ] as const
 
 describe('node_modules files a transform claims, against Jest 30.5.2', () => {
