@@ -2,11 +2,10 @@
 // are in the black-box goldens; `policy/expect-shape` observes the runner's own `expect`.
 import { isDeepStrictEqual } from 'node:util'
 import { jestSnapshotStateView } from '@provino/dialect-jest/runtime'
-import { isModuleRef } from '@provino/policy'
-import type { SnapshotViewFactory, SnapshotViewSource } from '@provino/types'
+import type { SnapshotViewMatchOptions, SnapshotViewSource } from '@provino/types'
 import type { Golden } from '../../golden.ts'
 import { type Claims, corpus, each, golden, inert, own, pending } from '../evidence.ts'
-import { capturedFile, observedOf, oneOf, statusOf } from '../observe.ts'
+import { capturedFile, observedOf, oneOf, refTo, statusOf } from '../observe.ts'
 
 const SNAP = '__snapshots__/written.test.ts.snap'
 const snap = (g: Golden): string => capturedFile(g, SNAP)
@@ -18,38 +17,45 @@ const entry = (g: Golden, key: RegExp): string => {
 }
 const exitCode = (g: Golden): unknown => observedOf(g).exitCode
 
-/** Whether a value is the ref to `name` in `module` (an import specifier, resolved from here). */
-const refTo =
-  (module: string, name: string) =>
-  (value: unknown): boolean =>
-    isModuleRef(value) && value.module === import.meta.resolve(module) && value.export === name
-
 /** A run's snapshot counts, as its results file holds them. */
 const counters = (g: Golden) => g.snapshots?.counters
+
+/** A black-box run's kept stderr. */
+const stderrOf = (g: Golden): string => String(observedOf(g).stderr)
 
 /** The `path sha256` lines of every image an `image-snapshot-*` run left, sorted. */
 const imageHashes = (g: Golden): string => capturedFile(g, 'image-hashes.txt')
 
-/** The `snapshot.contextView` behaviours a ref can name: the views this repository has. */
-const VIEWS: readonly {
-  readonly module: string
-  readonly export: string
-  readonly fn: SnapshotViewFactory
-}[] = [
-  {
-    module: import.meta.resolve('@provino/dialect-jest/runtime'),
-    export: 'jestSnapshotStateView',
-    fn: jestSnapshotStateView,
-  },
-]
+/** The attempt the probe state says is running, which a view's snapshots must be recorded against. */
+const PROBE_ATTEMPT = 'probe-attempt-7'
 
-/** What the probe state was asked, by member. */
-type Probe = { readonly source: SnapshotViewSource; readonly calls: string[] }
+/** What the probe state's `match` answers: `actual` and `expected` differ, so a swap shows. */
+const PROBE_MATCH = {
+  pass: false,
+  count: 2,
+  key: 'probe key 2',
+  actual: 'the received text',
+  expected: 'the stored text',
+} as const
 
-/** A file's snapshot state with nothing behind it, which records what a matcher calls on it. */
+/** What the probe state's `fail` answers, a key no argument holds. */
+const PROBE_FAIL_KEY = 'probe failed 3'
+
+/** What the probe state was asked: each call's member and arguments, a stack thunk called. */
+type ProbeCall =
+  | readonly ['match', Omit<SnapshotViewMatchOptions, 'stack'> & { readonly stack?: string }]
+  | readonly ['fail', string, string | undefined, string | undefined]
+  | readonly ['markCheckedForTest', string]
+
+/** What the probe state was asked. */
+type Probe = { readonly source: SnapshotViewSource; readonly calls: ProbeCall[] }
+
+/**
+ * A file's snapshot state with nothing behind it, which records what a matcher calls on it and
+ * with what, and names `PROBE_ATTEMPT` as the running attempt.
+ */
 function probeSource(update: SnapshotViewSource['update']): Probe {
-  const calls: string[] = []
-  const result = { pass: true, count: 1, key: 't 1', actual: '', expected: '' }
+  const calls: ProbeCall[] = []
   const source: SnapshotViewSource = {
     added: 0,
     matched: 0,
@@ -59,31 +65,39 @@ function probeSource(update: SnapshotViewSource['update']): Probe {
     update,
     liveCounters: new Map(),
     snapshotPath: '/p/__snapshots__/a.test.ts.snap',
-    format: {},
-    match: () => {
-      calls.push('match')
-      return result
+    serializeFormat: Object.freeze({ escapeString: false }),
+    currentTestId: () => PROBE_ATTEMPT,
+    match: ({ stack, ...options }) => {
+      calls.push(['match', stack === undefined ? options : { ...options, stack: stack() }])
+      return PROBE_MATCH
     },
-    fail: () => {
-      calls.push('fail')
-      return 't 1'
+    fail: (testName, testId, key) => {
+      calls.push(['fail', testName, testId, key])
+      return PROBE_FAIL_KEY
     },
-    markCheckedForTest: () => calls.push('markCheckedForTest'),
+    markCheckedForTest: (testName) => calls.push(['markCheckedForTest', testName]),
     getUncheckedCount: () => 0,
     getUncheckedKeys: () => [],
   }
   return { source, calls }
 }
 
+/** Builds what a matcher finds as `this.snapshotState` over a probe, or `undefined` for none. */
+export type MatcherStateBuilder = (source: SnapshotViewSource) => object | undefined
+
 /**
- * What a matcher finds as `this.snapshotState` under the policy value, over `probe`: the state
- * itself for `null`, the view a known ref names, `undefined` for any other value.
+ * What a matcher finds as `this.snapshotState` under the policy value: the state itself for
+ * `null`, Jest's view for the ref to it, `undefined` for any other value.
  */
-function matcherStateUnder(value: unknown, probe: Probe): Record<string, unknown> | undefined {
-  if (value === null) return probe.source as unknown as Record<string, unknown>
-  const view = VIEWS.find((known) => refTo(known.module, known.export)(value))
-  return view?.fn(probe.source) as Record<string, unknown> | undefined
-}
+const matcherStateUnder =
+  (value: unknown): MatcherStateBuilder =>
+  (source) => {
+    if (value === null) return source
+    if (refTo('@provino/dialect-jest/runtime', 'jestSnapshotStateView')(value)) {
+      return jestSnapshotStateView(source)
+    }
+    return undefined
+  }
 
 /**
  * Whether jest-image-snapshot 6.5.2 could do with the value's `this.snapshotState` what the
@@ -92,7 +106,7 @@ function matcherStateUnder(value: unknown, probe: Probe): Record<string, unknown
  */
 function imageSnapshotCanRun(value: unknown, update: SnapshotViewSource['update']): boolean {
   const probe = probeSource(update)
-  const state = matcherStateUnder(value, probe)
+  const state = matcherStateUnder(value)(probe.source) as Record<string, unknown> | undefined
   if (state === undefined) return false
   const counts = state._counters
   if (!(counts instanceof Map) || counts !== probe.source.liveCounters) return false
@@ -104,22 +118,74 @@ function imageSnapshotCanRun(value: unknown, update: SnapshotViewSource['update'
 
 /**
  * Whether jest-snapshot 30.5.2's own matchers, called with a custom matcher's `this`, could run on
- * the value's `this.snapshotState` (index.ts `_toMatchSnapshot`): `match` and `fail` reach the
- * file's state, and `expand`, `snapshotFormat` and `snapshotPath` are there to read.
+ * the `this.snapshotState` that `build` makes (index.ts `_toMatchSnapshot`): `match` and `fail`
+ * reach the file's state with each of jest-snapshot's arguments where it belongs, the snapshot
+ * recorded against the running attempt (which a retry takes back: `custom-snapshot-retry`), and
+ * return what the state answered; and `expand`, `snapshotFormat` and `snapshotPath` are the
+ * state's.
  */
-function jestSnapshotCanRun(value: unknown): boolean {
+export function jestSnapshotRunsOn(build: MatcherStateBuilder): boolean {
   const probe = probeSource('new')
-  const state = matcherStateUnder(value, probe)
+  const state = build(probe.source) as Record<string, unknown> | undefined
   if (state === undefined) return false
   const { match, fail } = state
   if (typeof match !== 'function' || typeof fail !== 'function') return false
-  const matched = Reflect.apply(match, state, [{ testName: 't', received: 1, isInline: false }])
-  Reflect.apply(fail, state, ['t', 1])
+  const received = { value: 'received' }
+  const error = new Error('made at a .resolves call')
+  // As `_toMatchSnapshot` calls them (index.ts L344-L349, L376-L384), with the identity Provino's
+  // matcher state can't give (`currentTestIdentity` is Jest's), so `undefined`.
+  const matched = Reflect.apply(match, state, [
+    {
+      testName: 'probe name: hint',
+      testIdentity: undefined,
+      received,
+      key: 'probe key',
+      inlineSnapshot: undefined,
+      isInline: false,
+      error: undefined,
+      testFailing: false,
+    },
+  ])
+  Reflect.apply(match, state, [
+    { testName: 'probe inline', received, inlineSnapshot: 'inline text', isInline: true, error },
+  ])
+  const failed = Reflect.apply(fail, state, ['probe failed', received, 'probe fail key', undefined])
+  // Only the options a view gave a value: an `undefined` it passed on is none.
+  const given = probe.calls.map((call) =>
+    call[0] === 'match'
+      ? [call[0], Object.fromEntries(Object.entries(call[1]).filter(([, v]) => v !== undefined))]
+      : call,
+  )
   return (
-    isDeepStrictEqual(matched, { actual: '', count: 1, expected: '', key: 't 1', pass: true }) &&
-    isDeepStrictEqual(probe.calls, ['match', 'fail']) &&
-    typeof state.expand === 'boolean' &&
-    state.snapshotFormat === probe.source.format &&
+    isDeepStrictEqual(matched, { ...PROBE_MATCH }) &&
+    failed === PROBE_FAIL_KEY &&
+    isDeepStrictEqual(given, [
+      [
+        'match',
+        {
+          testName: 'probe name: hint',
+          testId: PROBE_ATTEMPT,
+          received,
+          key: 'probe key',
+          isInline: false,
+          testFailing: false,
+        },
+      ],
+      [
+        'match',
+        {
+          testName: 'probe inline',
+          testId: PROBE_ATTEMPT,
+          received,
+          inlineSnapshot: 'inline text',
+          isInline: true,
+          stack: error.stack,
+        },
+      ],
+      ['fail', 'probe failed', PROBE_ATTEMPT, 'probe fail key'],
+    ]) &&
+    state.expand === probe.source.expand &&
+    state.snapshotFormat === probe.source.serializeFormat &&
     state.snapshotPath === probe.source.snapshotPath
   )
 }
@@ -137,9 +203,8 @@ const imageSnapshot = (
 /** One `ecosystem/custom-snapshot-*` recording: a custom matcher over jest-snapshot's matchers. */
 const customSnapshot = (fixture: string, shows: (g: Golden) => boolean) =>
   golden(`ecosystem/custom-snapshot-${fixture}`, {
-    matches: (g, value) => jestSnapshotCanRun(value) && shows(g),
+    matches: (g, value) => jestSnapshotRunsOn(matcherStateUnder(value)) && shows(g),
   })
-
 export const snapshotClaims: Claims = {
   'snapshot.header': golden('snapshot-written', { read: (g) => snap(g).split('\n')[0] }),
   // The entries are `${name} ${n}`: the neutral `snapshotKey` both runners' keys follow.
@@ -327,13 +392,14 @@ export const snapshotClaims: Claims = {
         (g) =>
           exitCode(g) === 1 &&
           imageHashes(g) === '' &&
-          String(observedOf(g).stderr).includes('New snapshot was not written.'),
+          stderrOf(g).includes('New snapshot was not written.'),
       ),
       imageSnapshot('retry', 'new', (g) => {
         const written = capturedFile(g, '__snapshots__/images.test.ts.snap')
+        const counts = counters(g)
         return (
-          counters(g)?.added === 7 &&
-          counters(g)?.matched === 3 &&
+          counts?.added === 7 &&
+          counts.matched === 3 &&
           written.includes('exports[`image then snapshot 3`]') &&
           written.includes('exports[`snapshot then image 1`]') &&
           written.includes('exports[`snapshot then image 3`]') &&
@@ -349,18 +415,32 @@ export const snapshotClaims: Claims = {
           ),
       ),
       customSnapshot('match', (g) => exitCode(g) === 0 && counters(g)?.matched === 6),
-      customSnapshot(
-        'mismatch',
-        (g) =>
+      customSnapshot('mismatch', (g) => {
+        const stderr = stderrOf(g)
+        return (
           counters(g)?.unmatched === 2 &&
-          String(observedOf(g).stderr).includes(
-            'Snapshot name: `trimmed: toMatchTrimmedSnapshot 1`',
-          ) &&
-          String(observedOf(g).stderr).includes('expect(received).toMatchSnapshot(properties)'),
-      ),
+          stderr.includes('Snapshot name: `trimmed: toMatchTrimmedSnapshot 1`') &&
+          stderr.includes('expect(received).toMatchSnapshot(properties)')
+        )
+      }),
       customSnapshot('inline', (g) =>
         capturedFile(g, 'inline.test.ts').includes('toMatchTrimmedInlineSnapshot(`"extra long"`)'),
       ),
+      // A retried attempt's snapshots, taken through `match` and `fail`, are taken back: under
+      // `--ci` the retry's keys are the stored ones and match, and a first run stores each once.
+      customSnapshot('retry', (g) => {
+        const counts = counters(g)
+        return exitCode(g) === 0 && counts?.matched === 5 && counts.unmatched === 0
+      }),
+      customSnapshot('retry-new', (g) => {
+        const written = capturedFile(g, '__snapshots__/retried.test.ts.snap')
+        return (
+          exitCode(g) === 0 &&
+          counters(g)?.added === 5 &&
+          written.includes('exports[`trimmed, then fails once: toMatchTrimmedSnapshot 2`]') &&
+          !written.includes('toMatchTrimmedSnapshot 3`]')
+        )
+      }),
     ],
     pending('T7.6', "what Vitest's matchers read of `this.snapshotState` comes with its table"),
   ),
