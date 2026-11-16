@@ -71,6 +71,8 @@ export interface RecordedGolden {
     readonly json?: Readonly<Record<string, Json | null>>
     readonly transcript?: string
   }
+  /** The lines the fixture's test file traced (`trace(step)`), in order. */
+  readonly trace?: readonly string[]
 }
 
 export interface RecordedFixture {

@@ -6,6 +6,11 @@
 // "8 events per test" were a test's start and end plus a start and an end per hook; core's own
 // event set adds an attempt's start and end, so it is 10 here. Shared by `pnpm bench:core` (wall
 // time per test) and the `core` leg of `provino-bench instructions` (instruction counts).
+//
+// Core's own overhead is measured with the Jest dialect's core values and `boundaryTurns` all 0
+// (Tyler, 2026-11-16): the turns are the microtask turns Jest itself waits between hooks and tests
+// (B23e), about 129 a test of this shape, not core's overhead, so they are a signal of their own
+// (`turns: 'jest'`, the full Jest policy) with no bar.
 import { createRuntime } from '@provino/core'
 import { jestPolicy } from '@provino/dialect-jest'
 import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
@@ -43,21 +48,37 @@ export interface CorePass {
   readonly elapsedMs: number
 }
 
-const POLICY: CorePolicy = resolvePolicy(jestPolicy).core
+/**
+ * Which boundary turns the pass runs with: `none` (all 0: core's own overhead, the bar's
+ * configuration) or `jest` (the Jest dialect's own, its whole core policy).
+ * @public
+ */
+export type CoreTurns = 'none' | 'jest'
+
+const JEST_CORE: CorePolicy = resolvePolicy(jestPolicy).core
+
+const POLICIES: Readonly<Record<CoreTurns, CorePolicy>> = {
+  none: {
+    ...JEST_CORE,
+    boundaryTurns: { hookStart: 0, hookEnd: 0, fnStart: 0, fnEnd: 0, testStart: 0, testEnd: 0 },
+  },
+  jest: JEST_CORE,
+}
 
 /**
  * Collects and runs one file of `tests` empty tests with three per-test hooks, under the Jest
- * dialect's core policy, as the worker would. A fresh runtime per pass.
+ * dialect's core policy with `turns`' boundary turns, as the worker would. A fresh runtime per pass.
  * @public
  */
 export async function runCorePass(
   locations: CoreLocations,
   tests: number = CORE_TESTS,
+  turns: CoreTurns = 'none',
 ): Promise<CorePass> {
   let events = 0
   let passed = 0
   const runtime = await createRuntime({
-    policy: POLICY,
+    policy: POLICIES[turns],
     behaviours: createBehaviourLoader(),
     sink: {
       emit: (event) => {

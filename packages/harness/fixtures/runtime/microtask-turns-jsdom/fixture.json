@@ -1,0 +1,9 @@
+{
+  "description": "`runtime/microtask-turns` under `jest-environment-jsdom`: the same probes, the same file. The environment defines no `handleTestEvent`, so jest-circus awaits the same six handlers at each event and every count is the node environment's.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom"
+    }
+  }
+}

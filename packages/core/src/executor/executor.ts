@@ -9,6 +9,7 @@
 // the around chain: the `LazyHost` teardowns the around hooks added, then, under
 // `status.expectFail: 'attempt'`, the reversal of a `.fails` test's result.
 import type {
+  BoundaryTurns,
   CorePolicy,
   DefaultRetry,
   DescribeRetry,
@@ -55,6 +56,7 @@ import { type ContextEnv, createTestContext, SkipSignal } from './context.ts'
 import { type Deadlines, isBounded, type RealTimers, resolveTimeout, sleep } from './deadline.ts'
 import { type InvokeEnv, invoke } from './invoke.ts'
 import { createLimiter, type Limiter, unlimited } from './limiter.ts'
+import { anyTurns, TurnClock } from './turns.ts'
 import { callUser } from './user-call.ts'
 
 /** What the executor needs from the runtime. */
@@ -321,6 +323,15 @@ export class Executor {
    * call is made and no suite's `afterAll` runs, as circus's `dispatch` throws out of the run.
    */
   #aborted: { readonly error: unknown } | undefined
+  /** `CorePolicy.boundaryTurns`. */
+  readonly #turns: BoundaryTurns
+  /** Counts the turns between the file's functions; `undefined` when the policy gives none. */
+  readonly #clock: TurnClock | undefined
+  /**
+   * How many concurrent groups and parallel hook runs are running: their paths interleave, so no
+   * boundary of theirs is counted.
+   */
+  #concurrentGroups = 0
 
   constructor(config: ExecutorConfig) {
     this.#config = config
@@ -342,6 +353,13 @@ export class Executor {
     const shared = config.policy.concurrency.limitHooks
     this.#calls = shared ? createLimiter(config.policy.maxConcurrency) : unlimited
     this.#tests = shared ? createLimiter(config.policy.maxConcurrency) : unlimited
+    this.#turns = config.policy.boundaryTurns
+    this.#clock = anyTurns(this.#turns) ? new TurnClock() : undefined
+  }
+
+  /** The turn clock, when the policy gives turns and no concurrent group is running. */
+  #pacing(): TurnClock | undefined {
+    return this.#concurrentGroups === 0 ? this.#clock : undefined
   }
 
   /**
@@ -363,6 +381,8 @@ export class Executor {
     const life = file.lifecycle
     this.#life = life
     this.#aborted = undefined
+    // Nothing is counted from the last file's last function.
+    this.#clock?.reset()
     try {
       if (life !== undefined) {
         await this.#tell(life, {
@@ -769,10 +789,19 @@ export class Executor {
         life === undefined ? NO_TESTS : group.nodes.filter((node) => node.type === 'test')
       if (life !== undefined)
         await this.#tell(life, { type: 'concurrent-start', ref: suite, tests })
-      const runs = group.nodes.map((node) => limiter.run(() => this.#runChild(run, node, inner)))
-      // With a listener, one test's throw ends the run only once the group's others have ended,
-      // so none of them reports after the file's end.
-      results.push(...(await (life === undefined ? Promise.all(runs) : settleAll(runs))))
+      // The group's tests run side by side, so no boundary of theirs is counted, and nothing is
+      // counted across the group.
+      this.#clock?.reset()
+      this.#concurrentGroups += 1
+      try {
+        const runs = group.nodes.map((node) => limiter.run(() => this.#runChild(run, node, inner)))
+        // With a listener, one test's throw ends the run only once the group's others have ended,
+        // so none of them reports after the file's end.
+        results.push(...(await (life === undefined ? Promise.all(runs) : settleAll(runs))))
+      } finally {
+        this.#concurrentGroups -= 1
+        this.#clock?.reset()
+      }
       if (life !== undefined) await this.#tell(life, { type: 'concurrent-end', ref: suite, tests })
     }
     // The retries that waited for the end of the suite (`retry.timing: 'deferred'`), in the order
@@ -1168,6 +1197,7 @@ export class Executor {
     const policy = this.#policy
     const errors = attempt.errors
     const life = this.#life
+    this.#pacing()?.owe(this.#turns.testStart)
     if (life !== undefined) {
       await this.#tell(life, { type: 'test-start', ref: test, id: test.id })
       await this.#tell(life, { type: 'test-started', ref: test })
@@ -1219,6 +1249,8 @@ export class Executor {
       await this.#runBeforeEach(run, eachHooks.beforeEach, attempt, teardowns)
     }
     const life = this.#life
+    // jest-circus dispatches `test_fn_start` whether or not the body runs.
+    this.#pacing()?.owe(this.#turns.fnStart)
     if (life !== undefined) await this.#tell(life, { type: 'fn-start', ref: test })
     if (errors.length === 0 && attempt.skipped === undefined) await this.#runBody(test, attempt)
     if (eachHooks.afterEach.length > 0 || teardowns.length > 0) {
@@ -1241,6 +1273,7 @@ export class Executor {
       const failed = this.#order(attempt.onFailed, 'afterEach')
       if (failed.length > 0) await this.#runCallbacks(run, attempt, failed, 'onTestFailed')
     }
+    this.#pacing()?.owe(this.#turns.testEnd)
     if (life !== undefined) await this.#tell(life, { type: 'test-done', ref: test, errors })
   }
 
@@ -1351,20 +1384,29 @@ export class Executor {
     const timeoutMs = this.#timeoutFor(attempt, ownMs)
     const failures: unknown[] = []
     let threw = false
+    const call = (): unknown =>
+      invoke(this.#invokeEnv(attempt), {
+        fn,
+        arity: test.arity,
+        thisArg: attempt.thisArg,
+        args: test.rowArgs ?? NO_ARGS,
+        contextArgs,
+        isTest: true,
+      })
+    // The turns since the last function ended are paid for first, and the body's end starts the
+    // count of the next ones (`boundaryTurns`).
+    const clock = this.#pacing()
+    const due = clock?.wait()
+    if (due !== undefined) await due
+    const fnEnd = this.#turns.fnEnd
     try {
       await this.#calls.run(() =>
-        this.#deadlines.call(
-          () =>
-            invoke(this.#invokeEnv(attempt), {
-              fn,
-              arity: test.arity,
-              thisArg: attempt.thisArg,
-              args: test.rowArgs ?? NO_ARGS,
-              contextArgs,
-              isTest: true,
-            }),
-          { what: 'test', timeoutMs, namedMs: ownMs, attempt },
-        ),
+        this.#deadlines.call(clock === undefined ? call : () => clock.through(call, fnEnd), {
+          what: 'test',
+          timeoutMs,
+          namedMs: ownMs,
+          attempt,
+        }),
       )
     } catch (error) {
       // `ctx.skip()` ends the test as skipped, not failed.
@@ -1521,13 +1563,21 @@ export class Executor {
     const failures: unknown[] = []
     if (items.length === 0) return failures
     if (this.#parallel(kind)) {
-      await Promise.all(
-        items.map(async (item) => {
-          const result = await call(item)
-          if (result.ok) onValue?.(item, result.value)
-          else failures.push(result.error)
-        }),
-      )
+      // Hooks that run at once interleave as a concurrent group's tests do: none is counted.
+      this.#clock?.reset()
+      this.#concurrentGroups += 1
+      try {
+        await Promise.all(
+          items.map(async (item) => {
+            const result = await call(item)
+            if (result.ok) onValue?.(item, result.value)
+            else failures.push(result.error)
+          }),
+        )
+      } finally {
+        this.#concurrentGroups -= 1
+        this.#clock?.reset()
+      }
       return failures
     }
     // In sequence, each call is awaited here: no async wrapper per call (T5.14).
@@ -1588,7 +1638,10 @@ export class Executor {
     const store = this.#hookScope(run, spec.kind, spec.owner, attempt)
     // Only a hook the file declared is a lifecycle hook: not a teardown, a callback or a lazy value's.
     const hook = spec.hook
-    const life = hook === undefined || hook.synthetic ? undefined : this.#life
+    const declared = hook !== undefined && !hook.synthetic
+    const life = declared ? this.#life : undefined
+    const clock = declared ? this.#pacing() : undefined
+    clock?.owe(this.#turns.hookStart)
     if (life !== undefined && hook !== undefined) {
       await this.#tell(life, {
         type: 'hook-start',
@@ -1598,6 +1651,12 @@ export class Executor {
         test: attempt?.test,
       })
     }
+    // The turns since the last function ended are paid for before the hook starts, and its end
+    // starts the count of the next ones (`boundaryTurns`).
+    const due = clock?.wait()
+    if (due !== undefined) await due
+    const hookEnd = this.#turns.hookEnd
+    const timed = clock === undefined ? call : () => clock.through(call, hookEnd)
     const startedAt = this.#emitHookStart(spec)
     let result: CallResult
     try {
@@ -1605,7 +1664,7 @@ export class Executor {
       // With no limiter the call starts at once, so `hook-start`'s time is its deadline's start
       // too; a call that may wait for a slot reads the clock again when it gets one.
       const bounded = (): Promise<unknown> =>
-        this.#deadlines.call(call, {
+        this.#deadlines.call(timed, {
           what: 'hook',
           timeoutMs,
           attempt,

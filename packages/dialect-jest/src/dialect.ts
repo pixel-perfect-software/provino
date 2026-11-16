@@ -100,6 +100,15 @@ export const jestPolicy: PolicyOverrides = {
       import.meta.resolve('@provino/dialect-jest/runtime'),
       'shapeTestError',
     ),
+    // jest-circus 30.5.2 awaits its six event handlers at each event (`dispatch`, `state.ts`): 7 turns
+    // an event. A hook's start is `hook_start`; its end `hook_success` and 7 turns of plumbing
+    // (`callAsyncCircusFn`'s `finally`, the `_callCircusHook` wrappers); a test's function starts
+    // with `test_fn_start` and ends with `test_fn_success` and 6; a test starts with `test_start`,
+    // `test_started` and the adapter's own root `beforeEach` (21); it ends with `test_done` and 4.
+    // Runtime corpus `microtask-turns` and `microtask-turns-jsdom` agree: 21 turns between hooks,
+    // 20 from a test to its `afterEach`, 67 from the last `afterEach` to the next `beforeEach`, 66
+    // between tests with no hooks.
+    boundaryTurns: { hookStart: 7, hookEnd: 14, fnStart: 7, fnEnd: 13, testStart: 35, testEnd: 11 },
     // Jest passes `done`, not a context: nothing to call (runtime corpus `done-callback` agrees).
     doneDeprecatedMessage: null,
     // research: track-01 L191 (`none`)

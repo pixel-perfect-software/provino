@@ -325,4 +325,45 @@ export interface CorePolicy {
    * Node's own text). Provino's own key; the value is backed by `cli/node-assert`.
    */
   readonly shapeTestError: Behaviour<ShapeTestError> | null
+  /**
+   * How many microtask turns a promise chain a file left running gets between two of its
+   * functions, by the boundaries the run passes on the way. Counted from the end of a function
+   * (its return, or the settling of the promise it returned) to the start of the next one, the
+   * turns are the sum of the boundaries passed: a test's end to its first `afterEach` is
+   * `fnEnd + hookStart`, the last `afterEach` to the next test's first `beforeEach` is
+   * `hookEnd + testEnd + testStart + hookStart`. Core counts the turns that pass and waits for the
+   * rest, so the sum holds whatever its own code takes, up to the point where its own code takes
+   * longer. All `0` waits for nothing and counts nothing.
+   *
+   * Jest: jest-circus 30.5.2 awaits each of its six event handlers at every event it dispatches
+   * (`dispatch`, `state.ts`), so each event is 7 turns, around the promise plumbing of its calls
+   * (`callAsyncCircusFn`'s `finally`, the `_callCircusHook` wrappers). A chain a test started gets
+   * 20 turns before its `afterEach` (`runtime/microtask-turns`, under node and jsdom), where an
+   * axios interceptor chain reaches a mock adapter and a React state update lands inside `act()`.
+   * Vitest: `0` (not recorded yet). Provino's own key.
+   */
+  readonly boundaryTurns: BoundaryTurns
+}
+
+/**
+ * The microtask turns of each boundary between a file's functions (`CorePolicy.boundaryTurns`).
+ * Each counts in the boundaries of every hook kind and test it applies to, sync or async.
+ * @public
+ */
+export interface BoundaryTurns {
+  /** Before a hook's function is called (jest-circus: `hook_start`). */
+  readonly hookStart: number
+  /** After a hook's function ended (`hook_success` or `hook_failure`, and its call's promise plumbing). */
+  readonly hookEnd: number
+  /** Before a test's function is called, once its `beforeEach` hooks are over (`test_fn_start`). */
+  readonly fnStart: number
+  /** After a test's function ended (`test_fn_success` or `test_fn_failure`, and its call's plumbing). */
+  readonly fnEnd: number
+  /**
+   * As a test's attempt starts, before its first `beforeEach` (`test_start`, `test_started`, and
+   * the `beforeEach` jest-circus's adapter registers for the mock flags, with its own two events).
+   */
+  readonly testStart: number
+  /** As a test's attempt ends, after its last `afterEach` (`test_done`, and its unwinding). */
+  readonly testEnd: number
 }
