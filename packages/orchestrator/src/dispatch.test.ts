@@ -268,6 +268,33 @@ describe('createFileDispatch', () => {
     assert.equal(runner.runnerFailed, true)
   })
 
+  it('fails a passing file for an error charged to it or its task after the runtime ended it', async () => {
+    const late = (ownerId: TaskId | null): WorkerEvent => ({
+      type: 'unhandled-error',
+      ownerId,
+      lastTestId: null,
+      origin: 'unhandledRejection',
+      error: boom,
+      t: 3,
+    })
+    const ended: WorkerEvent = { type: 'file-end', fileId: id('f'), result, t: 2 }
+    const stateAfter = async (events: readonly WorkerEvent[]): Promise<string | undefined> => {
+      const dispatch = createFileDispatch({
+        bus: recordingBus().bus,
+        file: info,
+        onUnhandled: () => {},
+      })
+      await dispatch.handle([collected, ended, ...events])
+      return dispatch.result?.state
+    }
+    assert.equal(await stateAfter([late(id('t'))]), 'fail', 'its test')
+    assert.equal(await stateAfter([late(id('f'))]), 'fail', 'the file itself')
+    // The run's own error, and another file's test's (a timer of an earlier file), leave it.
+    assert.equal(await stateAfter([late(null)]), 'pass')
+    assert.equal(await stateAfter([late(id('elsewhere'))]), 'pass')
+    assert.equal(await stateAfter([]), 'pass')
+  })
+
   it('rejects an event for a task it was never told about', async () => {
     const { bus } = recordingBus()
     const dispatch = createFileDispatch({ bus, file: info, onUnhandled: () => {} })

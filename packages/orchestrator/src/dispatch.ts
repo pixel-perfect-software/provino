@@ -161,6 +161,16 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
       case 'unhandled-error':
         onUnhandled(event.error)
         if (event.origin === 'runner') runnerFailed = true
+        // Charged to this file or one of its tasks after the runtime ended the file (in the worker's
+        // last turn before `fileDone`, when Node reports what the last test left): a turn earlier
+        // the runtime would have failed the file for it, so the file fails.
+        if (
+          result?.state === 'pass' &&
+          event.ownerId !== null &&
+          (event.ownerId === file.fileId || nodes.has(event.ownerId))
+        ) {
+          result = { ...result, state: 'fail' }
+        }
         // An error charged to the run, not to a task, belongs to no file.
         return await bus.emit('unhandled', event.ownerId === null ? null : file, event)
       case 'file-end':
