@@ -84,7 +84,10 @@ export interface TextReporterOptions {
   /**
    * Text printed in place of Provino's own failure blocks for a file that failed (`undefined`:
    * the blocks). A dialect that has its own failure text for a file passes it here, one block per
-   * failed test so each test's lazy values (T6.10) can follow its own block.
+   * failed test so each test's lazy values (T6.10) can follow its own block. The text must contain
+   * every unhandled error the file's record holds (those charged to the file, to one of its tasks,
+   * or to one of its tests after it ended): the reporter counts them as shown and doesn't print
+   * them again at the run's end.
    */
   readonly failureText?: (file: FileResult) => readonly FailureTextBlock[] | undefined
   /**
@@ -327,9 +330,8 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       )
     } else if (result.state === 'fail') {
       const failed = failuresOf(entry)
-      for (const test of failed) {
-        if (test.id !== undefined) markShown(entry?.late.get(test.id) ?? [])
-      }
+      // A failed test's errors hold its late ones, the same objects (`outcomeOf`).
+      for (const test of failed) markShown(test.errors)
       parts.push(
         ...failed.map(
           (test) =>
