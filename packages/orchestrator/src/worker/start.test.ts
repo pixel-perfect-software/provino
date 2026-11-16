@@ -253,9 +253,9 @@ describe('startWorker', () => {
   })
 
   describe('fileDone.memoryBytes', () => {
-    /** 160 MB of heap that nothing refers to once this returns. */
-    function makeGarbage(): void {
-      new Array(20_000_000).fill(0)
+    /** 160 MB of heap: garbage once the caller drops it. */
+    function make160MB(): unknown[] {
+      return new Array(20_000_000).fill(0)
     }
 
     /**
@@ -280,7 +280,7 @@ describe('startWorker', () => {
       const limit = limitAboveLiveHeap()
       const h = harness({
         runFile: async () => {
-          makeGarbage()
+          make160MB()
           return undefined
         },
       })
@@ -300,7 +300,7 @@ describe('startWorker', () => {
       const limit = limitAboveLiveHeap()
       const h = harness({
         runFile: async () => {
-          held.push(new Array(20_000_000).fill(0))
+          held.push(make160MB())
           return undefined
         },
       })

@@ -13,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 import { createJestConfigReader, jestCli } from '@provino/dialect-jest/node'
 import type { ConfigSource } from '@provino/types'
 import { run } from 'provino/node'
-import { Collect, isRunning, notedPids, QUIET_ENV, trackedProjects } from './support.ts'
+import { Collect, isRunning, notedPids, noting, QUIET_ENV, trackedProjects } from './support.ts'
 
 const makeProject = trackedProjects()
 
@@ -65,6 +65,16 @@ const RESTART_DEADLINE_MS = 30_000
 /** How long a child that is not to be restarted is watched for. */
 const NO_RESTART_SETTLE_MS = 1500
 
+/** Polls until the process `pid` is gone; false when `deadlineMs` passes first. */
+async function goneWithin(pid: number, deadlineMs: number): Promise<boolean> {
+  const until = Date.now() + deadlineMs
+  while (isRunning(pid)) {
+    if (Date.now() > until) return false
+    await sleep(25)
+  }
+  return true
+}
+
 describe('against jest-worker 30.5.1', () => {
   /** The `workerIdleMemoryLimit` the Jest dialect's reader makes of a config's value, as `provino jest` reads it. */
   async function normalized(option: unknown): Promise<number | undefined> {
@@ -99,12 +109,7 @@ describe('against jest-worker 30.5.1', () => {
     })
     try {
       const first = await worker.pid()
-      const until = Date.now() + (expected ? RESTART_DEADLINE_MS : NO_RESTART_SETTLE_MS)
-      while (isRunning(first)) {
-        if (Date.now() > until) return false
-        await sleep(25)
-      }
-      return true
+      return await goneWithin(first, expected ? RESTART_DEADLINE_MS : NO_RESTART_SETTLE_MS)
     } finally {
       await worker.end()
     }
@@ -186,11 +191,7 @@ describe('against jest-worker 30.5.1', () => {
       })
       try {
         const first = await worker[method]()
-        const until = Date.now() + (expected ? RESTART_DEADLINE_MS : NO_RESTART_SETTLE_MS)
-        while (isRunning(first)) {
-          if (Date.now() > until) break
-          await sleep(25)
-        }
+        await goneWithin(first, expected ? RESTART_DEADLINE_MS : NO_RESTART_SETTLE_MS)
         assert.equal(!isRunning(first), expected)
       } finally {
         await worker.end()
@@ -204,51 +205,13 @@ describe('against jest-worker 30.5.1', () => {
 // The pool asks the worker to collect once when its heap is over the limit and replaces it only if
 // it is still over: a replacement reloads every shared module for nothing. A test can't tell:
 // `JEST_WORKER_ID` and the files a worker runs are the same either way. Everything above is the
-// same in both; these three are the whole difference.
+// same in both; this is the whole difference (a worker that holds what it made is replaced by
+// both: `pool-chaos.test.ts` in the orchestrator).
 describe('garbage alone: a deliberate difference from jest-worker 30.5.1', () => {
   /** 240 MB of heap, nothing refers to it once the expression is done. */
   const GARBAGE = 'new Array(30_000_000).fill(0)'
   /** Over a bare child's heap and under what the garbage adds to it, with room on both sides. */
   const LIMIT = 200 * 1024 * 1024
-
-  /** A test file that notes its worker's pid, then makes the garbage, and keeps it or not. */
-  function garbageFile(name: string, pidFile: string, keep: boolean): string {
-    return [
-      "const { appendFileSync } = require('node:fs')",
-      `test(${JSON.stringify(name)}, () => {`,
-      `  appendFileSync(${JSON.stringify(pidFile)}, process.pid + '\\n')`,
-      // A core module's exports are one object for the whole worker, whatever the file.
-      `  ${keep ? "require('node:v8').__held = " : 'const scratch = '}${GARBAGE}`,
-      `  expect(${keep ? "require('node:v8').__held" : 'scratch'}.length).toBe(30_000_000)`,
-      '})',
-      '',
-    ].join('\n')
-  }
-
-  /** The pid of each file's worker, in order, for four files on one fork. */
-  async function workersFor(keep: boolean): Promise<readonly number[]> {
-    const project = await makeProject((dir) => {
-      const pidFile = `${dir}/workers.pids`
-      return Object.fromEntries(
-        ['a', 'b', 'c', 'd'].map((name) => [
-          `tests/${name}.test.js`,
-          garbageFile(name, pidFile, keep),
-        ]),
-      )
-    })
-    const stderr = new Collect()
-    const result = await run({
-      config: project.config,
-      pool: 'forks',
-      maxWorkers: 1,
-      workerMemoryLimit: LIMIT,
-      stdout: new Collect(),
-      stderr,
-      env: QUIET_ENV,
-    })
-    assert.equal(result.exitCode, 0, stderr.text)
-    return notedPids(project.path('workers.pids'))
-  }
 
   it('jest-worker replaces a child that only made garbage: it reads heapUsed as it is', async () => {
     const project = await makeProject({
@@ -267,25 +230,37 @@ describe('garbage alone: a deliberate difference from jest-worker 30.5.1', () =>
     })
     try {
       const first = await worker.makeGarbage()
-      const until = Date.now() + RESTART_DEADLINE_MS
-      while (isRunning(first)) {
-        assert.ok(Date.now() <= until, 'the child that made the garbage is still there')
-        await sleep(25)
-      }
+      assert.ok(
+        await goneWithin(first, RESTART_DEADLINE_MS),
+        'the child that made the garbage is still there',
+      )
     } finally {
       await worker.end()
     }
   })
 
   it('the pool keeps its worker: it collects the garbage before it compares the heap with the limit', async () => {
-    const pids = await workersFor(false)
-    assert.equal(pids.length, 4)
+    const project = await makeProject((dir) =>
+      Object.fromEntries(
+        ['a', 'b', 'c'].map((name) => [
+          `tests/${name}.test.js`,
+          noting(name, `${dir}/workers.pids`, [`  ${GARBAGE}`]),
+        ]),
+      ),
+    )
+    const stderr = new Collect()
+    const result = await run({
+      config: project.config,
+      pool: 'forks',
+      maxWorkers: 1,
+      workerMemoryLimit: LIMIT,
+      stdout: new Collect(),
+      stderr,
+      env: QUIET_ENV,
+    })
+    assert.equal(result.exitCode, 0, stderr.text)
+    const pids = await notedPids(project.path('workers.pids'))
+    assert.equal(pids.length, 3)
     assert.equal(new Set(pids).size, 1, `one worker took every file, got ${pids.join(', ')}`)
-  })
-
-  it('the pool still replaces a worker that holds what it made: only garbage is collected away', async () => {
-    const pids = await workersFor(true)
-    assert.equal(pids.length, 4)
-    assert.equal(new Set(pids).size, 4, `a worker per file, got ${pids.join(', ')}`)
   })
 })
