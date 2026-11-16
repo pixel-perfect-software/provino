@@ -3,8 +3,10 @@
 // per test, whose stack frames the recorder replaces with `<frames>`. Each case here throws what
 // the fixture's test throws; its text up to the first frame must be the recorded one.
 import assert from 'node:assert'
+import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { describe, test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { stripVTControlCharacters } from 'node:util'
 import { shapeTestError } from './node-assert-errors.ts'
 import formatNodeAssertErrors from './vendor/jest-circus/formatNodeAssertErrors.ts'
@@ -161,6 +163,41 @@ test('an error that is no assertion error is returned as it is', () => {
   assert.equal(shapeTestError('text', EXPAND), 'text')
   assert.equal(shapeTestError(undefined, EXPAND), undefined)
   assert.equal(shapeTestError(null, EXPAND), null)
+})
+
+// The goldens above are compared with the colour stripped, so a colour level of `RESET` that is not
+// the others' would pass them. With colour forced on, the text must start with the hint painted by
+// `jest-matcher-utils`' own colour functions and the line after it painted by the `chalk.reset` of
+// the Chalk they use, byte for byte.
+test('the text starts with the hint at the colour level in use', () => {
+  const here = (path: string): string => fileURLToPath(new URL(path, import.meta.url))
+  const script = `
+    import { createRequire } from 'node:module'
+    import assert from 'node:assert'
+    const { shapeTestError } = await import(${JSON.stringify(here('./node-assert-errors.ts'))})
+    const require = createRequire(${JSON.stringify(here('../../package.json'))})
+    const utils = require('jest-matcher-utils')
+    const chalk = createRequire(require.resolve('jest-matcher-utils'))('chalk')
+    let error
+    try { assert.equal(1, 2) } catch (thrown) { error = thrown }
+    const { message } = shapeTestError(error, { expand: false })
+    const hint = utils.DIM_COLOR('assert') + utils.DIM_COLOR('.equal(') +
+      utils.RECEIVED_COLOR('received') + utils.DIM_COLOR(', ') +
+      utils.EXPECTED_COLOR('expected') + utils.DIM_COLOR(')')
+    const expected = hint + '\\n\\n' + chalk.reset('Expected value to be equal to:\\n')
+    console.log(JSON.stringify({ painted: expected.includes('\\u001b['), starts: message.startsWith(expected) }))
+  `
+  const { NO_COLOR: _noColor, ...inherited } = process.env
+  const result = spawnSync(
+    process.execPath,
+    ['--conditions=provino-source', '--input-type=module', '-e', script],
+    { encoding: 'utf8', env: { ...inherited, FORCE_COLOR: '1' } },
+  )
+  assert.equal(result.status, 0, result.stderr)
+  assert.deepEqual(JSON.parse(result.stdout.trim().split('\n').at(-1) ?? 'null'), {
+    painted: true,
+    starts: true,
+  })
 })
 
 // jest-circus maps each entry of `test.errors` at `test_done` (`formatNodeAssertErrors.ts` L46-L74):
