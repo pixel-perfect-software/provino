@@ -31,4 +31,9 @@ describe('packages evaluated per file take what only they import (D132), against
       },
     })
   })
+
+  it('ecosystem/per-file-registry-cycle: a registry whose files import each other is per file with the plugin', async () => {
+    const id = 'ecosystem/per-file-registry-cycle'
+    assertMatchesGolden(id, await provinoOn(id, { parent: PARENT }))
+  })
 })
