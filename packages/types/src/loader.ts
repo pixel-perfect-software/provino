@@ -100,6 +100,22 @@ export interface LoaderWarning {
 }
 
 /**
+ * Which files a project's transforms take, as Jest's `ScriptTransformer.shouldTransform` and its
+ * first-matching rule decide: a path one of `patterns` matches and none of `ignorePatterns` does.
+ * Regular expressions' sources, so it crosses to a worker as data.
+ * @public
+ */
+export interface TransformClaims {
+  /**
+   * A path one matches is taken by a transform: the rules' patterns, and those of a transform the
+   * dialect left out because Provino's own pipeline stands in for it (Jest's default `babel-jest`).
+   */
+  readonly patterns: readonly string[]
+  /** A path one matches is not transformed (Jest's `transformIgnorePatterns`, joined with `|`). */
+  readonly ignorePatterns: readonly string[]
+}
+
+/**
  * Options for one worker's loader.
  * @public
  */
@@ -129,6 +145,14 @@ export interface LoaderOptions {
   readonly formatMapperMiss?: FormatMapperMiss
   /** Modules always loaded per file (Vitest `server.deps.inline`). */
   readonly inline?: readonly (string | RegExp)[]
+  /**
+   * The files the project's transforms take. A `node_modules` file they take that has ES module
+   * syntax (`.mjs`, a `.js` under a `"type": "module"` package, or `import`/`export` in its
+   * source) is a user module: transformed and evaluated per file, as Jest transforms it, where
+   * Node's own loader would run it untransformed (and find no file for an extensionless import).
+   * One with CommonJS syntax stays shared, loaded by Node. Absent: no `node_modules` file is.
+   */
+  readonly transformClaims?: TransformClaims
   /**
    * How many modules inlined for one mocked module before the loader warns (`PROVINO_INLINE_BUDGET`,
    * once per mocked id per worker); it still inlines. Default 400.

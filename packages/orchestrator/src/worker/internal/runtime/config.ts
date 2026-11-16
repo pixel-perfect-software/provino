@@ -19,6 +19,7 @@ import type {
   SerializedPolicy,
   SerializedProjectConfig,
   SerializedTransformConfig,
+  TransformClaims,
 } from '@provino/types'
 import { WorkerError } from '../../errors.ts'
 import { isRecord, isStringArray } from './guards.ts'
@@ -200,6 +201,15 @@ function transformConfig(value: unknown): SerializedTransformConfig {
   }
 }
 
+/** The files the transforms take (B23e); the caller reads this only when the key is present. */
+function transformClaims(value: unknown): TransformClaims {
+  const claims = record(value, 'loader.transformClaims')
+  return {
+    patterns: texts(claims.patterns, 'loader.transformClaims.patterns'),
+    ignorePatterns: texts(claims.ignorePatterns, 'loader.transformClaims.ignorePatterns'),
+  }
+}
+
 /** The optional resolver keys (T3.3); an absent one stays absent. */
 function resolverKeys(loader: Record<string, unknown>): Partial<SerializedLoaderConfig> {
   const keys: { -readonly [K in keyof SerializedLoaderConfig]?: SerializedLoaderConfig[K] } = {}
@@ -253,6 +263,9 @@ function loaderConfig(value: unknown): SerializedLoaderConfig {
     mappers: mapperList(loader.mappers),
     typescript: typescript as SerializedLoaderConfig['typescript'],
     ...(loader.transform === undefined ? {} : { transform: transformConfig(loader.transform) }),
+    ...(loader.transformClaims === undefined
+      ? {}
+      : { transformClaims: transformClaims(loader.transformClaims) }),
     ...(loader.codeIdentity === undefined
       ? {}
       : { codeIdentity: text(loader.codeIdentity, 'loader.codeIdentity') }),

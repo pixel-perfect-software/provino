@@ -39,6 +39,7 @@ import {
   preloadAsync,
   type Records,
   recordFor,
+  requireEsmError,
   resolveOrMissing,
   resolveTarget,
   scopeOf,
@@ -624,8 +625,15 @@ export class Registry {
       state.required.set(key, value)
       return value
     }
-    // The external's first native load in this worker: a window the worker may watch (D127).
-    const load = (): unknown => createRequire(target.path)(key)
+    // The external's first native load in this worker: a window the worker may watch (D127). One
+    // that throws on an ES module the transforms leave out is the dialect's `require-esm` error.
+    const load = (): unknown => {
+      try {
+        return createRequire(target.path)(key)
+      } catch (error) {
+        throw requireEsmError(state, target.path) ?? error
+      }
+    }
     const value: unknown =
       state.options.policy.reevaluateHookingExternals && !this.#sharedAcrossFiles
         ? watchedLoad(

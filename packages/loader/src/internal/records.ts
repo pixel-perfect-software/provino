@@ -2,7 +2,7 @@
 // compiled once per worker, its static deps are resolved once, and shared externals are loaded
 // natively. Records never hold per-file state; that lives in a registry's instances.
 import { readFileSync } from 'node:fs'
-import { relative, sep } from 'node:path'
+import { extname, relative, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { runInThisContext } from 'node:vm'
 import { LATE_IMPORT, toModuleRunner, usesModuleRunnerForm } from '@provino/transform'
@@ -14,9 +14,15 @@ import type {
   ResolveResult,
   SourceMapV3,
 } from '@provino/types'
-import { LoaderError, ModuleNotFoundError } from '../errors.ts'
-import { type GraphEdge, inGraph } from '../graph/index.ts'
-import { createEdgeKindState, type EdgeKindState, edgeConditions, edgeKind } from './edge-kind.ts'
+import { LoaderError, ModuleNotFoundError, RequireEsmError } from '../errors.ts'
+import { type GraphEdge, hasEsmSyntax, inGraph } from '../graph/index.ts'
+import {
+  createEdgeKindState,
+  type EdgeKindState,
+  edgeConditions,
+  edgeKind,
+  inModulePackage,
+} from './edge-kind.ts'
 import { createInlineState, type InlineState } from './inline.ts'
 import { loaderMessage } from './messages.ts'
 import { createReevaluateState, type ReevaluateState } from './reevaluate.ts'
@@ -127,6 +133,89 @@ function isThirdParty(path: string, inline: readonly (string | RegExp)[]): boole
   )
 }
 
+/** `LoaderOptions.transformClaims`, compiled once per worker. */
+interface CompiledClaims {
+  readonly patterns: readonly RegExp[]
+  /** The ignore patterns joined with `|`, as Jest joins them; `null` for none. */
+  readonly ignore: RegExp | null
+  /** Each `node_modules` file asked about: whether it is a user module. */
+  readonly verdicts: Map<string, boolean>
+}
+
+function compileClaims(options: LoaderOptions): CompiledClaims | null {
+  const claims = options.transformClaims
+  if (claims === undefined || claims.patterns.length === 0) return null
+  return {
+    patterns: claims.patterns.map((pattern) => new RegExp(pattern)),
+    ignore: claims.ignorePatterns.length === 0 ? null : new RegExp(claims.ignorePatterns.join('|')),
+    verdicts: new Map(),
+  }
+}
+
+/**
+ * Whether the file at `path` has ES module syntax, as Node decides a format: `.mjs` does, `.cjs`
+ * doesn't, a `.js` under a `"type": "module"` package does, and any other file by its source
+ * (`import`/`export` or `import.meta`, as Node's detection reads an ambiguous `.js`). Called once
+ * per file a transform takes.
+ */
+function hasModuleSyntax(state: Records, path: string): boolean {
+  const extension = extname(path)
+  if (extension === '.mjs') return true
+  if (extension === '.cjs' || extension === '.json') return false
+  if (extension === '.js' && inModulePackage(state.edgeKinds, path)) return true
+  let source: string
+  try {
+    source = readFileSync(path, 'utf8')
+  } catch {
+    // Node meets the same failure when it loads it.
+    return false
+  }
+  return hasEsmSyntax(source)
+}
+
+/**
+ * Whether a `node_modules` file is a user module because a transform takes it and Node could not
+ * run it as Jest runs the transform's output (B23e, D115): a rule's pattern matches its real path,
+ * no ignore pattern does (Jest's `ScriptTransformer.shouldTransform`), and it has ES module
+ * syntax. A CommonJS file a transform takes stays shared, loaded by Node. One regular expression
+ * test for a file the ignore patterns opt out (Jest's default: every `node_modules` file), and each
+ * verdict is kept for the worker.
+ */
+function takenByTransform(state: Records, path: string): boolean {
+  const claims = state.claims
+  if (claims === null) return false
+  let verdict = claims.verdicts.get(path)
+  if (verdict === undefined) {
+    verdict =
+      claims.ignore?.test(path) !== true &&
+      claims.patterns.some((pattern) => pattern.test(path)) &&
+      hasModuleSyntax(state, path)
+    claims.verdicts.set(path, verdict)
+  }
+  return verdict
+}
+
+/**
+ * The error for a shared external whose native load threw (`require-esm`): the dialect's text when
+ * the file has ES module syntax, which a runner that runs untransformed `node_modules` files as
+ * CommonJS (Jest) refuses before it runs them; `undefined` otherwise, so the load's own error
+ * stands. Read only after a load failed, so a load that works pays nothing.
+ */
+export function requireEsmError(state: Records, path: string): RequireEsmError | undefined {
+  const message = loaderMessage(state.options.policy, 'require-esm', { path })
+  if (message === undefined || !inGraph(path) || !hasModuleSyntax(state, path)) return undefined
+  return new RequireEsmError(message)
+}
+
+/**
+ * Whether a resolved file loads natively, shared by the worker: an addon, or a `node_modules` file
+ * `inline` doesn't name and no transform takes as a user module.
+ */
+function isExternal(state: Records, path: string): boolean {
+  if (path.endsWith('.node')) return true
+  return isThirdParty(path, state.options.inline ?? []) && !takenByTransform(state, path)
+}
+
 export interface Records {
   readonly options: LoaderOptions
   /** The node_modules graph and what inlining warned (T2.6). */
@@ -141,6 +230,8 @@ export interface Records {
   readonly reevaluate: ReevaluateState
   /** Which importers run as ES modules, for `ModulePolicy.edgeResolveKind`. */
   readonly edgeKinds: EdgeKindState
+  /** The files the transforms take (`LoaderOptions.transformClaims`); `null` for none. */
+  readonly claims: CompiledClaims | null
   /** The scope names a module of each format can be given, in order. */
   readonly scopeNames: { readonly esm: readonly string[]; readonly cjs: readonly string[] }
   /** One word-scan pattern per scope name. */
@@ -178,6 +269,7 @@ export function createRecords(options: LoaderOptions): Records {
     listeners: new Set(),
     reevaluate: createReevaluateState(),
     edgeKinds: createEdgeKindState(options),
+    claims: compileClaims(options),
     scopeNames: { esm, cjs: dialect },
     scopePatterns,
     asyncGraphsStale: false,
@@ -284,7 +376,7 @@ export function resolveOrMissing(
   })
   if (result.type === 'builtin') return { kind: 'builtin', id: result.id }
   if (result.type === 'file') {
-    if (result.format === 'addon' || isThirdParty(result.path, state.options.inline ?? [])) {
+    if (result.format === 'addon' || isExternal(state, result.path)) {
       return { kind: 'external', path: result.path }
     }
     return { kind: 'user', id: toModuleId(result.path) }
@@ -315,14 +407,12 @@ export function resolveTarget(
 
 /**
  * The target behind an id the module-mock registry hands back (`loadActual`): `node:<name>` is a
- * builtin, a path under `node_modules` that `inline` doesn't match (or an addon) is an external,
- * any other path a user module.
+ * builtin, a path under `node_modules` that `inline` doesn't match and no transform takes (or an
+ * addon) is an external, any other path a user module.
  */
 export function targetOfId(state: Records, id: string): Found {
   if (id.startsWith('node:')) return { kind: 'builtin', id }
-  if (id.endsWith('.node') || isThirdParty(id, state.options.inline ?? [])) {
-    return { kind: 'external', path: id }
-  }
+  if (isExternal(state, id)) return { kind: 'external', path: id }
   return { kind: 'user', id: toModuleId(id) }
 }
 
@@ -366,7 +456,8 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
   if (existing !== undefined) return existing
   const path: string = id
   const text = readFileSync(path, 'utf8')
-  // A node_modules file only gets here when a mock made it inline (T2.6), or `inline` names it.
+  // A node_modules file only gets here when a mock made it inline (T2.6), a transform takes it
+  // (B23e), or `inline` names it.
   const thirdParty = isThirdParty(path, state.options.inline ?? [])
   let record: ModuleRecord
   let transformKeyOf = ''

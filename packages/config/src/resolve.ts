@@ -23,13 +23,14 @@ import type {
   SerializedLoaderConfig,
   SerializedProjectConfig,
   SerializedTransformConfig,
+  TransformClaims,
 } from '@provino/types'
 import { ConfigError } from './errors.ts'
 import { dialectPolicy, selectDialect } from './internal/dialect.ts'
 import { describe, isStringArray, messageOf, parseInput } from './internal/input.ts'
 import { assertWorkerConfig } from './internal/refs.ts'
 import { resolveSetupFiles } from './internal/setup-files.ts'
-import { resolveTransforms } from './internal/transform.ts'
+import { resolveTransformClaims, resolveTransforms } from './internal/transform.ts'
 
 /**
  * What `resolveProject` needs besides the config itself. The dialects and environments come from
@@ -333,6 +334,7 @@ export async function resolveNeutralProject(
       setupFilesAfterEnvKey: 'setupFilesAfterEnv',
       discovery: neutral.discovery,
       transform: resolveTransforms(neutral),
+      transformClaims: resolveTransformClaims(neutral),
       cacheDirectory: neutral.cacheDirectory,
       globalSetup: globalSetupOf(neutral),
       affected: affectedOf(neutral),
@@ -398,6 +400,8 @@ interface ProjectInput {
   readonly discovery: NeutralDiscovery | null
   /** User transformers (T3.8); a neutral project's only, `undefined` for none. */
   readonly transform?: SerializedTransformConfig | undefined
+  /** The files the transforms take, stand-ins included; a neutral project's only. */
+  readonly transformClaims?: TransformClaims | undefined
   /** The cache directory the config sets itself (D70); a neutral project's only. */
   readonly cacheDirectory?: string | undefined
   /** Global setup and teardown (T9.15); a neutral project's only. */
@@ -545,6 +549,7 @@ async function finishProject(
       mappers: [],
       typescript: 'oxc',
       ...(input.transform === undefined ? {} : { transform: input.transform }),
+      ...(input.transformClaims === undefined ? {} : { transformClaims: input.transformClaims }),
       ...resolverKeys(input),
     },
   }

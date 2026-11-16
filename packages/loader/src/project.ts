@@ -214,6 +214,7 @@ export async function buildProjectLoader(
       : { shouldInstrument: options.coverage.shouldInstrument }),
     conditions: config.conditions,
     ...(config.esmExtensions === undefined ? {} : { esmExtensions: config.esmExtensions }),
+    ...(config.transformClaims === undefined ? {} : { transformClaims: config.transformClaims }),
     ...(config.resolver === undefined ? {} : { resolverName: config.resolver.module }),
     ...(policy.mapperMiss === null
       ? {}

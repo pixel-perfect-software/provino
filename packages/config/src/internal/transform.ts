@@ -1,6 +1,6 @@
 import { createRequire } from 'node:module'
 import { isAbsolute, join } from 'node:path'
-import type { NeutralProject, SerializedTransformConfig } from '@provino/types'
+import type { NeutralProject, SerializedTransformConfig, TransformClaims } from '@provino/types'
 import { ConfigError } from '../errors.ts'
 import { describe, messageOf } from './input.ts'
 
@@ -62,5 +62,28 @@ export function resolveTransforms(neutral: NeutralProject): SerializedTransformC
     ignorePatterns: [...neutral.transformIgnorePatterns],
     config: neutral.transformConfig ?? {},
     hoistedMarkers: [...(neutral.transformHoistedMarkers ?? [])],
+  }
+}
+
+/**
+ * The files the project's transforms take (`SerializedLoaderConfig.transformClaims`): the rules'
+ * patterns and the ones Provino's pipeline stands in for (`standInTransformPatterns`), with
+ * `transformIgnorePatterns`. `undefined` for a project with no transform, whose `node_modules`
+ * files are all loaded by Node. Each pattern is checked here, as `resolveTransforms` checks the
+ * rules', so a bad one is a config error and not a failure in every worker.
+ * @internal
+ */
+export function resolveTransformClaims(neutral: NeutralProject): TransformClaims | undefined {
+  const standIns = neutral.standInTransformPatterns ?? []
+  if (neutral.transforms.length === 0 && standIns.length === 0) return undefined
+  standIns.forEach((pattern, index) => {
+    assertRegExp(pattern, `standInTransformPatterns[${index}]`)
+  })
+  neutral.transformIgnorePatterns.forEach((pattern, index) => {
+    assertRegExp(pattern, `transformIgnorePatterns[${index}]`)
+  })
+  return {
+    patterns: [...neutral.transforms.map((rule) => rule.pattern), ...standIns],
+    ignorePatterns: [...neutral.transformIgnorePatterns],
   }
 }

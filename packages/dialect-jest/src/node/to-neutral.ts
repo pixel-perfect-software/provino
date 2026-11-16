@@ -343,6 +343,12 @@ export function jestProjectToNeutral(
       ...(project.skipNodeResolution === true ? { skipNodeResolution: true } : {}),
     },
     transforms,
+    // The default entry the Oxc path stands in for still takes what it matches (`\.[jt]sx?$`), as
+    // `ScriptTransformer.shouldTransform` asks of every module, `node_modules` ones included: a
+    // package `transformIgnorePatterns` lets through is transformed (B23e, D115).
+    ...(skipImplicit
+      ? { standInTransformPatterns: project.transform.map(([pattern]) => pattern) }
+      : {}),
     transformIgnorePatterns: [...project.transformIgnorePatterns],
     // What a transformer reads as `config`: the project config as JSON (ts-jest reads `rootDir`,
     // `cwd`, `globals` and `testMatch` from it). Nothing in a normalized config fails to clone.

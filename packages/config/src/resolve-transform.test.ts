@@ -113,3 +113,53 @@ test('a transform or ignore pattern that is not a regular expression is CONFIG_I
   )
   assert.match(ignore.message, /transformIgnorePatterns\[0\]/)
 })
+
+test('the files the transforms take reach the loader, stand-ins included, even with no transform', async () => {
+  const none = await resolveNeutralProject(neutral(), options)
+  assert.equal(none.config.loader.transformClaims, undefined)
+  // Jest's default babel-jest, which the Oxc path stands in for: `transforms` is empty.
+  const standIn = await resolveNeutralProject(
+    neutral({
+      standInTransformPatterns: ['\\.[jt]sx?$'],
+      transformIgnorePatterns: ['/node_modules/(?!(esm-pkg)/)'],
+    }),
+    options,
+  )
+  assert.equal(standIn.config.loader.transform, undefined)
+  assert.deepEqual(standIn.config.loader.transformClaims, {
+    patterns: ['\\.[jt]sx?$'],
+    ignorePatterns: ['/node_modules/(?!(esm-pkg)/)'],
+  })
+  const transformer = await temp.write('t3.cjs', 'module.exports = {}')
+  const named = await resolveNeutralProject(
+    neutral({
+      transforms: [
+        { pattern: '\\.ts$', module: transformer, options: {} },
+        { pattern: '\\.js$', module: transformer, options: {} },
+      ],
+      transformIgnorePatterns: ['/node_modules/'],
+    }),
+    options,
+  )
+  assert.deepEqual(named.config.loader.transformClaims, {
+    patterns: ['\\.ts$', '\\.js$'],
+    ignorePatterns: ['/node_modules/'],
+  })
+  assert.deepEqual(structuredClone(named.config), named.config)
+})
+
+test('a stand-in or ignore pattern that is not a regular expression is CONFIG_INVALID with no rule', async () => {
+  const bad = await rejectsWith(
+    resolveNeutralProject(neutral({ standInTransformPatterns: ['('] }), options),
+    'CONFIG_INVALID',
+  )
+  assert.match(bad.message, /standInTransformPatterns\[0\]/)
+  const ignore = await rejectsWith(
+    resolveNeutralProject(
+      neutral({ standInTransformPatterns: ['x'], transformIgnorePatterns: ['['] }),
+      options,
+    ),
+    'CONFIG_INVALID',
+  )
+  assert.match(ignore.message, /transformIgnorePatterns\[0\]/)
+})

@@ -115,6 +115,11 @@ function moduleTypeFrom(state: EdgeKindState, dir: string): boolean {
   return answer
 }
 
+/** Whether the nearest `package.json` above the file at `path` says `"type": "module"`. */
+export function inModulePackage(state: EdgeKindState, path: string): boolean {
+  return moduleTypeFrom(state, dirname(path))
+}
+
 /** Whether the module at `path` runs as an ES module under `importer-format`. */
 export function runsAsEsm(state: EdgeKindState, path: string): boolean {
   if (!state.runtime().vmModules) return false
