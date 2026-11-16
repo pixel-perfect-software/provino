@@ -1,5 +1,5 @@
 {
-  "description": "Jest 30.5.2 in band (`-i`) on a file whose test leaves a timer that throws once the run is over (it polls for the results file the run writes last): the run passes and writes `success: true`, then the timer's throw ends Jest's process on Node's own report, exit 1. Kept: the `PASS`/`FAIL` headers, the `Error:` lines and the test count. A black-box run, read by `provino`'s `jest-uncaught.test.ts`.",
+  "description": "Jest 30.5.2 in band (`-i`) on a file whose test leaves a timer that throws once the run is over (it polls until the results file the run writes last parses): the run passes and writes `success: true`, then the timer's throw ends Jest's process on Node's own report, exit 1. Kept: the `PASS`/`FAIL` headers, the `Error:` lines and the test count. A black-box run, read by `provino`'s `jest-uncaught.test.ts`.",
   "runners": ["jest"],
   "config": { "jest": { "maxWorkers": 1 } },
   "run": {
