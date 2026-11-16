@@ -1414,31 +1414,43 @@ const DUAL = {
     "import entry from 'dual'\nexport { fromHelper } from './helper.ts'\nexport const fromTest: string = entry\nexport const required: string = require('dual')\n",
 }
 
-test('edgeResolveKind: importer-format resolves every edge of a CommonJS-run module as require', async () => {
+/**
+ * What `entry.test.ts` of the tree at `root` exports, through a registry-tier loader with `policy`
+ * (and Babel's `default` interop, which these trees' CommonJS entries are written for).
+ */
+function importEntry<T = Record<string, string>>(
+  root: string,
+  policy: Partial<ModulePolicy>,
+): Promise<T> {
+  const entry = join(root, 'entry.test.ts')
+  return loaderFor(root, { ...policy, interopDefault: 'babel' })
+    .createFileRegistry(entry, { tier: 'registry' })
+    .import<T>(entry)
+}
+
+test('edgeResolveKind: importer-format follows the importer, as-written (neutral) the edge', async () => {
   // This process has no `--experimental-vm-modules`, so every module runs as CommonJS (Jest's rule).
   const root = writeTree(DUAL)
-  const policy = { edgeResolveKind: 'importer-format', interopDefault: 'babel' } as const
-  const registry = loaderFor(root, policy).createFileRegistry(join(root, 'entry.test.ts'), {
-    tier: 'registry',
-  })
-  const entry = await registry.import<Record<string, string>>(join(root, 'entry.test.ts'))
-  assert.deepEqual(
-    { fromTest: entry.fromTest, fromHelper: entry.fromHelper, required: entry.required },
-    { fromTest: 'node-require', fromHelper: 'node-require', required: 'node-require' },
-  )
-})
-
-test('edgeResolveKind: as-written (neutral) resolves an import as import and a require as require', async () => {
-  const root = writeTree(DUAL)
-  const registry = loaderFor(root, { interopDefault: 'babel' }).createFileRegistry(
-    join(root, 'entry.test.ts'),
-    { tier: 'registry' },
-  )
-  const entry = await registry.import<Record<string, string>>(join(root, 'entry.test.ts'))
-  assert.deepEqual(
-    { fromTest: entry.fromTest, fromHelper: entry.fromHelper, required: entry.required },
-    { fromTest: 'node-import', fromHelper: 'node-import', required: 'node-require' },
-  )
+  const cases = [
+    [
+      'importer-format: every edge of a CommonJS-run module resolves as require',
+      { edgeResolveKind: 'importer-format' },
+      { fromTest: 'node-require', fromHelper: 'node-require', required: 'node-require' },
+    ],
+    [
+      'as-written: an import resolves as import and a require as require',
+      {},
+      { fromTest: 'node-import', fromHelper: 'node-import', required: 'node-require' },
+    ],
+  ] as const
+  for (const [title, policy, expected] of cases) {
+    const entry = await importEntry(root, policy)
+    assert.deepEqual(
+      { fromTest: entry.fromTest, fromHelper: entry.fromHelper, required: entry.required },
+      expected,
+      title,
+    )
+  }
 })
 
 test("edgeResolveKind: an import-only package is not found from a CommonJS-run module, with Jest's text", async () => {
@@ -1455,13 +1467,9 @@ test("edgeResolveKind: an import-only package is not found from a CommonJS-run m
   })
   const policy = {
     edgeResolveKind: 'importer-format',
-    interopDefault: 'babel',
     messages: { 'module-not-found': "Cannot find module '{specifier}' from '{from}'" },
   } as const
-  const registry = loaderFor(root, policy).createFileRegistry(join(root, 'entry.test.ts'), {
-    tier: 'registry',
-  })
-  await assert.rejects(registry.import(join(root, 'entry.test.ts')), {
+  await assert.rejects(importEntry(root, policy), {
     code: 'MODULE_NOT_FOUND',
     message: "Cannot find module 'esm-only' from 'entry.test.ts'",
   })
@@ -1492,11 +1500,10 @@ test('moduleSyncCondition: an import edge adds module-sync, a require only where
   // gate's other side is `edge-kind.test.ts`'s, on the capability seam).
   const root = writeTree(MODULE_SYNC)
   const load = (moduleSyncCondition: ModulePolicy['moduleSyncCondition']) =>
-    loaderFor(root, { moduleSyncCondition, interopDefault: 'babel' })
-      .createFileRegistry(join(root, 'entry.test.ts'), { tier: 'registry' })
-      .import<{ fromImport: string; fromRequire: string; fromDynamic: () => Promise<string> }>(
-        join(root, 'entry.test.ts'),
-      )
+    importEntry<{ fromImport: string; fromRequire: string; fromDynamic: () => Promise<string> }>(
+      root,
+      { moduleSyncCondition },
+    )
   const jest = await load('import-and-sync-require')
   assert.deepEqual(
     { import: jest.fromImport, require: jest.fromRequire, dynamic: await jest.fromDynamic() },
