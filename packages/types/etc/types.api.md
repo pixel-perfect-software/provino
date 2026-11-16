@@ -3625,6 +3625,9 @@ export interface TransformDiagnostic {
     readonly message: string;
     // (undocumented)
     readonly severity: "error" | "warning";
+    readonly thrown?: {
+        readonly name: string | null;
+    };
 }
 
 // @beta

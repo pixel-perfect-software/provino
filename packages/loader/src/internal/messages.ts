@@ -7,6 +7,9 @@ import type { ModulePolicy } from '@provino/types'
  * - `transform-failed`: a file's transform reported an error. `{file}` is its path, `{where}` the
  *   `:line:column` of the error (empty when it has none), `{message}` the error's text. A code
  *   frame, when there is one, follows after a blank line.
+ * - `transformer-failed`: a hosted transformer threw. `{message}` is the thrown error's own text
+ *   (a thrown string is the string), `{file}` its path. The error keeps the thrown class as its
+ *   `name`, so it prints as the transformer's `Name: message` (a thrown string has no class).
  * - `module-not-found`: an import or `require` whose specifier doesn't resolve, and that no mock
  *   stands in for. `{specifier}` as written, `{importer}` the importing file, `{from}` that file
  *   relative to the loader's root (`/` separators).
@@ -19,12 +22,14 @@ import type { ModulePolicy } from '@provino/types'
  */
 export type LoaderMessageCode =
   | 'transform-failed'
+  | 'transformer-failed'
   | 'module-not-found'
   | 'unresolved-mock-import'
   | 'require-esm'
 
 const NEUTRAL: Readonly<Partial<Record<LoaderMessageCode, string>>> = {
   'transform-failed': '{file}{where}: {message}',
+  'transformer-failed': '{message}',
   'module-not-found': "Cannot find module '{specifier}' imported from {importer}",
 }
 
