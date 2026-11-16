@@ -14,6 +14,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, lstatSync, statSync } from 'node:fs'
 import { availableParallelism, tmpdir, totalmem } from 'node:os'
 import {
+  delimiter,
   dirname,
   isAbsolute,
   join,
@@ -93,6 +94,18 @@ export interface NormalizedJestOptions {
   readonly cacheDirectorySet: boolean
   readonly hasDeprecationWarnings: boolean
   readonly diagnostics: readonly Diagnostic[]
+}
+
+/**
+ * The `NODE_PATH` directories as jest-resolve reads them (`resolver.ts` L51-L55): absolute against
+ * the real working directory, empty entries dropped.
+ */
+function nodePathsOf(cwd: string, env: NodeJS.ProcessEnv): string[] {
+  const real = tryRealpath(cwd)
+  return (env.NODE_PATH ?? '')
+    .split(delimiter)
+    .filter(Boolean)
+    .map((entry) => resolve(real, entry))
 }
 
 /** `ci-info` 4's `isCI`, for the variables CI services set (vendor detection is left out). */
@@ -732,6 +745,7 @@ export async function normalizeJestConfig(
   )
   const resolution = createJestResolution(
     options.requireResolve ?? projectJestRequireResolve(merged.rootDir),
+    nodePathsOf(cwd, options.env ?? process.env),
   )
   const run: Run = {
     argv,
