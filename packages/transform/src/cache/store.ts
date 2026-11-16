@@ -179,48 +179,26 @@ export function createTransformCache(dir: string): TransformCache {
         let map: SourceMapV3 | null | undefined = header.mapBytes === 0 ? null : undefined
         let code: string | undefined
         let runner: RunnerForm | undefined
-        let runnerCode: string | undefined
-        // The parts read rarely (the map, the edits a runner form's map is composed from) are
-        // copied out of the entry, so the entry itself is let go once its code is decoded: a
-        // worker keeps every record it loads, and a record only ever reads its code once.
-        let mapBytes: Buffer | null =
-          header.mapBytes === 0 ? null : Buffer.from(data.subarray(mapStart, runnerStart))
-        let editBytes: Buffer | null =
-          stored === null ? null : Buffer.from(data.subarray(editsStart))
-        let entry: Buffer | null = data
-        const decode = (start: number, end: number): string =>
-          (entry as Buffer).toString('utf8', start, end)
-        const release = (): void => {
-          if (code !== undefined && (stored === null || runnerCode !== undefined)) entry = null
-        }
         if (stored !== null) {
+          let runnerCode: string | undefined
           let edits: RunnerEdit[] | undefined
           runner = {
             // Decoded on first read: a warm run evaluates the runner form and never reads the other.
             get code(): string {
-              if (runnerCode === undefined) {
-                runnerCode = decode(runnerStart, editsStart)
-                release()
-              }
+              runnerCode ??= data.toString('utf8', runnerStart, editsStart)
               return runnerCode
             },
             deps: stored.deps,
             dynamicDeps: stored.dynamicDeps,
             get edits(): readonly RunnerEdit[] {
-              if (edits === undefined) {
-                edits = JSON.parse((editBytes as Buffer).toString('utf8')) as RunnerEdit[]
-                editBytes = null
-              }
+              edits ??= JSON.parse(data.toString('utf8', editsStart)) as RunnerEdit[]
               return edits
             },
           }
         }
         return {
           get code(): string {
-            if (code === undefined) {
-              code = decode(codeStart, mapStart)
-              release()
-            }
+            code ??= data.toString('utf8', codeStart, mapStart)
             return code
           },
           get map(): SourceMapV3 | null {
@@ -228,11 +206,10 @@ export function createTransformCache(dir: string): TransformCache {
             // stack. Memoized, so the parse happens at most once.
             if (map === undefined) {
               try {
-                map = JSON.parse((mapBytes as Buffer).toString('utf8')) as SourceMapV3
+                map = JSON.parse(data.toString('utf8', mapStart, runnerStart)) as SourceMapV3
               } catch {
                 map = null
               }
-              mapBytes = null
             }
             return map
           },
