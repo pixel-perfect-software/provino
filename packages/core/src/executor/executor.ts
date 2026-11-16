@@ -55,6 +55,7 @@ import { type ContextEnv, createTestContext, SkipSignal } from './context.ts'
 import { type Deadlines, isBounded, type RealTimers, resolveTimeout, sleep } from './deadline.ts'
 import { type InvokeEnv, invoke } from './invoke.ts'
 import { createLimiter, type Limiter, unlimited } from './limiter.ts'
+import { callUser } from './user-call.ts'
 
 /** What the executor needs from the runtime. */
 export interface ExecutorConfig {
@@ -1731,7 +1732,7 @@ export class Executor {
           attempt,
         },
         this.#policy.timeouts.teardown,
-        () => Reflect.apply(teardown.fn, undefined, []),
+        () => callUser(teardown.fn, undefined, []),
       ),
     )
   }
@@ -1753,7 +1754,7 @@ export class Executor {
         run,
         { kind, owner: attempt.test.parent, ordinal, hook: undefined, location: null, attempt },
         resolveTimeout(timeouts, callback.timeoutMs) ?? this.#hookTimeout(),
-        () => Reflect.apply(callback.fn, undefined, [this.#contextOf(attempt)]),
+        () => callUser(callback.fn, undefined, [this.#contextOf(attempt)]),
       )
       if (!result.ok) attempt.errors.push(result.error)
     }
@@ -1778,7 +1779,7 @@ export class Executor {
             attempt === undefined
               ? [inner, taskOf(hook.owner)]
               : [inner, this.#contextOf(attempt), taskOf(attempt.test.parent)]
-          await runInStore(store, () => Reflect.apply(hook.fn, undefined, args))
+          await runInStore(store, () => callUser(hook.fn, undefined, args))
           this.#emitHookEnd(spec, PASSED)
         } catch (error) {
           this.#emitHookEnd(spec, { ok: false, error })

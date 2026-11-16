@@ -25,6 +25,7 @@ export {
 } from './errors.ts'
 export type { RealTimers } from './executor/deadline.ts'
 export type { TryTaskInfo, TryTaskListener } from './executor/executor.ts'
+export { USER_CALL_FRAME } from './executor/user-call.ts'
 export {
   createRuntime,
   type RunFileOptions,

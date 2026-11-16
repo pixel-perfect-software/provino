@@ -10,7 +10,18 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import { promisify } from 'node:util'
+import { USER_CALL_FRAME } from '@provino/core'
 import { installWindowTimers } from './window-timers.ts'
+
+/**
+ * Calls `fn` as core calls a test's or hook's function: through a frame of Provino's own code (this
+ * file is inside Provino's packages) named `USER_CALL_FRAME`.
+ */
+const viaCore = {
+  [USER_CALL_FRAME]<A extends unknown[]>(fn: (...args: A) => unknown, ...args: A): unknown {
+    return fn(...args)
+  },
+}[USER_CALL_FRAME]
 
 interface Scheduled {
   readonly kind: string
@@ -145,7 +156,8 @@ describe('which pending timers are the file’s', () => {
   /**
    * A shared package: its own timer (a flag only the callback clears), a helper that sets one, a
    * loop that sets its next timer from its own callback (as a scheduler does), an interval whose
-   * every run sets a timer, and a timer whose callback sets one from a promise continuation.
+   * every run sets a timer, a timer whose callback sets one from a promise continuation, and an
+   * unmount that destroys on a later tick (as @tiptap/react's does), called from a hook.
    */
   let shared: {
     schedule(global: Record<string, unknown>): unknown
@@ -153,6 +165,7 @@ describe('which pending timers are the file’s', () => {
     loop(global: Record<string, unknown>): unknown
     every(global: Record<string, unknown>): unknown
     settle(global: Record<string, unknown>): unknown
+    unmount(global: Record<string, unknown>): unknown
     path: string
   }
 
@@ -184,6 +197,7 @@ describe('which pending timers are the file’s', () => {
         'exports.settle = (global) => global.setTimeout(function settle() {',
         '  return Promise.resolve().then(function later() { global.setTimeout(function late() {}, 0) })',
         '}, 0)',
+        'exports.unmount = (global) => global.setTimeout(function destroy() {}, 1)',
         'exports.path = __filename',
         '',
       ].join('\n'),
@@ -234,6 +248,27 @@ describe('which pending timers are the file’s', () => {
     const { global, cleared } = standIn()
     const stop = installWindowTimers(global, { fileModules: () => [user.path] }).track()
     shared.schedule(global)
+    assert.deepEqual(stop(), [])
+    assert.deepEqual(cleared, [])
+  })
+
+  it("cancels a shared package's timer set from a hook core calls, a shared package's own hook too, and names the package", () => {
+    const { global, cleared } = standIn()
+    const stop = installWindowTimers(global, { fileModules: () => [user.path] }).track()
+    // A hook a shared package registered as it loaded (@testing-library/react's auto cleanup, Node's
+    // copy in a worker's first file), whose unmount sets the timer: no frame of the file's is on
+    // the stack, only core's call of the hook, Provino's frame with the name a stack walk knows.
+    const handle = viaCore(shared.unmount, global)
+    assert.deepEqual(stop(), [shared.path], 'evaluated per file from then on')
+    assert.deepEqual(cleared, [handle])
+  })
+
+  it("leaves a timer Provino's own hook sets when core calls it", () => {
+    const { global, cleared, call } = standIn()
+    const stop = installWindowTimers(global, { fileModules: () => [user.path] }).track()
+    // The hook is this test's code, Provino's (as the dialect's own afterEach is): its frame comes
+    // before core's, so it decides.
+    viaCore(() => call('setTimeout', () => {}, 1))
     assert.deepEqual(stop(), [])
     assert.deepEqual(cleared, [])
   })

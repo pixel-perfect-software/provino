@@ -111,6 +111,63 @@ test('a built-in a test replaced on the global is back after teardown', async ()
   }
 })
 
+const FETCH_KEYS = ['fetch', 'Request', 'Response', 'Headers'] as const
+
+test("a window file sees none of Node's fetch globals, as Jest's window has none, and the next file sees them again", async () => {
+  const before = FETCH_KEYS.map((key) => Object.getOwnPropertyDescriptor(globalThis, key))
+  assert.ok(
+    before.every((descriptor) => descriptor !== undefined),
+    'the worker has them',
+  )
+  const { Class } = environmentClass()
+  const instance = await fromJestEnvironment(Class).setup(context(), undefined)
+  try {
+    for (const key of FETCH_KEYS) assert.equal(key in globalThis, false, `${key} is gone`)
+  } finally {
+    await instance.teardown()
+  }
+  FETCH_KEYS.forEach((key, index) => {
+    assert.deepEqual(
+      Object.getOwnPropertyDescriptor(globalThis, key),
+      before[index],
+      `${key} is back`,
+    )
+  })
+})
+
+test("a window with a fetch of its own keeps it (jest-fixed-jsdom's), and a Node class keeps Node's", async () => {
+  const own = async (): Promise<string> => 'the window’s'
+  class FetchWindow {
+    readonly global = { document: { title: 'fetch' }, fetch: own }
+    async setup(): Promise<void> {}
+    async teardown(): Promise<void> {}
+  }
+  const window = await fromJestEnvironment(FetchWindow as unknown as JestEnvironmentClass).setup(
+    context(),
+    undefined,
+  )
+  try {
+    assert.equal(typeof global.fetch, 'function', 'the window has one, so the file has one')
+    assert.equal('Request' in globalThis, false, 'what the window lacks is still gone')
+  } finally {
+    await window.teardown()
+  }
+  class NodeLike {
+    readonly global = { __fromFakeEnvironment: 1 }
+    async setup(): Promise<void> {}
+    async teardown(): Promise<void> {}
+  }
+  const node = await fromJestEnvironment(NodeLike as unknown as JestEnvironmentClass).setup(
+    context(),
+    undefined,
+  )
+  try {
+    for (const key of FETCH_KEYS) assert.ok(key in globalThis, `${key} stays: no window`)
+  } finally {
+    await node.teardown()
+  }
+})
+
 test('an assignment to a closure-backed accessor (`performance`) does not reach the next file', async () => {
   const { Class } = environmentClass()
   const original = global.performance

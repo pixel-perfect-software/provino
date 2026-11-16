@@ -19,12 +19,19 @@
 // only when it is asked (a timer still pending at the end, or one whose callback sets another):
 // - a frame in a module the file's registry evaluated (the test file, its modules, the externals
 //   evaluated per file) makes it the file's;
-// - a frame in Provino's own code (the coordinator's, in band; the loader's, whose parser keeps
-//   timers of its own) makes it not the file's, and it runs as it would have;
+// - the frame through which core calls a test's or hook's function (`USER_CALL_FRAME`, the first
+//   of Provino's frames outward from it) makes it the file's: what a test or hook ran is, a hook a
+//   shared package registered as it loaded included (@testing-library/react's auto cleanup, which
+//   unmounts what sets the timer, in a worker's first file before the package is learned per file);
+// - any other frame in Provino's own code (the coordinator's, in band; the loader's, whose parser
+//   keeps timers of its own) makes it not the file's, and it runs as it would have;
 // - a frame of a shared package (a `node_modules` file Node loaded once for the worker, D127)
 //   whose source holds the callback makes that package the timer's owner, and the timer the file's;
 // - the frame of the wrapper around a noted timer's callback (below) gives that timer's verdict.
-// A stack with none of these (no frame read) is not the file's.
+// A stack with none of these (no frame read) is not the file's. After an `await` in a shared
+// package's async hook the stack holds no `USER_CALL_FRAME` (V8's async frames there are core's
+// own functions awaiting it), so a timer that hook sets then is not the file's unless a frame
+// nearer the call decides.
 //
 // **A timer set inside the callback of one of the file's is the file's too.** A loop that
 // schedules its next step from its own callback (React's scheduler: `performWorkUntilDeadline`
@@ -65,6 +72,7 @@ import { readFileSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { USER_CALL_FRAME } from '@provino/core'
 
 /** The per-worker wrappers: `track` at a window file's setup. */
 export interface WindowTimers {
@@ -354,11 +362,14 @@ function verdictOf(origin: Origin, own: ReadonlySet<string>, tracking: Tracking)
   let facts: CallbackFacts | undefined
   let owner: string | undefined
   for (const frame of frames) {
-    if (frame.getFunctionName() === WRAPPER_NAME) return inside(within, owner)
+    const name = frame.getFunctionName()
+    if (name === WRAPPER_NAME) return inside(within, owner)
     const file = fileOf(frame.getFileName(), tracking)
     if (file === null) continue
     if (own.has(file.path)) return { files: true, owner }
-    if (file.kind === 'provino') return NOT_FILES
+    // Core calling a test's or hook's function: what it ran is the file's, a hook a shared package
+    // registered included (@testing-library/react's auto cleanup, which unmounts what sets the timer).
+    if (file.kind === 'provino') return name === USER_CALL_FRAME ? filesWith(owner) : NOT_FILES
     if (owner === undefined && file.kind === 'shared') {
       facts ??= factsOf(origin.callback, tracking)
       // A bound or native callback has no source to look for: the shared frame that set it owns it.
@@ -368,6 +379,11 @@ function verdictOf(origin: Origin, own: ReadonlySet<string>, tracking: Tracking)
   // The stack was cut (`Error.stackTraceLimit`) before it reached the wrapper it was set inside.
   if (within !== undefined) return inside(within, owner)
   return owner === undefined ? NOT_FILES : { files: true, owner }
+}
+
+/** The file's, owned by the shared module the walk found, if it found one. */
+function filesWith(owner: string | undefined): Verdict {
+  return owner === undefined ? FILES : { files: true, owner }
 }
 
 /**
