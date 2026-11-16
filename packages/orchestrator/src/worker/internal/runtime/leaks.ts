@@ -1,10 +1,10 @@
 // Decision D22: a global a file leaves behind that the environment can't remove is a warning, not
 // a failure. The environment's `teardown` returns an `EnvironmentTeardownReport` naming the keys;
 // this reads it and builds the `console` event the worker sends for it.
-import { getHeapSnapshot } from 'node:v8'
+import { getHeapSnapshot, setFlagsFromString } from 'node:v8'
+import { runInNewContext } from 'node:vm'
 import type { RuntimeEventOf } from '@provino/types'
 import { WorkerError } from '../../errors.ts'
-import { collectGarbage } from '../memory.ts'
 import { isRecord, isStringArray } from './guards.ts'
 
 /**
@@ -100,7 +100,7 @@ const tick = (): Promise<void> => new Promise((resolve) => setImmediate(resolve)
  */
 export function createLeakCheck(
   targets: readonly object[],
-  collect: () => void = collectGarbage,
+  collect: () => void = runGarbageCollector,
 ): (signal?: AbortSignal) => Promise<boolean> {
   const refs = targets.map((target) => new WeakRef(target))
   const held = (): boolean => refs.some((ref) => ref.deref() !== undefined)
@@ -126,6 +126,15 @@ export function createLeakCheck(
     if (!(await settle(signal))) return false
     return held()
   }
+}
+
+/** The garbage collector, exposed for the call and hidden again if it was hidden before. */
+function runGarbageCollector(): void {
+  const hidden = globalThis.gc === undefined
+  setFlagsFromString('--expose-gc')
+  const gc: unknown = runInNewContext('gc')
+  if (typeof gc === 'function') gc()
+  if (hidden) setFlagsFromString('--no-expose-gc')
 }
 
 /**

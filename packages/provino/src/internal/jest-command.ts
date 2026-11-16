@@ -143,11 +143,10 @@ function environmentsFor(request: RunRequest, project: NeutralProject): typeof J
  * Jest's `workerIdleMemoryLimit` as the pool's recycle policy. The config reader has already done
  * what jest-config's `stringToBytes` does (`'512MB'`, `'50%'` and `0.2` are bytes by now), and
  * jest-runner hands the number to jest-worker as it is: `0` replaces a child process after every
- * file, any other is a count of bytes. Absent: the pool's own default limit. Both compare the
- * isolate's heap, with one deliberate difference (DIVERGENCES: collect before recycling, Tyler
- * 2026-11-16, speed): jest-worker reads `heapUsed` as it is, garbage included, where a worker
- * over the limit collects once and is replaced only if it is still over, so a worker that holds
- * only garbage is kept. `0` replaces after every file with no collection, as jest-worker does.
+ * file, any other is a count of bytes. Absent: the pool's own default limit. A divergence
+ * (DIVERGENCES, B21a): jest-worker compares the child's `heapUsed`, the pool compares a forked
+ * child's RSS (a thread's used heap, as jest-worker does), so Provino recycles a little earlier
+ * under forks.
  * @internal
  */
 export function workerRecycle(limit: number | undefined): {

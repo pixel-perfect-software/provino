@@ -131,10 +131,6 @@ expectTypeOf<CoordinatorToWorker>().toExtend<CloneSafe<CoordinatorToWorker>>()
 expectTypeOf<WorkerToCoordinator>().toExtend<CloneSafe<WorkerToCoordinator>>()
 expectTypeOf<WorkerInit>().toExtend<CloneSafe<WorkerInit>>()
 expectTypeOf<WorkerInit['captureConsole']>().toEqualTypeOf<true | undefined>()
-// The limit the pool puts on a fork's or a thread's init: a number of bytes, or none.
-expectTypeOf<WorkerInit['memoryLimitBytes']>().toEqualTypeOf<number | undefined>()
-// @ts-expect-error a count of bytes, not Jest's '512MB' text (the config reader turns that into bytes)
-const textLimit: WorkerInit = { ...({} as WorkerInit), memoryLimitBytes: '512MB' }
 
 // The RPC schemas: both method sets are clone-safe; a callback or a class result is not.
 expectTypeOf<CoordinatorMethods>().toExtend<RpcSchema<CoordinatorMethods>>()
@@ -338,7 +334,6 @@ export {
   keyWithoutTier,
   noFrames,
   noLimit,
-  textLimit,
   undefinedHash,
   unknownCall,
   wrongArgs,
