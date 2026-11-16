@@ -224,6 +224,11 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
   const failedTexts: string[] = []
   let lastFailed = false
   let runtimeErrors = 0
+  /**
+   * The unhandled errors a file's text showed (under the test they were charged to, or in the
+   * dialect's failure text, which holds every error of the file): `run:end` doesn't print them again.
+   */
+  const shown = new WeakSet<SerializedError>()
 
   async function print(text: string): Promise<void> {
     atBlank = text.endsWith('\n')
@@ -254,6 +259,10 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       failed.push({ title: testTitle(report, path), errors })
     }
     return failed
+  }
+
+  function markShown(errors: readonly SerializedError[]): void {
+    for (const error of errors) shown.add(error)
   }
 
   /** What a file prints, or `undefined` for none (a skipped file; a passing one under `agent`). */
@@ -304,6 +313,8 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
     }
     const given = result.state === 'fail' ? options.failureText?.(result) : undefined
     if (given !== undefined) {
+      for (const errors of entry?.late.values() ?? []) markShown(errors)
+      markShown(entry?.unhandled ?? [])
       const lazies = new Map(failuresOf(entry).map((test) => [test.id, test.lazies]))
       parts.push(
         ...given.map(
@@ -316,6 +327,9 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       )
     } else if (result.state === 'fail') {
       const failed = failuresOf(entry)
+      for (const test of failed) {
+        if (test.id !== undefined) markShown(entry?.late.get(test.id) ?? [])
+      }
       parts.push(
         ...failed.map(
           (test) =>
@@ -430,9 +444,9 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
         await print(lead + deferred)
         lead = ''
       }
-      const unhandled = summary.unhandled.map((error) =>
-        failureBlock(report, 'Unhandled error', [error], style, stackTrace),
-      )
+      const unhandled = summary.unhandled
+        .filter((error) => !shown.has(error))
+        .map((error) => failureBlock(report, 'Unhandled error', [error], style, stackTrace))
       const totals = options.summary !== false
       const obsolete = obsoleteBlock(summary.snapshots)
       const parts = [

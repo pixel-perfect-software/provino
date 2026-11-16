@@ -520,6 +520,56 @@ describe('the default reporter: an error charged to a test after it ended', () =
     assert.match(text, /Tests:\s+1 failed, 1 passed, 2 total/)
   })
 
+  test('does not print it again at the end, where the errors no file showed still go', async () => {
+    for (const given of [false, true]) {
+      const file = buildFile({
+        path: 'late.test.ts',
+        state: 'fail',
+        tests: [{ path: ['owner'] }],
+      })
+      const out = output()
+      const bus = createReporterBus([
+        defaultReporter({
+          stream: out,
+          report: NEUTRAL_REPORT,
+          // A dialect's failure text holds every error of the file.
+          ...(given ? { failureText: () => [{ text: '  ● dialect text\n' }] } : {}),
+        }),
+      ])
+      await bus.emit(
+        'run:start',
+        { root: '/project', projects: [''], startTime: 0, watch: false },
+        [file.info],
+      )
+      await bus.emit('file:collected', file.info, collectedEvent(file))
+      for (const { task, spec } of file.tests) {
+        await bus.emit('task:end', task, testEndEvent(task, resultOf(spec)))
+      }
+      const [owner] = file.tests
+      assert.ok(owner !== undefined)
+      const late = unhandledEvent(error('LATE BOOM'), owner.task.id)
+      const ofTheFile = unhandledEvent(error('FILE BOOM'), file.info.fileId)
+      const ofTheRun = unhandledEvent(error('RUN BOOM'), null)
+      await bus.emit('unhandled', file.info, late)
+      await bus.emit('unhandled', file.info, ofTheFile)
+      await bus.emit('unhandled', null, ofTheRun)
+      await bus.emit('file:end', file.result)
+      await bus.emit('run:end', {
+        reason: 'failed',
+        files: [file.result],
+        // The orchestrator's summary holds every unhandled error of the run, the same objects.
+        unhandled: [late.error, ofTheFile.error, ofTheRun.error],
+        durationMs: 1,
+      })
+      const text = out.text()
+      const unhandledBlocks = text.split('Unhandled error').length - 1
+      assert.equal((text.match(/LATE BOOM/g) ?? []).length, given ? 0 : 1, `given ${given}`)
+      assert.match(text, /RUN BOOM/)
+      // The neutral text has no place in the file for the file's own late errors; a dialect's has.
+      assert.equal(unhandledBlocks, given ? 1 : 2, `given ${given}`)
+    }
+  })
+
   test('adds to a test that already failed, and leaves another test`s count alone', async () => {
     const file = buildFile({
       path: 'late.test.ts',
