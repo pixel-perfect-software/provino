@@ -52,6 +52,25 @@ describe('parseProjectConfig', () => {
     assert.throws(() => parseProjectConfig(with_('seed', '1')), { code: 'ORCH_BAD_CONFIG' })
   })
 
+  it("keeps a transform rule's checksMockFactories when true, drops an absent one, refuses a non-boolean", () => {
+    const rule = (extra: Record<string, unknown>) =>
+      with_('loader.transform', {
+        rules: [
+          { pattern: 'x', transformer: moduleRef('/t.cjs', 'default'), options: null, ...extra },
+        ],
+        ignorePatterns: [],
+        config: {},
+        hoistedMarkers: [],
+      })
+    const checked = parseProjectConfig(rule({ checksMockFactories: true }))
+    assert.equal(checked.loader.transform?.rules[0]?.checksMockFactories, true)
+    const unchecked = parseProjectConfig(rule({}))
+    assert.equal('checksMockFactories' in (unchecked.loader.transform?.rules[0] ?? {}), false)
+    assert.throws(() => parseProjectConfig(rule({ checksMockFactories: 'yes' })), {
+      code: 'ORCH_BAD_CONFIG',
+    })
+  })
+
   it('accepts no globals, and a tsconfig of false or a path', () => {
     assert.equal(parseProjectConfig(with_('globals', null)).globals, null)
     assert.equal(parseProjectConfig(with_('loader.tsconfig', false)).loader.tsconfig, false)

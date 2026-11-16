@@ -186,10 +186,15 @@ function transformConfig(value: unknown): SerializedTransformConfig {
         `${path}.transformer`,
       )
       if (!('options' in rule)) invalid(`${path}.options`, 'present (null for none)')
+      const checks = rule.checksMockFactories
+      if (checks !== undefined && typeof checks !== 'boolean') {
+        invalid(`${path}.checksMockFactories`, 'a boolean when present')
+      }
       return {
         pattern: text(rule.pattern, `${path}.pattern`),
         transformer,
         options: rule.options as SerializedTransformConfig['rules'][number]['options'],
+        ...(checks === true ? { checksMockFactories: true } : {}),
       }
     }),
     ignorePatterns: texts(transform.ignorePatterns, 'loader.transform.ignorePatterns'),

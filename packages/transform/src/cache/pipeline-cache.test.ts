@@ -213,6 +213,7 @@ function stubHost(options: StubOptions) {
       map: null,
       transformerCacheKey: options.transformerKey,
       canInstrument: false,
+      checksMockFactories: true,
     }
   }
   return { host, calls }

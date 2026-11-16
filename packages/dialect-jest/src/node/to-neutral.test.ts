@@ -555,6 +555,40 @@ test('a named transform carries the project config as JSON and the hoisted marke
   assert.deepEqual(structuredClone(project?.transformConfig), project?.transformConfig)
 })
 
+test('only a babel-jest rule checks mock factories: babel-plugin-jest-hoist is what throws in Jest', async () => {
+  const root = tree({
+    'jest.config.js': `module.exports = {
+  transform: {
+    '\\\\.jsx$': 'babel-jest',
+    '\\\\.mjs$': ['babel-jest', { rootMode: 'upward' }],
+    '\\\\.tsx$': ['@swc/jest', {}],
+    '\\\\.cts$': 'ts-jest',
+    '\\\\.ts$': '<rootDir>/t.js',
+  },
+}
+`,
+    't.js': '',
+    'node_modules/babel-jest/package.json': '{ "name": "babel-jest", "main": "index.js" }\n',
+    'node_modules/babel-jest/index.js': '',
+    'node_modules/@swc/jest/package.json': '{ "name": "@swc/jest", "main": "index.js" }\n',
+    'node_modules/@swc/jest/index.js': '',
+    'node_modules/ts-jest/package.json': '{ "name": "ts-jest", "main": "index.js" }\n',
+    'node_modules/ts-jest/index.js': '',
+  })
+  const { neutral } = await readNeutral(root)
+  const [project] = neutral.value
+  assert.deepEqual(
+    project?.transforms.map(({ pattern, checksMockFactories }) => [pattern, checksMockFactories]),
+    [
+      ['\\.jsx$', true],
+      ['\\.mjs$', true],
+      ['\\.tsx$', undefined],
+      ['\\.cts$', undefined],
+      ['\\.ts$', undefined],
+    ],
+  )
+})
+
 test("an explicit cacheDirectory is carried; Jest's own default is not (D70)", async () => {
   const explicit = tree({
     'jest.config.js': "module.exports = { cacheDirectory: '<rootDir>/.ci-cache' }\n",

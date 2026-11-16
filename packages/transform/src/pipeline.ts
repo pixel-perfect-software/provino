@@ -294,6 +294,15 @@ export const createPipeline: CreatePipeline = (options) => {
     instrumenter: options.instrumenter?.name ?? null,
   })
   const cache = options.cache === false ? undefined : createTransformCache(options.cache.dir)
+  /**
+   * The hoist policy for a hosted rule that doesn't check its mock factories (its `checksMockFactories`
+   * is false): the same rules, with every factory reference allowed. Made once, so the prefilter's
+   * per-policy cache keeps one entry for it.
+   */
+  const uncheckedHoist: HoistPolicy | null =
+    options.hoist === null || options.hoist.factoryReferences === 'allow'
+      ? options.hoist
+      : { ...options.hoist, factoryReferences: 'allow' }
 
   /**
    * The entry key of a hosted file: the pipeline, the file, its role and the transformer's own key
@@ -322,11 +331,12 @@ export const createPipeline: CreatePipeline = (options) => {
     original: string,
     maps: (SourceMapV3 | null)[],
     diagnostics: TransformDiagnostic[],
+    policy: HoistPolicy | null = options.hoist,
   ): { code: string; staticMocks: readonly StaticMockCall[]; lateDeps: readonly string[] } {
-    if (options.hoist === null || request.role === 'dependency') {
+    if (policy === null || request.role === 'dependency') {
       return { code, staticMocks: [], lateDeps: [] }
     }
-    const hoisted = hoistMocks(code, options.hoist, { filename: request.filename, original })
+    const hoisted = hoistMocks(code, policy, { filename: request.filename, original })
     maps.push(hoisted.map)
     diagnostics.push(...hoisted.diagnostics)
     return { code: hoisted.code, staticMocks: hoisted.staticMocks, lateDeps: hoisted.lateDeps }
@@ -366,7 +376,10 @@ export const createPipeline: CreatePipeline = (options) => {
    * The record for a file a user transformer produced (T3.8). The output is what Jest would run
    * (CommonJS: `supportsStaticESM` is false), so the format comes from its own syntax. Our hoister
    * runs on it unless the output carries one of the host's markers: a transformer that hoisted
-   * leaves nothing to move, so the calls stay once, in the order it wrote them.
+   * leaves nothing to move, so the calls stay once, in the order it wrote them. It checks the
+   * factories only when the rule says its transformer does (`checksMockFactories`): Jest raises
+   * the out-of-scope error from babel-plugin-jest-hoist alone, so a transformer that hoists without
+   * it (`@swc/jest`, ts-jest) runs a factory that reads `window` or any other outside name.
    */
   function hostedRecord(
     request: TransformRequest,
@@ -388,7 +401,14 @@ export const createPipeline: CreatePipeline = (options) => {
     const alreadyHoisted = host.hoistedMarkers.some((marker) => instrumented.includes(marker))
     const { code, staticMocks, lateDeps } = alreadyHoisted
       ? { code: instrumented, staticMocks: [], lateDeps: [] }
-      : applyHoist(instrumented, request, request.source, maps, diagnostics)
+      : applyHoist(
+          instrumented,
+          request,
+          request.source,
+          maps,
+          diagnostics,
+          source.checksMockFactories ? options.hoist : uncheckedHoist,
+        )
     const lang = /\.[cm]?[jt]sx$/.test(filename) ? 'jsx' : 'js'
     const facts = moduleFacts(filename, code, lang, 'unambiguous')
     const format = formatOf(facts, false)

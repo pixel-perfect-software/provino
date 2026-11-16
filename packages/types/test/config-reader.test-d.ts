@@ -54,6 +54,18 @@ expectTypeOf<NeutralProject['environment']['options']>().toExtend<
   SerializedProjectConfig['environment']['options']
 >()
 declare const project: NeutralProject
+// A transform rule says whether its transformer checks mock factories (babel-jest does); absent is no.
+expectTypeOf<NeutralProject['transforms'][number]['checksMockFactories']>().toEqualTypeOf<
+  boolean | undefined
+>()
+const swcRule: NeutralProject['transforms'][number] = { pattern: 'x', module: '/s.js', options: {} }
+void swcRule
+const namedRule: NeutralProject['transforms'][number] = {
+  ...swcRule,
+  // @ts-expect-error a boolean, never the transformer's name: neutral code must not compare names
+  checksMockFactories: 'babel-jest',
+}
+void namedRule
 // The directory a user chose for caches (D70) is optional, and a plain string.
 expectTypeOf<NeutralProject['cacheDirectory']>().toEqualTypeOf<string | undefined>()
 // @ts-expect-error a pattern is a source, never a RegExp

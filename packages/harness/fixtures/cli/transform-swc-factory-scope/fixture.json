@@ -1,0 +1,20 @@
+{
+  "description": "A project whose transform is `@swc/jest` and whose `jest.mock` factory reads `window` and a module-scope variable not prefixed `mock` (`suffix`), under `testEnvironment: 'jsdom'`. The preset's one entry takes `.js`, `.ts`, `.tsx` and `.jsx` (the recorder's own transform still takes the `.ts` files first under Jest). SWC's jest transform hoists the call and checks nothing, so Jest 30.5.2 runs the factory and both tests pass: the out-of-scope check is babel-plugin-jest-hoist's, which only babel-jest runs (`cli/transform-babel-jest-factory-scope` is the same test under babel-jest). Read by `provino`'s `transform-factory-scope.test.ts`. A black-box run.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "preset": "<rootDir>/swc-preset/jest-preset.json",
+      "testEnvironment": "jsdom",
+      "testMatch": ["<rootDir>/**/*.test.tsx"]
+    }
+  },
+  "files": {
+    "jest": {
+      "swc-preset/jest-preset.json": "{\n  \"transform\": {\n    \"^.+\\\\.(js|ts|tsx|jsx)$\": [\n      \"@swc/jest\",\n      { \"jsc\": { \"parser\": { \"syntax\": \"typescript\", \"tsx\": true } } }\n    ]\n  }\n}\n"
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests):|^  ● |Invalid variable access|out-of-scope"
+  }
+}

@@ -105,6 +105,9 @@ const config: KnipConfig = {
         ...ECOSYSTEM_PACKAGES,
         // The Prettier 3 Jest finds from the recorder's work directory (`snapshot/inline-prettier`).
         'prettier',
+        // The transformer `cli/transform-swc-factory-scope`'s preset names, and its native core.
+        '@swc/core',
+        '@swc/jest',
       ],
     },
     'packages/transform': {
