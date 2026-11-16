@@ -1,0 +1,10 @@
+{
+  "description": "NODE_ENV in a test file when the environment sets it to the empty string (B23e): jest-cli's bin tests `== null`, so an empty value is a value and stays empty in both files. Two workers. A black-box run.",
+  "runners": ["jest"],
+  "env": { "NODE_ENV": "" },
+  "config": { "jest": { "maxWorkers": 2 } },
+  "run": {
+    "capture": ["exitCode", "json:.harness-out/jest.json"],
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
