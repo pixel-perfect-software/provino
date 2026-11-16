@@ -1,0 +1,288 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/microtask-turns-jsdom",
+  "files": [
+    {
+      "file": "turns.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "sync hooks",
+              "sync test"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 51,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "sync hooks",
+              "async test"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 55,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "sync hooks",
+              "failing test"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expected",
+              "userFrame": "<root>/turns.test.ts:63:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "sync hooks",
+              "failing async test"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expected",
+              "userFrame": "<root>/turns.test.ts:69:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 65,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "async hooks",
+              "sync test"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 97,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "async hooks",
+              "async test"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 101,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "no hooks",
+              "sync test 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 109,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "no hooks",
+              "async test"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 113,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "no hooks",
+              "failing test"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expected",
+              "userFrame": "<root>/turns.test.ts:121:11"
+            }
+          ],
+          "passingAssertions": 0,
+          "location": {
+            "line": 118,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "no hooks",
+              "row 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 123,
+            "column": 20
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "no hooks",
+              "row 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 123,
+            "column": 20
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "no hooks",
+              "sync test 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 127,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "trace": [
+    "sync beforeEach 1 -> sync beforeEach 2: 21",
+    "sync beforeEach 2 -> sync test: 21",
+    "sync test -> sync afterEach 1: 20",
+    "sync afterEach 1 -> sync afterEach 2: 21",
+    "sync afterEach 2 -> sync beforeEach 1: 67",
+    "sync beforeEach 1 -> sync beforeEach 2: 21",
+    "sync beforeEach 2 -> async test: 21",
+    "async test -> sync afterEach 1: 21",
+    "sync afterEach 1 -> sync afterEach 2: 21",
+    "sync afterEach 2 -> sync beforeEach 1: 67",
+    "sync beforeEach 1 -> sync beforeEach 2: 21",
+    "sync beforeEach 2 -> failing test: 21",
+    "failing test -> sync afterEach 1: 20",
+    "sync afterEach 1 -> sync afterEach 2: 21",
+    "sync afterEach 2 -> sync beforeEach 1: 67",
+    "sync beforeEach 1 -> sync beforeEach 2: 21",
+    "sync beforeEach 2 -> failing async test: 21",
+    "failing async test -> sync afterEach 1: 21",
+    "sync afterEach 1 -> sync afterEach 2: 21",
+    "async beforeEach 1 -> async beforeEach 2: 22",
+    "async beforeEach 2 -> sync test: 22",
+    "sync test -> async afterEach 1: 20",
+    "async afterEach 1 -> async afterEach 2: 22",
+    "async afterEach 2 -> async beforeEach 1: 68",
+    "async beforeEach 1 -> async beforeEach 2: 22",
+    "async beforeEach 2 -> async test: 22",
+    "async test -> async afterEach 1: 21",
+    "async afterEach 1 -> async afterEach 2: 22",
+    "sync test 1 -> async test: 66",
+    "async test -> failing test: 67",
+    "failing test -> row 1: 66",
+    "row 1 -> row 2: 66",
+    "row 2 -> sync test 2: 66"
+  ]
+}

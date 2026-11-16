@@ -1,0 +1,4 @@
+{
+  "description": "The microtask turns a promise chain a function leaves running gets before the next function starts, under the node environment: a test's end to its first afterEach, between afterEach hooks, the last afterEach to the next test's first beforeEach, between beforeEach hooks, the last beforeEach to the test, and between tests with no hooks, for sync, async and failing functions and test.each rows. jest-circus 30.5.2 awaits each of its six event handlers at every event it dispatches (`dispatch` in `state.ts`), plus its own root beforeEach for the mock flags, so a chain gets about 20 turns before an afterEach. Each trace line is `<function that ended> -> <function that started>: <turns>`. Jest only: Vitest's value stays neutral until it is recorded.",
+  "runners": ["jest"]
+}
