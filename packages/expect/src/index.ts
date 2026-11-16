@@ -1,6 +1,7 @@
 // @provino/expect: the neutral expect engine (Track 7 R1). The dialect supplies the matchers,
 // the asymmetric matchers, `this.utils` and every message through an `ExpectTable`.
 export { AsymmetricMatcher } from './asymmetric.ts'
+export { matcherCallStack } from './call-stack.ts'
 export type { MatcherContext } from './context.ts'
 export {
   createEndOfTest,

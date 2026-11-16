@@ -2,16 +2,15 @@
 // `buildSnapshotResolver` itself returns and throws for the same modules (real jest-snapshot,
 // reached through jest-config's install, as the other oracles here are).
 import assert from 'node:assert/strict'
-import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { stripVTControlCharacters } from 'node:util'
 import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
 import { jestPolicy } from '../dialect.ts'
+import { requireFromJest } from './internal/test-support.ts'
 import { jestSnapshotResolver } from './snapshot-resolver.ts'
 
-const fromJestConfig = createRequire(createRequire(import.meta.url).resolve('jest-config'))
-const jestSnapshot = createRequire(fromJestConfig.resolve('jest-circus'))('jest-snapshot') as {
+const jestSnapshot = requireFromJest('jest-snapshot') as {
   buildSnapshotResolver(
     config: { rootDir: string; snapshotResolver: string },
     localRequire: (path: string) => unknown,

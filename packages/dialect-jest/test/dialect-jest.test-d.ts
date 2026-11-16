@@ -13,6 +13,7 @@ import {
   type JestGlobalsHost,
   type JestModuleObject,
   type JestObject,
+  type JestSnapshotMatchOptions,
   type JestSnapshotStateView,
   jestExpectTable,
   jestGlobals,
@@ -36,9 +37,10 @@ import type {
   PolicyOverrides,
   ProjectConfig,
   ProvinoConfigInput,
-  SnapshotContextSource,
-  SnapshotContextViewFactory,
   SnapshotResolverFactory,
+  SnapshotViewFactory,
+  SnapshotViewMatchResult,
+  SnapshotViewSource,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
@@ -198,14 +200,14 @@ void jestInlineSnapshotWriter()([], {})
 jestSnapshotResolver({})
 
 // B23e (D128): Jest's `this.snapshotState` over the file's state, behind `snapshot.contextView`.
-expectTypeOf(jestSnapshotStateView).toExtend<SnapshotContextViewFactory>()
-expectTypeOf(jestSnapshotStateView).parameters.toEqualTypeOf<[SnapshotContextSource]>()
+expectTypeOf(jestSnapshotStateView).toExtend<SnapshotViewFactory>()
+expectTypeOf(jestSnapshotStateView).parameters.toEqualTypeOf<[SnapshotViewSource]>()
 expectTypeOf(jestSnapshotStateView).returns.toEqualTypeOf<JestSnapshotStateView>()
 expectTypeOf<JestSnapshotStateView['_counters']>().toEqualTypeOf<Map<string, number>>()
 expectTypeOf<JestSnapshotStateView['_updateSnapshot']>().toEqualTypeOf<'all' | 'new' | 'none'>()
 expectTypeOf<JestSnapshotStateView['added']>().toEqualTypeOf<number>()
 expectTypeOf(jestPolicy.snapshot?.contextView).toEqualTypeOf<
-  ModuleRef<SnapshotContextViewFactory> | SnapshotContextViewFactory | null | undefined
+  ModuleRef<SnapshotViewFactory> | SnapshotViewFactory | null | undefined
 >()
 declare const view: JestSnapshotStateView
 view.added += 1
@@ -217,3 +219,20 @@ view._updateSnapshot = 'all'
 view.matched = '1'
 // @ts-expect-error the view is built over the file's state
 jestSnapshotStateView({ added: 0 })
+// What jest-snapshot's matchers call on it: Jest's `match` arguments and result, and `fail`.
+expectTypeOf(view.match).parameters.toEqualTypeOf<[JestSnapshotMatchOptions]>()
+expectTypeOf(view.match).returns.toEqualTypeOf<SnapshotViewMatchResult>()
+expectTypeOf<SnapshotViewMatchResult['expected']>().toEqualTypeOf<string | undefined>()
+expectTypeOf(view.fail).returns.toEqualTypeOf<string>()
+expectTypeOf(view.snapshotFormat).toEqualTypeOf<Readonly<Record<string, unknown>>>()
+expectTypeOf(view.expand).toEqualTypeOf<boolean>()
+// As `_toMatchSnapshot` passes them: `error` and `inlineSnapshot` may be `undefined`.
+view.match({ testName: 't', received: 1, isInline: false, error: undefined, testIdentity: {} })
+// @ts-expect-error a match says whether it is inline
+view.match({ testName: 't', received: 1 })
+// @ts-expect-error the stored snapshot's key is text
+view.match({ testName: 't', received: 1, isInline: false, key: 1 })
+// @ts-expect-error `fail` takes the test's name first
+view.fail({ testName: 't' }, 1)
+// @ts-expect-error `snapshotPath` is the state's
+view.snapshotPath = '/elsewhere.snap'

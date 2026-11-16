@@ -152,6 +152,7 @@
     "jest-junit": "catalog:",
     "jest-mock-extended": "catalog:",
     "jest-silent-reporter": "catalog:",
+    "jest-snapshot": "catalog:",
     "jest-sonar-reporter": "catalog:",
     "jest-styled-components": "catalog:",
     "jest-watch-typeahead": "catalog:",

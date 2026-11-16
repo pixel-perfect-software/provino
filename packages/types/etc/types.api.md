@@ -3143,23 +3143,6 @@ export type SkipReason = "modifier" | "only-filter" | "name-filter" | "condition
 export type SliceName = keyof PolicySlices;
 
 // @public
-export interface SnapshotContextSource {
-    // (undocumented)
-    added: number;
-    readonly liveCounters: Map<string, number>;
-    // (undocumented)
-    matched: number;
-    // (undocumented)
-    unmatched: number;
-    readonly update: "all" | "new" | "none";
-    // (undocumented)
-    updated: number;
-}
-
-// @public
-export type SnapshotContextViewFactory = (state: SnapshotContextSource) => object;
-
-// @public
 export interface SnapshotCounters {
     // (undocumented)
     readonly added: number;
@@ -3241,7 +3224,7 @@ export type SnapshotPlugin = SnapshotSerializer | LegacySnapshotSerializer;
 // @public
 export interface SnapshotPolicy {
     readonly ciUpdate: "new" | "none";
-    readonly contextView: Behaviour<SnapshotContextViewFactory> | null;
+    readonly contextView: Behaviour<SnapshotViewFactory> | null;
     readonly dirName: string;
     readonly extension: string;
     readonly format: {
@@ -3322,6 +3305,54 @@ export interface SnapshotSerializer {
     serialize(value: unknown, ...rest: never[]): string;
     // (undocumented)
     test(value: unknown): boolean;
+}
+
+// @public
+export type SnapshotViewFactory = (state: SnapshotViewSource) => object;
+
+// @public
+export interface SnapshotViewMatchOptions {
+    // (undocumented)
+    readonly inlineSnapshot?: string | undefined;
+    // (undocumented)
+    readonly isInline: boolean;
+    readonly key?: string | undefined;
+    // (undocumented)
+    readonly received: unknown;
+    readonly stack?: (() => string) | undefined;
+    readonly testFailing?: boolean | undefined;
+    readonly testId?: string | undefined;
+    readonly testName: string;
+}
+
+// @public
+export interface SnapshotViewMatchResult {
+    readonly actual: string;
+    readonly count: number;
+    readonly expected: string | undefined;
+    // (undocumented)
+    readonly key: string;
+    // (undocumented)
+    readonly pass: boolean;
+}
+
+// @public
+export interface SnapshotViewSource {
+    added: number;
+    currentTestId(): string | undefined;
+    expand: boolean;
+    fail(testName: string, testId?: string, key?: string): string;
+    getUncheckedCount(): number;
+    getUncheckedKeys(): string[];
+    readonly liveCounters: Map<string, number>;
+    markCheckedForTest(testName: string): void;
+    match(options: SnapshotViewMatchOptions): SnapshotViewMatchResult;
+    matched: number;
+    readonly serializeFormat: Readonly<Record<string, unknown>>;
+    readonly snapshotPath: string;
+    unmatched: number;
+    readonly update: "all" | "new" | "none";
+    updated: number;
 }
 
 // @public

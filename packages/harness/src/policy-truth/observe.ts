@@ -2,6 +2,7 @@
 // (`internal/observe-setup.ts`); the rest of a golden is the converted run (tests, statuses,
 // errors, locations) and, for a black-box run, `observed`. These readers are the only code a claim's
 // `read` uses, so each is small and fails loudly on a golden it doesn't recognize.
+import { isModuleRef } from '@provino/policy'
 import type { Golden, GoldenTest } from '../golden.ts'
 
 /** A reader found nothing it recognizes: the claim and the golden disagree on the fixture. */
@@ -89,6 +90,15 @@ export function observedOf(golden: Golden): NonNullable<Golden['observed']> {
   }
   return golden.observed
 }
+
+/**
+ * Whether a policy value is the behaviour ref to `name` in `module` (an import specifier, resolved
+ * from the harness, as the dialects build their refs with `import.meta.resolve`).
+ */
+export const refTo =
+  (module: string, name: string) =>
+  (value: unknown): boolean =>
+    isModuleRef(value) && value.module === import.meta.resolve(module) && value.export === name
 
 /** A file a black-box run left, as text. */
 export function capturedFile(golden: Golden, file: string): string {

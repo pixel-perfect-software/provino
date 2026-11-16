@@ -1,0 +1,28 @@
+{
+  "description": "Jest's documented custom snapshot matcher (B23e, D128) on a value that differs: a first local run stores the snapshots, then the captured run under `--ci` (the test file sends other values once the .snap exists) fails `trimmed` with jest-snapshot 30.5.2's own failure text (its `matcherHint`, `Snapshot name`, and the diff it prints with `this.snapshotState.expand` and `snapshotFormat`), and `with properties` with its property-matcher text after `this.snapshotState.fail`; `beside toMatchSnapshot` still matches. The failures reach Jest's totals (`unmatched`). One file, one worker.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "setupFilesAfterEnv": ["<rootDir>/setup.ts"]
+    }
+  },
+  "before": [
+    {
+      "argv": ["--ci=false", "-w", "1"]
+    }
+  ],
+  "run": {
+    "argv": {
+      "jest": ["--ci", "--testLocationInResults", "-w", "1"]
+    },
+    "capture": [
+      "exitCode",
+      "stderr",
+      "json:.harness-out/jest.json",
+      "file:__snapshots__/trimmed.test.ts.snap"
+    ],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Snapshot Summary|^ › |^ +● |^    [A-Z]|^    expect\\(|^    [-+] ",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

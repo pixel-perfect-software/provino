@@ -9,10 +9,9 @@
 // `snapshot.contextView` gives it that shape over Provino's state (D128), and the counts it writes
 // are the ones the totals add up. The diff runs in jest-image-snapshot's own `spawnSync` child
 // (`runInProcess: false`, its default), which ends with the call.
-import { describe, it } from 'node:test'
-import { assertMatchesGolden, provinoOn } from './recorded-run.ts'
+import { describeRecorded } from './recorded-run.ts'
 
-const FIXTURES = [
+describeRecorded('provino jest with jest-image-snapshot', 'ecosystem/image-snapshot-', [
   // A new image and a shared counter: `counter`'s image is its second snapshot.
   'ecosystem/image-snapshot-add',
   // A stored image under CI: matched.
@@ -23,15 +22,6 @@ const FIXTURES = [
   'ecosystem/image-snapshot-update',
   // `--ci` with nothing stored: jest-image-snapshot's own "not written" failure.
   'ecosystem/image-snapshot-ci',
-  // `jest.retryTimes(1)`: the matcher reads the file's retry count, and a retry takes back only
-  // what jest-snapshot itself counted (the image matcher's own writes stay, as in Jest).
+  // `jest.retryTimes(1)`: the matcher reads the file's retry count (see the fixture's description).
   'ecosystem/image-snapshot-retry',
-] as const
-
-describe('provino jest with jest-image-snapshot', () => {
-  for (const id of FIXTURES) {
-    it(`${id} gives Jest's results`, async () => {
-      assertMatchesGolden(id, await provinoOn(id))
-    })
-  }
-})
+])

@@ -1,5 +1,7 @@
 // Test helpers (not a test file): spike E's interleaved tests (Track 7 §Spikes E), run through
-// core's real runtime so `test.concurrent` and the current-test lookup are the worker's own.
+// core's real runtime so `test.concurrent` and the current-test lookup are the worker's own, and
+// `requireFromJest`, the oracle packages Jest installs.
+import { createRequire } from 'node:module'
 import type { TestContext } from 'node:test'
 import { createRuntime, currentTest, type RuntimeApi, type RuntimeOptions } from '@provino/core'
 import {
@@ -22,6 +24,16 @@ import type {
 import { jestPolicy } from '../../dialect.ts'
 import { jestExpectPolicy } from '../../expect-policy.ts'
 import { jestExpectTable } from '../expect-table.ts'
+
+/**
+ * Loads one of Jest 30.5.2's own packages as an oracle, as Jest's runner reaches it: through
+ * jest-config's install, then jest-circus's (where jest-snapshot is a dependency), so no new
+ * dependency is needed.
+ */
+export function requireFromJest(name: string): unknown {
+  const fromJestConfig = createRequire(createRequire(import.meta.url).resolve('jest-config'))
+  return createRequire(fromJestConfig.resolve('jest-circus'))(name)
+}
 
 /** How many interleaved tests spike E runs, and the seed that fixes their interleaving. */
 export const COUNT = 50

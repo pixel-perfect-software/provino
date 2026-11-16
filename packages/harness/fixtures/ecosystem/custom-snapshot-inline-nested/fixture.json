@@ -1,0 +1,25 @@
+{
+  "description": "Inline snapshot matchers called from inside other custom matchers (B23e, D128), on a first local run: where each snapshot is written is the frame below the innermost matcher call: jest-snapshot 30.5.2 cuts its stack at the innermost external-matcher trap (`removeLinesBeforeExternalMatcherTrap`, then `getTopFrame` past `node_modules`), and Jest registers its own snapshot matchers with `expect.extend`, so they run inside one too. A custom matcher over jest-snapshot's `toMatchInlineSnapshot`, called through `expect` from another custom matcher, writes into the outer matcher's body in `setup.ts`; so does the built-in `toMatchInlineSnapshot` inside one custom matcher, and two custom matchers down it writes into the inner one's body. The test file is left as it was. `prettierPath: null`, so Babel's reprint alone. One file, one worker.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "setupFilesAfterEnv": ["<rootDir>/setup.ts"],
+      "prettierPath": null
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false", "--testLocationInResults", "-w", "1"]
+    },
+    "capture": [
+      "exitCode",
+      "stderr",
+      "json:.harness-out/jest.json",
+      "file:setup.ts",
+      "file:nested.test.ts"
+    ],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Snapshot Summary|^ › |^ +● |^    [A-Z]|^    expect\\(|^    [-+] ",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

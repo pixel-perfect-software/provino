@@ -23,9 +23,10 @@ import { Pragmas } from '@provino/types';
 import { Replaced } from '@provino/mock';
 import { RuntimeApi } from '@provino/core';
 import { ShapeTestError } from '@provino/types';
-import { SnapshotContextSource } from '@provino/types';
 import { SnapshotPrinter } from '@provino/types';
 import { SnapshotResolverFactory } from '@provino/types';
+import { SnapshotViewMatchResult } from '@provino/types';
+import { SnapshotViewSource } from '@provino/types';
 import { SpiedGetter } from '@provino/mock';
 import { SpiedMethod } from '@provino/mock';
 import { SpiedSetter } from '@provino/mock';
@@ -199,6 +200,24 @@ export interface JestObject extends JestTimerMembers<JestObject> {
 export function jestShuffle(seed: number): <T>(items: T[]) => T[];
 
 // @public
+export interface JestSnapshotMatchOptions {
+    readonly error?: Error | undefined;
+    // (undocumented)
+    readonly inlineSnapshot?: string | undefined;
+    // (undocumented)
+    readonly isInline: boolean;
+    // (undocumented)
+    readonly key?: string | undefined;
+    // (undocumented)
+    readonly received: unknown;
+    // (undocumented)
+    readonly testFailing?: boolean | undefined;
+    readonly testIdentity?: object | undefined;
+    // (undocumented)
+    readonly testName: string;
+}
+
+// @public
 export function jestSnapshotPrinter(): SnapshotPrinter;
 
 // @public
@@ -206,20 +225,24 @@ export const jestSnapshotResolver: SnapshotResolverFactory;
 
 // @public
 export interface JestSnapshotStateView {
-    // (undocumented)
     added: number;
     readonly _counters: Map<string, number>;
-    // (undocumented)
+    expand: boolean;
+    fail(testName: string, received: unknown, key?: string, testIdentity?: object): string;
+    getUncheckedCount(): number;
+    getUncheckedKeys(): string[];
+    markSnapshotsAsCheckedForTest(testName: string): void;
+    match(options: JestSnapshotMatchOptions): SnapshotViewMatchResult;
     matched: number;
-    // (undocumented)
+    readonly snapshotFormat: Readonly<Record<string, unknown>>;
+    readonly snapshotPath: string;
     unmatched: number;
-    // (undocumented)
     updated: number;
-    readonly _updateSnapshot: "all" | "new" | "none";
+    readonly _updateSnapshot: SnapshotViewSource["update"];
 }
 
 // @public
-export function jestSnapshotStateView(state: SnapshotContextSource): JestSnapshotStateView;
+export function jestSnapshotStateView(state: SnapshotViewSource): JestSnapshotStateView;
 
 // @public
 export interface JestTimerMembers<J> {

@@ -18,7 +18,7 @@ import {
   type MatchResult,
   SnapshotError,
   SnapshotState,
-  unwrapSnapshotContext,
+  unwrapMatcherSnapshotState,
 } from '@provino/snapshot/runtime'
 import type {
   Matcher,
@@ -27,6 +27,7 @@ import type {
   SnapshotMessageInfo,
   SnapshotPlugin,
 } from '@provino/types'
+import { matcherCallStack } from './call-stack.ts'
 import type { MatcherContext } from './context.ts'
 
 /** What one snapshot call carries. */
@@ -39,8 +40,8 @@ interface Call {
   readonly inlineSnapshot: string | undefined
   readonly properties: object | undefined
   readonly received: unknown
-  /** An inline matcher's call stack: where a snapshot it writes goes. */
-  readonly stack?: string
+  /** An inline matcher's call stack (`matcherCallStack`): where a snapshot it writes goes. */
+  readonly stack?: (() => string) | undefined
 }
 
 /** A result with what Jest adds: the matcher's name, and where the snapshot is stored. */
@@ -51,30 +52,6 @@ const INLINE_NOT_WRITTEN =
   'Run with --ci to treat a missing inline snapshot as a failure, or write the snapshot by hand.'
 
 const INDENTATION_REGEX = /^([^\S\n]*)\S/m
-
-/** The engine's frames that call a matcher: the user's call is the frame below the last of them. */
-const ENGINE_CALL = /\b(?:throwingMatcher|__EXTERNAL_MATCHER_TRAP__)\b/
-
-/**
- * Where an inline matcher was called, for a snapshot it may have to write (Jest's `_addSnapshot`
- * takes `new Error()` and cuts above the external-matcher trap). Under `.resolves`/`.rejects` the
- * error the engine made at the call already starts there (Jest's `context.error`); otherwise the
- * stack is taken here and cut below the engine's call.
- */
-function callStack(context: MatcherContext, matcher: (...args: never[]) => unknown): string {
-  if (context.error?.stack !== undefined) return context.error.stack
-  const holder: { stack?: string } = {}
-  const limit = Error.stackTraceLimit
-  Error.stackTraceLimit = Math.max(limit, 20)
-  try {
-    Error.captureStackTrace(holder, matcher)
-  } finally {
-    Error.stackTraceLimit = limit
-  }
-  const lines = (holder.stack ?? '').split('\n')
-  const at = lines.findLastIndex((line) => ENGINE_CALL.test(line))
-  return lines.slice(at + 1).join('\n')
-}
 
 /**
  * Takes off the indentation an inline snapshot was written with, when every line has it
@@ -117,12 +94,18 @@ const isSnapshotState = (value: unknown): value is SnapshotState =>
   typeof Reflect.get(value, 'testName') === 'function'
 
 /**
- * The file's snapshot state: Jest's "Snapshot state must be initialized". The context may hold the
- * dialect's view of it (`snapshot.contextView`), which unwraps to the state.
+ * The file's snapshot state, from a matcher state's `snapshotState`, which may hold the dialect's
+ * view of it (`snapshot.contextView`); `undefined` when there is none.
  */
+function findSnapshotState(value: unknown): SnapshotState | undefined {
+  const state = unwrapMatcherSnapshotState(value)
+  return isSnapshotState(state) ? state : undefined
+}
+
+/** The file's snapshot state: Jest's "Snapshot state must be initialized". */
 function stateOf(context: MatcherContext, matcherName: string): SnapshotState {
-  const snapshotState = unwrapSnapshotContext(context.snapshotState)
-  if (!isSnapshotState(snapshotState)) {
+  const snapshotState = findSnapshotState(context.snapshotState)
+  if (snapshotState === undefined) {
     throw new SnapshotError(
       'SNAPSHOT_NOT_INITIALIZED',
       `expect(received).${matcherName}()\n\nSnapshot state must be initialized: the matcher ran outside a test file's run`,
@@ -209,12 +192,12 @@ function match(call: Call): SnapshotResult {
 
   const result = state.match({
     testName,
-    ...(testId === undefined ? {} : { testId }),
+    testId,
     received,
-    ...(inlineSnapshot === undefined ? {} : { inlineSnapshot }),
+    inlineSnapshot,
     isInline,
     testFailing,
-    ...(call.stack === undefined ? {} : { stack: call.stack }),
+    stack: call.stack,
   })
   if (result.pass) return { message: () => '', pass: true, name: matcherName }
 
@@ -308,7 +291,7 @@ function toMatchInlineSnapshot(
       typeof inlineSnapshot === 'string' ? stripAddedIndentation(inlineSnapshot) : undefined,
     properties,
     received,
-    stack: callStack(this, toMatchInlineSnapshot),
+    stack: matcherCallStack(this.error),
   })
 }
 
@@ -344,7 +327,7 @@ function matchThrown(
     readonly hint: string | undefined
     readonly inlineSnapshot: string | undefined
     readonly fromPromise: boolean
-    readonly stack?: string
+    readonly stack?: () => string
   },
 ): SnapshotResult {
   const { matcherName, isInline, hint, inlineSnapshot, fromPromise } = options
@@ -382,7 +365,7 @@ function matchThrown(
     inlineSnapshot,
     properties: undefined,
     received: body,
-    ...(options.stack === undefined ? {} : { stack: options.stack }),
+    stack: options.stack,
   })
 }
 
@@ -420,7 +403,7 @@ function toThrowErrorMatchingInlineSnapshot(
     inlineSnapshot:
       inlineSnapshot === undefined ? undefined : stripAddedIndentation(inlineSnapshot),
     fromPromise: fromPromise === true,
-    stack: callStack(this, toThrowErrorMatchingInlineSnapshot),
+    stack: matcherCallStack(this.error),
   })
 }
 
@@ -535,8 +518,8 @@ export function addSnapshotSerializer(
   context: { snapshotState?: unknown },
   plugin: SnapshotPlugin,
 ): void {
-  const snapshotState = unwrapSnapshotContext(context.snapshotState)
-  if (!isSnapshotState(snapshotState)) {
+  const snapshotState = findSnapshotState(context.snapshotState)
+  if (snapshotState === undefined) {
     throw new SnapshotError(
       'SNAPSHOT_NOT_INITIALIZED',
       "expect.addSnapshotSerializer() ran outside a test file's run: there is no snapshot state to add the serializer to",
