@@ -19,8 +19,14 @@ describeRecorded(
     'ecosystem/custom-snapshot-match',
     // Other values under `--ci`: jest-snapshot's own failure texts, after `match` and `fail`.
     'ecosystem/custom-snapshot-mismatch',
+    // Multi-line values that differ: jest-snapshot's diff, with `expand` and `snapshotFormat`.
+    'ecosystem/custom-snapshot-format',
+    // The same under `--expand`: every line of the diff.
+    'ecosystem/custom-snapshot-format-expand',
     // `toMatchInlineSnapshot` from a custom matcher: written at the custom matcher's call, then matched.
     'ecosystem/custom-snapshot-inline',
+    // Its first run: the inline snapshots written into the test file, and counted.
+    'ecosystem/custom-snapshot-inline-write',
     // Inline matchers called through `expect` inside custom matchers: written into their bodies.
     'ecosystem/custom-snapshot-inline-nested',
     // `jest.retryTimes(1)` under `--ci`: the retry takes back the failed attempt's snapshots.

@@ -61,7 +61,8 @@ function probeSource(update: SnapshotViewSource['update']): Probe {
     matched: 0,
     unmatched: 0,
     updated: 0,
-    expand: false,
+    // Not the default, so a view that reads no `expand` of its own is told apart.
+    expand: true,
     update,
     liveCounters: new Map(),
     snapshotPath: '/p/__snapshots__/a.test.ts.snap',
@@ -423,9 +424,41 @@ export const snapshotClaims: Claims = {
           stderr.includes('expect(received).toMatchSnapshot(properties)')
         )
       }),
+      // jest-snapshot's diff of multi-line values, with the view's `snapshotFormat` (bare quotes)
+      // and `expand` (cut to the changed lines, or every line under `--expand`).
+      customSnapshot('format', (g) => {
+        const stderr = stderrOf(g)
+        return (
+          counters(g)?.unmatched === 2 &&
+          stderr.includes('+   "quote": "say "bye"",') &&
+          !stderr.includes('"item 0",')
+        )
+      }),
+      customSnapshot('format-expand', (g) => {
+        const stderr = stderrOf(g)
+        return stderr.includes('"item 0",') && stderr.includes('"item 19",')
+      }),
       customSnapshot('inline', (g) =>
         capturedFile(g, 'inline.test.ts').includes('toMatchTrimmedInlineSnapshot(`"extra long"`)'),
       ),
+      customSnapshot(
+        'inline-write',
+        (g) =>
+          counters(g)?.added === 3 &&
+          capturedFile(g, 'inline.test.ts').includes(
+            'toMatchTrimmedInlineSnapshot(`"second, tr"`)',
+          ),
+      ),
+      // Through `expect` inside custom matchers: written into the innermost matcher's body.
+      customSnapshot('inline-nested', (g) => {
+        const setup = capturedFile(g, 'setup.ts')
+        return (
+          counters(g)?.added === 3 &&
+          setup.includes('toMatchTrimmedInlineSnapshot(`"LOUD STRIN"`)') &&
+          setup.includes('toMatchInlineSnapshot(`"deeper!"`)') &&
+          !capturedFile(g, 'nested.test.ts').includes('`')
+        )
+      }),
       // A retried attempt's snapshots, taken through `match` and `fail`, are taken back: under
       // `--ci` the retry's keys are the stored ones and match, and a first run stores each once.
       customSnapshot('retry', (g) => {
