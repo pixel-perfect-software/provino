@@ -1,7 +1,7 @@
 import { readFile, realpath } from 'node:fs/promises'
 import path from 'node:path'
 import type { MockCleanupStep } from '@provino/types'
-import { HarnessError } from './errors.ts'
+import { HarnessError, type HarnessErrorCode } from './errors.ts'
 import { compareStrings, isNotFound, isRecord } from './internal/guards.ts'
 import { isNodeModules, walkFiles } from './internal/walk.ts'
 
@@ -1472,23 +1472,45 @@ function parseJestConfig(
   }
 }
 
-/** `jestEsm` is `true` or absent, and only means something for a fixture that runs Jest. */
-function parseJestEsm(jestEsm: unknown, runners: readonly FixtureProfile[], source: string): true {
-  if (jestEsm !== true) {
+/**
+ * A Jest-only flag of the manifest: `key` must be `expected` (leave it out for off), and only means
+ * something for a fixture that runs Jest. `hint` finishes the first message.
+ */
+function parseJestFlag<T extends true | string>(
+  value: unknown,
+  expected: T,
+  key: string,
+  code: HarnessErrorCode,
+  hint: string,
+  runners: readonly FixtureProfile[],
+  source: string,
+): T {
+  if (value !== expected) {
     throw new HarnessError(
-      'HARNESS_FIXTURE_BAD_JEST_ESM',
-      `${source}: "jestEsm" must be true (leave it out for off)`,
+      code,
+      `${source}: "${key}" must be ${typeof expected === 'string' ? `"${expected}"` : expected} (${hint})`,
       { path: source },
     )
   }
   if (!runners.includes('jest')) {
-    throw new HarnessError(
-      'HARNESS_FIXTURE_BAD_JEST_ESM',
-      `${source}: "jestEsm" is set but "runners" does not list "jest"`,
-      { path: source },
-    )
+    throw new HarnessError(code, `${source}: "${key}" is set but "runners" does not list "jest"`, {
+      path: source,
+    })
   }
-  return true
+  return expected
+}
+
+/** `jestEsm` is `true` or absent, and only means something for a fixture that runs Jest. */
+function parseJestEsm(jestEsm: unknown, runners: readonly FixtureProfile[], source: string): true {
+  return parseJestFlag(
+    jestEsm,
+    true,
+    'jestEsm',
+    'HARNESS_FIXTURE_BAD_JEST_ESM',
+    'leave it out for off',
+    runners,
+    source,
+  )
 }
 
 /** `jestTypeScript` is `"babel"` or absent, and only means something for a fixture that runs Jest. */
@@ -1497,21 +1519,15 @@ function parseJestTypeScript(
   runners: readonly FixtureProfile[],
   source: string,
 ): 'babel' {
-  if (jestTypeScript !== 'babel') {
-    throw new HarnessError(
-      'HARNESS_FIXTURE_BAD_JEST_TYPESCRIPT',
-      `${source}: "jestTypeScript" must be "babel" (leave it out for the recorder's transformer)`,
-      { path: source },
-    )
-  }
-  if (!runners.includes('jest')) {
-    throw new HarnessError(
-      'HARNESS_FIXTURE_BAD_JEST_TYPESCRIPT',
-      `${source}: "jestTypeScript" is set but "runners" does not list "jest"`,
-      { path: source },
-    )
-  }
-  return 'babel'
+  return parseJestFlag(
+    jestTypeScript,
+    'babel',
+    'jestTypeScript',
+    'HARNESS_FIXTURE_BAD_JEST_TYPESCRIPT',
+    "leave it out for the recorder's transformer",
+    runners,
+    source,
+  )
 }
 
 /** `jestTransformJs` is `true` or absent, and only means something for a fixture that runs Jest. */
@@ -1520,21 +1536,15 @@ function parseJestTransformJs(
   runners: readonly FixtureProfile[],
   source: string,
 ): true {
-  if (jestTransformJs !== true) {
-    throw new HarnessError(
-      'HARNESS_FIXTURE_BAD_JEST_TRANSFORM_JS',
-      `${source}: "jestTransformJs" must be true (leave it out for off)`,
-      { path: source },
-    )
-  }
-  if (!runners.includes('jest')) {
-    throw new HarnessError(
-      'HARNESS_FIXTURE_BAD_JEST_TRANSFORM_JS',
-      `${source}: "jestTransformJs" is set but "runners" does not list "jest"`,
-      { path: source },
-    )
-  }
-  return true
+  return parseJestFlag(
+    jestTransformJs,
+    true,
+    'jestTransformJs',
+    'HARNESS_FIXTURE_BAD_JEST_TRANSFORM_JS',
+    'leave it out for off',
+    runners,
+    source,
+  )
 }
 
 /** A package name as npm spells it: `name` or `@scope/name`, lowercase, no path tricks. */
