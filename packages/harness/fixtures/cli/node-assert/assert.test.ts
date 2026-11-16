@@ -81,6 +81,10 @@ it('an error that only carries the code', () => {
   })
 })
 
+it('a thrown object with the code and no stack', () => {
+  throw { code: 'ERR_ASSERTION', message: 'm', actual: 1, expected: 2, operator: '==' }
+})
+
 describe('inside a describe', () => {
   it('strictEqual', () => {
     assert.strictEqual(received.c, expected.c)

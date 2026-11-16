@@ -71,6 +71,9 @@ const THROWN: Record<string, () => unknown> = {
       operator: '==',
     })
   },
+  'a thrown object with the code and no stack': () => {
+    throw { code: 'ERR_ASSERTION', message: 'm', actual: 1, expected: 2, operator: '==' }
+  },
   'inside a describe strictEqual': () => assert.strictEqual(received.c, expected.c),
   'inside a describe nested never runs': () => assert.notStrictEqual(1, 1),
 }
@@ -87,6 +90,12 @@ function thrownBy(run: () => unknown): unknown {
 const stripColour = stripVTControlCharacters
 const beforeFrames = (text: string): string =>
   (text.split(/\n\s+at(?: |\b)/)[0] ?? text).replace(/\n*<frames>$/, '')
+
+/**
+ * Cases Jest prints as ordinary errors: circus formats a thrown value only when it has a stack, so
+ * the shaper hands these back as they were thrown.
+ */
+const AS_THROWN: ReadonlySet<string> = new Set(['a thrown object with the code and no stack'])
 
 /** `rejects` is awaited, which a synchronous case can't do: it is held end to end by `cli/node-assert`. */
 const SKIPPED: Record<string, string> = {
@@ -106,7 +115,12 @@ test('every recorded node:assert failure is what Jest printed', () => {
     const run = THROWN[result.fullName]
     assert.ok(run !== undefined, `no case for the recorded test "${result.fullName}"`)
     unmatched.delete(result.fullName)
-    const shaped = shapeTestError(thrownBy(run), EXPAND) as { message: string }
+    const thrown = thrownBy(run)
+    if (AS_THROWN.has(result.fullName)) {
+      assert.equal(shapeTestError(thrown, EXPAND), thrown, result.fullName)
+      continue
+    }
+    const shaped = shapeTestError(thrown, EXPAND) as { message: string }
     const want = beforeFrames(result.failureMessages[0] ?? '')
     // The recorder takes one newline into the run of frames, so only trailing space is compared loosely.
     assert.equal(

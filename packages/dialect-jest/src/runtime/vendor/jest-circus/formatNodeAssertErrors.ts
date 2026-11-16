@@ -41,8 +41,10 @@ const humanReadableOperators: Record<string, string> = {
 
 // provino: jest-circus maps every error of a finished test (`test_done`); the runtime hands each
 // error here as it serializes it and takes the result in its place. `expand` is `state.expand`.
+// circus formats a thrown value only when it has a stack: one with none is swapped for circus's own
+// `asyncError`, an ordinary Error, which is left as it is (`cli/node-assert`).
 const formatNodeAssertErrors = (error: unknown, expand: boolean): unknown =>
-  isAssertionError(error)
+  isAssertionError(error) && typeof error.stack === 'string' && error.stack !== ''
     ? {message: assertionErrorMessage(error, {expand})}
     : error;
 
@@ -106,9 +108,7 @@ function assertionErrorMessage(
   error: AssertionErrorWithStack,
   options: {expand: boolean},
 ) {
-  const {expected, actual, generatedMessage, message, operator} = error;
-  // provino: an error that only carries the code may have no stack; circus has made one by now.
-  const stack = typeof error.stack === 'string' ? error.stack : '';
+  const {expected, actual, generatedMessage, message, operator, stack} = error;
   const diffString = diff(expected, actual, options);
   const hasCustomMessage = !generatedMessage;
   const operatorName = getOperatorName(operator, stack);
