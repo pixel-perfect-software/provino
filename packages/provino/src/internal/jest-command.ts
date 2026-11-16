@@ -473,7 +473,6 @@ async function coverageFor(
   // Jest's chalk and `istanbul-lib-report`'s console writer follow stdout's colour support.
   const output = outputFor({ env, stderr: stdout, ci: globalConfig.ci, colour: io.colour })
   const style = styleOf(output)
-  const consoleColour = output.colour
   const options = jestCoverageOptions(globalConfig, {
     env,
     stdoutColumns: typeof columns === 'number' && columns > 0 ? columns : undefined,
@@ -482,7 +481,7 @@ async function coverageFor(
     options,
     stdout,
     stderr,
-    consoleColour,
+    consoleColour: output.colour,
     style,
     texts: jestCoverageTexts,
   })
@@ -533,7 +532,7 @@ export function jestColourRequest(
         ? 0
         : forced.length === 0
           ? 1
-          : Math.min(Number.parseInt(forced, 10), 3)
+          : Number.parseInt(forced, 10)
   return Number.isNaN(level) ? flag : level > 0
 }
 

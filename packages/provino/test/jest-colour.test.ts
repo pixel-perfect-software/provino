@@ -3,9 +3,12 @@
 // `NO_COLOR` is never read (index.js L21-L29, L45). Each answer is the child's own, from that
 // package under that command line and environment.
 import assert from 'node:assert/strict'
-import { execFileSync } from 'node:child_process'
+import { execFile } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { describe, it } from 'node:test'
+import { promisify } from 'node:util'
+
+const execFileAsync = promisify(execFile)
 
 // Loaded by URL: the type-test project includes `test/` but not `src/`.
 const { jestColourRequest } = (await import(
@@ -33,8 +36,8 @@ const fromChalk = createRequire(fromMessageUtil.resolve('chalk/package.json'))
 const SUPPORTS_COLOR = fromChalk.resolve('supports-color')
 
 /** What supports-color answers for a terminal stdout, given the command line and environment. */
-function theirs(flags: readonly string[], env: Record<string, string>): boolean {
-  const out = execFileSync(
+async function theirs(flags: readonly string[], env: Record<string, string>): Promise<boolean> {
+  const { stdout } = await execFileAsync(
     process.execPath,
     [
       '-e',
@@ -43,7 +46,7 @@ function theirs(flags: readonly string[], env: Record<string, string>): boolean 
     ],
     { env: { PATH: process.env.PATH ?? '', TERM: 'xterm-256color', ...env }, encoding: 'utf8' },
   )
-  return out.trim() === 'true'
+  return stdout.trim() === 'true'
 }
 
 /** What `provino jest` decides for the same command line and environment. */
@@ -57,7 +60,7 @@ function ours(flag: boolean | undefined, env: Record<string, string>): boolean {
   }).colour
 }
 
-describe('provino jest colour follows supports-color, as Jest does', () => {
+describe('provino jest colour follows supports-color, as Jest does', async () => {
   const flags: readonly [string, readonly string[], boolean | undefined][] = [
     ['--colors', ['--colors'], true],
     ['--no-color', ['--no-color'], false],
@@ -69,23 +72,29 @@ describe('provino jest colour follows supports-color, as Jest does', () => {
     ['FORCE_COLOR unset', {}],
     ['NO_COLOR=1', { NO_COLOR: '1' }],
   ]
-  for (const [flagName, argv, flag] of flags) {
-    for (const [envName, env] of envs) {
-      // Declared divergence: on a terminal with no flag, `NO_COLOR` turns Provino's colour off
-      // (reporters.test.ts holds that) where Jest's chalk, which never reads it, colours.
-      const declared = flag === undefined && 'NO_COLOR' in env
-      it(`${flagName} with ${envName}${declared ? ' (declared: NO_COLOR is read)' : ''}`, () => {
-        if (declared) {
-          assert.equal(ours(flag, env), false)
-          assert.equal(theirs(argv, env), true)
-        } else {
-          assert.equal(ours(flag, env), theirs(argv, env))
-        }
-      })
-    }
+  // What supports-color says for each cell, asked of all the children at once.
+  const cells = await Promise.all(
+    flags.flatMap(([flagName, argv, flag]) =>
+      envs.map(async ([envName, env]) => ({
+        flagName,
+        flag,
+        envName,
+        env,
+        answer: await theirs(argv, env),
+      })),
+    ),
+  )
+  for (const { flagName, flag, envName, env, answer } of cells) {
+    // Declared divergence: on a terminal with no flag, `NO_COLOR` turns Provino's colour off
+    // (reporters.test.ts holds that) where Jest's chalk, which never reads it, colours.
+    const declared = flag === undefined && 'NO_COLOR' in env
+    it(`${flagName} with ${envName}${declared ? ' (declared: NO_COLOR is read)' : ''}`, () => {
+      if (declared) {
+        assert.equal(ours(flag, env), false)
+        assert.equal(answer, true)
+      } else {
+        assert.equal(ours(flag, env), answer)
+      }
+    })
   }
-
-  it('--colors with FORCE_COLOR=0 is plain, whatever the flag says', () => {
-    assert.equal(ours(true, { FORCE_COLOR: '0' }), false)
-  })
 })

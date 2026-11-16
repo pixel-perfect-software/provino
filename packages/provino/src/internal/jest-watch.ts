@@ -241,12 +241,15 @@ export async function runJestWatch(command: JestWatchCommand): Promise<number> {
     })
     const [project, ...others] = projects
     if (project === undefined) throw new UsageError('the config has no project to run')
-    let reporterFailed = false
     await executeProject({
       project,
-      onReporterFailures: (failures) => {
-        reporterFailed = failures.length > 0
-      },
+      // Jest's `success` (TestScheduler.ts L338-L352, L486-L491) is settled after the reporters
+      // have heard the end of the run: `!(anyTestFailures || snapshot.failure || anyReporterErrors)`.
+      // The collector hands its reporters `false` until then, so a run left unsettled writes
+      // `success: false` to `--json` however it went. `executeProject` makes this call as the
+      // reporters finish, before `processJestResults` below (a global setup that failed ends
+      // earlier, and a watch run has none).
+      onReporterFailures: (failures) => results.reportersFailed(failures.length > 0),
       others,
       cwd,
       stdout,
@@ -270,11 +273,6 @@ export async function runJestWatch(command: JestWatchCommand): Promise<number> {
       ...(config.logHeapUsage ? { logHeapUsage: true } : {}),
       session: interrupts.session,
     })
-    // Jest's `success` (TestScheduler.ts L338-L352, L486-L491) is settled after the reporters have
-    // heard the end of the run: `!(anyTestFailures || snapshot.failure || anyReporterErrors)`. The
-    // collector hands its reporters `false` until then, so a run left unsettled writes
-    // `success: false` to `--json` however it went.
-    results.reportersFailed(reporterFailed)
     // `processResults` (runJest.ts L173-L213) after every run: `--json` and `testResultsProcessor`.
     if (config.json || config.testResultsProcessor !== undefined) {
       await processJestResults({
