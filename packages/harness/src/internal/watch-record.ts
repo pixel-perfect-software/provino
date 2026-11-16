@@ -136,6 +136,11 @@ export interface WatchRecordOptions {
   readonly normalize: (text: string) => string
   /** The work directory's spellings, which the run log's strings have as `<root>`. */
   readonly roots: readonly string[]
+  /**
+   * A `captureFile` step's parsed file as the golden keeps it (`normalizedJson` with the fixture's
+   * `timeKeys` and `maskKeys`); a file that is not JSON is refused.
+   */
+  readonly normalizeJson?: (value: JsonValue) => JsonValue
   /** The whole session's deadline, in milliseconds. */
   readonly timeoutMs: number
   /** Names the fixture in errors. */
@@ -195,6 +200,7 @@ export async function recordWatchSessionExit(
   const spawn = options.spawn ?? defaultSpawn(watch.tty)
   const poll = options.poll ?? (() => sleep(POLL_MS))
   let session: PtyProcess | undefined
+  let captures: Readonly<Record<string, JsonValue>> = {}
   let cause: 'the deadline passed' | 'the session ended' | undefined
   let runs = 0
   let exitCode: number | null | undefined
@@ -247,9 +253,30 @@ export async function recordWatchSessionExit(
         }
       },
       change: (step) => runScmStep(options.repo, step),
+      async captureFile(file, key) {
+        const text = await readIfThere(path.join(options.workDir, file))
+        if (text === null || text.trim() === '') {
+          throw new HarnessError(
+            'HARNESS_WATCH_FAILED',
+            `${source}: "captureFile" ${key}: the session left no file there, or an empty one`,
+          )
+        }
+        let value: JsonValue
+        try {
+          value = JSON.parse(text) as JsonValue
+        } catch (error) {
+          throw new HarnessError(
+            'HARNESS_WATCH_FAILED',
+            `${source}: "captureFile" ${key} is not JSON`,
+            { cause: error },
+          )
+        }
+        return options.normalizeJson === undefined ? value : options.normalizeJson(value)
+      },
     }
     const result = await runWatchSteps(watch.steps, host)
     runs = result.runs
+    captures = result.captures
     exitCode = result.exit?.exitCode
   } catch (error) {
     failure = { error }
@@ -319,6 +346,7 @@ export async function recordWatchSessionExit(
             ),
           ),
         }),
+    ...(Object.keys(captures).length === 0 ? {} : { json: captures }),
     ...(captured('runs')
       ? { runs: entries.map((entry) => JSON.parse(rooted(JSON.stringify(entry))) as JsonValue) }
       : {}),

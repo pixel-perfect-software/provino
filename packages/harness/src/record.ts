@@ -56,7 +56,11 @@ import {
 import { hermeticGitEnv, initRepo, runScmSteps, withoutGitVariables } from './internal/scm.ts'
 import { assertTraceFromOneFile, readTrace } from './internal/trace.ts'
 import { isNodeModules, walkFiles } from './internal/walk.ts'
-import { recordWatchSessionExit, watchJestConfig } from './internal/watch-record.ts'
+import {
+  recordWatchSessionExit,
+  WATCH_LOG_REPORTER_PATH,
+  watchJestConfig,
+} from './internal/watch-record.ts'
 import {
   createWorkDirRegistry,
   REMOVE_TREE_OPTIONS,
@@ -542,7 +546,7 @@ async function runUnderRunner(
   if (runner === 'jest') {
     // An exact run has no `--config`: Jest finds this file from the work directory, as it finds a
     // project's own.
-    const exact = spec?.exact === true
+    const exact = spec?.exact === true || watch?.exact === true
     if (exact) await assertNoOtherJestConfig(workDir, fixture)
     const configFile = exact
       ? path.join(workDir, 'jest.config.json')
@@ -603,13 +607,22 @@ async function runUnderRunner(
         process.execPath,
         ...(fixture.manifest.nodeFlags ?? []),
         install.bin,
-        '--config',
-        path.join(outDir, 'jest.config.json'),
+        // An exact session has no `--config` (Jest finds the work directory's), and the command
+        // line's own `--reporters` replace the config's, so the run log's goes on the line too.
+        ...(watch.exact === true ? [] : ['--config', path.join(outDir, 'jest.config.json')]),
         ...watch.argv,
+        ...(watch.exact === true ? ['--reporters', WATCH_LOG_REPORTER_PATH] : []),
       ],
       workDir,
       env,
       ...logs,
+      normalizeJson: (value) =>
+        normalizedJson(value, {
+          roots: [paths.realWorkDir, paths.workDir].toSorted((a, b) => b.length - a.length),
+          timeKeys: watch.timeKeys ?? [],
+          maskKeys: watch.maskKeys ?? [],
+          mask: masker(watch.mask),
+        }),
       repo: { dir: workDir, ceiling: path.dirname(paths.realWorkDir) },
       normalize: (text) => normalizer.text(text),
       roots: [paths.realWorkDir, paths.workDir],

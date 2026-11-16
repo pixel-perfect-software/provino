@@ -3,7 +3,13 @@ import { test } from 'node:test'
 import { HarnessError } from '../errors.ts'
 import type { ScmStep, WatchStep } from '../fixture.ts'
 import type { PtyExit, PtyMatch } from '../pty.ts'
-import { keyBytes, PATTERN_CARET, runWatchSteps, type WatchHost } from './watch-steps.ts'
+import {
+  keyBytes,
+  PATTERN_CARET,
+  RESULTS_WRITTEN,
+  runWatchSteps,
+  type WatchHost,
+} from './watch-steps.ts'
 
 /**
  * A terminal that answers each write from a script, at once: no process and no clock. `respond`
@@ -49,19 +55,29 @@ class FakeSession {
 function hostOf(
   session: FakeSession,
   options: { onRuns?: (count: number) => void } = {},
-): WatchHost & { readonly runs: number[]; readonly changes: ScmStep[] } {
+): WatchHost & {
+  readonly runs: number[]
+  readonly changes: ScmStep[]
+  readonly captured: string[]
+} {
+  const captured: string[] = []
   const runs: number[] = []
   const changes: ScmStep[] = []
   return {
     session,
     runs,
     changes,
+    captured,
     async waitRuns(count) {
       runs.push(count)
       options.onRuns?.(count)
     },
     async change(step) {
       changes.push(step)
+    },
+    async captureFile(_file, key) {
+      captured.push(key)
+      return { key }
     },
   }
 }
@@ -83,7 +99,7 @@ test('a run is waited for through the host, and a key after it is sent once it h
   const host = hostOf(session, { onRuns: (count) => events.push(`run ${count}`) })
   const result = await runWatchSteps([{ waitRun: 1 }, { key: 'a' }, { waitRun: 2 }], host)
   assert.deepEqual(events, ['run 1', 'key a', 'run 2'])
-  assert.deepEqual(result, { runs: 2 })
+  assert.deepEqual(result, { runs: 2, captures: {} })
 })
 
 test('a waitText after a key looks only at what the key drew', async () => {
@@ -190,7 +206,11 @@ test('exit waits for the session and checks its code', async () => {
     return ''
   })
   const result = await runWatchSteps([{ key: 'q' }, { exit: 0 }], hostOf(session))
-  assert.deepEqual(result, { runs: 0, exit: { exitCode: 0, killed: false } })
+  assert.deepEqual(result, {
+    runs: 0,
+    exit: { exitCode: 0, killed: false },
+    captures: {},
+  })
 
   const other = new FakeSession()
   other.end(1)
@@ -210,6 +230,7 @@ test('a run log that fails its wait fails the steps there', async () => {
     waitRuns: () =>
       Promise.reject(new HarnessError('HARNESS_WATCH_FAILED', 'a run no step waited for')),
     change: async () => {},
+    captureFile: async () => null,
   }
   await assert.rejects(
     runWatchSteps([{ waitRun: 1 }, { key: 'q' }], host),
@@ -274,4 +295,58 @@ test('a character waits for the prompt line, and goes out once it arrives', asyn
   assert.deepEqual(session.writes, ['f', 'o', '\r'])
   await done
   assert.deepEqual(session.writes, ['f', 'o', '\r'])
+})
+
+test('a captureFile step reads its file once Jest says it wrote one: the n-th line for the n-th capture', async () => {
+  const session = new FakeSession()
+  // Each run ends with Jest writing its results file and saying so.
+  const host = hostOf(session, {
+    onRuns: () => {
+      session.text += `${RESULTS_WRITTEN}: out.json\r\n`
+    },
+  })
+  const result = await runWatchSteps(
+    [{ waitRun: 1 }, { captureFile: 'out.json' }, { waitRun: 2 }, { captureFile: 'out.json' }],
+    host,
+  )
+  // Keyed `<file>#<n>`, in the order the steps asked, as the host returned them.
+  assert.deepEqual(result.captures, {
+    'out.json#1': { key: 'out.json#1' },
+    'out.json#2': { key: 'out.json#2' },
+  })
+  assert.deepEqual(host.captured, ['out.json#1', 'out.json#2'])
+  assert.deepEqual(host.runs, [1, 2])
+  // Each wait starts past the line the capture before consumed.
+  const line = `${RESULTS_WRITTEN}: out.json\r\n`
+  assert.deepEqual(session.waits, [
+    { match: RESULTS_WRITTEN, from: 0 },
+    { match: RESULTS_WRITTEN, from: RESULTS_WRITTEN.length },
+  ])
+  assert.equal(session.text, line + line)
+})
+
+test('a capture never reads before its own line: run 1\u2019s file is not run 2\u2019s', async () => {
+  // One line is shown, two captures are asked for: the second never sees a line of its own.
+  const session = new FakeSession()
+  session.text = `${RESULTS_WRITTEN}: out.json\r\n`
+  const host = hostOf(session)
+  await assert.rejects(
+    runWatchSteps([{ captureFile: 'out.json' }, { captureFile: 'out.json' }], host),
+    (error: unknown) =>
+      error instanceof HarnessError &&
+      /never wrote its results file for capture out\.json#2/.test(error.message) &&
+      /no Test results written to/.test(error.message),
+  )
+  assert.deepEqual(host.captured, ['out.json#1'])
+})
+
+test('captures are counted per file', async () => {
+  const session = new FakeSession()
+  session.text = `${RESULTS_WRITTEN}: a.json\r\n${RESULTS_WRITTEN}: b.json\r\n${RESULTS_WRITTEN}: a.json\r\n`
+  const host = hostOf(session)
+  const result = await runWatchSteps(
+    [{ captureFile: 'a.json' }, { captureFile: 'b.json' }, { captureFile: 'a.json' }],
+    host,
+  )
+  assert.deepEqual(Object.keys(result.captures), ['a.json#1', 'b.json#1', 'a.json#2'])
 })

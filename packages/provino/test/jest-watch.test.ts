@@ -2,14 +2,19 @@
 // recorded from Jest 30.5.2, played by `watch-goldens.ts` in this process and on a terminal. The
 // plugin, `u` and `i` goldens are `jest-watch-plugins.test.ts`'s.
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
 import { describe, it } from 'node:test'
 import { loadFixture } from './recorded.ts'
+import { failing, jestConfigJson, makeProject, passing } from './support.ts'
 import {
+  endSession,
   FakeStdin,
   FakeTerminal,
+  guarded,
   playInProcess,
   playOnTerminal,
   prepare,
+  RESULTS_WRITTEN,
   runJestCommand,
   SESSION_MS,
   terminalSkip,
@@ -111,4 +116,108 @@ describe('provino jest --watch on a terminal, against the watch/* goldens of Jes
       await playOnTerminal(await loadFixture(`watch/${name}`))
     })
   }
+})
+
+describe('provino jest --watchAll --json: the results file of each run (runJest.ts)', () => {
+  /** Runs one watch run to its results file, then ends the session; the file's `success`. */
+  async function successOf(file: string): Promise<boolean> {
+    const project = await makeProject({
+      'jest.config.json': jestConfigJson(),
+      'tests/a.test.js': file,
+    })
+    try {
+      const terminal = new FakeTerminal(false)
+      const controller = new AbortController()
+      const out = project.path('out.json')
+      const result = runJestCommand(
+        ['--config', project.path('jest.config.json'), '--watchAll', '--json', '--outputFile', out],
+        {
+          stdout: terminal,
+          stderr: terminal,
+          cwd: project.dir,
+          env: { TERM: 'xterm-256color', NO_COLOR: '1' },
+          stdin: new FakeStdin(),
+          signal: controller.signal,
+          watchChanges: () => ({ close: () => undefined }),
+        },
+      )
+      const deadline = Date.now() + SESSION_MS
+      while (!terminal.text.includes(RESULTS_WRITTEN)) {
+        assert.ok(Date.now() < deadline, `no results file. Output:\n${terminal.text}`)
+        await new Promise((resolve) => setTimeout(resolve, 25))
+      }
+      controller.abort()
+      await result
+      return (JSON.parse(await readFile(out, 'utf8')) as { success: boolean }).success
+    } finally {
+      await project.cleanup()
+    }
+  }
+
+  it('a run whose tests all pass has success true, as the same run without --watch does', async () => {
+    assert.equal(await successOf(passing('adds')), true)
+  })
+
+  it('a run with a failing test has success false', async () => {
+    assert.equal(await successOf(failing('adds')), false)
+  })
+})
+
+describe('a watch session is always ended and its project disposed of', () => {
+  const fake = (kill: () => Promise<void>): Parameters<typeof endSession>[0] =>
+    ({ kill, childPgid: 1, relayPgid: 2 }) as unknown as Parameters<typeof endSession>[0]
+
+  it('a kill that throws still disposes, and its error is the one thrown', async () => {
+    let disposed = false
+    await assert.rejects(
+      endSession(
+        fake(() => Promise.reject(new Error('kill failed'))),
+        async () => {
+          disposed = true
+        },
+        () => true,
+      ),
+      /kill failed/,
+    )
+    assert.equal(disposed, true)
+  })
+
+  it('a group left behind still disposes', async () => {
+    let disposed = false
+    await assert.rejects(
+      endSession(
+        fake(async () => undefined),
+        async () => {
+          disposed = true
+        },
+        (pgid) => pgid !== 2,
+      ),
+      /the relay group is gone/,
+    )
+    assert.equal(disposed, true)
+  })
+
+  it('the play’s error comes before the cleanup’s', async () => {
+    await assert.rejects(
+      guarded(
+        () => Promise.reject(new Error('the play failed')),
+        () => Promise.reject(new Error('the cleanup failed')),
+      ),
+      /the play failed/,
+    )
+    await assert.rejects(
+      guarded(
+        async () => 1,
+        () => Promise.reject(new Error('the cleanup failed')),
+      ),
+      /the cleanup failed/,
+    )
+    assert.equal(
+      await guarded(
+        async () => 7,
+        async () => undefined,
+      ),
+      7,
+    )
+  })
 })

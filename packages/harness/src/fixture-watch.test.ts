@@ -227,3 +227,57 @@ test('a type step with a control character is refused, naming the step', () => {
   }
   assert.ok(parse({ ...WATCH, steps: [{ waitRun: 1 }, { type: 'foo bar' }, { exit: 0 }] }).watch)
 })
+
+test('an exact watch keeps its captureFile steps, timeKeys and maskKeys', () => {
+  const manifest = parse({
+    argv: ['--json', '--outputFile', 'out.json', '--watch', '--reporters', 'default'],
+    exact: true,
+    tty: false,
+    steps: [{ waitRun: 1 }, { captureFile: 'out.json' }],
+    capture: ['runs'],
+    timeKeys: ['startTime'],
+    maskKeys: ['hash'],
+  })
+  assert.equal(manifest.watch?.exact, true)
+  assert.deepEqual(manifest.watch?.steps[1], { captureFile: 'out.json' })
+  assert.deepEqual(manifest.watch?.timeKeys, ['startTime'])
+  assert.deepEqual(manifest.watch?.maskKeys, ['hash'])
+})
+
+test('the recorder owns --json and --outputFile unless the watch is exact', () => {
+  bad({ ...WATCH, argv: ['--watch', '--json'] })
+})
+
+test('captureFile needs a path inside the work directory; timeKeys need a captureFile', () => {
+  const steps = [{ waitRun: 1 }, { captureFile: '../out.json' }]
+  bad({ ...WATCH, tty: false, steps, capture: ['runs'] })
+  bad({ ...WATCH, timeKeys: ['startTime'] })
+  bad({ ...WATCH, exact: false })
+})
+
+test('an exact watch must name its own --reporters, since the recorder adds one that replaces the config', () => {
+  const exact = {
+    ...WATCH,
+    argv: ['--watch', '--json', '--outputFile', 'o.json'],
+    tty: false,
+    exact: true,
+    capture: ['runs'],
+    steps: [{ waitRun: 1 }],
+  }
+  bad(exact)
+  assert.ok(parse({ ...exact, argv: [...exact.argv, '--reporters', 'default'] }).watch?.exact)
+  assert.ok(parse({ ...exact, argv: [...exact.argv, '--reporters=default'] }).watch?.exact)
+})
+
+test('a captureFile before any waitRun, or without exact, is refused', () => {
+  const exact = {
+    ...WATCH,
+    argv: ['--watch', '--reporters', 'default'],
+    tty: false,
+    exact: true,
+    capture: ['runs'],
+  }
+  bad({ ...exact, steps: [{ captureFile: 'o.json' }, { waitRun: 1 }] })
+  bad({ ...exact, exact: undefined, steps: [{ waitRun: 1 }, { captureFile: 'o.json' }] })
+  assert.ok(parse({ ...exact, steps: [{ waitRun: 1 }, { captureFile: 'o.json' }] }).watch)
+})
