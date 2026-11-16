@@ -6,6 +6,7 @@
 // fails with the same text. Jest's own packages resolve from jest-config's install on both sides.
 // The full sample (Jest configs from real repositories) is `pnpm bench:jest-config sample`.
 import assert from 'node:assert/strict'
+import { createRequire } from 'node:module'
 import { join } from 'node:path'
 import { after, before, test } from 'node:test'
 import { JestConfigError } from './errors.ts'
@@ -348,4 +349,101 @@ test('projects: readJestConfigs reads each one as readConfigs does', async () =>
     comparableWithout(ours.globalConfig, ['seed']),
     comparableWithout(theirs.globalConfig, ['seed']),
   )
+})
+
+test('projects that spread one shared config module each get their own rootDir in every nested value', async () => {
+  // A monorepo's projects commonly spread one shared module, so the arrays and objects inside it
+  // are the same objects in every project (Node caches the module): reading one project must not
+  // write its rootDir into them, or the next project reads the first's paths.
+  const shared = `module.exports = {
+  moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1', '^css$': ['<rootDir>/a.css', '<rootDir>/b.css'] },
+  transformIgnorePatterns: ['<rootDir>/skip'],
+  coveragePathIgnorePatterns: ['<rootDir>/gen'],
+  modulePathIgnorePatterns: ['<rootDir>/out'],
+  unmockedModulePathPatterns: ['<rootDir>/real'],
+  transform: { '^.+\\\\.js$': ['fake-transformer', { cache: '<rootDir>/.cache' }] },
+  setupFiles: ['<rootDir>/setup.js'],
+  setupFilesAfterEnv: ['<rootDir>/setup.js'],
+  testMatch: ['<rootDir>/src/**/*.test.js'],
+  modulePaths: ['<rootDir>/lib'],
+  moduleDirectories: ['node_modules', '<rootDir>/lib'],
+  roots: ['<rootDir>/src'],
+  collectCoverageFrom: ['<rootDir>/src/**/*.js', '!<rootDir>/src/skip/**'],
+  reporters: ['default', ['fake-reporter', { outputDirectory: '<rootDir>/reports' }]],
+  watchPlugins: [['jest-watch-typeahead/filename', { key: 'f' }]],
+  testEnvironmentOptions: { customExportConditions: ['node'], url: 'http://localhost/' },
+  globals: { flags: { debug: true }, list: [1, 2, 3] },
+  haste: { forceNodeFilesystemAPI: true },
+  snapshotFormat: { indent: 4 },
+  preset: '<rootDir>/../../preset.cjs',
+}
+`
+  const project = (name: string) => ({
+    [`packages/${name}/jest.config.cjs`]: `module.exports = { ...require('../../shared.cjs'), displayName: '${name}' }\n`,
+    [`packages/${name}/setup.js`]: '',
+    [`packages/${name}/preset-setup.js`]: '',
+    [`packages/${name}/src/x.test.js`]: '',
+    [`packages/${name}/lib/x.txt`]: '',
+  })
+  const root = writeTree({
+    ...PACKAGES,
+    'shared.cjs': shared,
+    'preset.cjs': `module.exports = {
+  moduleNameMapper: { '^p/(.*)$': '<rootDir>/p/$1' },
+  setupFiles: ['<rootDir>/preset-setup.js'],
+  globals: { flags: { verbose: true } },
+}
+`,
+    'jest.config.cjs': "module.exports = { projects: ['<rootDir>/packages/*'] }\n",
+    ...project('a'),
+    ...project('b'),
+  })
+  trees.push(root)
+  const exported = createRequire(import.meta.url)(join(root, 'shared.cjs')) as object
+  const snapshot = structuredClone(exported)
+
+  const read = await readJestConfigs([root], {
+    cwd: root,
+    requireResolve: oracleRequireResolve,
+    ci: oracle.defaults.ci === true,
+    seed: 0,
+  })
+
+  assert.deepEqual(exported, snapshot, "the shared module's export is unchanged")
+  const rootDirs = read.configs.map((config) => config.rootDir)
+  assert.deepEqual(rootDirs.toSorted(), [join(root, 'packages/a'), join(root, 'packages/b')])
+  for (const config of read.configs) {
+    const own = config.rootDir
+    const others = rootDirs.filter((dir) => dir !== own)
+    const substituted: Record<string, unknown> = {
+      moduleNameMapper: config.moduleNameMapper,
+      transformIgnorePatterns: config.transformIgnorePatterns,
+      coveragePathIgnorePatterns: config.coveragePathIgnorePatterns,
+      modulePathIgnorePatterns: config.modulePathIgnorePatterns,
+      unmockedModulePathPatterns: config.unmockedModulePathPatterns,
+      transform: config.transform.map(([pattern, path]) => [pattern, path]),
+      setupFiles: config.setupFiles,
+      setupFilesAfterEnv: config.setupFilesAfterEnv,
+      testMatch: config.testMatch,
+      modulePaths: config.modulePaths,
+      moduleDirectories: config.moduleDirectories,
+      roots: config.roots,
+    }
+    for (const [key, value] of Object.entries(substituted)) {
+      const text = JSON.stringify(value)
+      assert.ok(!text.includes('<rootDir>'), `${own}: ${key} still holds <rootDir>: ${text}`)
+      for (const other of others) {
+        assert.ok(!text.includes(other), `${own}: ${key} holds ${other}: ${text}`)
+      }
+    }
+    // The substitution happened, with this project's own root.
+    assert.deepEqual(config.roots, [join(own, 'src')])
+    assert.deepEqual(config.modulePaths, [join(own, 'lib')])
+    assert.ok(
+      config.moduleNameMapper.some(
+        ([regex, target]) => regex === '^@/(.*)$' && target === `${own}/src/$1`,
+      ),
+    )
+    assert.deepEqual(config.setupFiles, [join(own, 'preset-setup.js'), join(own, 'setup.js')])
+  }
 })
