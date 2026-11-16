@@ -93,6 +93,13 @@ export interface ThirdPartyGraph {
   /** A file's edges, or `undefined` when it wasn't added or reached. */
   nodeOf(path: string): GraphNode | undefined
   /**
+   * A file's edges as a walk sees them: added first if it is a file under `node_modules` the graph
+   * doesn't know, and stamped on its first visit in this worker (as `reachable` and `edgesOf` do).
+   * `undefined` for any other path. For a walk that may stop early, where building `path`'s whole
+   * closure first would be wasted.
+   */
+  visitNode(path: string): GraphNode | undefined
+  /**
    * Every file `path` can reach, itself included, in discovery order (a cycle ends the walk).
    * Empty for a path that isn't in the graph.
    */
@@ -336,6 +343,11 @@ export function buildThirdPartyGraph(options: GraphOptions): ThirdPartyGraph {
     has: (path) => slots.has(path),
     nodeOf(path) {
       const slot = slots.get(path)
+      return slot === undefined ? undefined : nodeOf(path, slot)
+    },
+    visitNode(path) {
+      load()
+      const slot = visit(path, true)
       return slot === undefined ? undefined : nodeOf(path, slot)
     },
     reachable: (path) => closureOf(path, false)?.entries ?? [],

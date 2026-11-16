@@ -21,7 +21,7 @@ export interface ReevaluateState {
   readonly watchers: Set<ExternalLoadWatcher>
   /**
    * Whether each node_modules file is in `active` or its closure reaches one (`reevaluatedReach`),
-   * per worker; cleared whenever `active` grows.
+   * per worker; the negative verdicts are dropped whenever `active` grows.
    */
   readonly reach: Map<string, boolean>
   /** Whether a watched load is running: a load inside it is part of it, never a window of its own. */
@@ -43,7 +43,10 @@ export function createReevaluateState(): ReevaluateState {
 export function activate(state: ReevaluateState, paths: Iterable<string>): void {
   const size = state.active.size
   for (const path of paths) state.active.add(path)
-  if (state.active.size !== size) state.reach.clear()
+  if (state.active.size === size) return
+  // `active` only grows, so a closure that reached an active file still does: only the negative
+  // verdicts can change.
+  for (const [path, reaches] of state.reach) if (!reaches) state.reach.delete(path)
 }
 
 /** Learns `file`, unless it is evaluated per file already: pending, and one more for `takeLearned`. */

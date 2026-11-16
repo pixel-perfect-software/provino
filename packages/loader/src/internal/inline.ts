@@ -234,10 +234,17 @@ export function mockedReach(
 }
 
 /**
- * `path`'s verdict in `known`, or the closure walk's: true when `direct` (a check of the file
- * itself, made before any walk) holds or `takes` names an edge of its closure. A positive verdict
- * is kept for `path`, and a negative one for every node_modules file the walk covered, since each
- * reaches no more than `path` does.
+ * `path`'s verdict in `known`, or a walk's: true when `direct` (a check of the file itself, made
+ * before any walk) holds or `takes` names an edge of its closure. A positive verdict is kept for
+ * `path`, and a negative one for every node_modules file the walk covered, since each reaches no
+ * more than `path` does.
+ *
+ * The walk goes node by node (`ThirdPartyGraph.visitNode`, and `userEdges` for a user module) and
+ * stops at the first edge `takes` names, so a positive verdict costs the files visited before it,
+ * not `path`'s whole closure (a component library's file reaches thousands; its first edge is often
+ * the one). A file with a verdict in `known` already is not walked again: a positive one ends the
+ * walk, a negative one has nothing to add. The verdict is the same as a walk over the whole
+ * closure's edges: it is whether any edge of the same reachable set is one `takes` names.
  */
 function cachedReach(
   known: Map<string, boolean>,
@@ -254,8 +261,36 @@ function cachedReach(
     known.set(path, true)
     return true
   }
-  const { found, done } = walkClosure(state, options, path, takes, userEdges)
-  if (found !== null) {
+  const graph = graphOf(state, options)
+  const done = new Set<string>()
+  const stack = [path]
+  let found = false
+  while (!found && stack.length > 0) {
+    const current = stack.pop()
+    if (current === undefined || done.has(current)) continue
+    done.add(current)
+    let edges: readonly GraphEdge[] | null | undefined
+    if (inGraph(current)) {
+      const verdict = current === path ? undefined : known.get(current)
+      if (verdict === true) {
+        found = true
+        break
+      }
+      if (verdict === false) continue
+      edges = graph.visitNode(current)?.edges
+    } else {
+      edges = userEdges(current)
+    }
+    if (edges === undefined || edges === null) continue
+    for (const edge of edges) {
+      if (takes(edge) !== null) {
+        found = true
+        break
+      }
+      if (edge.target !== null && !edge.target.startsWith('node:')) stack.push(edge.target)
+    }
+  }
+  if (found) {
     known.set(path, true)
     return true
   }
