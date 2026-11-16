@@ -1,24 +1,15 @@
 {
   "description": "Jest's documented custom snapshot matcher (B23e, D128): `toMatchTrimmedSnapshot` calls jest-snapshot 30.5.2's own `toMatchSnapshot` with its `this`, so jest-snapshot calls `this.snapshotState.match` with Jest's arguments and reads `expand`, `snapshotFormat` and `snapshotPath`. A first local run writes every snapshot: the trimmed text under the hint `toMatchTrimmedSnapshot`, one between two `toMatchSnapshot` calls of the same test (its hint is a name of its own, so they are the test's snapshots 1 and 2), one with property matchers, and a thrown error's message through `toThrowErrorMatchingSnapshot`. Every write reaches Jest's totals (`added`). One file, one worker.",
-  "runners": [
-    "jest"
-  ],
+  "runners": ["jest"],
   "jestEsm": true,
   "config": {
     "jest": {
-      "setupFilesAfterEnv": [
-        "<rootDir>/setup.ts"
-      ]
+      "setupFilesAfterEnv": ["<rootDir>/setup.ts"]
     }
   },
   "run": {
     "argv": {
-      "jest": [
-        "--ci=false",
-        "--testLocationInResults",
-        "-w",
-        "1"
-      ]
+      "jest": ["--ci=false", "--testLocationInResults", "-w", "1"]
     },
     "capture": [
       "exitCode",
@@ -27,14 +18,6 @@
       "file:__snapshots__/trimmed.test.ts.snap"
     ],
     "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Snapshot Summary|^ › |^ +● |^    [A-Z]|^    expect\\(|^    [-+] ",
-    "timeKeys": [
-      "startTime",
-      "endTime",
-      "duration",
-      "startAt",
-      "start",
-      "end",
-      "runtime"
-    ]
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
   }
 }

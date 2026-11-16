@@ -353,7 +353,9 @@ export const snapshotClaims: Claims = {
         'mismatch',
         (g) =>
           counters(g)?.unmatched === 2 &&
-          String(observedOf(g).stderr).includes('Snapshot name: `trimmed: toMatchTrimmedSnapshot 1`') &&
+          String(observedOf(g).stderr).includes(
+            'Snapshot name: `trimmed: toMatchTrimmedSnapshot 1`',
+          ) &&
           String(observedOf(g).stderr).includes('expect(received).toMatchSnapshot(properties)'),
       ),
       customSnapshot('inline', (g) =>

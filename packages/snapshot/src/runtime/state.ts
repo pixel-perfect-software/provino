@@ -321,7 +321,9 @@ export class SnapshotState implements SnapshotViewSource {
     } = options
     const count = this.bumpCounter(testName, testId)
     const key =
-      options.key === undefined || options.key === '' ? this.options.key(testName, count) : options.key
+      options.key === undefined || options.key === ''
+        ? this.options.key(testName, count)
+        : options.key
 
     // An inline snapshot beside a stored one doesn't check the stored key, so `-u` can remove it.
     if (!(isInline && this.data[key] !== undefined)) this.markKeyChecked(key, testId)

@@ -1,34 +1,21 @@
 {
   "description": "The inline form of Jest's documented custom snapshot matcher (B23e, D128): `toMatchTrimmedInlineSnapshot` calls jest-snapshot 30.5.2's `toMatchInlineSnapshot` with its `this`. A first local run writes each snapshot into the test file at the custom matcher's call (State.ts `_addSnapshot` finds it below the external matcher trap; `prettierPath: null`, so Babel's reprint alone), then the captured run under `--ci` matches the written snapshots, beside a `toMatchSnapshot` of the same test. One file, one worker.",
-  "runners": [
-    "jest"
-  ],
+  "runners": ["jest"],
   "jestEsm": true,
   "config": {
     "jest": {
-      "setupFilesAfterEnv": [
-        "<rootDir>/setup.ts"
-      ],
+      "setupFilesAfterEnv": ["<rootDir>/setup.ts"],
       "prettierPath": null
     }
   },
   "before": [
     {
-      "argv": [
-        "--ci=false",
-        "-w",
-        "1"
-      ]
+      "argv": ["--ci=false", "-w", "1"]
     }
   ],
   "run": {
     "argv": {
-      "jest": [
-        "--ci",
-        "--testLocationInResults",
-        "-w",
-        "1"
-      ]
+      "jest": ["--ci", "--testLocationInResults", "-w", "1"]
     },
     "capture": [
       "exitCode",
@@ -38,14 +25,6 @@
       "file:__snapshots__/inline.test.ts.snap"
     ],
     "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Snapshot Summary|^ › |^ +● |^    [A-Z]|^    expect\\(|^    [-+] ",
-    "timeKeys": [
-      "startTime",
-      "endTime",
-      "duration",
-      "startAt",
-      "start",
-      "end",
-      "runtime"
-    ]
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
   }
 }

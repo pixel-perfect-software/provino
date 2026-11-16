@@ -8,7 +8,9 @@ const stored = existsSync(
 )
 
 test('trimmed', () => {
-  expect(stored ? 'EXTRA long string oh my gerd' : 'extra long string oh my gerd').toMatchTrimmedSnapshot(10)
+  expect(
+    stored ? 'EXTRA long string oh my gerd' : 'extra long string oh my gerd',
+  ).toMatchTrimmedSnapshot(10)
 })
 
 test('beside toMatchSnapshot', () => {

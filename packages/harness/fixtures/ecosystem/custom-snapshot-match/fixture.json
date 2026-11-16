@@ -1,33 +1,20 @@
 {
   "description": "Jest's documented custom snapshot matcher (B23e, D128) on stored snapshots: a first local run writes them (as `custom-snapshot-add`), then a run under `--ci` matches every one through jest-snapshot 30.5.2's `this.snapshotState.match`, and the matches reach Jest's totals (`matched`). One file, one worker.",
-  "runners": [
-    "jest"
-  ],
+  "runners": ["jest"],
   "jestEsm": true,
   "config": {
     "jest": {
-      "setupFilesAfterEnv": [
-        "<rootDir>/setup.ts"
-      ]
+      "setupFilesAfterEnv": ["<rootDir>/setup.ts"]
     }
   },
   "before": [
     {
-      "argv": [
-        "--ci=false",
-        "-w",
-        "1"
-      ]
+      "argv": ["--ci=false", "-w", "1"]
     }
   ],
   "run": {
     "argv": {
-      "jest": [
-        "--ci",
-        "--testLocationInResults",
-        "-w",
-        "1"
-      ]
+      "jest": ["--ci", "--testLocationInResults", "-w", "1"]
     },
     "capture": [
       "exitCode",
@@ -36,14 +23,6 @@
       "file:__snapshots__/trimmed.test.ts.snap"
     ],
     "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^Snapshot Summary|^ › |^ +● |^    [A-Z]|^    expect\\(|^    [-+] ",
-    "timeKeys": [
-      "startTime",
-      "endTime",
-      "duration",
-      "startAt",
-      "start",
-      "end",
-      "runtime"
-    ]
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
   }
 }

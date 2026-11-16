@@ -22,7 +22,7 @@
               "name": "Error",
               "message": "Error: expect(received).toMatchSnapshot(hint)\n\nSnapshot name: `trimmed: toMatchTrimmedSnapshot 1`\n\nSnapshot: \"extra long\"\nReceived: \"EXTRA long\"",
               "matcher": "toMatchSnapshot",
-              "userFrame": "<root>/trimmed.test.ts:11:84"
+              "userFrame": "<root>/trimmed.test.ts:13:5"
             }
           ],
           "passingAssertions": 0,
@@ -43,7 +43,7 @@
           "errors": [],
           "passingAssertions": 3,
           "location": {
-            "line": 14,
+            "line": 16,
             "column": 1
           }
         },
@@ -61,12 +61,12 @@
               "name": "Error",
               "message": "Error: expect(received).toMatchSnapshot(properties)\n\nSnapshot name: `with properties 1`\n\n- Expected properties  - 1\n+ Received value       + 1\n\n  Object {\n-   \"id\": Any<Number>,\n+   \"id\": \"seven\",\n  }",
               "matcher": "toMatchSnapshot",
-              "userFrame": "<root>/trimmed.test.ts:21:78"
+              "userFrame": "<root>/trimmed.test.ts:23:78"
             }
           ],
           "passingAssertions": 0,
           "location": {
-            "line": 20,
+            "line": 22,
             "column": 1
           }
         }
@@ -177,7 +177,7 @@
                 "invocations": 1,
                 "location": {
                   "column": 1,
-                  "line": 14
+                  "line": 16
                 },
                 "numPassingAsserts": 3,
                 "retryMessages": [],
@@ -207,7 +207,7 @@
                 "invocations": 1,
                 "location": {
                   "column": 1,
-                  "line": 20
+                  "line": 22
                 },
                 "numPassingAsserts": 0,
                 "retryMessages": [],
@@ -218,7 +218,7 @@
               }
             ],
             "endTime": "<time>",
-            "message": "  ● trimmed\n\n    expect(received).toMatchSnapshot(hint)\n\n    Snapshot name: `trimmed: toMatchTrimmedSnapshot 1`\n\n    Snapshot: \"extra long\"\n    Received: \"EXTRA long\"\n\n       9 |\n      10 | test('trimmed', () => {\n    > 11 |   expect(stored ? 'EXTRA long string oh my gerd' : 'extra long string oh my gerd').toMatchTrimmedSnapshot(10)\n         |                                                                                    ^\n      12 | })\n      13 |\n      14 | test('beside toMatchSnapshot', () => {\n\n<frames>\n\n  ● with properties\n\n    expect(received).toMatchSnapshot(properties)\n\n    Snapshot name: `with properties 1`\n\n    - Expected properties  - 1\n    + Received value       + 1\n\n      Object {\n    -   \"id\": Any<Number>,\n    +   \"id\": \"seven\",\n      }\n\n      19 |\n      20 | test('with properties', () => {\n    > 21 |   expect(stored ? { id: 'seven', name: 'seven' } : { id: 7, name: 'seven' }).toMatchIdSnapshot()\n         |                                                                              ^\n      22 | })\n      23 |\n\n<frames>\n",
+            "message": "  ● trimmed\n\n    expect(received).toMatchSnapshot(hint)\n\n    Snapshot name: `trimmed: toMatchTrimmedSnapshot 1`\n\n    Snapshot: \"extra long\"\n    Received: \"EXTRA long\"\n\n      11 |   expect(\n      12 |     stored ? 'EXTRA long string oh my gerd' : 'extra long string oh my gerd',\n    > 13 |   ).toMatchTrimmedSnapshot(10)\n         |     ^\n      14 | })\n      15 |\n      16 | test('beside toMatchSnapshot', () => {\n\n<frames>\n\n  ● with properties\n\n    expect(received).toMatchSnapshot(properties)\n\n    Snapshot name: `with properties 1`\n\n    - Expected properties  - 1\n    + Received value       + 1\n\n      Object {\n    -   \"id\": Any<Number>,\n    +   \"id\": \"seven\",\n      }\n\n      21 |\n      22 | test('with properties', () => {\n    > 23 |   expect(stored ? { id: 'seven', name: 'seven' } : { id: 7, name: 'seven' }).toMatchIdSnapshot()\n         |                                                                              ^\n      24 | })\n      25 |\n\n<frames>\n",
             "name": "<root>/trimmed.test.ts",
             "startTime": "<time>",
             "status": "failed",
