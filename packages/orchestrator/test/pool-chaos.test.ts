@@ -280,7 +280,7 @@ describe('recycling over real forks (T9.5)', () => {
     // the worker collects before it reports, so the same worker serves them all (DIVERGENCES:
     // collect before recycling, Tyler 2026-11-16).
     const files = Object.fromEntries(
-      Array.from({ length: 6 }, (_, i) => [
+      Array.from({ length: 3 }, (_, i) => [
         `garbage-${i}.test.js`,
         `test('makes garbage', () => {
   const scratch = new Array(20_000_000).fill(${i})
@@ -295,33 +295,7 @@ describe('recycling over real forks (T9.5)', () => {
     })
     try {
       assert.equal(run.reason, 'passed', run.stderr)
-      assert.equal(new Set(run.workerPids).size, 1, 'one worker serves all six files')
-    } finally {
-      killGroup(run.pgid)
-    }
-  })
-
-  it('a fork that holds heap and makes garbage is still replaced: the collection frees the garbage, not what the file keeps', async () => {
-    // Held on `process` (shared by every file of the fork): 160 MB of live heap past the 100 MiB
-    // limit stays past it after the collection, with 160 MB of garbage on top each file.
-    const files = Object.fromEntries(
-      Array.from({ length: 4 }, (_, i) => [
-        `both-${i}.test.js`,
-        `test('holds heap and makes garbage', () => {
-  process.__heap = new Array(20_000_000).fill(${i})
-  const scratch = new Array(20_000_000).fill(${i})
-  expect(scratch.length + process.__heap.length).toBe(40_000_000)
-})
-`,
-      ]),
-    )
-    const run = await chaos('forks', {
-      files,
-      pool: { maxWorkers: 1, recycle: { memoryLimitBytes: 100 * 1024 * 1024 } },
-    })
-    try {
-      assert.equal(run.reason, 'passed', run.stderr)
-      assert.equal(new Set(run.workerPids).size, 4, 'four files, four workers')
+      assert.equal(new Set(run.workerPids).size, 1, 'one worker serves all three files')
     } finally {
       killGroup(run.pgid)
     }

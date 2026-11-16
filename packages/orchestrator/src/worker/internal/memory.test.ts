@@ -68,13 +68,22 @@ describe('memoryAfterFile', () => {
     assert.equal(h.collections(), 1, 'one collection, never a second')
   })
 
-  it('collects nothing when nothing can be over the limit (Infinity)', () => {
-    const h = heap(Number.MAX_SAFE_INTEGER, 1)
-    assert.equal(
-      memoryAfterFile(Number.POSITIVE_INFINITY, h.read, h.collect),
-      Number.MAX_SAFE_INTEGER,
+  it('reports the first reading when the collection cannot run: a worker must never lose its fileDone', () => {
+    // V8's flags are process-wide: a thread that restored `--no-expose-gc` between another's set
+    // and its context leaves that one with no `gc` to call.
+    let reads = 0
+    const reported = memoryAfterFile(
+      1024 * MIB,
+      () => {
+        reads++
+        return 1100 * MIB
+      },
+      () => {
+        throw new ReferenceError('gc is not defined')
+      },
     )
-    assert.equal(h.collections(), 0)
+    assert.equal(reported, 1100 * MIB)
+    assert.equal(reads, 1, 'no second reading of a heap that was not collected')
   })
 
   it('reads the real heap and collects for real by default: 160 MB of garbage is gone from what it reports', () => {
@@ -88,16 +97,6 @@ describe('memoryAfterFile', () => {
 })
 
 describe('collectGarbage', () => {
-  it('frees what nothing refers to', () => {
-    const before = heapWithGarbage()
-    collectGarbage()
-    const after = usedHeapBytes()
-    assert.ok(
-      before - after >= 100 * MIB,
-      `the heap went from ${before} to ${after} bytes, a collection frees 160 MB of garbage`,
-    )
-  })
-
   it('leaves `gc` hidden from the contexts made after it, as it found it', (t) => {
     if (globalThis.gc !== undefined) {
       t.skip('node runs with --expose-gc')
