@@ -7,7 +7,6 @@ import assert from 'node:assert/strict'
 import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import type { HoistPolicy } from '@provino/types'
 import {
   createRecords,
   dropRecords,
@@ -19,31 +18,7 @@ import {
   setResolved,
   toModuleId,
 } from './records.ts'
-import { loaderOptionsFor, writeTree } from './test-support.ts'
-
-/** A hoist policy that makes a file's imports late when it calls `mocker.mock` (D38). */
-const HOIST: HoistPolicy = {
-  id: 'async-graphs-test',
-  objects: [{ kind: 'global', name: 'mocker' }],
-  hoistCalls: { mock: 'path-factory-options', unmock: 'one-string' },
-  hoistValues: [],
-  rewriteImportArg: [],
-  chainable: true,
-  placement: 'enclosing-block',
-  topLevelGuards: [],
-  factoryReferences: 'allow',
-  runnerModules: [],
-  reExports: 'in-order',
-  rewrittenCalls: 'detached',
-  messages: {
-    HOIST_FACTORY_OUT_OF_SCOPE: 'out of scope',
-    HOIST_FACTORY_NOT_FUNCTION: 'not a function',
-    HOIST_NOT_TOP_LEVEL: 'not top level',
-    HOIST_NESTED: 'nested',
-    HOIST_EXPORTED: 'exported',
-    HOIST_EXPORTED_VALUE: 'exported value',
-  },
-}
+import { HOIST, loaderOptionsFor, writeTree } from './test-support.ts'
 
 /**
  * The reference: every record's own flags, then a scan of every linked record over its `user`

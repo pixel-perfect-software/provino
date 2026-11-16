@@ -299,3 +299,27 @@ export function loaderOptionsFor(root: string, extra: LoaderOptionsExtra = {}): 
     ...(extra.transformClaims === undefined ? {} : { transformClaims: extra.transformClaims }),
   }
 }
+
+/** A hoist policy that makes a file's imports late when it calls `mocker.mock` (D38), for tests. */
+export const HOIST: HoistPolicy = {
+  id: 'loader-test',
+  objects: [{ kind: 'global', name: 'mocker' }],
+  hoistCalls: { mock: 'path-factory-options', unmock: 'one-string' },
+  hoistValues: [],
+  rewriteImportArg: [],
+  chainable: true,
+  placement: 'enclosing-block',
+  topLevelGuards: [],
+  factoryReferences: 'allow',
+  runnerModules: [],
+  reExports: 'in-order',
+  rewrittenCalls: 'detached',
+  messages: {
+    HOIST_FACTORY_OUT_OF_SCOPE: 'out of scope',
+    HOIST_FACTORY_NOT_FUNCTION: 'not a function',
+    HOIST_NOT_TOP_LEVEL: 'not top level',
+    HOIST_NESTED: 'nested',
+    HOIST_EXPORTED: 'exported',
+    HOIST_EXPORTED_VALUE: 'exported value',
+  },
+}
