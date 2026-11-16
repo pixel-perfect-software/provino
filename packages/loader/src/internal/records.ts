@@ -167,13 +167,14 @@ export interface Records {
   readonly scopePatterns: ReadonlyMap<string, RegExp>
   /**
    * The records that name each module id as a `user` target in `resolved` (a reverse edge index,
-   * for `markAsyncGraphs`): an over-approximation, since a target `setResolved` overwrote is not
-   * taken out, which only costs a record a needless look at its targets.
+   * for `markAsyncGraphs`). Only ever added to, as a defence: should `setResolved` overwrite a
+   * `user` target, the stale entry costs a record a needless look at its targets, never a missed
+   * flag.
    */
   readonly importers: Map<ModuleId, Set<ModuleRecord>>
   /**
    * The records whose `asyncGraph`/`lateGraph` may be behind what their targets say, since
-   * `markAsyncGraphs` last ran: one linked, one whose `resolved` changed, and the importers of a
+   * `markAsyncGraphs` last ran: one whose `resolved` gained a `user` target, and the importers of a
    * module whose record was made. `markAsyncGraphs` empties it.
    */
   readonly graphsDirty: Set<ModuleRecord>
@@ -600,7 +601,6 @@ export async function linkAsync(state: Records, root: ModuleRecord): Promise<voi
     const record = stack.pop()
     if (record === undefined || record.linked) continue
     record.linked = true
-    state.graphsDirty.add(record)
     for (const specifier of record.deps) {
       const target = linkDep(state, record, specifier, stack)
       if (record.format === 'esm') await preloadAsync(state, target)
@@ -615,7 +615,6 @@ export function linkSync(state: Records, root: ModuleRecord): void {
     const record = stack.pop()
     if (record === undefined || record.linked) continue
     record.linked = true
-    state.graphsDirty.add(record)
     for (const specifier of record.deps) linkDep(state, record, specifier, stack)
   }
   markAsyncGraphs(state)
@@ -647,24 +646,23 @@ export function setResolved(
  * (`lateGraph`), to a fixed point over cycles.
  *
  * Incremental: only the records whose inputs changed since the last run (`Records.graphsDirty`: a
- * record linked, a `resolved` write, a dep's record made) are looked at, and a record that gains a
+ * `user` target written to `resolved`, which every link of a dep goes through, and the importers of
+ * a module whose record was made) are looked at, and a record that gains a
  * flag puts its importers (`Records.importers`) on the worklist, so a run costs the edges around
  * what changed, not every record in the worker. The result is the one a scan of every record to a
  * fixed point gives: the flags only ever go from `false` to `true`, a linked record takes a flag
  * when a `user` target's live record has it, and a record whose inputs did not change already
- * satisfies that from the last run. A record that is no longer the live one for its id
- * (`dropRecords`) is skipped, as the scan of `records` skipped it.
+ * satisfies that from the last run. A record that is no longer the live one for its id is never
+ * looked at: `dropRecords` takes it out of the dirty set and the importers index.
  */
 function markAsyncGraphs(state: Records): void {
-  const dirty = state.graphsDirty
-  if (dirty.size === 0) return
-  const work = [...dirty]
-  dirty.clear()
-  while (work.length > 0) {
-    const record = work.pop()
-    if (record === undefined) continue
+  // The dirty set is the worklist: a record is taken out as it is looked at, and an importer put
+  // back in is looked at again (a `Set` visits what is added while it is iterated). It is empty at
+  // the end.
+  const work = state.graphsDirty
+  for (const record of work) {
+    work.delete(record)
     if (!record.linked || (record.asyncGraph && record.lateGraph)) continue
-    if (state.records.get(record.id) !== record) continue
     let changed = false
     for (const target of record.resolved.values()) {
       // A `missing` or `failed` target has no record: it adds nothing to the graph.
@@ -681,7 +679,7 @@ function markAsyncGraphs(state: Records): void {
     }
     if (changed) {
       const importers = state.importers.get(record.id)
-      if (importers !== undefined) for (const importer of importers) work.push(importer)
+      if (importers !== undefined) for (const importer of importers) work.add(importer)
     }
   }
 }

@@ -11,10 +11,12 @@ import type { HoistPolicy } from '@provino/types'
 import {
   createRecords,
   dropRecords,
+  linkAsync,
   linkSync,
   type ModuleRecord,
   type Records,
   recordFor,
+  setResolved,
   toModuleId,
 } from './records.ts'
 import { loaderOptionsFor, writeTree } from './test-support.ts'
@@ -179,6 +181,61 @@ test('a dropped module made again with top-level await marks the modules that im
   assert.deepEqual(flagsOf(state, root, 'b.ts'), { async: true, late: false })
   assert.deepEqual(flagsOf(state, root, 'a.ts'), { async: true, late: false })
   assertFlags(state, 'drop')
+})
+
+test('a runtime require that resolves a new edge after linking marks the importer', () => {
+  const root = writeTree({
+    'a.ts': 'export const a = 1\n',
+    'linked.ts': 'export const linked = await Promise.resolve(1)\n',
+    'fresh.ts': "import './hoists.ts'\nexport const fresh = 1\n",
+    'hoists.ts': "import { d } from './d.ts'\nmocker.mock('./d.ts')\nexport const h = d\n",
+    'd.ts': 'export const d = 1\n',
+  })
+  const state = recordsOf(root)
+  const a = link(state, root, 'a.ts')
+  // A dep linked already, so linking it again links nothing: only the new `resolved` entry, as the
+  // registry's `#targetOf` writes it for a `require` the static scan did not see, marks `a`.
+  const linked = link(state, root, 'linked.ts')
+  setResolved(state, a, './linked.ts', { kind: 'user', id: linked.id })
+  linkSync(state, linked)
+  assert.deepEqual(flagsOf(state, root, 'a.ts'), { async: true, late: false })
+  assertFlags(state, 'after a require of a linked module')
+  // A dep with no record until the require: made and linked then, its late deps reach `a`.
+  const fresh = recordFor(state, toModuleId(join(root, 'fresh.ts')), false)
+  setResolved(state, a, './fresh.ts', { kind: 'user', id: fresh.id })
+  linkSync(state, fresh)
+  assert.deepEqual(flagsOf(state, root, 'a.ts'), { async: true, late: true })
+  assertFlags(state, 'after a require of a module made then')
+})
+
+test('two links interleaved at an await mid-walk end with a full scan’s flags', async () => {
+  const root = writeTree({
+    'one.ts': "import 'node:os'\nimport './shared.ts'\nexport const one = 1\n",
+    'two.ts': "import 'node:url'\nimport './shared.ts'\nimport './tla.ts'\nexport const two = 1\n",
+    'shared.ts': "import 'node:zlib'\nimport './leaf.ts'\nexport const shared = 1\n",
+    'leaf.ts': "import './hoists.ts'\nexport const leaf = 1\n",
+    'hoists.ts': "import { d } from './d.ts'\nmocker.mock('./d.ts')\nexport const h = d\n",
+    'd.ts': 'export const d = 1\n',
+    'tla.ts': "import './one.ts'\nexport const tla = await Promise.resolve(1)\n",
+    'sync.ts': "import './shared.ts'\nexport const sync = 1\n",
+  })
+  // Node's interop preloads each builtin with an `await import()`, so each walk yields mid-walk.
+  const state = createRecords(
+    loaderOptionsFor(root, { hoist: HOIST, policy: { interopDefault: 'node' } }),
+  )
+  const record = (file: string): ModuleRecord =>
+    recordFor(state, toModuleId(join(root, file)), false)
+  const first = linkAsync(state, record('one.ts'))
+  const second = linkAsync(state, record('two.ts'))
+  // A sync link while both are suspended reads records the async walks have linked only in part.
+  linkSync(state, record('sync.ts'))
+  assertFlags(state, 'while both walks are suspended')
+  await Promise.all([first, second])
+  assertFlags(state, 'after both walks')
+  assert.deepEqual(flagsOf(state, root, 'one.ts'), { async: false, late: true })
+  assert.deepEqual(flagsOf(state, root, 'two.ts'), { async: true, late: true })
+  assert.deepEqual(flagsOf(state, root, 'tla.ts'), { async: true, late: true })
+  assert.deepEqual(flagsOf(state, root, 'sync.ts'), { async: false, late: true })
 })
 
 /** A small seeded generator (mulberry32), so a failing graph is the same on every run. */
