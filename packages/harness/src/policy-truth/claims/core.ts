@@ -13,6 +13,16 @@ import { errorsOf, hasTest, observedOf, oneOf, statusOf, testOf, timeoutOf } fro
 /** The seed `cli/randomize-seed-flat` ran with (`--seed=1234`). */
 const FLAT_SEED = 1234
 
+/** Whether a behaviour ref is `name`, exported from `@provino/dialect-jest/runtime`. */
+const isJestRuntimeRef = (value: unknown, name: string): boolean => {
+  const ref = value as { readonly module?: unknown; readonly export?: unknown } | null
+  return (
+    ref !== null &&
+    ref.export === name &&
+    ref.module === import.meta.resolve('@provino/dialect-jest/runtime')
+  )
+}
+
 /**
  * Whether the ref (the dialect's `core.shuffle`) is jest-circus's shuffle: `cli/randomize-seed-flat`
  * is 30 plain top-level tests, so the order Jest ran them in is the shuffle of the declared order
@@ -20,14 +30,7 @@ const FLAT_SEED = 1234
  * `jestShuffle` ref (`null` for no shuffle, a ref to another function) shows nothing of the sort.
  */
 const shuffleMatches = (g: Golden, value: unknown): boolean => {
-  const ref = value as { readonly module?: unknown; readonly export?: unknown } | null
-  if (
-    ref === null ||
-    ref.export !== 'jestShuffle' ||
-    ref.module !== import.meta.resolve('@provino/dialect-jest/runtime')
-  ) {
-    return false
-  }
+  if (!isJestRuntimeRef(value, 'jestShuffle')) return false
   const results = observedOf(g).json?.['.harness-out/jest.json'] as
     | {
         readonly testResults?: readonly {
@@ -44,28 +47,13 @@ const shuffleMatches = (g: Golden, value: unknown): boolean => {
 /**
  * Whether the ref (the dialect's `core.shapeTestError`) is what turns a failed `node:assert` call
  * into Jest's text: it is the dialect's own `shapeTestError` ref, and what that function makes of a
- * real `assert.equal(1, 2)` failure is the first failure message `cli/node-assert` recorded, up to
- * its stack frames (`null`, or a ref to another function, leaves Node's own text).
+ * real `assert.equal(1, 2)` failure is the error `cli/node-assert` recorded for its `equal` test, up
+ * to its stack frames (`null`, or a ref to another function, leaves Node's own text).
  */
 const nodeAssertMatches = (g: Golden, value: unknown): boolean => {
-  const ref = value as { readonly module?: unknown; readonly export?: unknown } | null
-  if (
-    ref === null ||
-    ref.export !== 'shapeTestError' ||
-    ref.module !== import.meta.resolve('@provino/dialect-jest/runtime')
-  ) {
-    return false
-  }
-  const recorded = (
-    observedOf(g).json?.['.harness-out/jest.json'] as
-      | {
-          readonly testResults?: readonly {
-            readonly assertionResults?: readonly { readonly failureMessages: readonly string[] }[]
-          }[]
-        }
-      | null
-      | undefined
-  )?.testResults?.[0]?.assertionResults?.[0]?.failureMessages[0]
+  if (!isJestRuntimeRef(value, 'shapeTestError')) return false
+  // The golden's message is the failure text up to its stack frames.
+  const [recorded] = errorsOf(g, 'equal')
   if (recorded === undefined) throw new Error(`${g.suite} (${g.runner}) recorded no failure`)
   let thrown: unknown
   try {
@@ -77,7 +65,7 @@ const nodeAssertMatches = (g: Golden, value: unknown): boolean => {
   // Colour is the terminal's and FORCE_COLOR's, not the claim's: compare the plain text.
   return (
     stripVTControlCharacters(shaped.message).split(/\n\s+at /)[0] ===
-    stripVTControlCharacters(recorded).split('\n<frames>')[0]
+    stripVTControlCharacters(recorded)
   )
 }
 
