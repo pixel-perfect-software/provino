@@ -4,7 +4,8 @@
 // domain). Anything else flips to one value of the same type that differs: a boolean to its
 // negation, a number to the next one, a string gains a prefix and a suffix, an array is reversed or emptied
 // (or, empty, gains an entry), and `null` becomes a value of the type next to it. A behaviour ref
-// has no such flip; one that a corpus can hold to its goldens flips to the neutral behaviour (`REF_FLIPS`).
+// has no such flip; one that a corpus can hold to its goldens flips to the neutral behaviour, and to
+// other refs where the claim tells refs apart (`REF_FLIPS`).
 import { isDeepStrictEqual } from 'node:util'
 import { neutralPolicy } from '@provino/policy'
 
@@ -128,9 +129,14 @@ const REF_FLIPS: Readonly<Record<string, readonly unknown[]>> = {
   // `require` and misses `jest.requireActual` (`changed/related-extractor-*`).
   'orchestrator.changedFiles': [neutralPolicy.orchestrator.changedFiles],
   'orchestrator.affected.extractor': [neutralPolicy.orchestrator.affected.extractor],
-  // The neutral `null`: `this.snapshotState` is Provino's own state, which has no `_counters` or
-  // `_updateSnapshot`, so jest-image-snapshot can't run (`ecosystem/image-snapshot-*`).
-  'snapshot.contextView': [neutralPolicy.snapshot.contextView],
+  // The neutral `null` (`this.snapshotState` is Provino's own state, which has no `_counters` or
+  // `match`), and two refs that name no view: another export of the dialect's module, and the
+  // view's export name in another module (`ecosystem/image-snapshot-*`, `custom-snapshot-*`).
+  'snapshot.contextView': [
+    neutralPolicy.snapshot.contextView,
+    { module: import.meta.resolve('@provino/dialect-jest/runtime'), export: 'jestSnapshotPrinter' },
+    { module: import.meta.resolve('@provino/policy/behaviours'), export: 'jestSnapshotStateView' },
+  ],
 }
 
 /** The suffix a flipped free-text value gains. */

@@ -1,6 +1,9 @@
 // The evidence for the `snapshot` and `expect` slices (T1.7). The `.snap` files the runners wrote
 // are in the black-box goldens; `policy/expect-shape` observes the runner's own `expect`.
+import { isDeepStrictEqual } from 'node:util'
+import { jestSnapshotStateView } from '@provino/dialect-jest/runtime'
 import { isModuleRef } from '@provino/policy'
+import type { SnapshotViewFactory, SnapshotViewSource } from '@provino/types'
 import type { Golden } from '../../golden.ts'
 import { type Claims, corpus, each, golden, inert, own, pending } from '../evidence.ts'
 import { capturedFile, observedOf, oneOf, statusOf } from '../observe.ts'
@@ -15,14 +18,126 @@ const entry = (g: Golden, key: RegExp): string => {
 }
 const exitCode = (g: Golden): unknown => observedOf(g).exitCode
 
+/** Whether a value is the ref to `name` in `module` (an import specifier, resolved from here). */
+const refTo =
+  (module: string, name: string) =>
+  (value: unknown): boolean =>
+    isModuleRef(value) && value.module === import.meta.resolve(module) && value.export === name
+
+/** A run's snapshot counts, as its results file holds them. */
+const counters = (g: Golden) => g.snapshots?.counters
+
+/** The `path sha256` lines of every image an `image-snapshot-*` run left, sorted. */
+const imageHashes = (g: Golden): string => capturedFile(g, 'image-hashes.txt')
+
+/** The `snapshot.contextView` behaviours a ref can name: the views this repository has. */
+const VIEWS: readonly {
+  readonly module: string
+  readonly export: string
+  readonly fn: SnapshotViewFactory
+}[] = [
+  {
+    module: import.meta.resolve('@provino/dialect-jest/runtime'),
+    export: 'jestSnapshotStateView',
+    fn: jestSnapshotStateView,
+  },
+]
+
+/** What the probe state was asked, by member. */
+type Probe = { readonly source: SnapshotViewSource; readonly calls: string[] }
+
+/** A file's snapshot state with nothing behind it, which records what a matcher calls on it. */
+function probeSource(update: SnapshotViewSource['update']): Probe {
+  const calls: string[] = []
+  const result = { pass: true, count: 1, key: 't 1', actual: '', expected: '' }
+  const source: SnapshotViewSource = {
+    added: 0,
+    matched: 0,
+    unmatched: 0,
+    updated: 0,
+    expand: false,
+    update,
+    liveCounters: new Map(),
+    snapshotPath: '/p/__snapshots__/a.test.ts.snap',
+    format: {},
+    match: () => {
+      calls.push('match')
+      return result
+    },
+    fail: () => {
+      calls.push('fail')
+      return 't 1'
+    },
+    markCheckedForTest: () => calls.push('markCheckedForTest'),
+    getUncheckedCount: () => 0,
+    getUncheckedKeys: () => [],
+  }
+  return { source, calls }
+}
+
 /**
- * One `ecosystem/image-snapshot-*` recording, as evidence for `snapshot.contextView`: the value is
- * Jest's view, and the run shows jest-image-snapshot reading and writing it as `shows` says.
+ * What a matcher finds as `this.snapshotState` under the policy value, over `probe`: the state
+ * itself for `null`, the view a known ref names, `undefined` for any other value.
  */
-const imageSnapshot = (fixture: string, shows: (g: Golden) => boolean) =>
+function matcherStateUnder(value: unknown, probe: Probe): Record<string, unknown> | undefined {
+  if (value === null) return probe.source as unknown as Record<string, unknown>
+  const view = VIEWS.find((known) => refTo(known.module, known.export)(value))
+  return view?.fn(probe.source) as Record<string, unknown> | undefined
+}
+
+/**
+ * Whether jest-image-snapshot 6.5.2 could do with the value's `this.snapshotState` what the
+ * recordings show it doing: count its images in the live `_counters` map, read `_updateSnapshot`
+ * (the run's mode), and write the four counts back through `merge`.
+ */
+function imageSnapshotCanRun(value: unknown, update: SnapshotViewSource['update']): boolean {
+  const probe = probeSource(update)
+  const state = matcherStateUnder(value, probe)
+  if (state === undefined) return false
+  const counts = state._counters
+  if (!(counts instanceof Map) || counts !== probe.source.liveCounters) return false
+  if (state._updateSnapshot !== update) return false
+  Object.assign(state, { added: 1, matched: 2, unmatched: 3, updated: 4 })
+  const { added, matched, unmatched, updated } = probe.source
+  return added === 1 && matched === 2 && unmatched === 3 && updated === 4
+}
+
+/**
+ * Whether jest-snapshot 30.5.2's own matchers, called with a custom matcher's `this`, could run on
+ * the value's `this.snapshotState` (index.ts `_toMatchSnapshot`): `match` and `fail` reach the
+ * file's state, and `expand`, `snapshotFormat` and `snapshotPath` are there to read.
+ */
+function jestSnapshotCanRun(value: unknown): boolean {
+  const probe = probeSource('new')
+  const state = matcherStateUnder(value, probe)
+  if (state === undefined) return false
+  const { match, fail } = state
+  if (typeof match !== 'function' || typeof fail !== 'function') return false
+  const matched = Reflect.apply(match, state, [{ testName: 't', received: 1, isInline: false }])
+  Reflect.apply(fail, state, ['t', 1])
+  return (
+    isDeepStrictEqual(matched, { actual: '', count: 1, expected: '', key: 't 1', pass: true }) &&
+    isDeepStrictEqual(probe.calls, ['match', 'fail']) &&
+    typeof state.expand === 'boolean' &&
+    state.snapshotFormat === probe.source.format &&
+    state.snapshotPath === probe.source.snapshotPath
+  )
+}
+
+/** One `ecosystem/image-snapshot-*` recording, run under the update mode it was recorded in. */
+const imageSnapshot = (
+  fixture: string,
+  update: SnapshotViewSource['update'],
+  shows: (g: Golden) => boolean,
+) =>
   golden(`ecosystem/image-snapshot-${fixture}`, {
-    matches: (g, value) =>
-      isModuleRef(value) && value.export === 'jestSnapshotStateView' && shows(g),
+    matches: (g, value) => imageSnapshotCanRun(value, update) && shows(g),
+  })
+
+/** One `ecosystem/custom-snapshot-*` recording: a custom matcher over jest-snapshot's matchers. */
+const customSnapshot = (fixture: string, shows: (g: Golden) => boolean) =>
+  golden(`ecosystem/custom-snapshot-${fixture}`, {
+    matches: (g, value) => jestSnapshotCanRun(value) && shows(g),
   })
 
 export const snapshotClaims: Claims = {
@@ -30,8 +145,7 @@ export const snapshotClaims: Claims = {
   // The entries are `${name} ${n}`: the neutral `snapshotKey` both runners' keys follow.
   'snapshot.key': golden('snapshot-written', {
     matches: (g, value) =>
-      isModuleRef(value) &&
-      value.export === 'snapshotKey' &&
+      refTo('@provino/policy/behaviours', 'snapshotKey')(value) &&
       /exports\[`outer.*inner 1`\]/.test(snap(g)),
   }),
   'snapshot.keyJoin': golden('snapshot-written', {
@@ -135,18 +249,17 @@ export const snapshotClaims: Claims = {
     }),
     pending(
       'T7.11',
-      'Vitest never runs Prettier on an inline snapshot; its writer is T7.11`s Vitest half, which records it',
+      "Vitest never runs Prettier on an inline snapshot; its writer is T7.11's Vitest half, which records it",
     ),
   ),
   // Provino's own key (B23d B1): the writer Jest's goldens hold the edits of. Vitest's is T7.11's.
   'snapshot.inline.writer': each(
     golden('snapshot/inline-written', {
       matches: (g, value) =>
-        isModuleRef(value) &&
-        value.export === 'jestInlineSnapshotWriter' &&
+        refTo('@provino/dialect-jest/inline-snapshots', 'jestInlineSnapshotWriter')(value) &&
         capturedFile(g, 'inline-written.test.ts').includes('toMatchInlineSnapshot(`'),
     }),
-    pending('T7.11', 'Vitest writes inline snapshots too; its writer is T7.11`s Vitest half'),
+    pending('T7.11', "Vitest writes inline snapshots too; its writer is T7.11's Vitest half"),
   ),
   // Provino's own key: project data the Jest reader fills from `prettierPath`; `null` in both
   // dialects' own values. The test holds what the writer is handed.
@@ -161,7 +274,7 @@ export const snapshotClaims: Claims = {
       'packages/orchestrator/src/inline-snapshots.test.ts',
       'prettierPath',
       null,
-      'project data, read only by a writer, which Vitest`s slice does not have yet',
+      "project data, read only by a writer, which Vitest's slice does not have yet",
     ),
   ),
   // Provino's own key (B23d B1): Jest's resolver factory, the one `snapshot/resolver-custom`'s
@@ -169,11 +282,10 @@ export const snapshotClaims: Claims = {
   'snapshot.resolverFactory': each(
     golden('snapshot/resolver-custom', {
       matches: (g, value) =>
-        isModuleRef(value) &&
-        value.export === 'jestSnapshotResolver' &&
+        refTo('@provino/dialect-jest/runtime', 'jestSnapshotResolver')(value) &&
         typeof observedOf(g).files?.['__snaps__/written.test.ts.snap'] === 'string',
     }),
-    pending('T11.16', 'Vitest`s `resolveSnapshotPath` comes with its config reader'),
+    pending('T11.16', "Vitest's `resolveSnapshotPath` comes with its config reader"),
   ),
   // Provino's own key (DV96): Jest counts a snapshot file with no test file as removed.
   'snapshot.obsoleteFiles': each(
@@ -185,55 +297,70 @@ export const snapshotClaims: Claims = {
       'what Vitest does with a snapshot file no test file has is recorded with its reader',
     ),
   ),
-  // Provino's own key (B23e, D128): what a matcher finds as `this.snapshotState`. Jest's is
-  // jest-snapshot's `SnapshotState` shape, which jest-image-snapshot 6.5.2 reads and writes:
-  // `_counters` shared with `toMatchSnapshot` (`add`: the image is the test's second snapshot,
-  // the .snap holds `counter 1` and `counter 3`), `_updateSnapshot` (`ci`: `none` refuses a new
-  // image; `update`: `all` rewrites it), and the four counts Jest's totals add up. `retry`: the
-  // writes are no attempt's, so a retry keeps them (each first attempt's image is `added`, the
-  // retry `matched` on it: 7 and 3), and a counter `toMatchSnapshot` touched first goes back to
-  // the image's count (`image then snapshot 3`). The flip is the neutral `null` (`REF_FLIPS`),
-  // which every one of the six must reject.
+  // Provino's own key (B23e, D128): what a matcher finds as `this.snapshotState`, held to what
+  // the `ecosystem/image-snapshot-*` and `ecosystem/custom-snapshot-*` recordings show (each
+  // `fixture.json` says what). Each claim builds the matcher's `this.snapshotState` under the value
+  // and does with it what the recorded package does, so the neutral `null` and another ref fail.
   'snapshot.contextView': each(
     [
-      imageSnapshot('add', (g) => {
-        const hashes = capturedFile(g, 'image-hashes.txt')
-        const snap = capturedFile(g, '__snapshots__/counter.test.ts.snap')
+      imageSnapshot('add', 'new', (g) => {
+        const written = capturedFile(g, '__snapshots__/counter.test.ts.snap')
         return (
-          g.snapshots?.counters.added === 4 &&
-          hashes.includes('counter-test-ts-counter-2-snap.png ') &&
-          snap.includes('exports[`counter 1`]') &&
-          snap.includes('exports[`counter 3`]')
+          counters(g)?.added === 4 &&
+          imageHashes(g).includes('counter-test-ts-counter-2-snap.png ') &&
+          written.includes('exports[`counter 1`]') &&
+          written.includes('exports[`counter 3`]')
         )
       }),
-      imageSnapshot('match', (g) => g.snapshots?.counters.matched === 1),
+      imageSnapshot('match', 'none', (g) => counters(g)?.matched === 1),
       imageSnapshot(
         'mismatch',
+        'none',
         (g) =>
-          g.snapshots?.counters.unmatched === 1 &&
-          capturedFile(g, 'image-hashes.txt').includes('__diff_output__/shared-image-diff.png '),
+          counters(g)?.unmatched === 1 &&
+          imageHashes(g).includes('__diff_output__/shared-image-diff.png '),
       ),
-      imageSnapshot('update', (g) => g.snapshots?.counters.updated === 1),
+      imageSnapshot('update', 'all', (g) => counters(g)?.updated === 1),
       imageSnapshot(
         'ci',
+        'none',
         (g) =>
           exitCode(g) === 1 &&
-          capturedFile(g, 'image-hashes.txt') === '' &&
+          imageHashes(g) === '' &&
           String(observedOf(g).stderr).includes('New snapshot was not written.'),
       ),
-      imageSnapshot('retry', (g) => {
-        const snap = capturedFile(g, '__snapshots__/images.test.ts.snap')
+      imageSnapshot('retry', 'new', (g) => {
+        const written = capturedFile(g, '__snapshots__/images.test.ts.snap')
         return (
-          g.snapshots?.counters.added === 7 &&
-          g.snapshots.counters.matched === 3 &&
-          snap.includes('exports[`image then snapshot 3`]') &&
-          snap.includes('exports[`snapshot then image 1`]') &&
-          snap.includes('exports[`snapshot then image 3`]') &&
-          capturedFile(g, 'image-hashes.txt').includes('retry-mixed.png ')
+          counters(g)?.added === 7 &&
+          counters(g)?.matched === 3 &&
+          written.includes('exports[`image then snapshot 3`]') &&
+          written.includes('exports[`snapshot then image 1`]') &&
+          written.includes('exports[`snapshot then image 3`]') &&
+          imageHashes(g).includes('retry-mixed.png ')
         )
       }),
+      customSnapshot(
+        'add',
+        (g) =>
+          counters(g)?.added === 6 &&
+          capturedFile(g, '__snapshots__/trimmed.test.ts.snap').includes(
+            'exports[`trimmed: toMatchTrimmedSnapshot 1`] = `"extra long"`;',
+          ),
+      ),
+      customSnapshot('match', (g) => exitCode(g) === 0 && counters(g)?.matched === 6),
+      customSnapshot(
+        'mismatch',
+        (g) =>
+          counters(g)?.unmatched === 2 &&
+          String(observedOf(g).stderr).includes('Snapshot name: `trimmed: toMatchTrimmedSnapshot 1`') &&
+          String(observedOf(g).stderr).includes('expect(received).toMatchSnapshot(properties)'),
+      ),
+      customSnapshot('inline', (g) =>
+        capturedFile(g, 'inline.test.ts').includes('toMatchTrimmedInlineSnapshot(`"extra long"`)'),
+      ),
     ],
-    pending('T7.6', 'what Vitest`s matchers read of `this.snapshotState` comes with its table'),
+    pending('T7.6', "what Vitest's matchers read of `this.snapshotState` comes with its table"),
   ),
   // Provino's own key: the dialect's pretty-format and words. `own` pins the ref and the test that
   // loads it.
