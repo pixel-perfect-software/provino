@@ -175,20 +175,21 @@ export function createJestResults<Config extends ProjectConfigLike>(
     return context
   }
   const pathOf = (info: FileInfo): string => join(configOf(info).rootDir, info.path)
+  const newFile = (info: FileInfo): MutableFile => ({
+    info,
+    startedAt: now(),
+    tree: undefined,
+    loadFailed: false,
+    runnerFailed: false,
+    records: new Map(),
+    orders: new Map(),
+    unhandled: [],
+    console: [],
+  })
   const stateOf = (info: FileInfo): MutableFile => {
     let file = files.get(info.fileId)
     if (file === undefined) {
-      file = {
-        info,
-        startedAt: now(),
-        tree: undefined,
-        loadFailed: false,
-        runnerFailed: false,
-        records: new Map(),
-        orders: new Map(),
-        unhandled: [],
-        console: [],
-      }
+      file = newFile(info)
       files.set(info.fileId, file)
     }
     return file
@@ -217,17 +218,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
       contexts.clear()
     },
     'file:start': (info) => {
-      files.set(info.fileId, {
-        info,
-        startedAt: now(),
-        tree: undefined,
-        loadFailed: false,
-        runnerFailed: false,
-        records: new Map(),
-        orders: new Map(),
-        unhandled: [],
-        console: [],
-      })
+      files.set(info.fileId, newFile(info))
     },
     // `BufferedConsole`'s buffer: a call is kept with its call site, under `--silent` or
     // `--verbose` none is (runTest.ts: a `NullConsole`, a `CustomConsole`). A direct write to a
