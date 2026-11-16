@@ -126,6 +126,18 @@ function hasExplicitLoader(path: string): boolean {
 }
 
 /**
+ * jest-util's `interopRequireDefault(required).default`: the `default` of a module whose
+ * `__esModule` is truthy (an object or a function), else the module itself.
+ */
+function interopDefaultOf(required: unknown): unknown {
+  return (typeof required === 'object' || typeof required === 'function') &&
+    required !== null &&
+    Reflect.get(required, '__esModule')
+    ? Reflect.get(required, 'default')
+    : required
+}
+
+/**
  * `loadTSConfigFile` (L171-L203) for a loader the docblock names: `ts-node` or `esbuild-register`,
  * resolved from the config's own directory (Jest resolves it beside itself, which in a project is
  * the same install), registered for one `require` of the file, then turned off.
@@ -183,11 +195,7 @@ async function loadWithDocblockLoader(path: string): Promise<unknown> {
   }
   enable(true)
   try {
-    const required: unknown = requireFromConfig(path)
-    let value =
-      isRecord(required) && required.__esModule === true
-        ? Reflect.get(required, 'default')
-        : required
+    let value = interopDefaultOf(requireFromConfig(path))
     if (typeof value === 'function') value = await value()
     return value
   } finally {
@@ -314,14 +322,16 @@ export async function requireOrImportModule(
   if (path.endsWith('.mjs') || path.endsWith('.mts')) return importEsModule(path, interop)
   let required: unknown
   try {
+    let request = path
     if (options.fresh === true) {
       try {
-        delete nodeRequire.cache[nodeRequire.resolve(path)]
+        request = nodeRequire.resolve(path)
+        delete nodeRequire.cache[request]
       } catch {
         // Not resolvable, so nothing is cached under it; the `require` below says why.
       }
     }
-    required = nodeRequire(path)
+    required = nodeRequire(request)
   } catch (error) {
     const code: unknown = error instanceof Error ? Reflect.get(error, 'code') : undefined
     if (code === 'ERR_REQUIRE_ESM' || code === 'ERR_REQUIRE_ASYNC_MODULE') {
@@ -329,13 +339,7 @@ export async function requireOrImportModule(
     }
     throw error
   }
-  if (!interop) return required
-  // `interopRequireDefault(required).default`
-  return (typeof required === 'object' || typeof required === 'function') &&
-    required !== null &&
-    Reflect.get(required, '__esModule')
-    ? Reflect.get(required, 'default')
-    : required
+  return interop ? interopDefaultOf(required) : required
 }
 
 async function importModule(path: string): Promise<unknown> {
