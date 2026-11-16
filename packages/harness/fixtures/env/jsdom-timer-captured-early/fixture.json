@@ -1,0 +1,24 @@
+{
+  "description": "A package that keeps the `setTimeout` it finds as it loads, first loaded by a node file, in a project whose environment is `node` with jsdom only through a `@jest-environment` docblock, with one worker. `node-loads` (the largest, so first) loads it; `window-leaves` (a jsdom file) uses it to set a timer that reads `window` and ends before it fires; `waits` (the smallest, so last) waits while it comes due. Jest passes all three: the jsdom file evaluates the package again in its window, so the timer is the window's and `window.close()` cancels it.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "packages": {
+    "later-timer": {
+      "package.json": "{ \"name\": \"later-timer\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "// Keeps the timer it finds as it loads.\nconst captured = setTimeout\nexports.later = (callback, ms) => captured(callback, ms)\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "testEnvironment": "node"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^    [A-Z]",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
