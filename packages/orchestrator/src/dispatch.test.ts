@@ -242,6 +242,32 @@ describe('createFileDispatch', () => {
     assert.equal(seen[2]?.[1], null)
   })
 
+  it('says the runner failed the file when an unhandled error has the origin runner, and not for the file’s own', async () => {
+    const own = (origin: 'uncaughtException' | 'unhandledRejection' | 'runner') =>
+      ({
+        type: 'unhandled-error',
+        ownerId: info.fileId,
+        lastTestId: null,
+        origin,
+        error: boom,
+        t: 1,
+      }) as const
+    const inFile = createFileDispatch({
+      bus: recordingBus().bus,
+      file: info,
+      onUnhandled: () => {},
+    })
+    await inFile.handle([collected, own('uncaughtException'), own('unhandledRejection')])
+    assert.equal(inFile.runnerFailed, false)
+    const runner = createFileDispatch({
+      bus: recordingBus().bus,
+      file: info,
+      onUnhandled: () => {},
+    })
+    await runner.handle([collected, own('uncaughtException'), own('runner')])
+    assert.equal(runner.runnerFailed, true)
+  })
+
   it('rejects an event for a task it was never told about', async () => {
     const { bus } = recordingBus()
     const dispatch = createFileDispatch({ bus, file: info, onUnhandled: () => {} })

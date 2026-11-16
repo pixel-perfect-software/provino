@@ -45,6 +45,12 @@ export interface FileEvents {
   readonly tree: readonly TaskNode[] | undefined
   /** The file never loaded (`file-collect-end`'s `loadFailed`): its import threw, say. */
   readonly loadFailed?: true
+  /**
+   * The worker's runner failed the file after it ran (an unhandled error with the origin
+   * `runner`: the environment's teardown threw, say). Jest's `runTest` rejects then, so the
+   * scheduler's no-tests check never runs and the error is the file's.
+   */
+  readonly runnerFailed?: true
   readonly records: ReadonlyMap<TaskId, TestRecord>
   /**
    * The order each suite's children ran in, for the suites a randomized run shuffled
@@ -265,6 +271,19 @@ function noTestsResult(testFilePath: string): TestResult {
 }
 
 /**
+ * A file whose results the worker took with it, or a runner that failed it whole: Jest's runner
+ * fails the whole file (`TestScheduler.ts` `onFailure`, L185-L200), so even tests that ended before
+ * a crash leave no counts and no assertion.
+ */
+function discardedResult(file: FileEvents): TestResult {
+  const error = execErrorOf([...file.result.errors, ...file.unhandled]) ?? {
+    message: `the worker running the file exited (${JSON.stringify(file.result.workerExit)})`,
+    stack: null,
+  }
+  return buildFailureTestResult(file.testFilePath, error)
+}
+
+/**
  * What `runTest.ts` L313-L337 sets on every file's result, a collected one too: `perfStats`,
  * `skipped` and `displayName`.
  */
@@ -291,7 +310,8 @@ function withPerfStats(result: TestResult, file: FileEvents, options: BuildOptio
  * `jest-message-util`, asynchronously: `collect.ts` fills it).
  *
  * - A file that loaded and has no test result fails with `Your test suite must contain at least one
- *   test.`, whatever errors it holds (`onResult`, which tests only the results' length).
+ *   test.`, whatever errors or leaks it holds (`onResult`, which tests only the results' length),
+ *   unless the worker's runner failed it after it ran (`runnerFailed`): `runTest` rejected then.
  * - A file that ended with errors and no test that ran, or never loaded, is a runtime error:
  *   `testExecError` is its first error.
  * - A file with errors beside tests that ran has `testExecError` `{ message: '', stack }` with the
@@ -299,44 +319,37 @@ function withPerfStats(result: TestResult, file: FileEvents, options: BuildOptio
  * @public
  */
 export function toTestResult(file: FileEvents, options: BuildOptions): TestResult {
+  if (file.result.workerExit !== undefined) return discardedResult(file)
+  const tests = file.tree === undefined ? [] : testsInOrder(file.tree, file.records, ordersOf(file))
+  const assertionResults = tests.map((record) => toAssertionResult(record, options))
+  const count = (status: Status): number =>
+    assertionResults.filter((result) => result.status === status).length
+  if (
+    assertionResults.length === 0 &&
+    file.tree !== undefined &&
+    file.loadFailed !== true &&
+    file.runnerFailed !== true
+  ) {
+    // `TestScheduler.onResult` (L144-L150) tests only `testResults.length === 0`, and before the
+    // leaks check (L153), so a file that loaded and has no test result is "must contain at least
+    // one test", whatever errors or leaks it holds: circus's `unhandledErrors` (a hook in a
+    // describe with no test: `cli/empty-test-file-error-timing`) and an error that came after
+    // circus had finished (a timer that throws: `cli/empty-test-file-timer-throws`) are dropped
+    // with it. A file that never loaded, or that the runner failed, is `onFailure`'s and keeps its
+    // own error.
+    return noTestsResult(file.testFilePath)
+  }
   if (file.result.leaks === true) {
     return buildFailureTestResult(file.testFilePath, {
       message: LEAK_MESSAGE,
       stack: `Error: ${LEAK_MESSAGE}\n    at TestScheduler.onResult (node_modules/@jest/core/build/index.js:1:1)`,
     })
   }
-  if (file.result.noTests === true) {
-    // The orchestrator found no test declared and no error (`orchestrator.noTestsFile`, `fail`
-    // here): `onResult`'s "must contain at least one test", a failure result of its own.
-    return noTestsResult(file.testFilePath)
-  }
-  if (file.result.workerExit !== undefined || file.result.resultsDiscarded === true) {
-    // A worker that died takes the file's results with it: Jest's runner fails the whole file
-    // (`TestScheduler.ts` `onFailure`, L185-L200), so even tests that ended before the crash
-    // leave no counts and no assertion.
-    const error = execErrorOf([...file.result.errors, ...file.unhandled]) ?? {
-      message: `the worker running the file exited (${JSON.stringify(file.result.workerExit)})`,
-      stack: null,
-    }
-    return buildFailureTestResult(file.testFilePath, error)
-  }
-  const tests = file.tree === undefined ? [] : testsInOrder(file.tree, file.records, ordersOf(file))
-  const assertionResults = tests.map((record) => toAssertionResult(record, options))
-  const count = (status: Status): number =>
-    assertionResults.filter((result) => result.status === status).length
+  if (file.result.resultsDiscarded === true) return discardedResult(file)
   const numFailingTests = count('failed')
   const numPassingTests = count('passed')
   const numPendingTests = count('pending')
   const numTodoTests = count('todo')
-  if (assertionResults.length === 0 && file.tree !== undefined && file.loadFailed !== true) {
-    // `TestScheduler.onResult` (L144-L150) tests only `testResults.length === 0`, so a file that
-    // loaded and has no test result is "must contain at least one test", whatever errors it holds:
-    // circus's `unhandledErrors` (a hook in a describe with no test: `cli/empty-test-file-error-timing`)
-    // and an error that came after circus had finished (a timer that throws:
-    // `cli/empty-test-file-timer-throws`) are dropped with it. A file that never loaded is
-    // `onFailure`'s and keeps its own error.
-    return noTestsResult(file.testFilePath)
-  }
   const fileErrors = [...file.result.errors, ...file.unhandled]
   // Core finalizes a file whose import threw too, with only the file node: a tree with anything
   // else below it is a file that collected.

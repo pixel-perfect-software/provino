@@ -279,7 +279,7 @@ describe('createJestResults', () => {
     file: FileInfo,
     tests: readonly { task: TestTask; result: ReturnType<typeof resultOf> }[],
     options: {
-      unhandled?: { ownerId: TaskId | null; error: SerializedError }[]
+      unhandled?: { ownerId: TaskId | null; error: SerializedError; origin?: string }[]
       retried?: Record<string, SerializedError[]>
     } = {},
   ): Promise<void> {
@@ -325,7 +325,7 @@ describe('createJestResults', () => {
         type: 'unhandled-error',
         ownerId: entry.ownerId,
         lastTestId: null,
-        origin: 'uncaught-exception',
+        origin: entry.origin ?? 'uncaught-exception',
         error: entry.error,
         t: 0,
       } as never)
@@ -455,6 +455,27 @@ describe('createJestResults', () => {
         loadFailed ? 'thrown while loading' : 'Your test suite must contain at least one test.',
         path,
       )
+    }
+  })
+
+  it('an error the worker’s runner charged to an empty file after it ran is the file’s error; one the file raised itself is dropped for Jest’s message', async () => {
+    // Jest: a teardown that throws makes `runTest` reject, so `onFailure` takes that error and
+    // `onResult`'s "must contain" check never runs; a timer's throw is not the runner's.
+    const teardown = {
+      name: 'Error',
+      message: 'teardown failed',
+      stack: 'Error: teardown failed',
+    }
+    for (const [origin, message] of [
+      ['runner', 'teardown failed'],
+      ['uncaughtException', 'Your test suite must contain at least one test.'],
+    ] as const) {
+      const results = fresh()
+      const file = infoOf(`${origin}.test.ts`)
+      await playFile(results, file, [], {
+        unhandled: [{ ownerId: file.fileId, error: teardown, origin }],
+      })
+      assert.equal(results.testResultOf(file.fileId)?.testExecError?.message, message, origin)
     }
   })
 })

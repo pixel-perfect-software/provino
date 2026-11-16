@@ -526,6 +526,26 @@ describe('runProject over inline workers', () => {
     ])
   })
 
+  it('fails a file the worker’s teardown threw for with that error, and does not call it "no tests"', async () => {
+    // Jest: `runTest` rejects, so `onFailure` takes the teardown's error and `onResult`'s check of
+    // the results (which finds no test) never runs, for a file that declares tests or none.
+    const p = await makeProject({ 'empty.test.js': '', 'a.test.js': "test('a', () => {})" })
+    const project = runtimeProject(p.dir, {
+      environmentOptions: { failTeardown: true },
+      policy: { orchestrator: { noTestsFile: 'fail' } },
+    })
+    const { summary } = await run(project, { pool: { kind: 'inline', maxWorkers: 1 } })
+    const states = summary.files.map((result) => [result.file.path, result.state, result.errors])
+    assert.deepEqual(states.toSorted(), [
+      ['a.test.js', 'fail', []],
+      ['empty.test.js', 'fail', []],
+    ])
+    assert.deepEqual(summary.unhandled.map((error) => error.message).toSorted(), [
+      'teardown failed',
+      'teardown failed',
+    ])
+  })
+
   it('rejects an invalid test name pattern before anything starts', async () => {
     const p = await makeProject({ 'a.test.js': passing() })
     const { reporter, seen } = recorder()

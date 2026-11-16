@@ -3711,7 +3711,7 @@ export interface TransportFactory {
 }
 
 // @public
-export type UnhandledErrorOrigin = "uncaughtException" | "unhandledRejection" | "late-done" | "late-registration";
+export type UnhandledErrorOrigin = "uncaughtException" | "unhandledRejection" | "late-done" | "late-registration" | "runner";
 
 // @beta
 export interface V8ScriptCoverage {

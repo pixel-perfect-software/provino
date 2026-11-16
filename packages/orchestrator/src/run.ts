@@ -411,6 +411,8 @@ interface QueuedFile {
 interface FileRules {
   readonly ended: number
   readonly collected: number
+  /** The worker's runner failed the file after it ran (`FileDispatch.runnerFailed`). */
+  readonly runnerFailed: boolean
   readonly todoOnlyFile: 'pass' | 'skip'
   /** Whether a file that declares no test fails: `noTestsFile` with `passWithNoTests` applied. */
   readonly failsWithNoTests: boolean
@@ -1080,6 +1082,7 @@ export async function runProjectsOn(
       const reported = resultOf(entry.info, outcome, dispatch.result, elapsedMs, {
         ended: dispatch.todo,
         collected: dispatch.tests,
+        runnerFailed: dispatch.runnerFailed,
         todoOnlyFile: member.project.policy.orchestrator.todoOnlyFile,
         failsWithNoTests: failsWithNoTests(
           member.project.policy.orchestrator,
@@ -1714,7 +1717,10 @@ function resultOf(
           },
         ])
       }
-      const state = stateOf(end.state, rules)
+      // A file the worker's runner failed after it ran (its environment's teardown threw) is
+      // failed whole, as Jest's `runTest` rejecting is: the error is the file's, whatever it
+      // declared and however its tests ended.
+      const state = rules.runnerFailed ? 'fail' : stateOf(end.state, rules)
       // A file that ended with no error and collected no test declared none, which Jest fails
       // ("Your test suite must contain at least one test."): collected is what counts, so a file
       // whose tests are all skipped or todo is not this.

@@ -132,6 +132,8 @@ interface MutableFile {
   tree: readonly TaskNode[] | undefined
   /** The file never loaded (`file-collect-end`'s `loadFailed`). */
   loadFailed: boolean
+  /** The worker's runner failed the file after it ran (an unhandled error with the origin `runner`). */
+  runnerFailed: boolean
   records: Map<TaskId, TestRecord>
   /** The child order of each suite a randomized run shuffled. */
   orders: Map<TaskId, readonly TaskId[]>
@@ -181,6 +183,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
         startedAt: now(),
         tree: undefined,
         loadFailed: false,
+        runnerFailed: false,
         records: new Map(),
         orders: new Map(),
         unhandled: [],
@@ -219,6 +222,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
         startedAt: now(),
         tree: undefined,
         loadFailed: false,
+        runnerFailed: false,
         records: new Map(),
         orders: new Map(),
         unhandled: [],
@@ -271,7 +275,9 @@ export function createJestResults<Config extends ProjectConfigLike>(
         ownerId === null ||
         ownerId === info.fileId ||
         (file.tree?.some((node) => node.id === ownerId) ?? false)
-      if (ours) file.unhandled.push(event.error)
+      if (!ours) return
+      file.unhandled.push(event.error)
+      if (event.origin === 'runner') file.runnerFailed = true
     },
     'file:end': async (fileResult) => {
       const info = fileResult.file
@@ -290,6 +296,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
         testFilePath: pathOf(info),
         tree: file.tree,
         ...(file.loadFailed ? { loadFailed: true as const } : {}),
+        ...(file.runnerFailed ? { runnerFailed: true as const } : {}),
         records: file.records,
         orders: file.orders,
         result: fileResult,
