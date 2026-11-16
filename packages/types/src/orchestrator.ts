@@ -37,11 +37,15 @@ export interface WorkerKey {
  */
 export interface RecyclePolicy {
   /**
-   * RSS (forks) or the isolate's used heap (threads), checked after each file with the
-   * `fileDone.memoryBytes` the worker measured: a worker over it is stopped and a new one serves
-   * the next file. `0` replaces the worker after every file (Jest's `workerIdleMemoryLimit: 0`).
-   * An inline worker is never replaced for memory (what it measures is the coordinator's own).
-   * Absent: no check.
+   * The isolate's used heap (`v8.getHeapStatistics().used_heap_size`, in a fork and in a thread),
+   * checked after each file with the `fileDone.memoryBytes` the worker measured: a worker over it
+   * is stopped and a new one serves the next file. A heap over the limit is collected once, in the
+   * worker, and measured again before it is reported (`WorkerInit.memoryLimitBytes`), so a worker
+   * is replaced for what it holds after its garbage is gone: Jest's `workerIdleMemoryLimit` reads
+   * the heap as it is, garbage included (jest-worker 30.5.1), a deliberate difference (speed: a
+   * replacement reloads every shared module, DIVERGENCES). `0` replaces the worker after every
+   * file with no collection (Jest's `workerIdleMemoryLimit: 0`). An inline worker is never
+   * replaced for memory (what it measures is the coordinator's own). Absent: no check.
    */
   readonly memoryLimitBytes?: number
   /** A worker is replaced after this many files. Absent: never. */
@@ -125,6 +129,16 @@ export interface WorkerInit {
    * threads always capture; omitted, an inline worker captures nothing.
    */
   readonly captureConsole?: true
+  /**
+   * `RecyclePolicy.memoryLimitBytes`, which the pool puts here for a worker it may replace for
+   * memory (a fork or a thread, and only when the pool has a limit). After each file the worker
+   * measures the isolate's used heap; when that is over the limit it forces one full garbage
+   * collection and measures again, and the second number is `fileDone.memoryBytes`. Absent, or
+   * `0` (replace after every file: the answer doesn't depend on the heap), the worker collects
+   * nothing. The pool and the worker read the same number, so a worker collects only when the
+   * pool would have replaced it.
+   */
+  readonly memoryLimitBytes?: number
 }
 
 /**
@@ -208,10 +222,11 @@ export interface CoordinatorMethods {
 export interface WorkerMethods {
   /**
    * The worker's memory in bytes, measured by the worker itself (a parent can't read a forked
-   * child's RSS): RSS in a fork; in a thread or inline, where RSS is the whole process's and
-   * `external` counts what the isolate has reserved (a 6 GiB `ArrayBuffer` of oxc-parser's), the
-   * isolate's used heap (`v8.getHeapStatistics().used_heap_size`). `fileDone.memoryBytes` uses
-   * the same measure.
+   * child's RSS): the isolate's used heap (`v8.getHeapStatistics().used_heap_size`) in a fork, a
+   * thread or inline. Not RSS (a fresh fork sits near 200 MB of it) and not `external`, which
+   * counts what the isolate has reserved (a 6 GiB `ArrayBuffer` of oxc-parser's). The heap as it
+   * is, garbage included, with no collection: `fileDone.memoryBytes` is the same measure, taken
+   * again after one collection when it was over `WorkerInit.memoryLimitBytes`.
    */
   memoryUsage(): number
 }
@@ -296,6 +311,11 @@ export type WorkerToCoordinator =
   | {
       readonly t: 'fileDone'
       readonly seq: number
+      /**
+       * The worker's used heap after the file (`WorkerMethods.memoryUsage`'s measure); when that
+       * was over `WorkerInit.memoryLimitBytes`, the heap after one forced collection. The pool
+       * compares it with `RecyclePolicy.memoryLimitBytes`.
+       */
       readonly memoryBytes: number
       readonly leakedHandles: number
       /**

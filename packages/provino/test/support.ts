@@ -157,12 +157,16 @@ export function failing(name: string): string {
   return `test(${JSON.stringify(name)}, () => { expect(1 + 1).toBe(3) })\n`
 }
 
-/** A test file with one passing test that notes the worker's pid in `pidFile`. */
-export function noting(name: string, pidFile: string): string {
+/**
+ * A test file with one passing test that notes the worker's pid in `pidFile`, after running
+ * `before` (lines of the test's body).
+ */
+export function noting(name: string, pidFile: string, before: readonly string[] = []): string {
   return [
     "const { appendFileSync } = require('node:fs')",
     `test(${JSON.stringify(name)}, () => {`,
     `  appendFileSync(${JSON.stringify(pidFile)}, process.pid + '\\n')`,
+    ...before,
     '  expect(1 + 1).toBe(2)',
     '})',
     '',

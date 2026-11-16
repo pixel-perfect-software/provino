@@ -53,6 +53,8 @@ interface Fake {
   readonly end: (workerId: number) => void
   /** Every job a worker was sent, with the id of that worker. */
   readonly jobs: { readonly workerId: number; readonly job: FileJob }[]
+  /** The init each worker was started with, in the order the factory was asked. */
+  readonly inits: WorkerInit[]
 }
 
 function fake(
@@ -77,6 +79,7 @@ function fake(
   const exited = new Set<number>()
   const ran = new Map<number, string[]>()
   const jobs: Fake['jobs'] = []
+  const inits: WorkerInit[] = []
   const enders = new Map<number, () => void>()
   let attempts = 0
   let running = 0
@@ -87,6 +90,7 @@ function fake(
     ...(extra.sharesProcess === true ? { sharesProcess: true } : {}),
     async create(init: WorkerInit, signal?: AbortSignal): Promise<Transport> {
       attempts++
+      inits.push(init)
       if (extra.createMs !== undefined) {
         await new Promise<void>((resolve, reject) => {
           const timer = setTimeout(resolve, extra.createMs)
@@ -207,6 +211,7 @@ function fake(
     ran,
     end: (id) => enders.get(id)?.(),
     jobs,
+    inits,
   }
 }
 
@@ -922,6 +927,63 @@ describe('recycling (T9.5)', () => {
       [1, 2],
       'and so does a leak of globals',
     )
+  })
+
+  describe('the limit on a worker’s init: what its fileDone.memoryBytes is compared with', () => {
+    // The pool starts a worker with the limit it enforces, so the worker collects garbage exactly
+    // when the pool would replace it: forks and threads, `0` as 0, never for a worker that shares
+    // the process, and none without a limit.
+    const cases: readonly [
+      name: string,
+      transport: { readonly kind: PoolKind; readonly sharesProcess?: boolean },
+      memoryLimitBytes: number | undefined,
+      sent: number | undefined,
+    ][] = [
+      ['a fork', { kind: 'forks' }, 5000, 5000],
+      ['a thread', { kind: 'threads' }, 5000, 5000],
+      ['a fork under a limit of 0', { kind: 'forks' }, 0, 0],
+      ['a fork under no limit', { kind: 'forks' }, undefined, undefined],
+      [
+        'a worker that shares the process',
+        { kind: 'inline', sharesProcess: true },
+        5000,
+        undefined,
+      ],
+    ]
+    for (const [name, transport, memoryLimitBytes, sent] of cases) {
+      it(`${name}: ${sent === undefined ? 'no limit' : `a limit of ${sent}`}, and the rest of the init as the run made it`, async () => {
+        const f = fake(() => 'ok', undefined, transport)
+        const pool = createPool(
+          options(1, undefined, {
+            kind: transport.kind,
+            recycle: memoryLimitBytes === undefined ? {} : { memoryLimitBytes },
+          }),
+          deps(f),
+        )
+        await runAll(pool, ['a'])
+        assert.deepEqual(f.inits, [
+          {
+            key,
+            workerId: 1,
+            isolation: 'registry',
+            provided: {},
+            config: undefined,
+            ...(sent === undefined ? {} : { memoryLimitBytes: sent }),
+          },
+        ])
+      })
+    }
+  })
+
+  it('keeps a worker whose file left it exactly at the limit: the worker collects only over it and the pool replaces only over it', async () => {
+    // 'big' reports 10,000 bytes.
+    const f = fake(() => 'big', undefined, { kind: 'forks' })
+    const pool = createPool(
+      options(1, undefined, { kind: 'forks', recycle: { memoryLimitBytes: 10_000 } }),
+      deps(f),
+    )
+    await runAll(pool, ['a', 'b', 'c'])
+    assert.deepEqual(f.started, [1])
   })
 
   it('does no memory check when the limit is Infinity, and keeps its worker', async () => {

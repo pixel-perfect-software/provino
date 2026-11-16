@@ -298,8 +298,9 @@ export function workerExitOf(error: unknown): WorkerExit | undefined {
  *
  * A worker is also replaced after `recycle.maxFilesPerWorker` files, and after a file whose
  * `fileDone.memoryBytes` is over `recycle.memoryLimitBytes` (`0` replaces it after every file;
- * never for a worker of a transport with `sharesProcess`, whose memory is the coordinator's).
- * Both are decided once the file's outcome is known, so the worker is stopped in the background
+ * never for a worker of a transport with `sharesProcess`, whose memory is the coordinator's). The
+ * pool starts each of those workers with that limit (`WorkerInit.memoryLimitBytes`), so one over
+ * it collects garbage once and reports the heap it still holds. Both are decided once the file's outcome is known, so the worker is stopped in the background
  * and the next file goes to another one.
  *
  * A file still running `fileTimeoutMs` after it was sent has its worker killed; its outcome is
@@ -316,10 +317,25 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   const factory = deps.transport(options.kind)
   // TODO(T5.12): a file that can be cancelled lets a kill end an in-process worker, and this goes.
   const sharesProcess = factory.sharesProcess === true
+  /**
+   * The memory limit this pool enforces: none for a worker that shares the process, whose memory
+   * is the coordinator's and which no replacement frees. `worn` compares with it and `initOf`
+   * sends it, so the worker collects exactly when the pool would replace.
+   */
+  const recycleLimit = sharesProcess ? undefined : memoryLimitBytes
   const maxWorkers = Math.min(
     Math.max(1, Math.floor(options.maxWorkers) || 1),
     factory.maxWorkers ?? Number.POSITIVE_INFINITY,
   )
+
+  /**
+   * What a worker is started with: the caller's init plus `recycleLimit`, so the worker collects
+   * its garbage once before it reports a heap over it (`WorkerInit.memoryLimitBytes`).
+   */
+  function initOf(key: WorkerKey, workerId: number): WorkerInit {
+    const init = deps.init(key, workerId)
+    return recycleLimit === undefined ? init : { ...init, memoryLimitBytes: recycleLimit }
+  }
 
   const slots = new Set<Slot>()
   const waiters: Waiter[] = []
@@ -531,7 +547,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
     const route: Slot['route'] = { handler: undefined }
     let slot: Slot
     try {
-      const transport = await factory.create(deps.init(key, workerId), controller.signal)
+      const transport = await factory.create(initOf(key, workerId), controller.signal)
       const connection = connectWorker(transport, {
         methods: deps.methods,
         onEvents: (events) =>
@@ -610,7 +626,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   function worn(slot: Slot, done: FileDone): boolean {
     if (slot.key.isolation === 'process') return true
     if (maxFilesPerWorker !== undefined && slot.files >= maxFilesPerWorker) return true
-    return !sharesProcess && memoryLimitBytes !== undefined && done.memoryBytes > memoryLimitBytes
+    return recycleLimit !== undefined && done.memoryBytes > recycleLimit
   }
 
   /**

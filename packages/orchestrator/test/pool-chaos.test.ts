@@ -273,6 +273,34 @@ describe('recycling over real forks (T9.5)', () => {
     }
   })
 
+  it('a fork that only makes garbage is kept: the worker collects once before it reports, so what the pool compares is what it holds', async () => {
+    // Each file allocates 160 MB nothing refers to once its test returns: the isolate's used heap
+    // is over the 128 MiB limit when the file ends and its live heap (about 70 MB) far under it.
+    // jest-worker compares the heap as it is and would replace the worker after every file here;
+    // the worker collects before it reports, so the same worker serves them all (DIVERGENCES:
+    // collect before recycling, Tyler 2026-11-16).
+    const files = Object.fromEntries(
+      Array.from({ length: 3 }, (_, i) => [
+        `garbage-${i}.test.js`,
+        `test('makes garbage', () => {
+  const scratch = new Array(20_000_000).fill(${i})
+  expect(scratch.length).toBe(20_000_000)
+})
+`,
+      ]),
+    )
+    const run = await chaos('forks', {
+      files,
+      pool: { maxWorkers: 1, recycle: { memoryLimitBytes: 128 * 1024 * 1024 } },
+    })
+    try {
+      assert.equal(run.reason, 'passed', run.stderr)
+      assert.equal(new Set(run.workerPids).size, 1, 'one worker serves all three files')
+    } finally {
+      killGroup(run.pgid)
+    }
+  })
+
   it('without a limit one worker serves every file (the control)', async () => {
     const run = await chaos('forks', {
       files: passingFiles(6),

@@ -5,7 +5,6 @@
 // (U1, B10); this file knows nothing about tests. On `stop` it lets the runner tear down, then
 // sends `stopped`.
 import { AsyncLocalStorage } from 'node:async_hooks'
-import { getHeapStatistics } from 'node:v8'
 import { createRpc, type RpcOptions, serializeError } from '@provino/rpc'
 import type {
   CoordinatorMethods,
@@ -24,6 +23,7 @@ import {
   type InstalledCapture,
   type WritableLike,
 } from './console.ts'
+import { memoryAfterFile, usedHeapBytes } from './internal/memory.ts'
 import { createPacker, type Packer, type PackerOptions } from './packer.ts'
 import { flushStdio } from './stdio.ts'
 import { nextMacrotask } from './timers.ts'
@@ -182,7 +182,7 @@ export function startWorker(
     options.serializeError === undefined ? {} : { serializeError: options.serializeError }
   const coordinator = createRpc<WorkerMethods, CoordinatorMethods>(
     port,
-    { memoryUsage: () => measureMemory() },
+    { memoryUsage: () => usedHeapBytes() },
     rpcOptions,
   )
 
@@ -327,7 +327,9 @@ export function startWorker(
       controllers.delete(seq)
     }
     await settle()
-    const memoryBytes = measureMemory()
+    // Over the pool's limit, the heap is collected once and measured again: the pool replaces the
+    // worker for what it still holds, not for garbage (`memoryAfterFile`).
+    const memoryBytes = memoryAfterFile(init?.memoryLimitBytes)
     packer.afterSent(() =>
       port.send({
         t: 'fileDone',
@@ -426,18 +428,6 @@ export function startWorker(
   })
   port.send({ t: 'ready' })
   return done
-}
-
-/**
- * The heap the worker's isolate holds, `used_heap_size`: what jest-worker compares against
- * `workerIdleMemoryLimit` (`processChild` and `threadChild` both read
- * `process.memoryUsage().heapUsed`). RSS is not compared, in a fork or anywhere: a fresh fork sits
- * near 200 MB of it with about 70 MB of heap, so a 1 GB limit would replace its worker every few
- * files. `external` is no better: it counts what the isolate has reserved, not what it holds
- * (oxc-parser's raw transfer buffer is a 6 GiB `ArrayBuffer` of virtual memory).
- */
-function measureMemory(): number {
-  return getHeapStatistics().used_heap_size
 }
 
 /** Stand-ins for stdout and stderr that nothing writes to: the capture patches them and no more. */

@@ -823,6 +823,37 @@ describe('runProject over real threads under the default memory limit', () => {
   })
 })
 
+describe('runProject over real threads under a memory limit', () => {
+  it('keeps a thread that only makes garbage: it collects once before it reports its heap', async () => {
+    // Each file allocates 160 MB nothing refers to once its test returns: the limit is under that
+    // and over what a thread lives on, so only the collection keeps the worker.
+    const garbage = (name: string): string =>
+      [
+        `// ${name}`,
+        "test('makes garbage', () => {",
+        '  const scratch = new Array(20_000_000).fill(0)',
+        '  expect(scratch.length).toBe(20_000_000)',
+        '})',
+        '',
+      ].join('\n')
+    const p = await makeProject(
+      Object.fromEntries(['a', 'b', 'c'].map((n) => [`${n}.test.js`, garbage(n)])),
+    )
+    const { summary, seen } = await run(runtimeProject(p.dir), {
+      pool: { kind: 'threads', maxWorkers: 1, recycle: { memoryLimitBytes: 128 * 1024 * 1024 } },
+    })
+    assert.ok(
+      summary.files.every((file) => file.state === 'pass'),
+      'every file passed',
+    )
+    const workers = seen
+      .filter((entry) => entry.name === 'file:start')
+      .map((entry) => entry.detail.workerId)
+    assert.equal(workers.length, 3)
+    assert.equal(new Set(workers).size, 1, `one thread took every file, got ${workers.join(', ')}`)
+  })
+})
+
 describe('runProject: pool and run lifecycle', () => {
   it('runs an inline pool on one worker whatever maxWorkers says: three passing files all pass', async () => {
     const p = await makeProject({
