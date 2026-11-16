@@ -264,6 +264,11 @@ interface SnapshotBehaviours {
   readonly resolvePath: ResolveSnapshotPath | null
   /** `snapshot.contextView`: what a matcher sees as `this.snapshotState`; `null` for the state. */
   readonly contextView: SnapshotViewFactory | null
+  /**
+   * The test attempt running now, as the snapshot matchers' state names it: what a snapshot taken
+   * through the view is recorded against.
+   */
+  readonly currentTestId: () => string | undefined
   /** The project's own resolver module (`SerializedProjectConfig.snapshotResolver`), if any. */
   readonly customResolver?: {
     readonly module: string
@@ -772,6 +777,9 @@ export function createRuntimeRunner(): WorkerRunner {
         snapshot.resolvePath === null ? null : await behaviours.load(snapshot.resolvePath),
       contextView:
         snapshot.contextView === null ? null : await behaviours.load(snapshot.contextView),
+      // Made here, once, so the file's state holds no closure over a file's scope (its registry
+      // would outlive the file: `--detectLeaks`).
+      currentTestId: () => source.current().currentTestId,
       ...(config.snapshotResolver === undefined
         ? {}
         : {
@@ -1028,7 +1036,7 @@ export function createRuntimeRunner(): WorkerRunner {
         // The file's snapshots: the state, or the dialect's view of it (`snapshot.contextView`),
         // is where the matchers find it (Jest's `setState({ snapshotState, testPath })`), and the
         // lifecycle follows the file's events.
-        const { key, printer, contextView } = worker.snapshots
+        const { key, printer, contextView, currentTestId } = worker.snapshots
         const open = async (): Promise<OpenSnapshots> => {
           const snapshots = openFileSnapshots({
             testPath: job.file,
@@ -1043,9 +1051,8 @@ export function createRuntimeRunner(): WorkerRunner {
               worker.modules.policy.snapshot.extension,
             ),
             contextView,
-            // The attempt a view's snapshot belongs to: the one the snapshot matchers' own
-            // `currentTestId` names, so a retry takes it back too.
-            currentTestId: () => worker.source.current().currentTestId,
+            // The attempt a view's snapshot belongs to, so a retry takes it back too.
+            currentTestId,
           })
           Object.assign(worker.source.file(), { snapshotState: snapshots.matcherSnapshotState })
           return snapshots
