@@ -1,0 +1,19 @@
+{
+  "description": "A file that declares no test and has an error: whether the file got as far as a result decides which text Jest prints. A throw while the file loads is the file's own error (the runner's onFailure path). An error circus files under unhandledErrors during the run (a describe, or the file, that holds a hook and no test: \"Invalid: beforeEach() may not be used in a describe block containing no tests.\") lands in testExecError beside an empty testResults, and the scheduler's onResult tests only testResults.length === 0, so the file prints \"Your test suite must contain at least one test.\" and the error is not shown. One Jest worker, the default reporter and --json.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "maxWorkers": 1
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--useStderr"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL|SKIP) |^Test Suites:|^Tests:|must contain|thrown while loading|may not be used",
+    "sortStdout": true,
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

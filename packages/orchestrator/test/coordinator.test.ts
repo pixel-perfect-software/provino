@@ -436,6 +436,115 @@ describe('runProject over inline workers', () => {
     }
   })
 
+  it('ends a file that declares no test as orchestrator.noTestsFile says; a file whose tests are skipped, todo or left out by -t declared some', async () => {
+    const files = {
+      'empty.test.js': '// declares nothing\n',
+      'describe-only.test.js': "describe('nothing in here', () => {})",
+      'all-skipped.test.js': "test.skip('a', () => {})",
+      'todo.test.js': "test.todo('later')",
+      'passes.test.js': passing(),
+    }
+    // The rule, what `passWithNoTests` says (the run's option, else the policy's) and whether the
+    // two files that declare nothing then fail.
+    const cases: readonly {
+      readonly rule: 'fail' | 'fail-unless-pass-with-no-tests' | 'pass'
+      readonly option?: boolean
+      readonly policy?: boolean
+      readonly fails: boolean
+    }[] = [
+      { rule: 'fail', fails: true },
+      { rule: 'fail', option: true, fails: true },
+      { rule: 'fail-unless-pass-with-no-tests', fails: true },
+      { rule: 'fail-unless-pass-with-no-tests', option: false, fails: true },
+      { rule: 'fail-unless-pass-with-no-tests', option: true, fails: false },
+      { rule: 'fail-unless-pass-with-no-tests', policy: true, fails: false },
+      { rule: 'fail-unless-pass-with-no-tests', policy: true, option: false, fails: true },
+      { rule: 'pass', fails: false },
+    ]
+    for (const { rule, option, policy, fails } of cases) {
+      const why = `noTestsFile ${rule}, option ${option}, policy ${policy}`
+      const p = await makeProject(files)
+      const project = runtimeProject(p.dir, {
+        policy: {
+          orchestrator: {
+            noTestsFile: rule,
+            ...(policy === undefined ? {} : { passWithNoTests: policy }),
+          },
+        },
+      })
+      const { summary } = await run(project, {
+        defaultCache: true,
+        pool: { kind: 'inline', maxWorkers: 1 },
+        ...(option === undefined ? {} : { passWithNoTests: option }),
+      })
+      const expected = fails ? 'fail' : 'pass'
+      const ends = new Map(summary.files.map((result) => [result.file.path, result]))
+      assert.deepEqual(
+        [...ends].map(([name, result]) => [name, result.state]).toSorted(),
+        [
+          ['all-skipped.test.js', 'skip'],
+          ['describe-only.test.js', expected],
+          ['empty.test.js', expected],
+          ['passes.test.js', 'pass'],
+          ['todo.test.js', 'skip'],
+        ],
+        `${why}; a file with skipped or todo tests collected some, so it is not this`,
+      )
+      assert.equal(summary.reason, fails ? 'failed' : 'passed', why)
+      for (const name of ['empty.test.js', 'describe-only.test.js']) {
+        const result = ends.get(name)
+        assert.deepEqual(
+          result?.errors.map((error) => error.code),
+          fails ? ['ORCH_NO_TESTS'] : [],
+          `${why}: ${name}: errors`,
+        )
+      }
+      const cache = createResultsCache(defaultCacheDir(p.dir))
+      assert.equal(
+        cache.get(projectCacheKey(project), 'empty.test.js')?.failed,
+        fails,
+        `${why}: the cache remembers the empty file as failed when it fails, as passed when it passes`,
+      )
+    }
+  })
+
+  it('does not fail a file for declaring no test when -t left it no test to run, and still fails the file that declares none', async () => {
+    const p = await makeProject({ 'a.test.js': "test('alpha', () => {})", 'empty.test.js': '' })
+    const project = runtimeProject(p.dir, { policy: { orchestrator: { noTestsFile: 'fail' } } })
+    const { seen } = await run(project, {
+      testNamePattern: 'nothing matches this',
+      pool: { kind: 'inline', maxWorkers: 1 },
+    })
+    const states = seen
+      .filter((entry) => entry.name === 'file:end')
+      .map((entry) => [String(entry.path), String(entry.detail.state)])
+      .toSorted()
+    assert.deepEqual(states, [
+      ['a.test.js', 'skip'],
+      ['empty.test.js', 'fail'],
+    ])
+  })
+
+  it('fails a file the worker’s teardown threw for with that error, and does not call it "no tests"', async () => {
+    // Jest: `runTest` rejects, so `onFailure` takes the teardown's error and `onResult`'s check of
+    // the results (which finds no test) never runs, for a file that declares tests or none.
+    const p = await makeProject({ 'empty.test.js': '', 'a.test.js': "test('a', () => {})" })
+    const project = runtimeProject(p.dir, {
+      environmentOptions: { failTeardown: true },
+      policy: { orchestrator: { noTestsFile: 'fail' } },
+    })
+    const { summary } = await run(project, { pool: { kind: 'inline', maxWorkers: 1 } })
+    const states = summary.files.map((result) => [result.file.path, result.state, result.errors])
+    assert.deepEqual(states.toSorted(), [
+      ['a.test.js', 'fail', []],
+      ['empty.test.js', 'fail', []],
+    ])
+    assert.deepEqual(summary.unhandled.map((error) => error.message).toSorted(), [
+      'teardown failed',
+      'teardown failed',
+    ])
+  })
+
   it('rejects an invalid test name pattern before anything starts', async () => {
     const p = await makeProject({ 'a.test.js': passing() })
     const { reporter, seen } = recorder()

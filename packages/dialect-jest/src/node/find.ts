@@ -55,7 +55,10 @@ export function isJSONString(text: string | undefined): text is string {
   return text?.startsWith('{') === true && text.endsWith('}')
 }
 
-/** `package.json`'s `key`, or `undefined` for a file that is missing, not JSON or lacks it. */
+/**
+ * `package.json`'s `key`, or `undefined` for a file that is missing, not JSON or lacks it.
+ * @public
+ */
 export function packageJsonKey(path: string, key: string): unknown {
   try {
     const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))

@@ -487,6 +487,16 @@ describe('toTestResult', () => {
     assert.equal(built.numPassingTests, 0)
   })
 
+  it('a file with no test that also leaks reads "must contain": onResult checks the length before leaks', () => {
+    // TestScheduler.ts L144 (`testResults.length === 0`) comes before L153 (`testResult.leaks`).
+    const built = toTestResult(
+      events([], {}, { state: 'fail', leaks: true, resultsDiscarded: true, errors: [] }),
+      OPTIONS,
+    )
+    assert.equal(built.testExecError?.message, NO_TESTS_MESSAGE)
+    assert.notEqual(built.testExecError?.message, LEAK_MESSAGE)
+  })
+
   it('a file’s heap (--logHeapUsage) is the result’s memoryUsage', () => {
     const built = toTestResult(
       events([{ task: test('a', 'file'), result: result('pass') }], {}, { heapUsedBytes: 123_456 }),
@@ -503,6 +513,60 @@ describe('toTestResult', () => {
   it('a file with no test fails with Jest’s message', () => {
     const built = toTestResult(events([], {}, { state: 'fail' }), OPTIONS)
     assert.equal(built.testExecError?.message, NO_TESTS_MESSAGE)
+  })
+
+  it('a file that loaded and has no test result has Jest’s message whatever errors it holds: onResult tests only the length', () => {
+    // `cli/empty-test-file-error-timing` (circus's own error) and `cli/empty-test-file-timer-throws`.
+    const circus = events(
+      [],
+      {},
+      {
+        state: 'fail',
+        errors: [
+          failure('Invalid: beforeEach() may not be used in a describe block containing no tests.'),
+        ],
+      },
+    )
+    const timer = events([], { unhandled: [failure('thrown from a timer')] }, { state: 'fail' })
+    // The error the orchestrator gives a file it failed for declaring no test (`ORCH_NO_TESTS`):
+    // Provino's own text, which Jest's replaces.
+    const orchestrator = events(
+      [],
+      {},
+      {
+        state: 'fail',
+        errors: [{ name: 'Error', message: 'The file declares no tests', code: 'ORCH_NO_TESTS' }],
+      },
+    )
+    for (const file of [circus, timer, orchestrator]) {
+      const built = toTestResult(file, OPTIONS)
+      assert.equal(built.testExecError?.message, NO_TESTS_MESSAGE)
+      assert.deepEqual(built.testResults, [])
+      assert.equal(built.numFailingTests, 0)
+    }
+  })
+
+  it('a file the worker’s runner failed after it ran keeps that error: runTest rejects, so onResult’s check never ran', () => {
+    // A custom environment's `teardown()` that throws, a mock or clock dispose, `sendCoverage`.
+    const teardown = failure('teardown failed')
+    const built = toTestResult(
+      events([], { runnerFailed: true, unhandled: [teardown] }, { state: 'fail' }),
+      OPTIONS,
+    )
+    assert.equal(built.testExecError?.message, 'teardown failed')
+    assert.deepEqual(built.testResults, [])
+    // Without the mark the same error is a timer's or a hook's, which Jest drops.
+    const unmarked = toTestResult(events([], { unhandled: [teardown] }, { state: 'fail' }), OPTIONS)
+    assert.equal(unmarked.testExecError?.message, NO_TESTS_MESSAGE)
+  })
+
+  it('a file that never loaded keeps its own error, with a tree or without one', () => {
+    // `cli/empty-test-file-error-timing`: a throw while the file loads is `onFailure`'s.
+    const errors = [failure('thrown while loading')]
+    for (const patch of [{ loadFailed: true as const }, { tree: undefined }]) {
+      const built = toTestResult(events([], patch, { state: 'fail', errors }), OPTIONS)
+      assert.equal(built.testExecError?.message, 'thrown while loading')
+    }
   })
 
   it('errors beside tests that ran are the file’s exec error, joined as Jest joins them', () => {

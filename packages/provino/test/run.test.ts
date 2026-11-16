@@ -261,6 +261,30 @@ describe('run()', () => {
     assert.deepEqual(allowed.summary?.files, [])
   })
 
+  // The neutral policy's rule (`fail-unless-pass-with-no-tests`) is held in the orchestrator's
+  // `coordinator.test.ts`: a project with no dialect has no matcher table to run a file with yet.
+  describe('a test file that declares no test (orchestrator.noTestsFile)', () => {
+    const stateOf = (ran: Ran, path: string): string | undefined =>
+      ran.summary?.files.find((file) => file.file.path === path)?.state
+
+    it('fails under the Jest dialect whatever passWithNoTests says, as Jest does', async () => {
+      const project = await makeProject({
+        'tests/empty.test.js': '// declares nothing\n',
+        'tests/todo.test.js': "test.todo('later')\n",
+        'tests/passes.test.js': passing('passes'),
+      })
+      for (const passWithNoTests of [false, true]) {
+        const ran = await runProject(project, { passWithNoTests })
+        const why = `passWithNoTests ${passWithNoTests}: ${ran.stderr}`
+        assert.equal(ran.exitCode, 1, why)
+        assert.equal(stateOf(ran, 'tests/empty.test.js'), 'fail', why)
+        assert.equal(stateOf(ran, 'tests/passes.test.js'), 'pass', why)
+        // A todo test declared one: it is not this rule's.
+        assert.notEqual(stateOf(ran, 'tests/todo.test.js'), 'fail', why)
+      }
+    })
+  })
+
   it('runs only the tests whose name matches -t', async () => {
     const project = await makeProject({
       'tests/a.test.js': [

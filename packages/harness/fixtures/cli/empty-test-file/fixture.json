@@ -1,0 +1,25 @@
+{
+  "description": "A matched test file that declares no tests fails: Jest's scheduler turns a result with no test results into \"Your test suite must contain at least one test.\" (TestScheduler.ts onResult), so the helper under __tests__ (caught by the default testMatch) and the file that holds only an empty describe are FAIL lines, counted as failed suites, and the run exits 1, next to a passing file. The tree is data (D13). One Jest worker, the default reporter and --json.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "testMatch": ["**/__tests__/**/*.[jt]s?(x)", "**/?(*.)+(spec|test).[jt]s?(x)"]
+    }
+  },
+  "files": {
+    "jest": {
+      "__tests__/helper.ts": "export const helper = (): number => 1\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--useStderr"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^Test Suites:|must contain",
+    "sortStdout": true,
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

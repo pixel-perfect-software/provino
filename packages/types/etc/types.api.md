@@ -2394,6 +2394,7 @@ export interface OrchestratorPolicy {
         readonly default: IsolationTier;
         readonly byEnvironment: Readonly<Record<string, IsolationTier>>;
     };
+    readonly noTestsFile: "fail" | "fail-unless-pass-with-no-tests" | "pass";
     readonly passWithNoTests: boolean;
     readonly pool: {
         readonly default: PoolKind;
@@ -2876,6 +2877,7 @@ export type RuntimeEvent = {
     readonly fileId: TaskId;
     readonly tasks: readonly TaskNode[];
     readonly errors: readonly SerializedError[];
+    readonly loadFailed?: true;
     readonly t: number;
 } | {
     readonly type: "suite-start";
@@ -3708,7 +3710,7 @@ export interface TransportFactory {
 }
 
 // @public
-export type UnhandledErrorOrigin = "uncaughtException" | "unhandledRejection" | "late-done" | "late-registration";
+export type UnhandledErrorOrigin = "uncaughtException" | "unhandledRejection" | "late-done" | "late-registration" | "runner";
 
 // @beta
 export interface V8ScriptCoverage {

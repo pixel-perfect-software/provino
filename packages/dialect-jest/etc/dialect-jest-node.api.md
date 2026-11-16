@@ -186,11 +186,13 @@ export interface FileEvents {
     readonly endedAt: number;
     // (undocumented)
     readonly info: FileInfo;
+    readonly loadFailed?: true;
     readonly orders?: ReadonlyMap<TaskId, readonly TaskId[]>;
     // (undocumented)
     readonly records: ReadonlyMap<TaskId, TestRecord>;
     // (undocumented)
     readonly result: FileResult;
+    readonly runnerFailed?: true;
     readonly startedAt: number;
     readonly testFilePath: string;
     readonly tree: readonly TaskNode[] | undefined;
@@ -1506,6 +1508,9 @@ export interface NormalizeOptions {
     readonly requireResolve?: JestRequireResolve;
     readonly seed?: number;
 }
+
+// @public
+export function packageJsonKey(path: string, key: string): unknown;
 
 // @public
 export function parseJestArgv(args: readonly string[]): JestArgv;

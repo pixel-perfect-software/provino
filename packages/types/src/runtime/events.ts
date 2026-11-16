@@ -21,7 +21,9 @@ export type RuntimeHookKind =
 
 /**
  * Where an unhandled error came from: a stray exception or rejection, a `done` called after the
- * test ended, or a test or hook registered after collection.
+ * test ended, a test or hook registered after collection, or the worker's own runner (`runner`:
+ * a step around the file that threw, such as the environment's teardown, charged to the file by
+ * the worker and not raised by the file's code).
  * @public
  */
 export type UnhandledErrorOrigin =
@@ -29,6 +31,7 @@ export type UnhandledErrorOrigin =
   | 'unhandledRejection'
   | 'late-done'
   | 'late-registration'
+  | 'runner'
 
 /**
  * One runtime event. Every event carries `t` (monotonic ms) and refers to tasks by id only, so
@@ -49,6 +52,12 @@ export type RuntimeEvent =
       /** The file's whole tree, file node first, parents before children. */
       readonly tasks: readonly TaskNode[]
       readonly errors: readonly SerializedError[]
+      /**
+       * Set when the file never loaded: its import threw, a listener rejected what it collected,
+       * `finalize` threw or an option was invalid. The file reports no tasks and `errors` says why.
+       * Absent for a file that loaded, even one that declares no test.
+       */
+      readonly loadFailed?: true
       readonly t: number
     }
   | { readonly type: 'suite-start'; readonly id: TaskId; readonly t: number }

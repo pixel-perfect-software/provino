@@ -152,6 +152,53 @@ describe('runFile', () => {
     assert.equal(run.file.state, 'pass')
   })
 
+  describe('file-collect-end says whether the file loaded (loadFailed)', () => {
+    const collectEnd = (run: { readonly events: readonly RuntimeEvent[] }) => {
+      const event = run.events.find((candidate) => candidate.type === 'file-collect-end')
+      assert.ok(event?.type === 'file-collect-end')
+      return event
+    }
+
+    test('a file that loads has none, with tests or without any', async () => {
+      assert.equal(collectEnd(await runScript(() => {})).loadFailed, undefined)
+      const withTest = await runScript(({ test }) => test('t', () => {}))
+      assert.equal(collectEnd(withTest).loadFailed, undefined)
+    })
+
+    test('a file with an error of its own after it loaded (a hook in a describe with no test) has none either', async () => {
+      const run = await runScript(
+        ({ describe, beforeEach }) => {
+          describe('only a hook', () => {
+            beforeEach(() => {})
+          })
+        },
+        { collect: { emptyDescribe: 'fail-file-if-hooks' } },
+      )
+      const event = collectEnd(run)
+      assert.equal(run.file.state, 'fail')
+      assert.deepEqual(
+        event.errors.map((error) => error.code),
+        ['CORE_EMPTY_DESCRIBE'],
+      )
+      assert.equal(event.loadFailed, undefined)
+    })
+
+    test('a file whose import throws, an invalid option and a listener that rejects have it', async () => {
+      const thrown = await runScript(() => {
+        throw new Error('file blew up')
+      })
+      assert.equal(collectEnd(thrown).loadFailed, true)
+      const badId = await runScript(() => {}, {}, { fileId: '' as TaskId })
+      assert.equal(collectEnd(badId).loadFailed, true)
+      const listener = await runScript((_api, _step, runtime) => {
+        runtime.lazyHost.onCollected(() => {
+          throw new Error('rejected what was collected')
+        })
+      })
+      assert.equal(collectEnd(listener).loadFailed, true)
+    })
+  })
+
   test('a file whose tests are all skipped is skipped', async () => {
     const run = await runScript(({ test }) => {
       test.skip('t', () => {})

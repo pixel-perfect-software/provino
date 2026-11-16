@@ -246,7 +246,11 @@ export function startWorker(
     await (installed === undefined ? flushStdio() : installed.flush())
   }
 
-  /** Reports an error the runner didn't, as an unhandled error charged to `ownerId`. Never throws. */
+  /**
+   * Reports an error the runner didn't, as an unhandled error charged to `ownerId`, with the origin
+   * `runner`: it is the worker's own step that failed (the environment's teardown, say), not the
+   * file's code, which a result builder may need to tell apart. Never throws.
+   */
   const charge = (error: unknown, ownerId: TaskId | null): void => {
     let serialized: SerializedError
     try {
@@ -258,7 +262,7 @@ export function startWorker(
       type: 'unhandled-error',
       ownerId,
       lastTestId: null,
-      origin: 'uncaughtException',
+      origin: 'runner',
       error: serialized,
       t: performance.now(),
     })

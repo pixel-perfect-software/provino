@@ -385,6 +385,10 @@ export const jestPolicy: PolicyOverrides = {
     globMatchesOn: 'absolute-path',
     // Jest marks a suite skipped only when every test is pending (`cli/report-todo-only`, DV50).
     todoOnlyFile: 'pass',
+    // Jest's scheduler fails a file with no test results, "Your test suite must contain at least
+    // one test." (jest-core `TestScheduler.ts` `onResult`; `cli/empty-test-file`), also under
+    // `--passWithNoTests` (`cli/empty-test-file-pass-with-no-tests`).
+    noTestsFile: 'fail',
     // Jest's BufferedConsole keeps the call site of every entry (`cli/report-default`).
     consoleOrigin: 'stack',
     // jest-util's `installCommonGlobals` gives every file its own copy of `process`: a later file

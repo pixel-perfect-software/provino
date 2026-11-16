@@ -1,0 +1,8 @@
+---
+"provino": patch
+"@provino/types": patch
+"@provino/dialect-jest": patch
+"@provino/dialect-vitest": patch
+---
+
+A matched test file that declares no tests fails, as it does in Jest 30.5.2 and Vitest 5.0.5. Under `provino jest`, a helper under `__tests__`, or a file of one empty `describe`, is a `FAIL` line with "Your test suite must contain at least one test.", counts as a failed suite, ends the run with exit code 1 (also under `--passWithNoTests`, which is about finding no files), and is `failed` with that message in `--json`, where Provino reported it as passed. A file whose tests are all skipped or todo, or that `-t` left no test of, declared some, so it is unchanged. Jest's rule is that a file which loaded and has no test result reads that way whatever errors it holds (an error circus files for a hook in a `describe` with no test, a timer that throws), where a file that threw while loading, or whose environment's teardown threw after it ran (Jest's `runTest` rejects then), keeps its own error, and a file that leaks (`--detectLeaks`) and has no test still reads that way, as Jest checks the results' length before the leaks. A file the worker's runner failed this way is `fail` whatever it declared, and the unhandled error it is charged with has the new origin `runner` (`UnhandledErrorOrigin`). The neutral policy and the Vitest dialect fail such a file too, unless `--passWithNoTests` is given, which is Vitest's rule; they passed it before. The `orchestrator` policy slice gains `noTestsFile: 'fail' | 'fail-unless-pass-with-no-tests' | 'pass'` (Jest `fail`; neutral `fail-unless-pass-with-no-tests`; the Vitest dialect the same, read from its source and not yet recorded), and `file-collect-end` gains `loadFailed`, set on a file that never loaded.

@@ -130,6 +130,10 @@ interface MutableFile {
   info: FileInfo
   startedAt: number
   tree: readonly TaskNode[] | undefined
+  /** The file never loaded (`file-collect-end`'s `loadFailed`). */
+  loadFailed: boolean
+  /** The worker's runner failed the file after it ran (an unhandled error with the origin `runner`). */
+  runnerFailed: boolean
   records: Map<TaskId, TestRecord>
   /** The child order of each suite a randomized run shuffled. */
   orders: Map<TaskId, readonly TaskId[]>
@@ -171,18 +175,21 @@ export function createJestResults<Config extends ProjectConfigLike>(
     return context
   }
   const pathOf = (info: FileInfo): string => join(configOf(info).rootDir, info.path)
+  const newFile = (info: FileInfo): MutableFile => ({
+    info,
+    startedAt: now(),
+    tree: undefined,
+    loadFailed: false,
+    runnerFailed: false,
+    records: new Map(),
+    orders: new Map(),
+    unhandled: [],
+    console: [],
+  })
   const stateOf = (info: FileInfo): MutableFile => {
     let file = files.get(info.fileId)
     if (file === undefined) {
-      file = {
-        info,
-        startedAt: now(),
-        tree: undefined,
-        records: new Map(),
-        orders: new Map(),
-        unhandled: [],
-        console: [],
-      }
+      file = newFile(info)
       files.set(info.fileId, file)
     }
     return file
@@ -211,15 +218,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
       contexts.clear()
     },
     'file:start': (info) => {
-      files.set(info.fileId, {
-        info,
-        startedAt: now(),
-        tree: undefined,
-        records: new Map(),
-        orders: new Map(),
-        unhandled: [],
-        console: [],
-      })
+      files.set(info.fileId, newFile(info))
     },
     // `BufferedConsole`'s buffer: a call is kept with its call site, under `--silent` or
     // `--verbose` none is (runTest.ts: a `NullConsole`, a `CustomConsole`). A direct write to a
@@ -234,7 +233,9 @@ export function createJestResults<Config extends ProjectConfigLike>(
       })
     },
     'file:collected': (info, event) => {
-      stateOf(info).tree = event.tasks
+      const file = stateOf(info)
+      file.tree = event.tasks
+      file.loadFailed = event.loadFailed === true
     },
     'task:start': (task) => {
       if (task.type !== 'test') return
@@ -265,7 +266,9 @@ export function createJestResults<Config extends ProjectConfigLike>(
         ownerId === null ||
         ownerId === info.fileId ||
         (file.tree?.some((node) => node.id === ownerId) ?? false)
-      if (ours) file.unhandled.push(event.error)
+      if (!ours) return
+      file.unhandled.push(event.error)
+      if (event.origin === 'runner') file.runnerFailed = true
     },
     'file:end': async (fileResult) => {
       const info = fileResult.file
@@ -283,6 +286,8 @@ export function createJestResults<Config extends ProjectConfigLike>(
         info,
         testFilePath: pathOf(info),
         tree: file.tree,
+        ...(file.loadFailed ? { loadFailed: true as const } : {}),
+        ...(file.runnerFailed ? { runnerFailed: true as const } : {}),
         records: file.records,
         orders: file.orders,
         result: fileResult,
