@@ -146,11 +146,14 @@ export interface LoaderOptions {
   /** Modules always loaded per file (Vitest `server.deps.inline`). */
   readonly inline?: readonly (string | RegExp)[]
   /**
-   * The files the project's transforms take. A `node_modules` file they take that has ES module
-   * syntax (`.mjs`, a `.js` under a `"type": "module"` package, or `import`/`export` in its
-   * source) is a user module: transformed and evaluated per file, as Jest transforms it, where
-   * Node's own loader would run it untransformed (and find no file for an extensionless import).
-   * One with CommonJS syntax stays shared, loaded by Node. Absent: no `node_modules` file is.
+   * The files the project's transforms take. A `node_modules` file they take (a rule's pattern
+   * matches its real path and no ignore pattern does) is transformed and evaluated per file, as
+   * Jest does, only when Node can't load it natively: its extension is not one Node runs as
+   * JavaScript (anything but `.js`, `.cjs`, `.mjs`, `.json`, `.node`, `.wasm` or none: `.ts`,
+   * `.tsx`, `.jsx`, and assets such as `.css`), it has ES module syntax in a CommonJS context
+   * (`.mjs`, a `.js` under a `"type": "module"` package, or `import`/`export` in its source), or
+   * its native load fails to parse (CommonJS with JSX, Flow or TypeScript syntax). Any other
+   * claimed file stays shared, loaded by Node. Absent: no `node_modules` file is.
    */
   readonly transformClaims?: TransformClaims
   /**
