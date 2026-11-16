@@ -892,8 +892,9 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
           })
     // No Jest config at the root, and directories below it with one of their own: one line before
     // the run (an improvement over Jest, which says nothing; DIVERGENCES). Never when stdout is
-    // machine output (`--json`, `--debug`; `--listTests`, `--showConfig` and `--collectTests` end
-    // or run no reporter above), and not for a caller that brings its own reporters.
+    // machine output (`--json`, `--debug`; `--listTests` and `--showConfig` end before this), nor
+    // under `--collectTests`, which keeps the collector (`reporterResults` is never undefined, so
+    // `leadingReporters` would carry the hint), and not for a caller that brings its own reporters.
     const rootHint =
       read.noConfig &&
       request.mode === 'run' &&
