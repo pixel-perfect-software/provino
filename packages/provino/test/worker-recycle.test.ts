@@ -31,6 +31,8 @@ const { workerRecycle } = (await import(
 /** What `new Worker(file, options)` gives, as far as this test uses it. */
 interface JestWorker {
   pid(): Promise<number>
+  holdHeap(): Promise<number>
+  holdNative(): Promise<number>
   end(): Promise<unknown>
 }
 
@@ -146,4 +148,45 @@ describe('against jest-worker 30.5.1', () => {
     assert.equal(limit, 0)
     assert.deepEqual(workerRecycle(limit), { recycle: { memoryLimitBytes: 0 } })
   })
+
+  /**
+   * What the child holds is what jest-worker compares: `process.memoryUsage().heapUsed`, so a
+   * child that grows only native memory (a `Buffer` of 200 MB, which puts its RSS over the limit)
+   * is kept, and one that grows its heap past the limit is replaced. The pool measures the same
+   * quantity in a fork (`worker-recycle` in `packages/orchestrator/test/pool-chaos.test.ts`).
+   */
+  for (const [name, method, expected] of [
+    ['a child that grows only native memory', 'holdNative', false],
+    ['a child that grows its heap past the limit', 'holdHeap', true],
+  ] as const) {
+    it(`${name}: ${expected ? 'restarts' : 'is kept'}, as the pool's heapUsed comparison`, async () => {
+      const project = await makeProject({
+        'worker.cjs': [
+          'const held = []',
+          'exports.pid = () => process.pid',
+          'exports.holdHeap = () => { held.push(new Array(20_000_000).fill(1)); return process.pid }',
+          'exports.holdNative = () => { held.push(Buffer.alloc(200 * 1024 * 1024, 1)); return process.pid }',
+          '',
+        ].join('\n'),
+      })
+      const Worker = jestWorker()
+      const worker = new Worker(project.path('worker.cjs'), {
+        numWorkers: 1,
+        enableWorkerThreads: false,
+        idleMemoryLimit: 100 * 1024 * 1024,
+        exposedMethods: ['pid', 'holdHeap', 'holdNative'],
+      })
+      try {
+        const first = await worker[method]()
+        const until = Date.now() + (expected ? RESTART_DEADLINE_MS : NO_RESTART_SETTLE_MS)
+        while (isRunning(first)) {
+          if (Date.now() > until) break
+          await sleep(25)
+        }
+        assert.equal(!isRunning(first), expected)
+      } finally {
+        await worker.end()
+      }
+    })
+  }
 })

@@ -6,7 +6,6 @@
 // sends `stopped`.
 import { AsyncLocalStorage } from 'node:async_hooks'
 import { getHeapStatistics } from 'node:v8'
-import { isMainThread } from 'node:worker_threads'
 import { createRpc, type RpcOptions, serializeError } from '@provino/rpc'
 import type {
   CoordinatorMethods,
@@ -183,7 +182,7 @@ export function startWorker(
     options.serializeError === undefined ? {} : { serializeError: options.serializeError }
   const coordinator = createRpc<WorkerMethods, CoordinatorMethods>(
     port,
-    { memoryUsage: () => measureMemory(init) },
+    { memoryUsage: () => measureMemory() },
     rpcOptions,
   )
 
@@ -328,7 +327,7 @@ export function startWorker(
       controllers.delete(seq)
     }
     await settle()
-    const memoryBytes = measureMemory(init)
+    const memoryBytes = measureMemory()
     packer.afterSent(() =>
       port.send({
         t: 'fileDone',
@@ -430,16 +429,14 @@ export function startWorker(
 }
 
 /**
- * RSS in a fork, where the process is the worker's own. In a thread or inline RSS is the whole
- * process's, and `external` and `arrayBuffers` are no better: they count what the isolate has
- * reserved, not what it holds (oxc-parser's raw transfer buffer is a 6 GiB `ArrayBuffer` of
- * virtual memory, so a thread with a RSS of 150 MB reads about 6.4 GB of `external`). So the
- * thread's own isolate heap, `used_heap_size`: what jest-worker reads as
- * `process.memoryUsage().heapUsed` in a thread or a child.
+ * The heap the worker's isolate holds, `used_heap_size`: what jest-worker compares against
+ * `workerIdleMemoryLimit` (`processChild` and `threadChild` both read
+ * `process.memoryUsage().heapUsed`). RSS is not compared, in a fork or anywhere: a fresh fork sits
+ * near 200 MB of it with about 70 MB of heap, so a 1 GB limit would replace its worker every few
+ * files. `external` is no better: it counts what the isolate has reserved, not what it holds
+ * (oxc-parser's raw transfer buffer is a 6 GiB `ArrayBuffer` of virtual memory).
  */
-function measureMemory(init: WorkerInit | undefined): number {
-  const pool = init?.key.pool ?? (isMainThread ? 'forks' : 'threads')
-  if (pool === 'forks') return process.memoryUsage.rss()
+function measureMemory(): number {
   return getHeapStatistics().used_heap_size
 }
 
