@@ -112,6 +112,12 @@ export interface SerializedTransform {
   readonly pattern: string
   readonly transformer: ModuleRef
   readonly options: JsonValue
+  /**
+   * The hoister checks the mock factories of this rule's output against the hoist policy's
+   * `factoryReferences` (`NeutralTransform.checksMockFactories`). Absent or `false`: it allows
+   * every reference in them.
+   */
+  readonly checksMockFactories?: boolean
 }
 
 /**

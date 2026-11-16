@@ -70,6 +70,28 @@ test('transform entries become refs plus JSON options, with the ignore patterns 
   assert.deepEqual(structuredClone(resolved.config), resolved.config)
 })
 
+test("a rule's checksMockFactories crosses only when it is true", async () => {
+  const transformer = await temp.write('t.cjs', 'module.exports = {}')
+  const resolved = await resolveNeutralProject(
+    neutral({
+      transforms: [
+        { pattern: 'a', module: transformer, options: {}, checksMockFactories: true },
+        { pattern: 'b', module: transformer, options: {}, checksMockFactories: false },
+        { pattern: 'c', module: transformer, options: {} },
+      ],
+    }),
+    options,
+  )
+  assert.deepEqual(
+    resolved.config.loader.transform?.rules.map((rule) => [rule.pattern, rule.checksMockFactories]),
+    [
+      ['a', true],
+      ['b', undefined],
+      ['c', undefined],
+    ],
+  )
+})
+
 test('a bare transformer name resolves from the project root; one that does not is CONFIG_INVALID', async () => {
   await temp.write(
     'node_modules/my-transformer/package.json',

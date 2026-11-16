@@ -149,3 +149,40 @@ it('reports reads and writes of its accessors to one listener, and covers only k
   populated.restore()
   close()
 })
+
+describe('keepStatics', () => {
+  /** A window-like object: a plain function, and a lower-case key holding one with statics. */
+  function staticWindow(): Loose {
+    const win: Loose = {}
+    win.plain = function plain(this: unknown) {
+      return this
+    }
+    win.withStatics = Object.assign(function withStatics() {}, { keep: 1 })
+    return win
+  }
+
+  it('binds a function with static members by default, which drops them', () => {
+    const global = freshGlobal()
+    const win = staticWindow()
+    const populated = populateGlobal(global, win, {
+      bindFunctions: true,
+      additionalKeys: ['plain', 'withStatics'],
+    })
+    assert.equal((global.plain as () => unknown)(), win)
+    assert.equal((global.withStatics as { keep?: number }).keep, undefined)
+    populated.restore()
+  })
+
+  it('leaves it unbound with keepStatics, and still binds the plain function', () => {
+    const global = freshGlobal()
+    const win = staticWindow()
+    const populated = populateGlobal(global, win, {
+      bindFunctions: true,
+      keepStatics: true,
+      additionalKeys: ['plain', 'withStatics'],
+    })
+    assert.equal((global.plain as () => unknown)(), win)
+    assert.equal((global.withStatics as { keep?: number }).keep, 1)
+    populated.restore()
+  })
+})

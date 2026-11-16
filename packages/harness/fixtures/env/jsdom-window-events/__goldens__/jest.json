@@ -1,0 +1,127 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "env/jsdom-window-events",
+  "files": [
+    {
+      "file": "jsdom-window-events.jest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "jsdom-window-events.jest.test.ts",
+            "path": [
+              "window.dispatchEvent reaches a listener added with window.addEventListener"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 1,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "jsdom-window-events.jest.test.ts",
+            "path": [
+              "globalThis is the window and dispatches to its own listeners"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 3,
+          "location": {
+            "line": 14,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "jsdom-window-events.jest.test.ts",
+            "path": [
+              "document.dispatchEvent reaches document listeners and bubbles to the window"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 28,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "jsdom-window-events.jest.test.ts",
+            "path": [
+              "a window listener fires for an event dispatched on document.defaultView"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 46,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "jsdom-window-events.jest.test.ts",
+            "path": [
+              "window.getComputedStyle reads an element style"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 58,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "jsdom-window-events.jest.test.ts",
+            "path": [
+              "requestAnimationFrame is defined as jsdom defines it and runs its callback"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 2,
+          "location": {
+            "line": 67,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

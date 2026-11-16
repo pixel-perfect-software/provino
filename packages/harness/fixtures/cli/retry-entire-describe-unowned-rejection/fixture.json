@@ -1,0 +1,11 @@
+{
+  "description": "A describe-level retry (`jest.retryTimes(2, { entireDescribe: true })`) whose test fails on its first attempt, while a timer set at module scope makes a rejection nobody handles during that attempt. jest-circus 30.5.2 raises `processErrorGeneration` as soon as an unowned rejection is reported during a describe attempt (`eventHandler.ts`, `case 'error'`), so the block is not retried: the test fails with its first error (one invocation), and the rejection is the file's at `run_finish` (`testExecError`). Kept: every stderr line that is not a stack frame, a code frame, a test list line, a time, a count line or runner noise. One Jest worker. A black-box run, read by `provino`'s `jest-uncaught.test.ts`.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["--useStderr"] },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(?!\\s+at )(?!ERROR: failed)(?!\\(node:)(?!\\(Use )(?!\\s+[✓✕○])(?!\\s+retried whole$)(?!\\s+>?\\s*\\d+ \\|)(?!\\s+\\| +\\^)(?!Time:)(?!Ran all)(?!Test Suites:)(?!Snapshots:)(?!Test results)(?!\\s*$)",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

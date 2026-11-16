@@ -5,14 +5,18 @@
 // evaluates an ES module graph synchronously, which differs between the Node versions CI runs, so
 // it is held here on the capability seam rather than by a recording.
 import assert from 'node:assert/strict'
-import { join } from 'node:path'
+import { existsSync } from 'node:fs'
+import { findPackageJSON } from 'node:module'
+import { dirname, join, sep } from 'node:path'
 import { test } from 'node:test'
+import { pathToFileURL } from 'node:url'
 import type { ModulePolicy } from '@provino/types'
 import {
   createEdgeKindState,
   type EdgeKindOptions,
   edgeConditions,
   edgeKind,
+  packageTypeAt,
   type RuntimeCapabilities,
   runsAsEsm,
 } from './edge-kind.ts'
@@ -101,6 +105,115 @@ test('importer-format: one manifest answers every .js file under it, read once',
     assert.equal(runsAsEsm(state, join(root, file)), true, file)
   }
   assert.deepEqual([...state.typeByManifest], [[join(root, 'package.json'), 'module']])
+})
+
+/** A file system probe that counts what it is asked, and answers as the disk does. */
+function countingProbe(): { readonly asked: string[]; readonly isFile: (path: string) => boolean } {
+  const asked: string[] = []
+  return {
+    asked,
+    isFile: (path) => {
+      asked.push(path)
+      return existsSync(path)
+    },
+  }
+}
+
+test('packageTypeAt: a directory is looked up once, whatever files are in it', () => {
+  const root = writeTree({
+    'pkg/package.json': '{"type":"module"}\n',
+    'pkg/lib/a.js': '',
+    'pkg/lib/b.js': '',
+    'pkg/lib/c.js': '',
+    'pkg/lib/deep/d.js': '',
+  })
+  const probe = countingProbe()
+  const state = createEdgeKindState(options('importer-format'), VM_MODULES, probe.isFile)
+  for (const file of ['a.js', 'b.js', 'c.js']) {
+    assert.equal(packageTypeAt(state, join(root, 'pkg/lib', file)), 'module', file)
+  }
+  // pkg/lib, then pkg: two probes for three files.
+  assert.deepEqual(probe.asked, [
+    join(root, 'pkg/lib/package.json'),
+    join(root, 'pkg/package.json'),
+  ])
+  // A deeper directory's walk ends at the first directory already known.
+  assert.equal(packageTypeAt(state, join(root, 'pkg/lib/deep/d.js')), 'module')
+  assert.deepEqual(probe.asked.slice(2), [join(root, 'pkg/lib/deep/package.json')])
+  // Nothing is probed again.
+  assert.equal(packageTypeAt(state, join(root, 'pkg/lib/deep/d.js')), 'module')
+  assert.equal(probe.asked.length, 3)
+})
+
+test('packageTypeAt: a missing manifest is answered once per directory and never throws', () => {
+  const root = writeTree({ 'a/b/c.js': '', 'a/b/d.js': '', 'a/e.js': '' })
+  const probe = countingProbe()
+  const state = createEdgeKindState(options('importer-format'), VM_MODULES, probe.isFile)
+  assert.equal(packageTypeAt(state, join(root, 'a/b/c.js')), undefined)
+  const walked = probe.asked.length
+  assert.equal(packageTypeAt(state, join(root, 'a/b/d.js')), undefined)
+  assert.equal(packageTypeAt(state, join(root, 'a/e.js')), undefined)
+  assert.equal(probe.asked.length, walked)
+  // The real probe never throws for a missing file either.
+  const real = createEdgeKindState(options('importer-format'), VM_MODULES)
+  assert.equal(packageTypeAt(real, join(root, 'a/b/c.js')), undefined)
+})
+
+/** What Node's `module.findPackageJSON` finds for a file's directory: the answer to match. */
+function nodeManifest(path: string): string | undefined {
+  try {
+    return findPackageJSON(pathToFileURL(join(dirname(path), sep)).href)
+  } catch {
+    return undefined
+  }
+}
+
+test('packageTypeAt: the same answers as Node over nested manifests, with and without a type', () => {
+  const root = writeTree({
+    'package.json': '{"type":"module"}\n',
+    'a.js': '',
+    'typed/package.json': '{"type":"commonjs"}\n',
+    'typed/a.js': '',
+    'typed/untyped/package.json': '{"name":"x"}\n',
+    'typed/untyped/a.js': '',
+    'typed/untyped/sub/dir/a.js': '',
+    'broken/package.json': '{ not json',
+    'broken/deeper/a.js': '',
+    'array/package.json': '[1]',
+    'array/a.js': '',
+    'bare/a.js': '',
+    'node_modules/dep/a.js': '',
+    'node_modules/dep/lib/a.js': '',
+    'node_modules/typed/package.json': '{"type":"module"}\n',
+    'node_modules/typed/lib/a.js': '',
+  })
+  const state = createEdgeKindState(options('importer-format'), VM_MODULES)
+  const expected: Record<string, string | undefined> = {
+    'a.js': 'module',
+    'typed/a.js': 'commonjs',
+    'typed/untyped/a.js': undefined,
+    'typed/untyped/sub/dir/a.js': undefined,
+    'broken/deeper/a.js': undefined,
+    'array/a.js': undefined,
+    'bare/a.js': 'module',
+    'node_modules/dep/a.js': undefined,
+    'node_modules/dep/lib/a.js': undefined,
+    'node_modules/typed/lib/a.js': 'module',
+  }
+  // Twice: the second pass is answered from the per-directory cache.
+  for (let pass = 0; pass < 2; pass++) {
+    for (const [file, type] of Object.entries(expected)) {
+      assert.equal(packageTypeAt(state, join(root, file)), type, `${file} pass ${pass}`)
+    }
+  }
+  // Where Node finds a manifest, so does the walk: the nearest one's path is the same.
+  for (const file of Object.keys(expected)) {
+    const path = join(root, file)
+    const found = nodeManifest(path)
+    // Node answers a directory, not a manifest, where a `node_modules` stop meets none: no type.
+    if (found === undefined || !found.endsWith('package.json')) continue
+    assert.equal(state.manifestByDir.get(dirname(path)), found, `${file} manifest`)
+  }
 })
 
 test('importer-format without vm modules: every module is CommonJS, as Jest has it', () => {

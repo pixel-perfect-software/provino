@@ -268,6 +268,69 @@ describe('createFileDispatch', () => {
     assert.equal(runner.runnerFailed, true)
   })
 
+  /** An unhandled error charged to `ownerId` (a task id, or the run's). */
+  const late = (ownerId: TaskId | null): WorkerEvent => ({
+    type: 'unhandled-error',
+    ownerId,
+    lastTestId: null,
+    origin: 'unhandledRejection',
+    error: boom,
+    t: 3,
+  })
+  const ended: WorkerEvent = { type: 'file-end', fileId: id('f'), result, t: 2 }
+
+  it('marks a file failed after its end for an error charged to it or its task, and keeps its result', async () => {
+    const after = async (events: readonly WorkerEvent[]): Promise<boolean> => {
+      const dispatch = createFileDispatch({
+        bus: recordingBus().bus,
+        file: info,
+        onUnhandled: () => {},
+      })
+      await dispatch.handle([collected, ended, ...events])
+      assert.equal(dispatch.result, result, 'the result is the one file-end carried')
+      return dispatch.failedAfterEnd
+    }
+    assert.equal(await after([late(id('t'))]), true, 'its test')
+    assert.equal(await after([late(id('f'))]), true, 'the file itself')
+    // The run's own error, and another file's test's (a timer of an earlier file), leave it.
+    assert.equal(await after([late(null)]), false)
+    assert.equal(await after([late(id('elsewhere'))]), false)
+    assert.equal(await after([]), false)
+    // Before `file-end` the runtime decides the file's state itself.
+    const early = createFileDispatch({ bus: recordingBus().bus, file: info, onUnhandled: () => {} })
+    await early.handle([collected, late(id('t')), ended])
+    assert.equal(early.failedAfterEnd, false)
+  })
+
+  it('counts a test an error was charged to after it ended as failed, once', async () => {
+    const counted = async (events: readonly WorkerEvent[]): Promise<number> => {
+      let failed = 0
+      const dispatch = createFileDispatch({
+        bus: recordingBus().bus,
+        file: info,
+        onUnhandled: () => {},
+        onTestFailed: () => {
+          failed++
+        },
+      })
+      await dispatch.handle([collected, ...events])
+      return failed
+    }
+    const testEnd = (state: 'pass' | 'fail'): WorkerEvent => ({
+      type: 'test-end',
+      id: id('t'),
+      result: { ...result, state },
+      t: 2,
+    })
+    assert.equal(await counted([testEnd('pass'), late(id('t'))]), 1, 'a passing test it fails')
+    assert.equal(await counted([testEnd('pass'), late(id('t')), late(id('t'))]), 1, 'once')
+    assert.equal(await counted([testEnd('fail'), late(id('t'))]), 1, 'a failed test, once')
+    assert.equal(await counted([testEnd('pass'), ended, late(id('t'))]), 1, 'after file-end')
+    // Jest's `--bail` counts failed tests: an error of the file, or of the run, fails none.
+    assert.equal(await counted([testEnd('pass'), late(id('f')), late(null)]), 0)
+    assert.equal(await counted([testEnd('pass'), late(id('elsewhere'))]), 0, 'another file’s')
+  })
+
   it('rejects an event for a task it was never told about', async () => {
     const { bus } = recordingBus()
     const dispatch = createFileDispatch({ bus, file: info, onUnhandled: () => {} })

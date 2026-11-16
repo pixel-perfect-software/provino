@@ -18,7 +18,7 @@ import {
   output,
   playRun,
   resultOf,
-  taskId,
+  type taskId,
   taskResult,
   testEndEvent,
   unhandledEvent,
@@ -448,7 +448,7 @@ describe('the normalized-json reporter', () => {
     test('an unhandled error tied to a file fails that file, not the run’s errors', async () => {
       const file = fileInfo('x.test.ts')
       const run = await withEvents((bus) =>
-        bus.emit('unhandled', file, unhandledEvent(error('late done'), taskId('x'))),
+        bus.emit('unhandled', file, unhandledEvent(error('late done'), file.fileId)),
       )
       assert.deepEqual(run.runErrors, [])
       assert.equal(run.files[0]?.status, 'failed')
@@ -872,7 +872,12 @@ describe('the normalized-json reporter: suites, bus failures, retries, unhandled
       const file = buildFile({ path: 'x.test.ts', tests: [{ path: ['t'] }] })
       await bus.emit('run:start', { root: '/', projects: [''], startTime: 0, watch: false }, [])
       await bus.emit('file:collected', file.info, collectedEvent(file))
-      await bus.emit('unhandled', withFile ? file.info : null, unhandledEvent(error('STRAY')))
+      // Tied to the file, it is charged to the file itself; else to no task.
+      await bus.emit(
+        'unhandled',
+        withFile ? file.info : null,
+        unhandledEvent(error('STRAY'), withFile ? file.info.fileId : null),
+      )
       await bus.emit('file:end', file.result)
       await bus.emit('run:end', {
         reason: 'passed',

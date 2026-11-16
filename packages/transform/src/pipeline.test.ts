@@ -7,6 +7,7 @@ import { after, test } from 'node:test'
 import { pathToFileURL } from 'node:url'
 import type { HoistPolicy, TransformRequest } from '@provino/types'
 import { composeMaps } from './internal/maps.ts'
+import type { HostedSource, JestHost } from './jest-host/index.ts'
 import { toModuleRunner } from './module-runner.ts'
 import { createPipeline, type PipelineOptions } from './pipeline.ts'
 
@@ -367,6 +368,77 @@ test('hoisting violations come back as diagnostics beside the others', () => {
     ],
   )
   assert.equal(record.diagnostics[1]?.message, 'jest.mock factory references outside')
+})
+
+/**
+ * A project transformer that hoisted without checking factories, as `@swc/jest` does: its output
+ * is fixed, and `checksMockFactories` is the rule's.
+ */
+function hoistingHost(checksMockFactories: boolean): JestHost {
+  const code = [
+    '"use strict";',
+    "jest.mock('./location', () => ({ f: () => window.location.pathname, g: () => suffix }));",
+    "const _location = require('./location');",
+    "const suffix = '!';",
+    '',
+  ].join('\n')
+  const hosted: HostedSource = {
+    code,
+    map: null,
+    transformerCacheKey: null,
+    canInstrument: false,
+    checksMockFactories,
+  }
+  return {
+    handles: (filename) => filename.endsWith('.tsx'),
+    cacheKey: () => null,
+    cacheKeyAsync: () => Promise.resolve(null),
+    transform: () => hosted,
+    transformAsync: () => Promise.resolve(hosted),
+    fingerprint: `fp-${checksMockFactories}`,
+    hoistedMarkers: [],
+  }
+}
+
+const OUT_OF_SCOPE_SOURCE = [
+  "import { f, g } from './location'",
+  "const suffix = '!'",
+  "jest.mock('./location', () => ({ f: () => window.location.pathname, g: () => suffix }))",
+  '',
+].join('\n')
+
+test("a hosted rule that doesn't check factories hoists, and allows any reference in them", () => {
+  const root = writeTree({})
+  const record = createPipeline(
+    options(root, { hoist: HOIST, transformers: hoistingHost(false) }),
+  ).transform(request(join(root, 'a.test.tsx'), OUT_OF_SCOPE_SOURCE, { role: 'test' }))
+  assert.deepEqual(record.diagnostics, [])
+  assert.deepEqual(
+    record.staticMocks.map((mock) => mock.specifier),
+    ['./location'],
+  )
+})
+
+test('a hosted rule that checks factories reports a reference the policy refuses', () => {
+  const root = writeTree({})
+  const record = createPipeline(
+    options(root, { hoist: HOIST, transformers: hoistingHost(true) }),
+  ).transform(request(join(root, 'a.test.tsx'), OUT_OF_SCOPE_SOURCE, { role: 'test' }))
+  assert.deepEqual(
+    record.diagnostics.map(({ code, message }) => ({ code, message })),
+    [{ code: 'HOIST_FACTORY_OUT_OF_SCOPE', message: 'jest.mock factory references window' }],
+  )
+})
+
+test('the Oxc path keeps the factory check whatever a hosted rule says', () => {
+  const root = writeTree({})
+  const record = createPipeline(
+    options(root, { hoist: HOIST, transformers: hoistingHost(false) }),
+  ).transform(request(join(root, 'a.test.ts'), OUT_OF_SCOPE_SOURCE, { role: 'test' }))
+  assert.deepEqual(
+    record.diagnostics.map(({ code }) => code),
+    ['HOIST_FACTORY_OUT_OF_SCOPE'],
+  )
 })
 
 test('a file without a mock call passes through the hoist step untouched', () => {

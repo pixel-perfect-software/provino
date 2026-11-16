@@ -39,6 +39,12 @@ export interface HostedSource {
    * (babel-jest does, with `babel-plugin-istanbul`), so the pipeline's instrumenter does not run.
    */
   readonly canInstrument: boolean
+  /**
+   * The rule's `checksMockFactories`: the transformer checks what a hoisted mock factory references
+   * (babel-jest), so the pipeline's hoister checks this output's factories too. `false`: the
+   * hoister allows every reference, as the transformer did.
+   */
+  readonly checksMockFactories: boolean
 }
 
 /**
@@ -61,8 +67,8 @@ export interface JestHost {
   /** `getCacheKeyAsync` when the transformer has it, else `getCacheKey`. */
   cacheKeyAsync(request: TransformRequest): Promise<string | null>
   /**
-   * A hash of everything about the setup besides a file: each rule's pattern, transformer path and
-   * options, the ignore patterns and the project config.
+   * A hash of everything about the setup besides a file: each rule's pattern, transformer path,
+   * options and `checksMockFactories`, the ignore patterns and the project config.
    */
   readonly fingerprint: string
   /** `SerializedTransformConfig.hoistedMarkers`. */
@@ -73,6 +79,7 @@ interface LoadedRule {
   readonly pattern: RegExp
   readonly path: string
   readonly options: JsonValue
+  readonly checksMockFactories: boolean
   readonly transformer: JestTransformer
 }
 
@@ -153,6 +160,7 @@ async function loadRule(rule: SerializedTransformConfig['rules'][number]): Promi
     pattern: new RegExp(rule.pattern),
     path,
     options: rule.options,
+    checksMockFactories: rule.checksMockFactories === true,
     transformer: loaded as JestTransformer,
   }
 }
@@ -236,7 +244,12 @@ export async function createJestHost(config: SerializedTransformConfig): Promise
   const cacheFS = new Map<string, string>()
   const fingerprint = hashParts([
     stableJson({
-      rules: rules.map((rule) => [rule.pattern.source, rule.path, rule.options]),
+      rules: rules.map((rule) => [
+        rule.pattern.source,
+        rule.path,
+        rule.options,
+        rule.checksMockFactories,
+      ]),
       ignore: config.ignorePatterns,
       config: configString,
       hoistedMarkers: config.hoistedMarkers,
@@ -304,6 +317,7 @@ export async function createJestHost(config: SerializedTransformConfig): Promise
       map: mapOf(source),
       transformerCacheKey,
       canInstrument: rule.transformer.canInstrument === true,
+      checksMockFactories: rule.checksMockFactories,
     }
   }
 

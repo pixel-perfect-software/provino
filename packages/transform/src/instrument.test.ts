@@ -218,6 +218,7 @@ function host(canInstrument: boolean, map: SourceMapV3 | null) {
       map,
       transformerCacheKey: 'key',
       canInstrument,
+      checksMockFactories: true,
     }),
     transformAsync: () =>
       Promise.resolve({
@@ -225,6 +226,7 @@ function host(canInstrument: boolean, map: SourceMapV3 | null) {
         map,
         transformerCacheKey: 'key',
         canInstrument,
+        checksMockFactories: true,
       } satisfies HostedSource),
     fingerprint: `fp-${canInstrument}`,
     hoistedMarkers: [],

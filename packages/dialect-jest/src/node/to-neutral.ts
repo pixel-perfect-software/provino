@@ -208,6 +208,9 @@ export function jestProjectToNeutral(
         pattern,
         module,
         options: jsonObject(options, `transform["${pattern}"]`, diagnostics),
+        // Jest's out-of-scope check on a `jest.mock` factory is babel-plugin-jest-hoist's, which
+        // only babel-jest runs (babel-preset-jest); `@swc/jest` and ts-jest hoist without it.
+        ...(packageOf(module, 'babel-jest') ? { checksMockFactories: true } : {}),
       })
     }
   }

@@ -22,6 +22,7 @@ const DECLARED: Readonly<Record<string, readonly string[]>> = {
 const PROJECTS = [
   ['env/realm-instanceof', 'the realm checks (Track 8 R5)'],
   ['env/jsdom-project', 'every file passes, with its docblocks and mapper'],
+  ['env/jsdom-window-events', 'window methods inherited from EventTarget run on the global'],
   ['env/conditions-jsdom', "jsdom's `browser` export condition (T8.7)"],
   ['env/conditions-custom', '`customExportConditions: [""]` drops `browser` (T8.7)'],
   ['env/conditions-node', "the node environment's `node` condition (T8.7)"],

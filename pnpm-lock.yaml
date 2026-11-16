@@ -1017,6 +1017,12 @@ importers:
       '@provino/transform':
         specifier: workspace:*
         version: link:../transform
+      '@swc/core':
+        specifier: 'catalog:'
+        version: 1.16.22
+      '@swc/jest':
+        specifier: 'catalog:'
+        version: 0.2.39(@swc/core@1.16.22)
       '@testing-library/dom':
         specifier: 'catalog:'
         version: 10.4.2

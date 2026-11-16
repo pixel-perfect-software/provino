@@ -199,7 +199,26 @@ describe('assertMatchesGolden (the shared comparison)', () => {
         declared: { exitCode: { golden: run.code, provino: run.code, reason: 'not different' } },
       }),
     )
-    assert.throws(() => assertMatchesGolden('cli/json-no-location', { ...run, code: 7 }))
+    // The run's streams are getters, so it is copied by its descriptors, not spread.
+    const moved: typeof run = Object.defineProperties(
+      {},
+      { ...Object.getOwnPropertyDescriptors(run), code: { value: 7, enumerable: true } },
+    ) as typeof run
+    assert.throws(() => assertMatchesGolden('cli/json-no-location', moved), /exitCode differs/)
+    const declared = (view?: (capture: unknown) => unknown) => ({
+      exitCode: {
+        golden: view === undefined ? run.code : view(run.code),
+        provino: view === undefined ? 7 : view(7),
+        reason: 'pinned',
+        ...(view === undefined ? {} : { view }),
+      },
+    })
+    assertMatchesGolden('cli/json-no-location', moved, { declared: declared() })
+    // Both sides are read through the view, so one that hides the difference makes it gone.
+    assert.throws(
+      () => assertMatchesGolden('cli/json-no-location', moved, { declared: declared(() => 'x') }),
+      /the declared difference is gone/,
+    )
   })
 })
 

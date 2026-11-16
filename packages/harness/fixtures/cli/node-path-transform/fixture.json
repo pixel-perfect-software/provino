@@ -1,0 +1,22 @@
+{
+  "description": "A `setupFilesAfterEnv` module that only `NODE_PATH` finds (B23e), as under pnpm's `.bin` shims, which set it: the config names `hoisted-setup`, which lives in `libs/` outside any `node_modules` walk from the root directory, and the run's `NODE_PATH` is `libs`. jest-resolve reads `NODE_PATH` once and hands it to `findNodeModule` as `paths`, which `defaultResolver` retries as module directories when nothing resolves, so the config validates and the module runs. A black-box run.",
+  "runners": ["jest"],
+  "env": {
+    "NODE_PATH": "libs"
+  },
+  "files": {
+    "jest": {
+      "libs/hoisted-setup/index.js": "globalThis.__MARK__ = 'from NODE_PATH'\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "setupFilesAfterEnv": ["hoisted-setup"]
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^(PASS|FAIL) |Validation Error|Module .* was not found"
+  }
+}
