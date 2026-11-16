@@ -7,7 +7,9 @@
 // `import`-kind lookup, and to a `require`-kind one when Node can evaluate an ES module graph
 // synchronously (`vm.SourceTextModule.prototype.hasAsyncGraph`).
 import { readFileSync } from 'node:fs'
-import { dirname, extname, join } from 'node:path'
+import { findPackageJSON } from 'node:module'
+import { dirname, extname, join, sep } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import * as vm from 'node:vm'
 import type { LoaderOptions, ResolveKind } from '@provino/types'
 import { conditionsOf } from '../graph/conditions.ts'
@@ -25,18 +27,19 @@ export interface RuntimeCapabilities {
   readonly syncEvaluate: boolean
 }
 
-/** What an `importer-format` lookup remembers for one worker: by importer, and by directory. */
+/** What an `importer-format` lookup remembers for one worker: by importer, and by manifest. */
 export interface EdgeKindState {
   readonly options: EdgeKindOptions
-  readonly runtime: RuntimeCapabilities
+  /** What this Node can do, read on first use: `as-written` with `never` never asks. */
+  readonly runtime: () => RuntimeCapabilities
   /** The conditions of a lookup that adds no `module-sync`: the loader's own. */
   readonly conditions: readonly string[]
   /** The same with `module-sync`, for the lookups `moduleSyncCondition` gives it. */
   readonly withModuleSync: readonly string[]
   /** Whether a module runs as an ES module, by its path. */
   readonly esmByPath: Map<string, boolean>
-  /** Whether the nearest `package.json` from a directory says `"type": "module"`, by directory. */
-  readonly moduleTypeByDir: Map<string, boolean>
+  /** Whether a `package.json` says `"type": "module"`, by the manifest's path. */
+  readonly moduleTypeByManifest: Map<string, boolean>
 }
 
 /** A member of `node:vm` this Node may lack, read without its type (the flags decide). */
@@ -49,7 +52,7 @@ function vmMember(name: string): unknown {
  * `--experimental-vm-modules`, and `hasAsyncGraph` from Node 24.9, as jest-runtime's
  * `nodeCapabilities.ts` reads them.
  */
-const RUNTIME: RuntimeCapabilities = (() => {
+function probeRuntime(): RuntimeCapabilities {
   const sourceTextModule = vmMember('SourceTextModule')
   return {
     vmModules: typeof vmMember('SyntheticModule') === 'function',
@@ -57,58 +60,64 @@ const RUNTIME: RuntimeCapabilities = (() => {
       typeof sourceTextModule === 'function' &&
       typeof Reflect.get(sourceTextModule.prototype as object, 'hasAsyncGraph') === 'function',
   }
-})()
+}
 
-/** `runtime` is this process's answers; a test passes its own. */
+/** `runtime` is this process's answers, probed when first asked for; a test passes its own. */
 export function createEdgeKindState(
   options: EdgeKindOptions,
-  runtime: RuntimeCapabilities = RUNTIME,
+  runtime?: RuntimeCapabilities,
 ): EdgeKindState {
   const conditions = conditionsOf(options)
+  let capabilities = runtime
   return {
     options,
-    runtime,
+    runtime: () => (capabilities ??= probeRuntime()),
     conditions,
     withModuleSync: conditions.includes('module-sync')
       ? conditions
       : [...conditions, 'module-sync'],
     esmByPath: new Map(),
-    moduleTypeByDir: new Map(),
+    moduleTypeByManifest: new Map(),
   }
 }
 
-/** The `type` of the nearest `package.json` above `dir` is `module`; a missing or broken one is not. */
-function moduleTypeFrom(state: EdgeKindState, dir: string): boolean {
-  const known = state.moduleTypeByDir.get(dir)
-  if (known !== undefined) return known
-  let text: string | undefined
+/** Whether the `package.json` at `manifest` says `"type": "module"`; an unreadable or broken one does not. */
+function readsModuleType(manifest: string): boolean {
   try {
-    text = readFileSync(join(dir, 'package.json'), 'utf8')
+    const parsed: unknown = JSON.parse(readFileSync(manifest, 'utf8'))
+    return (
+      typeof parsed === 'object' &&
+      parsed !== null &&
+      (parsed as { readonly type?: unknown }).type === 'module'
+    )
   } catch {
-    text = undefined
+    return false
   }
-  let answer: boolean
-  if (text !== undefined) {
-    try {
-      const parsed: unknown = JSON.parse(text)
-      answer =
-        typeof parsed === 'object' &&
-        parsed !== null &&
-        (parsed as { readonly type?: unknown }).type === 'module'
-    } catch {
-      answer = false
-    }
-  } else {
-    const parent = dirname(dir)
-    answer = parent === dir ? false : moduleTypeFrom(state, parent)
+}
+
+/**
+ * Whether the nearest `package.json` at or above `dir` says `"type": "module"`. None, or one Node
+ * cannot parse (it throws), is CommonJS, as Jest has it; each manifest is read once.
+ */
+function moduleTypeFrom(state: EdgeKindState, dir: string): boolean {
+  let manifest: string | undefined
+  try {
+    manifest = findPackageJSON(pathToFileURL(join(dir, sep)).href)
+  } catch {
+    return false
   }
-  state.moduleTypeByDir.set(dir, answer)
+  if (manifest === undefined) return false
+  let answer = state.moduleTypeByManifest.get(manifest)
+  if (answer === undefined) {
+    answer = readsModuleType(manifest)
+    state.moduleTypeByManifest.set(manifest, answer)
+  }
   return answer
 }
 
 /** Whether the module at `path` runs as an ES module under `importer-format`. */
 export function runsAsEsm(state: EdgeKindState, path: string): boolean {
-  if (!state.runtime.vmModules) return false
+  if (!state.runtime().vmModules) return false
   const known = state.esmByPath.get(path)
   if (known !== undefined) return known
   const extension = extname(path)
@@ -135,5 +144,7 @@ export function edgeKind(state: EdgeKindState, importer: string, kind: ResolveKi
  */
 export function edgeConditions(state: EdgeKindState, kind: ResolveKind): readonly string[] {
   if (state.options.policy.moduleSyncCondition === 'never') return state.conditions
-  return kind !== 'require' || state.runtime.syncEvaluate ? state.withModuleSync : state.conditions
+  return kind !== 'require' || state.runtime().syncEvaluate
+    ? state.withModuleSync
+    : state.conditions
 }

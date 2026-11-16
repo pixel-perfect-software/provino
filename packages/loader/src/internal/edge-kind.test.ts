@@ -1,14 +1,12 @@
 // `ModulePolicy.edgeResolveKind`: which kind an edge resolves as, by the importer's format, and
 // `ModulePolicy.moduleSyncCondition`: which lookups add `module-sync`. Recorded from Jest 30.5.2 by
-// `env/conditions-import-*` and `env/conditions-module-sync-esm` (`provino`'s
+// `env/conditions-import-*` (`-module-sync` is the condition's; `provino`'s
 // `jest-conditions.test.ts`). The `require` half of `moduleSyncCondition` depends on whether Node
 // evaluates an ES module graph synchronously, which differs between the Node versions CI runs, so
 // it is held here on the capability seam rather than by a recording.
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { after, test } from 'node:test'
+import { join } from 'node:path'
+import { test } from 'node:test'
 import type { ModulePolicy } from '@provino/types'
 import {
   createEdgeKindState,
@@ -18,6 +16,7 @@ import {
   type RuntimeCapabilities,
   runsAsEsm,
 } from './edge-kind.ts'
+import { writeTree } from './test-support.ts'
 
 /** Node with `--experimental-vm-modules` and sync evaluation (24.9 and later). */
 const VM_MODULES: RuntimeCapabilities = { vmModules: true, syncEvaluate: true }
@@ -25,21 +24,6 @@ const VM_MODULES: RuntimeCapabilities = { vmModules: true, syncEvaluate: true }
 const NO_SYNC_EVALUATE: RuntimeCapabilities = { vmModules: true, syncEvaluate: false }
 /** Node without the flag: neither. */
 const NO_VM_MODULES: RuntimeCapabilities = { vmModules: false, syncEvaluate: false }
-
-const roots: string[] = []
-after(() => {
-  for (const root of roots) rmSync(root, { recursive: true, force: true })
-})
-
-function tree(files: Readonly<Record<string, string>>): string {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'provino-edge-kind-')))
-  roots.push(root)
-  for (const [path, content] of Object.entries(files)) {
-    mkdirSync(dirname(join(root, path)), { recursive: true })
-    writeFileSync(join(root, path), content)
-  }
-  return root
-}
 
 function options(
   edgeResolveKind: ModulePolicy['edgeResolveKind'],
@@ -63,7 +47,7 @@ test('as-written: every edge keeps its own kind', () => {
 })
 
 test('importer-format: a CommonJS-run module resolves every edge as require', () => {
-  const root = tree({ 'package.json': '{}\n', 'a.ts': '', 'b.js': '', 'c.cjs': '' })
+  const root = writeTree({ 'package.json': '{}\n', 'a.ts': '', 'b.js': '', 'c.cjs': '' })
   const state = createEdgeKindState(options('importer-format'), VM_MODULES)
   for (const file of ['a.ts', 'b.js', 'c.cjs']) {
     for (const kind of ['import', 'require', 'dynamic-import'] as const) {
@@ -73,7 +57,7 @@ test('importer-format: a CommonJS-run module resolves every edge as require', ()
 })
 
 test('importer-format: an ES-module-run module resolves every edge as import', () => {
-  const root = tree({
+  const root = writeTree({
     'esm/package.json': '{"type":"module"}\n',
     'esm/deep/b.js': '',
     'esm/c.cjs': '',
@@ -91,7 +75,7 @@ test('importer-format: an ES-module-run module resolves every edge as import', (
 })
 
 test('importer-format: the nearest package.json decides a .js file, and a broken one is CommonJS', () => {
-  const root = tree({
+  const root = writeTree({
     'package.json': '{"type":"module"}\n',
     'inner/package.json': '{"name":"inner"}\n',
     'inner/a.js': '',
@@ -105,8 +89,27 @@ test('importer-format: the nearest package.json decides a .js file, and a broken
   assert.equal(runsAsEsm(state, join(root, 'c.js')), true)
 })
 
+test('importer-format: one manifest answers every .js file under it, read once', () => {
+  const root = writeTree({
+    'package.json': '{"type":"module"}\n',
+    'a.js': '',
+    'x/b.js': '',
+    'x/y/c.js': '',
+  })
+  const state = createEdgeKindState(options('importer-format'), VM_MODULES)
+  for (const file of ['a.js', 'x/b.js', 'x/y/c.js']) {
+    assert.equal(runsAsEsm(state, join(root, file)), true, file)
+  }
+  assert.deepEqual([...state.moduleTypeByManifest], [[join(root, 'package.json'), true]])
+})
+
 test('importer-format without vm modules: every module is CommonJS, as Jest has it', () => {
-  const root = tree({ 'package.json': '{"type":"module"}\n', 'a.js': '', 'b.mjs': '', 'c.ts': '' })
+  const root = writeTree({
+    'package.json': '{"type":"module"}\n',
+    'a.js': '',
+    'b.mjs': '',
+    'c.ts': '',
+  })
   const state = createEdgeKindState(options('importer-format', ['.ts']), NO_VM_MODULES)
   for (const file of ['a.js', 'b.mjs', 'c.ts']) {
     assert.equal(edgeKind(state, join(root, file), 'import'), 'require', file)
@@ -200,5 +203,6 @@ test("this process's capabilities are read as jest-runtime reads them", async ()
   assert.deepEqual(probe([], bare), { vmModules: false, syncEvaluate: false })
   // The default state reads this process's own answers: a child with its flags gives the same.
   const own = createEdgeKindState(options('importer-format', undefined, 'import-and-sync-require'))
-  assert.deepEqual(own.runtime, probe(process.execArgv, process.env))
+  assert.deepEqual(own.runtime(), probe(process.execArgv, process.env))
+  assert.equal(own.runtime(), own.runtime(), 'probed once')
 })
