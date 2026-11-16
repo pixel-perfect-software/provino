@@ -6,11 +6,13 @@
 // every capture through the same steps the recorder applies (roots, `keepLines`, `sortStdout`,
 // `mask`, times) and compares it with the golden's, with no step of its own.
 import assert from 'node:assert/strict'
-import { mkdir, readFile, rm } from 'node:fs/promises'
+import { mkdir, readFile, rm, symlink } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type Json, normalizedJson, observedText } from './mask.ts'
 import {
+  FIXTURES,
   loadFixture,
   materialize,
   type RecordedFixture,
@@ -31,6 +33,24 @@ const { createNormalizer } = (await import(
 
 /** Inside this package, so the packages a fixture's config names resolve from `node_modules`. */
 export const WORK: string = fileURLToPath(new URL('../.work/', import.meta.url))
+
+/** The real directory of a package the harness installs (the project's own copy, as pnpm links it). */
+export function packageDir(name: string): string {
+  const require = createRequire(join(FIXTURES, 'x.js'))
+  return dirname(require.resolve(`${name}/package.json`))
+}
+
+/**
+ * Links the environment packages the harness installs into `<parent>/node_modules`, which a
+ * project below `parent` finds by the upward walk (a fixture's config names them bare).
+ */
+export async function linkEnvironments(parent: string): Promise<void> {
+  await mkdir(join(parent, 'node_modules'), { recursive: true })
+  for (const name of ['jest-environment-jsdom', 'jest-environment-node']) {
+    await rm(join(parent, 'node_modules', name), { force: true })
+    await symlink(packageDir(name), join(parent, 'node_modules', name))
+  }
+}
 
 /** Where the recorder's own run writes Jest's results. */
 export const RESULTS = '.harness-out/jest.json'

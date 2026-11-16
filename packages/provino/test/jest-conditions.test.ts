@@ -5,18 +5,10 @@
 // (`module.edgeResolveKind: 'importer-format'`), `module-sync` among them
 // (`module.moduleSyncCondition`; its `require` half depends on the Node version and is held by the
 // loader's `edge-kind.test.ts`). Each test's title names the entry it got.
-import { mkdir, rm, symlink } from 'node:fs/promises'
-import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { rm } from 'node:fs/promises'
+import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
-import { FIXTURES } from './recorded.ts'
-import { assertMatchesGolden, provinoOn, WORK } from './recorded-run.ts'
-
-/** The real directory of a package the harness installs (the project's own copy, as pnpm links it). */
-function packageDir(name: string): string {
-  const require = createRequire(join(FIXTURES, 'x.js'))
-  return dirname(require.resolve(`${name}/package.json`))
-}
+import { assertMatchesGolden, linkEnvironments, provinoOn, WORK } from './recorded-run.ts'
 
 /** The projects' parent, whose `node_modules` holds the environment packages the harness installs. */
 const PARENT = join(WORK, 'jest-conditions')
@@ -29,13 +21,7 @@ const FIXTURE_IDS = [
   ['env/conditions-import-module-sync', "an ES module's edges take a `module-sync` entry"],
 ] as const
 
-before(async () => {
-  await mkdir(join(PARENT, 'node_modules'), { recursive: true })
-  for (const name of ['jest-environment-jsdom', 'jest-environment-node']) {
-    await rm(join(PARENT, 'node_modules', name), { force: true })
-    await symlink(packageDir(name), join(PARENT, 'node_modules', name))
-  }
-})
+before(() => linkEnvironments(PARENT))
 after(async () => {
   await rm(PARENT, { recursive: true, force: true })
 })

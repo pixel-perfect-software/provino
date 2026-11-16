@@ -4,19 +4,11 @@
 // trees (`env/*`), test by test: each test's status is the recorded one (a declared divergence
 // aside), and real Jest run live on the same temp tree gives the same statuses again.
 import assert from 'node:assert/strict'
-import { mkdir, symlink } from 'node:fs/promises'
-import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
 import { describe, it } from 'node:test'
 import { liveJest, provinoRun, sorted } from './live-jest.ts'
-import { FIXTURES, loadFixture, materialize } from './recorded.ts'
+import { loadFixture, materialize } from './recorded.ts'
+import { linkEnvironments } from './recorded-run.ts'
 import { spawnCli } from './support.ts'
-
-/** The real directory of a package the harness installs (the project's own copy, as pnpm links it). */
-function packageDir(name: string): string {
-  const require = createRequire(join(FIXTURES, 'x.js'))
-  return dirname(require.resolve(`${name}/package.json`))
-}
 
 /**
  * Tests Jest passes and Provino fails today, declared (proposed DIVERGENCE, Track 8 R5): under the
@@ -41,10 +33,7 @@ describe('a Jest project on its own environment, against Jest 30.5.2', () => {
       const fixture = await loadFixture(id)
       const project = await materialize(fixture)
       try {
-        await mkdir(join(project.root, 'node_modules'), { recursive: true })
-        for (const name of ['jest-environment-jsdom', 'jest-environment-node']) {
-          await symlink(packageDir(name), join(project.root, 'node_modules', name))
-        }
+        await linkEnvironments(project.root)
         const recorded = new Map<string, string>()
         for (const file of fixture.golden.files) {
           for (const test of file.tests ?? []) {

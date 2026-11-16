@@ -3,18 +3,11 @@
 // any `.snap` file, by `assertMatchesGolden` with no step of its own. Every fixture is two test
 // files on one worker, so a package loaded once per worker is seen by the second file too.
 import assert from 'node:assert/strict'
-import { mkdir, readdir, rm, symlink } from 'node:fs/promises'
-import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { readdir, rm } from 'node:fs/promises'
+import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import { FIXTURES } from './recorded.ts'
-import { assertMatchesGolden, provinoOn, WORK } from './recorded-run.ts'
-
-/** The real directory of a package the harness installs (the project's own copy, as pnpm links it). */
-function packageDir(name: string): string {
-  const require = createRequire(join(FIXTURES, 'x.js'))
-  return dirname(require.resolve(`${name}/package.json`))
-}
+import { assertMatchesGolden, linkEnvironments, provinoOn, WORK } from './recorded-run.ts'
 
 /**
  * Where the projects go: a directory of this file's own under `.work/`, whose `node_modules` holds
@@ -69,13 +62,7 @@ const PHASE_2A: ReadonlySet<string> = new Set([
   'ecosystem/user-event-fake-timers',
 ])
 
-before(async () => {
-  await mkdir(join(PARENT, 'node_modules'), { recursive: true })
-  for (const name of ['jest-environment-jsdom', 'jest-environment-node']) {
-    await rm(join(PARENT, 'node_modules', name), { force: true })
-    await symlink(packageDir(name), join(PARENT, 'node_modules', name))
-  }
-})
+before(() => linkEnvironments(PARENT))
 after(async () => {
   await rm(PARENT, { recursive: true, force: true })
 })
