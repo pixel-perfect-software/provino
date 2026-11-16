@@ -26,6 +26,8 @@ const ECOSYSTEM_PACKAGES: readonly string[] = [
   'jest-fetch-mock',
   'jest-image-snapshot',
   'jest-mock-extended',
+  // The `ecosystem/custom-snapshot-*` setup files call its matchers from a custom matcher (D128).
+  'jest-snapshot',
   'jest-styled-components',
   'jest-when',
   'msw',
