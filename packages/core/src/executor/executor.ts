@@ -823,24 +823,15 @@ export class Executor {
     const outcomes: Outcome[] = []
     for (const child of suite.children) {
       const t = this.#now()
-      const blocked = child.blocked === undefined ? [] : [child.blocked]
+      // A task is blocked only by `.only` on CI (a `CoreError`), which no dialect shapes.
+      const errors = child.blocked === undefined ? NO_ERRORS : [serializeError(child.blocked)]
       if (child.type !== 'test') {
         this.#start(hold, 'suite-start', child.id, t)
         this.#skipBelow(child, hold)
-        this.#endTask(hold, 'suite-end', child.id, 'skip', t, blocked.map(serializeError))
+        this.#endTask(hold, 'suite-end', child.id, 'skip', t, errors)
       } else {
         this.#start(hold, 'test-start', child.id, t)
-        this.#endTask(
-          hold,
-          'test-end',
-          child.id,
-          'skip',
-          t,
-          blocked.map(this.#serializeTestError),
-          {
-            skipReason: 'unknown',
-          },
-        )
+        this.#endTask(hold, 'test-end', child.id, 'skip', t, errors, { skipReason: 'unknown' })
       }
       outcomes.push('skip')
     }
@@ -870,9 +861,7 @@ export class Executor {
     }
     if (test.blocked !== undefined) {
       hold?.failures.push(test.blocked)
-      this.#endTask(hold, 'test-end', test.id, 'fail', start, [
-        this.#serializeTestError(test.blocked),
-      ])
+      this.#endTask(hold, 'test-end', test.id, 'fail', start, [serializeError(test.blocked)])
       return 'fail'
     }
     if (hold !== undefined) this.#heldTests.set(test.id, hold)
@@ -1916,7 +1905,10 @@ export interface ResultExtra {
   readonly childOrder?: readonly TaskId[]
 }
 
-/** A task's (or a file's) result, from errors already serialized. */
+/**
+ * A task's (or a file's) result, from errors already serialized. The arrays are taken as they are:
+ * each caller builds its own, and nothing appends to a reported list.
+ */
 export function taskResult(
   state: TaskState,
   start: number,
@@ -1928,8 +1920,8 @@ export function taskResult(
     state,
     durationMs: end - start - (extra.parkedMs ?? 0),
     startTime: start,
-    errors: [...errors],
-    retryErrors: [...(extra.retryErrors ?? [])],
+    errors,
+    retryErrors: extra.retryErrors ?? NO_ERRORS,
     attempts: extra.attempts ?? 0,
     repeatIndex: extra.repeatIndex ?? 0,
     assertions: 0,
