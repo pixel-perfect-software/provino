@@ -381,6 +381,10 @@ export class Executor {
       return outcome
     } finally {
       this.#life = undefined
+      // What a describe attempt held (the raw values its tests threw) goes with the file: the
+      // executor outlives it, and `--detectLeaks` and a worker's heap count what it keeps.
+      this.#heldTests.clear()
+      this.#describeAttempts.clear()
     }
   }
 
