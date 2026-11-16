@@ -127,7 +127,13 @@ async function setUpJest(
     await environment.setup()
     // Only a window stands in for the global: a Node or edge environment's code must not see one.
     const isWindow = 'document' in environment.global
-    populated = populateGlobal(globalThis, environment.global, { selfReferences: isWindow })
+    // A window's methods (`dispatchEvent`, `addEventListener` and the rest of `EventTarget`'s) check
+    // their receiver: read off the worker's global they would run with the wrong `this`, so they
+    // are bound to the window, as `@provino/env-jsdom` does. In Jest the test runs inside the window.
+    populated = populateGlobal(globalThis, environment.global, {
+      selfReferences: isWindow,
+      bindFunctions: isWindow,
+    })
     // Jest's environments give each file a copy of `process` (jest-util's `installCommonGlobals`),
     // which `populateGlobal` doesn't carry over: the worker already has a `process`. Through the
     // snapshot's wrapped setter, so teardown puts the worker's back.
