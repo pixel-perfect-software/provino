@@ -11,6 +11,7 @@ export type {
 export { buildThirdPartyGraph, inGraph } from './build.ts'
 export type { EdgeTarget, GraphEdge, GraphNode } from './cache.ts'
 export { graphCacheKey } from './cache.ts'
+export { packageDirOf } from './package-dir.ts'
 export { importersOf } from './query.ts'
 export type { EdgeKind, Scan, ScannedEdge } from './scan.ts'
 export { initLexer, scanSource } from './scan.ts'

@@ -554,8 +554,6 @@ export function createRuntimeRunner(): WorkerRunner {
    * callback must still find the current file, or a green suite goes red.
    */
   let fallback: FileScope | undefined
-  /** The externals the loader evaluates per file that the coordinator already knows of (D127). */
-  let reportedExternals = new Set<string>()
   /** The snapshots of the file running now; the runtime's events pass through its lifecycle. */
   let openSnapshots: OpenSnapshots | undefined
   /**
@@ -613,11 +611,10 @@ export function createRuntimeRunner(): WorkerRunner {
     // D127 / P42: a shared external whose first load, while a file runs, reads a per-file global
     // is evaluated again for each later file. The global as the worker found it, before any
     // environment or globals: what a file's setup changed is what the watcher watches.
-    reportedExternals = new Set(parts.loader.reevaluatedExternals())
     if (policy.module.reevaluateHookingExternals) {
       const baseline = readGlobalBaseline()
       parts.loader.watchExternalLoads(() =>
-        fallback === undefined || fallback.tornDown
+        fallback === undefined
           ? null
           : watchPerFileGlobals(globalThis, baseline, fallback.environment?.globalReads),
       )
@@ -1143,10 +1140,7 @@ export function createRuntimeRunner(): WorkerRunner {
             ])
           : undefined
       // What the loader learned while this file ran (D127), for the coordinator's results cache.
-      const reevaluated = worker.loader
-        .reevaluatedExternals()
-        .filter((path) => !reportedExternals.has(path))
-      for (const path of reevaluated) reportedExternals.add(path)
+      const reevaluated = worker.loader.takeLearnedExternals()
       return {
         deps,
         ...(reevaluated.length === 0 ? {} : { reevaluated }),

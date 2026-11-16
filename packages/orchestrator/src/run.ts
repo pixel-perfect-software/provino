@@ -1055,16 +1055,18 @@ export async function runProjectsOn(
         })
       }
       // What the worker learned to evaluate per file (D127), for the next run's workers.
-      if (outcome.type === 'done' && outcome.done.reevaluated !== undefined) {
-        if (member.cache !== undefined) {
-          learnExternals(
-            member.cache,
-            member.cacheProject,
-            member.project.rootDir,
-            outcome.done.reevaluated,
-            packageVersions,
-          )
-        }
+      if (
+        outcome.type === 'done' &&
+        outcome.done.reevaluated !== undefined &&
+        member.cache !== undefined
+      ) {
+        learnExternals(
+          member.cache,
+          member.cacheProject,
+          member.project.rootDir,
+          outcome.done.reevaluated,
+          packageVersions,
+        )
       }
       // A record is the file's whole closure only when every test ran: a test `-t`, `.only` or
       // `.skip` left out may load what the others don't, and an older, whole record is kept. It is

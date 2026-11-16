@@ -477,11 +477,11 @@ export interface Loader extends Disposable {
    */
   watchExternalLoads(watcher: ExternalLoadWatcher): () => void
   /**
-   * The node_modules files this worker evaluates per file because a watched load read a per-file
-   * global (each such external and the files its load evaluated), as absolute paths: the ones it
-   * learned and the ones `reevaluateExternals` gave it.
+   * The node_modules files this worker learned to evaluate per file since the last call, because a
+   * watched load read a per-file global (each such external and the files its load evaluated), as
+   * absolute paths, each once. Not the ones `reevaluateExternals` gave it: the caller has those.
    */
-  reevaluatedExternals(): readonly string[]
+  takeLearnedExternals(): readonly string[]
   /**
    * Adds node_modules files (absolute paths) to evaluate per file from the next file on, such as a
    * set an earlier run learned. Ignored unless `ModulePolicy.reevaluateHookingExternals` is on.

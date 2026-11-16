@@ -16,6 +16,8 @@ export interface ReevaluateState {
   readonly active: Set<string>
   /** Learned while the file running now loaded them: active from the next file on. */
   readonly pending: Set<string>
+  /** What was learned since `takeLearned` last said so, in the order it was (never a seeded one). */
+  readonly learned: string[]
   readonly watchers: Set<ExternalLoadWatcher>
   /**
    * Whether each node_modules file is in `active` or its closure reaches one (`reevaluatedReach`),
@@ -30,6 +32,7 @@ export function createReevaluateState(): ReevaluateState {
   return {
     active: new Set(),
     pending: new Set(),
+    learned: [],
     watchers: new Set(),
     reach: new Map(),
     watching: false,
@@ -41,6 +44,20 @@ export function activate(state: ReevaluateState, paths: Iterable<string>): void 
   const size = state.active.size
   for (const path of paths) state.active.add(path)
   if (state.active.size !== size) state.reach.clear()
+}
+
+/** Learns `file`, unless it is evaluated per file already: pending, and one more for `takeLearned`. */
+function learn(state: ReevaluateState, file: string): void {
+  if (state.active.has(file) || state.pending.has(file)) return
+  state.pending.add(file)
+  state.learned.push(file)
+}
+
+const NOTHING_LEARNED: readonly string[] = []
+
+/** What was learned since the last call (each file once, not a seeded one); no allocation for none. */
+export function takeLearned(state: ReevaluateState): readonly string[] {
+  return state.learned.length === 0 ? NOTHING_LEARNED : state.learned.splice(0)
 }
 
 /** Node's own module cache: what a native `require` adds an entry to, in load order. */
@@ -97,10 +114,10 @@ export function watchedLoad<T>(
     }
     if (perFile && before !== undefined) {
       const known = new Set(before)
-      state.pending.add(path)
-      for (const file of ownPackage(path)) if (keep(file)) state.pending.add(file)
+      learn(state, path)
+      for (const file of ownPackage(path)) if (keep(file)) learn(state, file)
       for (const file of Object.keys(nativeCache)) {
-        if (!known.has(file) && keep(file)) state.pending.add(file)
+        if (!known.has(file) && keep(file)) learn(state, file)
       }
     }
     // biome-ignore lint/correctness/noUnsafeFinally: an end that threw must not pass silently.

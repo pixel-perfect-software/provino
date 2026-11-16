@@ -481,7 +481,6 @@ function failureDetailOf(error: SerializedError): unknown {
   // assertion), whatever `enumerableFields` says; every other error follows its own fields below.
   if (isShapedAssertion(error, details)) return shapedFailureDetailOf(error, details)
   const detail: Record<string, unknown> = { ...details }
-  const own = details as Record<string, unknown>
   // A key the thrown value had as its own enumerable property (`this.name = …` in a constructor,
   // as dom-testing-library's `TestingLibraryElementError` sets it) stays enumerable: Jest's JSON
   // of the error keeps it, with the value as thrown (`details`, the JSON of the value: a thrown
@@ -490,7 +489,9 @@ function failureDetailOf(error: SerializedError): unknown {
   // instead, and is then hidden, with the serializer's value.
   const field = (key: 'name' | 'message' | 'stack', value: unknown): void => {
     const enumerable = error.enumerableFields?.includes(key) === true
-    const kept = enumerable && Object.hasOwn(own, key) ? own[key] : value
+    // `detail` still holds `details`' own copy of this key: only the keys `field` already ran for
+    // are redefined.
+    const kept = enumerable && Object.hasOwn(detail, key) ? detail[key] : value
     Object.defineProperty(detail, key, {
       writable: true,
       configurable: true,

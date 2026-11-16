@@ -25,7 +25,7 @@ import {
   resolveOrMissing,
   toModuleId,
 } from './internal/records.ts'
-import { activate, promoteLearned } from './internal/reevaluate.ts'
+import { activate, promoteLearned, takeLearned } from './internal/reevaluate.ts'
 import { type FileContext, NO_FILE, Registry } from './internal/registry.ts'
 import { tierFor } from './tier.ts'
 
@@ -46,7 +46,7 @@ export const createLoader: CreateLoader = (options) => {
   // A registration resolves as an edge of its kind does (`ModulePolicy.moduleSyncCondition`).
   const conditions = edgeConditions(state.edgeKinds, options.policy.mockResolveKind)
   // The `none` tier: one instance map for every file in the worker.
-  const shared = new Registry(state, new Map(), true)
+  const shared = new Registry(state, true)
 
   function fileRegistry(testFile: string, registryOptions: FileRegistryOptions): FileRegistry {
     if (registryOptions.tier === 'realm') throw notYet('the realm tier', 'T2.8')
@@ -217,7 +217,7 @@ export const createLoader: CreateLoader = (options) => {
         state.reevaluate.watchers.delete(watcher)
       }
     },
-    reevaluatedExternals: () => [...state.reevaluate.active, ...state.reevaluate.pending],
+    takeLearnedExternals: () => takeLearned(state.reevaluate),
     reevaluateExternals: (paths) => {
       if (!options.policy.reevaluateHookingExternals) return
       // A set from an earlier run may name a file a reinstall removed, or one the loader can't

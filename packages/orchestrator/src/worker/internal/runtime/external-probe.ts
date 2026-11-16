@@ -75,11 +75,19 @@ export function perFileKeys(
   return keys
 }
 
+/** A key turned into an accessor for the window: the accessor, and the descriptor to put back. */
+interface Watched {
+  readonly key: string
+  readonly accessor: PropertyDescriptor
+  /** The descriptor the key gets when the window closes (a writable data key's holds its value then). */
+  readonly final: () => PropertyDescriptor
+}
+
 /** The accessor that stands for `original` while the window is open, noting each read in `note`. */
 function watchingAccessor(
   original: PropertyDescriptor,
   note: () => void,
-): { readonly accessor: PropertyDescriptor; readonly value: () => unknown } {
+): Pick<Watched, 'accessor' | 'final'> {
   const enumerable = original.enumerable === true
   const { get, set } = original
   if (get !== undefined || set !== undefined) {
@@ -100,7 +108,7 @@ function watchingAccessor(
             },
           }),
     }
-    return { accessor, value: () => undefined }
+    return { accessor, final: () => original }
   }
   let value: unknown = original.value
   // A read-only data key gets no setter, so a write still throws in strict code.
@@ -120,7 +128,7 @@ function watchingAccessor(
         }
       : {}),
   }
-  return { accessor, value: () => value }
+  return { accessor, final: () => (original.writable === true ? { ...original, value } : original) }
 }
 
 /**
@@ -141,17 +149,12 @@ export function watchPerFileGlobals(
     touched = true
   }
   const stopCovered = covered?.watch(note)
-  const watched: {
-    readonly key: string
-    readonly original: PropertyDescriptor
-    readonly accessor: PropertyDescriptor
-    readonly value: () => unknown
-  }[] = []
+  const watched: Watched[] = []
   try {
     for (const [key, original] of perFileKeys(global, baseline, covered)) {
-      const { accessor, value } = watchingAccessor(original, note)
+      const { accessor, final } = watchingAccessor(original, note)
       Object.defineProperty(global, key, accessor)
-      watched.push({ key, original, accessor, value })
+      watched.push({ key, accessor, final })
     }
   } catch (error) {
     restoreWatched(global, watched)
@@ -165,25 +168,10 @@ export function watchPerFileGlobals(
   }
 }
 
-function restoreWatched(
-  global: object,
-  watched: readonly {
-    readonly key: string
-    readonly original: PropertyDescriptor
-    readonly accessor: PropertyDescriptor
-    readonly value: () => unknown
-  }[],
-): void {
-  for (const { key, original, accessor, value } of watched) {
+function restoreWatched(global: object, watched: readonly Watched[]): void {
+  for (const { key, accessor, final } of watched) {
     const now = Object.getOwnPropertyDescriptor(global, key)
     // The load redefined or deleted the key itself: that is its value now.
-    if (now === undefined || now.get !== accessor.get) continue
-    Object.defineProperty(
-      global,
-      key,
-      'value' in original && original.writable === true
-        ? { ...original, value: value() }
-        : original,
-    )
+    if (now?.get === accessor.get) Object.defineProperty(global, key, final())
   }
 }

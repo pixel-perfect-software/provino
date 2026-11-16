@@ -1705,8 +1705,8 @@ export interface Loader extends Disposable {
     // (undocumented)
     getSourceMap(id: ModuleId): SourceMapV3 | null;
     onModuleCompiled(listener: (event: CompiledModuleEvent) => void): () => void;
-    reevaluatedExternals(): readonly string[];
     reevaluateExternals(paths: readonly string[]): void;
+    takeLearnedExternals(): readonly string[];
     tierFor(testFile: string, sources: TierSources): TierChoice;
     watchExternalLoads(watcher: ExternalLoadWatcher): () => void;
 }
