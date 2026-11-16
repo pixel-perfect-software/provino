@@ -13,15 +13,19 @@
 // `--idle-memory-limit` how often a worker was replaced. A `--baseline <checkout>` runs that tree's
 // `provino jest` too, for a change's before and after. `--esm` writes the same graph as ES modules
 // in the project's `src/` and runs Provino's subjects only. No bar; every number is `local`.
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
-import { writeFile } from 'node:fs/promises'
-import { createRequire } from 'node:module'
+import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
-import { resolveRunnerPackage, runProcess } from '@provino/harness'
+import { join } from 'node:path'
+import { runProcess } from '@provino/harness'
 import { median } from '../stats.ts'
 import { writePackage } from './packages.ts'
+import {
+  linkJsdomEnvironment,
+  type Subject,
+  subjectArgs,
+  subjectLabel,
+  writeTree,
+} from './subjects.ts'
 
 /** Icon modules behind the barrel. */
 const ICONS = 2000
@@ -56,22 +60,12 @@ export interface UiLibraryOptions {
   readonly esm: boolean
 }
 
-/** Who runs: Jest, this tree's `provino jest`, or the baseline tree's. */
-export type Subject = 'provino' | 'jest' | 'baseline'
-
 /** The variable that names a run's memory log. */
 const MEMORY_LOG = 'UI_LIBRARY_MEMORY_LOG'
 /** Set (`--esm`) when the memory row collects first: the subject runs with `--expose-gc`. */
 const MEMORY_GC = 'UI_LIBRARY_MEMORY_GC'
 
 const pad = (index: number): string => String(index).padStart(4, '0')
-
-async function writeTree(root: string, files: Map<string, string>): Promise<void> {
-  const dirs = new Set<string>()
-  for (const path of files.keys()) dirs.add(dirname(join(root, path)))
-  for (const dir of dirs) mkdirSync(dir, { recursive: true })
-  await Promise.all([...files].map(([path, text]) => writeFile(join(root, path), text)))
-}
 
 /**
  * The generated packages, each as `path in the package -> text`. Plain CommonJS, as a UI library's
@@ -272,16 +266,7 @@ async function writeProject(
   )
   files.set('package.json', '{"name":"ui-library","private":true}\n')
   await writeTree(root, files)
-  // The project's own jsdom environment, as a component suite installs it.
-  const harness = createRequire(
-    fileURLToPath(new URL('../../../harness/package.json', import.meta.url)),
-  )
-  mkdirSync(join(root, 'node_modules'), { recursive: true })
-  symlinkSync(
-    dirname(harness.resolve('jest-environment-jsdom/package.json')),
-    join(root, 'node_modules', 'jest-environment-jsdom'),
-    'dir',
-  )
+  linkJsdomEnvironment(root)
 }
 
 /** One file of a run: its time, and the memory of the process that ran it, after it. */
@@ -369,27 +354,7 @@ async function runOnce(
     ...(esm ? { [MEMORY_GC]: '1' } : {}),
   }
   const flags = ['-w', '1', '--ci', '--json', '--outputFile', out]
-  const cli =
-    subject === 'baseline' && baseline !== undefined
-      ? join(baseline, 'packages', 'provino', 'src', 'cli.ts')
-      : fileURLToPath(new URL('../../../provino/src/cli.ts', import.meta.url))
-  const args =
-    subject === 'jest'
-      ? [
-          resolveRunnerPackage('jest', import.meta.url).bin,
-          '--config',
-          'jest.config.json',
-          ...flags,
-        ]
-      : [
-          ...(esm ? ['--expose-gc'] : []),
-          '--conditions=provino-source',
-          cli,
-          'jest',
-          '--config',
-          'jest.config.json',
-          ...flags,
-        ]
+  const args = subjectArgs(subject, flags, baseline, esm ? ['--expose-gc'] : [])
   const result = await runProcess(process.execPath, args, { cwd: root, env, timeoutMs: 900_000 })
   if (result.exitCode !== 0) {
     throw new Error(`${subject} exited with ${result.exitCode}:\n${result.output}`)
@@ -451,7 +416,6 @@ export async function uiLibraryLines(options: UiLibraryOptions): Promise<string[
         if (run > 0) runs[subject].push(numbers)
       }
     }
-    const jestVersion = resolveRunnerPackage('jest', import.meta.url).version
     const limit =
       options.idleMemoryLimit === undefined
         ? 'in band'
@@ -467,12 +431,7 @@ export async function uiLibraryLines(options: UiLibraryOptions): Promise<string[
     for (const subject of options.subjects) {
       const summary = summarize(runs[subject])
       summaries.set(subject, summary)
-      const label =
-        subject === 'jest'
-          ? `jest ${jestVersion}`
-          : subject === 'baseline'
-            ? 'baseline'
-            : 'provino jest'
+      const label = subjectLabel(subject)
       lines.push(
         `  ${label.padEnd(12)} wall ${summary.wallMs.toFixed(0)} ms, file 1 ${summary.firstMs.toFixed(0)} ms, files 2..${options.files} median ${summary.restMs.toFixed(0)} ms, ${summary.workers} worker processes`,
         `  ${''.padEnd(12)} RSS MB after each file:      ${row(summary.rssMb)}`,

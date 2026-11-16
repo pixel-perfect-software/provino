@@ -104,12 +104,17 @@ interface Observed {
 const here = dirname(fileURLToPath(import.meta.url))
 const PROJECT_LOADER = join(here, 'project.ts')
 
-/** Runs in the child: load the entry under precise coverage and print what V8 and the loader know. */
+/**
+ * Runs in the child: load the entry under precise coverage, in as many file registries as asked
+ * (each evaluates every module again, through a fresh wrapper), and print what V8 and the loader
+ * know.
+ */
 const CHILD = `
 import { Session } from 'node:inspector/promises'
 import { neutralPolicy } from '@provino/policy'
 const { createProjectLoader } = await import(${JSON.stringify(PROJECT_LOADER)})
 const root = process.argv[1]
+const files = Number(process.argv[2])
 const session = new Session()
 session.connect()
 await session.post('Profiler.enable')
@@ -119,8 +124,10 @@ const loader = await createProjectLoader(
   { hoist: null, moduleScope: [], extensions: ['.ts', '.js', '.cjs', '.json'], conditions: ['node'], tsconfig: false, mappers: [], typescript: 'oxc' },
   neutralPolicy.module,
 )
-const registry = loader.createFileRegistry(root + '/entry.ts', { tier: 'registry' })
-await registry.import(root + '/entry.ts')
+for (let file = 0; file < files; file++) {
+  const registry = loader.createFileRegistry(root + '/entry.ts', { tier: 'registry' })
+  await registry.import(root + '/entry.ts')
+}
 const { result } = await session.post('Profiler.takePreciseCoverage')
 await session.post('Profiler.stopPreciseCoverage')
 session.disconnect()
@@ -132,13 +139,13 @@ for (const script of result) {
 process.stdout.write(JSON.stringify(observed))
 `
 
-function observe(root: string): Observed[] {
+function observe(root: string, files = 1): Observed[] {
   const env = { ...process.env }
   // `node --test` marks its children; this one is not a test.
   delete env.NODE_TEST_CONTEXT
   const run = spawnSync(
     process.execPath,
-    ['--conditions=provino-source', '--input-type=module', '-e', CHILD, root],
+    ['--conditions=provino-source', '--input-type=module', '-e', CHILD, root, String(files)],
     {
       cwd: join(here, '..'),
       encoding: 'utf8',
@@ -336,4 +343,50 @@ test('T2.9: an async wrapper (top-level await) is read as the others are', () =>
   const esm = observed.find((other) => other.info.path.endsWith('esm.ts'))
   assert.ok(esm !== undefined)
   assert.equal(seen.info.wrapperLength, esm.info.wrapperLength)
+})
+
+test('T2.9: a module evaluated in three files is one script, its counts summed over each file’s fresh wrapper', () => {
+  const root = writeTree()
+  const once = observe(root)
+  const thrice = observe(root, 3)
+  // One V8 script per module and mode, however often its script ran: the collector maps a script
+  // by its URL, and a second one of the same URL would be merged twice.
+  assert.deepEqual(
+    thrice.map((seen) => seen.info.path).sort(),
+    once.map((seen) => seen.info.path).sort(),
+  )
+  assert.equal(new Set(thrice.map((seen) => seen.url)).size, thrice.length)
+  // Each range reads three times its one-file count, at the same offsets.
+  const counts = (observed: Observed[]): string[] =>
+    observed
+      .flatMap((seen) =>
+        seen.functions.flatMap((fn) =>
+          fn.ranges.map(
+            (range) =>
+              `${seen.info.path.slice(root.length + 1)} ${fn.functionName} ${range.startOffset}-${range.endOffset}`,
+          ),
+        ),
+      )
+      .sort()
+  assert.deepEqual(counts(thrice), counts(once), 'the same ranges')
+  const total = (observed: Observed[], file: string, name: string): number[] =>
+    observed
+      .filter((seen) => seen.info.path.endsWith(file))
+      .flatMap((seen) => seen.functions.filter((fn) => fn.functionName === name))
+      .flatMap((fn) => fn.ranges.map((range) => range.count))
+  for (const [file, name] of [
+    ['esm.ts', 'pick'],
+    ['esm.ts', 'arrow'],
+    ['esm.ts', 'unused'],
+    ['tla.ts', 'twice'],
+    ['shebang.cjs', 'shebang'],
+    ['oneline.cjs', 'helper'],
+    ['oneline.cjs', 'never'],
+  ] as const) {
+    assert.deepEqual(
+      total(thrice, file, name),
+      total(once, file, name).map((count) => count * 3),
+      `${file} ${name}`,
+    )
+  }
 })
