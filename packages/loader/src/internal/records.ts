@@ -276,18 +276,13 @@ export function resolveOrMissing(
       },
     }
   }
-  const conditions = conditionsOf(state.options)
-  let result = state.options.resolver.resolve(specifier, { importer, kind, conditions })
-  // A package with no entry for the importer's kind (an `import`-only one, `provino` itself) is
-  // found under the edge's own kind, where Jest finds nothing (`ModulePolicy.edgeResolveKind`).
-  if (kind !== written && result.type === 'not-found' && result.mappedBy === null) {
-    const asWritten = state.options.resolver.resolve(specifier, {
-      importer,
-      kind: written,
-      conditions,
-    })
-    if (asWritten.type !== 'not-found') result = asWritten
-  }
+  // A package with no entry for the importer's kind (an `import`-only one) is `missing`, as in
+  // Jest, so a virtual mock or a mapper can still stand in for it.
+  const result = state.options.resolver.resolve(specifier, {
+    importer,
+    kind,
+    conditions: conditionsOf(state.options),
+  })
   if (result.type === 'builtin') return { kind: 'builtin', id: result.id }
   if (result.type === 'file') {
     if (result.format === 'addon' || isThirdParty(result.path, state.options.inline ?? [])) {

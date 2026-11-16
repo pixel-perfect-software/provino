@@ -1435,7 +1435,9 @@ test('edgeResolveKind: as-written (neutral) resolves an import as import and a r
   )
 })
 
-test('edgeResolveKind: an import-only package still loads from a CommonJS-run module, as written', async () => {
+test("edgeResolveKind: an import-only package is not found from a CommonJS-run module, with Jest's text", async () => {
+  // Jest resolves the edge with its CJS conditions only and fails it; nothing retries it as an
+  // `import`, so a virtual mock or a mapper still gets the miss (`review-regressions.test.ts`).
   const root = writeTree({
     'node_modules/esm-only/package.json': JSON.stringify({
       name: 'esm-only',
@@ -1445,10 +1447,16 @@ test('edgeResolveKind: an import-only package still loads from a CommonJS-run mo
     'package.json': '{}\n',
     'entry.test.ts': "export { value } from 'esm-only'\n",
   })
-  const policy = { edgeResolveKind: 'importer-format', interopDefault: 'babel' } as const
+  const policy = {
+    edgeResolveKind: 'importer-format',
+    interopDefault: 'babel',
+    messages: { 'module-not-found': "Cannot find module '{specifier}' from '{from}'" },
+  } as const
   const registry = loaderFor(root, policy).createFileRegistry(join(root, 'entry.test.ts'), {
     tier: 'registry',
   })
-  const entry = await registry.import<{ value: string }>(join(root, 'entry.test.ts'))
-  assert.equal(entry.value, 'esm-only')
+  await assert.rejects(registry.import(join(root, 'entry.test.ts')), {
+    code: 'MODULE_NOT_FOUND',
+    message: "Cannot find module 'esm-only' from 'entry.test.ts'",
+  })
 })

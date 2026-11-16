@@ -129,8 +129,9 @@ export interface ModulePolicy {
    * `vm.SyntheticModule` (`--experimental-vm-modules`) and the file is `.mjs`, a `.js` file whose
    * nearest `package.json` has `"type": "module"`, or has an extension in the loader's
    * `esmExtensions`. `import.meta.resolve` keeps its own kind under either. An edge that finds no
-   * file under its importer's kind (a package with only an `import` entry, as `provino` is) is
-   * resolved again under its own: Jest fails such an edge, Provino loads it.
+   * file under its importer's kind (a package with only an `import` entry) is not found, as in
+   * Jest, so a virtual mock or a name mapper can still stand in for it; `provino` itself has a
+   * `default` entry beside its `import` one for that reason.
    *
    * Jest: `importer-format`, as jest-runtime resolves every edge of a module it runs as CommonJS
    * with its CJS conditions (an `import` its transform turned into `require` too) and every edge of
