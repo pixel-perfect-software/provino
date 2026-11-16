@@ -53,6 +53,7 @@ import type { CoverageReporter } from './coverage-reporter.ts'
 import { usageMessage } from './describe.ts'
 import { type ExecuteOptions, executeProject, timingsOf } from './execute.ts'
 import { setUpJestReporters } from './jest-reporters.ts'
+import { noRootConfigHintReporter, packageJsonHasNoJestKey } from './jest-root-hint.ts'
 import {
   isScmCommandFailure,
   type JestSelection,
@@ -237,12 +238,18 @@ async function readProjects(
   readonly verbose: boolean
   readonly showable: unknown
   readonly diagnostics: readonly Diagnostic[]
+  /**
+   * The run reads no Jest config: no `--config`, no `--projects`, and the search from the working
+   * directory ended at no file or at a `package.json` with no `jest` key (Jest reads `{}` there).
+   */
+  readonly noConfig: boolean
 }> {
   const reader = createJestConfigReader({ argv, cwd })
   // `--projects a b`: Jest reads those paths' configs and looks for none from the working
   // directory (`getProjectListFromCLIArgs`, then `readConfigs(argv, projects)`).
   const projectPaths = Array.isArray(argv.projects) ? argv.projects.map(String) : []
   let resolved: Awaited<ReturnType<typeof reader.resolve>>
+  let noConfig = false
   if (projectPaths.length > 0) {
     const read = await readJestConfigs(projectPaths, { argv, cwd })
     resolved = {
@@ -255,11 +262,12 @@ async function readProjects(
     }
   } else {
     // No config file: Jest runs with its defaults over the working directory.
-    const source: ConfigSource = (await reader.find(cwd, request.configPath)) ?? {
-      kind: 'inline',
-      path: cwd,
-      text: '{}',
-    }
+    const found = await reader.find(cwd, request.configPath)
+    const source: ConfigSource = found ?? { kind: 'inline', path: cwd, text: '{}' }
+    noConfig =
+      request.configPath === undefined &&
+      (found === undefined ||
+        (found.kind === 'package-json' && packageJsonHasNoJestKey(found.path)))
     const raw = await reader.load(source)
     resolved = await reader.resolve(raw, source)
   }
@@ -274,6 +282,7 @@ async function readProjects(
       resolved.value.configs.some((config) => config.verbose === true),
     showable: { globalConfig: resolved.value.globalConfig, configs: resolved.value.configs },
     diagnostics: [...resolved.diagnostics, ...neutral.diagnostics],
+    noConfig,
   }
 }
 
@@ -880,6 +889,25 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
             env,
             coverage: coverage?.reporter,
           })
+    // No Jest config at the root, and directories below it with one of their own: one line before
+    // the run (an improvement over Jest, which says nothing; DIVERGENCES). Never when stdout is
+    // machine output (`--json`, `--debug`; `--listTests`, `--showConfig` and `--collectTests` end
+    // or run no reporter above), and not for a caller that brings its own reporters.
+    const rootHint =
+      read.noConfig &&
+      request.mode === 'run' &&
+      !collecting &&
+      !read.globalConfig.json &&
+      parsed.argv.debug !== true &&
+      io.reporters === undefined
+        ? [
+            noRootConfigHintReporter({
+              rootDir: read.globalConfig.rootDir,
+              cwd: realCwd(cwd),
+              write: (text) => void stderr.write(text),
+            }),
+          ]
+        : []
     let reporterFailed = false
     const result = await executeProject({
       project,
@@ -909,7 +937,9 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
                   ? ('thrown' as const)
                   : (false as const),
               }),
-      ...(reporterResults === undefined ? {} : { leadingReporters: [reporterResults.reporter] }),
+      ...(reporterResults === undefined
+        ? {}
+        : { leadingReporters: [reporterResults.reporter, ...rootHint] }),
       env: io.env ?? process.env,
       display: presentation(
         {
