@@ -69,7 +69,6 @@
     "@babel/plugin-syntax-typescript": "catalog:",
     "@jest/expect-utils": "catalog:",
     "@jest/get-type": "catalog:",
-    "@provino/config": "workspace:*",
     "@provino/core": "workspace:*",
     "@provino/env-shared": "workspace:*",
     "@provino/expect": "workspace:*",
@@ -88,6 +87,7 @@
   "devDependencies": {
     "@edge-runtime/jest-environment": "catalog:",
     "@jest/test-result": "catalog:",
+    "@provino/config": "workspace:*",
     "expect": "catalog:",
     "jest-cli": "catalog:",
     "jest-config": "catalog:",

@@ -20,6 +20,8 @@ const CASES: readonly Case[] = [
   { name: 'a flag Jest does not know', fixture: 'cli/unknown-flag' },
   { name: 'the singular --testPathPattern', fixture: 'cli/jest-test-path-pattern' },
   { name: 'a config Jest refuses', fixture: 'cli/bad-config' },
+  // The error the module threw, as jest-cli prints its stack: first line and require stack.
+  { name: 'a custom resolver that throws as it loads', fixture: 'cli/resolver-load-error' },
 ]
 
 describe('provino jest exit codes against Jest 30.5.2', () => {

@@ -153,6 +153,11 @@ export function workerRecycle(limit: number | undefined): {
   return limit === undefined ? {} : { recycle: { memoryLimitBytes: limit } }
 }
 
+/** What jest-cli prints for an error that ends `runCLI`: its stack, else the text of what was thrown. */
+function stackText(error: unknown): string {
+  return error instanceof Error ? (error.stack ?? String(error)) : String(error)
+}
+
 /** A diagnostic as a line (or lines) for the user. Jest's own texts keep their form. */
 function describeDiagnostic(diagnostic: Diagnostic): string {
   if (diagnostic.message.trimStart().startsWith('●')) return diagnostic.message
@@ -989,7 +994,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       } catch (error) {
         // A processor that throws (or fails to load) ends Jest's `runCLI` with the error: jest-cli
         // prints its stack and exits 1, whatever the run's own result was.
-        stderr.write(`${error instanceof Error ? (error.stack ?? String(error)) : String(error)}\n`)
+        stderr.write(`${stackText(error)}\n`)
         return ExitCode.TestFailure
       }
       // Jest ends `success ? 0 : testFailureExitCode` from the processed results; a signal, a
@@ -1003,7 +1008,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
   } catch (error) {
     if (filterError !== undefined && error === filterError) {
       // jest-cli prints the stack of the error that ended `runCLI`, and exits 1.
-      stderr.write(`${error instanceof Error ? (error.stack ?? String(error)) : String(error)}\n`)
+      stderr.write(`${stackText(error)}\n`)
       return ExitCode.TestFailure
     }
     if (error instanceof JestWatchPluginError) {
@@ -1022,6 +1027,12 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       // of the error that ended `runCLI`, and exits 1.
       stderr.write(`${error.stack ?? error.message}\n`)
       return ExitCode.TestFailure
+    }
+    if (error instanceof JestConfigError && error.code === 'JEST_CONFIG_RESOLVER_LOAD_FAILED') {
+      // jest-resolve's `preloadResolver` lets what the module threw out as it is, and jest-cli
+      // prints its stack (`run.ts` L30-L38), exit 1.
+      stderr.write(`${stackText(error.cause)}\n`)
+      return usage
     }
     if (error instanceof JestCliError || error instanceof JestConfigError) {
       // Jest's own text, as Jest prints it.

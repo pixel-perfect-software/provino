@@ -4,7 +4,6 @@
 // `getPluginKey` (L517-L534). A plugin is user code that runs in the coordinator, beside the
 // driver; nothing of it crosses to a worker.
 import { relative, sep } from 'node:path'
-import { ConfigError } from '@provino/config'
 import type { TextStyle } from '@provino/types'
 import { requireOrImportModule } from '../load.ts'
 import type { JestGlobalConfig } from '../types.ts'
@@ -181,18 +180,6 @@ export interface JestWatchPluginLoadOptions {
   readonly formatError: (error: unknown) => string
 }
 
-/** A module that throws as it loads is the user's own error: the config loader's wrapper comes off. */
-async function loadModule(path: string): Promise<unknown> {
-  try {
-    return await requireOrImportModule(path)
-  } catch (error) {
-    if (error instanceof ConfigError && error.code === 'CONFIG_LOAD_FAILED' && error.cause) {
-      throw error.cause
-    }
-    throw error
-  }
-}
-
 type PluginClass = new (options: {
   readonly config: unknown
   readonly stdin: unknown
@@ -270,7 +257,7 @@ export async function loadJestWatchPlugin(
   options: JestWatchPluginLoadOptions,
 ): Promise<JestWatchPlugin> {
   try {
-    const ThirdPartyPlugin = await loadModule(entry.path)
+    const ThirdPartyPlugin = await requireOrImportModule(entry.path)
     if (!isClass(ThirdPartyPlugin)) throw new TypeError('ThirdPartyPlugin is not a constructor')
     return asWatchPlugin(
       new ThirdPartyPlugin({ config: entry.config, stdin: options.stdin, stdout: options.stdout }),

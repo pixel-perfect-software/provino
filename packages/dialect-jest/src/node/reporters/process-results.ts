@@ -4,7 +4,6 @@
 // says where it wrote them on its output stream.
 import { realpath, writeFile } from 'node:fs/promises'
 import { relative, resolve } from 'node:path'
-import { ConfigError } from '@provino/config'
 import {
   type AggregatedResult,
   formatJson,
@@ -51,7 +50,9 @@ export async function processJestResults(options: ProcessJestResultsOptions): Pr
   if (options.coverageMap !== undefined) options.aggregated.coverageMap = options.coverageMap
   let results: AggregatedResult | undefined = options.aggregated
   if (globalConfig.testResultsProcessor !== undefined) {
-    const processor = (await loadProcessor(
+    // A module that throws as it loads is the user's own error, which Jest lets out of `runJest`
+    // as it is (exit 1, the stack).
+    const processor = (await requireOrImportModule(
       globalConfig.testResultsProcessor,
     )) as TestResultsProcessor
     results = await processor(options.aggregated)
@@ -69,19 +70,4 @@ export async function processJestResults(options: ProcessJestResultsOptions): Pr
     }
   }
   return !results || results.success
-}
-
-/**
- * Imports the processor. A module that throws as it loads is the user's own error, which Jest
- * lets out of `runJest` as it is (exit 1, the stack): the config loader's wrapper is taken off.
- */
-async function loadProcessor(path: string): Promise<unknown> {
-  try {
-    return await requireOrImportModule(path)
-  } catch (error) {
-    if (error instanceof ConfigError && error.code === 'CONFIG_LOAD_FAILED' && error.cause) {
-      throw error.cause
-    }
-    throw error
-  }
 }
