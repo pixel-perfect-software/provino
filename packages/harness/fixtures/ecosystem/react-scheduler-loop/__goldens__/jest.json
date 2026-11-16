@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "ecosystem/react-scheduler-loop",
+  "files": [
+    {
+      "file": "transition-a.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "transition-a.test.ts",
+            "path": [
+              "transition-a: the render is left to the scheduler mid-flight"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 26,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "transition-b.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "transition-b.test.ts",
+            "path": [
+              "transition-b: the render is left to the scheduler mid-flight"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 27,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "wait.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "wait.test.ts",
+            "path": [
+              "wait: runs after the other files, with no window"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 8,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "stderr": "PASS ./transition-b.test.ts\nPASS ./transition-a.test.ts\nPASS ./wait.test.ts\nTest Suites: 3 passed, 3 total\nTests:       3 passed, 3 total\nSnapshots:   0 total",
+    "json": {
+      ".harness-out/jest.json": {
+        "numFailedTestSuites": 0,
+        "numFailedTests": 0,
+        "numPassedTestSuites": 3,
+        "numPassedTests": 3,
+        "numPendingTestSuites": 0,
+        "numPendingTests": 0,
+        "numRuntimeErrorTestSuites": 0,
+        "numTodoTests": 0,
+        "numTotalTestSuites": 3,
+        "numTotalTests": 3,
+        "openHandles": [],
+        "snapshot": {
+          "added": 0,
+          "didUpdate": false,
+          "failure": false,
+          "filesAdded": 0,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 0,
+          "filesUpdated": 0,
+          "matched": 0,
+          "total": 0,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 0,
+          "updated": 0
+        },
+        "startTime": "<time>",
+        "success": true,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "transition-a: the render is left to the scheduler mid-flight",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 26
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "transition-a: the render is left to the scheduler mid-flight",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/transition-a.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "transition-b: the render is left to the scheduler mid-flight",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 27
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "transition-b: the render is left to the scheduler mid-flight",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/transition-b.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          },
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [],
+                "duration": "<time>",
+                "failing": false,
+                "failureDetails": [],
+                "failureMessages": [],
+                "fullName": "wait: runs after the other files, with no window",
+                "invocations": 1,
+                "location": {
+                  "column": 1,
+                  "line": 8
+                },
+                "numPassingAsserts": 1,
+                "retryMessages": [],
+                "retryReasons": [],
+                "status": "passed",
+                "title": "wait: runs after the other files, with no window",
+                "startAt": "<time>"
+              }
+            ],
+            "endTime": "<time>",
+            "message": "",
+            "name": "<root>/wait.test.ts",
+            "startTime": "<time>",
+            "status": "passed",
+            "summary": ""
+          }
+        ],
+        "wasInterrupted": false
+      }
+    }
+  }
+}
