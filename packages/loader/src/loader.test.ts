@@ -1460,3 +1460,49 @@ test("edgeResolveKind: an import-only package is not found from a CommonJS-run m
     message: "Cannot find module 'esm-only' from 'entry.test.ts'",
   })
 })
+
+/** A dual package that lists `module-sync` first: each entry's value names it. */
+const MODULE_SYNC = {
+  'node_modules/dual/package.json': JSON.stringify({
+    name: 'dual',
+    exports: {
+      '.': {
+        'module-sync': './module-sync.mjs',
+        import: './esm.mjs',
+        require: './cjs.cjs',
+      },
+    },
+  }),
+  'node_modules/dual/module-sync.mjs': "export default 'module-sync'\n",
+  'node_modules/dual/esm.mjs': "export default 'import'\n",
+  'node_modules/dual/cjs.cjs': "module.exports = 'require'\n",
+  'package.json': '{}\n',
+  'entry.test.ts':
+    "import imported from 'dual'\nexport const fromImport: string = imported\nexport const fromRequire: string = require('dual')\nexport const fromDynamic = async (): Promise<string> => (await import('dual')).default\n",
+}
+
+test('moduleSyncCondition: an import edge adds module-sync, a require only where Node evaluates ESM synchronously', async () => {
+  // This process has no `--experimental-vm-modules`, so a `require` adds no `module-sync` (the
+  // gate's other side is `edge-kind.test.ts`'s, on the capability seam).
+  const root = writeTree(MODULE_SYNC)
+  const load = (moduleSyncCondition: ModulePolicy['moduleSyncCondition']) =>
+    loaderFor(root, { moduleSyncCondition, interopDefault: 'babel' })
+      .createFileRegistry(join(root, 'entry.test.ts'), { tier: 'registry' })
+      .import<{ fromImport: string; fromRequire: string; fromDynamic: () => Promise<string> }>(
+        join(root, 'entry.test.ts'),
+      )
+  const jest = await load('import-and-sync-require')
+  assert.deepEqual(
+    { import: jest.fromImport, require: jest.fromRequire, dynamic: await jest.fromDynamic() },
+    { import: 'module-sync', require: 'require', dynamic: 'module-sync' },
+  )
+  const neutral = await load('never')
+  assert.deepEqual(
+    {
+      import: neutral.fromImport,
+      require: neutral.fromRequire,
+      dynamic: await neutral.fromDynamic(),
+    },
+    { import: 'import', require: 'require', dynamic: 'import' },
+  )
+})

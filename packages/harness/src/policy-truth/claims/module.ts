@@ -57,6 +57,22 @@ function edgeKindShown(g: Golden): string {
   ])
 }
 
+/**
+ * Whether an ES module's edges added `module-sync` (`env/conditions-import-module-sync`): every
+ * test's title ends with the entry it got, `module-sync` when they did, the `node` branch's
+ * `node-import` when they did not.
+ */
+function moduleSyncShown(g: Golden): string {
+  const titles = g.files.flatMap((file) => file.tests.map((test) => test.id.path.join(' ')))
+  return oneOf(titles, [
+    [
+      'import-and-sync-require',
+      titles.length > 0 && titles.every((title) => title.endsWith(' module-sync')),
+    ],
+    ['never', titles.length > 0 && titles.every((title) => title.endsWith(' node-import'))],
+  ])
+}
+
 export const moduleClaims: Claims = {
   'module.factoryShape': mod('mod-factory-shape', 'mod-automock-all', 'mod-automock-cjs'),
   'module.rootMocksAutoApply': mod('mod-root-package', 'mod-root-core'),
@@ -98,6 +114,13 @@ export const moduleClaims: Claims = {
       golden('env/conditions-import-custom', { read: edgeKindShown }),
     ],
     pending('T11.16', 'no Vitest fixture records how a module run as CommonJS resolves its edges'),
+  ),
+  // The `import` half. The `require` half is gated on whether Node evaluates an ES module graph
+  // synchronously (24.9 and later under `--experimental-vm-modules`), so a recording would differ
+  // between the Node versions CI runs; the loader's `edge-kind.test.ts` holds it on that seam.
+  'module.moduleSyncCondition': each(
+    golden('env/conditions-import-module-sync', { read: moduleSyncShown }),
+    pending('T11.16', 'no Vitest fixture records a package with a `module-sync` entry'),
   ),
   'module.reevaluateHookingExternals': each(
     [

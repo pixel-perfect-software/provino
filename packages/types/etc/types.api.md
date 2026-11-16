@@ -2086,6 +2086,7 @@ export interface ModulePolicy {
     readonly mockResolveKind: "require" | "import";
     readonly mocksReachShared: boolean;
     readonly mockValueOwner: "module-registry" | "registration";
+    readonly moduleSyncCondition: "never" | "import-and-sync-require";
     readonly reevaluateHookingExternals: boolean;
     readonly requireVirtualFlag: boolean;
     readonly resetModulesBetween: boolean;

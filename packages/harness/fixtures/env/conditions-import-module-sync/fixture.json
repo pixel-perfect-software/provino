@@ -1,0 +1,30 @@
+{
+  "description": "The `import`s of a test file Jest runs as an ES module (`extensionsToTreatAsEsm: ['.ts']`, Node with `--experimental-vm-modules`, no CommonJS transform) and of its helper, in the node environment, from a package whose `exports` list `module-sync` first: jest-runtime's ESM conditions (`import`, `module-sync`, `default` and the environment's `node`, `node-addons`) take the `module-sync` entry. The package `dual` then has a `node` branch (an `import` and a `require` entry), `import`, `require` and `default`; each entry's value names it, and each test's title is the entry it got.",
+  "runners": ["jest"],
+  "nodeFlags": ["--experimental-vm-modules"],
+  "config": {
+    "jest": {
+      "testEnvironment": "node",
+      "extensionsToTreatAsEsm": [".ts"]
+    }
+  },
+  "packages": {
+    "dual": {
+      "package.json": "{\"name\":\"dual\",\"version\":\"1.0.0\",\"exports\":{\".\":{\"module-sync\":\"./module-sync.mjs\",\"node\":{\"import\":\"./node-import.mjs\",\"require\":\"./node-require.cjs\"},\"import\":\"./esm.mjs\",\"require\":\"./cjs.cjs\",\"default\":\"./default.cjs\"}}}\n",
+      "module-sync.mjs": "export default 'module-sync'\n",
+      "esm.mjs": "export default 'import'\n",
+      "cjs.cjs": "module.exports = 'require'\n",
+      "default.cjs": "module.exports = 'default'\n",
+      "node-import.mjs": "export default 'node-import'\n",
+      "node-require.cjs": "module.exports = 'node-require'\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^    [A-Z]",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

@@ -71,6 +71,7 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'vitest orchestrator.consoleOrigin': 'T11.16',
   'vitest module.reevaluateHookingExternals': 'T11.16',
   'vitest module.edgeResolveKind': 'T11.16',
+  'vitest module.moduleSyncCondition': 'T11.16',
   'vitest module.stackFrameNames': 'T11.16',
   'vitest orchestrator.processObject': 'T11.16',
   'vitest orchestrator.shard.fallback': 'T11.16',

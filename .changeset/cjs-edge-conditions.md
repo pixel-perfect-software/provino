@@ -8,4 +8,6 @@
 
 `provino`'s `exports` give every subpath a `default` condition naming its `import` file, so `require('provino')` (and a test file Jest runs as CommonJS that imports it) loads the ES module through Node's `require(esm)`.
 
-`@provino/types`: `ModulePolicy.edgeResolveKind`, `LoaderOptions.esmExtensions`, `SerializedLoaderConfig.esmExtensions` and `NeutralResolution.esmExtensions`.
+A dual package's `module-sync` entry is taken as Jest takes it: by every edge of a file Jest runs as an ES module, and by a file Jest runs as CommonJS only when Node evaluates ES modules synchronously (24.9 and later, under `--experimental-vm-modules`); a `jest.mock` of such a package resolves to the same file.
+
+`@provino/types`: `ModulePolicy.edgeResolveKind`, `ModulePolicy.moduleSyncCondition`, `LoaderOptions.esmExtensions`, `SerializedLoaderConfig.esmExtensions` and `NeutralResolution.esmExtensions`.

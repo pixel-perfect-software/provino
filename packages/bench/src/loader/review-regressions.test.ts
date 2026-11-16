@@ -191,3 +191,29 @@ test("a virtual mock serves an edge its importer's kind finds no file for, never
   const entry = await files.import<{ seen: string }>(file)
   assert.equal(entry.seen, 'mocked')
 })
+
+test('a mock registration resolves with the module-sync condition its edge gets, so the mock applies (B23e review Medium 2)', async () => {
+  // Under `mockResolveKind: 'import'` the registration and the edge both add `module-sync`; were
+  // the registration looked up without it, its ids would be the `import` and `require` files and
+  // the edge's file, `module-sync.mjs`, would load for real.
+  const root = writeTree({
+    'node_modules/dual/package.json': JSON.stringify({
+      name: 'dual',
+      exports: {
+        '.': { 'module-sync': './module-sync.mjs', import: './esm.mjs', require: './cjs.cjs' },
+      },
+    }),
+    'node_modules/dual/module-sync.mjs': "export const value = 'module-sync'\n",
+    'node_modules/dual/esm.mjs': "export const value = 'import'\n",
+    'node_modules/dual/cjs.cjs': "exports.value = 'require'\n",
+    'package.json': '{}\n',
+    'user.ts': "import { value } from 'dual'\nexport const seen = value\n",
+    'entry.test.ts': '',
+  })
+  const policy = { ...VITESTISH, moduleSyncCondition: 'import-and-sync-require' } as const
+  const file = join(root, 'entry.test.ts')
+  const { files } = fileWithMocks(loaderFor(root, { policy, hoist: null }), file, { policy })
+  files.registerMock('dual', null, { kind: 'factory', factory: () => ({ value: 'mocked' }) })
+  const user = await files.import<{ seen: string }>('./user.ts', at(root, 'a.test.ts'))
+  assert.equal(user.seen, 'mocked')
+})

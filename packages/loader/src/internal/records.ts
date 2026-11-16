@@ -15,9 +15,8 @@ import type {
   SourceMapV3,
 } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
-import { conditionsOf } from '../graph/conditions.ts'
 import { type GraphEdge, inGraph } from '../graph/index.ts'
-import { createEdgeKindState, type EdgeKindState, edgeKind } from './edge-kind.ts'
+import { createEdgeKindState, type EdgeKindState, edgeConditions, edgeKind } from './edge-kind.ts'
 import { createInlineState, type InlineState } from './inline.ts'
 import { loaderMessage } from './messages.ts'
 import { createReevaluateState, type ReevaluateState } from './reevaluate.ts'
@@ -244,7 +243,7 @@ export function mapperTakes(
   const result = state.options.resolver.resolve(specifier, {
     importer,
     kind,
-    conditions: conditionsOf(state.options),
+    conditions: edgeConditions(state.edgeKinds, kind),
   })
   return (result.type === 'file' || result.type === 'not-found') && result.mappedBy !== null
 }
@@ -281,7 +280,7 @@ export function resolveOrMissing(
   const result = state.options.resolver.resolve(specifier, {
     importer,
     kind,
-    conditions: conditionsOf(state.options),
+    conditions: edgeConditions(state.edgeKinds, kind),
   })
   if (result.type === 'builtin') return { kind: 'builtin', id: result.id }
   if (result.type === 'file') {

@@ -79,6 +79,8 @@ export const vitestModulePolicy: ModulePolicy = {
   mockResolveKind: 'import',
   // Not recorded yet (T11.16): an edge resolves as it is written.
   edgeResolveKind: 'as-written',
+  // Not recorded yet (T11.16): no edge adds the `module-sync` condition.
+  moduleSyncCondition: 'never',
   // Recorded, Vitest 5.0.5: `mod-shared-dep` and `mod-shared-dep-root` (a mock reaches only a direct import).
   mocksReachShared: false,
   // Not recorded yet (T11.16): an externalized dependency loads once per worker.

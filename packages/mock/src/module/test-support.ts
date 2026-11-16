@@ -23,6 +23,7 @@ export const jestLike: ModulePolicy = {
   mockValueOwner: 'module-registry',
   mockResolveKind: 'require',
   edgeResolveKind: 'as-written',
+  moduleSyncCondition: 'never',
   mocksReachShared: true,
   reevaluateHookingExternals: false,
   stackFrameNames: 'engine',
