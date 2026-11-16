@@ -95,6 +95,21 @@ expectTypeOf(host.transformAsync(request, null)).toEqualTypeOf<Promise<HostedSou
 // The seam for T3.6's fingerprint: the transformer's own cache key, when it has one.
 expectTypeOf(host.cacheKey(request)).toEqualTypeOf<string | null>()
 expectTypeOf<HostedSource['transformerCacheKey']>().toEqualTypeOf<string | null>()
+// Whether the hoister checks this output's mock factories: the matched rule's, always decided.
+expectTypeOf<HostedSource['checksMockFactories']>().toEqualTypeOf<boolean>()
+const ruleOf: SerializedTransformConfig['rules'][number] = {
+  pattern: 'x',
+  transformer: { module: '/t.cjs', export: 'default' },
+  options: null,
+  checksMockFactories: true,
+}
+expectTypeOf(ruleOf.checksMockFactories).toEqualTypeOf<boolean | undefined>()
+const badRule: SerializedTransformConfig['rules'][number] = {
+  ...ruleOf,
+  // @ts-expect-error the flag is a boolean, not a transformer's name
+  checksMockFactories: 'babel-jest',
+}
+void badRule
 createPipeline({ ...options, transformers: host })
 // @ts-expect-error the pipeline takes a host, not the serialized config
 createPipeline({ ...options, transformers: transformConfig })

@@ -107,6 +107,14 @@ export interface NeutralTransform {
   readonly pattern: string
   readonly module: string
   readonly options: JsonValue
+  /**
+   * The transformer checks what a hoisted mock factory references itself, so Provino's hoister
+   * checks it in the transformer's output too (Jest's `babel-jest`, whose `babel-plugin-jest-hoist`
+   * throws on an out-of-scope variable). Absent or `false`: the hoister still hoists that output,
+   * but allows any reference, as a transformer that hoists without the check does (`@swc/jest`,
+   * ts-jest).
+   */
+  readonly checksMockFactories?: boolean
 }
 
 /**

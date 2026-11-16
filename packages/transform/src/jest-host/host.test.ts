@@ -238,6 +238,69 @@ describe('routing', () => {
     assert.notEqual(one.fingerprint, other.fingerprint)
   })
 
+  test('the fingerprint moves with a rule checksMockFactories', async () => {
+    const swc = tools['@swc/jest']
+    const unchecked = await createJestHost(config(swc.module, swc.options))
+    const base = config(swc.module, swc.options)
+    const checked = await createJestHost({
+      ...base,
+      rules: base.rules.map((rule) => ({ ...rule, checksMockFactories: true })),
+    })
+    assert.notEqual(unchecked.fingerprint, checked.fingerprint)
+  })
+
+  for (const name of ['@swc/jest', 'ts-jest'] as const) {
+    test(`${name}'s output: factories are checked only when the rule says so`, async () => {
+      await factoriesCheckedOnlyWhenFlagged(tools[name])
+    })
+  }
+
+  /**
+   * A factory reading `window` and a module-scope `suffix`, through a real transformer that hoists
+   * by itself and checks nothing. ts-jest reads the file from disk, so it is written beside the
+   * fixture's own test (and removed after the file's tests).
+   */
+  async function factoriesCheckedOnlyWhenFlagged(tool: (typeof tools)[keyof typeof tools]) {
+    const outOfScope = [
+      "import { f } from './deps'",
+      "const suffix = '!'",
+      "jest.mock('./deps', () => ({ f: () => window.location.pathname + suffix }))",
+      "test('f', () => f())",
+      '',
+    ].join('\n')
+    const file = join(fixture, `src/scope-${process.pid}.test.ts`)
+    writeFileSync(file, outOfScope)
+    temps.push(file)
+    const base = config(tool.module, tool.options)
+    const records = await Promise.all(
+      [false, true].map(async (checksMockFactories) => {
+        const host = await createJestHost({
+          ...base,
+          rules: base.rules.map((rule) => ({ ...rule, checksMockFactories })),
+        })
+        const pipeline = createPipeline({
+          root: fixture,
+          typescript: 'oxc',
+          tsconfig: false,
+          hoist: blockPolicy,
+          cache: false,
+          transformers: host,
+        })
+        return pipeline.transform(request(file, outOfScope))
+      }),
+    )
+    const [unchecked, checked] = records
+    assert.deepEqual(unchecked?.diagnostics, [])
+    assert.deepEqual(
+      unchecked?.staticMocks.map((mock) => mock.specifier),
+      ['./deps'],
+    )
+    assert.deepEqual(
+      checked?.diagnostics.map(({ code }) => code),
+      ['HOIST_FACTORY_OUT_OF_SCOPE'],
+    )
+  }
+
   test('a transformer that throws is a TRANSFORMER_FAILED error on the record', async () => {
     const host = await createJestHost(config(babel.module, babel.options))
     const pipeline = createPipeline({

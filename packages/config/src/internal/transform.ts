@@ -89,6 +89,7 @@ export function resolveTransforms(neutral: NeutralProject): SerializedTransformC
           export: 'default',
         },
         options: rule.options,
+        ...(rule.checksMockFactories === true ? { checksMockFactories: true } : {}),
       }
     }),
     ignorePatterns: neutral.transformIgnorePatterns,
