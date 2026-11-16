@@ -8,6 +8,7 @@ import type {
   CompiledModuleEvent,
   HoistPolicy,
   Loader,
+  LoaderWarning,
   ModuleId,
   ModuleMockRegistry,
   ModulePolicy,
@@ -1386,6 +1387,244 @@ test('reevaluateHookingExternals (D132): a shared importer of a per-file depende
     assert.equal(fourth.late?.registry, fourth.registry, 'and the registry stays per file')
     assert.equal(fourth.registry.lookup('plugin'), fourth.plugin.entry)
   })
+})
+
+/** A module-level registry that refuses an id it already holds, as a package's `index.js`. */
+const REGISTRY_SOURCE = [
+  'const ids = new Map()',
+  'exports.register = (id, entry) => {',
+  "  if (ids.has(id)) throw new RangeError('Duplicate use of id ' + id)",
+  '  ids.set(id, entry)',
+  '  return entry',
+  '}',
+  '',
+].join('\n')
+
+/** A package named `name` whose `main` is `index.js` with `source`. */
+function pkg(name: string, source: string): Record<string, string> {
+  return {
+    [`node_modules/${name}/package.json`]: JSON.stringify({ name, main: 'index.js' }),
+    [`node_modules/${name}/index.js`]: source,
+  }
+}
+
+interface SeededLoader {
+  readonly load: <T>(name: string) => T
+  readonly warnings: LoaderWarning[]
+}
+
+/** A loader with D132 on, its set seeded with `seeds` (paths under `root`), and its warnings. */
+function seededLoader(
+  root: string,
+  seeds: readonly string[],
+  extra: Omit<LoaderOptionsExtra, 'policy'> = {},
+  fileScope?: () => Readonly<Record<string, unknown>>,
+): SeededLoader {
+  const warnings: LoaderWarning[] = []
+  const loader = createLoader({
+    ...loaderOptionsFor(root, {
+      ...extra,
+      policy: { reevaluateHookingExternals: true, interopDefault: 'babel' },
+    }),
+    onWarning: (warning) => {
+      warnings.push(warning)
+    },
+  })
+  loader.reevaluateExternals(seeds.map((seed) => join(root, seed)))
+  return {
+    warnings,
+    load: <T>(name: string): T =>
+      loader
+        .createFileRegistry(join(root, name), {
+          tier: 'registry',
+          ...(fileScope === undefined ? {} : { moduleScope: fileScope }),
+        })
+        .require<T>(join(root, name)),
+  }
+}
+
+interface MidFile {
+  readonly x: { readonly d: object }
+  readonly q: { readonly x: { readonly d: object } }
+  readonly d: object
+}
+
+const MID_FILE_TEST =
+  "const x = require('x')\nconst q = require('q')\nmodule.exports = { x, q, d: require('d') }\n"
+
+test('reevaluateHookingExternals (D132): a dependency that joins partway through a file joins from the next file, never beside the native copy', () => {
+  // `x` is shared when the file loads it, so Node loads `d` with it. `q`, seen only later in the
+  // file, imports the seed `p` and `x`, so `x` and `d` join the set; this file keeps Node's copies.
+  const root = writeTree({
+    ...pkg('p', 'module.exports = {}\n'),
+    ...pkg('d', 'module.exports = {}\n'),
+    ...pkg('x', "module.exports = { d: require('d') }\n"),
+    ...pkg('q', "require('p')\nmodule.exports = { x: require('x') }\n"),
+    'a.test.js': MID_FILE_TEST,
+    'b.test.js': MID_FILE_TEST,
+  })
+  const { load } = seededLoader(root, ['node_modules/p/index.js'])
+  const first = load<MidFile>('a.test.js')
+  assert.equal(first.q.x, first.x, 'q gets the file’s x')
+  assert.equal(first.d, first.x.d, 'one copy of d in the file')
+  const second = load<MidFile>('b.test.js')
+  assert.notEqual(second.x, first.x, 'x is per file from the next file on')
+  assert.equal(second.q.x, second.x)
+  assert.equal(second.d, second.x.d, 'one copy of d in the next file')
+  assert.notEqual(second.d, first.d, 'and it is that file’s own')
+})
+
+test('reevaluateHookingExternals (D132): a claimed seed found partway through a file joins its dependencies from the next file', () => {
+  // `q`'s entry is a `.ts` file the transforms make a user module (a seed, D130). The file asks
+  // for it by a computed name, so it is found only when that line runs, after `x` (and Node's `d`
+  // with it) loaded natively; a static `require('q')` would find it when the file is linked.
+  const test =
+    "const x = require('x')\nconst q = require(['q'].join(''))\nmodule.exports = { x, q, d: require('d') }\n"
+  const root = writeTree({
+    ...pkg('d', 'module.exports = {}\n'),
+    ...pkg('x', "module.exports = { d: require('d') }\n"),
+    'node_modules/q/package.json': JSON.stringify({ name: 'q', main: 'index.ts' }),
+    'node_modules/q/index.ts': "module.exports = { x: require('x') }\n",
+    'a.test.js': test,
+    'b.test.js': test,
+  })
+  const { load } = seededLoader(root, [], {
+    transformClaims: { patterns: ['\\.ts$'], ignorePatterns: [] },
+  })
+  const first = load<MidFile>('a.test.js')
+  assert.equal(first.q.x, first.x, 'the claimed file gets the file’s x')
+  assert.equal(first.d, first.x.d, 'one copy of d in the file')
+  const second = load<MidFile>('b.test.js')
+  assert.equal(second.q.x, second.x)
+  assert.equal(second.d, second.x.d, 'one copy of d in the next file')
+  assert.notEqual(second.d, first.d, 'and it is that file’s own')
+})
+
+interface Registered {
+  readonly entry: object
+}
+
+test('reevaluateHookingExternals (D132): a registry whose files import each other joins with the per-file package that writes into it', () => {
+  const root = writeTree({
+    ...pkg('plugin', "module.exports = { entry: require('reg').register('plugin', {}) }\n"),
+    'node_modules/reg/package.json': JSON.stringify({ name: 'reg', main: 'index.js' }),
+    'node_modules/reg/index.js': `${REGISTRY_SOURCE}exports.a = require('./a.js')\n`,
+    'node_modules/reg/a.js': "exports.index = require('./index.js')\n",
+    'a.test.js': "module.exports = require('plugin')\n",
+    'b.test.js': "module.exports = require('plugin')\n",
+    'c.test.js': "module.exports = require('plugin')\n",
+  })
+  const { load } = seededLoader(root, ['node_modules/plugin/index.js'])
+  const entries = ['a.test.js', 'b.test.js', 'c.test.js'].map((name) => load<Registered>(name))
+  assert.equal(new Set(entries.map(({ entry }) => entry)).size, 3, 'one registration per file')
+})
+
+test('reevaluateHookingExternals (D132): an importer inlined for a served module does not keep a registry shared', () => {
+  // `served-user` is inlined in every file for its `@jest/globals`, so it never holds Node's copy.
+  const root = writeTree({
+    ...pkg('@jest/globals', "throw new Error('not outside Jest')\n"),
+    ...pkg('served-user', "require('@jest/globals')\nmodule.exports = { reg: require('reg') }\n"),
+    ...pkg(
+      'plugin',
+      "const reg = require('reg')\nmodule.exports = { reg, entry: reg.register('plugin', {}) }\n",
+    ),
+    ...pkg('reg', REGISTRY_SOURCE),
+    'a.test.js': "module.exports = { served: require('served-user'), plugin: require('plugin') }\n",
+    'b.test.js': "module.exports = { served: require('served-user'), plugin: require('plugin') }\n",
+  })
+  const { load } = seededLoader(
+    root,
+    ['node_modules/plugin/index.js'],
+    { moduleScope: { names: [], modules: ['@jest/globals'] } },
+    () => ({ '@jest/globals': {} }),
+  )
+  type Loaded = { served: { reg: object }; plugin: { reg: object; entry: object } }
+  const first = load<Loaded>('a.test.js')
+  const second = load<Loaded>('b.test.js')
+  assert.equal(second.served.reg, second.plugin.reg, 'one registry in the file')
+  assert.notEqual(second.plugin.entry, first.plugin.entry, 'registered once per file')
+})
+
+/** Writes `workspace/ws-lib` (which requires `reg`) and links it into the tree's node_modules. */
+function linkWorkspacePackage(root: string): void {
+  mkdirSync(join(root, 'workspace/ws-lib'), { recursive: true })
+  writeFileSync(
+    join(root, 'workspace/ws-lib/package.json'),
+    JSON.stringify({ name: 'ws-lib', main: 'index.js' }),
+  )
+  writeFileSync(
+    join(root, 'workspace/ws-lib/index.js'),
+    "module.exports = { reg: require('reg') }\n",
+  )
+  symlinkSync(join(root, 'workspace/ws-lib'), join(root, 'node_modules/ws-lib'))
+  // It finds `reg` from the project's node_modules, as a hoisted workspace does.
+  symlinkSync(join(root, 'node_modules'), join(root, 'workspace/node_modules'))
+}
+
+test('reevaluateHookingExternals (D132): a workspace package between a per-file package and a registry joins when only per-file packages load it', () => {
+  const root = writeTree({
+    ...pkg(
+      'plugin',
+      "const ws = require('ws-lib')\nmodule.exports = { reg: ws.reg, entry: ws.reg.register('plugin', {}) }\n",
+    ),
+    ...pkg('reg', REGISTRY_SOURCE),
+    'a.test.js': "module.exports = require('plugin')\n",
+    'b.test.js': "module.exports = require('plugin')\n",
+  })
+  linkWorkspacePackage(root)
+  const { load } = seededLoader(root, ['node_modules/plugin/index.js'])
+  const first = load<Registered & { reg: object }>('a.test.js')
+  const second = load<Registered & { reg: object }>('b.test.js')
+  assert.notEqual(second.reg, first.reg, 'the registry is the file’s own')
+  assert.notEqual(second.entry, first.entry)
+})
+
+test('reevaluateHookingExternals (D132): a workspace package a shared package also loads is Node’s copy, so the registry below it stays shared', () => {
+  const root = writeTree({
+    ...pkg('plugin', "module.exports = { reg: require('ws-lib').reg }\n"),
+    ...pkg('shared-user', "module.exports = { reg: require('ws-lib').reg }\n"),
+    ...pkg('reg', REGISTRY_SOURCE),
+    'a.test.js': "module.exports = { shared: require('shared-user'), plugin: require('plugin') }\n",
+    'b.test.js': "module.exports = { shared: require('shared-user'), plugin: require('plugin') }\n",
+  })
+  linkWorkspacePackage(root)
+  const { load } = seededLoader(root, ['node_modules/plugin/index.js'])
+  type Loaded = { shared: { reg: object }; plugin: { reg: object } }
+  const first = load<Loaded>('a.test.js')
+  const second = load<Loaded>('b.test.js')
+  assert.equal(second.shared.reg, first.shared.reg, 'the shared package keeps the worker’s copy')
+  assert.equal(second.plugin.reg, second.shared.reg, 'and the plugin sees the same one')
+})
+
+test('reevaluateHookingExternals (D132): a dependency a shared package could load by a computed require stays shared, with a debug warning', () => {
+  const root = writeTree({
+    ...pkg('plugin', "module.exports = { reg: require('reg') }\n"),
+    ...pkg('reg', 'module.exports = {}\n'),
+    'node_modules/loads-by-name/package.json': JSON.stringify({
+      name: 'loads-by-name',
+      main: 'index.js',
+      dependencies: { reg: '1.0.0' },
+    }),
+    'node_modules/loads-by-name/index.js':
+      "const name = ['r', 'e', 'g'].join('')\nmodule.exports = { reg: require(name) }\n",
+    'a.test.js':
+      "module.exports = { dynamic: require('loads-by-name'), plugin: require('plugin') }\n",
+    'b.test.js':
+      "module.exports = { dynamic: require('loads-by-name'), plugin: require('plugin') }\n",
+  })
+  const { load, warnings } = seededLoader(root, ['node_modules/plugin/index.js'])
+  type Loaded = { dynamic: { reg: object }; plugin: { reg: object } }
+  load<Loaded>('a.test.js')
+  const second = load<Loaded>('b.test.js')
+  assert.equal(second.plugin.reg, second.dynamic.reg, 'one copy of reg in the file')
+  assert.ok(
+    warnings.some(
+      (warning) =>
+        warning.code === 'PROVINO_INLINE_DYNAMIC' &&
+        warning.message.includes(join(root, 'node_modules/reg/index.js')),
+    ),
+    'the refused join is reported',
+  )
 })
 
 test('isolation none: an external inlined for a served module is evaluated once per worker, not again per file', () => {

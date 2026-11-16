@@ -7,8 +7,12 @@
 // global was read inside it. Such an external, with every node_modules file its load evaluated,
 // is inlined (loaded through the registry) from the next file on, so its top-level code runs again
 // for each file. Outside a window nothing is watched, so steady-state loads pay one `Set` lookup.
+// What imports such an external, and a dependency of one that only per-file files import (a
+// registry a per-file plugin writes into), are evaluated per file too (D132): `settlePerFile` keeps
+// that set over the part of the graph the worker knows.
 import { createRequire } from 'node:module'
 import type { ExternalLoadWatcher } from '@provino/types'
+import { inGraph, packageDirOf } from '../graph/index.ts'
 
 /** What a worker knows about the externals it evaluates per file. */
 export interface ReevaluateState {
@@ -26,112 +30,375 @@ export interface ReevaluateState {
 }
 
 /**
- * The part of the node_modules graph the worker knows (D132): the edges of the static closure of
- * every external it loaded from a file or asked about at an edge, both ways, and the set of
- * externals evaluated per file that `selectPerFile` makes of it. The seeds are the externals
- * evaluated per file for a reason of their own (`active`, D127 and D129; a file the transforms
- * make a user module, D130).
+ * The part of the node_modules graph the worker knows (D132), and the set of files evaluated per
+ * file that it makes: the edges of the static closure of every external the worker loaded from a
+ * file or asked about at an edge, both ways, through the user modules a closure goes through
+ * (workspace packages linked into `node_modules`). The seeds are the externals evaluated per file
+ * for a reason of their own (`active`, D127 and D129; a file the transforms make a user module,
+ * D130). The set is the seeds, every file that imports a file of the set (the reach rule), and the
+ * dependencies of the set that `settlePerFile` lets join.
  *
- * The set only grows: a file never holds two copies of a package because the worker learned more
- * of the graph halfway through it, and a package is never evaluated per file in one file and
- * shared in the next.
+ * The set only grows, and a file sees only what it stood at when the file's registry was created,
+ * plus what reaches it since (`members`): what joins once the file has asked about an external
+ * waits in `pending` for the next file (`promoteLearned`). So a file never holds a package's
+ * native copy beside its own, and a package is never per file in one file and shared in the next.
  */
 export interface PerFileGraph {
-  /** Each known target's importers (node_modules files, and user modules a closure went through). */
-  readonly importers: Map<string, Set<string>>
-  /** Each known importer's targets. */
-  readonly imports: Map<string, Set<string>>
-  /** The files whose edges are in the two maps. */
-  readonly indexed: Set<string>
-  /** The externals evaluated per file now. */
-  members: ReadonlySet<string>
-  /** Whether the graph or the seeds changed since `members` was settled. */
-  stale: boolean
-  /** How many of `active`, and of the claims' user modules, have been indexed as seeds. */
+  /** Each indexed file's targets (files only, each once), set once per worker. */
+  readonly edges: Map<string, readonly string[]>
+  /** Each known target's importers, with how many of them are in the set and in the region. */
+  readonly importers: Map<string, Importers>
+  /**
+   * The files evaluated per file in the file running now (`evaluatedPerFile` answers from it): the
+   * externals, and the user modules a closure went through that are only loaded per file.
+   */
+  readonly members: Set<string>
+  /** What joined the set once the running file had asked about an external: members from the next file. */
+  readonly pending: Set<string>
+  /**
+   * The join's candidates: files a file of the set reaches downward that are not in it (and that
+   * the loader could evaluate), each kept out so far by an importer outside the set.
+   */
+  readonly region: Set<string>
+  /** Files evaluated in every file for another reason (a served module, D132): never block a join. */
+  readonly elsewhere: Set<string>
+  /** By package name, the indexed files that scan as dynamic and could load that package natively. */
+  readonly dynamicByName: Map<string, string[]>
+  /** Each dynamic file's bound (the package names it could load), for when it joins the set. */
+  readonly dynamic: Map<string, ReadonlySet<string>>
+  /** Region files whose importers changed since the last settle: decided again then. */
+  readonly probes: Set<string>
+  /** Whether the running file has asked about an external yet: what joins after that is pending. */
+  answered: boolean
+  /** How many of `active`, and of the claims' user modules, are in the set as seeds. */
   primedActive: number
   primedClaimed: number
 }
 
+/** A file's importers, and how many are in the set (or `elsewhere`) and in the region. */
+export interface Importers {
+  readonly files: string[]
+  inSet: number
+  inRegion: number
+}
+
 function createPerFileGraph(): PerFileGraph {
   return {
+    edges: new Map(),
     importers: new Map(),
-    imports: new Map(),
-    indexed: new Set(),
     members: new Set(),
-    stale: false,
+    pending: new Set(),
+    region: new Set(),
+    elsewhere: new Set(),
+    dynamicByName: new Map(),
+    dynamic: new Map(),
+    probes: new Set(),
+    answered: false,
     primedActive: 0,
     primedClaimed: 0,
   }
 }
 
-/** Records that `importer` has an edge to `target`. */
-export function linkPerFile(graph: PerFileGraph, importer: string, target: string): void {
-  let importers = graph.importers.get(target)
+/** What the set is made from besides the graph, built once per worker. */
+export interface PerFileSources {
+  /** The `node_modules` files the transforms made user modules, append-only (D130). */
+  readonly claimed: readonly string[]
+  /** The externals the worker has loaded natively so far (by path, or a builtin's `node:` id). */
+  readonly loaded: ReadonlyMap<string, unknown>
+  /** Whether a node_modules file can be evaluated per file at all (no addon or WebAssembly). */
+  readonly keep: (path: string) => boolean
+}
+
+/** A join refused because a file that scans as dynamic (outside the set) could load `target`. */
+export interface DynamicRefusal {
+  readonly target: string
+  readonly dynamic: string
+}
+
+const NO_TARGETS: readonly string[] = []
+const NO_REFUSALS: readonly DynamicRefusal[] = []
+
+function importersOf(graph: PerFileGraph, path: string): Importers {
+  let importers = graph.importers.get(path)
   if (importers === undefined) {
-    importers = new Set()
-    graph.importers.set(target, importers)
+    importers = { files: [], inSet: 0, inRegion: 0 }
+    graph.importers.set(path, importers)
   }
-  importers.add(importer)
-  let imports = graph.imports.get(importer)
-  if (imports === undefined) {
-    imports = new Set()
-    graph.imports.set(importer, imports)
-  }
-  imports.add(target)
+  return importers
 }
 
-const NO_IMPORTERS: ReadonlySet<string> = new Set()
+function inSet(graph: PerFileGraph, path: string): boolean {
+  return graph.members.has(path) || graph.pending.has(path)
+}
 
-/**
- * D132's rule for a dependency of a package evaluated per file: it is evaluated per file too only
- * when every importer the worker knows is. So a package the shared part of the graph imports
- * (`react` under a component library) stays shared, and nothing evaluated per file pulls a shared
- * package's dependencies along. The one place the rule is decided: `selectPerFile` takes it to a
- * fixed point.
- */
-export function joinsPerFile(
-  importers: ReadonlySet<string>,
-  members: ReadonlySet<string>,
-): boolean {
-  for (const importer of importers) if (!members.has(importer)) return false
-  return true
+/** Whether the loader can evaluate `path` itself: a user module, or a `keep` node_modules file. */
+function candidate(path: string, keep: (path: string) => boolean): boolean {
+  return !inGraph(path) || keep(path)
+}
+
+/** The importers of `path` outside the set and the region: files that load it natively. */
+function sharedImporters(graph: PerFileGraph, path: string): number {
+  const importers = graph.importers.get(path)
+  return importers === undefined ? 0 : importers.files.length - importers.inSet - importers.inRegion
+}
+
+/** The package a node_modules file belongs to, by name (`@scope/name`), or `null`. */
+function packageNameOf(path: string): string | null {
+  const dir = packageDirOf(path)
+  return dir === null
+    ? null
+    : dir.slice(dir.lastIndexOf('/node_modules/') + '/node_modules/'.length)
+}
+
+/** Puts `path` and its downward closure outside the set into the region, each to be probed. */
+function enterRegion(graph: PerFileGraph, path: string, keep: (path: string) => boolean): void {
+  const stack = [path]
+  while (stack.length > 0) {
+    const current = stack.pop()
+    if (current === undefined || graph.region.has(current)) continue
+    graph.region.add(current)
+    graph.probes.add(current)
+    // A file evaluated per file elsewhere is counted with the set already.
+    const counted = graph.elsewhere.has(current)
+    for (const target of graph.edges.get(current) ?? NO_TARGETS) {
+      if (!counted) importersOf(graph, target).inRegion++
+      graph.probes.add(target)
+      if (!inSet(graph, target) && candidate(target, keep)) stack.push(target)
+    }
+  }
 }
 
 /**
- * The externals evaluated per file: the seeds (and `base`, what was evaluated per file before), everything that imports one of them, through any chain of known edges (the
- * reach rule, so a shared importer never loads Node's copy of what the file has its own of), and
- * every dependency `joinsPerFile` lets in, with what imports it, until nothing changes. `keep` says
- * which files can be evaluated per file at all (no addon, WebAssembly or builtin).
+ * Puts `path` in the set, with every file that imports it (the reach rule): in `members` when
+ * `effective` (the running file may evaluate it per file now), else in `pending`. A pending file
+ * that a member reaches is made a member. What it imports is a candidate from now on.
  */
-export function selectPerFile(
+function joinSet(
   graph: PerFileGraph,
-  seeds: Iterable<string>,
+  path: string,
+  effective: boolean,
   keep: (path: string) => boolean,
-  base: Iterable<string> = [],
-): Set<string> {
-  const members = new Set<string>()
-  const added: string[] = []
-  const add = (path: string): void => {
-    const up = [path]
-    while (up.length > 0) {
-      const current = up.pop()
-      if (current === undefined || members.has(current)) continue
-      members.add(current)
-      added.push(current)
-      for (const importer of graph.importers.get(current) ?? NO_IMPORTERS) up.push(importer)
+): void {
+  const stack: [string, boolean][] = [[path, effective]]
+  while (stack.length > 0) {
+    const next = stack.pop()
+    if (next === undefined) break
+    const [current, now] = next
+    if (graph.members.has(current)) continue
+    if (graph.pending.has(current)) {
+      if (!now) continue
+      // Pending until a member reached it: what imports it reaches a member too.
+      graph.pending.delete(current)
+      graph.members.add(current)
+      for (const importer of graph.importers.get(current)?.files ?? NO_TARGETS) {
+        stack.push([importer, true])
+      }
+      continue
+    }
+    ;(now ? graph.members : graph.pending).add(current)
+    const fromRegion = graph.region.delete(current)
+    const counted = graph.elsewhere.has(current)
+    const bound = graph.dynamic.get(current)
+    for (const target of graph.edges.get(current) ?? NO_TARGETS) {
+      const importers = importersOf(graph, target)
+      if (!counted) {
+        if (fromRegion) importers.inRegion--
+        importers.inSet++
+      }
+      if (inSet(graph, target)) continue
+      if (!candidate(target, keep)) continue
+      if (graph.region.has(target)) graph.probes.add(target)
+      else enterRegion(graph, target, keep)
+    }
+    // A dynamic file in the set loads through the registry: what it bounded may join now.
+    if (bound !== undefined) {
+      for (const file of graph.region) {
+        const name = packageNameOf(file)
+        if (name !== null && bound.has(name)) graph.probes.add(file)
+      }
+    }
+    for (const importer of graph.importers.get(current)?.files ?? NO_TARGETS) {
+      stack.push([importer, now || !graph.answered])
     }
   }
-  for (const path of base) add(path)
-  for (const path of seeds) add(path)
-  while (added.length > 0) {
-    const member = added.pop()
-    if (member === undefined) break
-    for (const target of graph.imports.get(member) ?? NO_IMPORTERS) {
-      if (members.has(target) || !keep(target)) continue
-      if (joinsPerFile(graph.importers.get(target) ?? NO_IMPORTERS, members)) add(target)
+}
+
+/**
+ * Puts `path`'s edges in the graph, once per worker. `dynamic` is the package names a file that
+ * scans as dynamic could load (`null` for a file the scan reads whole), `elsewhere` whether the
+ * file is evaluated in every file for another reason (so it never keeps a dependency shared).
+ */
+export function indexFile(
+  graph: PerFileGraph,
+  path: string,
+  targets: readonly string[],
+  dynamic: ReadonlySet<string> | null,
+  elsewhere: boolean,
+  keep: (path: string) => boolean,
+): void {
+  if (graph.edges.has(path)) return
+  graph.edges.set(path, targets.length === 0 ? NO_TARGETS : targets)
+  if (elsewhere) graph.elsewhere.add(path)
+  if (dynamic !== null) {
+    graph.dynamic.set(path, dynamic)
+    for (const name of dynamic) {
+      const files = graph.dynamicByName.get(name)
+      if (files === undefined) graph.dynamicByName.set(name, [path])
+      else files.push(path)
     }
   }
-  return members
+  const counted = inSet(graph, path) || elsewhere
+  const below = inSet(graph, path) || graph.region.has(path)
+  let reaches = false
+  let reachesMember = false
+  for (const target of targets) {
+    const importers = importersOf(graph, target)
+    importers.files.push(path)
+    if (counted) importers.inSet++
+    else if (graph.region.has(path)) importers.inRegion++
+    if (graph.members.has(target)) reachesMember = true
+    if (inSet(graph, target)) reaches = true
+    else if (below && candidate(target, keep)) {
+      if (graph.region.has(target)) graph.probes.add(target)
+      else enterRegion(graph, target, keep)
+    }
+  }
+  if (reaches && !inSet(graph, path)) joinSet(graph, path, reachesMember || !graph.answered, keep)
+}
+
+/** The dynamic files outside the set (and not in `within`) that could load `path` natively. */
+function dynamicLoaders(
+  graph: PerFileGraph,
+  path: string,
+  within: ReadonlySet<string>,
+): readonly string[] {
+  const name = packageNameOf(path)
+  const files = name === null ? undefined : graph.dynamicByName.get(name)
+  if (files === undefined) return NO_TARGETS
+  return files.filter((file) => file !== path && !inSet(graph, file) && !within.has(file))
+}
+
+/**
+ * Decides the probed region files: the greatest set of them (and of the region files they reach
+ * whose every importer is in the set or the region) whose importers are all in the set or in it,
+ * and joins it. A region file with an importer outside both (a shared package, or a dynamic file
+ * outside the set that could load it, `dynamicLoaders`) is dropped, and so is what only reaches the
+ * set through a dropped one. The rest joins: a cycle below a per-file package too, which no
+ * least fixed point admits. Each settle touches only the probed files and what they reach, and an
+ * edge between two files outside the set and the region probes nothing.
+ */
+function joinProbed(
+  graph: PerFileGraph,
+  keep: (path: string) => boolean,
+  refusals: DynamicRefusal[],
+): void {
+  while (graph.probes.size > 0) {
+    const area = new Set<string>()
+    const stack: string[] = []
+    for (const probe of graph.probes) {
+      if (graph.region.has(probe) && sharedImporters(graph, probe) === 0) stack.push(probe)
+    }
+    graph.probes.clear()
+    while (stack.length > 0) {
+      const current = stack.pop()
+      if (current === undefined || area.has(current)) continue
+      area.add(current)
+      for (const target of graph.edges.get(current) ?? NO_TARGETS) {
+        if (graph.region.has(target) && sharedImporters(graph, target) === 0) stack.push(target)
+      }
+    }
+    if (area.size === 0) return
+    // Per file of the area: its importers outside the set and the area (in the region, dropped).
+    const outside = new Map<string, number>()
+    for (const file of area) outside.set(file, importersOf(graph, file).inRegion)
+    for (const file of area) {
+      for (const target of graph.edges.get(file) ?? NO_TARGETS) {
+        const count = outside.get(target)
+        if (count !== undefined) outside.set(target, count - 1)
+      }
+    }
+    const dropped = new Set<string>()
+    const drop: string[] = []
+    for (const file of area) {
+      const loaders = dynamicLoaders(graph, file, area)
+      const first = loaders[0]
+      if (first !== undefined) {
+        if ((outside.get(file) ?? 0) === 0) refusals.push({ target: file, dynamic: first })
+        outside.set(file, (outside.get(file) ?? 0) + loaders.length)
+      }
+      if ((outside.get(file) ?? 0) > 0) drop.push(file)
+    }
+    while (drop.length > 0) {
+      const file = drop.pop()
+      if (file === undefined || dropped.has(file)) continue
+      dropped.add(file)
+      for (const target of graph.edges.get(file) ?? NO_TARGETS) {
+        if (!area.has(target) || dropped.has(target)) continue
+        outside.set(target, (outside.get(target) ?? 0) + 1)
+        drop.push(target)
+      }
+      const bound = graph.dynamic.get(file)
+      if (bound === undefined) continue
+      for (const target of area) {
+        const name = packageNameOf(target)
+        if (target !== file && !dropped.has(target) && name !== null && bound.has(name)) {
+          refusals.push({ target, dynamic: file })
+          drop.push(target)
+        }
+      }
+    }
+    for (const file of area) {
+      if (!dropped.has(file)) joinSet(graph, file, !graph.answered, keep)
+    }
+  }
+}
+
+/**
+ * Settles the set before `evaluatedPerFile` answers for `path`: when the seeds grew, indexes what
+ * the worker loaded natively (so a shared importer an earlier file loaded counts) and the new
+ * seeds, and puts them in the set; indexes `path`; then decides what the changes probed
+ * (`joinProbed`). `index` indexes a file's closure (`indexClosure` in `inline.ts`). Returns the
+ * joins a dynamic file refused, for the caller to report.
+ */
+export function settlePerFile(
+  state: ReevaluateState,
+  sources: PerFileSources,
+  index: (path: string) => void,
+  path: string,
+): readonly DynamicRefusal[] {
+  const graph = state.perFile
+  const { active } = state
+  const { claimed, keep } = sources
+  if (graph.primedActive !== active.size || graph.primedClaimed !== claimed.length) {
+    for (const loaded of sources.loaded.keys()) if (inGraph(loaded)) index(loaded)
+    let at = 0
+    for (const seed of active) {
+      if (at++ < graph.primedActive) continue
+      index(seed)
+      joinSet(graph, seed, !graph.answered, keep)
+    }
+    for (let next = graph.primedClaimed; next < claimed.length; next++) {
+      const seed = claimed[next]
+      if (seed === undefined) continue
+      index(seed)
+      joinSet(graph, seed, !graph.answered, keep)
+    }
+    graph.primedActive = active.size
+    graph.primedClaimed = claimed.length
+  }
+  index(path)
+  if (graph.probes.size === 0) return NO_REFUSALS
+  const refusals: DynamicRefusal[] = []
+  joinProbed(graph, keep, refusals)
+  return refusals.length === 0 ? NO_REFUSALS : refusals
+}
+
+/** Makes what joined the set while the last file ran a member: called as a file's registry is created. */
+function promotePerFile(graph: PerFileGraph): void {
+  graph.answered = false
+  if (graph.pending.size === 0) return
+  for (const path of graph.pending) graph.members.add(path)
+  graph.pending.clear()
 }
 
 export function createReevaluateState(): ReevaluateState {
@@ -229,8 +496,12 @@ export function watchedLoad<T>(
   }
 }
 
-/** Makes what the last file learned active: called as a file's registry is created. */
+/**
+ * Makes what the last file learned active, and what joined the per-file set while it ran a member:
+ * called as a file's registry is created.
+ */
 export function promoteLearned(state: ReevaluateState): void {
+  promotePerFile(state.perFile)
   if (state.pending.size === 0) return
   activate(state, state.pending)
   state.pending.clear()
