@@ -1,0 +1,11 @@
+{
+  "description": "Jest 30.5.2's outcome for an error the code never handles while a file runs, one file per timing, in band: a timer that throws while its test still runs, a timer that throws after its test ended (while the next test runs, during a later describe's beforeAll, during the file's afterAll), a rejection nobody handles while its test runs and one made after it ended, and a timer no test owns (scheduled at module scope). Kept: every stderr line that is not a stack frame, a code frame, a test list line (those carry durations), a time, a count line or runner noise. A black-box run, read by `provino`'s `jest-uncaught.test.ts`.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["--useStderr"] },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(?!\\s+at )(?!ERROR: failed)(?!\\(node:)(?!\\(Use )(?!\\s+[✓✕○])(?!\\s+later$)(?!\\s+>?\\s*\\d+ \\|)(?!\\s+\\| +\\^)(?!Time:)(?!Ran all)(?!Test Suites:)(?!Tests:)(?!Snapshots:)(?!Test results)(?!\\s*$)",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

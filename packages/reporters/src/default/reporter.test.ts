@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import type { ReportPolicy, SerializedError } from '@provino/types'
+import type {
+  FileInfo,
+  ReportPolicy,
+  RuntimeEventOf,
+  SerializedError,
+  TaskId,
+} from '@provino/types'
 import { createReporterBus } from '../bus.ts'
 import {
   buildFile,
@@ -518,6 +524,77 @@ describe('the default reporter: an error charged to a test after it ended', () =
     assert.match(text, /^FAIL \.\/late\.test\.ts$/m)
     assert.match(text, /owner\n[\s\S]*LATE BOOM/)
     assert.match(text, /Tests:\s+1 failed, 1 passed, 2 total/)
+  })
+
+  /**
+   * `late.test.ts`, one test (`owner`), failed, under the default reporter (`given`: with a
+   * dialect's failure text, which holds every error the file's record has): its test ends, then each
+   * error of `late(owner, file)` is reported to the file (`null`: to the run), then the file and the
+   * run end, the run's summary holding every one of those errors, the same objects, as the
+   * orchestrator's does. Returns the text.
+   */
+  async function playLate(
+    given: boolean,
+    late: (
+      owner: TaskId,
+      file: FileInfo,
+    ) => readonly (readonly [FileInfo | null, RuntimeEventOf<'unhandled-error'>])[],
+  ): Promise<string> {
+    const file = buildFile({ path: 'late.test.ts', state: 'fail', tests: [{ path: ['owner'] }] })
+    const out = output()
+    const bus = createReporterBus([
+      defaultReporter({
+        stream: out,
+        report: NEUTRAL_REPORT,
+        ...(given ? { failureText: () => [{ text: '  ● dialect text\n' }] } : {}),
+      }),
+    ])
+    await bus.emit('run:start', { root: '/project', projects: [''], startTime: 0, watch: false }, [
+      file.info,
+    ])
+    await bus.emit('file:collected', file.info, collectedEvent(file))
+    for (const { task, spec } of file.tests) {
+      await bus.emit('task:end', task, testEndEvent(task, resultOf(spec)))
+    }
+    const [owner] = file.tests
+    assert.ok(owner !== undefined)
+    const events = late(owner.task.id, file.info)
+    for (const [to, event] of events) await bus.emit('unhandled', to, event)
+    await bus.emit('file:end', file.result)
+    await bus.emit('run:end', {
+      reason: 'failed',
+      files: [file.result],
+      unhandled: events.map(([, event]) => event.error),
+      durationMs: 1,
+    })
+    return out.text()
+  }
+
+  test('does not print it again at the end, where the errors no file showed still go', async () => {
+    for (const given of [false, true]) {
+      const text = await playLate(given, (owner, file) => [
+        [file, unhandledEvent(error('LATE BOOM'), owner)],
+        [file, unhandledEvent(error('FILE BOOM'), file.fileId)],
+        [null, unhandledEvent(error('RUN BOOM'), null)],
+      ])
+      const unhandledBlocks = text.split('Unhandled error').length - 1
+      assert.equal((text.match(/LATE BOOM/g) ?? []).length, given ? 0 : 1, `given ${given}`)
+      assert.match(text, /RUN BOOM/)
+      // The neutral text has no place in the file for the file's own late errors; a dialect's has.
+      assert.equal(unhandledBlocks, given ? 1 : 2, `given ${given}`)
+    }
+  })
+
+  test('prints at the end an error charged to another file’s task that reached this file', async () => {
+    // A timer of an earlier file's test, reported while this file ran: neither text shows it under
+    // the file, so it is the run's.
+    for (const given of [false, true]) {
+      const text = await playLate(given, (_owner, file) => [
+        [file, unhandledEvent(error('OTHER FILE BOOM'), taskId('other.test.ts > elsewhere'))],
+      ])
+      assert.equal((text.match(/OTHER FILE BOOM/g) ?? []).length, 1, `given ${given}`)
+      assert.match(text, /Unhandled error[\s\S]*OTHER FILE BOOM/, `given ${given}`)
+    }
   })
 
   test('adds to a test that already failed, and leaves another test`s count alone', async () => {

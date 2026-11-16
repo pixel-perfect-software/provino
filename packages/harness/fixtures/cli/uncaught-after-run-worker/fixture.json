@@ -1,0 +1,11 @@
+{
+  "description": "`cli/uncaught-after-run` in a Jest worker (`maxWorkers: 1` with a `workerIdleMemoryLimit`, so Jest 30.5.2 uses a worker process): the rejection the last test leaves kills the worker after circus has torn its handlers down, jest-worker runs the file again in a new one, which dies the same way, and after 4 the file fails to run with `Jest worker encountered 4 child process exceptions, exceeding retry limit` (its `testExecError`, no test result), exit 1. Kept: the `PASS`/`FAIL` headers, the `●` titles, the `Error:` lines, the worker's limit and the test count. A black-box run, read by `provino`'s `jest-uncaught.test.ts`, which declares Provino's difference (it fails the test, exit 1).",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1, "workerIdleMemoryLimit": "1GB" } },
+  "run": {
+    "argv": { "jest": ["--useStderr"] },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^\\s*● |^Error: |child process exceptions|^Tests:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

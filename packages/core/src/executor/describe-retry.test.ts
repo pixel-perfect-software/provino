@@ -452,6 +452,44 @@ describe('describe retry', () => {
     assert.equal(run.file.state, 'fail')
   })
 
+  test('a rejection no test or hook made during an attempt ends the retries, even when it is handled later', async () => {
+    // circus raises `processErrorGeneration` as such a rejection is reported (`eventHandler.ts`,
+    // `case 'error'`), not when it is charged at `run_finish` (`cli/retry-entire-describe-unowned-rejection`).
+    for (const handledLater of [false, true]) {
+      const process = new EventEmitter()
+      const { promise: started, resolve: start } = Promise.withResolvers<void>()
+      const { promise: reported, resolve: report } = Promise.withResolvers<void>()
+      let calls = 0
+      const run = await runScript(({ describe }, step, runtime) => {
+        runtime.captureProcessErrors(process)
+        // Registered at the file's scope, so the reaction runs in no test's or hook's context.
+        void started.then(() => {
+          const rejected = Promise.resolve()
+          process.emit('unhandledRejection', new Error('nobody owns it'), rejected)
+          if (handledLater) process.emit('rejectionHandled', rejected)
+          report()
+        })
+        describe('block', () => {
+          runtime.setDescribeRetry(retry(2))
+          runtime.api.test('a', async () => {
+            calls++
+            step(`a#${calls}`)
+            if (calls === 1) {
+              start()
+              await reported
+              throw new Error('a fail 1')
+            }
+          })
+        })
+      }, owner)
+      assert.deepEqual(run.trace, ['a#1'], `no retry (handled later: ${handledLater})`)
+      assert.equal(run.states['block > a'], 'fail')
+      const charged = eventsOf(run.events, 'unhandled-error').map((event) => event.error.message)
+      assert.deepEqual(charged, handledLater ? [] : ['nobody owns it'])
+      assert.equal(run.file.state, 'fail')
+    }
+  })
+
   test('a blocked suite inside a retried block starts each task once', async () => {
     const run = await runScript(
       ({ describe }, _step, runtime) => {

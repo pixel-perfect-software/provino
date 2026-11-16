@@ -382,11 +382,17 @@ export async function provinoOn(id: string, options: ProvinoOnOptions = {}): Pro
 
 /** A difference a test accepts, pinned: it fails when either side moves or the two agree. */
 export interface DeclaredDifference {
-  /** What the golden holds (the recording still has to say this). */
+  /** What the golden holds (the recording still has to say this), read through `view`. */
   readonly golden: unknown
-  /** What Provino gives (it still has to give this). */
+  /** What Provino gives (it still has to give this), read through `view`. */
   readonly provino: unknown
   readonly reason: string
+  /**
+   * The part of a capture the pins are about (default: all of it), for a capture too large to write
+   * out whole, such as a results file: both sides are read through it, and what it leaves out is
+   * not compared.
+   */
+  readonly view?: (capture: unknown) => unknown
 }
 
 /**
@@ -416,13 +422,22 @@ export function assertMatchesGolden(
       assert.deepEqual(provino, golden, `${id}: ${key} differs from Jest's`)
       return
     }
+    const view = entry.view ?? ((capture: unknown): unknown => capture)
     assert.deepEqual(
-      golden,
+      view(golden),
       entry.golden,
       `${id}: ${key}: the golden is no longer what is declared`,
     )
-    assert.deepEqual(provino, entry.provino, `${id}: ${key}: Provino gives something else now`)
-    assert.notDeepEqual(provino, golden, `${id}: ${key}: the declared difference is gone`)
+    assert.deepEqual(
+      view(provino),
+      entry.provino,
+      `${id}: ${key}: Provino gives something else now`,
+    )
+    assert.notDeepEqual(
+      view(provino),
+      view(golden),
+      `${id}: ${key}: the declared difference is gone`,
+    )
   }
   for (const entry of spec.capture) {
     const file = entry.slice(entry.indexOf(':') + 1)

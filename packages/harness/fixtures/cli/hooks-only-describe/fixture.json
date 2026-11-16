@@ -1,0 +1,11 @@
+{
+  "description": "Jest 30.5.2's text for a describe that holds only hooks beside a test: the test runs, and the file fails with one `Invalid: <hook>() may not be used in a describe block containing no tests.` per hook under `Test suite failed to run`, with no class name before it. Kept: every stderr line that is not a stack frame, a code frame, a test list line (those carry durations), a time, a count line or runner noise. A black-box run, read by `provino`'s `jest-uncaught.test.ts`.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["--useStderr"] },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(?!\\s+at )(?!ERROR: failed)(?!\\(node:)(?!\\(Use )(?!\\s+[✓✕○])(?!\\s+hooks without tests$)(?!\\s+>?\\s*\\d+ \\|)(?!\\s+\\| +\\^)(?!Time:)(?!Ran all)(?!Test Suites:)(?!Tests:)(?!Snapshots:)(?!Test results)(?!\\s*$)",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

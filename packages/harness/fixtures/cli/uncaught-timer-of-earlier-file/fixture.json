@@ -1,0 +1,11 @@
+{
+  "description": "Jest 30.5.2 in band (`-i`), two files: the first file's test leaves a timer that throws 200 ms later, while the second file's first test awaits 800 ms. jest-circus is loaded once per file, so the second file's handlers hear the throw with no test context of theirs set, and it is that file's `state.unhandledErrors`: the second file fails with `Test suite failed to run` and the error (its `testExecError`), next to its own failing test, and the first stays passed. Kept: every stderr line that is not a stack frame, a code frame, a test list line, a time, a count line or runner noise. A black-box run, read by `provino`'s `jest-uncaught.test.ts`.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1 } },
+  "run": {
+    "argv": { "jest": ["-i", "--useStderr"] },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(?!\\s+at )(?!ERROR: failed)(?!\\(node:)(?!\\(Use )(?!\\s+[✓✕○])(?!\\s+>?\\s*\\d+ \\|)(?!\\s+\\| +\\^)(?!Time:)(?!Ran all)(?!Test Suites:)(?!Snapshots:)(?!Test results)(?!\\s*$)",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

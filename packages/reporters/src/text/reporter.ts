@@ -84,7 +84,10 @@ export interface TextReporterOptions {
   /**
    * Text printed in place of Provino's own failure blocks for a file that failed (`undefined`:
    * the blocks). A dialect that has its own failure text for a file passes it here, one block per
-   * failed test so each test's lazy values (T6.10) can follow its own block.
+   * failed test so each test's lazy values (T6.10) can follow its own block. The text must contain
+   * every unhandled error the file's record holds (those charged to the file, to one of its tasks,
+   * or to one of its tests after it ended): the reporter counts them as shown and doesn't print
+   * them again at the run's end.
    */
   readonly failureText?: (file: FileResult) => readonly FailureTextBlock[] | undefined
   /**
@@ -224,6 +227,11 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
   const failedTexts: string[] = []
   let lastFailed = false
   let runtimeErrors = 0
+  /**
+   * The unhandled errors a file's text showed (under the test they were charged to, or in the
+   * dialect's failure text, which holds every error of the file): `run:end` doesn't print them again.
+   */
+  const shown = new WeakSet<SerializedError>()
 
   async function print(text: string): Promise<void> {
     atBlank = text.endsWith('\n')
@@ -254,6 +262,10 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       failed.push({ title: testTitle(report, path), errors })
     }
     return failed
+  }
+
+  function markShown(errors: readonly SerializedError[]): void {
+    for (const error of errors) shown.add(error)
   }
 
   /** What a file prints, or `undefined` for none (a skipped file; a passing one under `agent`). */
@@ -304,6 +316,8 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
     }
     const given = result.state === 'fail' ? options.failureText?.(result) : undefined
     if (given !== undefined) {
+      for (const errors of entry?.late.values() ?? []) markShown(errors)
+      markShown(entry?.unhandled ?? [])
       const lazies = new Map(failuresOf(entry).map((test) => [test.id, test.lazies]))
       parts.push(
         ...given.map(
@@ -316,6 +330,8 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
       )
     } else if (result.state === 'fail') {
       const failed = failuresOf(entry)
+      // A failed test's errors hold its late ones, the same objects (`outcomeOf`).
+      for (const test of failed) markShown(test.errors)
       parts.push(
         ...failed.map(
           (test) =>
@@ -430,9 +446,9 @@ export function createTextReporter(mode: TextMode, options: TextReporterOptions)
         await print(lead + deferred)
         lead = ''
       }
-      const unhandled = summary.unhandled.map((error) =>
-        failureBlock(report, 'Unhandled error', [error], style, stackTrace),
-      )
+      const unhandled = summary.unhandled
+        .filter((error) => !shown.has(error))
+        .map((error) => failureBlock(report, 'Unhandled error', [error], style, stackTrace))
       const totals = options.summary !== false
       const obsolete = obsoleteBlock(summary.snapshots)
       const parts = [

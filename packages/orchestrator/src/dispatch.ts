@@ -24,8 +24,17 @@ import { OrchestratorError } from './errors.ts'
 export interface FileDispatch {
   /** Hands one pack's events to the bus, in order. Rejects with `ORCH_BAD_EVENT` for an event it can't place. */
   handle(events: readonly WorkerEvent[]): Promise<void>
-  /** The file's `file-end` result; `undefined` until that event has arrived. */
+  /**
+   * The result the worker's `file-end` carried, as it sent it (`failedAfterEnd` is the one thing
+   * that changes it later); `undefined` until that event has arrived.
+   */
   readonly result: TaskResult | undefined
+  /**
+   * An unhandled error was charged to the file or one of its tasks after its `file-end` (in the
+   * worker's last turn before `fileDone`, when Node reports what the last test left): a turn earlier
+   * the runtime would have failed the file for it, so a file that ended `pass` fails.
+   */
+  readonly failedAfterEnd: boolean
   /** How many tests the file collected (`file-collect-end`). */
   readonly tests: number
   /**
@@ -56,7 +65,11 @@ export interface FileDispatchOptions {
   readonly onUnhandled: (error: SerializedError) => void
   /** Called with each `coverage` event of the file (B23b); without it they are dropped. */
   readonly onCoverage?: (event: CoverageEvent) => void
-  /** Called after each test of the file ends as `fail`, once reporters have heard of it. */
+  /**
+   * Called once for each test of the file that fails, once reporters have heard of it: at its
+   * `test-end` as `fail`, or when an unhandled error is charged to it after it ended, which fails it
+   * (Jest's `--bail` counts `numFailedTests`, which circus's late `test.errors` add to).
+   */
   readonly onTestFailed?: () => void
   /**
    * The table of the worker running the file, which outlives the file (a worker's `deps` events
@@ -86,6 +99,9 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
   let result: TaskResult | undefined
   let tests = 0
   let runnerFailed = false
+  let failedAfterEnd = false
+  /** The tests `onTestFailed` was called for, so a test is counted once. */
+  const failedTests = new Set<TaskId>()
   let deps: readonly string[] | undefined
   /** The table of a file run on its own: no worker's earlier files to share ids with. */
   const ownTable = createDepsTable()
@@ -118,6 +134,12 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
     return found
   }
 
+  function failed(testId: TaskId): void {
+    if (failedTests.has(testId)) return
+    failedTests.add(testId)
+    onTestFailed?.()
+  }
+
   async function dispatch(event: WorkerEvent): Promise<void> {
     switch (event.type) {
       case 'file-collect-start':
@@ -145,7 +167,7 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
         return await bus.emit('task:end', suiteOrTest(event, event.id), event)
       case 'test-end': {
         await bus.emit('task:end', suiteOrTest(event, event.id), event)
-        if (event.result.state === 'fail') onTestFailed?.()
+        if (event.result.state === 'fail') failed(event.id)
         else if (event.result.state === 'todo') todo++
         else if (event.result.state === 'skip') skipped++
         return
@@ -158,11 +180,18 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
         return await bus.emit('annotation', test(event, event.testId), event)
       case 'console':
         return await bus.emit('console', file, event)
-      case 'unhandled-error':
+      case 'unhandled-error': {
         onUnhandled(event.error)
         if (event.origin === 'runner') runnerFailed = true
+        const { ownerId } = event
+        const ours = ownerId !== null && (ownerId === file.fileId || nodes.has(ownerId))
+        if (result !== undefined && ours) failedAfterEnd = true
         // An error charged to the run, not to a task, belongs to no file.
-        return await bus.emit('unhandled', event.ownerId === null ? null : file, event)
+        await bus.emit('unhandled', ownerId === null ? null : file, event)
+        // Charged to one of the file's tests: that test fails, once reporters have heard of it.
+        if (ownerId !== null && nodes.get(ownerId)?.type === 'test') failed(ownerId)
+        return
+      }
       case 'file-end':
         result = event.result
         return
@@ -183,6 +212,9 @@ export function createFileDispatch(options: FileDispatchOptions): FileDispatch {
     },
     get runnerFailed() {
       return runnerFailed
+    },
+    get failedAfterEnd() {
+      return failedAfterEnd
     },
     get deps() {
       return deps
