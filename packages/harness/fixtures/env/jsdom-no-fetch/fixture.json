@@ -1,0 +1,24 @@
+{
+  "description": "Whether a test on jest-environment-jsdom has Node's fetch API, and whether a package that looks for `fetch` as it loads finds it (as @iconify/react does, which then loads its icons over the network, with replies that can come after the window closed). Each test's title holds what its file saw. `window.test.ts` is a jsdom file; `node.test.ts` is a node file through its docblock. Jest's window has no `fetch`, `Request`, `Response` or `Headers`; a node file has all four.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "packages": {
+    "icon-loader": {
+      "package.json": "{ \"name\": \"icon-loader\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "// Looks for fetch as it loads: with one, icons load over the network.\nconst api = typeof fetch === 'function' ? fetch : undefined\nexports.loadsOverNetwork = api !== undefined\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^    [A-Z]",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

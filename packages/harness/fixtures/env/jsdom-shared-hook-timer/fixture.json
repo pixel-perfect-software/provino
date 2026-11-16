@@ -1,0 +1,28 @@
+{
+  "description": "A timer a shared package sets from a hook another package registered as it loaded, on jest-environment-jsdom with one worker. `auto-cleanup` registers an `afterEach` that unmounts what a test mounted, as @testing-library/react's auto cleanup does; `deferred-destroy`'s unmount destroys the view on a later tick with a timer that reads `window`, as @tiptap/react's does. `unmounts` (the largest, so first) mounts a view and ends with the timer pending; `waits` (a node file, the smallest, so last) waits while it comes due. Jest passes both: the timer is the window's, and `window.close()` cancels it.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "packages": {
+    "auto-cleanup": {
+      "package.json": "{ \"name\": \"auto-cleanup\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "// Unmounts what a test mounted, from a hook it registers as it loads.\nconst mounted = new Set()\nexports.mount = (view) => {\n  mounted.add(view)\n  return view\n}\nafterEach(() => {\n  for (const view of mounted) view.unmount()\n  mounted.clear()\n})\n"
+    },
+    "deferred-destroy": {
+      "package.json": "{ \"name\": \"deferred-destroy\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "// A view that listens on the window and is destroyed on a later tick once unmounted.\nexports.createView = () => {\n  const onDrag = () => {}\n  window.addEventListener('dragstart', onDrag)\n  return {\n    unmount() {\n      setTimeout(() => {\n        window.removeEventListener('dragstart', onDrag)\n      }, 50)\n    },\n  }\n}\n"
+    }
+  },
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^    [A-Z]",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
