@@ -29,6 +29,7 @@ import { commitAll, git, gitEnv, initRepo } from './hermetic-git.ts'
 import type { Json } from './mask.ts'
 import { normalizedJson } from './mask.ts'
 import { type Materialized, materialize, type RecordedFixture } from './recorded.ts'
+import { replayEnv } from './recorded-run.ts'
 import { CLI, outputFree } from './support.ts'
 
 const HARNESS = new URL('../../harness/src/', import.meta.url)
@@ -78,9 +79,16 @@ interface Harness {
       readonly session: Session
       waitRuns(count: number): Promise<void>
       change(step: ScmStep): Promise<void>
-      captureFile(file: string): Promise<void>
+      captureFile(file: string, key: string): Promise<Json>
     },
-  ): Promise<{ readonly runs: number; readonly exit?: PtyExit }>
+  ): Promise<{
+    readonly runs: number
+    readonly exit?: PtyExit
+    readonly captures: Readonly<Record<string, Json>>
+  }>
+  /** What Jest prints, once per run, after it has written `--outputFile`. */
+  readonly RESULTS_WRITTEN: string
+  watchEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv
   renderTranscript(output: string): string
   maskTimes(text: string): string
   spawnPty(
@@ -95,13 +103,16 @@ interface Harness {
 }
 
 async function harness(): Promise<Harness> {
-  const [steps, transcript, pty] = await Promise.all([
+  const [steps, transcript, record, pty] = await Promise.all([
     import(new URL('internal/watch-steps.ts', HARNESS).href),
     import(new URL('internal/watch-transcript.ts', HARNESS).href),
+    import(new URL('internal/watch-record.ts', HARNESS).href),
     import(new URL('pty.ts', HARNESS).href),
   ])
   return {
     runWatchSteps: steps.runWatchSteps,
+    RESULTS_WRITTEN: steps.RESULTS_WRITTEN,
+    watchEnv: record.watchEnv,
     renderTranscript: transcript.renderTranscript,
     maskTimes: transcript.maskTimes,
     spawnPty: pty.spawnPty,
@@ -110,6 +121,9 @@ async function harness(): Promise<Harness> {
   }
 }
 const H = await harness()
+
+/** What Jest prints, once per run, after it has written `--outputFile` (the harness's own). */
+export const RESULTS_WRITTEN: string = H.RESULTS_WRITTEN
 
 /** `runJestCommand`'s inputs that these tests give (the type-test project leaves `src/` out). */
 interface JestCommandIo {
@@ -175,8 +189,6 @@ export interface WatchObserved {
 /** The recorder's deadline for a whole session. */
 export const SESSION_MS = 120_000
 const POLL_MS = 25
-/** What Jest prints once per run, after it has written `--outputFile`. */
-const RESULTS_WRITTEN = 'Test results written to'
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -245,6 +257,8 @@ const PACKAGE_MODULES = fileURLToPath(new URL('../node_modules/', import.meta.ur
 export interface PlayOptions {
   /** Packages linked into the project's `node_modules` from this package's. */
   readonly link?: readonly string[]
+  /** Names what differs in a captured results file, ahead of the whole-file comparison. */
+  readonly compareCapture?: CaptureComparator
 }
 
 /** One `scm`, `write` or `remove` step; returns the paths it wrote or removed. */
@@ -320,7 +334,7 @@ async function observe(
   runLog: string,
   output: string,
   exitCode: number | null | undefined,
-  captures: readonly Capture[] = [],
+  json: Readonly<Record<string, Json>> = {},
 ): Promise<WatchObserved> {
   const { watch } = manifest
   const rooted = (text: string): string => text.replaceAll(root, '<root>')
@@ -341,42 +355,46 @@ async function observe(
     }
     transcript = lines.join('\n')
   }
-  const counts = new Map<string, number>()
-  const json = Object.fromEntries(
-    captures.map(({ file, text }) => {
-      const count = (counts.get(file) ?? 0) + 1
-      counts.set(file, count)
-      return [
-        `${file}#${count}`,
-        normalizedJson(JSON.parse(text) as Json, {
-          roots: [root],
-          timeKeys: watch.timeKeys ?? [],
-          maskKeys: watch.maskKeys ?? [],
-          mask: watch.mask ?? [],
-        }),
-      ]
-    }),
-  )
   return {
     ...(captured('exitCode') ? { exitCode: exitCode ?? null } : {}),
-    ...(captures.length === 0 ? {} : { json }),
+    ...(Object.keys(json).length === 0 ? {} : { json }),
     ...(captured('runs') ? { runs } : {}),
     ...(transcript === undefined ? {} : { transcript }),
   }
 }
 
-/** What a `captureFile` step read: the file and its text at that point. */
-interface Capture {
-  readonly file: string
-  readonly text: string
-}
-
 /** The step host's `captureFile`, for a play that has no results file to read. */
-const NO_CAPTURE = async (): Promise<void> => {
-  throw new Error('a captureFile step needs playPiped')
+const NO_CAPTURE = async (): Promise<never> => {
+  throw new Error('a captureFile step needs a play on the bin (playOnTerminal, playPiped)')
 }
 
-function assertObserved(actual: WatchObserved, fixture: RecordedFixture): void {
+/** What a `captureFile` step reads: the file, parsed, as the golden keeps it (roots, times, masks). */
+function captureReader(manifest: WatchManifest, root: string): (file: string) => Promise<Json> {
+  const { watch } = manifest
+  return async (file) =>
+    normalizedJson(JSON.parse(await readFile(join(root, file), 'utf8')) as Json, {
+      roots: [root],
+      timeKeys: watch.timeKeys ?? [],
+      maskKeys: watch.maskKeys ?? [],
+      mask: watch.mask ?? [],
+    })
+}
+
+/**
+ * Compares one captured results file with the golden's and says what differs. It runs before the
+ * whole-file comparison, which stays: a difference it does not name still fails there.
+ */
+export type CaptureComparator = (
+  key: string,
+  actual: Json | null | undefined,
+  expected: Json | null,
+) => void
+
+function assertObserved(
+  actual: WatchObserved,
+  fixture: RecordedFixture,
+  compareCapture?: CaptureComparator,
+): void {
   const expected = (fixture.golden.observed ?? {}) as WatchObserved
   if (expected.runs !== undefined) assert.deepEqual(actual.runs, expected.runs, 'the run log')
   if (expected.transcript !== undefined) {
@@ -389,6 +407,7 @@ function assertObserved(actual: WatchObserved, fixture: RecordedFixture): void {
       'the captured files',
     )
     for (const [key, value] of Object.entries(expected.json)) {
+      compareCapture?.(key, actual.json?.[key], value)
       assert.deepEqual(actual.json?.[key], value, `the results file, ${key}`)
     }
   }
@@ -609,83 +628,76 @@ function terminalEnv(root: string): NodeJS.ProcessEnv {
 }
 
 /**
+ * Runs a play, then its cleanup, whatever the play did. The play's own error is the one thrown;
+ * a cleanup that fails after a play that passed is thrown in its place.
+ */
+export async function guarded<T>(play: () => Promise<T>, end: () => Promise<void>): Promise<T> {
+  let value: T
+  try {
+    value = await play()
+  } catch (error) {
+    await end().catch(() => undefined)
+    throw error
+  }
+  await end()
+  return value
+}
+
+/**
  * Ends a session whatever happened: kills it, checks that its two process groups are gone, and
- * always disposes of the project. Every step runs; the first error is the one that is thrown.
+ * always disposes of the project. The first error is the one that is thrown.
  */
 export async function endSession(
   session: PtyProcess | undefined,
   dispose: () => Promise<void>,
   groupGone: (pgid: number) => boolean = (pgid) => !H.groupExists(pgid),
 ): Promise<void> {
-  let failure: { readonly error: unknown } | undefined
-  const attempt = async (step: () => void | Promise<void>): Promise<void> => {
-    try {
-      await step()
-    } catch (error) {
-      failure ??= { error }
-    }
-  }
-  if (session !== undefined) {
-    await attempt(() => session.kill())
-    await attempt(() => {
-      assert.equal(groupGone(session.childPgid), true, 'the bin group is gone')
-      assert.equal(groupGone(session.relayPgid), true, 'the relay group is gone')
-    })
-  }
-  await attempt(dispose)
-  if (failure !== undefined) throw failure.error
+  await guarded(async () => {
+    if (session === undefined) return
+    await session.kill()
+    assert.equal(groupGone(session.childPgid), true, 'the bin group is gone')
+    assert.equal(groupGone(session.relayPgid), true, 'the relay group is gone')
+  }, dispose)
 }
 
-/** Runs a play, then ends its session; the play's own error is thrown before the cleanup's. */
-export async function guarded<T>(play: () => Promise<T>, end: () => Promise<void>): Promise<T> {
-  let failure: { readonly error: unknown } | undefined
-  let value: T | undefined
-  try {
-    value = await play()
-  } catch (error) {
-    failure = { error }
-  }
-  try {
-    await end()
-  } catch (error) {
-    failure ??= { error }
-  }
-  if (failure !== undefined) throw failure.error
-  return value as T
+/** How a session on the bin is started. */
+interface SessionKind {
+  /** `spawnPty` (a terminal from the pty relay) or `spawnPiped` (a pipe, an editor's child). */
+  readonly spawn: Harness['spawnPty']
+  readonly argv: readonly string[]
+  readonly env: NodeJS.ProcessEnv
+  /**
+   * A terminal: a run is over once the driver has drawn its usage after the last key or change.
+   * On a pipe the run log alone says so.
+   */
+  readonly interactive: boolean
 }
 
-/** Plays a fixture against the bin on a terminal from the pty relay, with the real watcher. */
-export async function playOnTerminal(
+/**
+ * Plays a fixture's steps against a session on the bin, with the real watcher, in a process group
+ * of its own that is killed and probed whatever happens. The whole session has one budget,
+ * `SESSION_MS`, which ends in an ordinary error with the output's tail. A `captureFile` step reads
+ * its results file once the harness's steps have seen Jest say it wrote it.
+ */
+async function playSession(
   fixture: RecordedFixture,
-  options: PlayOptions = {},
-): Promise<void> {
-  const { manifest, project, root, configFile, runLog } = await prepare(fixture, options)
+  prepared: Prepared,
+  kind: SessionKind,
+  compareCapture?: CaptureComparator,
+): Promise<WatchObserved> {
+  const { manifest, project, root, runLog } = prepared
   const deadline = AbortSignal.timeout(SESSION_MS)
+  const until = Date.now() + SESSION_MS
   let pty: PtyProcess | undefined
-  await guarded(
+  return guarded(
     async () => {
-      pty = await H.spawnPty(
-        [
-          process.execPath,
-          '--conditions=provino-source',
-          CLI,
-          'jest',
-          '--config',
-          configFile,
-          ...manifest.watch.argv,
-        ],
-        { cwd: root, env: terminalEnv(root), deadline },
-      )
-      const live = pty
+      const live = await kind.spawn(kind.argv, { cwd: root, env: kind.env, deadline })
+      pty = live
       let ended = false
-      void live.exit.then(
-        () => {
-          ended = true
-        },
-        () => {
-          ended = true
-        },
-      )
+      const end = (): void => {
+        ended = true
+      }
+      void live.exit.then(end, end)
       let mark = 0
       const session: Session = {
         write: (text) => {
@@ -698,122 +710,17 @@ export async function playOnTerminal(
       }
       const result = await H.runWatchSteps(manifest.watch.steps, {
         session,
-        captureFile: NO_CAPTURE,
+        captureFile: captureReader(manifest, root),
         waitRuns: runWaiter({
           runLog,
           session,
-          interactive: true,
+          interactive: kind.interactive,
           mark: () => mark,
           ended: () => ended,
+          until,
         }),
         change: async (step) => {
           mark = live.output().length
-          await applyStep(root, step)
-        },
-      })
-      assertObserved(
-        await observe(manifest, root, runLog, live.output(), result.exit?.exitCode),
-        fixture,
-      )
-    },
-    () => endSession(pty, () => project.dispose()),
-  )
-}
-
-/**
- * The environment of an editor's child as the recorder gives it (`record.ts`: the base, the
- * fixture's `env` with each `null` removed, then `watchEnv`): not a CI run, a terminal type that is
- * not `dumb`, and `FORCE_COLOR=0`. Jest's chalk lets that variable override the `--colors` the
- * fixture's argv passes (supports-color 7.2.0, index.js L21-L29, L45), so both runners are plain.
- */
-function pipedEnv(
-  root: string,
-  manifest: WatchManifest & RecordedFixture['manifest'],
-): NodeJS.ProcessEnv {
-  const env = terminalEnv(root)
-  for (const [name, value] of Object.entries(manifest.env ?? {})) {
-    if (value === null) delete env[name]
-    else env[name] = value
-  }
-  env.CI = 'false'
-  env.FORCE_COLOR = '0'
-  return env
-}
-
-/**
- * Plays a `tty: false` fixture against the bin on a pipe in a process group of its own, with the
- * real watcher: an editor's child. An exact session is given the fixture's `argv` as it is, with
- * the run log's reporter added on the command line, as the recorder adds it. A `captureFile` step
- * reads the results file once Jest has said it wrote it (the reporters finish before Jest writes
- * the file): the n-th `Test results written to` line for the n-th capture. The whole session has
- * one budget, `SESSION_MS`, which ends in an ordinary error with the output's tail.
- */
-export async function playPiped(
-  fixture: RecordedFixture,
-  options: PlayOptions = {},
-): Promise<WatchObserved> {
-  const { manifest, project, root, configFile, runLog } = await prepare(fixture, options)
-  const exact = manifest.watch.exact === true
-  assert.equal(manifest.watch.tty, false, 'playPiped plays a fixture with tty: false')
-  const deadline = AbortSignal.timeout(SESSION_MS)
-  const until = Date.now() + SESSION_MS
-  let pty: PtyProcess | undefined
-  return guarded(
-    async () => {
-      pty = await H.spawnPiped(
-        [
-          process.execPath,
-          '--conditions=provino-source',
-          CLI,
-          'jest',
-          ...(exact ? [] : ['--config', configFile]),
-          ...manifest.watch.argv,
-          ...(exact ? ['--reporters', WATCH_LOG_REPORTER] : []),
-        ],
-        { cwd: root, env: { ...pipedEnv(root, manifest), PROVINO_WATCH_LOG: runLog }, deadline },
-      )
-      const live = pty
-      let ended = false
-      void live.exit.then(
-        () => {
-          ended = true
-        },
-        () => {
-          ended = true
-        },
-      )
-      const session: Session = {
-        write: (text) => live.write(text),
-        output: live.output,
-        waitFor: live.waitFor.bind(live),
-        exit: live.exit,
-      }
-      const runs = runWaiter({
-        runLog,
-        session,
-        interactive: false,
-        mark: () => 0,
-        ended: () => ended,
-        until,
-      })
-      const written = (): number => live.output().split(RESULTS_WRITTEN).length - 1
-      const captures: Capture[] = []
-      const result = await H.runWatchSteps(manifest.watch.steps, {
-        session,
-        captureFile: async (file) => {
-          const nth = captures.length + 1
-          while (written() < nth) {
-            if (ended || Date.now() > until) {
-              throw new Error(
-                `${ended ? 'the session ended' : 'the session budget ended'} before Jest wrote results file ${nth} (${file}). Output tail:\n${live.output().slice(-2000)}`,
-              )
-            }
-            await sleep(POLL_MS)
-          }
-          captures.push({ file, text: await readFile(join(root, file), 'utf8') })
-        },
-        waitRuns: runs,
-        change: async (step) => {
           await applyStep(root, step)
         },
       })
@@ -823,11 +730,91 @@ export async function playPiped(
         runLog,
         live.output(),
         result.exit?.exitCode,
-        captures,
+        result.captures,
       )
-      assertObserved(observed, fixture)
+      assertObserved(observed, fixture, compareCapture)
       return observed
     },
     () => endSession(pty, () => project.dispose()),
+  )
+}
+
+/** Plays a fixture against the bin on a terminal from the pty relay, with the real watcher. */
+export async function playOnTerminal(
+  fixture: RecordedFixture,
+  options: PlayOptions = {},
+): Promise<void> {
+  const prepared = await prepare(fixture, options)
+  const { manifest, root, configFile } = prepared
+  await playSession(
+    fixture,
+    prepared,
+    {
+      spawn: H.spawnPty,
+      argv: [
+        process.execPath,
+        '--conditions=provino-source',
+        CLI,
+        'jest',
+        '--config',
+        configFile,
+        ...manifest.watch.argv,
+      ],
+      env: terminalEnv(root),
+      interactive: true,
+    },
+    options.compareCapture,
+  )
+}
+
+/**
+ * The environment of an editor's child as the recorder gives it: the recorder's own
+ * (`replayEnv`: its base with `TZ=UTC` and the locale, the hermetic git, the fixture's `env` with
+ * each `null` removed), then the harness's `watchEnv` (`record.ts` L585-L600, `watch-record.ts`):
+ * not a CI run, a terminal type that is not `dumb`, and `FORCE_COLOR=0`. Jest's chalk lets that
+ * variable override the `--colors` the fixture's argv passes (supports-color 7.2.0, index.js
+ * L21-L29, L45), so both runners are plain.
+ */
+function pipedEnv(
+  root: string,
+  manifest: WatchManifest & RecordedFixture['manifest'],
+): NodeJS.ProcessEnv {
+  return H.watchEnv(replayEnv(manifest, root))
+}
+
+/**
+ * Plays a `tty: false` fixture against the bin on a pipe in a process group of its own, with the
+ * real watcher: an editor's child. An exact session is given the fixture's `argv` as it is, with
+ * the run log's reporter added on the command line, as the recorder adds it. A `captureFile` step
+ * reads the results file once Jest has said it wrote it (the reporters finish before Jest writes
+ * the file): the n-th `Test results written to` line for the n-th capture, which the harness's
+ * steps wait for. `compareCapture` names what differs in each file, ahead of the whole comparison.
+ */
+export async function playPiped(
+  fixture: RecordedFixture,
+  options: PlayOptions = {},
+): Promise<WatchObserved> {
+  const prepared = await prepare(fixture, options)
+  const { manifest, root, configFile, runLog } = prepared
+  const exact = manifest.watch.exact === true
+  assert.equal(manifest.watch.tty, false, 'playPiped plays a fixture with tty: false')
+  return playSession(
+    fixture,
+    prepared,
+    {
+      spawn: H.spawnPiped,
+      argv: [
+        process.execPath,
+        '--conditions=provino-source',
+        CLI,
+        'jest',
+        ...(exact ? [] : ['--config', configFile]),
+        ...manifest.watch.argv,
+        ...(exact ? ['--reporters', WATCH_LOG_REPORTER] : []),
+      ],
+      env: { ...pipedEnv(root, manifest), PROVINO_WATCH_LOG: runLog },
+      interactive: false,
+    },
+    options.compareCapture,
   )
 }

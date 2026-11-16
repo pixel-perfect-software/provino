@@ -14,6 +14,7 @@ import {
   playInProcess,
   playOnTerminal,
   prepare,
+  RESULTS_WRITTEN,
   runJestCommand,
   SESSION_MS,
   terminalSkip,
@@ -141,7 +142,7 @@ describe('provino jest --watchAll --json: the results file of each run (runJest.
         },
       )
       const deadline = Date.now() + SESSION_MS
-      while (!terminal.text.includes('Test results written to')) {
+      while (!terminal.text.includes(RESULTS_WRITTEN)) {
         assert.ok(Date.now() < deadline, `no results file. Output:\n${terminal.text}`)
         await new Promise((resolve) => setTimeout(resolve, 25))
       }

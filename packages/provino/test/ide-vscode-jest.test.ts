@@ -10,7 +10,7 @@ import { describe, it } from 'node:test'
 import type { Json } from './mask.ts'
 import { loadFixture } from './recorded.ts'
 import { assertMatchesGolden, provinoOn, type RecordedRun } from './recorded-run.ts'
-import { playPiped, watcherSkip } from './watch-goldens.ts'
+import { playPiped, RESULTS_WRITTEN, watcherSkip } from './watch-goldens.ts'
 
 const OUT = '.harness-out/jest_runner_ws_0.json'
 const REPORTER = 'vscode-jest-reporter.js'
@@ -120,9 +120,17 @@ describe('assertFields', () => {
   })
 })
 
-async function replay(request: string): Promise<{ id: string; run: RecordedRun }> {
-  const id = `ide/vscode-jest-${request}`
-  return { id, run: await provinoOn(id) }
+/** Each request is replayed once, whichever tests read it. */
+const replays = new Map<string, Promise<{ id: string; run: RecordedRun }>>()
+
+function replay(request: string): Promise<{ id: string; run: RecordedRun }> {
+  let played = replays.get(request)
+  if (played === undefined) {
+    const id = `ide/vscode-jest-${request}`
+    played = provinoOn(id).then((run) => ({ id, run }))
+    replays.set(request, played)
+  }
+  return played
 }
 
 describe('vscode-jest replays (T11.12)', () => {
@@ -149,7 +157,7 @@ describe('vscode-jest replays (T11.12)', () => {
       const { id, run } = await replay(request)
       assertMatchesGolden(id, run)
 
-      const golden = (await loadFixture(id)).golden.observed?.json?.[OUT]
+      const golden = run.fixture.golden.observed?.json?.[OUT]
       const ours = asResults(run.json[OUT], id)
       const theirs = asResults(golden, `${id} golden`)
 
@@ -226,31 +234,28 @@ describe('vscode-jest replays (T11.12)', () => {
  * each run, as vscode-jest reads it on `Test results written to`, and compared with the golden's
  * (the session has no exit code: a piped Jest has no key to quit with, and the editor kills it).
  */
-describe('vscode-jest watch replays (T11.12, B23e Phase 4)', () => {
+describe('vscode-jest watch replays (T11.12, B23e Phase 4)', async () => {
+  const skip = await watcherSkip()
   for (const request of WATCH_REQUESTS) {
     it(`${request}: the run log, the results file after each run and the reporter lines`, {
+      skip,
       timeout: 150_000,
-    }, async (t) => {
-      const skip = await watcherSkip()
-      if (skip !== false) return t.skip(skip)
+    }, async () => {
       const id = `ide/vscode-jest-${request}`
-      const fixture = await loadFixture(id)
-      const golden = fixture.golden.observed
       // `playPiped` holds the run log, the kept reporter lines and each captured results file to
-      // the golden's; what it returns is the replay's own, and the fields vscode-jest reads are
-      // named by `assertFields` over it.
-      const played = await playPiped(fixture)
-      const keys = Object.keys(played.json ?? {})
-      assert.deepEqual(keys, Object.keys(golden?.json ?? {}), `${id}: one results file per run`)
-      assert.equal(keys.length, 2, `${id}: two runs`)
-      for (const key of keys) {
-        const ours = asResults(played.json?.[key], `${id} replay ${key}`)
-        assert.ok(ours.testResults.length > 0, `${key}: no test file`)
-        assertFields(key, ours, asResults(golden?.json?.[key], `${id} golden ${key}`))
-      }
+      // the golden's (the same keys, one per run); `assertFields` names the field of a results
+      // file that moved, ahead of the whole-file comparison.
+      const played = await playPiped(await loadFixture(id), {
+        compareCapture: (key, ours, theirs) => {
+          const results = asResults(ours, `${id} replay ${key}`)
+          assert.ok(results.testResults.length > 0, `${key}: no test file`)
+          assertFields(key, results, asResults(theirs, `${id} golden ${key}`))
+        },
+      })
+      assert.equal(Object.keys(played.json ?? {}).length, 2, `${id}: two runs`)
       const lines = (played.transcript ?? '').split('\n')
       assert.equal(lines.filter((line) => line === 'onRunComplete').length, 2)
-      assert.equal(lines.filter((line) => line.startsWith('Test results written to')).length, 2)
+      assert.equal(lines.filter((line) => line.startsWith(RESULTS_WRITTEN)).length, 2)
     })
   }
 })
