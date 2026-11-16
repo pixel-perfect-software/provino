@@ -131,11 +131,15 @@ describe('which pending timers are the file’s', () => {
   let load: NodeJS.Require
   /** Another of the file's modules, one the registry loads after the file's modules were read. */
   let late: { timer(global: Record<string, unknown>, fn: () => void): unknown; path: string }
-  /** The file's own module: sets a timer, calls the package, hands it a callback. */
+  /**
+   * The file's own module: sets a timer, calls the package, hands it a callback, and sets a timer
+   * whose callback (its own code) calls the function it is given.
+   */
   let user: {
     timer(global: Record<string, unknown>): unknown
     run<A extends unknown[]>(fn: (...args: A) => unknown, ...args: A): unknown
     laterVia(later: typeof shared.later, global: Record<string, unknown>): unknown
+    soon(global: Record<string, unknown>, fn: (global: Record<string, unknown>) => unknown): unknown
     path: string
   }
   /**
@@ -161,6 +165,7 @@ describe('which pending timers are the file’s', () => {
         'exports.timer = (global) => global.setTimeout(() => {}, 5)',
         'exports.run = (fn, ...args) => fn(...args)',
         'exports.laterVia = (later, global) => later(global, () => {})',
+        'exports.soon = (global, fn) => global.setTimeout(() => fn(global), 1)',
         'exports.path = __filename',
         '',
       ].join('\n'),
@@ -259,8 +264,31 @@ describe('which pending timers are the file’s', () => {
     assert.deepEqual(cleared, [scheduled[3]], 'only the one still pending')
   })
 
+  it("names the shared package that set a timer inside the callback of the file's own timer", () => {
+    const { global, cleared, scheduled, fire } = standIn()
+    const stop = installWindowTimers(global, { fileModules: () => [user.path] }).track()
+    const outer = user.soon(global, shared.schedule)
+    fire(outer as Parameters<typeof fire>[0])
+    assert.equal(scheduled.length, 2, 'the callback set the package’s timer')
+    assert.deepEqual(stop(), [shared.path], 'its flag is stuck, so it goes per file')
+    assert.deepEqual(cleared, [scheduled[1]])
+  })
+
+  it("leaves a timer Provino's code sets inside the callback of the file's own timer", () => {
+    const { global, cleared, scheduled, fire } = standIn()
+    const stop = installWindowTimers(global, { fileModules: () => [user.path] }).track()
+    const set = global.setTimeout as (fn: () => void, delay: number) => unknown
+    // The callback is this test's code, Provino's (as the loader's parser is, reached from a lazy
+    // `require`): its frame lies between the shared package's and the wrapper's.
+    const outer = user.run(set, () => shared.schedule(global), 1)
+    fire(outer as Parameters<typeof fire>[0])
+    assert.equal(scheduled.length, 2, 'the callback set the package’s timer')
+    assert.deepEqual(stop(), [])
+    assert.deepEqual(cleared, [], 'the outer timer fired, and the inner one is not the file’s')
+  })
+
   it("reads the file's modules again for a timer set from a module loaded after the last read", () => {
-    const { global, cleared, scheduled, call, fire } = standIn()
+    const { global, cleared, scheduled, fire } = standIn()
     const modules = [user.path]
     const stop = installWindowTimers(global, { fileModules: () => modules }).track()
     user.run(shared.loop, global)
@@ -268,7 +296,9 @@ describe('which pending timers are the file’s', () => {
     assert.ok(slice !== undefined)
     fire(slice) // the file's modules are read for the slice it sets
     modules.push(late.path)
-    const outer = late.timer(global, () => call('setTimeout', () => {}, 1))
+    // A bound callback leaves no frame of its own: the loop's timer is set by the package alone,
+    // inside the late module's timer, whose verdict needs the late module among the file's.
+    const outer = late.timer(global, shared.loop.bind(null, global))
     fire(outer as Parameters<typeof fire>[0])
     assert.deepEqual(stop(), [shared.path])
     assert.deepEqual(cleared, [scheduled[1], scheduled[3]], "the late module's timer set the last")
@@ -317,9 +347,9 @@ describe('which pending timers are the file’s', () => {
     assert.ok(settle !== undefined)
     await fire(settle)
     assert.equal(scheduled.length, first + 2, 'the continuation set a timer')
-    // The continuation runs after the callback's synchronous part, so nothing is inherited (an
-    // inherited timer would take the first timer's verdict, the file's, and be cancelled): its own
-    // stack decides, and here its async frames reach this test's, Provino's code.
+    // The continuation runs after the callback's synchronous part, so no running timer's verdict
+    // applies (the first timer's, the file's, would cancel it): its own stack decides, and here its
+    // async frames reach this test's, Provino's code.
     assert.deepEqual(stop(), [])
     assert.deepEqual(cleared, [])
   })
