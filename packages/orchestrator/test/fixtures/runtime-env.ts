@@ -33,7 +33,8 @@ export const recordingEnvironment: Environment<
   realms: ['worker'],
   prepare(options) {
     trace(`env:prepare ${JSON.stringify(options)}`)
-    // A worker-wide global `prepare` installs once, as the Jest adapter's timer wrappers are.
+    // A worker-wide global `prepare` installs once, as a wrapper an environment's `prepare` puts on
+    // a timer function is.
     if (typeof options.prepareGlobal === 'string') {
       Reflect.set(globalThis, options.prepareGlobal, () => 'installed by prepare')
     }

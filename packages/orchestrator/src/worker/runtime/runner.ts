@@ -94,7 +94,8 @@ import {
   setupEnvironment,
 } from '../internal/runtime/environment.ts'
 import {
-  adoptPreparedGlobals,
+  adoptingGlobals,
+  type GlobalBaseline,
   readGlobalBaseline,
   watchPerFileGlobals,
 } from '../internal/runtime/external-probe.ts'
@@ -105,6 +106,7 @@ import {
   fileLeakEvent,
   heapUsedBytes,
   leakedGlobalsOf,
+  perFileModulesOf,
   workerLeakEvent,
 } from '../internal/runtime/leaks.ts'
 import { pragmaValue, readPragmas } from '../internal/runtime/pragmas.ts'
@@ -466,6 +468,12 @@ interface OpenSnapshots {
 }
 
 /** A file that checked, wrote and left no snapshot has nothing to tell the coordinator. */
+/** What the loader learned, then the environment's modules it did not name (each once). */
+function withLearned(learned: readonly string[], more: readonly string[]): readonly string[] {
+  if (more.length === 0) return learned
+  return [...new Set([...learned, ...more])]
+}
+
 function isEmptyReport(report: SnapshotFileReport): boolean {
   return (
     report.file === null &&
@@ -562,17 +570,10 @@ export function createRuntimeRunner(): WorkerRunner {
   let openSnapshots: OpenSnapshots | undefined
   /**
    * The global as the worker found it, for D127's probe (`undefined` when the policy doesn't watch
-   * external loads), with what each environment's `prepare` installed taken in (`prepareAdopted`).
+   * external loads), with what the worker's once-only steps installed taken in (`adoptingGlobals`:
+   * each environment's `prepare`, the dialect's boot factories).
    */
-  let globalBaseline: Map<string, PropertyDescriptor> | undefined
-  /** `prepareEnvironment`, with what the `prepare` put on the global taken into the baseline. */
-  async function prepareAdopted(ref: EnvironmentRef): Promise<PreparedEnvironment> {
-    const baseline = globalBaseline
-    const before = baseline === undefined ? undefined : readGlobalBaseline()
-    const environment = await prepareEnvironment(ref)
-    if (baseline !== undefined && before !== undefined) adoptPreparedGlobals(baseline, before)
-    return environment
-  }
+  let globalBaseline: GlobalBaseline | undefined
   /**
    * Opens the file's snapshots when its collection starts (`importFile`), for a project with its
    * own snapshot resolver: loading and checking that is part of the file's run, so a resolver
@@ -629,7 +630,7 @@ export function createRuntimeRunner(): WorkerRunner {
     // is evaluated again for each later file. The global as the worker found it, before any
     // environment or globals: what a file's setup changed is what the watcher watches.
     if (policy.module.reevaluateHookingExternals) {
-      const baseline = new Map(readGlobalBaseline())
+      const baseline = readGlobalBaseline()
       globalBaseline = baseline
       parts.loader.watchExternalLoads(() =>
         fallback === undefined
@@ -803,7 +804,9 @@ export function createRuntimeRunner(): WorkerRunner {
           }),
     }
 
-    parts.environment = await prepareAdopted(config.environment)
+    parts.environment = await adoptingGlobals(globalBaseline, () =>
+      prepareEnvironment(config.environment),
+    )
     if (config.environmentResolver !== undefined) {
       parts.pragmaEnvironments = {
         resolve: await behaviours.load(config.environmentResolver),
@@ -842,7 +845,8 @@ export function createRuntimeRunner(): WorkerRunner {
     // are `config.loader.moduleScope`, which is empty when `injectGlobals` is off.
     if (config.moduleScope !== null) {
       const scopeFactory = await behaviours.load(config.moduleScope)
-      const values: unknown = scopeFactory(host)
+      // What the factory installs on the global as the worker boots is the worker's (D127).
+      const values: unknown = await adoptingGlobals(globalBaseline, () => scopeFactory(host))
       if (typeof values !== 'function') {
         throw new WorkerError(
           'ORCH_BAD_GLOBALS',
@@ -854,7 +858,7 @@ export function createRuntimeRunner(): WorkerRunner {
 
     if (policy.core.injectGlobals && config.globals !== null) {
       const factory = await behaviours.load(config.globals)
-      const built: unknown = factory(host)
+      const built: unknown = await adoptingGlobals(globalBaseline, () => factory(host))
       if (typeof built !== 'object' || built === null) {
         throw new WorkerError(
           'ORCH_BAD_GLOBALS',
@@ -959,7 +963,7 @@ export function createRuntimeRunner(): WorkerRunner {
     const key = JSON.stringify([ref.module, ref.export, ref.options])
     let prepared = known.prepared.get(key)
     if (prepared === undefined) {
-      prepared = await prepareAdopted(ref)
+      prepared = await adoptingGlobals(globalBaseline, () => prepareEnvironment(ref))
       known.prepared.set(key, prepared)
     }
     known.requested.set(requestKey, prepared)
@@ -1108,10 +1112,13 @@ export function createRuntimeRunner(): WorkerRunner {
         )
       }
       let leaked: readonly string[] = []
+      let perFile: readonly string[] = []
       const teardownEnvironment = async (): Promise<void> => {
         // The environment reports a global it couldn't remove instead of throwing (D22).
         if (instance === undefined) return
-        leaked = leakedGlobalsOf(await instance.teardown(), environmentName)
+        const report = await instance.teardown()
+        leaked = leakedGlobalsOf(report, environmentName)
+        perFile = perFileModulesOf(report, environmentName)
       }
       const restoreMatchers = () => worker.snapshot.restore()
       const disposeRegistry = () => registry.dispose()
@@ -1157,8 +1164,13 @@ export function createRuntimeRunner(): WorkerRunner {
               ...(instance === undefined ? [] : [instance]),
             ])
           : undefined
+      // Shared modules the file left holding its own work (a timer of theirs its environment
+      // cancelled): every later file gets its own copy (D127), as when a load reads a per-file
+      // global. Only where the policy evaluates externals per file (the baseline exists then).
+      const learnedNow = perFile.length > 0 && globalBaseline !== undefined ? perFile : []
+      if (learnedNow.length > 0) worker.loader.reevaluateExternals(learnedNow)
       // What the loader learned while this file ran (D127), for the coordinator's results cache.
-      const reevaluated = worker.loader.takeLearnedExternals()
+      const reevaluated = withLearned(worker.loader.takeLearnedExternals(), learnedNow)
       return {
         deps,
         ...(reevaluated.length === 0 ? {} : { reevaluated }),
