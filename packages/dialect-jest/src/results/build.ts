@@ -369,12 +369,7 @@ export function toTestResult(file: FileEvents, options: BuildOptions): TestResul
   const ran = tests.some((record) => record.result !== undefined)
   let testExecError: TestResult['testExecError']
   if (!ran) {
-    testExecError =
-      execErrorOf(fileErrors) ??
-      ((file.result.state === 'fail' || options.collectOnly === true) &&
-      assertionResults.length === 0
-        ? { message: NO_TESTS_MESSAGE, stack: noTestsStack() }
-        : undefined)
+    testExecError = execErrorOf(fileErrors)
   } else if (fileErrors.length > 0) {
     testExecError = {
       message: '',
