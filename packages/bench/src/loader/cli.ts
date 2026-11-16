@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// `pnpm bench:loader <check|isolation|e2e>`: Track 2's Spike A, ported (B06).
+// `pnpm bench:loader <check|isolation|graph|claims|per-file|ui-library|e2e>`: Track 2's Spike A,
+// ported (B06), and the loader benches added since.
 //   check      run the fixture through the loader; the bar is 600/600 and 0 isolation
 //              violations under `registry` (`--tier none` shows the check can fail)
 //   isolation  bench-registry: total ms for 200 files under `none` and `registry`, and the
@@ -9,14 +10,15 @@
 //   claims     the cost of the claims verdicts over 2,000 claimed files of one package (no bar)
 //   per-file   the cost of settling the per-file set (D132) on a hub with 3,000 per-file
 //              importers and one shared one (no bar)
-//   per-file-graph  a UI library graph of about 3,000 CommonJS modules evaluated per file under
+//   ui-library a UI library graph of about 3,000 CommonJS modules evaluated per file under
 //              jsdom: `provino jest -w 1` against Jest 30.5 on the same project, interleaved; file 1,
-//              files 2..N and the heap after each file (`--files n --runs n --only provino,jest
-//              --baseline <checkout> --idle-memory-limit <limit> --keep`; no bar)
+//              files 2..N and the memory after each file (`--files n --runs n --only
+//              provino,jest,baseline --baseline <checkout> --idle-memory-limit <limit> --esm --keep`;
+//              no bar)
 //   e2e        bench-e2e: process start to exit for 200 files and 1 file, Provino's loader vs
 //              Jest 30.5 with @swc/jest; a first per-file signal, not a gate
-// Every number is labelled `local`. These are in-process micro-benchmarks from the spike, not
-// Track 12 R5 BenchRecords, which `provino-bench run` writes.
+// Every number is labelled `local`, and none is a Track 12 R5 BenchRecord (`provino-bench run`
+// writes those). `ui-library` and `e2e` time child processes; the others run in this process.
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -27,8 +29,8 @@ import { e2eLines, isolationLines, measureE2e, measureIsolation } from './e2e.ts
 import { FIXTURE_FILES, TESTS_PER_FILE, writeLoaderFixture } from './fixture.ts'
 import { graphChild, graphCommand } from './graph-cli.ts'
 import { perFileLines } from './per-file.ts'
-import { PER_FILE_TESTS, perFileGraphLines, type Subject } from './per-file-graph.ts'
 import { createFixtureLoader, type LoaderTier, runFixture } from './run.ts'
+import { type Subject, UI_LIBRARY_TESTS, uiLibraryLines } from './ui-library.ts'
 
 const { positionals, values: args } = parseArgs({
   allowPositionals: true,
@@ -65,7 +67,7 @@ if (command === 'graph') {
   process.exit(exitCode)
 }
 
-if (command === 'per-file-graph') {
+if (command === 'ui-library') {
   const count = (name: string, value: string | undefined, fallback: number): number => {
     const parsed = value === undefined ? fallback : Number(value)
     if (!Number.isInteger(parsed) || parsed < 1) {
@@ -98,8 +100,8 @@ if (command === 'per-file-graph') {
       subjects.push(name)
     }
   }
-  const lines = await perFileGraphLines({
-    files: count('files', args.files, PER_FILE_TESTS),
+  const lines = await uiLibraryLines({
+    files: count('files', args.files, UI_LIBRARY_TESTS),
     runs: count('runs', args.runs, 3),
     keep: args.keep,
     esm: args.esm,
@@ -157,7 +159,7 @@ try {
   } else {
     ok = false
     lines.push(
-      'usage: bench:loader <check|isolation|graph|claims|per-file|per-file-graph|e2e> [--tier registry|none] [--heavy] [--max-overhead-ms N] [--max-cold-ms N --max-warm-ms N]',
+      'usage: bench:loader <check|isolation|graph|claims|per-file|ui-library|e2e> [--tier registry|none] [--heavy] [--max-overhead-ms N] [--max-cold-ms N --max-warm-ms N]',
     )
   }
 } finally {

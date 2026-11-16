@@ -162,7 +162,7 @@ Files: `bindings-and-cycles` (live bindings, ESM and CJS cycles, TLA in a leaf a
   - `pnpm bench:loader check`: the Spike A fixture, 600/600 and 0 violations.
   - `pnpm bench:loader isolation`: registry overhead.
   - `pnpm bench:loader e2e`: vs Jest.
-  - `pnpm bench:loader per-file-graph`: a UI library graph of about 3,000 CommonJS modules evaluated per file under jsdom, `provino jest -w 1` against Jest 30.5.2, interleaved; `--idle-memory-limit` makes workers recycle, `--baseline <checkout>` measures a change (`local`, no bar).
+  - `pnpm bench:loader ui-library`: a UI library graph of about 3,000 CommonJS modules evaluated per file under jsdom, `provino jest -w 1` against Jest 30.5.2, interleaved; `--idle-memory-limit` makes workers recycle, `--baseline <checkout>` measures a change (`local`, no bar).
   - `packages/bench/src/loader/fixture.test.ts` runs the 600/600 check in `pnpm test`.
   - Against real Jest and Vitest: `@provino/harness`'s `mod-corpus.test.ts` (in-process and end to end).
 

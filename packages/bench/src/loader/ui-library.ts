@@ -1,4 +1,4 @@
-// The `per-file-graph` command of `bench:loader`: a React component suite whose UI library graph is
+// The `ui-library` command of `bench:loader`: a React component suite whose UI library graph is
 // evaluated per file. A generated `node_modules` tree of about 3,000 CommonJS modules shaped like a
 // UI library: a barrel re-exporting `ICONS` icon modules (each importing a shared util), a core
 // package, a components package, and a "dom" package at the bottom that reads `document` while it
@@ -8,10 +8,11 @@
 // `provino jest -w 1` and Jest 30.5.2 (`jest -w 1`) run the same project, interleaved, warm (each
 // keeps its cache directory between runs; one discarded warm-up each). From each run's `--json`
 // results: file 1's time and the median of files 2..N. Each test file's last test appends the
-// process's `pid`, RSS, `heapUsed` and `arrayBuffers` (no collection forced, but with `--esm`) to a log the run names: the memory of
-// the worker that ran it, and with `--idle-memory-limit` how often a worker was replaced. A
-// `--baseline <checkout>` runs that tree's `provino jest` too, for a change's before and after. No
-// bar; every number is `local`.
+// process's `pid`, RSS, `heapUsed` and `arrayBuffers` to a log the run names (after a forced
+// collection only with `--esm`): the memory of the worker that ran it, and with
+// `--idle-memory-limit` how often a worker was replaced. A `--baseline <checkout>` runs that tree's
+// `provino jest` too, for a change's before and after. `--esm` writes the same graph as ES modules
+// in the project's `src/` and runs Provino's subjects only. No bar; every number is `local`.
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
@@ -20,22 +21,23 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveRunnerPackage, runProcess } from '@provino/harness'
 import { median } from '../stats.ts'
+import { writePackage } from './packages.ts'
 
 /** Icon modules behind the barrel. */
-export const PER_FILE_ICONS = 2000
+const ICONS = 2000
 const CORE_MODULES = 300
 const COMPONENTS = 600
 const DOM_MODULES = 40
 /** Test files in the project, by default. */
-export const PER_FILE_TESTS = 12
+export const UI_LIBRARY_TESTS = 12
 
-/** The options of `bench:loader per-file-graph`. */
-export interface PerFileGraphOptions {
+/** The options of `bench:loader ui-library`. */
+export interface UiLibraryOptions {
   readonly files: number
   readonly runs: number
   /** Keep the generated project (its path is printed) instead of removing it. */
   readonly keep: boolean
-  /** Run only these subjects (both by default). */
+  /** The subjects to run, interleaved in this order. */
   readonly subjects: readonly Subject[]
   /**
    * Another checkout of this repository, whose `provino jest` runs as a third subject
@@ -58,9 +60,9 @@ export interface PerFileGraphOptions {
 export type Subject = 'provino' | 'jest' | 'baseline'
 
 /** The variable that names a run's memory log. */
-const MEMORY_LOG = 'PER_FILE_GRAPH_MEMORY_LOG'
+const MEMORY_LOG = 'UI_LIBRARY_MEMORY_LOG'
 /** Set (`--esm`) when the memory row collects first: the subject runs with `--expose-gc`. */
-const MEMORY_GC = 'PER_FILE_GRAPH_MEMORY_GC'
+const MEMORY_GC = 'UI_LIBRARY_MEMORY_GC'
 
 const pad = (index: number): string => String(index).padStart(4, '0')
 
@@ -71,46 +73,51 @@ async function writeTree(root: string, files: Map<string, string>): Promise<void
   await Promise.all([...files].map(([path, text]) => writeFile(join(root, path), text)))
 }
 
-/** The generated packages, as `path -> text`. Plain CommonJS, as a UI library's `cjs` build ships. */
-function libraryFiles(): Map<string, string> {
-  const files = new Map<string, string>()
-  const pkg = (name: string): void => {
-    files.set(`node_modules/${name}/package.json`, `{"name":"${name}","main":"index.js"}\n`)
+/**
+ * The generated packages, each as `path in the package -> text`. Plain CommonJS, as a UI library's
+ * `cjs` build ships.
+ */
+function libraryPackages(): Map<string, Map<string, string>> {
+  const packages = new Map<string, Map<string, string>>()
+  const pkg = (name: string): Map<string, string> => {
+    const files = new Map<string, string>()
+    packages.set(name, files)
+    return files
   }
   // The dom package: its index reads `document` at load (the D129 trigger); its helpers don't.
-  pkg('ui-dom')
+  const dom = pkg('ui-dom')
   const domRequires: string[] = []
   for (let index = 0; index < DOM_MODULES; index++) {
-    files.set(
-      `node_modules/ui-dom/helper${pad(index)}.js`,
+    dom.set(
+      `helper${pad(index)}.js`,
       `'use strict';\nexports.name = 'helper${index}';\nexports.apply = function apply(node, value) {\n  node.setAttribute('data-h${index}', String(value));\n  return node;\n};\n`,
     )
     domRequires.push(`exports.helper${index} = require('./helper${pad(index)}.js');`)
   }
-  files.set(
-    'node_modules/ui-dom/index.js',
+  dom.set(
+    'index.js',
     `'use strict';\nvar doc = document;\nvar canUseDom = typeof doc.createElement === 'function';\n${domRequires.join('\n')}\nexports.canUseDom = canUseDom;\nexports.createElement = function createElement(tag) {\n  return doc.createElement(tag);\n};\n`,
   )
   // The core package: a web of modules, with cycles, each reaching the dom package.
-  pkg('ui-core')
+  const core = pkg('ui-core')
   const coreRequires: string[] = []
   for (let index = 0; index < CORE_MODULES; index++) {
     const next = (index + 1) % CORE_MODULES
     const back = Math.floor(index / 2)
-    files.set(
-      `node_modules/ui-core/m${pad(index)}.js`,
+    core.set(
+      `m${pad(index)}.js`,
       `'use strict';\nObject.defineProperty(exports, '__esModule', { value: true });\nvar dom = require('ui-dom');\nvar back = require('./m${pad(back)}.js');\nexports.id = ${index};\nexports.style = function style(props) {\n  var out = {};\n  for (var key in props) out[key + '${index}'] = props[key];\n  return out;\n};\nexports.next = function next() {\n  return require('./m${pad(next)}.js').id;\n};\nexports.canUseDom = function canUseDom() {\n  return dom.canUseDom && back.id >= 0;\n};\n`,
     )
     coreRequires.push(`exports.m${index} = require('./m${pad(index)}.js');`)
   }
-  files.set(
-    'node_modules/ui-core/index.js',
+  core.set(
+    'index.js',
     `'use strict';\nvar dom = require('ui-dom');\n${coreRequires.join('\n')}\nexports.createElement = dom.createElement;\n`,
   )
-  // The icons package: a barrel of `PER_FILE_ICONS` icons, each importing the shared util.
-  pkg('ui-icons')
-  files.set(
-    'node_modules/ui-icons/util.js',
+  // The icons package: a barrel of `ICONS` icons, each importing the shared util.
+  const icons = pkg('ui-icons')
+  icons.set(
+    'util.js',
     `'use strict';\nvar core = require('ui-core');\nexports.createIcon = function createIcon(path, name) {\n  function Icon(props) {\n    var node = core.createElement('svg');\n    node.setAttribute('data-icon', name);\n    node.setAttribute('d', path);\n    return node;\n  }\n  Icon.displayName = name + 'Icon';\n  return Icon;\n};\n`,
   )
   const barrel: string[] = [
@@ -118,9 +125,9 @@ function libraryFiles(): Map<string, string> {
     "Object.defineProperty(exports, '__esModule', { value: true });",
     'function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }',
   ]
-  for (let index = 0; index < PER_FILE_ICONS; index++) {
-    files.set(
-      `node_modules/ui-icons/Icon${pad(index)}.js`,
+  for (let index = 0; index < ICONS; index++) {
+    icons.set(
+      `Icon${pad(index)}.js`,
       `'use strict';\nObject.defineProperty(exports, '__esModule', { value: true });\nexports.default = void 0;\nvar _util = require('./util.js');\nvar _default = (0, _util.createIcon)('M${index} 20v-6h4v6h5v-8h3L12 3 2 12h3v8z', 'Icon${pad(index)}');\nexports.default = _default;\n`,
     )
     barrel.push(
@@ -128,18 +135,18 @@ function libraryFiles(): Map<string, string> {
       `var _Icon${pad(index)} = _interopRequireDefault(require('./Icon${pad(index)}.js'));`,
     )
   }
-  files.set('node_modules/ui-icons/index.js', `${barrel.join('\n')}\n`)
+  icons.set('index.js', `${barrel.join('\n')}\n`)
   // The components package: each component reaches core, dom and two siblings.
-  pkg('ui-lib')
+  const lib = pkg('ui-lib')
   for (let index = 0; index < COMPONENTS; index++) {
     const sibling = (index * 7 + 3) % COMPONENTS
     const below = Math.floor(index / 3)
-    files.set(
-      `node_modules/ui-lib/C${pad(index)}.js`,
+    lib.set(
+      `C${pad(index)}.js`,
       `'use strict';\nObject.defineProperty(exports, '__esModule', { value: true });\nvar core = require('ui-core');\nvar dom = require('ui-dom');\nvar sibling = require('./C${pad(sibling)}.js');\nvar below = require('./C${pad(below)}.js');\nexports.render = function render(label) {\n  var node = dom.createElement('div');\n  node.setAttribute('data-c', '${index}');\n  node.textContent = String(label);\n  return node;\n};\nexports.related = function related() {\n  return [sibling.render, below.render, core.m${index % CORE_MODULES}.id];\n};\n`,
     )
   }
-  return files
+  return packages
 }
 
 /**
@@ -179,7 +186,7 @@ function esmLibraryFiles(): Map<string, string> {
     `import { createElement } from '../core/index.js';\nexport function createIcon(path, name) {\n  function Icon(props) {\n    const node = createElement('svg');\n    node.setAttribute('data-icon', name);\n    node.setAttribute('d', path);\n    return node;\n  }\n  Icon.displayName = name + 'Icon';\n  return Icon;\n}\n`,
   )
   const barrel: string[] = []
-  for (let index = 0; index < PER_FILE_ICONS; index++) {
+  for (let index = 0; index < ICONS; index++) {
     files.set(
       `src/ui/icons/Icon${pad(index)}.js`,
       `import { createIcon } from './util.js';\nexport default createIcon('M${index} 20v-6h4v6h5v-8h3L12 3 2 12h3v8z', 'Icon${pad(index)}');\n`,
@@ -220,7 +227,7 @@ function testFile(index: number, esm: boolean): string {
     `  const node = first.render('t${index}');`,
     '  document.body.appendChild(node);',
     `  expect(document.querySelector('[data-c]')).toBe(node);`,
-    `  expect(icons.Icon${pad(index % PER_FILE_ICONS)}({}).getAttribute('data-icon')).toBe('Icon${pad(index % PER_FILE_ICONS)}');`,
+    `  expect(icons.Icon${pad(index % ICONS)}({}).getAttribute('data-icon')).toBe('Icon${pad(index % ICONS)}');`,
     '  expect(typeof second.related()[0]).toBe("function");',
     '  expect(third.render(1).textContent).toBe("1");',
     '})',
@@ -237,14 +244,19 @@ function testFile(index: number, esm: boolean): string {
   ].join('\n')
 }
 
-/** Writes the project; returns its directory. */
-export async function writePerFileProject(
+/** Writes the project into `root`: the library, the test files, the config and the environment. */
+async function writeProject(
   root: string,
   testFiles: number,
   idleMemoryLimit: string | undefined,
   esm: boolean,
 ): Promise<void> {
-  const files = esm ? esmLibraryFiles() : libraryFiles()
+  const files = esm ? esmLibraryFiles() : new Map<string, string>()
+  if (!esm) {
+    for (const [name, packageFiles] of libraryPackages()) {
+      writePackage(root, name, packageFiles, 'index.js')
+    }
+  }
   for (let index = 0; index < testFiles; index++) {
     files.set(`tests/t${pad(index)}.test.js`, testFile(index, esm))
   }
@@ -258,7 +270,7 @@ export async function writePerFileProject(
       ...(idleMemoryLimit === undefined ? {} : { workerIdleMemoryLimit: idleMemoryLimit }),
     })}\n`,
   )
-  files.set('package.json', '{"name":"per-file-graph","private":true}\n')
+  files.set('package.json', '{"name":"ui-library","private":true}\n')
   await writeTree(root, files)
   // The project's own jsdom environment, as a component suite installs it.
   const harness = createRequire(
@@ -356,7 +368,6 @@ async function runOnce(
     [MEMORY_LOG]: log,
     ...(esm ? { [MEMORY_GC]: '1' } : {}),
   }
-  for (const key of ['CLAUDECODE', 'AI_AGENT', 'GITHUB_ACTIONS']) delete env[key]
   const flags = ['-w', '1', '--ci', '--json', '--outputFile', out]
   const cli =
     subject === 'baseline' && baseline !== undefined
@@ -418,13 +429,13 @@ function summarize(runs: readonly RunNumbers[]): Summary {
 const row = (values: readonly number[]): string => values.map((value) => value.toFixed(0)).join(' ')
 
 /** Runs the comparison; returns the lines to print. */
-export async function perFileGraphLines(options: PerFileGraphOptions): Promise<string[]> {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'provino-per-file-graph-')))
+export async function uiLibraryLines(options: UiLibraryOptions): Promise<string[]> {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'provino-ui-library-')))
   try {
     if (options.esm && options.subjects.includes('jest')) {
       throw new Error('--esm runs Provino only: Jest leaves ES modules untransformed')
     }
-    await writePerFileProject(root, options.files, options.idleMemoryLimit, options.esm)
+    await writeProject(root, options.files, options.idleMemoryLimit, options.esm)
     const runs: Record<Subject, RunNumbers[]> = { provino: [], jest: [], baseline: [] }
     for (let run = 0; run <= options.runs; run++) {
       // The first side alternates, so none always runs on a machine another just warmed.
@@ -449,8 +460,8 @@ export async function perFileGraphLines(options: PerFileGraphOptions): Promise<s
       ? 'ES modules in src/, heapUsed after a collection'
       : 'CommonJS in node_modules, dom reads document at load'
     const lines = [
-      `loader per-file-graph (local, Node ${process.version}, ${options.files} files, -w 1, ${limit}, jsdom through jest-environment-jsdom; median of ${options.runs} warm runs after 1 discarded, interleaved)`,
-      `  graph: ${PER_FILE_ICONS} icons + barrel + util, ${CORE_MODULES} core, ${COMPONENTS} components, ${DOM_MODULES + 1} dom (${shape})`,
+      `loader ui-library (local, Node ${process.version}, ${options.files} files, -w 1, ${limit}, jsdom through jest-environment-jsdom; median of ${options.runs} warm runs after 1 discarded, interleaved)`,
+      `  graph: ${ICONS} icons + barrel + util, ${CORE_MODULES} core, ${COMPONENTS} components, ${DOM_MODULES + 1} dom (${shape})`,
     ]
     const summaries = new Map<Subject, Summary>()
     for (const subject of options.subjects) {
