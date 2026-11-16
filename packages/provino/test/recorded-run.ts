@@ -61,6 +61,11 @@ export interface ProvinoOnOptions {
   readonly parent?: string
   /** A run still going after this is killed (default 120 s). */
   readonly deadlineMs?: number
+  /**
+   * The captured run's own arguments in place of the fixture's `run.argv.jest`, for the same
+   * project under another flag (`-i` in place of `-w 1`) held to the same golden.
+   */
+  readonly argv?: readonly string[]
 }
 
 /** One `provino jest` run of a fixture, read as the recorder reads its own. */
@@ -287,7 +292,7 @@ export async function runFixture(
       await start(entry.argv)
       await rm(join(root, RESULTS), { force: true })
     }
-    const ended = await start(spec?.argv?.jest ?? [])
+    const ended = await start(options.argv ?? spec?.argv?.jest ?? [])
 
     const roots = [root]
     const files: Record<string, string | null> = {}
