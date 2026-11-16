@@ -1,0 +1,18 @@
+{
+  "description": "React work a jsdom file leaves pending when it ends, on jest-environment-jsdom with one worker. Three shapes, a file each: an effect's cleanup that sets a timer reading `window` after RTL's cleanup unmounted the component (`unmount-timer`), an effect that sets a timer whose callback updates state (`state-timer`), and a root rendered outside `act`, which leaves React's scheduler a render and a passive-effect flush to run (`scheduler-pending`). `wait` is the smallest file, so it runs last, and its `beforeAll` waits 400 ms while the others' timers come due. Jest passes all four: the test's timers are the window's, and `window.close()` at teardown cancels them.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "config": {
+    "jest": {
+      "testEnvironment": "jsdom"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^(Test Suites|Tests|Snapshots):|^ +● |^    [A-Z]",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

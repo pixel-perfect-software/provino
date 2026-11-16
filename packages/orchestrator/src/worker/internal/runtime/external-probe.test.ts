@@ -1,7 +1,12 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
 import type { GlobalReadWatch } from '@provino/types'
-import { perFileKeys, readGlobalBaseline, watchPerFileGlobals } from './external-probe.ts'
+import {
+  adoptingGlobals,
+  perFileKeys,
+  readGlobalBaseline,
+  watchPerFileGlobals,
+} from './external-probe.ts'
 
 /** A stand-in global: what the worker boots with, then what a file's setup adds and changes. */
 function fileGlobal(): {
@@ -230,5 +235,51 @@ describe('the external probe (D127, P42)', () => {
     const end = watchPerFileGlobals(global, baseline, covered)
     void global.document
     assert.equal(end(), true)
+  })
+})
+
+describe('adoptingGlobals', () => {
+  it('takes what a once-only step installed, changed or removed into the baseline', async () => {
+    const original = () => 0
+    const global: Record<string, unknown> = { setTimeout: original, gone: 1, kept: 2 }
+    const baseline = readGlobalBaseline(global)
+    const wrapper = () => 1
+    const result = await adoptingGlobals(
+      baseline,
+      () => {
+        global.setTimeout = wrapper
+        global.installed = 'worker-wide'
+        delete global.gone
+        return 'the step’s value'
+      },
+      global,
+    )
+    assert.equal(result, 'the step’s value')
+    assert.equal(baseline.get('setTimeout')?.value, wrapper)
+    assert.equal(baseline.get('installed')?.value, 'worker-wide')
+    assert.equal(baseline.has('gone'), false)
+    assert.equal(baseline.get('kept')?.value, 2)
+    // Not a per-file global: a load that reads them reads nothing a file set up.
+    assert.deepEqual(perFileKeys(global, baseline), [])
+  })
+
+  it('leaves out what a file changed before the step: only the step’s own changes', async () => {
+    const global: Record<string, unknown> = { a: 1 }
+    const baseline = readGlobalBaseline(global)
+    global.a = 2
+    await adoptingGlobals(baseline, async () => {}, global)
+    assert.equal(baseline.get('a')?.value, 1)
+    assert.deepEqual(
+      perFileKeys(global, baseline).map(([key]) => key),
+      ['a'],
+    )
+  })
+
+  it('just runs the step when there is no baseline', async () => {
+    let ran = false
+    await adoptingGlobals(undefined, () => {
+      ran = true
+    })
+    assert.equal(ran, true)
   })
 })

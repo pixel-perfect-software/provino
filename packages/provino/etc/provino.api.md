@@ -646,6 +646,7 @@ export interface Y {
 // @public
 export interface y {
     readonly leakedGlobals: readonly string[];
+    readonly perFileModules?: readonly string[];
 }
 
 // @public

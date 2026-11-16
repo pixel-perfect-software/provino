@@ -33,6 +33,7 @@ import type {
   ModuleId,
   TimersPolicy,
 } from '@provino/types'
+import { installWindowTimers } from './window-timers.ts'
 
 /**
  * What `jestGlobals` builds the globals from: `GlobalsHost` with the real types of the
@@ -651,6 +652,11 @@ function expectModule(expect: JestGlobals['expect']): Readonly<Record<string, un
 export function jestModuleScope(
   host: JestGlobalsHost,
 ): (from: string) => Readonly<Record<string, unknown>> {
+  // The worker's boot (the one call of the Jest dialect's runtime before any file loads, whatever
+  // the project's environment): the timer wrappers go on the global now, so a package a node file
+  // loads first captures them too; a window file's timers are then told apart by the modules its
+  // registry evaluated (`window-timers.ts`).
+  installWindowTimers(globalThis, { fileModules: () => host.registry().loadedModules() })
   // One record of isolating registries for every module's `jest`, apart from the global's: the
   // file's module-mock registry refuses a nested isolation between the two (`nested-isolation`).
   const isolating: Isolating = new WeakSet()

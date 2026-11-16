@@ -60,6 +60,21 @@ expectTypeOf<() => Promise<EnvironmentTeardownReport | undefined>>().toExtend<Te
 expectTypeOf<() => string>().not.toExtend<Teardown>()
 expectTypeOf<() => Promise<string>>().not.toExtend<Teardown>()
 expectTypeOf<() => { readonly leakedGlobals: readonly symbol[] }>().not.toExtend<Teardown>()
+// The shared modules the file left holding its own work, evaluated per file from then on (D127).
+expectTypeOf<EnvironmentTeardownReport['perFileModules']>().toEqualTypeOf<
+  readonly string[] | undefined
+>()
+const perFileReport: EnvironmentTeardownReport = {
+  leakedGlobals: [],
+  perFileModules: ['/p/node_modules/a/index.js'],
+}
+void perFileReport
+// @ts-expect-error a module is named by its path, not by its exports
+const perFileWrong: EnvironmentTeardownReport = { leakedGlobals: [], perFileModules: [{}] }
+void perFileWrong
+// @ts-expect-error exactOptionalPropertyTypes: leave the key out rather than set it to undefined
+const perFileUndefined: EnvironmentTeardownReport = { leakedGlobals: [], perFileModules: undefined }
+void perFileUndefined
 const reporting: EnvironmentInstance = {
   global: globalThis,
   teardown: () => ({ leakedGlobals: ['__stuck', 'Symbol(stuck)'] }),
