@@ -179,13 +179,18 @@ const NO_ARGS: readonly unknown[] = Object.freeze([])
 /** The tests of a concurrent group when nothing listens. */
 const NO_TESTS: readonly TestNode[] = Object.freeze([])
 
+/** The errors of an attempt that passed: shared, since nothing appends to a reported list. */
+const NO_ERRORS: readonly SerializedError[] = Object.freeze([])
+
 /** What a test's attempts have left so far. */
 interface Progress {
   readonly start: number
-  /** The errors of the attempts that were retried, when the result keeps them. */
-  readonly retryErrors: unknown[]
-  /** The errors of the attempt that ended the test. */
+  /** The errors of the attempts that were retried, when the result keeps them, as reported. */
+  readonly retryErrors: SerializedError[]
+  /** The errors of the attempt that ended the test, as thrown (a describe attempt compares them). */
   readonly failures: unknown[]
+  /** `failures` as reported: each shaped and serialized once, when its attempt ended. */
+  readonly reported: SerializedError[]
   attempts: number
   /** Attempts the test had already run in discarded describe attempts (`setDescribeRetry`). */
   readonly attemptBase: number
@@ -306,8 +311,6 @@ export class Executor {
   #rootOrder: readonly TaskId[] | undefined
   /** The test that started last. */
   #lastTestId: TaskId | null = null
-  /** The errors shaped so far in this file, so each is shaped once (`serializeTestError`). */
-  readonly #shaped = new Map<unknown, SerializedError>()
   /** The path of the file running now, for the location of a `ctx.annotate` call. */
   #filePath: string | undefined
   /** The file's lifecycle listener (an environment's `onTestEvent`); `undefined` costs nothing. */
@@ -356,7 +359,6 @@ export class Executor {
     this.#filePath = file.path
     this.#heldTests.clear()
     this.#describeAttempts.clear()
-    this.#shaped.clear()
     const life = file.lifecycle
     this.#life = life
     this.#aborted = undefined
@@ -879,6 +881,7 @@ export class Executor {
       start,
       retryErrors: [],
       failures: [],
+      reported: [],
       attempts: 0,
       attemptBase: hold === undefined ? 0 : (this.#describeAttempts.get(test.id) ?? 0),
       repeatIndex: 0,
@@ -956,6 +959,9 @@ export class Executor {
         errors.length > 0 && attempt < plan.count
           ? this.#retryDecision(run, test, plan, errors)
           : STOP
+      // Each error is shaped once, here: the attempt's end and the test's result report the same
+      // values, and nothing keeps the thrown ones past the test.
+      const reported = errors.length === 0 ? NO_ERRORS : errors.map(this.#serializeTestError)
       this.#emit(
         {
           type: 'test-attempt-end',
@@ -963,7 +969,7 @@ export class Executor {
           attempt: number,
           repeat,
           state: errors.length > 0 ? 'fail' : progress.skipped === undefined ? 'pass' : 'skip',
-          errors: errors.map(this.#serializeTestError),
+          errors: reported,
           willRetry: decision.willRetry,
           t: this.#now(),
         },
@@ -972,11 +978,14 @@ export class Executor {
       if (errors.length === 0) return false
       if (!decision.willRetry) {
         progress.failures.push(...errors)
-        if (decision.conditionFailure !== undefined)
+        progress.reported.push(...reported)
+        if (decision.conditionFailure !== undefined) {
           progress.failures.push(decision.conditionFailure)
+          progress.reported.push(this.#serializeTestError(decision.conditionFailure))
+        }
         return false
       }
-      if (this.#keepsEarlierErrors()) progress.retryErrors.push(...errors)
+      if (this.#keepsEarlierErrors()) progress.retryErrors.push(...reported)
       if (plan.deferred && !resuming) return true
       await this.#announceRetry(test)
       await sleep(this.#config.timers, plan.delay)
@@ -1055,7 +1064,7 @@ export class Executor {
 
   /** Ends a test with what its attempts left, and returns its outcome. */
   #finishTest(test: TestNode, progress: Progress, hold: Hold | undefined): Outcome {
-    const { start, failures, retryErrors, repeatIndex, skipped, parkedMs } = progress
+    const { start, failures, reported, retryErrors, repeatIndex, skipped, parkedMs } = progress
     const attempts = progress.attemptBase + progress.attempts
     if (skipped !== undefined && failures.length === 0) {
       this.#endTask(hold, 'test-end', test.id, 'skip', start, [], {
@@ -1069,20 +1078,12 @@ export class Executor {
     }
     const outcome: Outcome = failures.length > 0 ? 'fail' : 'pass'
     hold?.failures.push(...failures)
-    this.#endTask(
-      hold,
-      'test-end',
-      test.id,
-      outcome,
-      start,
-      failures.map(this.#serializeTestError),
-      {
-        retryErrors: retryErrors.map(this.#serializeTestError),
-        attempts,
-        repeatIndex,
-        parkedMs,
-      },
-    )
+    this.#endTask(hold, 'test-end', test.id, outcome, start, reported, {
+      retryErrors,
+      attempts,
+      repeatIndex,
+      parkedMs,
+    })
     return outcome
   }
 
@@ -1848,26 +1849,20 @@ export class Executor {
   }
 
   /**
-   * An error attached to a test, as it is reported: the one place every such error passes through,
-   * whatever route attached it (a failed attempt, a blocked test, an error charged to it late). It
-   * goes through the policy's `shapeTestError` when there is one, and once: the value an attempt
-   * ended with is the one its test's end reports.
+   * An error a test's attempt ended with, as it is reported: through the policy's `shapeTestError`
+   * when there is one. Called once per error, when the attempt ends (`#runAttempts`); an error
+   * charged to the test after it ended is reported as thrown (`ProcessErrors`).
    */
   readonly #serializeTestError = (error: unknown): SerializedError => {
     const shape = this.#config.shapeTestError
     if (shape === undefined) return serializeError(error)
-    const known = this.#shaped.get(error)
-    if (known !== undefined) return known
-    let serialized: SerializedError
     try {
-      serialized = serializeError(shape(error, { expand: this.#config.expand }))
+      return serializeError(shape(error, { expand: this.#config.expand }))
     } catch {
       // A shaper that throws must not turn a test's failure into the shaper's: the error is
       // reported as thrown, which is what the neutral policy does with every error.
-      serialized = serializeError(error)
+      return serializeError(error)
     }
-    this.#shaped.set(error, serialized)
-    return serialized
   }
 
   /** Emits a task's end event, its result and the event timed now. */

@@ -5,6 +5,8 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { describe, test } from 'node:test'
+import { setFlagsFromString } from 'node:v8'
+import { runInNewContext } from 'node:vm'
 import {
   type BehaviourLoader,
   createBehaviourLoader,
@@ -124,6 +126,31 @@ describe('shapeTestError', () => {
       end?.result.errors.map((error) => error.message),
       ['as thrown'],
     )
+  })
+
+  test('a failed test`s thrown value is not kept once its file has run', async () => {
+    setFlagsFromString('--expose-gc')
+    const gc = runInNewContext('gc') as () => void
+    let held: WeakRef<object> | undefined
+    // The runtime outlives the file, as a worker's does: nothing it keeps may hold the thrown value
+    // (`--detectLeaks` reads a file's leftovers, and the heap after a file counts them).
+    const run = await runScript(
+      ({ test }) => {
+        test('t', { retry: 1 }, () => {
+          const error = new Error('thrown')
+          held = new WeakRef(error)
+          throw error
+        })
+      },
+      { shapeTestError: REF, retry: { keepEarlierErrors: true } },
+      { behaviours: withShaper((error) => error) },
+    )
+    for (let round = 0; round < 10 && held?.deref() !== undefined; round++) {
+      await new Promise((resolve) => setImmediate(resolve))
+      gc()
+    }
+    assert.equal(held?.deref(), undefined, 'the thrown error was collected')
+    assert.equal(eventsOf(run.events, 'test-end')[0]?.result.errors[0]?.message, 'thrown')
   })
 
   test('the shaper is told the run`s expand', async () => {
