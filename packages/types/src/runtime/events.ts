@@ -49,6 +49,12 @@ export type RuntimeEvent =
       /** The file's whole tree, file node first, parents before children. */
       readonly tasks: readonly TaskNode[]
       readonly errors: readonly SerializedError[]
+      /**
+       * Set when the file never loaded: its import threw, a listener rejected what it collected,
+       * `finalize` threw or an option was invalid. The file reports no tasks and `errors` says why.
+       * Absent for a file that loaded, even one that declares no test.
+       */
+      readonly loadFailed?: true
       readonly t: number
     }
   | { readonly type: 'suite-start'; readonly id: TaskId; readonly t: number }

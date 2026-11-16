@@ -500,6 +500,36 @@ describe('toTestResult', () => {
     assert.equal(built.numFailingTests, 0)
   })
 
+  it('a file that loaded and has no test result has Jest’s message whatever errors it holds: onResult tests only the length', () => {
+    // `cli/empty-test-file-error-timing` (circus's own error) and `cli/empty-test-file-timer-throws`.
+    const circus = events(
+      [],
+      {},
+      {
+        state: 'fail',
+        errors: [
+          failure('Invalid: beforeEach() may not be used in a describe block containing no tests.'),
+        ],
+      },
+    )
+    const timer = events([], { unhandled: [failure('thrown from a timer')] }, { state: 'fail' })
+    for (const file of [circus, timer]) {
+      const built = toTestResult(file, OPTIONS)
+      assert.equal(built.testExecError?.message, NO_TESTS_MESSAGE)
+      assert.deepEqual(built.testResults, [])
+      assert.equal(built.numFailingTests, 0)
+    }
+  })
+
+  it('a file that never loaded keeps its own error, with a tree or without one', () => {
+    // `cli/empty-test-file-error-timing`: a throw while the file loads is `onFailure`'s.
+    const errors = [failure('thrown while loading')]
+    for (const patch of [{ loadFailed: true as const }, { tree: undefined }]) {
+      const built = toTestResult(events([], patch, { state: 'fail', errors }), OPTIONS)
+      assert.equal(built.testExecError?.message, 'thrown while loading')
+    }
+  })
+
   it('errors beside tests that ran are the file’s exec error, joined as Jest joins them', () => {
     const built = toTestResult(
       events([{ task: test('a', 'file'), result: result('pass') }], {

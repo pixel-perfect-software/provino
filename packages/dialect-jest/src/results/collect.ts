@@ -130,6 +130,8 @@ interface MutableFile {
   info: FileInfo
   startedAt: number
   tree: readonly TaskNode[] | undefined
+  /** The file never loaded (`file-collect-end`'s `loadFailed`). */
+  loadFailed: boolean
   records: Map<TaskId, TestRecord>
   /** The child order of each suite a randomized run shuffled. */
   orders: Map<TaskId, readonly TaskId[]>
@@ -178,6 +180,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
         info,
         startedAt: now(),
         tree: undefined,
+        loadFailed: false,
         records: new Map(),
         orders: new Map(),
         unhandled: [],
@@ -215,6 +218,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
         info,
         startedAt: now(),
         tree: undefined,
+        loadFailed: false,
         records: new Map(),
         orders: new Map(),
         unhandled: [],
@@ -234,7 +238,9 @@ export function createJestResults<Config extends ProjectConfigLike>(
       })
     },
     'file:collected': (info, event) => {
-      stateOf(info).tree = event.tasks
+      const file = stateOf(info)
+      file.tree = event.tasks
+      file.loadFailed = event.loadFailed === true
     },
     'task:start': (task) => {
       if (task.type !== 'test') return
@@ -283,6 +289,7 @@ export function createJestResults<Config extends ProjectConfigLike>(
         info,
         testFilePath: pathOf(info),
         tree: file.tree,
+        ...(file.loadFailed ? { loadFailed: true as const } : {}),
         records: file.records,
         orders: file.orders,
         result: fileResult,

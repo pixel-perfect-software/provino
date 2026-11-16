@@ -43,6 +43,8 @@ export interface FileEvents {
   readonly testFilePath: string
   /** The file's tree (`file:collected`), or `undefined` when it never got that far. */
   readonly tree: readonly TaskNode[] | undefined
+  /** The file never loaded (`file-collect-end`'s `loadFailed`): its import threw, say. */
+  readonly loadFailed?: true
   readonly records: ReadonlyMap<TaskId, TestRecord>
   /**
    * The order each suite's children ran in, for the suites a randomized run shuffled
@@ -288,11 +290,12 @@ function withPerfStats(result: TestResult, file: FileEvents, options: BuildOptio
  * One file's `TestResult`, with `failureMessage` left `null` (the text comes from
  * `jest-message-util`, asynchronously: `collect.ts` fills it).
  *
- * - A file that ended with errors and no test that ran, or never collected, is a runtime error:
+ * - A file that loaded and has no test result fails with `Your test suite must contain at least one
+ *   test.`, whatever errors it holds (`onResult`, which tests only the results' length).
+ * - A file that ended with errors and no test that ran, or never loaded, is a runtime error:
  *   `testExecError` is its first error.
  * - A file with errors beside tests that ran has `testExecError` `{ message: '', stack }` with the
  *   errors joined by newlines, as Jest does for `unhandledErrors` (jestAdapterInit.ts L314-L319).
- * - A file with neither tests nor errors fails with `Your test suite must contain at least one test.`
  * @public
  */
 export function toTestResult(file: FileEvents, options: BuildOptions): TestResult {
@@ -325,15 +328,22 @@ export function toTestResult(file: FileEvents, options: BuildOptions): TestResul
   const numPassingTests = count('passed')
   const numPendingTests = count('pending')
   const numTodoTests = count('todo')
+  if (assertionResults.length === 0 && file.tree !== undefined && file.loadFailed !== true) {
+    // `TestScheduler.onResult` (L144-L150) tests only `testResults.length === 0`, so a file that
+    // loaded and has no test result is "must contain at least one test", whatever errors it holds:
+    // circus's `unhandledErrors` (a hook in a describe with no test: `cli/empty-test-file-error-timing`)
+    // and an error that came after circus had finished (a timer that throws:
+    // `cli/empty-test-file-timer-throws`) are dropped with it. A file that never loaded is
+    // `onFailure`'s and keeps its own error.
+    return noTestsResult(file.testFilePath)
+  }
   const fileErrors = [...file.result.errors, ...file.unhandled]
   // Core finalizes a file whose import threw too, with only the file node: a tree with anything
   // else below it is a file that collected.
   const collected = file.tree?.some((node) => node.type !== 'file') === true
   if (options.collectOnly === true && collected) {
     // `collectTestsWithoutRunning` never reads `state.unhandledErrors`, so an error circus files
-    // there (a hooks-only describe, say) is not the file's; a file that collected nothing is
-    // `TestScheduler.onResult`'s (L144-L150) "must contain at least one test".
-    if (assertionResults.length === 0) return noTestsResult(file.testFilePath)
+    // there (a hooks-only describe, say) is not the file's.
     return withPerfStats(
       makeCollectedTestResult(assertionResults, {
         displayName: options.displayName,

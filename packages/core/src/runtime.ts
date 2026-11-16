@@ -419,7 +419,14 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
         file.errors.push(error)
       }
       const errors = file.errors.map(serializeError)
-      sink.emit({ type: 'file-collect-end', fileId, tasks, errors, t: now() })
+      sink.emit({
+        type: 'file-collect-end',
+        fileId,
+        tasks,
+        errors,
+        ...(collected ? {} : { loadFailed: true as const }),
+        t: now(),
+      })
       if (collected) {
         // circus's `run_start`: from here a call to `setDefaultTimeout` changes nothing.
         defaults.ms = requestedTimeout
