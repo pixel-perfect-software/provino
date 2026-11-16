@@ -38,6 +38,18 @@ function assertIgnorePatterns(neutral: NeutralProject): void {
 }
 
 /**
+ * Ignore patterns that match every path with a `node_modules` directory in it (Jest's default is
+ * `/node_modules/`): with one, no `node_modules` file is any transform's, so there are no claims to
+ * ask a worker about.
+ */
+const IGNORES_EVERY_PACKAGE: ReadonlySet<string> = new Set([
+  '/node_modules/',
+  '/node_modules',
+  'node_modules/',
+  'node_modules',
+])
+
+/**
  * A transformer's module as the absolute path a worker can import (D21). A path stays as it is; a
  * package name (a transformer a dialect left bare, such as Jest's own `babel-jest` with no Jest
  * install to resolve it from) resolves from the project's root, as a transformer is the project's
@@ -58,7 +70,9 @@ function resolveTransformer(module: string, rootDir: string, path: string): stri
 
 /**
  * The project's `transform` entries as the worker's `SerializedTransformConfig` (T3.8), or
- * `undefined` for a project with none, whose every file takes the Oxc pipeline.
+ * `undefined` for a project with none, whose every file takes the Oxc pipeline. It checks
+ * `transformIgnorePatterns` first (`assertIgnorePatterns`), for `resolveTransformClaims` too, which
+ * a project resolves after it.
  * @internal
  */
 export function resolveTransforms(neutral: NeutralProject): SerializedTransformConfig | undefined {
@@ -77,7 +91,7 @@ export function resolveTransforms(neutral: NeutralProject): SerializedTransformC
         options: rule.options,
       }
     }),
-    ignorePatterns: [...neutral.transformIgnorePatterns],
+    ignorePatterns: neutral.transformIgnorePatterns,
     config: neutral.transformConfig ?? {},
     hoistedMarkers: [...(neutral.transformHoistedMarkers ?? [])],
   }
@@ -87,8 +101,9 @@ export function resolveTransforms(neutral: NeutralProject): SerializedTransformC
  * The files the project's transforms take (`SerializedLoaderConfig.transformClaims`): the rules'
  * patterns and the ones Provino's pipeline stands in for (`standInTransformPatterns`), with
  * `transformIgnorePatterns`. `undefined` for a project with no transform, whose `node_modules`
- * files are all loaded by Node. Each pattern is checked here, as `resolveTransforms` checks the
- * rules', so a bad one is a config error and not a failure in every worker.
+ * files are all loaded by Node, and for one whose ignore patterns take every `node_modules` file
+ * out (Jest's default `/node_modules/`), where a worker has nothing to ask. The stand-in patterns
+ * are checked here; the ignore patterns by `resolveTransforms`, which runs first.
  * @internal
  */
 export function resolveTransformClaims(neutral: NeutralProject): TransformClaims | undefined {
@@ -96,10 +111,12 @@ export function resolveTransformClaims(neutral: NeutralProject): TransformClaims
   standIns.forEach((pattern, index) => {
     assertRegExp(pattern, `standInTransformPatterns[${index}]`)
   })
-  assertIgnorePatterns(neutral)
   if (neutral.transforms.length === 0 && standIns.length === 0) return undefined
+  if (neutral.transformIgnorePatterns.some((pattern) => IGNORES_EVERY_PACKAGE.has(pattern))) {
+    return undefined
+  }
   return {
     patterns: [...neutral.transforms.map((rule) => rule.pattern), ...standIns],
-    ignorePatterns: [...neutral.transformIgnorePatterns],
+    ignorePatterns: neutral.transformIgnorePatterns,
   }
 }

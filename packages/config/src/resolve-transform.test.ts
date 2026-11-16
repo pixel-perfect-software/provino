@@ -137,13 +137,13 @@ test('the files the transforms take reach the loader, stand-ins included, even w
         { pattern: '\\.ts$', module: transformer, options: {} },
         { pattern: '\\.js$', module: transformer, options: {} },
       ],
-      transformIgnorePatterns: ['/node_modules/'],
+      transformIgnorePatterns: ['/node_modules/(?!(esm-pkg)/)'],
     }),
     options,
   )
   assert.deepEqual(named.config.loader.transformClaims, {
     patterns: ['\\.ts$', '\\.js$'],
-    ignorePatterns: ['/node_modules/'],
+    ignorePatterns: ['/node_modules/(?!(esm-pkg)/)'],
   })
   assert.deepEqual(structuredClone(named.config), named.config)
 })
@@ -199,4 +199,57 @@ test('transformIgnorePatterns are checked with no transform at all (`transform: 
     'CONFIG_INVALID',
   )
   assert.match(named.message, /joined with "\|"/)
+})
+
+test('a project with a bad rule pattern and a bad ignore pattern reports the ignore pattern first', async () => {
+  const transformer = await temp.write('t5.cjs', 'module.exports = {}')
+  const both = await rejectsWith(
+    resolveNeutralProject(
+      neutral({
+        transforms: [{ pattern: '(', module: transformer, options: {} }],
+        standInTransformPatterns: ['('],
+        transformIgnorePatterns: ['['],
+      }),
+      options,
+    ),
+    'CONFIG_INVALID',
+  )
+  assert.match(both.message, /transformIgnorePatterns\[0\]/)
+})
+
+test("Jest's default ignore patterns take no node_modules file: no claims, and the patterns are still checked", async () => {
+  // Every spelling of "ignore every package" turns the claims off, so no worker asks about a file.
+  for (const ignore of [
+    ['/node_modules/', '\\.pnp\\.[^\\/]+$'],
+    ['/node_modules'],
+    ['node_modules/'],
+    ['node_modules'],
+  ]) {
+    const resolved = await resolveNeutralProject(
+      neutral({ standInTransformPatterns: ['\\.[jt]sx?$'], transformIgnorePatterns: ignore }),
+      options,
+    )
+    assert.equal(resolved.config.loader.transformClaims, undefined, ignore.join(' '))
+  }
+  // An allowlist ignores some packages only: the claims stay.
+  const allowlist = await resolveNeutralProject(
+    neutral({
+      standInTransformPatterns: ['\\.[jt]sx?$'],
+      transformIgnorePatterns: ['/node_modules/(?!(esm-pkg)/)'],
+    }),
+    options,
+  )
+  assert.notEqual(allowlist.config.loader.transformClaims, undefined)
+  // Off, and still validated: a pair that fails joined is one config error.
+  const joined = await rejectsWith(
+    resolveNeutralProject(
+      neutral({
+        standInTransformPatterns: ['\\.js$'],
+        transformIgnorePatterns: ['/node_modules/', '\\k<b>', '(?<a>x)'],
+      }),
+      options,
+    ),
+    'CONFIG_INVALID',
+  )
+  assert.match(joined.message, /joined with "\|"/)
 })
