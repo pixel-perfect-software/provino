@@ -1,0 +1,14 @@
+{
+  "description": "A custom `resolver` that throws as it loads (B23e): jest-config's `normalize` preloads it with jest-util's `requireOrImportModule` (a plain `require` of a CommonJS file), the error is not wrapped, and jest-cli prints its stack and exits 1 before any test runs. The kept lines are the error's first line and its require stack's first entry. A black-box run.",
+  "runners": ["jest"],
+  "files": {
+    "jest": {
+      "resolver.cjs": "require('./missing-helper.cjs')\nmodule.exports = (path, options) => options.defaultResolver(path, options)\n"
+    }
+  },
+  "config": { "jest": { "resolver": "<rootDir>/resolver.cjs", "maxWorkers": 1 } },
+  "run": {
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^Error: |^Require stack:|^- <root>/|^(PASS|FAIL) "
+  }
+}

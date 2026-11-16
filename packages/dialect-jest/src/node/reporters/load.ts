@@ -37,10 +37,8 @@ export async function loadJestReporters(
       const Class = (await requireOrImportModule(step.path)) as JestReporterClass
       entries.push({ path: step.path, options: step.options, Class })
     } catch (error) {
-      // The module loader wraps what the module threw; Jest's `requireOrImportModule` doesn't.
-      let cause: unknown = error
-      while (cause instanceof Error && cause.cause instanceof Error) cause = cause.cause
-      const message = cause instanceof Error ? cause.message : ''
+      // TestScheduler.ts L444-L448: the thrown error's own message after Jest's line.
+      const message = error instanceof Error ? error.message : ''
       const wrapped = new Error(
         `An error occurred while adding the reporter at path "${step.path}".\n${message}`,
         { cause: error },

@@ -290,7 +290,9 @@ describe('createJestReporterHost', () => {
       'onTestFileStart',
       'onTestCaseStart',
     ])
-    const serial = await play([path], ['a.test.ts', 'b.test.ts'], {
+    // A module of its own: a reporter loads once per process, as Jest `require`s it, so a second
+    // load of the first would keep recording into the first run's array.
+    const serial = await play([await reporterModule(RECORDING)], ['a.test.ts', 'b.test.ts'], {
       interleave: true,
       serial: true,
     })

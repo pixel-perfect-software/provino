@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto'
+import { realpathSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -38,27 +39,37 @@ function freshUrl(file: string): string {
 }
 
 /**
- * The fresh load of each file that hasn't settled yet, keyed by path. An `import()` of a CommonJS
- * file puts the file's module in Node's CommonJS cache when it reads the file, and checks, when it
- * runs it, that the cache entry is still that module: Node 24's `loadCJSModuleWithModuleLoad`
- * (`internal/modules/esm/translators`) asserts it, and the failure is `ERR_INTERNAL_ASSERTION`. A
- * second fresh load of the same file in between deletes that entry (`freshUrl`), so the loads of
- * one file run one after another: Jest projects read at once load one file several times over (a
- * shared custom `resolver` or preset). It lives at module level because the cache it guards is the
- * process's, and it holds a file only while a load of that file is running.
+ * The fresh load of each file that hasn't settled yet, by real path (the key of Node's CommonJS
+ * cache, so two spellings of one file share an entry). An `import()` of a CommonJS file puts the
+ * file's module in that cache when it reads the file, and checks, when it runs it, that the entry
+ * is still that module: Node 24's `loadCJSModuleWithModuleLoad` (`internal/modules/esm/translators`)
+ * asserts it, and the failure is `ERR_INTERNAL_ASSERTION`. A second fresh load of the same file in
+ * between deletes that entry (`freshUrl`), so the loads of one file run one after another: two
+ * `run()` calls that overlap on one config file reach it. It lives at module level because the
+ * cache it guards is the process's, and it holds a file only while a load of that file is running.
  */
 const loading = new Map<string, Promise<void>>()
 
+/** The real path of `file`, or `file` when it has none (a missing file: the import says why). */
+function realPathOf(file: string): string {
+  try {
+    return realpathSync.native(file)
+  } catch {
+    return file
+  }
+}
+
 /** `import()` of `freshUrl(file)`, after any fresh load of the same file still running. */
 function importFresh(file: string): Promise<unknown> {
-  const load = (loading.get(file) ?? Promise.resolve()).then(() => import(freshUrl(file)))
+  const key = realPathOf(file)
+  const load = (loading.get(key) ?? Promise.resolve()).then(() => import(freshUrl(file)))
   const settled = load.then(
     () => undefined,
     () => undefined,
   )
-  loading.set(file, settled)
+  loading.set(key, settled)
   void settled.then(() => {
-    if (loading.get(file) === settled) loading.delete(file)
+    if (loading.get(key) === settled) loading.delete(key)
   })
   return load
 }
@@ -78,9 +89,9 @@ export function interopDefault(value: unknown): unknown {
 
 /**
  * Imports a config module and returns its default export, unwrapped as `interopRequireDefault`
- * does for a CommonJS file compiled from `export default`. The shared loading step of every config
- * file Provino reads (build-plan §6: `provino.config.*` here, `jest.config.*` in the Jest dialect).
- * Node's own loader reads the file, so `.mjs`, `.js` (per the nearest `package.json`'s `type`),
+ * does for a CommonJS file compiled from `export default`: how `loadConfigFile` reads a
+ * `provino.config.*` (build-plan §6). The Jest dialect reads Jest's files as jest-util's
+ * `requireOrImportModule` does instead (cached, as in Jest). Node's own loader reads the file, so `.mjs`, `.js` (per the nearest `package.json`'s `type`),
  * `.mts` and `.ts` load as Node loads them (type stripping needs Node 22.18+, or
  * `--experimental-strip-types`). Every call reads the file again (see `freshUrl`).
  *

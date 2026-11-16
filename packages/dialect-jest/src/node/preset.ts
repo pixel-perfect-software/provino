@@ -8,7 +8,6 @@
 // deep-merge (`deepmerge` 4); everything else is the config's over the preset's.
 import { readFileSync } from 'node:fs'
 import { isAbsolute } from 'node:path'
-import { ConfigError } from '@provino/config'
 import { JestConfigError, messageOf } from './errors.ts'
 import { requireOrImportModule } from './load.ts'
 import { replaceRootDirInPath } from './paths.ts'
@@ -96,13 +95,10 @@ async function loadPreset(path: string): Promise<unknown> {
     // `require` of a `.json` file: `JSON.parse`, comments not allowed.
     return JSON.parse(readFileSync(path, 'utf8'))
   }
-  try {
-    // Jest `require`s a preset (`requireOrImportModule`): a module with only named exports is its
-    // namespace, and an `.mjs` one with no default export fails as Jest's does.
-    return await requireOrImportModule(path)
-  } catch (error) {
-    throw error instanceof ConfigError && error.cause !== undefined ? error.cause : error
-  }
+  // L192-L197: "Force re-evaluation to support multiple projects": the preset's `require.cache`
+  // entry goes, then `requireOrImportModule`. A module with only named exports is its namespace,
+  // and an `.mjs` one (imported, so not re-evaluated) with no default export fails as Jest's does.
+  return requireOrImportModule(path, { fresh: true })
 }
 
 /**

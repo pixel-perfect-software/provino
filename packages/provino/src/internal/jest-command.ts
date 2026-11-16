@@ -1023,6 +1023,13 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
       stderr.write(`${error.stack ?? error.message}\n`)
       return ExitCode.TestFailure
     }
+    if (error instanceof JestConfigError && error.code === 'JEST_CONFIG_RESOLVER_LOAD_FAILED') {
+      // jest-resolve's `preloadResolver` lets what the module threw out as it is, and jest-cli
+      // prints its stack (`run.ts` L30-L38), exit 1.
+      const { cause } = error
+      stderr.write(`${cause instanceof Error ? (cause.stack ?? String(cause)) : String(cause)}\n`)
+      return usage
+    }
     if (error instanceof JestCliError || error instanceof JestConfigError) {
       // Jest's own text, as Jest prints it.
       stderr.write(`${error.message}\n`)

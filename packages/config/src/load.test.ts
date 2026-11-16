@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict'
+import { symlink } from 'node:fs/promises'
+import { join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
 import type { ConfigEnv } from '@provino/types'
 import { ConfigError } from './errors.ts'
@@ -261,28 +263,43 @@ describe('loading the same file again', () => {
     assert.deepEqual(await loadConfigFile(path, ENV), { name: path, root: `${temp.dir}/meta` })
   })
 
-  // Several Jest projects read at once load the custom `resolver` (or the preset) they share at
-  // once. Unserialized, the second load deletes the first one's CommonJS cache entry before Node
-  // runs the module, and Node's own assertion fails (`ERR_INTERNAL_ASSERTION`).
+  // Two `run()` calls that overlap on one config file load it at once. Unserialized, the second
+  // load deletes the first one's CommonJS cache entry before Node runs the module, and Node's own
+  // assertion fails (`ERR_INTERNAL_ASSERTION`).
+  const countingCjs = (counter: string): string =>
+    [
+      "const { join } = require('node:path')",
+      `globalThis.${counter} = (globalThis.${counter} ?? 0) + 1`,
+      'module.exports = { include: [join("src", "**")] }',
+      '',
+    ].join('\n')
+
   test('loads of one CommonJS file at the same time all succeed, and each runs the file', async () => {
-    const path = await temp.write(
-      'at-once/resolver.cjs',
-      [
-        "const { join } = require('node:path')",
-        'globalThis.__provinoAtOnceLoads = (globalThis.__provinoAtOnceLoads ?? 0) + 1',
-        'module.exports = (request, options) => join(options.basedir, request)',
-        '',
-      ].join('\n'),
-    )
-    Reflect.set(globalThis, '__provinoAtOnceLoads', 0)
+    const path = await temp.write('at-once/provino.config.cjs', countingCjs('__provinoAtOnceLoads'))
     try {
-      const loaded = await Promise.all(
-        Array.from({ length: 4 }, () => importConfigModule(path, { withoutDefault: 'namespace' })),
-      )
-      for (const resolver of loaded) assert.equal(typeof resolver, 'function')
+      const loaded = await Promise.all(Array.from({ length: 4 }, () => importConfigModule(path)))
+      for (const config of loaded) assert.deepEqual(config, { include: ['src/**'] })
       assert.equal(Reflect.get(globalThis, '__provinoAtOnceLoads'), 4)
     } finally {
       Reflect.deleteProperty(globalThis, '__provinoAtOnceLoads')
+    }
+  })
+
+  test('loads of one CommonJS file by two spellings of its path at the same time all succeed', async () => {
+    const path = await temp.write(
+      'spelled/provino.config.cjs',
+      countingCjs('__provinoSpelledLoads'),
+    )
+    await symlink(join(temp.dir, 'spelled'), join(temp.dir, 'spelled-alias'))
+    const alias = join(temp.dir, 'spelled-alias', 'provino.config.cjs')
+    try {
+      const loaded = await Promise.all(
+        [path, alias, path, alias].map((file) => importConfigModule(file)),
+      )
+      for (const config of loaded) assert.deepEqual(config, { include: ['src/**'] })
+      assert.equal(Reflect.get(globalThis, '__provinoSpelledLoads'), 4)
+    } finally {
+      Reflect.deleteProperty(globalThis, '__provinoSpelledLoads')
     }
   })
 

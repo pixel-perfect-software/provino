@@ -7,11 +7,12 @@
 // `@provino/resolver` (oxc-resolver) with the same options.
 import { isBuiltin } from 'node:module'
 import { join } from 'node:path'
-import { ConfigError, importConfigModule } from '@provino/config'
 import { createResolver } from '@provino/resolver'
 import type { Resolver } from '@provino/types'
 import { type JestRequireResolve, projectJestRequireResolve } from '../jest-require.ts'
-import { JestConfigError, stackOf } from './errors.ts'
+import { JestConfigError } from './errors.ts'
+import { requireOrImportModule } from './load.ts'
+import { tryRealpath } from './paths.ts'
 
 export { type JestRequireResolve, projectJestRequireResolve }
 
@@ -64,8 +65,10 @@ const NO_EXTENSION_ALIAS: Readonly<Record<string, readonly string[]>> = {
   '.cjs': ['.cjs'],
 }
 
-/** A custom resolver module as `asResolver`/`toResolver` (L1065-L1113) accept it. */
-function asResolver(loaded: unknown): SyncResolver | { readonly sync?: unknown } | null {
+type LoadedResolver = SyncResolver | { readonly sync?: unknown }
+
+/** `asResolver` (L1065-L1082). */
+function asResolver(loaded: unknown): LoadedResolver | null {
   if (typeof loaded === 'function') return loaded as SyncResolver
   if (typeof loaded === 'object' && loaded !== null) {
     if (Reflect.get(loaded, 'sync') != null || Reflect.get(loaded, 'async') != null) {
@@ -75,6 +78,61 @@ function asResolver(loaded: unknown): SyncResolver | { readonly sync?: unknown }
   return null
 }
 
+/** `toResolver` (L1084-L1113): the module itself, else an ES module's `default`. */
+function toResolver(path: string, loaded: unknown): LoadedResolver {
+  if (loaded == null) {
+    throw new JestConfigError(
+      'JEST_CONFIG_LOAD_FAILED',
+      `Resolver located at ${path} does not export anything`,
+    )
+  }
+  const resolver =
+    asResolver(loaded) ??
+    (typeof loaded === 'object' ? asResolver(Reflect.get(loaded, 'default')) : null)
+  if (resolver === null) {
+    throw new JestConfigError(
+      'JEST_CONFIG_LOAD_FAILED',
+      `Resolver located at ${path} does not export a function or an object with "sync" and "async" props`,
+    )
+  }
+  return resolver
+}
+
+/**
+ * The custom resolvers this process has loaded, by real path: jest-resolve's module-level
+ * `preloadedResolvers` (L1126-L1137), so the projects of a run that name one resolver share one
+ * load, as in Jest, under any spelling of its path. It holds the load itself, so projects read at
+ * once wait for the same one. A load that fails is dropped, and the next preload tries again.
+ */
+const preloadedResolvers = new Map<string, Promise<LoadedResolver>>()
+
+/**
+ * `preloadResolver` (L1126-L1137): jest-util's `requireOrImportModule(path, false)`, then
+ * `toResolver`. What the module threw is the `JEST_CONFIG_RESOLVER_LOAD_FAILED` error's `cause`.
+ */
+function preloadedResolver(path: string): Promise<LoadedResolver> {
+  const key = tryRealpath(path)
+  let loading = preloadedResolvers.get(key)
+  if (loading === undefined) {
+    loading = requireOrImportModule(path, { interop: false }).then(
+      (loaded) => toResolver(path, loaded),
+      (error: unknown) => {
+        throw new JestConfigError(
+          'JEST_CONFIG_RESOLVER_LOAD_FAILED',
+          `can't load the resolver "${path}"`,
+          { cause: error },
+        )
+      },
+    )
+    const settled = loading
+    preloadedResolvers.set(key, settled)
+    settled.catch(() => {
+      if (preloadedResolvers.get(key) === settled) preloadedResolvers.delete(key)
+    })
+  }
+  return loading
+}
+
 /**
  * Builds the resolution a normalize run uses. `requireResolve` is where Jest's built-in packages
  * come from (see `JestRequireResolve`).
@@ -82,7 +140,7 @@ function asResolver(loaded: unknown): SyncResolver | { readonly sync?: unknown }
  */
 export function createJestResolution(requireResolve: JestRequireResolve): JestResolution {
   const resolvers = new Map<string, Resolver>()
-  const custom = new Map<string, SyncResolver | { readonly sync?: unknown }>()
+  const custom = new Map<string, LoadedResolver>()
 
   const resolverFor = (extensions: readonly string[], moduleDirectories?: readonly string[]) => {
     const key = JSON.stringify([extensions, moduleDirectories ?? null])
@@ -163,29 +221,7 @@ export function createJestResolution(requireResolve: JestRequireResolve): JestRe
     },
     requireResolve,
     async preloadResolver(path) {
-      if (custom.has(path)) return
-      let loaded: unknown
-      try {
-        // Loaded once. A module with no default export is its namespace, so named `sync`/`async`
-        // exports make a resolver, as `toResolver` (L1084-L1113) accepts them.
-        loaded = await importConfigModule(path, { withoutDefault: 'namespace' })
-      } catch (error) {
-        // jest-cli prints the stack of what `requireOrImportModule` threw (`run.ts` L30-L38), so
-        // the text carries the underlying error's stack, not only its message.
-        throw new JestConfigError(
-          'JEST_CONFIG_LOAD_FAILED',
-          `can't load the resolver "${path}": ${stackOf(error instanceof ConfigError ? error.cause : error)}`,
-          { cause: error },
-        )
-      }
-      const resolver = asResolver(loaded)
-      if (resolver === null) {
-        throw new JestConfigError(
-          'JEST_CONFIG_LOAD_FAILED',
-          `Resolver located at ${path} does not export a function or an object with "sync" and "async" props`,
-        )
-      }
-      custom.set(path, resolver)
+      if (!custom.has(path)) custom.set(path, await preloadedResolver(path))
     },
   }
 }
