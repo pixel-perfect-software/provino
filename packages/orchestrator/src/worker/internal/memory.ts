@@ -40,7 +40,9 @@ export function usedHeapBytes(): number {
  * a worker is replaced for what it still holds after its garbage is gone, not for the garbage a
  * file left that V8 has not got to yet (D115, `speed`: a replacement costs the module records and
  * compiled wrappers every worker loads for itself, about 5 s for a React UI suite, `local`). Only
- * a worker over its limit pays for the collection, while it is idle between files. Jest compares
+ * a worker over its limit pays for the collection, while it is idle between files: 69 ms median
+ * (range 55 to 148, 7 fresh processes) for a heap of 953 MiB with 301 MiB of it live, down to 282
+ * MiB (`local`, Node 24.22.1, a machine under load). Jest compares
  * the heap as it is (jest-worker 30.5.1, `processChild.js`: `process.memoryUsage().heapUsed`, no
  * collection), so a worker Jest replaces because of garbage is kept here (DIVERGENCES: collect
  * before recycling). A test can't tell: `JEST_WORKER_ID` and the files a worker runs are the same.

@@ -19,7 +19,7 @@ import type {
   WorkerPort,
   WorkerToCoordinator,
 } from '@provino/types'
-import { usedHeapBytes } from './internal/memory.ts'
+import { collectGarbage, usedHeapBytes } from './internal/memory.ts'
 import { type StartWorkerOptions, startWorker, type WorkerRunner } from './start.ts'
 
 /** A valid project config; these tests move it around without reading it. */
@@ -258,6 +258,16 @@ describe('startWorker', () => {
       new Array(20_000_000).fill(0)
     }
 
+    /**
+     * A limit 64 MiB over the live heap, taken after a collection so that garbage an earlier test
+     * left in this process does not move it: far under what 160 MB adds, far over what remains
+     * once it is collected.
+     */
+    function limitAboveLiveHeap(): number {
+      collectGarbage()
+      return usedHeapBytes() + 64 * 1024 * 1024
+    }
+
     function memoryOf(h: ReturnType<typeof harness>, seq: number): number {
       const done = h.received.find(h.fileDone(seq))
       assert.ok(done?.t === 'fileDone')
@@ -267,7 +277,7 @@ describe('startWorker', () => {
     it('is the heap after one collection when the init’s memoryLimitBytes was passed: garbage a file left is not reported', async (t) => {
       // The limit is far under what the garbage holds and far over what the process lives on, so
       // only a collection puts the reported heap under it.
-      const limit = usedHeapBytes() + 64 * 1024 * 1024
+      const limit = limitAboveLiveHeap()
       const h = harness({
         runFile: async () => {
           makeGarbage()
@@ -287,7 +297,7 @@ describe('startWorker', () => {
       t.after(() => {
         held.length = 0
       })
-      const limit = usedHeapBytes() + 64 * 1024 * 1024
+      const limit = limitAboveLiveHeap()
       const h = harness({
         runFile: async () => {
           held.push(new Array(20_000_000).fill(0))
@@ -299,7 +309,10 @@ describe('startWorker', () => {
       h.coordinator.send({ t: 'run', seq: 0, job: job('holds') })
       await h.until(h.fileDone(0))
       const reported = memoryOf(h, 0)
-      assert.ok(reported > limit, `reported ${reported} bytes: the 160 MB the file holds is over ${limit}`)
+      assert.ok(
+        reported > limit,
+        `reported ${reported} bytes: the 160 MB the file holds is over ${limit}`,
+      )
     })
   })
 
