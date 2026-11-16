@@ -16,9 +16,11 @@ import type {
   ModulePolicy,
   ModuleScopeNames,
   ModuleTransformer,
+  NeutralResolution,
   Pragmas,
   RegisterMockOptions,
   Resolver,
+  SerializedLoaderConfig,
   TierChoice,
   TierSource,
   TierSources,
@@ -136,6 +138,35 @@ expectTypeOf(moduleMocks.active).returns.toEqualTypeOf<boolean>()
 expectTypeOf(moduleMocks.generation).returns.toEqualTypeOf<number>()
 expectTypeOf<ModulePolicy['mocksReachShared']>().toEqualTypeOf<boolean>()
 expectTypeOf<ModulePolicy['stackFrameNames']>().toEqualTypeOf<'mapped-name' | 'engine'>()
+
+// B23e: an edge resolves by its importer's format (`edgeResolveKind`), `module-sync` joins the
+// lookups `moduleSyncCondition` names, and a project's ES-module extensions reach the loader.
+expectTypeOf<ModulePolicy['edgeResolveKind']>().toEqualTypeOf<'as-written' | 'importer-format'>()
+expectTypeOf<ModulePolicy['moduleSyncCondition']>().toEqualTypeOf<
+  'never' | 'import-and-sync-require'
+>()
+expectTypeOf(loaderOptions.esmExtensions).toEqualTypeOf<readonly string[] | undefined>()
+expectTypeOf<SerializedLoaderConfig['esmExtensions']>().toEqualTypeOf<
+  readonly string[] | undefined
+>()
+expectTypeOf<NeutralResolution['esmExtensions']>().toEqualTypeOf<readonly string[] | undefined>()
+declare const modulePolicy: ModulePolicy
+// @ts-expect-error the kind is a policy value, not a resolve kind
+const requireKind: ModulePolicy = { ...modulePolicy, edgeResolveKind: 'require' }
+void requireKind
+// @ts-expect-error a boolean is not a moduleSyncCondition
+const moduleSyncOn: ModulePolicy = { ...modulePolicy, moduleSyncCondition: true }
+void moduleSyncOn
+// @ts-expect-error extensions are a list, not one string
+const oneExtension: LoaderOptions = { ...loaderOptions, esmExtensions: '.ts' }
+void oneExtension
+declare const serialized: SerializedLoaderConfig
+// @ts-expect-error exactOptionalPropertyTypes: leave the key out rather than set it to undefined
+const noExtensions: SerializedLoaderConfig = { ...serialized, esmExtensions: undefined }
+void noExtensions
+// @ts-expect-error extensions are strings
+const numericExtensions: NeutralResolution = { esmExtensions: [1] }
+void numericExtensions
 
 // T2.11: `tierFor` takes the sources of a tier and says which one won.
 expectTypeOf(loader.tierFor).parameters.toEqualTypeOf<[string, TierSources]>()

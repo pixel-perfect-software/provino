@@ -61,6 +61,8 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'module.missingFactoryExport': ['undefined', 'throw'],
   'module.mockValueOwner': ['module-registry', 'registration'],
   'module.mockResolveKind': ['require', 'import'],
+  'module.edgeResolveKind': ['as-written', 'importer-format'],
+  'module.moduleSyncCondition': ['never', 'import-and-sync-require'],
   'module.automockShape': ['metadata', 'deep'],
   'module.stackFrameNames': ['mapped-name', 'engine'],
   'snapshot.ciUpdate': ['new', 'none'],

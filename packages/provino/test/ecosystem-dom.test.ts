@@ -3,18 +3,11 @@
 // any `.snap` file, by `assertMatchesGolden` with no step of its own. Every fixture is two test
 // files on one worker, so a package loaded once per worker is seen by the second file too.
 import assert from 'node:assert/strict'
-import { mkdir, readdir, rm, symlink } from 'node:fs/promises'
-import { createRequire } from 'node:module'
-import { dirname, join } from 'node:path'
+import { readdir, rm } from 'node:fs/promises'
+import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
 import { FIXTURES } from './recorded.ts'
-import { assertMatchesGolden, provinoOn, WORK } from './recorded-run.ts'
-
-/** The real directory of a package the harness installs (the project's own copy, as pnpm links it). */
-function packageDir(name: string): string {
-  const require = createRequire(join(FIXTURES, 'x.js'))
-  return dirname(require.resolve(`${name}/package.json`))
-}
+import { assertMatchesGolden, linkEnvironments, provinoOn, WORK } from './recorded-run.ts'
 
 /**
  * Where the projects go: a directory of this file's own under `.work/`, whose `node_modules` holds
@@ -35,10 +28,11 @@ const PARENT = join(WORK, 'ecosystem-dom')
  *   `(0, _dom.waitFor)(…)`), Provino's under `waitFor` (column 9: the module-runner form calls
  *   `__vite_ssr_import_0__.waitFor(…)`), in both files' `failureMessage`. Not 2d's: the call
  *   position of an imported function through the transform.
- * - The loader: `ecosystem/jest-dom-jest-globals`. Jest runs the test file as CommonJS, so the
- *   entry resolves to `dist/jest-globals.js` under `require`; Provino resolves it under `import` to
- *   `dist/jest-globals.mjs`, whose `import { expect } from '@jest/globals'` fails to link against
- *   the served module, and the second file then fails with `ERR_REQUIRE_ESM_RACE_CONDITION`.
+ * - `ecosystem/jest-dom-jest-globals`: the same call position, in each test's `location`. The exit
+ *   code, the kept stderr lines and every status match (the entry now resolves under Jest's CJS
+ *   conditions to `dist/jest-globals.js`: `module.edgeResolveKind`); the 8 tests' `location.column`
+ *   is 5 in Jest's results (`test` from `@jest/globals` is called as `(0, _globals.test)(…)`, whose
+ *   position is the call's `(`) and 1 in Provino's (`__vite_ssr_import_1__.test(…)`).
  */
 const FIXTURE_IDS = [
   ['ecosystem/jest-axe', 'toHaveNoViolations and configureAxe'],
@@ -68,13 +62,7 @@ const PHASE_2A: ReadonlySet<string> = new Set([
   'ecosystem/user-event-fake-timers',
 ])
 
-before(async () => {
-  await mkdir(join(PARENT, 'node_modules'), { recursive: true })
-  for (const name of ['jest-environment-jsdom', 'jest-environment-node']) {
-    await rm(join(PARENT, 'node_modules', name), { force: true })
-    await symlink(packageDir(name), join(PARENT, 'node_modules', name))
-  }
-})
+before(() => linkEnvironments(PARENT))
 after(async () => {
   await rm(PARENT, { recursive: true, force: true })
 })

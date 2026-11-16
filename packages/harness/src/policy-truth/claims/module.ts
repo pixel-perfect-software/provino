@@ -9,8 +9,10 @@ import {
   ObservationError,
   observation,
   observedOf,
+  oneOf,
   statusOf,
   templateIn,
+  titlesOf,
 } from '../observe.ts'
 
 const mod = (...fixtures: readonly string[]) =>
@@ -42,6 +44,42 @@ const reevaluatedIn =
   (...titles: readonly string[]) =>
   (g: Golden): boolean =>
     titles.every((title) => statusOf(g, title) === 'passed')
+
+/**
+ * Reads the value a fixture's tests all show by how their titles end: every test is titled with
+ * the entry it got, so the value is the one whose ending every title has (`oneOf` fails on a golden
+ * that shows none of them, or several).
+ */
+const shownByTitleEnding =
+  (endings: Readonly<Record<string, string>>) =>
+  (g: Golden): string => {
+    const titles = titlesOf(g)
+    return oneOf(
+      titles,
+      Object.entries(endings).map(
+        ([value, ending]) => [value, titles.every((title) => title.endsWith(ending))] as const,
+      ),
+    )
+  }
+
+/**
+ * The kind an `import` in a file Jest runs as CommonJS resolved as (`env/conditions-import-*`):
+ * `<branch>-require` when the edge took the importer's format, `<branch>-import` when it resolved
+ * as written.
+ */
+const edgeKindShown = shownByTitleEnding({
+  'importer-format': '-require',
+  'as-written': '-import',
+})
+
+/**
+ * Whether an ES module's edges added `module-sync` (`env/conditions-import-module-sync`):
+ * `module-sync` when they did, the `node` branch's `node-import` when they did not.
+ */
+const moduleSyncShown = shownByTitleEnding({
+  'import-and-sync-require': ' module-sync',
+  never: ' node-import',
+})
 
 export const moduleClaims: Claims = {
   'module.factoryShape': mod('mod-factory-shape', 'mod-automock-all', 'mod-automock-cjs'),
@@ -76,6 +114,20 @@ export const moduleClaims: Claims = {
   'module.mockValueOwner': mod('mod-reregister', 'mod-reset-modules'),
   'module.mockResolveKind': mod('mod-conditions'),
   'module.mocksReachShared': mod('mod-shared-dep', 'mod-shared-dep-root'),
+  // The `-esm` fixture is not evidence here: an ES module's edges are `import`s under either value.
+  'module.edgeResolveKind': each(
+    ['node', 'jsdom', 'custom'].map((environment) =>
+      golden(`env/conditions-import-${environment}`, { read: edgeKindShown }),
+    ),
+    pending('T11.16', 'no Vitest fixture records how a module run as CommonJS resolves its edges'),
+  ),
+  // The `import` half. The `require` half is gated on whether Node evaluates an ES module graph
+  // synchronously (24.9 and later under `--experimental-vm-modules`), so a recording would differ
+  // between the Node versions CI runs; the loader's `edge-kind.test.ts` holds it on that seam.
+  'module.moduleSyncCondition': each(
+    golden('env/conditions-import-module-sync', { read: moduleSyncShown }),
+    pending('T11.16', 'no Vitest fixture records a package with a `module-sync` entry'),
+  ),
   'module.reevaluateHookingExternals': each(
     [
       golden('ecosystem/rtl-cleanup', {

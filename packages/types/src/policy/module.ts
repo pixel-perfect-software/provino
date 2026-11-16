@@ -121,6 +121,43 @@ export interface ModulePolicy {
    */
   readonly mockResolveKind: 'require' | 'import'
   /**
+   * The kind a module's edges resolve as, which decides the package `exports` conditions they are
+   * looked up with. `as-written`: each edge is its own kind, an `import` or `import()` adds the
+   * `import` condition and a `require` the `require` one. `importer-format`: every edge of a module
+   * takes the kind of the module it is in, `import` for one the runner runs as an ES module and
+   * `require` for any other, whatever its syntax; a module runs as an ES module when Node has
+   * `vm.SyntheticModule` (`--experimental-vm-modules`) and the file is `.mjs`, a `.js` file whose
+   * nearest `package.json` has `"type": "module"`, or has an extension in the loader's
+   * `esmExtensions`. `import.meta.resolve` keeps its own kind under either. An edge that finds no
+   * file under its importer's kind (a package with only an `import` entry) is not found, as in
+   * Jest, so a virtual mock or a name mapper can still stand in for it; `provino` itself has a
+   * `default` entry beside its `import` one for that reason.
+   *
+   * Jest: `importer-format`, as jest-runtime resolves every edge of a module it runs as CommonJS
+   * with its CJS conditions (an `import` its transform turned into `require` too) and every edge of
+   * an ES module with its ESM ones (`jest-runtime` `internals/Resolution.ts`, `shouldLoadAsEsm` in
+   * `jest-resolve`); recorded by `env/conditions-import-node`, `-jsdom`, `-custom` and `-esm`
+   * (Jest 30.5.2). Vitest: `as-written`, pending T11.16. Neutral: `as-written` (speed: no format
+   * lookup per importer).
+   */
+  readonly edgeResolveKind: 'as-written' | 'importer-format'
+  /**
+   * Whether an edge's lookup adds the `module-sync` export condition (a dual package's entry an ES
+   * module and `require(esm)` can both load). `never`: no edge adds it. `import-and-sync-require`:
+   * an edge that resolves as `import` (an `import`, `import()` or `import.meta.resolve`, and every
+   * edge of a module run as an ES module under `edgeResolveKind: 'importer-format'`) adds it, and
+   * one that resolves as `require` adds it only when the runtime can evaluate an ES module graph
+   * synchronously (`vm.SourceTextModule.prototype.hasAsyncGraph`: Node 24.9 and later, under
+   * `--experimental-vm-modules`). A mock registration resolves by the same rule, so its id is the
+   * edge's.
+   *
+   * Jest: `import-and-sync-require`, as jest-runtime builds its ESM conditions with `module-sync`
+   * and its CJS ones with it only when `supportsSyncEvaluate` (`internals/Resolution.ts` L35-48,
+   * `nodeCapabilities.ts`); recorded by `env/conditions-import-module-sync` (Jest 30.5.2). Vitest:
+   * `never`, pending T11.16. Neutral: `never` (speed: no capability probe, as before).
+   */
+  readonly moduleSyncCondition: 'never' | 'import-and-sync-require'
+  /**
    * Whether a mock reaches the modules in `node_modules` that import the mocked one (T2.6, D39). When
    * `true`, a package whose imports lead to a module the file mocks is loaded per file through that
    * file's registry (inlined), so the mock reaches it; the next file sees the shared module. When

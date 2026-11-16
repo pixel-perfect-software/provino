@@ -1398,3 +1398,124 @@ test('a shared external whose closure requires a served module is inlined, and i
   const second = load()
   assert.equal(second.plain.token, first.plain.token, 'a package that reaches none stays shared')
 })
+
+/** A dual package: its `node` branch's `import` and `require` entries name themselves. */
+const DUAL = {
+  'node_modules/dual/package.json': JSON.stringify({
+    name: 'dual',
+    exports: { '.': { node: { import: './node.mjs', require: './node.cjs' }, default: './d.cjs' } },
+  }),
+  'node_modules/dual/node.mjs': "export default 'node-import'\n",
+  'node_modules/dual/node.cjs': "module.exports = 'node-require'\n",
+  'node_modules/dual/d.cjs': "module.exports = 'default'\n",
+  'package.json': '{}\n',
+  'helper.ts': "import entry from 'dual'\nexport const fromHelper: string = entry\n",
+  'entry.test.ts':
+    "import entry from 'dual'\nexport { fromHelper } from './helper.ts'\nexport const fromTest: string = entry\nexport const required: string = require('dual')\n",
+}
+
+/**
+ * What `entry.test.ts` of the tree at `root` exports, through a registry-tier loader with `policy`
+ * (and Babel's `default` interop, which these trees' CommonJS entries are written for).
+ */
+function importEntry<T = Record<string, string>>(
+  root: string,
+  policy: Partial<ModulePolicy>,
+): Promise<T> {
+  const entry = join(root, 'entry.test.ts')
+  return loaderFor(root, { ...policy, interopDefault: 'babel' })
+    .createFileRegistry(entry, { tier: 'registry' })
+    .import<T>(entry)
+}
+
+test('edgeResolveKind: importer-format follows the importer, as-written (neutral) the edge', async () => {
+  // This process has no `--experimental-vm-modules`, so every module runs as CommonJS (Jest's rule).
+  const root = writeTree(DUAL)
+  const cases = [
+    [
+      'importer-format: every edge of a CommonJS-run module resolves as require',
+      { edgeResolveKind: 'importer-format' },
+      { fromTest: 'node-require', fromHelper: 'node-require', required: 'node-require' },
+    ],
+    [
+      'as-written: an import resolves as import and a require as require',
+      {},
+      { fromTest: 'node-import', fromHelper: 'node-import', required: 'node-require' },
+    ],
+  ] as const
+  for (const [title, policy, expected] of cases) {
+    const entry = await importEntry(root, policy)
+    assert.deepEqual(
+      { fromTest: entry.fromTest, fromHelper: entry.fromHelper, required: entry.required },
+      expected,
+      title,
+    )
+  }
+})
+
+test("edgeResolveKind: an import-only package is not found from a CommonJS-run module, with Jest's text", async () => {
+  // Jest resolves the edge with its CJS conditions only and fails it; nothing retries it as an
+  // `import`, so a virtual mock or a mapper still gets the miss (`review-regressions.test.ts`).
+  const root = writeTree({
+    'node_modules/esm-only/package.json': JSON.stringify({
+      name: 'esm-only',
+      exports: { '.': { import: './index.mjs' } },
+    }),
+    'node_modules/esm-only/index.mjs': "export const value = 'esm-only'\n",
+    'package.json': '{}\n',
+    'entry.test.ts': "export { value } from 'esm-only'\n",
+  })
+  const policy = {
+    edgeResolveKind: 'importer-format',
+    messages: { 'module-not-found': "Cannot find module '{specifier}' from '{from}'" },
+  } as const
+  await assert.rejects(importEntry(root, policy), {
+    code: 'MODULE_NOT_FOUND',
+    message: "Cannot find module 'esm-only' from 'entry.test.ts'",
+  })
+})
+
+/** A dual package that lists `module-sync` first: each entry's value names it. */
+const MODULE_SYNC = {
+  'node_modules/dual/package.json': JSON.stringify({
+    name: 'dual',
+    exports: {
+      '.': {
+        'module-sync': './module-sync.mjs',
+        import: './esm.mjs',
+        require: './cjs.cjs',
+      },
+    },
+  }),
+  'node_modules/dual/module-sync.mjs': "export default 'module-sync'\n",
+  'node_modules/dual/esm.mjs': "export default 'import'\n",
+  'node_modules/dual/cjs.cjs': "module.exports = 'require'\n",
+  'package.json': '{}\n',
+  'entry.test.ts':
+    "import imported from 'dual'\nexport const fromImport: string = imported\nexport const fromRequire: string = require('dual')\nexport const fromDynamic = async (): Promise<string> => (await import('dual')).default\n",
+}
+
+test('moduleSyncCondition: an import edge adds module-sync, a require only where Node evaluates ESM synchronously', async () => {
+  // This process has no `--experimental-vm-modules`, so a `require` adds no `module-sync` (the
+  // gate's other side is `edge-kind.test.ts`'s, on the capability seam).
+  const root = writeTree(MODULE_SYNC)
+  const load = (moduleSyncCondition: ModulePolicy['moduleSyncCondition']) =>
+    importEntry<{ fromImport: string; fromRequire: string; fromDynamic: () => Promise<string> }>(
+      root,
+      { moduleSyncCondition },
+    )
+  const jest = await load('import-and-sync-require')
+  assert.deepEqual(
+    { import: jest.fromImport, require: jest.fromRequire, dynamic: await jest.fromDynamic() },
+    { import: 'module-sync', require: 'require', dynamic: 'module-sync' },
+  )
+  const neutral = await load('never')
+  assert.deepEqual(
+    {
+      import: neutral.fromImport,
+      require: neutral.fromRequire,
+      dynamic: await neutral.fromDynamic(),
+    },
+    { import: 'import', require: 'require', dynamic: 'import' },
+  )
+})

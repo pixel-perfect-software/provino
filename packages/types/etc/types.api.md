@@ -1716,6 +1716,7 @@ export interface LoaderOptions {
     readonly conditions?: readonly string[];
     // (undocumented)
     readonly engine: EngineKind;
+    readonly esmExtensions?: readonly string[];
     readonly formatMapperMiss?: FormatMapperMiss;
     readonly graphCache?: string | null;
     readonly inline?: readonly (string | RegExp)[];
@@ -2075,6 +2076,7 @@ export interface ModulePolicy {
     readonly automock: boolean;
     readonly automockShape: "metadata" | "deep";
     readonly awaitFactory: boolean;
+    readonly edgeResolveKind: "as-written" | "importer-format";
     readonly factoryShape: "module-value" | "namespace";
     readonly injectCjsGlobals: boolean;
     readonly interopDefault: "babel" | "node";
@@ -2084,6 +2086,7 @@ export interface ModulePolicy {
     readonly mockResolveKind: "require" | "import";
     readonly mocksReachShared: boolean;
     readonly mockValueOwner: "module-registry" | "registration";
+    readonly moduleSyncCondition: "never" | "import-and-sync-require";
     readonly reevaluateHookingExternals: boolean;
     readonly requireVirtualFlag: boolean;
     readonly resetModulesBetween: boolean;
@@ -2245,6 +2248,7 @@ export interface NeutralProject {
 
 // @public
 export interface NeutralResolution {
+    readonly esmExtensions?: readonly string[];
     // (undocumented)
     readonly moduleDirectories?: readonly string[];
     readonly modulePaths?: readonly string[];
@@ -3046,6 +3050,7 @@ export interface SerializedLoaderConfig {
     readonly cacheDir?: string;
     readonly codeIdentity?: string;
     readonly conditions: readonly string[];
+    readonly esmExtensions?: readonly string[];
     readonly extensions: readonly string[];
     readonly hoist: HoistPolicy | null;
     readonly mappers: readonly SerializedModuleMapper[];

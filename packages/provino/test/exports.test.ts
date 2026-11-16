@@ -27,9 +27,13 @@ const manifest = JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8'))
   readonly publishConfig: { readonly bin: Readonly<Record<string, string>> }
 }
 
-/** Runs `code` as an ES module in the package directory, with no `provino-source` condition. */
-function inPackage(code: string, env: NodeJS.ProcessEnv = {}) {
-  const result = spawnSync(process.execPath, ['--input-type=module', '-e', code], {
+/** Runs `code` as an ES module (or CommonJS) in the package directory, with no `provino-source` condition. */
+function inPackage(
+  code: string,
+  env: NodeJS.ProcessEnv = {},
+  inputType: 'module' | 'commonjs' = 'module',
+) {
+  const result = spawnSync(process.execPath, [`--input-type=${inputType}`, '-e', code], {
     cwd: PACKAGE,
     encoding: 'utf8',
     env: childEnv([], env),
@@ -43,16 +47,92 @@ const SUBPATHS = Object.entries(manifest.exports)
   .filter(([, conditions]) => conditions.import !== undefined)
   .map(([subpath]) => subpath)
 
+/** What each subpath of `SUBPATHS` exports, by the specifier a user imports it with. */
+const EXPORTED_NAMES: Readonly<Record<string, readonly string[]>> = {
+  provino: [
+    'LazyError',
+    'ProvinoWorkerApiError',
+    'afterAll',
+    'afterEach',
+    'beforeAll',
+    'beforeEach',
+    'describe',
+    'evaluatedLazies',
+    'expect',
+    'includeContext',
+    'includeExamples',
+    'it',
+    'itBehavesLike',
+    'lazy',
+    'sharedContext',
+    'sharedExamples',
+    'test',
+  ],
+  'provino/globals': [],
+  'provino/config': ['ConfigError', 'formatConfigIssue'],
+  'provino/node': ['run'],
+  'provino/reporters': [
+    'AGENT_VARIABLES',
+    'agentReporter',
+    'createStyle',
+    'defaultReporter',
+    'defineReporter',
+    'detectOutput',
+    'dotReporter',
+    'githubActionsReporter',
+    'jsonReporter',
+    'junitReporter',
+    'normalizedJsonReporter',
+    'verboseReporter',
+  ],
+  'provino/environment': [
+    'JsdomEnvironmentError',
+    'NodeEnvironmentError',
+    'defineEnvironment',
+    'jsdomEnvironment',
+    'nodeEnvironment',
+  ],
+  'provino/jest': ['jestDialect', 'jestPolicy'],
+}
+
+/**
+ * Loads every specifier of `EXPORTED_NAMES` in a child with `loadExpr` (an expression over the
+ * specifier `s`) and checks each one's export names against the table, which names every subpath.
+ */
+function assertExports(loadExpr: string, inputType: 'module' | 'commonjs'): void {
+  assert.deepEqual(
+    Object.keys(EXPORTED_NAMES).toSorted(),
+    SUBPATHS.map((subpath) => `provino${subpath.slice(1)}`).toSorted(),
+    'the table names every subpath a user imports',
+  )
+  const { status, stdout, stderr } = inPackage(
+    `const out = {}
+     for (const s of ${JSON.stringify(Object.keys(EXPORTED_NAMES))}) out[s] = Object.keys(${loadExpr}).sort()
+     console.log(JSON.stringify(out))`,
+    {},
+    inputType,
+  )
+  assert.equal(status, 0, stderr)
+  const got = JSON.parse(stdout) as Record<string, string[]>
+  for (const [specifier, names] of Object.entries(EXPORTED_NAMES)) {
+    assert.deepEqual(got[specifier], [...names].sort(), specifier)
+  }
+}
+
 describe('the umbrella exports (T1.10)', () => {
-  test('every subpath but /package.json is source, types and import, in that order', () => {
+  test('every subpath but /package.json is source, types, import and default, in that order', () => {
     assert.ok(SUBPATHS.includes('.') && SUBPATHS.includes('./jest'), SUBPATHS.join(', '))
     assert.deepEqual(Object.keys(manifest.exports), [...SUBPATHS, './package.json'])
     for (const subpath of SUBPATHS) {
+      const conditions = manifest.exports[subpath] ?? {}
       assert.deepEqual(
-        Object.keys(manifest.exports[subpath] ?? {}),
-        ['provino-source', 'types', 'import'],
+        Object.keys(conditions),
+        ['provino-source', 'types', 'import', 'default'],
         subpath,
       )
+      // `default` is the same file, so a lookup under CommonJS conditions finds it: a test file Jest
+      // runs as CommonJS resolves `import 'provino'` under `require` (`module.edgeResolveKind`).
+      assert.equal(conditions.default, conditions.import, subpath)
     }
   })
 
@@ -66,62 +146,13 @@ describe('the umbrella exports (T1.10)', () => {
   })
 
   test('each subpath imports under plain Node and exports what it promises', () => {
-    const expected: Readonly<Record<string, readonly string[]>> = {
-      provino: [
-        'LazyError',
-        'ProvinoWorkerApiError',
-        'afterAll',
-        'afterEach',
-        'beforeAll',
-        'beforeEach',
-        'describe',
-        'evaluatedLazies',
-        'expect',
-        'includeContext',
-        'includeExamples',
-        'it',
-        'itBehavesLike',
-        'lazy',
-        'sharedContext',
-        'sharedExamples',
-        'test',
-      ],
-      'provino/globals': [],
-      'provino/config': ['ConfigError', 'formatConfigIssue'],
-      'provino/node': ['run'],
-      'provino/reporters': [
-        'AGENT_VARIABLES',
-        'agentReporter',
-        'createStyle',
-        'defaultReporter',
-        'defineReporter',
-        'detectOutput',
-        'dotReporter',
-        'githubActionsReporter',
-        'jsonReporter',
-        'junitReporter',
-        'normalizedJsonReporter',
-        'verboseReporter',
-      ],
-      'provino/environment': [
-        'JsdomEnvironmentError',
-        'NodeEnvironmentError',
-        'defineEnvironment',
-        'jsdomEnvironment',
-        'nodeEnvironment',
-      ],
-      'provino/jest': ['jestDialect', 'jestPolicy'],
-    }
-    const { status, stdout, stderr } = inPackage(
-      `const out = {}
-       for (const s of ${JSON.stringify(Object.keys(expected))}) out[s] = Object.keys(await import(s)).sort()
-       console.log(JSON.stringify(out))`,
-    )
-    assert.equal(status, 0, stderr)
-    const got = JSON.parse(stdout) as Record<string, string[]>
-    for (const [specifier, names] of Object.entries(expected)) {
-      assert.deepEqual(got[specifier], [...names].sort(), specifier)
-    }
+    assertExports('await import(s)', 'module')
+  })
+
+  test('each subpath loads with require() under plain Node: no entry has top-level await', () => {
+    // `default` sends a CommonJS lookup to the ES module, which Node loads with `require(esm)`; a
+    // top-level await anywhere in an entry's graph would throw ERR_REQUIRE_ASYNC_MODULE here.
+    assertExports('require(s)', 'commonjs')
   })
 
   test('a path outside exports throws ERR_PACKAGE_PATH_NOT_EXPORTED, built or source', () => {

@@ -27,37 +27,44 @@
     ".": {
       "provino-source": "./src/index.ts",
       "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
     },
     "./globals": {
       "provino-source": "./src/globals.ts",
       "types": "./dist/globals.d.ts",
-      "import": "./dist/globals.js"
+      "import": "./dist/globals.js",
+      "default": "./dist/globals.js"
     },
     "./config": {
       "provino-source": "./src/config.ts",
       "types": "./dist/config.d.ts",
-      "import": "./dist/config.js"
+      "import": "./dist/config.js",
+      "default": "./dist/config.js"
     },
     "./node": {
       "provino-source": "./src/node.ts",
       "types": "./dist/node.d.ts",
-      "import": "./dist/node.js"
+      "import": "./dist/node.js",
+      "default": "./dist/node.js"
     },
     "./reporters": {
       "provino-source": "./src/reporters.ts",
       "types": "./dist/reporters.d.ts",
-      "import": "./dist/reporters.js"
+      "import": "./dist/reporters.js",
+      "default": "./dist/reporters.js"
     },
     "./environment": {
       "provino-source": "./src/environment.ts",
       "types": "./dist/environment.d.ts",
-      "import": "./dist/environment.js"
+      "import": "./dist/environment.js",
+      "default": "./dist/environment.js"
     },
     "./jest": {
       "provino-source": "./src/jest.ts",
       "types": "./dist/jest.d.ts",
-      "import": "./dist/jest.js"
+      "import": "./dist/jest.js",
+      "default": "./dist/jest.js"
     },
     "./package.json": {
       "provino-source": "./package.json",

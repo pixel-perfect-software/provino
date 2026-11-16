@@ -165,3 +165,55 @@ test('a CommonJS module whose evaluation threw is forgotten, so the next require
     Reflect.deleteProperty(globalThis, '__fail')
   }
 })
+
+// B23e's pre-merge review of `module.edgeResolveKind: 'importer-format'`.
+
+test("a virtual mock serves an edge its importer's kind finds no file for, never the import-only file (B23e review High 1)", async () => {
+  // This process has no `--experimental-vm-modules`, so the test file runs as CommonJS: its
+  // `import` resolves under `require`, finds nothing, and the virtual mock answers, as in Jest.
+  const root = writeTree({
+    'node_modules/esm-only/package.json': JSON.stringify({
+      name: 'esm-only',
+      exports: { '.': { import: './index.mjs' } },
+    }),
+    'node_modules/esm-only/index.mjs': "export const value = 'real'\n",
+    'package.json': '{}\n',
+    'entry.test.ts': [
+      "import { value } from 'esm-only'",
+      "mocker.mock('esm-only', () => ({ value: 'mocked' }), { virtual: true })",
+      'export const seen = value',
+      '',
+    ].join('\n'),
+  })
+  const policy = { edgeResolveKind: 'importer-format' } as const
+  const file = join(root, 'entry.test.ts')
+  const { files } = fileWithMocks(loaderFor(root, { policy }), file, { policy })
+  const entry = await files.import<{ seen: string }>(file)
+  assert.equal(entry.seen, 'mocked')
+})
+
+test('a mock registration resolves with the module-sync condition its edge gets, so the mock applies (B23e review Medium 2)', async () => {
+  // Under `mockResolveKind: 'import'` the registration and the edge both add `module-sync`; were
+  // the registration looked up without it, its ids would be the `import` and `require` files and
+  // the edge's file, `module-sync.mjs`, would load for real.
+  const root = writeTree({
+    'node_modules/dual/package.json': JSON.stringify({
+      name: 'dual',
+      exports: {
+        '.': { 'module-sync': './module-sync.mjs', import: './esm.mjs', require: './cjs.cjs' },
+      },
+    }),
+    'node_modules/dual/module-sync.mjs': "export const value = 'module-sync'\n",
+    'node_modules/dual/esm.mjs': "export const value = 'import'\n",
+    'node_modules/dual/cjs.cjs': "exports.value = 'require'\n",
+    'package.json': '{}\n',
+    'user.ts': "import { value } from 'dual'\nexport const seen = value\n",
+    'entry.test.ts': '',
+  })
+  const policy = { ...VITESTISH, moduleSyncCondition: 'import-and-sync-require' } as const
+  const file = join(root, 'entry.test.ts')
+  const { files } = fileWithMocks(loaderFor(root, { policy, hoist: null }), file, { policy })
+  files.registerMock('dual', null, { kind: 'factory', factory: () => ({ value: 'mocked' }) })
+  const user = await files.import<{ seen: string }>('./user.ts', at(root, 'a.test.ts'))
+  assert.equal(user.seen, 'mocked')
+})

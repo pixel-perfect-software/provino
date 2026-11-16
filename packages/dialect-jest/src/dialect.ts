@@ -231,6 +231,14 @@ export const jestPolicy: PolicyOverrides = {
     mockValueOwner: 'module-registry',
     // Recorded, Jest 30.5.2: `mod-conditions` (a `require`-only package mocks, an `import`-only one is not found).
     mockResolveKind: 'require',
+    // Recorded, Jest 30.5.2: `env/conditions-import-node`, `-jsdom`, `-custom` (an `import` in a file
+    // Jest runs as CommonJS takes the `require` entry) and `-esm` (an ES module's, the `import` one).
+    edgeResolveKind: 'importer-format',
+    // Recorded, Jest 30.5.2: `env/conditions-import-module-sync` (an ES module's edge takes the
+    // `module-sync` entry). The `require` half is gated on Node's sync evaluation, as jest-runtime's
+    // `supportsSyncEvaluate` (`Resolution.ts` L35-48), which differs by Node version: the loader's
+    // `edge-kind.test.ts` holds the gate on its capability seam.
+    moduleSyncCondition: 'import-and-sync-require',
     // Recorded, Jest 30.5.2: `mod-shared-dep` and `mod-shared-dep-root` (a mock reaches the packages that require it).
     mocksReachShared: true,
     // Recorded, Jest 30.5.2: `ecosystem/rtl-cleanup` and `ecosystem/jest-canvas-mock` (jest-runtime

@@ -89,6 +89,8 @@ export interface NeutralResolution {
   readonly moduleDirectories?: readonly string[]
   /** Absolute directories. */
   readonly modulePaths?: readonly string[]
+  /** Extensions whose files run as ES modules beyond `.mjs` and a module package's `.js` (Jest's `extensionsToTreatAsEsm`). */
+  readonly esmExtensions?: readonly string[]
   /** An absolute path to a custom resolver module (Jest's `resolver`). */
   readonly resolver?: string
   /** The affected-test graph skips node lookups of bare names (Jest's `skipNodeResolution`). */

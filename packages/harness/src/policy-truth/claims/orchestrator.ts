@@ -16,12 +16,12 @@ import type { EnvironmentRequest, GlobalSetupFailure } from '@provino/types'
 import { defaultFixturesRoot } from '../../fixture.ts'
 import type { Golden } from '../../golden.ts'
 import { type Claims, each, golden, own, pending } from '../evidence.ts'
-import { capturedFile, observation, observedOf, oneOf, statusOf } from '../observe.ts'
+import { capturedFile, observation, observedOf, oneOf, statusOf, titlesOf } from '../observe.ts'
 
 const exitCode = (g: Golden): unknown => observedOf(g).exitCode
 /** The one test whose title starts with `prefix`, read for what follows it. */
 const titleAfter = (g: Golden, prefix: string): string => {
-  const titles = g.files.flatMap((file) => file.tests.map((test) => test.id.path.join(' ')))
+  const titles = titlesOf(g)
   const found = titles.filter((title) => title.startsWith(prefix))
   if (found.length === 0) throw new Error(`${g.suite} (${g.runner}) has no test "${prefix}..."`)
   return found.map((title) => title.slice(prefix.length)).join(', ')
@@ -33,7 +33,7 @@ const titleAfter = (g: Golden, prefix: string): string => {
  * worker: true`), or the reading would say nothing.
  */
 const processObjectOf = (g: Golden, prefix: string, isolated = '0'): string => {
-  const titles = g.files.flatMap((file) => file.tests.map((test) => test.id.path.join(' ')))
+  const titles = titlesOf(g)
   const order = titles.filter((title) => title.startsWith('the first file ran before'))
   if (order.some((title) => !title.endsWith(': true'))) {
     throw new Error(`${g.suite} (${g.runner}) did not run its files in order in one worker`)

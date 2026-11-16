@@ -15,7 +15,7 @@ import type {
   ModuleMockRegistry,
 } from '@provino/types'
 import { LoaderError } from './errors.ts'
-import { conditionsOf } from './graph/conditions.ts'
+import { edgeConditions } from './internal/edge-kind.ts'
 import { saveGraph } from './internal/inline.ts'
 import { loaderMessage } from './internal/messages.ts'
 import {
@@ -43,7 +43,8 @@ const UNRESOLVED_RELATIVE_MOCK = 'unresolved-relative-mock'
 export const createLoader: CreateLoader = (options) => {
   if (options.engine !== 'runner') throw notYet("engine: 'native'", 'T2.10')
   const state = createRecords(options)
-  const conditions = conditionsOf(options)
+  // A registration resolves as an edge of its kind does (`ModulePolicy.moduleSyncCondition`).
+  const conditions = edgeConditions(state.edgeKinds, options.policy.mockResolveKind)
   // The `none` tier: one instance map for every file in the worker.
   const shared = new Registry(state, true)
 
@@ -56,7 +57,7 @@ export const createLoader: CreateLoader = (options) => {
 
     /** The id the actual paths load: the specifier resolved as a mock registration resolves it. */
     const actualId = (specifier: string, from: string): string => {
-      const target = resolveOrMissing(state, specifier, from, options.policy.mockResolveKind)
+      const target = resolveOrMissing(state, specifier, from, options.policy.mockResolveKind, true)
       if (target.kind === 'missing' || target.kind === 'served') throw target.error
       return target.kind === 'external' ? target.path : target.id
     }

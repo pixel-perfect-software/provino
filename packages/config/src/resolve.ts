@@ -404,7 +404,13 @@ interface ProjectInput {
   readonly globalSetup?: ResolvedGlobalSetup | undefined
   /** The project's own affected-selection settings (T9.16); a neutral project's only. */
   readonly affected?: ResolvedProject['affected'] | undefined
-  /** Name-mapping rules and resolver keys (T3.3); none for a `provino.config.*` project. */
+  /**
+   * Name-mapping rules and resolver keys (T3.3); none for a `provino.config.*` project. So such a
+   * project has no `esmExtensions` either: under a dialect whose `module.edgeResolveKind` is
+   * `importer-format` (`dialect: 'jest'`), a `.ts` or `.tsx` file always resolves its edges as
+   * CommonJS-run, even under `--experimental-vm-modules`, where `.mjs` and a `"type": "module"`
+   * package's `.js` resolve as ES modules (Jest's `extensionsToTreatAsEsm` has no Provino key).
+   */
   readonly aliases?: readonly NeutralAlias[] | undefined
   readonly resolution?: NeutralResolution | undefined
   readonly globalValues?: Readonly<Record<string, JsonValue>> | undefined
@@ -433,6 +439,9 @@ function resolverKeys(input: ProjectInput): Partial<SerializedLoaderConfig> {
     ...(resolution?.modulePaths === undefined || resolution.modulePaths.length === 0
       ? {}
       : { modulePaths: resolution.modulePaths }),
+    ...(resolution?.esmExtensions === undefined || resolution.esmExtensions.length === 0
+      ? {}
+      : { esmExtensions: resolution.esmExtensions }),
     ...(resolution?.resolver === undefined
       ? {}
       : { resolver: { module: resolution.resolver, export: 'default' } }),

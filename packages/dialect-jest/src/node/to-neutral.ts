@@ -337,6 +337,9 @@ export function jestProjectToNeutral(
         ...(project.modulePaths ?? []),
       ],
       ...(project.resolver === undefined ? {} : { resolver: project.resolver }),
+      ...(project.extensionsToTreatAsEsm.length === 0
+        ? {}
+        : { esmExtensions: [...project.extensionsToTreatAsEsm] }),
       ...(project.skipNodeResolution === true ? { skipNodeResolution: true } : {}),
     },
     transforms,
