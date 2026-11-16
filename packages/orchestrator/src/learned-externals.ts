@@ -3,21 +3,9 @@
 // moves or upgrades a package drops what was learned of it, rather than the set only growing.
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { packageDirOf } from '@provino/loader/graph'
 import type { ResultsCache } from './cache.ts'
 import { relativePosix } from './file-id.ts'
-
-/** The directory of the package a node_modules file belongs to (`…/node_modules/@scope/name`). */
-function packageDirOf(path: string): string | null {
-  const normal = path.replaceAll('\\', '/')
-  const at = normal.lastIndexOf('/node_modules/')
-  if (at === -1) return null
-  const start = at + '/node_modules/'.length
-  const first = normal.indexOf('/', start)
-  if (first === -1) return null
-  if (normal[start] !== '@') return normal.slice(0, first)
-  const second = normal.indexOf('/', first + 1)
-  return second === -1 ? null : normal.slice(0, second)
-}
 
 /**
  * The `version` of the package.json of the package `path` is in (`''` when it has none or can't be

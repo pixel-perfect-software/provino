@@ -18,7 +18,14 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
 import { createResolver } from '@provino/resolver'
-import { buildThirdPartyGraph, graphCacheKey, importersOf, initLexer, scanSource } from './index.ts'
+import {
+  buildThirdPartyGraph,
+  graphCacheKey,
+  importersOf,
+  initLexer,
+  packageDirOf,
+  scanSource,
+} from './index.ts'
 
 const roots: string[] = []
 after(() => {
@@ -528,5 +535,34 @@ describe('what the cache must not keep', () => {
     second.save()
     const left = readdirSync(join(cacheDir, 'graph')).filter((file) => file.endsWith('.tmp'))
     assert.deepEqual(left, [])
+  })
+})
+
+describe('packageDirOf', () => {
+  test('is the directory of the package a node_modules file belongs to', () => {
+    assert.equal(packageDirOf('/r/node_modules/pkg/lib/a.js'), '/r/node_modules/pkg')
+    assert.equal(packageDirOf('/r/node_modules/@scope/pkg/lib/a.js'), '/r/node_modules/@scope/pkg')
+    assert.equal(packageDirOf('/r/node_modules/pkg/index.js'), '/r/node_modules/pkg')
+  })
+
+  test('takes the innermost node_modules, and the pnpm layout', () => {
+    assert.equal(
+      packageDirOf('/r/node_modules/a/node_modules/b/index.js'),
+      '/r/node_modules/a/node_modules/b',
+    )
+    assert.equal(
+      packageDirOf('/r/node_modules/.pnpm/x@1/node_modules/x/index.js'),
+      '/r/node_modules/.pnpm/x@1/node_modules/x',
+    )
+  })
+
+  test('writes / for Windows separators', () => {
+    assert.equal(packageDirOf('C:\\r\\node_modules\\@s\\p\\a.js'), 'C:/r/node_modules/@s/p')
+  })
+
+  test('is null for a path that is in no package: outside node_modules, or a package directory itself', () => {
+    assert.equal(packageDirOf('/r/src/a.js'), null)
+    assert.equal(packageDirOf('/r/node_modules/pkg'), null)
+    assert.equal(packageDirOf('/r/node_modules/@scope/pkg'), null)
   })
 })
