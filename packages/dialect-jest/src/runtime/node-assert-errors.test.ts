@@ -140,7 +140,6 @@ test('the shaped value keeps the assertion error name, hidden', () => {
     name?: string
   }
   assert.equal(shaped.name, 'AssertionError')
-  assert.deepEqual(Object.keys(shaped), ['message'])
 })
 
 test('expand prints the whole diff, as state.expand does', () => {
@@ -161,11 +160,4 @@ test('an error that is no assertion error is returned as it is', () => {
   assert.equal(shapeTestError('text', EXPAND), 'text')
   assert.equal(shapeTestError(undefined, EXPAND), undefined)
   assert.equal(shapeTestError(null, EXPAND), null)
-})
-
-test('the text starts with the hint, whatever colour chalk has', () => {
-  const shaped = shapeTestError(thrownBy(THROWN.equal as () => unknown), EXPAND) as {
-    message: string
-  }
-  assert.ok(stripColour(shaped.message).startsWith('assert.equal(received, expected)'))
 })

@@ -6,18 +6,13 @@ import { describe, it } from 'node:test'
 import { assertMatchesGolden, provinoOn } from './recorded-run.ts'
 
 describe('provino jest formats node:assert failures as Jest 30.5.2 does', () => {
-  it('cli/node-assert: the exit code, the failure blocks and every failureMessages entry', async () => {
-    const run = await provinoOn('cli/node-assert')
-    assertMatchesGolden('cli/node-assert', run)
-  })
-
-  it('cli/node-assert-expand: --expand prints the whole diff, as state.expand does', async () => {
-    const run = await provinoOn('cli/node-assert-expand')
-    assertMatchesGolden('cli/node-assert-expand', run)
-  })
-
-  it('cli/node-assert-unhandled: an unhandled rejection the running test owns is shaped', async () => {
-    const run = await provinoOn('cli/node-assert-unhandled')
-    assertMatchesGolden('cli/node-assert-unhandled', run)
-  })
+  for (const [id, what] of [
+    ['cli/node-assert', 'the exit code, the failure blocks and every failureMessages entry'],
+    ['cli/node-assert-expand', '--expand prints the whole diff, as state.expand does'],
+    ['cli/node-assert-unhandled', 'an unhandled rejection the running test owns is shaped'],
+  ] as const) {
+    it(`${id}: ${what}`, async () => {
+      assertMatchesGolden(id, await provinoOn(id))
+    })
+  }
 })
