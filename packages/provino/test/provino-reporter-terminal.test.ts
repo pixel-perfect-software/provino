@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { describe, it } from 'node:test'
 import { isCi } from '@provino/reporters'
-import { BUILT_BIN, jestConfigJson, outputFree, passing, trackedProjects } from './support.ts'
+import { BUILT_BIN, interactiveEnv, jestConfigJson, passing, trackedProjects } from './support.ts'
 
 /** The harness's terminal pieces, loaded by path: `provino` may not import `@provino/harness`. */
 const HARNESS = new URL('../../harness/src/', import.meta.url)
@@ -65,7 +65,8 @@ const makeProject = trackedProjects()
 
 /** An interactive terminal: nothing that says CI, an agent or a colour choice. */
 function terminalEnv(): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...outputFree(), TERM: 'xterm-256color' }
+  // None of a CI runner's variables: under `CI` the run would not be live (D135).
+  const env: NodeJS.ProcessEnv = { ...interactiveEnv(), TERM: 'xterm-256color' }
   for (const name of ['TERM_PROGRAM', 'TERM_PROGRAM_VERSION', 'COLORTERM']) delete env[name]
   return env
 }

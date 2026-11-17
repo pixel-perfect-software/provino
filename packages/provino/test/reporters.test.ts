@@ -18,6 +18,7 @@ import {
   passing,
   spawnCli,
   trackedProjects,
+  withoutCiEnvironment,
   withoutNodeNoise,
 } from './support.ts'
 
@@ -484,12 +485,15 @@ describe('D135: an interactive terminal with no reporter named gets provino', ()
   it('under provino jest: no summary, no closing line, no RUNS block', async () => {
     const project = await makeProject(ok)
     const stderr = new Terminal()
-    const code = await runJestCommand([`--config=${jestConfigJson(project.dir)}`], {
-      stdout: new Collect(),
-      stderr,
-      cwd: project.dir,
-      env: {},
-    })
+    // An interactive terminal: none of a CI runner's variables reach the Jest reader.
+    const code = await withoutCiEnvironment(() =>
+      runJestCommand([`--config=${jestConfigJson(project.dir)}`], {
+        stdout: new Collect(),
+        stderr,
+        cwd: project.dir,
+        env: {},
+      }),
+    )
     assert.equal(code, 0, stderr.text)
     assertProvinoLive(stderr.text)
   })
@@ -651,10 +655,16 @@ function plain(text: string): string {
   return text.replaceAll(new RegExp(`${ESC}\\[[0-9;]*m`, 'g'), '')
 }
 
-/** `provino jest` in this process on a fake terminal, no reporter named: D135's live path. */
+/**
+ * `provino jest` in this process on a fake terminal, no reporter named: D135's live path. The CI
+ * and agent variables are taken out of `process.env` for the call, as an interactive terminal has
+ * none (the Jest reader reads `CI` there, and CI's runners set it).
+ */
 async function liveJest(dir: string, args: readonly string[]): Promise<string> {
   const stderr = new Terminal()
-  await runJestCommand(args, { stdout: new Collect(), stderr, cwd: dir, env: {} })
+  await withoutCiEnvironment(() =>
+    runJestCommand(args, { stdout: new Collect(), stderr, cwd: dir, env: {} }),
+  )
   return stderr.text
 }
 
