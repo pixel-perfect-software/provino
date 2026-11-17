@@ -50,6 +50,21 @@ Provino's tests compare almost everything here with Jest 30.5, either against re
 - `--detectLeaks` (and the `detectLeaks` key, per project) checks after each file that nothing still reaches its module registry or environment, and fails a file that does with Jest's `EXPERIMENTAL FEATURE!` text (a file-level failure that counts no test and starts no `--bail`, as in Jest). It is checked with `WeakRef`s and a forced garbage collection; it is refused under isolation `none`.
 - The `dot`, `json` and `junit` reporters are Provino's own; choose them with `provino run --config <file> --reporter <name>`, Provino's config form.
 
+**Editors**
+- vscode-jest, with `jest.jestCommandLine` set to your project's `provino jest` command (for example `pnpm exec provino jest`). Provino's tests replay vscode-jest 6.4.4's command lines (all tests, one file, one test, a test name pattern, a file pattern, update snapshots, related files, coverage, `jest.useDashedArgs`, test discovery with `--listTests --json`, the debug launch, and `--watch` and `--watchAll`) and hold each to Jest 30.5.2's: the results file with its colour codes, vscode-jest's reporter lines on stderr, and the exit code.
+- neotest-jest, with `jestCommand` set to the same command. Its run of a file, of one test and of a nested describe block, and its `.each` discovery (Jest's JSON read from stdout), are replayed and held the same way.
+- No editor runs in these tests: each replay uses the command line the editor builds, copied from its source. JetBrains' IDEs aren't covered yet.
+
+**Ecosystem packages**
+
+Provino's tests run these packages from a project's own `node_modules` and hold each run to the one recorded from Jest 30.5.2 on the same project: the exit code, the kept stderr lines, the results file and any snapshot file written. Each project has two test files on one worker, so a package the worker loaded for the first file is seen by the second.
+- Held to Jest 30.5.2's results: `@testing-library/jest-dom` (its default entry, as a `setupFilesAfterEnv` module), `@testing-library/react` (its automatic cleanup), `jest-axe`, `jest-canvas-mock`, `jest-styled-components`, `jest-extended/all`, `jest-mock-extended`, `jest-fetch-mock`, `identity-obj-proxy` and `expect-type`.
+- `jest-image-snapshot`: a new image, a match, a mismatch, `-u`, `--ci` and `jest.retryTimes` are held to Jest's results, and so is the sha256 of every image written.
+- `jest-environment-jsdom` and `jest-fixed-jsdom`: every test's status equals the one a live Jest 30.5.2 gives on the same project. `jest-environment-jsdom` has one known difference, in the gap table below (`instanceof Object` on a jsdom node).
+- `jest-watch-typeahead`: its file name and test name filters, in watch mode.
+- A custom matcher that calls `jest-snapshot`'s own `toMatchSnapshot`, `toThrowErrorMatchingSnapshot` or `toMatchInlineSnapshot` with its `this`, retries included, is held to Jest's results too.
+- Recorded from Jest 30.5.2 and not held yet: `@testing-library/jest-dom/jest-globals` and `@testing-library/user-event` with modern fake timers (each differs by a column, see the gap table below), `msw` 3 (its module state is shared across a worker's files, see below) and `jest-when`.
+
 ## Not in place yet
 
 These are the gaps the code itself names. Any other difference from Jest is a bug worth an issue.
@@ -71,6 +86,9 @@ These are the gaps the code itself names. Any other difference from Jest is a bu
 | Inline snapshots with Prettier 2 | Written unformatted, with a warning (Prettier 3 formats as Jest does) | Not planned |
 | Legacy fake timers | `legacyFakeTimers: true` throws when a test installs the timers, with a hint to use the modern ones. `jest.runAllImmediates` throws | Not planned |
 | A CommonJS package that `transformIgnorePatterns` let through (`next/jest`'s `transpilePackages`) | Loaded by Node, once per worker, untransformed, when Node can load it: it works, but its module state is shared by the worker's files, and the transform's plugins never run on it. A file Node can't load (ES module syntax, a TypeScript or JSX extension, or JSX or Flow that Node fails to parse, as in React Native) is transformed and loaded per file, as Jest does, and so is a CommonJS package that requires one. A plain file that requires one Node can't parse fails with Node's `SyntaxError` | Not planned |
+| A `node_modules` package's module state across a worker's files | Jest evaluates every package again in every test file. Provino loads one once per worker, and evaluates it again for each file when it reads a per-file global as it loads (`expect`, a test hook, the environment's `document`), along with the packages that import it and the dependencies only those import. A package that keeps module state and reads no per-file global (`msw`'s handlers, a singleton store) shares that state across a worker's files: `msw`'s second file isn't intercepted after the first closed its server, and the run hangs. A dependency such as `react` that a shared package imports too stays shared | Not planned |
+| An imported function's call position | A code frame's caret and a test's `location.column` sit at the start of the function's name. Jest's sit at the call's `(`, because babel-jest's output calls an import as `(0, _dom.waitFor)(…)`. That shows as a caret under `waitFor` where Jest's is under the `(` (`@testing-library/user-event` with fake timers), and as `location.column` 1 where Jest's is 5 for a `test` imported from `@jest/globals` (`@testing-library/jest-dom/jest-globals`; its exit code, stderr lines and statuses equal Jest's) | Planned |
+| `instanceof Object` on a jsdom node | False: test code runs in the worker's realm, and a jsdom node's prototype chain ends in the window's own `Object.prototype`. Jest runs the test inside the window, so it is true there | Planned |
 | `provino vitest` | Refused | Next |
 | RSpec-style lazy variables | A Provino extra, not a Jest feature: `import { lazy } from 'provino'` in a test file. It is never a global, and works with `injectGlobals: false` ([lazy variables](lazy-variables.md)) | Built |
 

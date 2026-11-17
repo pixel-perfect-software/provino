@@ -49,6 +49,7 @@ Time:        1.412 s
 - 🧪 **Checked against the real Jest.** Behaviour is checked against goldens recorded from Jest 30.5, and against real Jest running beside it.
 - 📸 **Snapshots byte for byte,** with `-u`, `--ci` and obsolete snapshots handled as Jest handles them.
 - 🧩 **Your setup, as it is:** `projects`, `moduleNameMapper`, your transformers, `jsdom` and custom environments, and `globalSetup`.
+- ✏️ **Your editor,** vscode-jest and neotest-jest, with `provino jest` as the Jest command.
 - 🦥 **Lazy variables,** RSpec style: `import { lazy } from 'provino'` for values that are built on first read, memoized per test and overridden in a nested `describe`. [Lazy variables →](wiki/lazy-variables.md)
 - 📊 **Coverage** with `--coverage`: Istanbul or V8, Jest's reports and thresholds.
 - 🧵 **Sharding that balances:** Jest's split, or by recorded time.
