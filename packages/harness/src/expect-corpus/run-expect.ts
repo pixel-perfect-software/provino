@@ -77,6 +77,7 @@ export async function runExpectFile(
   const source = createStateSource(currentTest, {
     nameSeparator: policy.nameSeparator,
     expand: expectPolicy.expand,
+    outsideTestCounts: expectPolicy.outsideTestCounts,
   })
   const registry = createMatcherRegistry()
   const slot = installMatchersSlot(source, registry)

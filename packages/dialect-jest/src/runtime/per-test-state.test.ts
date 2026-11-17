@@ -53,6 +53,7 @@ test('control: one shared state, reset as each test starts (as in Jest), miscoun
     file: () => shared,
     startFile: () => {},
     stateOf: () => shared,
+    settle: () => shared,
   }
   const expect = createExpect({
     policy: jestExpectPolicy,

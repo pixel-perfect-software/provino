@@ -12,23 +12,22 @@ const FIXTURES = [
   // worker is evaluated again for each later file (`module.reevaluateHookingExternals`).
   ['ecosystem/jest-extended-all', "jest-extended/all's expect.extend, in both files"],
   ['ecosystem/jest-fetch-mock', "enableMocks()'s jest.fn, the second file's own"],
+  // A package that asserts as it loads (jest-when's `expect().__capture_equals__()` at module scope)
+  // is counted into the next test to end (`expect.outsideTestCounts`).
+  ['ecosystem/jest-when', 'when(fn).calledWith: the load-time assertion goes to the first test'],
   // A shared package's own `require('@jest/globals')` gets the served module.
   ['ecosystem/jest-mock-extended', 'mock<T>() and calledWith over the served @jest/globals'],
 ] as const
 
 /**
  * Recorded, and left out until the work named here lands.
- * - `jest-when`: one difference, in the results file (the exit code, the kept stderr lines and every
- *   other field equal Jest's, Node's `AssertionError` text included, since `core.shapeTestError`).
- *   `verify.test.ts`'s failing test (`fails on the when-mocks no call reached`) has
- *   `numPassingAsserts` 1 where Jest's is 2.
  * - `msw-node`: `second.test.ts`'s fetches are no longer intercepted after `handlers.test.ts`
  *   closed its server, and the run hangs. msw reads no per-file global while it loads (the node
  *   environment installs none it reads), so Phase 2d's trigger never fires for it: what the second
  *   file needs is a fresh copy of its module state, which only evaluating it per file whatever it
  *   reads would give.
  */
-const LEFT_OUT: readonly string[] = ['ecosystem/jest-when', 'ecosystem/msw-node']
+const LEFT_OUT: readonly string[] = ['ecosystem/msw-node']
 
 /** The seven fixtures Phase 2b records (other phases add `ecosystem/*` fixtures of their own). */
 const PHASE_2B: ReadonlySet<string> = new Set([

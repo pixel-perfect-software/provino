@@ -50,6 +50,7 @@ export async function runPolicyFile(
   const source = createStateSource(currentTest, {
     nameSeparator: run.core.nameSeparator,
     expand: run.expect.expand,
+    outsideTestCounts: run.expect.outsideTestCounts,
   })
   const registry = createMatcherRegistry()
   const slot = installMatchersSlot(source, registry)
@@ -90,6 +91,10 @@ export async function runPolicyFile(
       expect,
       jest: jestGlobals({
         ...unusedJestHost(runtime.api, mockRegistry, jestMockPolicy, 'the policy corpus'),
+        // Jest's own `jest.retryTimes`, over this runtime (`assertions-outside-test` retries).
+        setDefaultTimeout: (ms) => runtime.setDefaultTimeout(ms),
+        setDefaultRetry: (retry) => runtime.setDefaultRetry(retry),
+        setDescribeRetry: (retry) => runtime.setDescribeRetry(retry),
         expect,
       }).jest,
     })

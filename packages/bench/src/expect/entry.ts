@@ -60,7 +60,11 @@ function measure(expect: Expect, calls: number): { toBe: number; toEqual: number
 const engine = process.argv[2]
 let result: { toBe: number; toEqual: number }
 if (engine === 'provino') {
-  const source = createStateSource(currentTest, { nameSeparator: ' ', expand: false })
+  const source = createStateSource(currentTest, {
+    nameSeparator: ' ',
+    expand: false,
+    outsideTestCounts: jestExpectPolicy.outsideTestCounts,
+  })
   const registry = createMatcherRegistry()
   installMatchersSlot(source, registry)
   const expect = createExpect({

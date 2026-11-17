@@ -57,7 +57,7 @@ export function createEndOfTest(options: EndOfTestOptions): EndOfTest {
   const { source, messages, hasAssertionsWhenFailed } = options
   const { requireAssertions } = options.policy
   return function endOfTest(attempt: EndOfTestAttempt): readonly Error[] {
-    const state = source.stateOf(attempt.test.id, attempt)
+    const state = source.settle(attempt.test.id, attempt)
     // No `expect` call, `expect.assertions` or soft failure reached this attempt: nothing to count.
     // `requireAssertions` still holds, because zero calls are exactly what it forbids.
     if (state === undefined) {

@@ -43,6 +43,7 @@ test('the policy corpus is there', () => {
   assert.deepEqual([...fixtures.keys()].sort(), [
     'assertions-concurrent',
     'assertions-count',
+    'assertions-outside-test',
     'context-expect',
     'removed-aliases',
     'soft-and-poll',
@@ -74,6 +75,7 @@ describe('the Jest goldens', () => {
   for (const name of [
     'assertions-concurrent',
     'assertions-count',
+    'assertions-outside-test',
     'removed-aliases',
     'unawaited-async',
   ]) {
@@ -141,13 +143,14 @@ describe('the corpus catches a wrong policy value', () => {
     ['soft-and-poll', 'vitest', 'soft-off'],
     ['soft-and-poll', 'vitest', 'poll-off'],
     ['soft-and-poll', 'vitest', 'poll-quiet-timeout'],
+    ['assertions-outside-test', 'jest', 'counts-dropped'],
   ] as const) {
     test(`${name} under ${profile} with ${flip}`, async () => {
       const fixture = fixtureNamed(name)
       const found = differences(
         await recorded(fixture, profile),
         await observed(fixture, profile, flip),
-        'outcome',
+        profile === 'jest' ? 'full' : 'outcome',
       )
       assert.ok(found.size > 0, `${flip} changes no outcome`)
     })
