@@ -36,6 +36,7 @@ test('every run-time import reachable from index.ts is a node: built-in or a fil
     'v8cache/index.ts',
     'v8cache/mode.ts',
     'v8cache/native.ts',
+    'v8cache/pack.ts',
   ])
   assert.ok(builtins.has('node:vm') && builtins.has('node:module'))
 })

@@ -4,13 +4,14 @@
 //
 //   test-child.ts load <json>      compile `manyFunctions(n)` through a V8 cache, run it, flush
 //   test-child.ts coverage <json>  the same under precise coverage, counting what it reports
+//   test-child.ts pack <json>      compile `manyFunctions(n)` through a V8 pack, run it, write
 //   test-child.ts native <json>    call `enableNativeCompileCache`, optionally against a stand-in
 
 import { Session } from 'node:inspector'
 import { constants, createRequire, syncBuiltinESMExports } from 'node:module'
 import { Script } from 'node:vm'
 import type { CacheMode } from './index.ts'
-import { createV8Cache, enableNativeCompileCache, v8CacheTag } from './index.ts'
+import { createV8Cache, enableNativeCompileCache, openV8Pack, v8CacheTag } from './index.ts'
 import { manyFunctions, SCRIPT_NAME } from './test-helpers.ts'
 
 const [command = '', json = '{}'] = process.argv.slice(2)
@@ -66,6 +67,32 @@ if (command === 'load') {
     stats: cache.stats,
     cachedDataRejected: script.cachedDataRejected ?? null,
     result,
+  })
+} else if (command === 'pack') {
+  // One script through a pack: `variant` 'same-length' changes a digit (the same length, another
+  // value), `write` is when the queued script is written ('after-run', 'before-run' or 'none').
+  const text = scenario.variant === 'same-length' ? code.replace('(i + 1)', '(i + 2)') : code
+  const pack = openV8Pack({
+    dir,
+    mode,
+    ...(typeof scenario.minLength === 'number' ? { minLength: scenario.minLength } : {}),
+  })
+  const options = {
+    filename: typeof scenario.filename === 'string' ? scenario.filename : SCRIPT_NAME,
+    ...(typeof scenario.columnOffset === 'number' ? { columnOffset: scenario.columnOffset } : {}),
+  }
+  const script = pack.compile(text, options)
+  const pending = pack.pending
+  if (scenario.write === 'before-run') pack.write()
+  const result: unknown = script.runInThisContext()
+  if (scenario.write === undefined || scenario.write === 'after-run') pack.write()
+  pack.close()
+  print({
+    stats: pack.stats,
+    pending,
+    cachedDataRejected: script.cachedDataRejected ?? null,
+    result,
+    tag: v8CacheTag(),
   })
 } else if (command === 'native') {
   const node = createRequire(import.meta.url)('node:module') as Record<string, unknown>

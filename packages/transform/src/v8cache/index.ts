@@ -10,3 +10,12 @@ export type { CacheMode } from './mode.ts'
 export { cacheModeFor } from './mode.ts'
 export type { NativeCompileCacheResult } from './native.ts'
 export { enableNativeCompileCache } from './native.ts'
+export type {
+  V8Pack,
+  V8PackCompaction,
+  V8PackCompactionOptions,
+  V8PackOptions,
+  V8PackScriptOptions,
+  V8PackStats,
+} from './pack.ts'
+export { compactV8Packs, openV8Pack } from './pack.ts'
