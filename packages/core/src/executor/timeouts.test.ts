@@ -3,7 +3,6 @@
 // say it has started (an explicit promise), then advances the clock.
 import assert from 'node:assert/strict'
 import { beforeEach, describe, test } from 'node:test'
-import FakeTimers, { type Clock } from '@sinonjs/fake-timers'
 import {
   type BehaviourLoader,
   createBehaviourLoader,
@@ -11,6 +10,7 @@ import {
   moduleRef,
 } from '@provino/policy'
 import type { AnyFunction, Behaviour, FormatTimeout } from '@provino/types'
+import FakeTimers, { type Clock } from '@sinonjs/fake-timers'
 import {
   clockOptions,
   eventLog,
