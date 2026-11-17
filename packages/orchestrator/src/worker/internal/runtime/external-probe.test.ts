@@ -238,6 +238,154 @@ describe('the external probe (D127, P42)', () => {
   })
 })
 
+describe('the external probe’s writes (B23f, reevaluatePatchingExternals)', () => {
+  const BOTH = { reads: true, writes: true } as const
+  const WRITES = { reads: false, writes: true } as const
+
+  it('counts a key the load added, which the reads alone never see', () => {
+    const { global, baseline } = fileGlobal()
+    const reads = watchPerFileGlobals(global, baseline)
+    global.__addedByLoad = {}
+    assert.equal(reads(), false, 'no per-file key was read')
+    delete global.__addedByLoad
+    const end = watchPerFileGlobals(global, baseline, undefined, BOTH)
+    global.__addedByLoad = {}
+    assert.equal(end(), true)
+  })
+
+  it('counts a worker key the load replaced, by assignment or by defineProperty', () => {
+    for (const write of [
+      (global: Record<string, unknown>) => {
+        global.setTimeout = () => 1
+      },
+      (global: Record<string, unknown>) => {
+        Object.defineProperty(global, 'setTimeout', { configurable: true, value: () => 1 })
+      },
+      (global: Record<string, unknown>) => {
+        Object.defineProperty(global, 'setTimeout', { configurable: true, get: () => () => 1 })
+      },
+    ]) {
+      const { global, baseline } = fileGlobal()
+      const end = watchPerFileGlobals(global, baseline, undefined, WRITES)
+      write(global)
+      assert.equal(end(), true)
+    }
+  })
+
+  it('counts an accessor given another getter, not one that settled into a data key (a lazy global)', () => {
+    const { global, baseline } = fileGlobal()
+    let lazy: unknown
+    Object.defineProperty(global, 'LazyGlobal', {
+      configurable: true,
+      get() {
+        lazy ??= class {}
+        // Node's lazy globals replace themselves with a data key on their first read.
+        Object.defineProperty(global, 'LazyGlobal', {
+          configurable: true,
+          writable: true,
+          value: lazy,
+        })
+        return lazy
+      },
+    })
+    const settles = watchPerFileGlobals(global, baseline, undefined, WRITES)
+    void global.LazyGlobal
+    assert.equal(settles(), false)
+    const replaced = watchPerFileGlobals(global, baseline, undefined, WRITES)
+    Object.defineProperty(global, 'Event', { configurable: true, get: () => class {} })
+    assert.equal(replaced(), true, 'a data key made an accessor is a write')
+  })
+
+  it('says nothing when the load only read, or deleted a key', () => {
+    const { global, baseline } = fileGlobal()
+    const end = watchPerFileGlobals(global, baseline, undefined, WRITES)
+    void global.setTimeout
+    void global.expect
+    delete global.afterEach
+    assert.equal(end(), false)
+  })
+
+  it('with reads off, redefines no key and hears no read', () => {
+    const { global, baseline } = fileGlobal()
+    const before = Object.getOwnPropertyNames(global).map((key) => [
+      key,
+      Object.getOwnPropertyDescriptor(global, key),
+    ])
+    let heard = false
+    const covered: GlobalReadWatch = {
+      covers: (key) => key === 'document',
+      watch: () => {
+        heard = true
+        return () => {}
+      },
+    }
+    const end = watchPerFileGlobals(global, baseline, covered, WRITES)
+    assert.deepEqual(
+      Object.getOwnPropertyNames(global).map((key) => [
+        key,
+        Object.getOwnPropertyDescriptor(global, key),
+      ]),
+      before,
+      'every descriptor is as it was while the window is open',
+    )
+    void global.expect
+    void global.document
+    assert.equal(end(), false)
+    assert.equal(heard, false, 'the environment’s accessors are not listened to')
+  })
+
+  it('a write to a watched per-file key counts under both triggers, and the key is put back', () => {
+    const { global, baseline } = fileGlobal()
+    const end = watchPerFileGlobals(global, baseline, undefined, BOTH)
+    global.expect = 'replaced'
+    assert.equal(end(), true)
+    assert.equal(Object.getOwnPropertyDescriptor(global, 'expect')?.value, 'replaced')
+  })
+
+  it('costs one more walk of the global per window (`local`)', () => {
+    // A global of jsdom's size: about 874 own keys, a few hundred of them accessors.
+    const global: Record<string, unknown> = {}
+    for (let i = 0; i < 600; i++) global[`Data${i}`] = () => i
+    for (let i = 0; i < 274; i++) {
+      Object.defineProperty(global, `Accessor${i}`, {
+        configurable: true,
+        enumerable: true,
+        get: () => i,
+        set: () => {},
+      })
+    }
+    const baseline = readGlobalBaseline(global)
+    const covered: GlobalReadWatch = {
+      covers: (key) => key.startsWith('Accessor'),
+      watch: () => () => {},
+    }
+    const windows = 2_000
+    const time = (triggers: { readonly reads: boolean; readonly writes: boolean }): number => {
+      const start = process.hrtime.bigint()
+      for (let i = 0; i < windows; i++) {
+        const end = watchPerFileGlobals(global, baseline, covered, triggers)
+        assert.equal(end(), false)
+      }
+      return Number(process.hrtime.bigint() - start) / 1000 / windows
+    }
+    // Interleaved, the first round discarded.
+    const reads: number[] = []
+    const both: number[] = []
+    for (let round = 0; round < 6; round++) {
+      const a = time({ reads: true, writes: false })
+      const b = time(BOTH)
+      if (round > 0) {
+        reads.push(a)
+        both.push(b)
+      }
+    }
+    const median = (values: number[]): number => values.toSorted((x, y) => x - y)[2] ?? 0
+    console.log(
+      `local: a window over ${Object.keys(global).length} keys, reads only ${median(reads).toFixed(1)} µs, reads and writes ${median(both).toFixed(1)} µs (median of 5 rounds of ${windows})`,
+    )
+  })
+})
+
 describe('adoptingGlobals', () => {
   it('takes what a once-only step installed, changed or removed into the baseline', async () => {
     const original = () => 0

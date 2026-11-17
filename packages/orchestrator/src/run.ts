@@ -498,7 +498,10 @@ function withLearnedExternals(
   versions: Map<string, string>,
 ): SerializedProjectConfig['loader'] {
   const loader = project.config.loader
-  if (cache === undefined || !project.policy.module.reevaluateHookingExternals) return loader
+  const { reevaluateHookingExternals, reevaluatePatchingExternals } = project.policy.module
+  if (cache === undefined || !(reevaluateHookingExternals || reevaluatePatchingExternals)) {
+    return loader
+  }
   const learned = readLearnedExternals(cache, cacheProject, project.rootDir, versions)
   if (learned.length === 0) return loader
   return { ...loader, reevaluate: learned }

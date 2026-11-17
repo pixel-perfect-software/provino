@@ -21,6 +21,16 @@
 // redefining each one per window, which is what made a jsdom worker's first file pay hundreds of
 // `defineProperty` calls per external.
 //
+// Writes (B23f, `ModulePolicy.reevaluatePatchingExternals`): a load that adds a key to the global
+// or replaces one (`globalThis.__MSW_INTERNAL_CONNECTION_CONTEXT ??= …`, `globalThis.atob = …`)
+// counts too. The environment's restore takes the key away after the file, and the shared copy
+// never writes it again, where Jest's evaluation in each file's registry writes it on every
+// file's fresh global. So with `writes` on, the walk at the window's open (the one `perFileKeys`
+// makes anyway) keeps every own string key's descriptor, and the close walks the keys again: a key
+// that is new, a data key whose value is another, or a key whose kind or getter changed is a
+// write. An accessor that became a data key is not: that is how Node's lazy globals
+// (`WebSocket`, `navigator`, …) settle on their first read. A key the load deleted is not either.
+//
 // @internal
 import type { GlobalReadWatch } from '@provino/types'
 
@@ -92,12 +102,14 @@ export function perFileKeys(
   global: object,
   baseline: GlobalBaseline,
   covered?: GlobalReadWatch,
+  snapshot?: Map<string, PropertyDescriptor>,
 ): [string, PropertyDescriptor][] {
   const keys: [string, PropertyDescriptor][] = []
   for (const key of Object.getOwnPropertyNames(global)) {
-    if (UNWATCHED.has(key)) continue
     const descriptor = Object.getOwnPropertyDescriptor(global, key)
-    if (descriptor === undefined || descriptor.configurable !== true) continue
+    if (descriptor === undefined) continue
+    snapshot?.set(key, descriptor)
+    if (UNWATCHED.has(key) || descriptor.configurable !== true) continue
     if (covered?.covers(key, descriptor) === true) continue
     const base = baseline.get(key)
     if (base !== undefined && sameDescriptor(base, descriptor)) continue
@@ -162,30 +174,47 @@ function watchingAccessor(
   return { accessor, final: () => (original.writable === true ? { ...original, value } : original) }
 }
 
+/** What a window counts: a read of a per-file global (D127, D129), a write to the global (B23f). */
+export interface ProbeTriggers {
+  /** `ModulePolicy.reevaluateHookingExternals`: a read or write of a per-file key. */
+  readonly reads: boolean
+  /** `ModulePolicy.reevaluatePatchingExternals`: a key the load added or replaced. */
+  readonly writes: boolean
+}
+
+const READS_ONLY: ProbeTriggers = { reads: true, writes: false }
+
 /**
  * Turns each per-file key of `global` into an accessor that notes a read, for as long as one
  * external's first load runs, and listens to the environment's own accessors (`covered`) instead
  * of redefining theirs. Returns the call that puts every key back and says whether one was read
  * (or written: a package that sets a per-file global binds the file's too). An accessor and a
  * read-only data key get their exact descriptor back; a writable data key gets its descriptor
- * with the value it holds now.
+ * with the value it holds now. With `triggers.writes`, the call also says whether the load added
+ * or replaced a key of the global (see the header); with `triggers.reads` off, no key is redefined
+ * and no read is heard.
  */
 export function watchPerFileGlobals(
   global: object,
   baseline: GlobalBaseline,
   covered?: GlobalReadWatch,
+  triggers: ProbeTriggers = READS_ONLY,
 ): () => boolean {
   let touched = false
   const note = (): void => {
     touched = true
   }
-  const stopCovered = covered?.watch(note)
+  const snapshot = triggers.writes ? new Map<string, PropertyDescriptor>() : undefined
+  const stopCovered = triggers.reads ? covered?.watch(note) : undefined
   const watched: Watched[] = []
   try {
-    for (const [key, original] of perFileKeys(global, baseline, covered)) {
-      const { accessor, final } = watchingAccessor(original, note)
-      Object.defineProperty(global, key, accessor)
-      watched.push({ key, accessor, final })
+    const keys = perFileKeys(global, baseline, covered, snapshot)
+    if (triggers.reads) {
+      for (const [key, original] of keys) {
+        const { accessor, final } = watchingAccessor(original, note)
+        Object.defineProperty(global, key, accessor)
+        watched.push({ key, accessor, final })
+      }
     }
   } catch (error) {
     restoreWatched(global, watched)
@@ -195,8 +224,31 @@ export function watchPerFileGlobals(
   return () => {
     stopCovered?.()
     restoreWatched(global, watched)
-    return touched
+    return touched || (snapshot !== undefined && wroteGlobal(global, snapshot))
   }
+}
+
+/**
+ * Whether `global` has a key `before` lacks, or one whose descriptor is another write's: a data
+ * key with another value, a data key made an accessor, an accessor with another getter. An
+ * accessor made a data key is a lazy global settling on its first read, not a write.
+ */
+export function wroteGlobal(
+  global: object,
+  before: ReadonlyMap<string, PropertyDescriptor>,
+): boolean {
+  for (const key of Object.getOwnPropertyNames(global)) {
+    const previous = before.get(key)
+    if (previous === undefined) return true
+    const now = Object.getOwnPropertyDescriptor(global, key)
+    if (now === undefined) continue
+    if ('value' in previous) {
+      if (!('value' in now) || !Object.is(previous.value, now.value)) return true
+    } else if ('get' in now && now.get !== previous.get) {
+      return true
+    }
+  }
+  return false
 }
 
 function restoreWatched(global: object, watched: readonly Watched[]): void {

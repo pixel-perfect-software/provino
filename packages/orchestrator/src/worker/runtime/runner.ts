@@ -637,15 +637,21 @@ export function createRuntimeRunner(): WorkerRunner {
       frameNames: policy.module.stackFrameNames,
     })
     // D127 / P42: a shared external whose first load, while a file runs, reads a per-file global
-    // is evaluated again for each later file. The global as the worker found it, before any
-    // environment or globals: what a file's setup changed is what the watcher watches.
-    if (policy.module.reevaluateHookingExternals) {
+    // is evaluated again for each later file; B23f: so is one whose load adds or replaces a key of
+    // the global (`reevaluatePatchingExternals`), which the environment's restore takes away. The
+    // global as the worker found it, before any environment or globals: what a file's setup
+    // changed is what the watcher watches.
+    const triggers = {
+      reads: policy.module.reevaluateHookingExternals,
+      writes: policy.module.reevaluatePatchingExternals,
+    }
+    if (triggers.reads || triggers.writes) {
       const baseline = readGlobalBaseline()
       globalBaseline = baseline
       parts.loader.watchExternalLoads(() =>
         fallback === undefined
           ? null
-          : watchPerFileGlobals(globalThis, baseline, fallback.environment?.globalReads),
+          : watchPerFileGlobals(globalThis, baseline, fallback.environment?.globalReads, triggers),
       )
     }
 
