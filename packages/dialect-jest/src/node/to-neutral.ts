@@ -60,8 +60,17 @@ export function neutralEnvironmentName(testEnvironment: string): string {
   return testEnvironment
 }
 
-/** A value as JSON, or `undefined` (with each path that couldn't be kept in `dropped`). */
-function toJson(value: unknown, path: string, dropped: string[]): JsonValue | undefined {
+/**
+ * A value as JSON, or `undefined` (with each path that couldn't be kept in `dropped`). With
+ * `quietFunctions` an object key that holds a function is left out and not named; a function in an
+ * array (its place would turn into `null`) and every other value that is no JSON still is.
+ */
+function toJson(
+  value: unknown,
+  path: string,
+  dropped: string[],
+  quietFunctions: boolean,
+): JsonValue | undefined {
   if (value === null || typeof value === 'string' || typeof value === 'boolean') return value
   if (typeof value === 'number') {
     if (Number.isFinite(value)) return value
@@ -69,13 +78,15 @@ function toJson(value: unknown, path: string, dropped: string[]): JsonValue | un
     return undefined
   }
   if (Array.isArray(value)) {
-    return value.map((item: unknown, index) => toJson(item, `${path}[${index}]`, dropped) ?? null)
+    return value.map(
+      (item: unknown, index) => toJson(item, `${path}[${index}]`, dropped, quietFunctions) ?? null,
+    )
   }
   if (typeof value === 'object' && Object.getPrototypeOf(value) === Object.prototype) {
     const out: Record<string, JsonValue> = {}
     for (const [key, item] of Object.entries(value)) {
-      if (item === undefined) continue
-      const json = toJson(item, `${path}.${key}`, dropped)
+      if (item === undefined || (quietFunctions && typeof item === 'function')) continue
+      const json = toJson(item, `${path}.${key}`, dropped, quietFunctions)
       if (json !== undefined) out[key] = json
     }
     return out
@@ -84,13 +95,20 @@ function toJson(value: unknown, path: string, dropped: string[]): JsonValue | un
   return undefined
 }
 
+/**
+ * `value` as the JSON object a worker gets, with a warning for each part left out. `quietFunctions`
+ * is for a transformer's options: a build hook there (next/jest's
+ * `compilerOptions.runAfterProductionCompile`) is something a test never calls, and Jest says
+ * nothing of it.
+ */
 function jsonObject(
   value: unknown,
   key: string,
   diagnostics: Diagnostic[],
+  quietFunctions = false,
 ): Readonly<Record<string, JsonValue>> {
   const dropped: string[] = []
-  const json = toJson(value ?? {}, key, dropped)
+  const json = toJson(value ?? {}, key, dropped, quietFunctions)
   for (const path of dropped) {
     diagnostics.push({
       level: 'warning',
@@ -207,7 +225,7 @@ export function jestProjectToNeutral(
       transforms.push({
         pattern,
         module,
-        options: jsonObject(options, `transform["${pattern}"]`, diagnostics),
+        options: jsonObject(options, `transform["${pattern}"]`, diagnostics, true),
         // Jest's out-of-scope check on a `jest.mock` factory is babel-plugin-jest-hoist's, which
         // only babel-jest runs (babel-preset-jest); `@swc/jest` and ts-jest hoist without it.
         ...(packageOf(module, 'babel-jest') ? { checksMockFactories: true } : {}),

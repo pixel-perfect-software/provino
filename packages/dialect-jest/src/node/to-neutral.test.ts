@@ -249,9 +249,44 @@ test('no RegExp or function, and every path absolute', async () => {
     }
   }
   const codes = neutral.diagnostics.map((d) => `${d.code} ${d.key}`)
-  assert.ok(codes.includes('JEST_CONFIG_NOT_SERIALIZABLE transform["\\.ts$"].fn'))
+  // A function in a transformer's options is left out without a word (the test below).
+  assert.ok(!codes.includes('JEST_CONFIG_NOT_SERIALIZABLE transform["\\.ts$"].fn'))
   assert.ok(codes.includes('JEST_CONFIG_NOT_SERIALIZABLE transform["\\.ts$"].re'))
   assert.ok(codes.includes('JEST_CONFIG_NOT_SERIALIZABLE testEnvironmentOptions.now'))
+})
+
+test('a function in a transformer’s options is left out of the worker’s copy without a warning; any other value that is no JSON still warns', async () => {
+  // next/jest's transformer options carry build hooks (`compilerOptions.runAfterProductionCompile`)
+  // that a test never calls, and Jest prints nothing for them, so neither do we. A function
+  // anywhere else (`testEnvironmentOptions`), and any other value that is no JSON, is still named.
+  const root = tree({
+    'jest.config.js': `module.exports = {
+  transform: { '\\\\.ts$': ['<rootDir>/t.js', {
+    keep: 'yes',
+    compilerOptions: { runAfterProductionCompile: async () => {}, keep: 1 },
+    pattern: /x/,
+    list: [() => 1],
+  }] },
+  testEnvironmentOptions: { now: () => 0 },
+}
+`,
+    't.js': '',
+  })
+  const { neutral } = await readNeutral(root)
+  const [project] = neutral.value
+  assert.deepEqual(project?.transforms[0]?.options, {
+    keep: 'yes',
+    compilerOptions: { keep: 1 },
+    list: [null],
+  })
+  assert.deepEqual(
+    neutral.diagnostics.map((d) => `${d.code} ${d.key}`),
+    [
+      'JEST_CONFIG_NOT_SERIALIZABLE testEnvironmentOptions.now',
+      'JEST_CONFIG_NOT_SERIALIZABLE transform["\\.ts$"].pattern',
+      'JEST_CONFIG_NOT_SERIALIZABLE transform["\\.ts$"].list[0]',
+    ],
+  )
 })
 
 test('keys read but not applied yet warn, naming the task (gap 9)', async () => {
@@ -390,16 +425,16 @@ test('the root config’s hooks, with projects, leave every project the two conf
 })
 
 test('a value in a transformer’s options that is no JSON is still dropped, with a warning, from the worker’s copy; a project with no hook carries no hook arguments', async () => {
-  const transform = `transform: { '\\\\.ts$': ['<rootDir>/t.js', { fn: () => 1, keep: 'yes' }] },`
+  const transform = `transform: { '\\\\.ts$': ['<rootDir>/t.js', { re: /x/, keep: 'yes' }] },`
   const noHook = tree({
     'jest.config.js': `module.exports = { ${transform} }\n`,
     't.js': '',
   })
   const quiet = (await readNeutral(noHook)).neutral
-  // The transformer's options cross to a worker, so only their JSON does: the function is named.
+  // The transformer's options cross to a worker, so only their JSON does: the regular expression is named.
   assert.ok(
     quiet.diagnostics.some(
-      (d) => d.code === 'JEST_CONFIG_NOT_SERIALIZABLE' && d.key === 'transform["\\.ts$"].fn',
+      (d) => d.code === 'JEST_CONFIG_NOT_SERIALIZABLE' && d.key === 'transform["\\.ts$"].re',
     ),
     quiet.diagnostics.map((d) => `${d.code} ${d.key}`).join('\n'),
   )
