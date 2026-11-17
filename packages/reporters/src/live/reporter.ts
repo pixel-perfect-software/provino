@@ -86,12 +86,22 @@ export function createLiveReporter(
     now: () => scheduler.now(),
     onWrite: (ms) => scheduler.observeWrite(ms),
     onReady: () => scheduler.request(),
+    onError: (cause) => {
+      // The stream failed while full (EPIPE, a closed pipe): keep the error for the bus; frames stop
+      // because the writer is no longer ready.
+      lastError = serializeError(cause)
+      scheduler.stop()
+    },
   })
   let columns = options.columns
   let session: TerminalSession | undefined
   let broken = false
   let lastError: SerializedError | undefined
   let frameNo = 0
+  /** The terminal was resized since the last frame: draw it whole even if no line changed. */
+  let redrawWanted = false
+  /** The run is over, or the terminal was restored: no frame will come, so text goes straight out. */
+  let detached = false
 
   /** Whole lines written to `passthrough`, waiting for the next frame; and the unfinished line. */
   let pending: string[] = []
@@ -103,11 +113,13 @@ export function createLiveReporter(
   const workerKeys: string[] = []
   const workerTexts: string[] = []
 
+  // The text is handed to the writer, which keeps it while the stream is full and writes it on
+  // `drain`: a non-live run needs no retry timer of its own.
   function flushPlain(): void {
-    state.take()
     if (pending.length === 0) return
-    writer.write(`${pending.join('\n')}\n`)
+    const text = `${pending.join('\n')}\n`
     pending = []
+    writer.writeAlways(text)
   }
   const flusher = createImmediateFlusher(flushPlain)
 
@@ -165,12 +177,20 @@ export function createLiveReporter(
   function frame(): number | undefined {
     if (session === undefined || broken) return undefined
     if (!writer.ready()) return undefined
+    // Nothing changed and nothing animates (no busy worker): no footer to rebuild, no frame.
+    if (!redrawWanted && pending.length === 0 && !state.dirty() && state.busy() === 0) {
+      return undefined
+    }
     try {
       const now = scheduler.now()
       frameNo++
-      state.take()
+      // The finished-file ring is left for Phase 2 to drain where it draws the files' lines; it is
+      // bounded (`RING_CAPACITY`), so leaving it costs nothing.
       const drawn = session.draw(pending, footer(now))
-      if (drawn) pending = []
+      if (drawn) {
+        pending = []
+        redrawWanted = false
+      }
       state.clean()
     } catch (cause) {
       breakDown(cause)
@@ -196,15 +216,22 @@ export function createLiveReporter(
     terminal: {
       restore() {
         scheduler.stop()
+        detached = true
         session?.restore()
       },
       resize(width) {
         columns = width
+        redrawWanted = true
         session?.resize(width)
         wake()
       },
       passthrough: {
         write(chunk) {
+          if (detached) {
+            // No frame will come to carry it (the run ended, or the terminal was restored).
+            writer.writeAlways(chunk)
+            return
+          }
           partial += chunk
           const end = partial.lastIndexOf('\n')
           if (end === -1) return
@@ -224,8 +251,11 @@ export function createLiveReporter(
       statusKey = ''
       workerKeys.length = 0
       workerTexts.length = 0
-      pending = []
-      partial = ''
+      // `pending` and `partial` stay: text written before the run (config warnings, deprecation
+      // notices) comes out first, at the first frame or flush. A broken run is over; this one gets
+      // a fresh session and `bind` (which lets a stopped scheduler run again).
+      detached = false
+      redrawWanted = false
       broken = false
       lastError = undefined
       if (live) {
@@ -262,8 +292,8 @@ export function createLiveReporter(
     'run:end': (summary: RunSummary) => {
       // The one handler that does the work itself: the run is over and no worker waits.
       scheduler.stop()
+      detached = true
       if (!live || broken) flusher.flushNow()
-      else state.take()
       if (partial !== '') {
         pending.push(partial)
         partial = ''
@@ -276,7 +306,7 @@ export function createLiveReporter(
       const lines = [...pending, finalStatusLine(input, columns, glyphs, style)]
       pending = []
       if (session !== undefined && !broken) session.finish(lines)
-      else writer.write(`${lines.join('\n')}\n`)
+      else writer.writeAlways(`${lines.join('\n')}\n`)
       session = undefined
     },
   }

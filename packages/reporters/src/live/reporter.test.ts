@@ -211,7 +211,7 @@ test('a frame that throws restores the terminal, keeps the error and lets the ru
   const write = sink.write.bind(sink)
   let broken = true
   sink.write = (chunk) => {
-    if (broken && chunk.includes('status') === false && chunk.includes('✅'))
+    if (broken && typeof chunk === 'string' && !chunk.includes('status') && chunk.includes('✅'))
       throw new Error('EPIPE')
     return write(chunk)
   }
@@ -243,4 +243,137 @@ test('a second run:start starts clean and draws again', async () => {
   assert.equal(scheduler.tick(), true)
   assert.ok(sink.writes().length > before)
   assert.ok(sink.writes().at(-1)?.includes('0 of 1 files'))
+})
+
+const RUN = { root: '/p', projects: [''], startTime: 0, watch: false }
+const turn = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
+
+test('without a terminal, text written while the stream is full is kept and written on drain', async () => {
+  const { sink, reporter } = setup({ live: false })
+  await reporter['run:start']?.(RUN, [])
+  sink.full = true
+  reporter.terminal.passthrough.write('one\n')
+  await turn()
+  reporter.terminal.passthrough.write('two\n')
+  await turn()
+  await reporter['run:end']?.({ reason: 'passed', files: [], unhandled: [], durationMs: 5 })
+  assert.equal(sink.text(), 'one\n', 'the stream is full: nothing else is written yet')
+  sink.drain()
+  assert.match(sink.text(), /^one\ntwo\n.*of 0 files {2}0\.0s\n$/)
+})
+
+test('text written after run:end goes straight out, on a terminal and without one', async () => {
+  for (const live of [true, false]) {
+    const { scheduler, sink, reporter } = setup({ live })
+    await reporter['run:start']?.(RUN, [])
+    scheduler.tick()
+    await reporter['run:end']?.({ reason: 'passed', files: [], unhandled: [], durationMs: 5 })
+    const before = sink.writes().length
+    reporter.terminal.passthrough.write('late teardown\n')
+    assert.equal(sink.writes().length, before + 1, `live ${live}`)
+    assert.equal(sink.writes().at(-1), 'late teardown\n')
+  }
+})
+
+test('text written after restore() is not lost, and run:end still writes its lines', async () => {
+  const { scheduler, sink, reporter } = setup()
+  await reporter['run:start']?.(RUN, [])
+  scheduler.tick()
+  reporter.terminal.restore()
+  reporter.terminal.passthrough.write('from a signal handler\n')
+  assert.equal(sink.writes().at(-1), 'from a signal handler\n')
+  await reporter['run:end']?.({ reason: 'passed', files: [], unhandled: [], durationMs: 5 })
+  assert.match(sink.writes().at(-1) as string, /of 0 files {2}0\.0s\n$/)
+})
+
+test('text written before run:start is kept and comes out first', async () => {
+  for (const live of [true, false]) {
+    const { scheduler, sink, reporter } = setup({ live })
+    reporter.terminal.passthrough.write('deprecation notice\n')
+    reporter.terminal.passthrough.write('half a li')
+    await reporter['run:start']?.(RUN, [])
+    if (live) scheduler.tick()
+    else await turn()
+    assert.ok(sink.text().includes('deprecation notice\n'), `live ${live}`)
+    reporter.terminal.passthrough.write('ne\n')
+    if (live) scheduler.tick()
+    else await turn()
+    assert.ok(sink.text().includes('half a line\n'), `the partial line survives, live ${live}`)
+  }
+})
+
+test('a run after a broken one has a working scheduler and a clean error', async () => {
+  const { scheduler, sink, reporter } = setup()
+  await reporter['run:start']?.(RUN, [])
+  scheduler.tick()
+  const write = sink.write.bind(sink)
+  sink.write = (chunk) => {
+    if (typeof chunk === 'string' && chunk.includes('0 of')) throw new Error('EIO')
+    return write(chunk)
+  }
+  const a = buildFile({ path: 'a.test.ts', tests: [{ path: ['t'] }] })
+  await reporter['file:start']?.(a.info, 0)
+  scheduler.tick()
+  assert.equal(reporter.lastError?.()?.message, 'EIO')
+  assert.equal(scheduler.stopped(), true)
+  sink.write = write
+  await reporter['run:start']?.(RUN, [a.info])
+  assert.equal(reporter.lastError?.(), undefined)
+  assert.equal(scheduler.stopped(), false)
+  assert.equal(scheduler.tick(), true)
+  assert.ok(sink.writes().at(-1)?.includes('0 of 1 files'))
+})
+
+test('an error on a full stream is kept for the bus and frames stop', async () => {
+  const { scheduler, sink, reporter } = setup()
+  await reporter['run:start']?.(RUN, [])
+  sink.full = true
+  scheduler.tick()
+  sink.emit('error', new Error('EPIPE'))
+  assert.equal(reporter.lastError?.()?.message, 'EPIPE')
+  const count = sink.writes().length
+  const a = buildFile({ path: 'a.test.ts' })
+  await reporter['file:start']?.(a.info, 0)
+  scheduler.tick()
+  assert.equal(sink.writes().length, count)
+  await reporter['run:end']?.({ reason: 'passed', files: [], unhandled: [], durationMs: 5 })
+})
+
+test('a frame with nothing changed rebuilds no footer, and no frame drains the finished-file ring', async () => {
+  const real = createRunState()
+  const calls: Record<string, number> = {}
+  const counting = { ...real } as Record<string, unknown>
+  for (const [key, value] of Object.entries(real)) {
+    if (typeof value !== 'function') continue
+    counting[key] = (...args: unknown[]) => {
+      calls[key] = (calls[key] ?? 0) + 1
+      return (value as (...a: unknown[]) => unknown)(...args)
+    }
+  }
+  const state = counting as unknown as RunState
+  const scheduler = manualScheduler()
+  const reporter = createLiveReporter(
+    {
+      stream: recordingSink(),
+      live: true,
+      colour: false,
+      columns: 80,
+      glyphs: GLYPHS.emoji,
+      scheduler,
+    },
+    state,
+  )
+  const a = buildFile({ path: 'a.test.ts' })
+  await reporter['run:start']?.(RUN, [a.info])
+  await reporter['file:start']?.(a.info, 0)
+  await reporter['file:end']?.({ file: a.info, state: 'pass', durationMs: 1, errors: [] })
+  scheduler.tick()
+  assert.equal(state.busy(), 0)
+  const reads = calls.workers ?? 0
+  assert.ok(reads > 0)
+  scheduler.request()
+  assert.equal(scheduler.tick(), true)
+  assert.equal(calls.workers ?? 0, reads, 'the footer was not rebuilt')
+  await reporter['run:end']?.({ reason: 'passed', files: [], unhandled: [], durationMs: 5 })
+  assert.equal(calls.take ?? 0, 0, 'the ring is drained only where it is drawn (Phase 2)')
 })
