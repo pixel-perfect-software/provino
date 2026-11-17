@@ -62,10 +62,9 @@ interface ChangesetConfig {
 }
 
 /** The strings of a JSON array, or `undefined` when the value isn't an array. */
+/** The list when it is an array of strings only; a list with any other entry is no list. */
 function strings(value: unknown): readonly string[] | undefined {
-  return Array.isArray(value)
-    ? value.filter((name): name is string => typeof name === 'string')
-    : undefined
+  return Array.isArray(value) && value.every((name) => typeof name === 'string') ? value : undefined
 }
 
 /**

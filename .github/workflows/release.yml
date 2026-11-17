@@ -179,6 +179,10 @@ jobs:
       - run: pnpm install --frozen-lockfile
       # No package has a prepack script, so dist is built here, from this clean checkout.
       - run: pnpm build --force
+      # The publish below packs from this job's dist, not the one the gates job checked, so the
+      # packs (publint, attw, the files each tarball must hold) are checked again on this build.
+      # Its `pnpm build` is a hit on the build above.
+      - run: pnpm hygiene --only packs
 
       # pnpm, not npm: it writes the `catalog:` and `workspace:` ranges in each package.json as
       # real versions in the published manifest and applies `publishConfig`. `-r` publishes every

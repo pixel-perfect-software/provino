@@ -440,6 +440,9 @@ describe('changesets (T1.6)', () => {
     assert.throws(read('{"fixed":[[]]}'), /no "ignore" list/)
     assert.throws(read('{"ignore":[]}'), /no "fixed" list of groups/)
     assert.throws(read('{"ignore":[],"fixed":["provino"]}'), /no "fixed" list of groups/)
+    // An entry that is not a name makes the list malformed, not shorter.
+    assert.throws(read('{"ignore":["a",1],"fixed":[["b"]]}'), /no "ignore" list/)
+    assert.throws(read('{"ignore":[],"fixed":[["b",123]]}'), /no "fixed" list of groups/)
     assert.deepEqual(read('{"ignore":["a"],"fixed":[["b","c"]]}')(), {
       ignore: ['a'],
       fixed: [['b', 'c']],
