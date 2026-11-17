@@ -481,22 +481,41 @@ export const coreClaims: Claims = {
   // the sums (hookEnd + hookStart = 21, fnEnd + hookStart = 20, hookEnd + testEnd + testStart +
   // hookStart = 67, …), not where each turn sits: the split follows jest-circus's code, one
   // dispatch of 7 turns before a hook or a test's function.
-  'core.boundaryTurns': each(
-    corpus('runtime', 'runtime/microtask-turns', 'runtime/microtask-turns-jsdom'),
-    pending(
-      'T11.16',
-      "Vitest's turns between hooks and tests aren't recorded: the neutral 0s stand",
-    ),
-  ),
-  // B23f Phase 1: the boundaries beyond a test's own, and the event counts. Jest's are #114's live
-  // counts, until Phase 5 records them (`runtime/microtask-turns-*` fixtures).
+  // One claim per leaf, never one for the group: a group claim's golden would vouch for every leaf
+  // under it, the research values of B23f included.
   ...Object.fromEntries(
-    ['skippedTest', 'suiteStart', 'suiteEnd', 'runStart', 'retry', 'events'].map((key) => [
+    ['hookStart', 'hookEnd', 'fnStart', 'fnEnd', 'testStart', 'testEnd'].map((key) => [
+      `core.boundaryTurns.${key}`,
+      each(
+        corpus('runtime', 'runtime/microtask-turns', 'runtime/microtask-turns-jsdom'),
+        pending(
+          'T11.16',
+          "Vitest's turns between hooks and tests aren't recorded: the neutral 0s stand",
+        ),
+      ),
+    ]),
+  ),
+  // B23f Phase 1: the boundaries beyond a test's own, and the event counts of every boundary.
+  // Jest's are #114's live counts (D133) until Phase 5 records them (`runtime/microtask-turns-*`).
+  ...Object.fromEntries(
+    [
+      'skippedTest',
+      'suiteStart',
+      'suiteEnd',
+      'runStart',
+      'retry',
+      ...['hookStart', 'hookEnd', 'fnStart', 'fnEnd', 'testStart', 'testEnd'].map(
+        (key) => `events.${key}`,
+      ),
+      ...['skippedTest', 'suiteStart', 'suiteEnd', 'runStart', 'retry'].map(
+        (key) => `events.${key}`,
+      ),
+    ].map((key) => [
       `core.boundaryTurns.${key}`,
       each(
         pending(
           'B23f-turns',
-          "jest-circus's turns at this boundary are research values (#114's counts) until Phase 5 records them",
+          "jest-circus's turns at this boundary are research values (#114's counts, D133) until Phase 5 records them",
         ),
         pending('T11.16', "Vitest's turns aren't recorded: the neutral 0s stand"),
       ),

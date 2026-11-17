@@ -700,6 +700,29 @@ test('the pending leaves are the pinned list', () => {
   assert.deepEqual(pending, EXPECTED_PENDING)
 })
 
+// A group claim's golden evidence vouches for every leaf under it that has no claim of its own, so a
+// B23f research value, which has no recording yet (NN2), is claimed leaf by leaf and sits under no
+// claim that carries evidence for its runner. (Older carve-outs such as `mock.messages.spy-namespace`
+// predate this check.)
+test('a B23f research value has its own pending claim and no golden claim above it', () => {
+  const problems: string[] = []
+  for (const runner of FIXTURE_RUNNERS) {
+    for (const leaf of subjectLeaves(SUBJECTS[runner]).keys()) {
+      if (!EXPECTED_PENDING[`${runner} ${leaf}`]?.startsWith('B23f-')) continue
+      if (!CLAIM_KEYS.has(leaf)) problems.push(`${runner} ${leaf} has no claim of its own`)
+      const parts = leaf.split('.')
+      for (let end = parts.length - 1; end > 0; end--) {
+        const key = parts.slice(0, end).join('.')
+        const claim = CLAIM_KEYS.has(key) ? CLAIMS[key] : undefined
+        if (claim !== undefined && evidenceFor(claim, runner).some((e) => e.kind !== 'pending')) {
+          problems.push(`${runner} ${leaf} is under ${key}, which carries evidence`)
+        }
+      }
+    }
+  }
+  assert.deepEqual(problems, [])
+})
+
 test('every claim covers a leaf of a dialect, so none is stale', () => {
   const all = FIXTURE_RUNNERS.flatMap((runner) => [...subjectLeaves(SUBJECTS[runner]).keys()])
   assert.deepEqual(
