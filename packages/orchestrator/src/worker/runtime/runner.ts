@@ -670,6 +670,7 @@ export function createRuntimeRunner(): WorkerRunner {
     const source = createStateSource(currentTest, {
       nameSeparator: policy.core.nameSeparator,
       expand: policy.expect.expand,
+      outsideTestCounts: policy.expect.outsideTestCounts,
     })
     parts.source = source
     const registry = createMatcherRegistry()

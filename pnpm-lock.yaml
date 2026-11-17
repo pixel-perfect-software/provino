@@ -600,6 +600,9 @@ importers:
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
+      '@provino/reporters':
+        specifier: workspace:*
+        version: link:../reporters
       '@provino/resolver':
         specifier: workspace:*
         version: link:../resolver

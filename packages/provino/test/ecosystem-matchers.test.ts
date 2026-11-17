@@ -12,6 +12,9 @@ const FIXTURES = [
   // worker is evaluated again for each later file (`module.reevaluateHookingExternals`).
   ['ecosystem/jest-extended-all', "jest-extended/all's expect.extend, in both files"],
   ['ecosystem/jest-fetch-mock', "enableMocks()'s jest.fn, the second file's own"],
+  // A package that asserts as it loads (jest-when's `expect().__capture_equals__()` at module scope)
+  // is counted into the next test to end (`expect.outsideTestCounts`).
+  ['ecosystem/jest-when', 'when(fn).calledWith: the load-time assertion goes to the first test'],
   // A shared package's own `require('@jest/globals')` gets the served module.
   ['ecosystem/jest-mock-extended', 'mock<T>() and calledWith over the served @jest/globals'],
   // B23f (D149 as amended): @mswjs/interceptors adds `__MSW_INTERNAL_CONNECTION_CONTEXT` to the
@@ -21,15 +24,6 @@ const FIXTURES = [
   // (`module.reevaluatePatchingExternals`), so msw is evaluated per file from the second file on.
   ['ecosystem/msw-node', "the second file's server intercepts, and its unhandled fetch rejects"],
 ] as const
-
-/**
- * Recorded, and left out until the work named here lands.
- * - `jest-when`: one difference, in the results file (the exit code, the kept stderr lines and every
- *   other field equal Jest's, Node's `AssertionError` text included, since `core.shapeTestError`).
- *   `verify.test.ts`'s failing test (`fails on the when-mocks no call reached`) has
- *   `numPassingAsserts` 1 where Jest's is 2.
- */
-const LEFT_OUT: readonly string[] = ['ecosystem/jest-when']
 
 /** The seven fixtures Phase 2b records (other phases add `ecosystem/*` fixtures of their own). */
 const PHASE_2B: ReadonlySet<string> = new Set([
@@ -42,6 +36,4 @@ const PHASE_2B: ReadonlySet<string> = new Set([
   'ecosystem/expect-type',
 ])
 
-describeRecorded('ecosystem matchers, mocks and network, against Jest 30.5.2', PHASE_2B, FIXTURES, {
-  leftOut: LEFT_OUT,
-})
+describeRecorded('ecosystem matchers, mocks and network, against Jest 30.5.2', PHASE_2B, FIXTURES)

@@ -19,17 +19,24 @@
       "provino-source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./live": {
+      "provino-source": "./src/live/index.ts",
+      "types": "./dist/live/index.d.ts",
+      "import": "./dist/live/index.js"
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {
     "node": "^22.15.0 || >=24"
   },
   "scripts": {
     "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
-    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\"",
+    "width-table": "node scripts/width-table.ts"
   },
   "dependencies": {
     "@provino/types": "workspace:*"

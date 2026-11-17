@@ -33,6 +33,7 @@ export type PolicyFlip =
   | 'soft-off'
   | 'poll-off'
   | 'poll-quiet-timeout'
+  | 'counts-dropped'
 
 /** Wrong policy values, to show the corpus notices each. */
 export const FLIPS: Readonly<Record<PolicyFlip, PolicyLayer>> = {
@@ -43,6 +44,8 @@ export const FLIPS: Readonly<Record<PolicyFlip, PolicyLayer>> = {
   'soft-off': { expect: { soft: false } },
   'poll-off': { expect: { poll: { enabled: false, intervalMs: 50, timeoutMs: 1000 } } },
   'poll-quiet-timeout': { expect: { pollFailsOnTimeout: false } },
+  /** Jest's `next-test` carry turned off: nothing counted outside a test reaches a test. */
+  'counts-dropped': { expect: { outsideTestCounts: 'drop' } },
 }
 
 /** The policy a profile runs under, with `flip` laid over it when there is one. */

@@ -5,7 +5,7 @@
 // attempt whose body is still running keeps counting into its own. Outside a test (suite hooks, a
 // file's top level) the file's state is current, as Jest's one state would be.
 import type { CurrentTest, Frame, MatcherState, TestTask } from '@provino/types'
-import { freshCounters } from './internal/counters.ts'
+import { freshCounters, hasCounts, moveCounters } from './internal/counters.ts'
 
 /**
  * Options for `createStateSource`.
@@ -16,6 +16,13 @@ export interface StateSourceOptions {
   readonly nameSeparator: string
   /** Whether diffs show every line: `ExpectPolicy.expand` (Jest sets it once, from `--expand`). */
   readonly expand: boolean
+  /**
+   * `ExpectPolicy.outsideTestCounts`, `'drop'` when left out. Under `'next-test'` the counters
+   * made outside a test go to one attempt: in a sequential run the next test to end, as Jest's
+   * one state carries them. Under concurrency, the first attempt that asserts, or that ends with
+   * none having asserted (Jest shares one state; the declared improvement).
+   */
+  readonly outsideTestCounts?: 'drop' | 'next-test'
 }
 
 /**
@@ -33,9 +40,15 @@ export interface StateSource {
   startFile(testPath: string | undefined): void
   /**
    * The state of one run of a test (its attempt and repeat, as `test-attempt-end` reports them),
-   * if that run read or counted any.
+   * if that run read or counted any. A pure lookup: it moves nothing.
    */
   stateOf(testId: string, run: TestRun): MatcherState | undefined
+  /**
+   * Ends a run: its state, made now when the run made none and (under `outsideTestCounts:
+   * 'next-test'`) the file state holds counts to take, else what `stateOf` gives. The end-of-test
+   * check calls it once, where Jest's `test_done` reads the counters.
+   */
+  settle(testId: string, run: TestRun): MatcherState | undefined
 }
 
 /**
@@ -59,7 +72,8 @@ export function createStateSource(
   currentTest: CurrentTest,
   options: StateSourceOptions,
 ): StateSource {
-  const { nameSeparator, expand } = options
+  const { nameSeparator, expand, outsideTestCounts = 'drop' } = options
+  const carry = outsideTestCounts === 'next-test'
   let fileState = newFileState(expand, undefined)
   /** Each test's runs, by `runKey`. */
   let tests = new Map<string, Map<number, MatcherState>>()
@@ -82,7 +96,8 @@ export function createStateSource(
       const key = runKey(frame)
       let state = runs.get(key)
       if (state === undefined) {
-        state = newAttemptState(fileState, test, nameSeparator)
+        state = newAttemptState(fileState, test.id, test, nameSeparator)
+        if (carry) moveCounters(fileState, state)
         runs.set(key, state)
       }
       lastFrame = frame
@@ -99,6 +114,22 @@ export function createStateSource(
     },
     stateOf(testId: string, run: TestRun): MatcherState | undefined {
       return tests.get(testId)?.get(runKey(run))
+    },
+    settle(testId: string, run: TestRun): MatcherState | undefined {
+      const found = tests.get(testId)?.get(runKey(run))
+      if (found !== undefined || !carry || !hasCounts(fileState)) return found
+      // An attempt that made no assertion of its own still ends: it takes what was counted before
+      // it, as Jest's `test_done` reads the state whatever the test did (`expect.hasAssertions()`
+      // from a `beforeAll` fails it).
+      const state = newAttemptState(fileState, testId, undefined, nameSeparator)
+      moveCounters(fileState, state)
+      let runs = tests.get(testId)
+      if (runs === undefined) {
+        runs = new Map()
+        tests.set(testId, runs)
+      }
+      runs.set(runKey(run), state)
+      return state
     },
   }
 }
@@ -118,7 +149,8 @@ function newFileState(expand: boolean, testPath: string | undefined): MatcherSta
  */
 function newAttemptState(
   fileState: MatcherState,
-  test: TestTask,
+  testId: string,
+  test: TestTask | undefined,
   nameSeparator: string,
 ): MatcherState {
   const {
@@ -129,9 +161,13 @@ function newAttemptState(
   return {
     ...carried,
     ...freshCounters(),
-    currentTestName: test.fullName.join(nameSeparator),
-    currentTestPath: test.fullName,
-    currentTestId: test.id,
-    testFailing: test.expectFail,
+    currentTestId: testId,
+    ...(test === undefined
+      ? {}
+      : {
+          currentTestName: test.fullName.join(nameSeparator),
+          currentTestPath: test.fullName,
+          testFailing: test.expectFail,
+        }),
   }
 }
