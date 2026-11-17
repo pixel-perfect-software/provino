@@ -15,6 +15,14 @@ export type MatcherTableFactory = () => ExpectTable
 export interface ExpectPolicy {
   /** The namespace in matcher messages and the global matcher slot. Jest: `'jest'`. Vitest: `'vitest'`. research: track-01 L221 */
   readonly matcherNamespace: string
+  /**
+   * Where the assertion counters made outside any test go (module scope, `beforeAll`, an
+   * `afterAll` after a test's end). `drop`: they count for no test. `next-test`: they go to the
+   * next test to end, and what is left after the file's last test is dropped.
+   * Jest: `next-test`, research: `expect/src/index.ts` L310-351 and `jestAdapterInit.ts` L354-391
+   * (pending B23f-counts). Vitest: `drop`, pending T11.16. Neutral: `drop`, Provino's own.
+   */
+  readonly outsideTestCounts: 'drop' | 'next-test'
   /** Whether `expect.poll` fails on timeout. Jest: no `expect.poll` (any value; `poll.enabled` is off). Vitest: `true`. research: track-01 L222 */
   readonly pollFailsOnTimeout: boolean
   /** Lines of context in diffs. Jest: 5. Vitest: 5. research: track-01 L223 */

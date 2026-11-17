@@ -157,6 +157,14 @@ void requireKind
 // @ts-expect-error a boolean is not a moduleSyncCondition
 const moduleSyncOn: ModulePolicy = { ...modulePolicy, moduleSyncCondition: true }
 void moduleSyncOn
+// B23f: a shared external that patches a watched global is evaluated per file under a boolean key.
+expectTypeOf<ModulePolicy['reevaluatePatchingExternals']>().toEqualTypeOf<boolean>()
+// @ts-expect-error exactOptionalPropertyTypes: a required key is never `undefined`
+const patchingUndefined: ModulePolicy = { ...modulePolicy, reevaluatePatchingExternals: undefined }
+void patchingUndefined
+// @ts-expect-error the key is a boolean, not a mode name
+const patchingNamed: ModulePolicy = { ...modulePolicy, reevaluatePatchingExternals: 'per-file' }
+void patchingNamed
 // @ts-expect-error extensions are a list, not one string
 const oneExtension: LoaderOptions = { ...loaderOptions, esmExtensions: '.ts' }
 void oneExtension
