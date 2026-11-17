@@ -79,6 +79,22 @@ const countsCarry: ExpectPolicy = { ...expectPolicy, outsideTestCounts: 'carry' 
 void countsCarry
 expectTypeOf<BoundaryTurns['events']>().toEqualTypeOf<BoundaryEvents>()
 expectTypeOf<keyof BoundaryEvents>().toEqualTypeOf<Exclude<keyof BoundaryTurns, 'events'>>()
+// The eleven boundaries, spelled out: a boundary added to `BoundaryTurns` joins `events` with it.
+expectTypeOf<keyof BoundaryEvents>().toEqualTypeOf<
+  | 'hookStart'
+  | 'hookEnd'
+  | 'fnStart'
+  | 'fnEnd'
+  | 'testStart'
+  | 'testEnd'
+  | 'skippedTest'
+  | 'suiteStart'
+  | 'suiteEnd'
+  | 'runStart'
+  | 'retry'
+>()
+// @ts-expect-error `events` has no `events` of its own
+expectTypeOf<BoundaryEvents['events']>().toBeNumber()
 expectTypeOf<BoundaryTurns['skippedTest']>().toEqualTypeOf<number>()
 declare const turns: BoundaryTurns
 // @ts-expect-error `events` is required: the per-boundary event counts always come with the turns

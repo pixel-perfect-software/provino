@@ -23,7 +23,12 @@ export const jestExpectPolicy: ExpectPolicy = {
     import.meta.resolve('@provino/dialect-jest/runtime'),
     'jestExpectTable',
   ),
+<<<<<<< HEAD
   // claim: expect.outsideTestCounts (fixtures/expect/policies/assertions-outside-test)
+=======
+  // research: .refs/jest/packages/expect/src/index.ts L310-351 (processResult) and
+  // jest-circus/src/legacy-code-todo-rewrite/jestAdapterInit.ts L354-391 (pending B23f-counts)
+>>>>>>> origin/task/B23f-contracts
   outsideTestCounts: 'next-test',
   // research: track-07 L461
   errorShape: 'matcher-result',

@@ -412,32 +412,10 @@ export interface BoundaryTurns {
 }
 
 /**
- * Per-boundary event counts of `BoundaryTurns`: the same keys, each the number of events
- * dispatched in that boundary. Jest: recorded in Phase 5 (pending B23f-turns). Vitest and
+ * Per-boundary event counts of `BoundaryTurns`: one number for each of its boundaries (every key
+ * but `events`), derived from it so a new boundary is added in one place. Each is the number of
+ * events dispatched in that boundary. Jest: recorded in Phase 5 (pending B23f-turns). Vitest and
  * neutral: all `0`.
  * @public
  */
-export interface BoundaryEvents {
-  /** Events dispatched before a hook's function is called. */
-  readonly hookStart: number
-  /** Events dispatched after a hook's function ended. */
-  readonly hookEnd: number
-  /** Events dispatched before a test's function is called. */
-  readonly fnStart: number
-  /** Events dispatched after a test's function ended. */
-  readonly fnEnd: number
-  /** Events dispatched as a test's attempt starts. */
-  readonly testStart: number
-  /** Events dispatched as a test's attempt ends. */
-  readonly testEnd: number
-  /** Events dispatched as a skipped or todo test is passed over. */
-  readonly skippedTest: number
-  /** Events dispatched as a suite starts. */
-  readonly suiteStart: number
-  /** Events dispatched as a suite ends. */
-  readonly suiteEnd: number
-  /** Events dispatched as the file's run starts. */
-  readonly runStart: number
-  /** Events dispatched as a failed test's next attempt starts. */
-  readonly retry: number
-}
+export type BoundaryEvents = { readonly [K in Exclude<keyof BoundaryTurns, 'events'>]: number }

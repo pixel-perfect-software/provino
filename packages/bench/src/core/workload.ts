@@ -13,8 +13,8 @@
 // (`turns: 'jest'`, the full Jest policy) with no bar.
 import { createRuntime } from '@provino/core'
 import { jestPolicy } from '@provino/dialect-jest'
-import { createBehaviourLoader, neutralPolicy, resolvePolicy } from '@provino/policy'
-import type { CorePolicy } from '@provino/types'
+import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
+import type { BoundaryTurns, CorePolicy } from '@provino/types'
 
 /**
  * Tests in the workload's one file.
@@ -49,18 +49,46 @@ export interface CorePass {
 }
 
 /**
- * Which boundary turns the pass runs with: `none` (all 0: core's own overhead, the bar's
- * configuration) or `jest` (the Jest dialect's own, its whole core policy).
+ * Which boundary turns the pass runs with: `none` (`ZERO_TURNS`, every turn and event count 0: core's
+ * own overhead, the bar's configuration, whatever the neutral values become, D133) or `jest` (the Jest dialect's own, its whole core policy).
  * @public
  */
 export type CoreTurns = 'none' | 'jest'
+
+/** Every turn and every event count at zero (D133): the bar measures core's own overhead, whatever the neutral values become. */
+const ZERO_TURNS: BoundaryTurns = {
+  hookStart: 0,
+  hookEnd: 0,
+  fnStart: 0,
+  fnEnd: 0,
+  testStart: 0,
+  testEnd: 0,
+  skippedTest: 0,
+  suiteStart: 0,
+  suiteEnd: 0,
+  runStart: 0,
+  retry: 0,
+  events: {
+    hookStart: 0,
+    hookEnd: 0,
+    fnStart: 0,
+    fnEnd: 0,
+    testStart: 0,
+    testEnd: 0,
+    skippedTest: 0,
+    suiteStart: 0,
+    suiteEnd: 0,
+    runStart: 0,
+    retry: 0,
+  },
+}
 
 const JEST_CORE: CorePolicy = resolvePolicy(jestPolicy).core
 
 const POLICIES: Readonly<Record<CoreTurns, CorePolicy>> = {
   none: {
     ...JEST_CORE,
-    boundaryTurns: neutralPolicy.core.boundaryTurns,
+    boundaryTurns: ZERO_TURNS,
   },
   jest: JEST_CORE,
 }

@@ -133,19 +133,7 @@ export interface BenchSubject {
 }
 
 // @public
-export interface BoundaryEvents {
-    readonly fnEnd: number;
-    readonly fnStart: number;
-    readonly hookEnd: number;
-    readonly hookStart: number;
-    readonly retry: number;
-    readonly runStart: number;
-    readonly skippedTest: number;
-    readonly suiteEnd: number;
-    readonly suiteStart: number;
-    readonly testEnd: number;
-    readonly testStart: number;
-}
+export type BoundaryEvents = { readonly [K in Exclude<keyof BoundaryTurns, "events">]: number; };
 
 // @public
 export interface BoundaryTurns {
