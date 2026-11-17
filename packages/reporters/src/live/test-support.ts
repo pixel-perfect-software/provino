@@ -1,8 +1,35 @@
 // Helpers for the live renderer's tests (not a test file): a clock whose timers a test runs by
 // hand, a frame scheduler that draws only when a test says so, and a sink that keeps every write.
 
+import type { ReporterBus, ReporterEvents } from '@provino/types'
 import type { FrameCallback, FrameScheduler, SchedulerTimers } from './terminal/scheduler.ts'
 import type { TerminalStream } from './terminal/writer.ts'
+/** Lets pending promise work (a code frame's read) settle: one turn of the event loop. */
+export const settle = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
+
+/**
+ * A bus that moves `clock` 37 ms before each event, as the goldens' runs go; once each file has
+ * ended it lets pending reads settle (`settle`) and draws a frame (`scheduler`). Nothing after the
+ * tick is awaited: the goldens pin how many microtask turns a code frame's read gets.
+ */
+export function steppedBus(
+  bus: ReporterBus,
+  clock: { advance(ms: number): void },
+  afterFile: { readonly settle?: true; readonly scheduler?: { tick(): unknown } } = {},
+): ReporterBus {
+  return {
+    add: (each) => bus.add(each),
+    async emit<K extends keyof ReporterEvents>(event: K, ...args: ReporterEvents[K]) {
+      clock.advance(37)
+      await bus.emit(event, ...args)
+      if (event === 'file:end') {
+        if (afterFile.settle === true) await settle()
+        afterFile.scheduler?.tick()
+      }
+    },
+  }
+}
+
 /** A fake clock with timers: time moves only when a test calls `advance`. */
 export interface FakeClock {
   now(): number

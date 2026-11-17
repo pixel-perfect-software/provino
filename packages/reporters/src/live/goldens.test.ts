@@ -5,7 +5,6 @@
 // over the fixture's files laid out in folders. `PROVINO_UPDATE_GOLDENS=1` writes them.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import type { ReporterBus, ReporterEvents } from '@provino/types'
 import { createReporterBus } from '../bus.ts'
 import { expectGolden } from '../internal/golden.ts'
 import {
@@ -19,7 +18,7 @@ import {
 import { createStyle } from '../style.ts'
 import { provinoReporter } from './reporter.ts'
 import { GLYPHS } from './terminal/glyphs.ts'
-import { fakeClock, manualScheduler, recordingSink } from './test-support.ts'
+import { fakeClock, manualScheduler, recordingSink, steppedBus } from './test-support.ts'
 import { endCardLines } from './view/end-card.ts'
 
 /** The sources the code frames come from, keyed by file name; the fixture's own files don't exist on disk. */
@@ -48,9 +47,6 @@ const SOURCES: Readonly<Record<string, string>> = {
 
 const readSource = (path: string): Promise<string | undefined> =>
   Promise.resolve(SOURCES[path.slice(path.lastIndexOf('/') + 1)])
-
-/** Lets the code frames' reads settle. */
-const settle = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
 
 const MODES = { plain: false, tty: true } as const
 const SETS = { emoji: GLYPHS.emoji, fallback: GLYPHS.ascii } as const
@@ -89,18 +85,10 @@ describe('the provino reporter on the fixture run', () => {
             columns,
             glyphs,
           })
-          const bus = createReporterBus([reporter])
-          const stepped: ReporterBus = {
-            add: (each) => bus.add(each),
-            async emit<K extends keyof ReporterEvents>(event: K, ...args: ReporterEvents[K]) {
-              clock.advance(37)
-              await bus.emit(event, ...args)
-              if (event === 'file:end') {
-                await settle()
-                scheduler.tick()
-              }
-            },
-          }
+          const stepped = steppedBus(createReporterBus([reporter]), clock, {
+            settle: true,
+            scheduler,
+          })
           await playRun(stepped, FIXTURE_FILES, { snapshots: FIXTURE_SNAPSHOTS, durationMs: 1234 })
           await expectGolden(`provino.${mode}.${glyphs}.${columns}`, sink.text())
         })
@@ -279,18 +267,7 @@ describe('a failure thrown deep in source: the call chain under the code frame',
         columns: 100,
         glyphs: 'emoji',
       })
-      const bus = createReporterBus([reporter])
-      const stepped: ReporterBus = {
-        add: (each) => bus.add(each),
-        async emit<K extends keyof ReporterEvents>(event: K, ...args: ReporterEvents[K]) {
-          clock.advance(37)
-          await bus.emit(event, ...args)
-          if (event === 'file:end') {
-            await settle()
-            scheduler.tick()
-          }
-        },
-      }
+      const stepped = steppedBus(createReporterBus([reporter]), clock, { settle: true, scheduler })
       await playRun(stepped, [spec], { durationMs: 900 })
       await expectGolden(`provino-stack.${mode}`, sink.text())
     })
@@ -402,15 +379,10 @@ async function playViews(options: {
     views: options.views,
   })
   const bus = createReporterBus([reporter])
-  const stepped: ReporterBus = {
-    add: (each) => bus.add(each),
-    async emit<K extends keyof ReporterEvents>(event: K, ...args: ReporterEvents[K]) {
-      clock.advance(37)
-      await bus.emit(event, ...args)
-      if (event === 'file:end') await settle()
-    },
-  }
-  await playRun(stepped, VIEW_FILES, { snapshots: FIXTURE_SNAPSHOTS, durationMs: 1234 })
+  await playRun(steppedBus(bus, clock, { settle: true }), VIEW_FILES, {
+    snapshots: FIXTURE_SNAPSHOTS,
+    durationMs: 1234,
+  })
   assert.deepEqual(bus.failures(), [])
   return sink.text()
 }
@@ -426,18 +398,10 @@ describe('the --tree and --map views over the fixture run in folders', () => {
             columns,
             glyphs,
           })
-          if (view === 'tree') {
-            // Exactly one blank line before the tree and one before the card, though the last file's
-            // failure block already ended in a blank line.
-            assert.doesNotMatch(text, /\n\n\n/, 'never two blank lines in a row')
-            const rows = text.split('\n')
-            for (const heading of [/^(❌|x) src\/cart\/ · /u, /^(💥|x) \d+ failed · \d+ passed/u]) {
-              const at = rows.findIndex((row) => heading.test(row))
-              assert.ok(at > 1, `${heading}`)
-              assert.equal(rows[at - 1], '', `${heading}: a blank line before`)
-              assert.notEqual(rows[at - 2], '', `${heading}: and only one`)
-            }
-          }
+          // One blank line between blocks, though the last file's failure block already ended in
+          // one: before the tree, before the card, before the map.
+          assert.doesNotMatch(text, /\n\n\n/, 'never two blank lines in a row')
+          if (view === 'tree') assert.match(text, /\n\n(❌|x) src\/cart\/ · /u)
           await expectGolden(`provino-${view}.${glyphs}.${columns}`, text)
         })
       }

@@ -37,3 +37,15 @@ export function cleanText(text: string, keepSgr: boolean): string {
     .map((line) => (line.includes(ESC) ? `${line}${RESET}` : line))
     .join('\n')
 }
+
+/** A newline or a tab, which `cleanText` leaves in: the whitespace that would break a one-line row. */
+const LINE_BREAKS = /[\n\t]+/g
+
+/**
+ * `text` as one line with no control characters: `cleanText` without colour, then each run of
+ * newlines and tabs one space. For a name or a message that goes in a row of a view.
+ * @beta
+ */
+export function oneLine(text: string): string {
+  return cleanText(text, false).replace(LINE_BREAKS, ' ')
+}

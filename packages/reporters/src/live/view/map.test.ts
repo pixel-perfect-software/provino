@@ -103,9 +103,9 @@ describe('the status map', () => {
     assert.match(out[2] as string, /^web src\/ +🟩$/)
   })
 
-  test('the legend names each cell; no files, only the legend', () => {
+  test('the legend names each cell; no files, no map', () => {
     assert.equal(mapLegend(GLYPHS.emoji, plain), '🟩 pass  🟥 fail  🟨 skip  ⬜ todo')
-    assert.deepEqual(lines([]), ['🟩 pass  🟥 fail  🟨 skip  ⬜ todo'])
+    assert.deepEqual(lines([]), [])
   })
 
   test('cells of different widths: rows are cut by the widest cell, so none can wrap', () => {

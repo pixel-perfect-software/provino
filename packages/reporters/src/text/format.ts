@@ -113,8 +113,11 @@ export function testTitle(report: ReportPolicy, fullName: readonly string[]): st
   return fullName.join(report.displaySeparator)
 }
 
-/** The first line of an error: `TypeError: message`, or the message alone when `name` adds nothing. */
-function header(error: SerializedError): string {
+/**
+ * The first line of an error: `TypeError: message`, or the message alone when `name` adds nothing
+ * (it is `Error`, or the message already starts with it); the name alone for an empty message.
+ */
+export function header(error: Pick<SerializedError, 'name' | 'message'>): string {
   if (error.message === '') return error.name
   if (error.name === 'Error' || error.message.startsWith(error.name)) return error.message
   return `${error.name}: ${error.message}`

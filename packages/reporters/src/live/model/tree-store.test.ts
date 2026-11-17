@@ -10,7 +10,8 @@ import {
 import { createRunState, type FinishedFile } from './state.ts'
 import {
   createTreeStore,
-  MAX_LISTED_FAILURES,
+  MAX_TREE_FAILURES,
+  MAX_TREE_SUITES,
   type TreeFile,
   type TreeStore,
 } from './tree-store.ts'
@@ -69,8 +70,8 @@ describe('a file that fully passed', () => {
       failed: 0,
       skipped: 2,
       durationMs: 42,
-      open: undefined,
     })
+    assert.equal(file.open, undefined)
   })
 
   test('a file of only todo tests is a todo file; a skipped file is skipped', () => {
@@ -189,8 +190,8 @@ describe('a file with a failure', () => {
     assert.deepEqual(messages, ['TypeError: x is not a function', 'RangeError', undefined])
   })
 
-  test('at most MAX_LISTED_FAILURES failed tests are listed; the rest are counted', () => {
-    const many: TestSpec[] = Array.from({ length: MAX_LISTED_FAILURES + 7 }, (_, index) => ({
+  test('at most MAX_TREE_FAILURES failed tests are listed; the rest are counted', () => {
+    const many: TestSpec[] = Array.from({ length: MAX_TREE_FAILURES + 7 }, (_, index) => ({
       path: ['group', `fails ${index}`],
       state: 'fail' as const,
       errors: [error(`failure ${index}`)],
@@ -198,8 +199,8 @@ describe('a file with a failure', () => {
     const { store, finished } = play({ path: 'a.test.ts', tests: many })
     const open = store.compact(finished).open
     const group = open?.children[0]
-    assert.equal(group?.failed, MAX_LISTED_FAILURES + 7, 'the suite still counts every failure')
-    assert.equal(group?.children.length, MAX_LISTED_FAILURES)
+    assert.equal(group?.failed, MAX_TREE_FAILURES + 7, 'the suite still counts every failure')
+    assert.equal(group?.children.length, MAX_TREE_FAILURES)
     assert.equal(group?.children[0]?.message, 'failure 0')
     assert.equal(open?.moreFailed, 7)
   })
@@ -214,21 +215,6 @@ describe('a file with a failure', () => {
     const open = store.compact(finished).open
     assert.equal(open?.children[0]?.tests, 1)
     assert.deepEqual(open?.messages, ['worker died'])
-  })
-
-  test('a suite whose own hook threw fails, with its error, though every test passed', () => {
-    const { store, finished } = play({
-      path: 'a.test.ts',
-      tests: tests({ path: ['s', 'passes'] }),
-      suiteErrors: [{ path: ['s'], errors: [error('afterAll broke', { name: 'HookError' })] }],
-    })
-    const file = store.compact(finished)
-    assert.equal(file.kind, 'fail')
-    const suite = file.open?.children[0]
-    assert.equal(suite?.state, 'fail')
-    assert.equal(suite?.failed, 0)
-    assert.equal(suite?.message, 'HookError: afterAll broke')
-    assert.deepEqual(suite?.rest, { passed: 1, skipped: 0, todo: 0, durationMs: 1 })
   })
 })
 
@@ -288,6 +274,134 @@ describe('a suite whose own hook threw', () => {
   })
 })
 
+describe('what the store keeps is bounded', () => {
+  test('a file holds only as many errors as it will list: the failures past the cap lose theirs', () => {
+    const built = buildFile({
+      path: 'a.test.ts',
+      tests: Array.from({ length: MAX_TREE_FAILURES + 10 }, (_, index) => ({
+        path: ['group', `fails ${index}`],
+        state: 'fail' as const,
+        errors: [error(`failure ${index}`)],
+      })),
+    })
+    const store = createTreeStore()
+    store.collected(built.info.fileId, built.tasks)
+    // The tests end in reverse (a concurrent group, a shuffle): the first MAX_TREE_FAILURES to end
+    // keep their errors, and those are not the first ten declared.
+    for (const { task } of built.tests.toReversed()) {
+      const index = Number(task.name.replace('fails ', ''))
+      store.testEnd(built.info.fileId, task.id, 'fail', 1, error(`failure ${index}`))
+    }
+    const state = createRunState()
+    state.start([built.info], 0)
+    state.fileStart(built.info, 0, 1)
+    for (const _ of built.tests) state.testEnd(built.info.fileId, 'fail')
+    const group = store.compact(state.fileEnd(built.result)).open?.children[0]
+    const listed = group?.children ?? []
+    assert.equal(listed.length, MAX_TREE_FAILURES)
+    assert.deepEqual(
+      listed.slice(0, 10).map((node) => node.message),
+      Array(10).fill(undefined),
+      'declared first, ended last: no error was held for them',
+    )
+    assert.equal(listed[10]?.message, 'failure 10')
+    assert.equal(listed.at(-1)?.message, `failure ${MAX_TREE_FAILURES - 1}`)
+  })
+
+  test('at most MAX_TREE_SUITES suites are listed under one level; the rest are counted, with their tests', () => {
+    const count = MAX_TREE_SUITES + 10
+    const specs: TestSpec[] = [
+      ...Array.from({ length: count }, (_, index) => ({ path: [`suite ${index}`, 'passes'] })),
+      { path: ['suite 0', 'fails'], state: 'fail' as const, errors: [error('boom')] },
+      // In a suite that is not listed: counted into the file's `moreFailed`, listed nowhere.
+      {
+        path: [`suite ${count - 1}`, 'fails too'],
+        state: 'fail' as const,
+        errors: [error('bang')],
+      },
+    ]
+    const { store, finished } = play({ path: 'a.test.ts', tests: specs })
+    const file = store.compact(finished)
+    const open = file.open
+    assert.equal(open?.children.length, MAX_TREE_SUITES)
+    assert.equal(open?.moreSuites, 10)
+    assert.equal(open?.children[0]?.state, 'fail')
+    assert.equal(open?.children[0]?.children[0]?.name, 'fails')
+    assert.equal(open?.moreFailed, 1)
+    // The file's counts are the run's, whatever was listed.
+    assert.equal(file.tests, count + 2)
+    assert.equal(file.failed, 2)
+  })
+
+  test('the suite cap holds at every level', () => {
+    const specs: TestSpec[] = Array.from({ length: MAX_TREE_SUITES + 3 }, (_, index) => ({
+      path: ['outer', `inner ${index}`, 'passes'],
+    }))
+    specs.push({ path: ['outer', 'inner 0', 'fails'], state: 'fail', errors: [error('boom')] })
+    const { store, finished } = play({ path: 'a.test.ts', tests: specs })
+    const file = store.compact(finished)
+    const outer = file.open?.children[0]
+    assert.equal(outer?.children.length, MAX_TREE_SUITES)
+    assert.equal(outer?.moreSuites, 3)
+    assert.equal(file.open?.moreSuites, 0, 'the file itself has one suite')
+  })
+
+  test('only the first MAX_TREE_SUITES suites that failed on their own keep their error', () => {
+    const count = MAX_TREE_SUITES + 5
+    const specs: TestSpec[] = Array.from({ length: count }, (_, index) => ({
+      path: [`suite ${index}`, 'passes'],
+    }))
+    const { store, finished } = play({
+      path: 'a.test.ts',
+      tests: specs,
+      suiteErrors: Array.from({ length: count }, (_, index) => ({
+        path: [`suite ${index}`],
+        errors: [error(`hook ${index}`)],
+      })),
+    })
+    const open = store.compact(finished).open
+    // Every suite failed; the listed ones are the first MAX_TREE_SUITES, each with its error.
+    assert.equal(open?.children.length, MAX_TREE_SUITES)
+    assert.equal(open?.children[0]?.message, 'hook 0')
+    assert.equal(open?.moreSuites, 5)
+  })
+})
+
+describe('a suite that holds only todo tests below it', () => {
+  test('is todo, as the file that holds the same is: the one rule, over everything below', () => {
+    const { store, finished } = play({
+      path: 'a.test.ts',
+      tests: tests(
+        { path: ['outer', 'inner', 'later'], state: 'todo' },
+        { path: ['outer', 'inner', 'also later'], state: 'todo' },
+        { path: ['other', 'fails'], state: 'fail', errors: [error('boom')] },
+      ),
+    })
+    const [outer] = store.compact(finished).open?.children ?? []
+    assert.equal(outer?.name, 'outer')
+    assert.equal(outer?.state, 'todo', 'only a nested todo suite below it')
+    assert.equal(outer?.todo, 2)
+    assert.equal(outer?.skipped, 2)
+    const todoFile = play({
+      path: 'b.test.ts',
+      tests: tests({ path: ['x', 'y'], state: 'todo' }),
+    })
+    assert.equal(todoFile.store.compact(todoFile.finished).kind, 'todo')
+  })
+
+  test('is skipped when some of what is below it is skipped, not todo', () => {
+    const { store, finished } = play({
+      path: 'a.test.ts',
+      tests: tests(
+        { path: ['outer', 'inner', 'later'], state: 'todo' },
+        { path: ['outer', 'inner', 'off'], state: 'skip', skipReason: 'modifier' },
+        { path: ['other', 'fails'], state: 'fail', errors: [error('boom')] },
+      ),
+    })
+    assert.equal(store.compact(finished).open?.children[0]?.state, 'skip')
+  })
+})
+
 describe('a file that failed to run', () => {
   test('has its own errors and no tree when nothing was collected', () => {
     const store = createTreeStore()
@@ -311,6 +425,7 @@ describe('a file that failed to run', () => {
       children: [],
       rest: undefined,
       messages: ["ImportError: Cannot find module './x'", 'second', 'third'],
+      moreSuites: 0,
       moreFailed: 0,
     })
   })

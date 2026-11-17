@@ -10,9 +10,18 @@ export const MAX_ERROR_STRING: number = 16 * 1024
 const MAX_DEPTH = 3
 const MAX_NESTED = 5
 
+/**
+ * A copy of `text` in memory of its own. A slice of a string shares its parent's memory (V8 keeps
+ * the whole of a long message alive for a short first line cut from it), so what is kept long
+ * after the parent is gone is copied.
+ */
+export function copyFlat(text: string): string {
+  return Buffer.from(text, 'utf8').toString('utf8')
+}
+
 function flat(text: string): string {
   if (text.length <= MAX_ERROR_STRING) return text
-  return Buffer.from(text.slice(0, MAX_ERROR_STRING), 'utf8').toString('utf8')
+  return copyFlat(text.slice(0, MAX_ERROR_STRING))
 }
 
 /**

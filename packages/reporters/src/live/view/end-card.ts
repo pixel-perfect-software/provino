@@ -7,7 +7,7 @@ import { openHandlesText } from '../../text/format.ts'
 import type { SlowFile } from '../model/state.ts'
 import type { Glyphs } from '../terminal/glyphs.ts'
 import { fitWidth } from '../terminal/width.ts'
-import { fileTime, groupDigits } from './format.ts'
+import { fileTime, groupDigits, markOf, plural } from './format.ts'
 
 /** The slowest files the card names. */
 export const SLOWEST_SHOWN = 3
@@ -57,10 +57,6 @@ export interface EndCardInput {
   readonly failuresMore: number
 }
 
-function plural(count: number, noun: string): string {
-  return `${groupDigits(count)} ${noun}${count === 1 ? '' : 's'}`
-}
-
 function snapshotLine(counts: SnapshotCounts, update: EndCardInput['snapshotUpdate']): string {
   const parts: string[] = []
   const filesRemoved = counts.filesRemoved ?? 0
@@ -102,9 +98,7 @@ export function endCardLines(
       ? input.ok
         ? glyphs.passed
         : glyphs.failed
-      : input.ok
-        ? glyphs.pass
-        : glyphs.fail
+      : markOf(input.ok ? 'pass' : 'fail', glyphs)
   const time = fileTime(input.durationMs)
   let headline: string
   if (input.ok) {

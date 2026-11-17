@@ -2,12 +2,16 @@
 // squares (`🟩🟥🟨⬜`); the other sets draw a letter in colour (`.` `X` `s` `t`), so the outcome
 // reads without colour too. A legend line says which is which. Pure, built once at `run:end`.
 
-import type { FileKind, Folder, FolderFile } from '../../internal/views/folders.ts'
+import {
+  type FileKind,
+  type Folder,
+  type FolderFile,
+  folderLabel,
+} from '../../internal/views/folders.ts'
 import type { Style } from '../../style.ts'
 import type { Glyphs } from '../terminal/glyphs.ts'
-import { cleanText } from '../terminal/sanitize.ts'
+import { oneLine } from '../terminal/sanitize.ts'
 import { displayWidth, fitWidth, fitWidthLeft } from '../terminal/width.ts'
-import { folderLabel } from './tree.ts'
 
 /** The columns between a folder's label and its cells. */
 const GAP = 2
@@ -48,7 +52,8 @@ export function mapLegend(glyphs: Glyphs, style: Style): string {
 
 /**
  * The map's lines, none wider than `columns - 1`: the legend, then a row per folder, its cells in
- * path order, wrapped under the label when they do not fit. Labels are cut from the left.
+ * path order, wrapped under the label when they do not fit. Labels are cut from the left. No
+ * folders, no lines: a run with no file has no map.
  * @beta
  */
 export function mapLines(
@@ -57,8 +62,9 @@ export function mapLines(
   glyphs: Glyphs,
   style: Style,
 ): string[] {
+  if (folders.length === 0) return []
   const room = Math.max(1, columns - 1)
-  const labels = folders.map((folder) => cleanText(folderLabel(folder), false).replace(/\s+/g, ' '))
+  const labels = folders.map((folder) => oneLine(folderLabel(folder)))
   const widest = labels.reduce((most, label) => Math.max(most, displayWidth(label)), 0)
   const labelWidth = Math.min(widest, Math.max(1, Math.floor(room * LABEL_SHARE)))
   // A cell is as wide as the widest of the set's, so a row of any mix of outcomes fits.

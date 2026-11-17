@@ -45,7 +45,6 @@ x broken.test.ts · failed to run · 2ms
    ● Test suite failed to run
      ImportError: Cannot find module './missing.ts'
 
-
 x 2 failed · 6 passed · 3 skipped · 2 …
 slowest: math.test.ts 12ms · fails.tes…
 snapshots: 1 failed

@@ -1,15 +1,24 @@
-// Number and time text the footer shares. Plain functions, no `Intl`: they run in a frame.
+// Number and time text, and the one rule for a status's glyph, that the footer and the views share.
+// Plain functions, no `Intl`: they run in a frame. The count text (`groupDigits`, `plural`) is
+// `internal/views/count.ts`, which the folder helpers use too, and is exported from here.
 
-/** `1204` as `1,204`. */
-export function groupDigits(value: number): string {
-  const text = String(Math.trunc(value))
-  if (text.length <= 3) return text
-  let out = ''
-  for (let i = 0; i < text.length; i++) {
-    if (i > 0 && (text.length - i) % 3 === 0) out += ','
-    out += text[i]
+import type { FileKind } from '../../internal/views/folders.ts'
+import type { Glyphs } from '../terminal/glyphs.ts'
+
+export { groupDigits, plural } from '../../internal/views/count.ts'
+
+/** The mark of an outcome: the glyph a pass, a failure, a skip or a todo is drawn with. */
+export function markOf(kind: FileKind, glyphs: Glyphs): string {
+  switch (kind) {
+    case 'fail':
+      return glyphs.fail
+    case 'skip':
+      return glyphs.skipped
+    case 'todo':
+      return glyphs.todo
+    default:
+      return glyphs.pass
   }
-  return out
 }
 
 /** A clock: `0.8s`, `12.4s`, `1m 05s`, `1h 02m`. Tenths of a second below a minute. */

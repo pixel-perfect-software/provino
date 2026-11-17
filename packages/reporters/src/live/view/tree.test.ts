@@ -5,7 +5,7 @@ import { createStyle } from '../../style.ts'
 import type { OpenFile, TreeFile, TreeNode } from '../model/tree-store.ts'
 import { GLYPHS } from '../terminal/glyphs.ts'
 import { displayWidth } from '../terminal/width.ts'
-import { folderLabel, treeLines } from './tree.ts'
+import { treeLines } from './tree.ts'
 
 const plain = createStyle(false)
 const colour = createStyle(true)
@@ -19,7 +19,6 @@ function passing(path: string, extra: Partial<TreeFile> = {}): TreeFile {
     failed: 0,
     skipped: 0,
     durationMs: 12,
-    open: undefined,
     ...extra,
   }
 }
@@ -32,10 +31,12 @@ function test_(name: string, message?: string, durationMs = 5): TreeNode {
     tests: 1,
     failed: 1,
     skipped: 0,
+    todo: 0,
     durationMs,
     message,
     children: [],
     rest: undefined,
+    moreSuites: 0,
   }
 }
 
@@ -47,10 +48,12 @@ function suite(name: string, extra: Partial<TreeNode> = {}): TreeNode {
     tests: 2,
     failed: 0,
     skipped: 0,
+    todo: 0,
     durationMs: 3,
     message: undefined,
     children: [],
     rest: undefined,
+    moreSuites: 0,
     ...extra,
   }
 }
@@ -64,7 +67,7 @@ function failing(path: string, open: Partial<OpenFile> = {}): TreeFile {
     failed: 1,
     skipped: 0,
     durationMs: 120,
-    open: { children: [], rest: undefined, messages: [], moreFailed: 0, ...open },
+    open: { children: [], rest: undefined, moreSuites: 0, messages: [], moreFailed: 0, ...open },
   }
 }
 
@@ -246,9 +249,6 @@ describe('the tree', () => {
   })
 
   test('a project’s name goes before its folder, and a root file’s folder is ./', () => {
-    assert.equal(folderLabel({ project: '', dir: '.' }), './')
-    assert.equal(folderLabel({ project: 'web', dir: 'src/a' }), 'web src/a/')
-    assert.equal(folderLabel({ project: '', dir: '/' }), '/')
     const out = lines([passing('top.test.ts', { project: 'web' })])
     assert.match(out[0] as string, /^✅ web \.\/ · 1 file/)
   })
@@ -286,6 +286,23 @@ describe('the tree', () => {
         '      │     HookError: afterAll broke',
         '      └─ ✅ fine · 2 tests',
       ],
+    )
+  })
+
+  test('suites past the cap are one counted row, beside the failed tests that were left out', () => {
+    const out = lines(
+      [
+        failing('a/x.test.ts', {
+          children: [suite('first'), test_('t')],
+          moreSuites: 12,
+          moreFailed: 3,
+        }),
+      ],
+      100,
+    )
+    assert.deepEqual(
+      out.slice(-2).map((line) => line.trimEnd()),
+      ['   ├─ … 12 more suites', '   └─ … 3 more failed tests'],
     )
   })
 

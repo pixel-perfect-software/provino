@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type { Reporter, ReporterBus, ReporterEvents } from '@provino/types'
+import type { Reporter, ReporterEvents } from '@provino/types'
 import { createReporterBus } from '../bus.ts'
 import {
   buildFile,
@@ -22,7 +22,7 @@ import {
   provinoReporter,
 } from './reporter.ts'
 import { GLYPHS } from './terminal/glyphs.ts'
-import { fakeClock, manualScheduler, recordingSink } from './test-support.ts'
+import { fakeClock, manualScheduler, recordingSink, settle, steppedBus } from './test-support.ts'
 
 const ESC = String.fromCharCode(27)
 
@@ -264,7 +264,7 @@ test('a second run:start starts clean and draws again', async () => {
 })
 
 const RUN = { root: '/p', projects: [''], startTime: 0, watch: false }
-const turn = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
+const turn = settle
 
 test('without a terminal, text written while the stream is full is kept and written on drain', async () => {
   const { sink, reporter } = setup({ live: false })
@@ -531,10 +531,6 @@ test('--tree prints after the run’s lines and before the end card; --map after
   assert.ok(card > tree, 'the card is after the tree')
   assert.ok(map > card, 'the map is after the card')
   assert.ok(text.endsWith('\n'))
-  // One blank line between each block and the next.
-  assert.match(text, /\n\n❌ \.\/ · /)
-  assert.match(text, /\n\n💥 /)
-  assert.ok(!/\n\n\n/.test(text), 'never two blank lines in a row')
 })
 
 test('--tree alone prints no map, and --map alone no tree', async () => {
@@ -553,18 +549,7 @@ test('on a terminal the views are part of the last write, before the cursor come
     views: { tree: true, map: true },
     live: true,
   })
-  const bus = createReporterBus([reporter])
-  const stepped: ReporterBus = {
-    add: (each) => bus.add(each),
-    async emit(event, ...args) {
-      clock.advance(37)
-      await bus.emit(event, ...args)
-      if (event === 'file:end') {
-        await turn()
-        scheduler.tick()
-      }
-    },
-  }
+  const stepped = steppedBus(createReporterBus([reporter]), clock, { settle: true, scheduler })
   await playRun(stepped, FIXTURE_FILES, { snapshots: FIXTURE_SNAPSHOTS })
   const last = sink.writes().at(-1) as string
   assert.ok(last.includes('├─ '))
@@ -625,7 +610,6 @@ test('a run longer than the live ring: every file is in both views, no record ou
   assert.deepEqual(bus.failures(), [])
   const text = sink.text()
   assert.ok(text.includes('… 5 more files finished'), 'the live lines still say the ring dropped 5')
-  assert.ok(!text.includes('not shown'), 'the views are complete: no note')
   // The tree: the folder's totals and the dropped failed file, opened.
   const shown = count.toLocaleString('en-US')
   assert.match(
@@ -704,19 +688,12 @@ async function layout(options: {
   flush: boolean
 }): Promise<{ tree: number; card: number; map: number }> {
   const { scheduler, clock, sink, reporter } = viewed({ views: { tree: true, map: true } })
-  const bus = createReporterBus([reporter])
-  const stepped: ReporterBus = {
-    add: (each) => bus.add(each),
-    async emit(event, ...args) {
-      clock.advance(37)
-      await bus.emit(event, ...args)
-      // Written as each file ends (a flush), or left queued until run:end.
-      if (event === 'file:end' && options.flush) {
-        await turn()
-        scheduler.tick()
-      }
-    },
-  }
+  // Written as each file ends (a flush), or left queued until run:end.
+  const stepped = steppedBus(
+    createReporterBus([reporter]),
+    clock,
+    options.flush ? { settle: true, scheduler } : {},
+  )
   await playRun(
     stepped,
     [

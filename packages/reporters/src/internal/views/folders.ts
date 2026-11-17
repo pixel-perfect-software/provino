@@ -2,7 +2,10 @@
 // status map (B26 Phase 4) and the HTML report's time by folder (Phase 5). Pure: no clock, no
 // terminal, no styling, and the input is never changed.
 
-/** How a file ended, as a view draws it: the cell of the status map, the mark of a tree row. */
+import { posix } from 'node:path'
+import { groupDigits, plural } from './count.ts'
+
+/** How a file or a suite ended, as a view draws it: the cell of the status map, the mark of a tree row. */
 export type FileKind = 'pass' | 'fail' | 'skip' | 'todo'
 
 /**
@@ -11,8 +14,8 @@ export type FileKind = 'pass' | 'fail' | 'skip' | 'todo'
  */
 export interface FolderFile {
   /**
-   * The path the run shows (`FileInfo.runPath ?? path`), POSIX: the grouping splits on `/` only,
-   * so a native path goes through `toPosix` (`../posix-relative.ts`) first.
+   * The path the run shows (`FileInfo.runPath ?? path`), POSIX: the coordinator makes both so
+   * (`relativePosix`), and the grouping reads them with `node:path`'s `posix`.
    */
   readonly path: string
   /** The project's display name; `''` when it has none. */
@@ -45,33 +48,51 @@ export interface Folder<F extends FolderFile = FolderFile> {
 }
 
 /**
- * The kind of a file: `fail` when the file failed, `todo` when every test that ended is todo, else
- * `skip` for a file that was skipped whole and `pass` for the rest.
+ * How a set of tests ended: `fail` when any failed, `todo` when every one is todo, `skip` when every
+ * one was skipped (todo ones among them), else `pass`. The one rule for a file's kind and a suite's
+ * state; `skipped` counts the skipped and the todo tests, `todo` the todo ones.
  * @internal
  */
-export function fileKind(state: 'pass' | 'fail' | 'skip', tests: number, todo: number): FileKind {
+export function outcomeOf(tests: number, failed: number, skipped: number, todo: number): FileKind {
+  if (failed > 0) return 'fail'
+  if (tests > 0 && skipped === tests) return todo === tests ? 'todo' : 'skip'
+  return 'pass'
+}
+
+/**
+ * The kind of a file: what its tests say (`outcomeOf`), except that the file's own state wins
+ * where it knows more: a file that failed fails, and one skipped whole with no test to say so skips.
+ * @internal
+ */
+export function fileKind(
+  state: 'pass' | 'fail' | 'skip',
+  tests: number,
+  skipped: number,
+  todo: number,
+): FileKind {
   if (state === 'fail') return 'fail'
-  if (tests > 0 && todo === tests) return 'todo'
-  return state === 'skip' ? 'skip' : 'pass'
+  const kind = outcomeOf(tests, 0, skipped, todo)
+  return kind === 'pass' && state === 'skip' ? 'skip' : kind
 }
 
 /**
- * The POSIX directory part of a run path: `a/b/c.test.ts` is `a/b`, `c.test.ts` is `.` and
- * `/c.test.ts` is `/`.
+ * A folder's label: its project, then its directory with a closing slash (`src/cart/`, `./`).
  * @internal
  */
-export function dirnameOf(path: string): string {
-  const slash = path.lastIndexOf('/')
-  if (slash === -1) return '.'
-  return slash === 0 ? '/' : path.slice(0, slash)
+export function folderLabel(folder: Pick<Folder, 'project' | 'dir'>): string {
+  const dir = folder.dir.endsWith('/') ? folder.dir : `${folder.dir}/`
+  return folder.project === '' ? dir : `${folder.project} ${dir}`
 }
 
 /**
- * The part of a run path after its directory.
+ * What a folder's heading says after its label: `4 files · 11 tests · 3 failed` (the failed part
+ * only when a test failed).
  * @internal
  */
-export function basenameOf(path: string): string {
-  return path.slice(path.lastIndexOf('/') + 1)
+export function folderDetail(folder: Folder): string {
+  const parts = [plural(folder.files.length, 'file'), plural(folder.tests, 'test')]
+  if (folder.failed > 0) parts.push(`${groupDigits(folder.failed)} failed`)
+  return parts.join(' · ')
 }
 
 /** Code-unit order: the same on every machine, which a locale compare is not. */
@@ -88,7 +109,7 @@ function compareText(a: string, b: string): number {
 export function groupByFolder<F extends FolderFile>(files: readonly F[]): Folder<F>[] {
   const groups = new Map<string, { project: string; dir: string; files: F[] }>()
   for (const file of files) {
-    const dir = dirnameOf(file.path)
+    const dir = posix.dirname(file.path)
     const key = `${file.project}\u0000${dir}`
     const group = groups.get(key)
     if (group === undefined) groups.set(key, { project: file.project, dir, files: [file] })
