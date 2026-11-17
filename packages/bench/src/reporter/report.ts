@@ -6,12 +6,16 @@ import { errorMessage } from '../internal/guards.ts'
 import { overBar, parseLimit, pastLimit } from '../internal/limits.ts'
 import { median, quantile } from '../stats.ts'
 
-/** The legs this phase builds; `e2e` is Phase 3's and `html` Phase 5's. */
+/**
+ * The legs that run with no leg named (or `all`): the renderer's own, in this process or on a pty.
+ * `e2e` (Phase 3) runs whole suites, minutes of them, so it runs only when named; `html` is Phase 5's.
+ */
 export const REPORTER_LEGS = ['handlers', 'frames', 'heap', 'slow-sink', 'first-frame'] as const
-export type ReporterLeg = (typeof REPORTER_LEGS)[number]
+/** Every leg a command line may name. */
+export const NAMED_LEGS = ['handlers', 'frames', 'heap', 'slow-sink', 'first-frame', 'e2e'] as const
+export type ReporterLeg = (typeof NAMED_LEGS)[number]
 
 const LATER_LEGS: Readonly<Record<string, string>> = {
-  e2e: 'Phase 3 (it needs the flag plumbing)',
   html: 'Phase 5 (the HTML report)',
 }
 
@@ -37,6 +41,12 @@ export interface ReporterFlags {
   readonly maxHeapGrowthMb: number | undefined
   readonly minSlowRatio: number | undefined
   readonly maxFirstFrameMs: number | undefined
+  /** The `e2e` leg's suites (`--suite`, repeatable); default `app-500`. */
+  readonly suites: readonly string[]
+  /** The `e2e` leg's measured runs of each subject, after one discarded; default 7. */
+  readonly runs: number
+  readonly maxWallRatio: number | undefined
+  readonly maxCpuOverhead: number | undefined
 }
 
 function whole(flag: string, text: string | undefined, fallback: number): number {
@@ -71,6 +81,10 @@ export function parseReporterFlags(argv: readonly string[]): ReporterFlags {
         'max-heap-growth-mb': { type: 'string' },
         'min-slow-ratio': { type: 'string' },
         'max-first-frame-ms': { type: 'string' },
+        suite: { type: 'string', multiple: true },
+        runs: { type: 'string' },
+        'max-wall-ratio': { type: 'string' },
+        'max-cpu-overhead': { type: 'string' },
       },
     })
   }
@@ -83,14 +97,14 @@ export function parseReporterFlags(argv: readonly string[]): ReporterFlags {
   for (const name of parsed.positionals) {
     if (name === 'all') {
       legs.push(...REPORTER_LEGS)
-    } else if ((REPORTER_LEGS as readonly string[]).includes(name)) {
+    } else if ((NAMED_LEGS as readonly string[]).includes(name)) {
       legs.push(name as ReporterLeg)
     } else if (LATER_LEGS[name] !== undefined) {
       throw new BenchError('BENCH_USAGE', `the ${name} leg is built in ${LATER_LEGS[name]}`)
     } else {
       throw new BenchError(
         'BENCH_USAGE',
-        `unknown leg "${name}": one of ${REPORTER_LEGS.join(', ')}, or all`,
+        `unknown leg "${name}": one of ${NAMED_LEGS.join(', ')}, or all`,
       )
     }
   }
@@ -108,6 +122,10 @@ export function parseReporterFlags(argv: readonly string[]): ReporterFlags {
     maxHeapGrowthMb: parseLimit('max-heap-growth-mb', values['max-heap-growth-mb']),
     minSlowRatio: parseLimit('min-slow-ratio', values['min-slow-ratio']),
     maxFirstFrameMs: parseLimit('max-first-frame-ms', values['max-first-frame-ms']),
+    suites: values.suite === undefined || values.suite.length === 0 ? ['app-500'] : values.suite,
+    runs: whole('runs', values.runs, 7),
+    maxWallRatio: parseLimit('max-wall-ratio', values['max-wall-ratio']),
+    maxCpuOverhead: parseLimit('max-cpu-overhead', values['max-cpu-overhead']),
   }
 }
 
@@ -174,6 +192,28 @@ export interface FirstFrameResult {
   readonly maxMs: number
 }
 
+/**
+ * `e2e`: one suite under the built bin on a pty, `--reporter provino` against `--reporter agent`,
+ * interleaved: the wall time of each run, and the CPU the bin's own process (the coordinator)
+ * used, from `process.cpuUsage()` at its exit.
+ */
+export interface E2eResult {
+  readonly suite: string
+  /** Measured runs of each subject (one more of each was discarded). */
+  readonly runs: number
+  readonly provinoMedianMs: number
+  readonly agentMedianMs: number
+  /** `provino` over `agent`, of the wall medians, with its bootstrap 95% CI. */
+  readonly ratio: number
+  readonly ratioLow: number
+  readonly ratioHigh: number
+  /** The coordinator's CPU (user plus system), median ms. */
+  readonly provinoCpuMs: number
+  readonly agentCpuMs: number
+  /** What `provino` adds to the coordinator's CPU, as a share of `agent`'s: `p / a - 1`. */
+  readonly cpuOverhead: number
+}
+
 /** Rule 1's exceptions: handlers that do a run's work once. */
 const ONCE_PER_RUN: ReadonlySet<string> = new Set(['run:start', 'run:end'])
 
@@ -197,11 +237,24 @@ export function reporterFailures(
     readonly heap?: HeapResult
     readonly slowSink?: SlowSinkResult
     readonly firstFrame?: FirstFrameResult
+    readonly e2e?: readonly E2eResult[]
   },
   flags: ReporterFlags,
 ): string[] {
   const missed: string[] = []
   const { handlers, frames, heap, slowSink, firstFrame } = results
+  for (const suite of results.e2e ?? []) {
+    if (flags.maxWallRatio !== undefined && !(suite.ratio <= flags.maxWallRatio)) {
+      missed.push(
+        `${suite.suite} wall ratio ${pastLimit(suite.ratio, flags.maxWallRatio, 4)} is over ${flags.maxWallRatio}`,
+      )
+    }
+    if (flags.maxCpuOverhead !== undefined && !(suite.cpuOverhead <= flags.maxCpuOverhead)) {
+      missed.push(
+        `${suite.suite} coordinator CPU overhead ${pastLimit(suite.cpuOverhead, flags.maxCpuOverhead, 4)} is over ${flags.maxCpuOverhead}`,
+      )
+    }
+  }
   if (flags.maxHandlerUs !== undefined && handlers !== undefined) {
     for (const kind of handlers.kinds) {
       if (ONCE_PER_RUN.has(kind.kind)) continue
