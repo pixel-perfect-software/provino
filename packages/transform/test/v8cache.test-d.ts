@@ -4,14 +4,22 @@ import type { Script } from 'node:vm'
 import {
   type CacheMode,
   cacheModeFor,
+  compactV8Packs,
   createV8Cache,
   enableNativeCompileCache,
   type NativeCompileCacheResult,
+  openV8Pack,
   type V8Cache,
   V8CacheError,
   type V8CacheErrorCode,
   type V8CacheOptions,
   type V8CacheStats,
+  type V8Pack,
+  type V8PackCompaction,
+  type V8PackCompactionOptions,
+  type V8PackOptions,
+  type V8PackScriptOptions,
+  type V8PackStats,
   v8CacheTag,
 } from '@provino/transform/v8cache'
 import { expectTypeOf } from 'expect-type'
@@ -60,6 +68,44 @@ expectTypeOf<NativeCompileCacheResult['status']>().toEqualTypeOf<
 enableNativeCompileCache()
 // @ts-expect-error: a mode is `'on'` or `'off'`
 enableNativeCompileCache('/cache', 'sometimes')
+
+// B23e: the packs of many scripts, for the loader's wrappers.
+expectTypeOf<V8PackOptions>().toEqualTypeOf<{
+  readonly dir: string
+  readonly mode?: CacheMode
+  readonly minLength?: number
+}>()
+// @ts-expect-error: `dir` is required
+openV8Pack({})
+const pack = openV8Pack({ dir: '/cache/t' })
+expectTypeOf(pack).toEqualTypeOf<V8Pack>()
+expectTypeOf(pack.compile('1', { filename: 'a.js', columnOffset: -4 })).toEqualTypeOf<Script>()
+expectTypeOf<V8PackScriptOptions>().toEqualTypeOf<{
+  readonly filename: string
+  readonly lineOffset?: number
+  readonly columnOffset?: number
+}>()
+// @ts-expect-error: the filename is required (the key is the code, the filename and the offsets)
+pack.compile('1', {})
+expectTypeOf(pack.pending).toBeNumber()
+expectTypeOf(pack.write()).toBeVoid()
+expectTypeOf(pack.close()).toBeVoid()
+expectTypeOf(pack.stats).toEqualTypeOf<V8PackStats>()
+expectTypeOf<keyof V8PackStats>().toEqualTypeOf<
+  'hits' | 'misses' | 'rejected' | 'skipped' | 'packsRead' | 'written' | 'writeFailures'
+>()
+// @ts-expect-error: `pending` is read-only
+pack.pending = 0
+expectTypeOf(compactV8Packs('/cache/t')).toEqualTypeOf<V8PackCompaction>()
+expectTypeOf(
+  compactV8Packs('/cache/t', { maxPacks: 4, repeatedShare: 0.5 }),
+).toEqualTypeOf<V8PackCompaction>()
+expectTypeOf<V8PackCompactionOptions>().toEqualTypeOf<{
+  readonly maxPacks?: number
+  readonly repeatedShare?: number
+}>()
+// @ts-expect-error: the directory is required
+compactV8Packs()
 
 expectTypeOf<V8CacheError['code']>().toEqualTypeOf<V8CacheErrorCode>()
 expectTypeOf<V8CacheErrorCode>().toEqualTypeOf<'V8_CACHE_KEY_INVALID'>()

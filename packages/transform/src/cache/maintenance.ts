@@ -16,6 +16,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { dirname, join } from 'node:path'
+import { compactV8Packs } from '../v8cache/pack.ts'
 import { WRITTEN_NAME, writeCacheTag } from './store.ts'
 
 /** The file that holds the lockfile hash the directory was filled under. */
@@ -191,7 +192,9 @@ export function pruneCache(dir: string, maxBytes: number = DEFAULT_CACHE_MAX_BYT
  * `pruneCache`, unless no entry was written since the last time this ran: the first `set` of a
  * process leaves a `.written` sentinel in the directory, which this removes, so one `stat` replaces
  * reading every entry's size (directory timestamps can't say: on Linux a write in the same clock
- * tick leaves them unchanged). Returns `undefined` when it skipped. Never throws.
+ * tick leaves them unchanged). A worker's first V8 code cache pack leaves the same sentinel, and the
+ * packs are compacted first (`compactV8Packs`: every worker of a cold run writes the shared graph),
+ * so the size is read after the merge. Returns `undefined` when it skipped. Never throws.
  * @public
  */
 export function pruneCacheIfWritten(
@@ -203,6 +206,7 @@ export function pruneCacheIfWritten(
   if (existsSync(stamp) && !existsSync(join(dir, WRITTEN_NAME))) return undefined
   // Removed before pruning, so a write during the prune leaves the next run one to find.
   rmSync(join(dir, WRITTEN_NAME), { force: true })
+  compactV8Packs(dir)
   const result = pruneCache(dir, maxBytes)
   try {
     closeSync(openSync(stamp, 'a'))

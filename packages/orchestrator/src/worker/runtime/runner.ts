@@ -624,7 +624,12 @@ export function createRuntimeRunner(): WorkerRunner {
         ? { ...config.loader, typescript: 'blank' }
         : config.loader,
       policy.module,
-      parts.coverage?.project === undefined ? {} : { coverage: parts.coverage.project },
+      {
+        ...(parts.coverage?.project === undefined ? {} : { coverage: parts.coverage.project }),
+        // V8's code cache of the wrapper scripts (B23e), never under coverage of either provider
+        // (T3.7's `cacheModeFor`: a function restored from it reports no block ranges).
+        codeCache: config.coverage === undefined ? 'on' : 'off',
+      },
     )
     // A frame in a module the loader ran is reported where it is in the file as written.
     coverageLoader = parts.loader

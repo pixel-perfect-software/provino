@@ -64,6 +64,12 @@ expectTypeOf(createProjectLoader).returns.toEqualTypeOf<Promise<Loader>>()
 void createProjectLoader('/repo', loaderConfig, modulePolicy)
 // @ts-expect-error a loader has no config of its own to give: the policy is the `module` slice
 void createProjectLoader('/repo', loaderConfig)
+// The code cache of the wrapper scripts (B23e) is asked for by mode.
+expectTypeOf<ProjectLoaderOptions['codeCache']>().toEqualTypeOf<'on' | 'off' | undefined>()
+void createProjectLoader('/repo', loaderConfig, modulePolicy, { codeCache: 'on' })
+// @ts-expect-error a mode is `'on'` or `'off'`
+void createProjectLoader('/repo', loaderConfig, modulePolicy, { codeCache: true })
+expectTypeOf<Parameters<CreateLoader>[0]['codeCache']>().toEqualTypeOf<string | null | undefined>()
 declare const mapperObject: ModuleMapper
 // @ts-expect-error the config is the serialized one, so a mapper is a ref and not an object
 const badMappers: SerializedLoaderConfig = { ...loaderConfig, mappers: [mapperObject] }

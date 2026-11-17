@@ -235,6 +235,7 @@
         "@provino/policy",
         "@provino/resolver",
         "@provino/transform",
+        "@provino/transform/v8cache",
         "@provino/loader/graph"
       ],
       "slices": ["module"],
