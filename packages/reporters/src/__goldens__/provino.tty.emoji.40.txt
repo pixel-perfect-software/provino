@@ -14,11 +14,11 @@
      <ESC>[2m  4 │ })<ESC>[22m
      <ESC>[2m  5 │ <ESC>[22m
 
-✅ …test.ts<ESC>[2m · 3 tests · 2 skipped · 3ms<ESC>[22m
+✅ skipped.test.ts<ESC>[2m · 3ms<ESC>[22m
 <ESC>[32m✅ 5<ESC>[39m  <ESC>[31m❌ 1<ESC>[39m  <ESC>[33m⏩ 1<ESC>[39m  <ESC>[33m📝 1<ESC>[39m   37%   <ESC>[2m1.3s<ESC>[22m
 <ESC>[?2026l<ESC>[?2026h<ESC>[1F<ESC>[0J⏩ …ped.test.ts<ESC>[2m · 2 tests skipped · 1ms<ESC>[22m
 <ESC>[32m✅ 5<ESC>[39m  <ESC>[31m❌ 1<ESC>[39m  <ESC>[33m⏩ 3<ESC>[39m  <ESC>[33m📝 1<ESC>[39m   50%   <ESC>[2m1.7s<ESC>[22m
-<ESC>[?2026l<ESC>[?2026h<ESC>[1F<ESC>[0J✅ ….test.ts<ESC>[2m · 1 test · 1 skipped · 1ms<ESC>[22m
+<ESC>[?2026l<ESC>[?2026h<ESC>[1F<ESC>[0J✅ todo-only.test.ts<ESC>[2m · 1ms<ESC>[22m
 <ESC>[32m✅ 5<ESC>[39m  <ESC>[31m❌ 1<ESC>[39m  <ESC>[33m⏩ 3<ESC>[39m  <ESC>[33m📝 2<ESC>[39m   62%   <ESC>[2m1.9s<ESC>[22m
 <ESC>[?2026l<ESC>[?2026h<ESC>[1F<ESC>[0J✅ console.test.ts<ESC>[2m · 1 test · 6ms<ESC>[22m
    <ESC>[2mat import time<ESC>[22m

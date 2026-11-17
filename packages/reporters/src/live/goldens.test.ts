@@ -6,7 +6,13 @@ import { describe, test } from 'node:test'
 import type { ReporterBus, ReporterEvents } from '@provino/types'
 import { createReporterBus } from '../bus.ts'
 import { expectGolden } from '../internal/golden.ts'
-import { buildFile, FIXTURE_FILES, FIXTURE_SNAPSHOTS, playRun } from '../internal/test-support.ts'
+import {
+  buildFile,
+  error,
+  FIXTURE_FILES,
+  FIXTURE_SNAPSHOTS,
+  playRun,
+} from '../internal/test-support.ts'
 import { createStyle } from '../style.ts'
 import { provinoReporter } from './reporter.ts'
 import { GLYPHS } from './terminal/glyphs.ts'
@@ -20,6 +26,13 @@ const SOURCES: Readonly<Record<string, string>> = {
     "test('fails', () => {",
     '  expect(compute()).toBe(2)',
     '})',
+    '',
+  ].join('\n'),
+  'discount.ts': [
+    'export function discount(cart: Cart): number {',
+    '  const rules = cart.rules',
+    '  return rules.percent * cart.subtotal',
+    '}',
     '',
   ].join('\n'),
   'snapshot.test.ts': [
@@ -140,6 +153,7 @@ describe('the end card', () => {
     ],
     snapshots: undefined,
     openHandles: undefined,
+    lateConsole: 0,
     failures: [],
     failuresMore: 0,
   } as const
@@ -174,4 +188,53 @@ describe('the end card', () => {
     )
     await expectGolden('provino-end.fail', `${lines.join('\n')}\n`)
   })
+})
+
+describe('a failure thrown deep in source: the call chain under the code frame', () => {
+  const stack = [
+    'Error: cannot read the discount',
+    '    at discount (/project/src/cart/discount.ts:3:22)',
+    '    at total (/project/src/cart/total.ts:12:20)',
+    '    at node:internal/process/task_queues:105:5',
+    '    at Object.<anonymous> (/project/src/cart/total.test.ts:8:19)',
+    '    at lib (/project/node_modules/lib/index.js:1:1)',
+    '    at step1 (/project/src/steps.ts:1:1)',
+    '    at step2 (/project/src/steps.ts:2:1)',
+    '    at step3 (/project/src/steps.ts:3:1)',
+    '    at step4 (/project/src/steps.ts:4:1)',
+  ].join('\n')
+  const spec = {
+    path: 'src/cart/total.test.ts',
+    tests: [
+      {
+        path: ['cart', 'total', 'applies the discount'],
+        state: 'fail' as const,
+        errors: [error('cannot read the discount', { stack })],
+      },
+    ],
+  }
+  for (const [mode, terminal] of Object.entries(MODES)) {
+    test(mode, async () => {
+      const { clock, scheduler, sink, reporter } = setup({
+        live: terminal,
+        colour: terminal,
+        columns: 100,
+        glyphs: 'emoji',
+      })
+      const bus = createReporterBus([reporter])
+      const stepped: ReporterBus = {
+        add: (each) => bus.add(each),
+        async emit<K extends keyof ReporterEvents>(event: K, ...args: ReporterEvents[K]) {
+          clock.advance(37)
+          await bus.emit(event, ...args)
+          if (event === 'file:end') {
+            await settle()
+            scheduler.tick()
+          }
+        },
+      }
+      await playRun(stepped, [spec], { durationMs: 900 })
+      await expectGolden(`provino-stack.${mode}`, sink.text())
+    })
+  }
 })

@@ -38,6 +38,8 @@ export interface EndCardInput {
   readonly slowest: readonly SlowFile[]
   readonly snapshots: SnapshotCounts | undefined
   readonly openHandles: readonly OpenHandle[] | undefined
+  /** Console writes that arrived after their file ended and were not printed. */
+  readonly lateConsole: number
   /** The failures, each already one line. */
   readonly failures: readonly string[]
   /** Failures the run had that `failures` has no room for. */
@@ -111,6 +113,11 @@ export function endCardLines(
   if (input.snapshots !== undefined) {
     const text = snapshotLine(input.snapshots)
     if (text !== '') lines.push(style.dim(text))
+  }
+  if (input.lateConsole > 0) {
+    lines.push(
+      style.dim(`${plural(input.lateConsole, 'console write')} came after their file ended`),
+    )
   }
   if (input.openHandles !== undefined && input.openHandles.length > 0) {
     lines.push(...openHandlesText(input.openHandles).replace(/\n+$/, '').split('\n'))

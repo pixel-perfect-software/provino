@@ -3,6 +3,8 @@
 // only as far as it needs.
 
 import type { Style } from '../../style.ts'
+import { cleanText } from '../terminal/sanitize.ts'
+import { fitWidth } from '../terminal/width.ts'
 
 /** Lines of source: `lines[0]` is line number `first` (1-based). */
 export interface Snippet {
@@ -57,11 +59,10 @@ export function codeFrameLines(
   const last = snippet.first + snippet.lines.length - 1
   const gutter = String(last).length
   const out: string[] = []
-  const cut = (text: string): string =>
-    text.length > room ? `${text.slice(0, Math.max(0, room - 1))}…` : text
+  const cut = (text: string): string => fitWidth(text, room)
   snippet.lines.forEach((raw, index) => {
     const number = snippet.first + index
-    const text = raw.replaceAll('\t', TAB)
+    const text = cleanText(raw.replaceAll('\t', TAB), false)
     const marker = number === line ? '>' : ' '
     const numberText = String(number).padStart(gutter)
     const row = cut(`${marker} ${numberText} │ ${text}`)

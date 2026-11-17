@@ -13,6 +13,7 @@ import type { Reporter, RunSummary, SerializedError, TaskId } from '@provino/typ
 import { serializeError } from '../internal/serialize-error.ts'
 import type { TextSink } from '../sink.ts'
 import { createStyle, type Style } from '../style.ts'
+import { boundError, boundErrors } from './model/bound.ts'
 import { createEstimator } from './model/estimate.ts'
 import { createRunState, type FinishedFile, type RunState } from './model/state.ts'
 import type { Glyphs } from './terminal/glyphs.ts'
@@ -20,6 +21,7 @@ import {
   createFrameScheduler,
   createImmediateFlusher,
   type FrameScheduler,
+  type SchedulerTimers,
 } from './terminal/scheduler.ts'
 import { createTerminalSession, type TerminalSession } from './terminal/session.ts'
 import { createTimedWriter, type TerminalStream } from './terminal/writer.ts'
@@ -30,11 +32,13 @@ import {
   createSnippetLoader,
   errorBlockLines,
   type FailureContext,
+  type FailurePlace,
   failureLines,
   failureSummaryLine,
+  NO_PLACE,
+  placeOf,
   readSourceCapped,
   snippetKey,
-  whereOf,
 } from './view/failure.ts'
 import { consoleLines, fileLine } from './view/file-line.ts'
 import { type StatusInput, statusLine } from './view/status-line.ts'
@@ -52,6 +56,8 @@ const MAX_LISTED_FAILURES = 200
 /** A finished file taken from the ring: drawn once its code frames have been read, or have waited long enough. */
 interface Held {
   readonly finished: FinishedFile
+  /** Where each failure happened, worked out once when the file is taken. */
+  readonly places: readonly FailurePlace[]
   readonly heldAt: number
   snippets: ReadonlyMap<string, Snippet> | undefined
   ready: boolean
@@ -80,6 +86,8 @@ export interface ProvinoReporterOptions {
   readonly readSource?: (path: string) => Promise<string | undefined>
   /** The clock in ms, for the scheduler this reporter makes. Default: `performance.now`. */
   readonly now?: () => number
+  /** The timer that ends a wait for a code frame when there is no terminal. Default: the real one, unref'd. */
+  readonly timers?: SchedulerTimers
   /** Tests pass the manual scheduler. Default: the real one, on an unref'd timer. */
   readonly scheduler?: FrameScheduler
 }
@@ -169,6 +177,11 @@ export function createLiveReporter(
     writer.writeAlways(text)
   }
   const flusher = createImmediateFlusher(flushPlain)
+  const timers: SchedulerTimers = options.timers ?? {
+    setTimeout: (callback, ms) => setTimeout(callback, ms),
+    clearTimeout: (handle) => clearTimeout(handle as NodeJS.Timeout),
+  }
+  let holdTimer: { unref(): unknown } | undefined
 
   /** Asks for the next write: a frame on a terminal, a flush of the batch without one. */
   function wake(now?: number): void {
@@ -191,18 +204,27 @@ export function createLiveReporter(
   }
 
   function context(): FailureContext {
-    return { glyphs, style, columns, hyperlinks: options.hyperlinks, cwd: options.cwd }
+    return {
+      glyphs,
+      style,
+      columns,
+      hyperlinks: options.hyperlinks,
+      cwd: options.cwd,
+      colour: options.colour,
+    }
   }
 
-  /** Takes a finished file out of the ring and starts reading the source of its failures. */
+  /** Takes a finished file out of the ring: finds where its failures happened and starts reading their source. */
   function admit(finished: FinishedFile, now: number): Held {
-    const item: Held = { finished, heldAt: now, snippets: undefined, ready: true }
-    if (finished.failures.length === 0 || options.noStackTrace === true) return item
-    const places = finished.failures.flatMap((failure) => {
-      const where = whereOf(failure)
-      return where === undefined ? [] : [where]
-    })
-    const reading = loader.load(places)
+    const { failures } = finished
+    const places =
+      failures.length === 0 || options.noStackTrace === true
+        ? failures.map(() => NO_PLACE)
+        : failures.map((failure) => placeOf(failure, options.cwd))
+    const item: Held = { finished, places, heldAt: now, snippets: undefined, ready: true }
+    if (failures.length === 0 || options.noStackTrace === true) return item
+    const wanted = places.flatMap((place) => (place.where === undefined ? [] : [place.where]))
+    const reading = loader.load(wanted)
     if (reading === undefined) return item
     item.ready = false
     const settle = (snippets: ReadonlyMap<string, Snippet> | undefined): void => {
@@ -242,25 +264,15 @@ export function createLiveReporter(
       ),
     ]
     if (options.silent !== true) {
-      lines.push(...consoleLines(console, consoleOmitted, columns, style))
+      lines.push(...consoleLines(console, consoleOmitted, columns, style, options.colour))
     }
-    for (const failure of failures) {
-      const where = whereOf(failure)
+    failures.forEach((failure, index) => {
+      const place = item.places[index] ?? NO_PLACE
       const snippet =
-        where === undefined || options.noStackTrace === true
-          ? undefined
-          : item.snippets?.get(snippetKey(where))
-      lines.push(
-        ...failureLines(
-          options.noStackTrace === true
-            ? { ...failure, location: null, errors: failure.errors }
-            : failure,
-          ctx,
-          snippet,
-        ),
-      )
-      listFailure(failureSummaryLine(failure, ctx))
-    }
+        place.where === undefined ? undefined : item.snippets?.get(snippetKey(place.where))
+      lines.push(...failureLines(failure, place, ctx, snippet))
+      listFailure(failureSummaryLine(failure, place, ctx))
+    })
     if (failuresOmitted > 0) {
       lines.push(`   ${style.dim(`… ${failuresOmitted} more failed tests in this file`)}`, '')
       listedMore += failuresOmitted
@@ -295,22 +307,33 @@ export function createLiveReporter(
    */
   function drain(final: boolean, now: number): void {
     const ctx = context()
+    const blocksDropped = state.blocksDropped()
     for (const block of state.takeBlocks()) {
       const title = blockTitle(block.kind, block.subject)
       for (const line of errorBlockLines(title, block.errors, ctx)) pending.push(line)
     }
-    if (state.blocksDropped() > 0) pending.push(style.dim(`… ${state.blocksDropped()} more errors`))
+    if (blocksDropped > 0) pending.push(style.dim(`… ${blocksDropped} more errors`))
     const dropped = state.dropped()
     for (const finished of state.take()) held.push(admit(finished, now))
     if (dropped > 0) pending.push(style.dim(`… ${dropped} more files finished`))
     let done = 0
     for (const item of held) {
-      const timedOut = live && !broken && now - item.heldAt >= CODE_FRAME_WAIT_MS
+      const timedOut = now - item.heldAt >= CODE_FRAME_WAIT_MS
       if (!item.ready && !final && !timedOut) break
       for (const line of render(item)) pending.push(line)
       done++
     }
     held = done === held.length ? [] : held.slice(done)
+    // With no terminal no frame comes back to end the wait: a one-shot timer does.
+    const waiting = held[0]
+    if (waiting !== undefined && !(live && !broken) && holdTimer === undefined) {
+      const remaining = Math.max(1, CODE_FRAME_WAIT_MS - (now - waiting.heldAt))
+      holdTimer = timers.setTimeout(() => {
+        holdTimer = undefined
+        flushPlain()
+      }, remaining)
+      holdTimer.unref()
+    }
   }
 
   function footer(now: number): string[] {
@@ -477,7 +500,7 @@ export function createLiveReporter(
         state.testEnd(task.fileId as TaskId, 'fail', {
           title: task.fullName,
           location: task.location,
-          errors: event.result.errors,
+          errors: boundErrors(event.result.errors),
         })
       } else state.testEnd(task.fileId as TaskId, event.result.state)
       wake()
@@ -488,25 +511,29 @@ export function createLiveReporter(
     },
     'file:end': (result) => {
       const now = scheduler.now()
-      state.fileEnd(result)
+      state.fileEnd(
+        result.errors.length === 0 ? result : { ...result, errors: boundErrors(result.errors) },
+      )
       estimator.fileEnded(result.file, now, state.busy())
       wake(now)
     },
     error: (error, origin) => {
-      state.error({ kind: 'error', subject: origin, errors: [error] })
+      state.error({ kind: 'error', subject: origin, errors: [boundError(error)] })
       wake()
     },
     unhandled: (file, event) => {
       state.error({
         kind: 'unhandled',
         subject: file === null ? null : file.path,
-        errors: [event.error],
+        errors: [boundError(event.error)],
       })
       wake()
     },
     'run:end': (summary: RunSummary) => {
       // The one handler that does the work itself: the run is over and no worker waits.
       scheduler.stop()
+      if (holdTimer !== undefined) timers.clearTimeout(holdTimer)
+      holdTimer = undefined
       detached = true
       if (partial !== '') {
         pending.push(partial)
@@ -528,6 +555,7 @@ export function createLiveReporter(
           slowest: state.slowest(),
           snapshots: summary.snapshots?.counters,
           openHandles: summary.openHandles,
+          lateConsole: state.lateConsole(),
           failures: listed,
           failuresMore: listedMore,
         },

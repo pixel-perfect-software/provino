@@ -1,0 +1,18 @@
+<ESC>[?2026h<ESC>[?25l<ESC>[32m✅ 0<ESC>[39m  <ESC>[31m❌ 1<ESC>[39m   <ESC>[31m████████████████████████<ESC>[39m  100%  1 of 1 files   <ESC>[2m0.2s<ESC>[22m
+<ESC>[?2026l<ESC>[1F<ESC>[0J❌ <ESC>[31msrc/cart/total.test.ts<ESC>[39m<ESC>[2m · 1 of 1 failed · 5ms<ESC>[22m
+   <ESC>[31m●<ESC>[39m <ESC>[1mcart › total › applies the discount<ESC>[22m
+     cannot read the discount
+     <ESC>[2m›<ESC>[22m src/cart/discount.ts:3:22
+     <ESC>[2mat total (src/cart/total.ts:12:20)<ESC>[22m
+     <ESC>[2mat Object.<anonymous> (src/cart/total.test.ts:8:19)<ESC>[22m
+     <ESC>[2mat step1 (src/steps.ts:1:1)<ESC>[22m
+     <ESC>[2mat step2 (src/steps.ts:2:1)<ESC>[22m
+     <ESC>[2mat step3 (src/steps.ts:3:1)<ESC>[22m
+     <ESC>[2m… 1 more<ESC>[22m
+
+<ESC>[31m💥<ESC>[39m <ESC>[1m1 failed · 0 passed · 1 file · 900ms<ESC>[22m
+<ESC>[2m🐢 slowest: src/cart/total.test.ts 5ms<ESC>[22m
+
+<ESC>[31mfailed:<ESC>[39m
+  ❌ cart › total › applies the discount  <ESC>[2msrc/cart/discount.ts:3:22<ESC>[22m
+<ESC>[?25h

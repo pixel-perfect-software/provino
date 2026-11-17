@@ -14,8 +14,8 @@ import {
   failureLines,
   MAX_CODE_FRAMES,
   MAX_SOURCE_BYTES,
+  placeOf,
   titleOf,
-  whereOf,
 } from './failure.ts'
 
 const plain = createStyle(false)
@@ -25,6 +25,7 @@ const context = {
   columns: 120,
   hyperlinks: false,
   cwd: '/project',
+  colour: false,
 }
 
 const at = (file: string, line: number): SourceLocation => ({ file, line, column: 3 })
@@ -116,8 +117,9 @@ test('the failure block: title path, error text without its stack, location, the
     ],
   }
   assert.equal(titleOf(failure), 'cart › total › applies the discount')
-  assert.deepEqual(whereOf(failure), { file: '/project/a.test.ts', line: 4, column: 5 })
-  const lines = failureLines(failure, context, { first: 3, lines: ['a', 'b', 'c'] })
+  const place = placeOf(failure, '/project')
+  assert.deepEqual(place.where, { file: '/project/a.test.ts', line: 4, column: 5 })
+  const lines = failureLines(failure, place, context, { first: 3, lines: ['a', 'b', 'c'] })
   assert.equal(lines[0], '   ● cart › total › applies the discount')
   assert.equal(lines[1], '     expect(received).toBe(expected)')
   assert.equal(lines[2], '     › a.test.ts:4:5')
@@ -128,7 +130,10 @@ test('the failure block: title path, error text without its stack, location, the
 
 test('a link wraps the location where the terminal draws them', () => {
   const failure = { title: ['t'], location: at('/project/a b.ts', 1), errors: [error('boom')] }
-  const text = failureLines(failure, { ...context, hyperlinks: true }).join('\n')
+  const text = failureLines(failure, placeOf(failure, '/project'), {
+    ...context,
+    hyperlinks: true,
+  }).join('\n')
   assert.ok(text.includes(']8;;file:///project/a%20b.ts'))
 })
 

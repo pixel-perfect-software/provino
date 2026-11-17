@@ -4,6 +4,7 @@
 import type { Style } from '../../style.ts'
 import type { ConsoleEntry } from '../model/state.ts'
 import type { Glyphs } from '../terminal/glyphs.ts'
+import { cleanText } from '../terminal/sanitize.ts'
 import { displayWidth, fitWidth, fitWidthLeft } from '../terminal/width.ts'
 import { fileTime, groupDigits } from './format.ts'
 
@@ -22,6 +23,9 @@ export interface FileLineInput {
   readonly skipped: number
   readonly durationMs: number
 }
+
+/** The least of a path worth keeping before the tail gives way. */
+const MIN_PATH_COLUMNS = 12
 
 /** The most console lines printed under a file. */
 export const MAX_CONSOLE_LINES = 20
@@ -57,11 +61,22 @@ export function fileLine(
 ): string {
   const mark =
     input.state === 'fail' ? glyphs.fail : input.state === 'skip' ? glyphs.skipped : glyphs.pass
-  const label = input.project === '' ? input.path : `${input.project} ${input.path}`
-  const tail = ` · ${detail(input)} · ${fileTime(input.durationMs)}`
+  const label = cleanText(
+    input.project === '' ? input.path : `${input.project} ${input.path}`,
+    false,
+  )
   const room = Math.max(1, columns - 1)
-  const pathRoom = room - displayWidth(mark) - 1 - displayWidth(tail)
-  const shown = displayWidth(label) <= pathRoom ? label : fitWidthLeft(label, Math.max(8, pathRoom))
+  const time = fileTime(input.durationMs)
+  // The whole tail when the path keeps a useful part of itself, else only the time, else none.
+  const tails = [` · ${detail(input)} · ${time}`, ` · ${time}`, '']
+  let tail = ''
+  let pathRoom = 1
+  for (const candidate of tails) {
+    tail = candidate
+    pathRoom = Math.max(1, room - displayWidth(mark) - 1 - displayWidth(candidate))
+    if (pathRoom >= Math.min(MIN_PATH_COLUMNS, displayWidth(label))) break
+  }
+  const shown = displayWidth(label) <= pathRoom ? label : fitWidthLeft(label, pathRoom)
   const path = input.state === 'fail' ? style.red(shown) : shown
   return `${mark} ${path}${style.dim(tail)}`
 }
@@ -76,12 +91,14 @@ export function consoleLines(
   omitted: number,
   columns: number,
   style: Style,
+  colour: boolean,
 ): string[] {
   const lines: string[] = []
   let more = omitted
   const room = Math.max(1, columns - 1 - 3)
   for (const entry of entries) {
-    const text = entry.text.endsWith('\n') ? entry.text.slice(0, -1) : entry.text
+    const cleaned = cleanText(entry.text, colour)
+    const text = cleaned.endsWith('\n') ? cleaned.slice(0, -1) : cleaned
     for (const line of text.split('\n')) {
       if (lines.length >= MAX_CONSOLE_LINES) {
         more++

@@ -123,8 +123,10 @@ export interface RunState {
     state: 'pass' | 'fail' | 'skip' | 'todo' | 'queued' | 'running',
     failure?: FailedTest,
   ): void
-  /** A running file wrote to the console. */
+  /** A running file wrote to the console. A write for a file that is not running is counted, not kept. */
   console(fileId: TaskId, stream: 'stdout' | 'stderr', text: string): void
+  /** Console writes that arrived after their file ended (a worker's wind-down), or for a file never started. */
+  lateConsole(): number
   fileEnd(result: FileResult): void
   /** An error outside the tests: counted, and its block queued for a frame. */
   error(block?: RunBlock): void
@@ -152,6 +154,7 @@ export function createRunState(): RunState {
   let dropped = 0
   let blocks: RunBlock[] = []
   let blocksDropped = 0
+  let lateConsole = 0
   const workers: (WorkerSlot | undefined)[] = []
   /** The running files, by file, so a test's end finds its slot. */
   const byFile = new Map<TaskId, WorkerSlot>()
@@ -191,6 +194,7 @@ export function createRunState(): RunState {
       return out
     },
     blocksDropped: () => blocksDropped,
+    lateConsole: () => lateConsole,
     finish() {
       workers.length = 0
       byFile.clear()
@@ -208,6 +212,7 @@ export function createRunState(): RunState {
       filesDone = filesFailed = errors = busy = dropped = 0
       blocks = []
       blocksDropped = 0
+      lateConsole = 0
       startedAt = now
       workers.length = 0
       byFile.clear()
@@ -240,7 +245,10 @@ export function createRunState(): RunState {
     },
     console(fileId, stream, text) {
       const slot = byFile.get(fileId)
-      if (slot === undefined) return
+      if (slot === undefined) {
+        lateConsole++
+        return
+      }
       if (slot.console.length >= MAX_FILE_CONSOLE) slot.consoleOmitted++
       else
         slot.console.push({
