@@ -1332,7 +1332,9 @@ test('reevaluateHookingExternals (D132): a dependency only per-file packages imp
   })
 })
 
-test('reevaluateHookingExternals (D132): a dependency a shared package imports too stays shared', async () => {
+test('reevaluateHookingExternals (D132): a learned package’s dependency is per file even when a shared package imports it too, and that package follows', async () => {
+  // As a worker seeded with the plugin from the results cache has it from its first file: the
+  // set does not depend on the first file having loaded `widget` before the plugin was learned.
   const root = writeTree(CLOSURE)
   const load = closureLoader(root)
   await withFileGlobals(async () => {
@@ -1341,11 +1343,11 @@ test('reevaluateHookingExternals (D132): a dependency a shared package imports t
     const second = load('b.test.js')
     assert.deepEqual(
       closureEvals(root).filter((name) => name === 'core-lib'),
-      ['core-lib'],
-      'core-lib is evaluated once per worker',
+      ['core-lib', 'core-lib'],
+      'core-lib is evaluated in each file',
     )
-    assert.equal(second.widget.core, first.widget.core, 'widget stays shared')
-    assert.equal(second.plugin.core, second.widget.core, 'the per-file plugin sees the shared one')
+    assert.notEqual(second.widget.core, first.widget.core, 'widget is per file from the next file')
+    assert.equal(second.plugin.core, second.widget.core, 'one core-lib in the file')
     assert.notEqual(second.plugin.entry, first.plugin.entry, 'the plugin itself is per file')
   })
 })
@@ -1554,7 +1556,7 @@ test('reevaluateHookingExternals (D132): a workspace package between a per-file 
   assert.notEqual(second.entry, first.entry)
 })
 
-test('reevaluateHookingExternals (D132): a workspace package a shared package also loads is Node’s copy, so the registry below it stays shared', () => {
+test('reevaluateHookingExternals (D132): a workspace package below a seed is per file with it, and a shared package that also loads it follows', () => {
   const root = writeTree({
     ...pkg('plugin', "module.exports = { reg: require('ws-lib').reg }\n"),
     ...pkg('shared-user', "module.exports = { reg: require('ws-lib').reg }\n"),
@@ -1567,8 +1569,8 @@ test('reevaluateHookingExternals (D132): a workspace package a shared package al
   type Loaded = { shared: { reg: object }; plugin: { reg: object } }
   const first = load<Loaded>('a.test.js')
   const second = load<Loaded>('b.test.js')
-  assert.equal(second.shared.reg, first.shared.reg, 'the shared package keeps the worker’s copy')
-  assert.equal(second.plugin.reg, second.shared.reg, 'and the plugin sees the same one')
+  assert.notEqual(second.shared.reg, first.shared.reg, 'the registry is the file’s own')
+  assert.equal(second.plugin.reg, second.shared.reg, 'and both packages see the same one')
 })
 
 test('reevaluateHookingExternals (D132): a dependency a shared package could load by a computed require stays shared, with a debug warning', () => {
@@ -2248,7 +2250,8 @@ test('reevaluatePatchingExternals: an ES module package that adds a global as it
       exports: './index.js',
     }),
     'node_modules/writes-dep/index.js': 'export const tag = {}\n',
-    // Imported by writes-esm and by a package that writes nothing: it stays shared.
+    // Imported by writes-esm and by a package that writes nothing: per file with writes-esm, and
+    // the package that writes nothing follows.
     'node_modules/shared-dep/package.json': JSON.stringify({
       name: 'shared-dep',
       main: 'index.js',
@@ -2299,17 +2302,14 @@ test('reevaluatePatchingExternals: an ES module package that adds a global as it
     assert.equal(flag(), 2, 'the second file evaluates the package again')
     assert.notEqual(second.writes.token, first.writes.token, 'writes-esm is the second file’s own')
     assert.notEqual(second.writes.depToken, first.writes.depToken, 'so is what only it imports')
-    assert.equal(
+    assert.notEqual(
       second.writes.sharedToken,
       first.writes.sharedToken,
-      'a dependency a shared package imports too stays shared',
+      'so is a dependency a shared package imports too',
     )
-    assert.equal(second.writes.sharedToken, second.plain.shared.token)
-    assert.deepEqual(
-      watched.slice(2).map((path) => path.slice(root.length + 1)),
-      ['node_modules/shared-dep/index.js'],
-      'only the shared dependency’s first load from a user module (the per-file copy) is a window',
-    )
+    assert.equal(second.writes.sharedToken, second.plain.shared.token, 'one copy in the file')
+    assert.notEqual(second.plain.shared, first.plain.shared, 'its other importer follows')
+    assert.deepEqual(watched.slice(2), [], 'the second file loads no external natively')
   } finally {
     Reflect.deleteProperty(globalThis, '__provinoWritesEsm')
   }
