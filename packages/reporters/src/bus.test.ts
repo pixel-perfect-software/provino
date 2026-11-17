@@ -270,7 +270,8 @@ describe('createReporterBus: a reporter that throws', () => {
       },
     ])
     await bus.emit('file:queued', FILE)
-    assert.deepEqual(bus.failures(), [{ name: 'Error', message: 'undefined' }])
+    // Nothing could be read, so the message is empty, never the text `undefined`.
+    assert.deepEqual(bus.failures(), [{ name: 'Error', message: '' }])
   })
 })
 

@@ -66,6 +66,7 @@ export type {
   CorePolicy,
   EachTableKind,
   FormatEachTitle,
+  FormatTimeout,
   FormatValue,
   HookKind,
   HookOrder,

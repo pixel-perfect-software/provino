@@ -76,7 +76,7 @@ describe('connectWorker after a worker dies', () => {
     const exit: WorkerExit = { type: 'exit', code: 3 }
     await assert.rejects(connection.run(job('exit3')), (error: unknown) => {
       assert.equal((error as { code?: unknown }).code, 'ORCH_WORKER_EXITED')
-      assert.deepEqual((error as Error).cause, exit)
+      assert.deepEqual((error as { exit?: unknown }).exit, exit)
       return true
     })
     await assert.rejects(connection.worker.memoryUsage(), rejectsClosedWith(exit))

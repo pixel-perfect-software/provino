@@ -51,7 +51,7 @@ export interface WorkerConnection {
   readonly worker: RpcClient<WorkerMethods>
   /**
    * Runs one file. Resolves with its `fileDone` once every event before it has been handed to
-   * `onEvents`; rejects with `ORCH_WORKER_EXITED` (the `WorkerExit` as `cause`) if the worker
+   * `onEvents`; rejects with `ORCH_WORKER_EXITED` (the `WorkerExit` as `exit`) if the worker
    * exits first.
    */
   run(job: FileJob): Promise<FileDone>
@@ -143,6 +143,6 @@ function exitedError(exit: WorkerExit): OrchestratorError {
   return new OrchestratorError(
     'ORCH_WORKER_EXITED',
     `The worker exited while running a file (${describeExit(exit)})`,
-    { cause: exit },
+    { exit },
   )
 }

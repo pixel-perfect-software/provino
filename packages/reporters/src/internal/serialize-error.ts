@@ -24,7 +24,8 @@ function serialize(value: unknown, depth: number): SerializedError {
   const cause = depth < MAX_CAUSES ? read(value, 'cause') : undefined
   return {
     name: typeof name === 'string' ? name : 'Error',
-    message: typeof message === 'string' ? message : describe(message),
+    // An object with no message (plain data, a worker's exit say) has none, not "undefined".
+    message: typeof message === 'string' ? message : message === undefined ? '' : describe(message),
     ...(typeof stack === 'string' ? { stack } : {}),
     ...(typeof code === 'string' ? { code } : {}),
     ...(cause === undefined ? {} : { cause: serialize(cause, depth + 1) }),

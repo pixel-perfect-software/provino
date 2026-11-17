@@ -54,7 +54,7 @@ import type { RunRegistry } from '../internal/run-registry.ts'
 import { type AroundCall, runAround } from './around.ts'
 import { type ContextEnv, createTestContext, SkipSignal } from './context.ts'
 import { type Deadlines, isBounded, type RealTimers, resolveTimeout, sleep } from './deadline.ts'
-import { type InvokeEnv, invoke } from './invoke.ts'
+import { type InvokeEnv, invoke, takesDone } from './invoke.ts'
 import { createLimiter, type Limiter, unlimited } from './limiter.ts'
 import { anyTurns, type BoundaryKey, TurnClock } from './turns.ts'
 import { callUser } from './user-call.ts'
@@ -1491,6 +1491,8 @@ export class Executor {
           timeoutMs,
           namedMs: ownMs,
           attempt,
+          takesDone: takesDone(policy, test.arity, (test.rowArgs ?? NO_ARGS).length),
+          at: test.location,
         }),
       )
     } catch (error) {
@@ -1756,6 +1758,8 @@ export class Executor {
           timeoutMs,
           attempt,
           start: calls === unlimited ? startedAt : undefined,
+          takesDone: hook !== undefined && takesDone(this.#policy, hook.arity, 0),
+          at: spec.location,
         })
       const value = await (calls === unlimited
         ? runInStore(store, bounded)

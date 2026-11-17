@@ -64,6 +64,19 @@ export type OrderHooks = <Hook>(hooks: readonly Hook[], kind: HookKind) => reado
 export type ShuffleFactory = (seed: number) => <T>(items: T[]) => T[]
 
 /**
+ * Words the timeout of a test or a hook (`CorePolicy.timeouts.message`). Called when the deadline
+ * passes, with what timed out, the timeout in milliseconds as the user gave it and whether the
+ * function takes a `done` callback (`firstArg: 'done-if-arity'`, whose timeout is the callback
+ * never being called). Returns the failure's message.
+ * @public
+ */
+export type FormatTimeout = (timeout: {
+  readonly subject: 'test' | 'hook'
+  readonly ms: number
+  readonly done: boolean
+}) => string
+
+/**
  * The `core` slice, read by `@provino/core` (Track 5): collection, hooks, timeouts, naming,
  * retries and focus.
  *
@@ -111,6 +124,18 @@ export interface CorePolicy {
      * `test.timeout || testTimeout`) or no deadline (Vitest). Added in B07's review; recorded in B14a (T1.7).
      */
     readonly zero: 'default' | 'none'
+    /**
+     * How the timeout of a test or hook is worded. `null`: core's own, a `CoreError` with the code
+     * `CORE_TIMEOUT` and the text `Test timed out in 5000ms.` (a teardown's and a listener's always
+     * are). Otherwise the behaviour's message, on a plain `Error` (still with the code) whose stack
+     * is that message and the place the test or hook was registered: jest-circus rejects with a
+     * string, and its `_getError` turns that into the call's `asyncError`, registered there, with
+     * the message `thrown: "<text>"`. Jest: a ref to `formatTimeout` (jest-circus 30.5.2's
+     * `_makeTimeoutMessage`). Vitest and neutral: `null` (Vitest's text is core's). Provino's own
+     * key; the value is backed by `runtime/timeouts`, `runtime/done-callback` and
+     * `runtime/done-hooks`.
+     */
+    readonly message: Behaviour<FormatTimeout> | null
   }
   /**
    * Joins describe and test names into the full name used for filtering, `currentTestName` and

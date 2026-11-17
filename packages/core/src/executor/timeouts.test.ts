@@ -3,6 +3,13 @@
 // say it has started (an explicit promise), then advances the clock.
 import assert from 'node:assert/strict'
 import { beforeEach, describe, test } from 'node:test'
+import {
+  type BehaviourLoader,
+  createBehaviourLoader,
+  isModuleRef,
+  moduleRef,
+} from '@provino/policy'
+import type { AnyFunction, Behaviour, FormatTimeout } from '@provino/types'
 import FakeTimers, { type Clock } from '@sinonjs/fake-timers'
 import {
   clockOptions,
@@ -455,6 +462,137 @@ describe('timeouts.teardown', () => {
     assert.equal(state.settled, false)
     await clock.tickAsync(5000)
     assert.equal(codeOf(await running, 't'), 'CORE_TIMEOUT')
+  })
+})
+
+describe('timeouts.message', () => {
+  /** A formatter that says what it was asked: `<subject>[ done] <ms>`. */
+  const REF = moduleRef<FormatTimeout>('test:format-timeout', 'formatTimeout')
+  const format: FormatTimeout = ({ subject, ms, done }) => `${subject}${done ? ' done' : ''} ${ms}`
+  const behaviours: BehaviourLoader = {
+    async load<Fn extends AnyFunction>(behaviour: Behaviour<Fn>): Promise<Fn> {
+      if (isModuleRef(behaviour) && behaviour.module === REF.module) return format as unknown as Fn
+      return createBehaviourLoader().load(behaviour)
+    },
+  }
+  const withFormat = (extra: Record<string, unknown> = {}) => ({
+    ...clockOptions(clock),
+    behaviours,
+    ...extra,
+  })
+  const hangs =
+    (signal: () => void): Script =>
+    ({ test }) => {
+      test('slow', () => {
+        signal()
+        return hang()
+      })
+    }
+  /** `Error: <text>` and the frame of the call that registered the test or hook. */
+  const stackOf = (text: string): RegExp =>
+    new RegExp(`^Error: ${text}\\n {4}at \\S*timeouts\\.test\\.ts:\\d+:\\d+$`)
+
+  test('a test that times out fails with the runner’s text, as a plain Error at the place the test was registered', async () => {
+    const { started, signal } = startSignal()
+    const running = runScript(
+      hangs(signal),
+      { timeouts: { test: 300, message: REF } },
+      withFormat({ locations: true }),
+    )
+    await reached(started, running)
+    await clock.tickAsync(300)
+    const [error, ...others] = (await running).results.slow?.errors ?? []
+    assert.equal(others.length, 0)
+    assert.equal(error?.code, 'CORE_TIMEOUT')
+    assert.equal(error?.name, 'Error')
+    assert.equal(error?.message, 'test 300')
+    assert.match(error?.stack ?? '', stackOf('test 300'))
+  })
+
+  test('a timeout given to the test is the one the text names', async () => {
+    const { started, signal } = startSignal()
+    const running = runScript(
+      ({ test }) => {
+        test('slow', () => {
+          signal()
+          return hang()
+        }, 50)
+      },
+      { timeouts: { test: 5000, message: REF } },
+      withFormat(),
+    )
+    await reached(started, running)
+    await clock.tickAsync(50)
+    assert.deepEqual((await running).errors.slow, ['test 50'])
+  })
+
+  test('a hook that times out fails with the hook text, at the place the hook was registered', async () => {
+    const { started, signal } = startSignal()
+    const running = runScript(
+      ({ test, beforeEach }) => {
+        beforeEach(() => {
+          signal()
+          return hang()
+        })
+        test('t', () => {})
+      },
+      { timeouts: { hook: 400, message: REF } },
+      withFormat({ locations: true }),
+    )
+    await reached(started, running)
+    await clock.tickAsync(400)
+    const [error] = (await running).results.t?.errors ?? []
+    assert.equal(error?.code, 'CORE_TIMEOUT')
+    assert.equal(error?.message, 'hook 400')
+    assert.match(error?.stack ?? '', stackOf('hook 400'))
+  })
+
+  test('a function that takes a done callback has the done texts', async () => {
+    const { started, signal } = startSignal()
+    const never = ((_done: () => void) => signal()) as never
+    const running = runScript(
+      ({ test, beforeEach }) => {
+        beforeEach(never)
+        test('t', never)
+      },
+      { firstArg: 'done-if-arity', timeouts: { test: 200, hook: 100, message: REF } },
+      withFormat(),
+    )
+    await reached(started, running)
+    await clock.tickAsync(100)
+    assert.deepEqual((await running).errors.t, ['hook done 100'])
+    const test = startSignal()
+    const body = runScript(
+      ({ test: define }) => {
+        define('t', ((_done: () => void) => test.signal()) as never)
+      },
+      { firstArg: 'done-if-arity', timeouts: { test: 200, message: REF } },
+      withFormat(),
+    )
+    await reached(test.started, body)
+    await clock.tickAsync(200)
+    assert.deepEqual((await body).errors.t, ['test done 200'])
+  })
+
+  test('a teardown keeps core’s words: the runner has none', async () => {
+    const { started, signal } = startSignal()
+    const running = runScript(
+      ({ test }, _step, runtime) => {
+        test('t', (ctx) => {
+          runtime.lazyHost.runOf(ctx)?.addTeardown(() => {
+            signal()
+            return hang()
+          })
+        })
+      },
+      { timeouts: { teardown: 50, message: REF } },
+      withFormat(),
+    )
+    await reached(started, running)
+    await clock.tickAsync(50)
+    const [error] = (await running).results.t?.errors ?? []
+    assert.equal(error?.code, 'CORE_TIMEOUT')
+    assert.match(error?.message ?? '', /Teardown timed out in 50ms/)
   })
 })
 

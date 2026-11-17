@@ -34,3 +34,4 @@ export {
   type JestSnapshotStateView,
   jestSnapshotStateView,
 } from './snapshot-state-view.ts'
+export { formatTimeout } from './timeout-message.ts'

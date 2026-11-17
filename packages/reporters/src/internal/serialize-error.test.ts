@@ -39,6 +39,15 @@ describe('serializeError', () => {
     assert.deepEqual(serializeError(Symbol('s')), { name: 'Error', message: 'Symbol(s)' })
   })
 
+  test('an object with no message has an empty one, never the word undefined', () => {
+    const exit = { type: 'signal', signal: 'SIGINT' }
+    assert.deepEqual(serializeError(exit), { name: 'Error', message: '' })
+    assert.deepEqual(serializeError(new Error('top', { cause: exit })).cause, {
+      name: 'Error',
+      message: '',
+    })
+  })
+
   test('survives a value whose text cannot be made', () => {
     const noText = { toString: 3 }
     assert.deepEqual(serializeError({ message: noText }), {

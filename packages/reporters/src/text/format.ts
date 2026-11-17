@@ -118,9 +118,22 @@ export function testTitle(report: ReportPolicy, fullName: readonly string[]): st
  * (it is `Error`, or the message already starts with it); the name alone for an empty message.
  */
 export function header(error: Pick<SerializedError, 'name' | 'message'>): string {
-  if (error.message === '') return error.name
-  if (error.name === 'Error' || error.message.startsWith(error.name)) return error.message
-  return `${error.name}: ${error.message}`
+  // What crosses a link can lack either field: never print "undefined" for one.
+  const name = typeof error.name === 'string' && error.name !== '' ? error.name : 'Error'
+  const message = typeof error.message === 'string' ? error.message : ''
+  if (message === '') return name
+  if (name === 'Error' || message.startsWith(name)) return message
+  return `${name}: ${message}`
+}
+
+/** Whether an error says nothing: no message, no frames, a plain `Error` name, nothing under it. */
+function saysNothing(error: SerializedError): boolean {
+  return (
+    header(error) === 'Error' &&
+    frames(error).length === 0 &&
+    error.cause === undefined &&
+    (error.errors ?? []).length === 0
+  )
 }
 
 /**
@@ -191,10 +204,11 @@ export function formatError(error: SerializedError, stackTrace = true, depth = 0
   const shown = stackTrace ? frames(error) : []
   const lines = [header(error), ...shown.map((frame) => `  ${frame}`)]
   if (depth < MAX_NESTING) {
-    if (error.cause !== undefined) {
+    if (error.cause !== undefined && !saysNothing(error.cause)) {
       lines.push('', 'Caused by:', indent(formatError(error.cause, stackTrace, depth + 1), 2))
     }
     for (const nested of error.errors ?? []) {
+      if (saysNothing(nested)) continue
       lines.push('', 'Also:', indent(formatError(nested, stackTrace, depth + 1), 2))
     }
   }

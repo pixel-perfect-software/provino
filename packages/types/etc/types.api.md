@@ -440,6 +440,7 @@ export interface CorePolicy {
         readonly teardown: number;
         readonly catchSyncOverrun: boolean;
         readonly zero: "default" | "none";
+        readonly message: Behaviour<FormatTimeout> | null;
     };
     readonly unawaitedAsyncAssertion: "ignore" | "fail";
 }
@@ -1163,6 +1164,13 @@ export type FormatEachTitle = (template: string, row: readonly unknown[] | Reado
 
 // @public
 export type FormatMapperMiss = (miss: MapperMiss) => string;
+
+// @public
+export type FormatTimeout = (timeout: {
+    readonly subject: "test" | "hook";
+    readonly ms: number;
+    readonly done: boolean;
+}) => string;
 
 // @public
 export type FormatValue = (value: unknown) => string;

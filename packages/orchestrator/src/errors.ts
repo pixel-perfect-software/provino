@@ -1,3 +1,5 @@
+import type { WorkerExit } from '@provino/types'
+
 /**
  * Error codes `@provino/orchestrator` throws.
  * @public
@@ -23,16 +25,23 @@ export type OrchestratorErrorCode =
   | 'ORCH_GLOBAL_SETUP_FAILED'
 
 /**
- * A coordinator error with a stable code. For `ORCH_WORKER_EXITED` the `cause` is the
- * `WorkerExit`.
+ * A coordinator error with a stable code. For `ORCH_WORKER_EXITED` and `ORCH_WORKER_START_TIMEOUT`,
+ * `exit` is how the worker ended. It is a field of its own and not the `cause`: a `WorkerExit` is
+ * plain data, no error, and a reporter prints a `cause` as an error.
  * @public
  */
 export class OrchestratorError extends Error {
   readonly code: OrchestratorErrorCode
+  readonly exit: WorkerExit | undefined
 
-  constructor(code: OrchestratorErrorCode, message: string, options?: ErrorOptions) {
+  constructor(
+    code: OrchestratorErrorCode,
+    message: string,
+    options?: ErrorOptions & { readonly exit?: WorkerExit | undefined },
+  ) {
     super(message, options)
     this.name = 'OrchestratorError'
     this.code = code
+    this.exit = options?.exit
   }
 }

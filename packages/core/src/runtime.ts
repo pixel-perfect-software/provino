@@ -192,7 +192,11 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   const { policy, sink } = options
   const now = options.now ?? (() => performance.now())
   const timers = options.realTimers ?? capturedTimers
-  const deadlines = createDeadlines(policy.timeouts, timers, now)
+  const timeoutMessage =
+    policy.timeouts.message === null
+      ? undefined
+      : await options.behaviours.load(policy.timeouts.message)
+  const deadlines = createDeadlines(policy.timeouts, timers, now, timeoutMessage)
   const projectName = options.projectName ?? ''
   const formatEachTitle = await options.behaviours.load(policy.formatEachTitle)
   const formatValue = await options.behaviours.load(policy.formatValue)

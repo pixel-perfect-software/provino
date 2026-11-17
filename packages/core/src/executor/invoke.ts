@@ -46,7 +46,7 @@ export interface InvokeEnv {
  * arguments passed before it (jest-circus: `fn.length > 0`; jest-each's wrapper: `fn.length >
  * row.length`). A generator that declares a parameter takes `done` too, and then never runs.
  */
-function takesDone(policy: CorePolicy, arity: number, argCount: number): boolean {
+export function takesDone(policy: CorePolicy, arity: number, argCount: number): boolean {
   return policy.firstArg === 'done-if-arity' && arity > argCount
 }
 

@@ -13,6 +13,7 @@ import { ExpectTable } from '@provino/types';
 import { FakeClock } from '@provino/timers';
 import { FakeTimersConfig } from '@provino/timers';
 import { FormatMapperMiss } from '@provino/types';
+import { FormatTimeout } from '@provino/types';
 import { FormatValue } from '@provino/types';
 import { GlobalsHost } from '@provino/types';
 import { JsonValue } from '@provino/types';
@@ -43,6 +44,9 @@ export function formatEachTitle(template: string, row: readonly unknown[] | Read
 
 // @public
 export const formatMapperMiss: FormatMapperMiss;
+
+// @public
+export const formatTimeout: FormatTimeout;
 
 // @public
 export const formatValue: FormatValue;

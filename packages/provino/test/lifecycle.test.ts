@@ -141,6 +141,34 @@ describe('exit codes through the bin (provino run)', () => {
     })
   }
 
+  // A task runner (turbo) cancels with one signal to the whole process group, so the workers die
+  // of it as the bin hears it: that is the cancellation, never "Worker N exited" errors, crashed
+  // files or the lines under them.
+  for (const [signal, code] of [
+    ['SIGINT', 130],
+    ['SIGTERM', 143],
+  ] as const) {
+    it(`${code} for ${signal} sent to the whole process group: the run is cancelled, with no worker reported lost or crashed`, async () => {
+      const project = await makeProject((dir) => ({
+        'tests/hang.test.js': hanging(join(dir, 'workers.pids')),
+        'tests/hang2.test.js': hanging(join(dir, 'workers.pids')),
+      }))
+      const pidFile = project.path('workers.pids')
+      const live = startGroup(['run', '--config', project.config, '--maxWorkers', '2'], project.dir)
+      try {
+        const pids = await untilNoted(pidFile, 2)
+        process.kill(-live.pgid, signal)
+        const ended = await live.exited
+        assert.deepEqual(ended, { code, signal: null }, live.stderr())
+        assert.match(live.stderr(), /Interrupted/)
+        assert.doesNotMatch(live.stderr(), /exited|killed by|Caused by|undefined/, live.stderr())
+        await assertNoChild(live, pids)
+      } finally {
+        killGroup(live.pgid)
+      }
+    })
+  }
+
   // The second signal is the force. The bin's `main` is a stand-in that stays up until the force
   // signal, so the first signal can't end the run before the second lands. With real workers in a
   // busy loop it can: the first signal already kills them (B21 Choice 3), the run ends at once, and

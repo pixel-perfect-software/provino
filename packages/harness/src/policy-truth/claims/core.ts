@@ -3,7 +3,7 @@
 // that changes a run is caught there; `fixtures/policy/core-*` record what it can't tell apart.
 import { equal as assertEqual } from 'node:assert'
 import { isDeepStrictEqual, stripVTControlCharacters } from 'node:util'
-import { jestShuffle, shapeTestError } from '@provino/dialect-jest/runtime'
+import { formatTimeout, jestShuffle, shapeTestError } from '@provino/dialect-jest/runtime'
 import { vitestPolicy } from '@provino/dialect-vitest'
 import { neutralPolicy } from '@provino/policy'
 import type { Golden } from '../../golden.ts'
@@ -78,6 +78,26 @@ const nodeAssertMatches = (g: Golden, value: unknown): boolean => {
   )
 }
 
+/**
+ * Whether the ref (the dialect's `core.timeouts.message`) words a timeout as the golden's Jest
+ * did: `formatTimeout` called with what timed out, the golden's timeout and whether the function
+ * takes `done` gives the text of the test's first error, which the harness converted to
+ * `Error: <text>`, then the cause it appends. `null` (core's own words), or a ref to another
+ * function, shows nothing of the sort.
+ */
+const timeoutWords =
+  (subject: 'test' | 'hook', done: boolean, ...titles: readonly string[]) =>
+  (g: Golden, value: unknown): boolean => {
+    if (!isJestRuntimeRef(value, 'formatTimeout')) return false
+    const [message] = errorsOf(g, ...titles)
+    const ms = timeoutOf(g, ...titles)
+    if (message === undefined || ms === null) {
+      throw new Error(`${g.suite} (${g.runner}) recorded no timeout for ${titles.join(' > ')}`)
+    }
+    const recorded = message.slice('Error: '.length, message.indexOf('\n\n[cause]'))
+    return formatTimeout({ subject, ms, done }) === recorded
+  }
+
 /** Whether a test that fails every attempt reports the first attempt's error (`core-retry`). */
 const keptByRetryGolden = golden('core-retry', {
   read: (g) => errorsOf(g, 'fails every attempt').includes('Error: attempt 1'),
@@ -123,6 +143,31 @@ export const coreClaims: Claims = {
     golden('core-timeouts', {
       read: (g) => timeoutOf(g, 'timeouts', 'a cleanup over the hook timeout', 't'),
     }),
+  ),
+  // The words of a test's and a hook's timeout, from the recordings of Jest 30.5.2: `thrown:
+  // "Exceeded timeout of <ms> ms for a <test|hook>[ while waiting for `done()` to be called].` and
+  // its advice. Vitest's text is core's (`Test timed out in 5000ms.`): the neutral `null` stands.
+  'core.timeouts.message': each(
+    [
+      golden('core-timeouts', {
+        matches: timeoutWords('test', false, 'a test over the default timeout'),
+      }),
+      golden('core-timeouts', {
+        matches: timeoutWords('hook', false, 'a hook over the default timeout', 't'),
+      }),
+      golden('runtime/done-callback', {
+        matches: timeoutWords('test', true, 'done never called'),
+      }),
+      golden('runtime/done-hooks', {
+        matches: timeoutWords('hook', true, 'a hook that never calls done', 'inside'),
+      }),
+    ],
+    own(
+      'packages/dialect-vitest/src/dialect.test.ts',
+      'core.timeouts.message',
+      null,
+      'Vitest words a timeout as core does, so the neutral `null` stands',
+    ),
   ),
   'core.timeouts.catchSyncOverrun': corpus('runtime', 'runtime/timeouts'),
   'core.timeouts.zero': golden('core-timeouts', {
