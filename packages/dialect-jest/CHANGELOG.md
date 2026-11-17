@@ -1,5 +1,20 @@
 # @provino/dialect-jest
 
+## 0.1.0-rc.2
+
+### Patch Changes
+
+- d015c8e: A test or hook that times out prints Jest's own text under `provino jest` (`CorePolicy.timeouts.message`, `FormatTimeout`, `formatTimeout`), and a worker that dies of a signal sent to the whole process group is part of the cancellation, not an error of the run.
+- Updated dependencies [d015c8e]
+  - @provino/types@0.1.0-rc.2
+  - @provino/core@0.1.0-rc.2
+  - @provino/env-shared@0.1.0-rc.2
+  - @provino/expect@0.1.0-rc.2
+  - @provino/mock@0.1.0-rc.2
+  - @provino/policy@0.1.0-rc.2
+  - @provino/resolver@0.1.0-rc.2
+  - @provino/timers@0.1.0-rc.2
+
 ## 0.1.0-rc.1
 
 ### Patch Changes

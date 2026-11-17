@@ -1,5 +1,11 @@
 # @provino/types
 
+## 0.1.0-rc.2
+
+### Patch Changes
+
+- d015c8e: A test or hook that times out prints Jest's own text under `provino jest` (`CorePolicy.timeouts.message`, `FormatTimeout`, `formatTimeout`), and a worker that dies of a signal sent to the whole process group is part of the cancellation, not an error of the run.
+
 ## 0.1.0-rc.1
 
 No changes in this release.
