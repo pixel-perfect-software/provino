@@ -265,6 +265,9 @@ export const jestPolicy: PolicyOverrides = {
     reevaluateHookingExternals: true,
     // jest-source-map names a frame after the map's name at its own position (`cli/failure-frames`).
     stackFrameNames: 'mapped-name',
+    // jest-runtime loads a test's modules itself, so a patch of Node's loader made outside the test
+    // files (Next.js's require hook) reaches none of them (`cli/module-patch-outer-realm`).
+    nativeLoadPatches: 'skip',
     // research: track-04 L314
     automockShape: 'metadata',
     // research: track-04 L316

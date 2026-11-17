@@ -87,6 +87,8 @@ export const vitestModulePolicy: ModulePolicy = {
   reevaluateHookingExternals: false,
   // Not recorded yet (T11.16): a frame keeps the name V8 gave it.
   stackFrameNames: 'engine',
+  // Not recorded yet (T11.16): an externalized dependency loads through Node's loader as it is.
+  nativeLoadPatches: 'apply',
   automockShape: 'deep',
   unmockedPathPatterns: [],
   messages: {

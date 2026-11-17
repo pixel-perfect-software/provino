@@ -185,6 +185,8 @@ export const neutralPolicy: Policy = deepFreeze({
     reevaluateHookingExternals: false,
     // Ours: a frame keeps the name V8 gave it.
     stackFrameNames: 'engine',
+    // Ours: a shared package loads through Node's loader as the process has it.
+    nativeLoadPatches: 'apply',
     automockShape: 'deep',
     unmockedPathPatterns: [],
     // Empty: `@provino/mock` falls back to its own neutral text for every module message code.

@@ -1,0 +1,27 @@
+{
+  "description": "Jest 30.5.2 in band (`-i`) with a `globalSetup` that patches Node's CommonJS loader in the process that runs the tests, as Next.js's require hook does when next/jest's config or transformer loads (`Module.prototype.require` rewrites a `.shared-runtime` request, `Module._resolveFilename` aliases `styled-like`, `Module._load` answers a request no package installs). The test file requires an installed CommonJS package (`next-like`, which Jest does not transform) whose own `require`s meet each patch; each test's title holds what it got. jest-runtime loads the package and its requires itself and never calls Node's loader, so none of the patches reaches them: the plain `context.shared-runtime.js`, the installed `styled-like`, and `MODULE_NOT_FOUND`. Kept: the `PASS`/`FAIL` header, the `●` titles and the test count, and the results file, which holds the titles. A black-box run, read by `provino`'s `jest-module-patch.test.ts`.",
+  "runners": ["jest"],
+  "packages": {
+    "next-like": {
+      "package.json": "{ \"name\": \"next-like\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "'use strict'\n\nexports.context = require('./context.shared-runtime')\nexports.styled = require('styled-like')\nexports.unknown = (() => {\n  try {\n    return require('only-the-hook-loads')\n  } catch (error) {\n    return error.code\n  }\n})()\n",
+      "context.shared-runtime.js": "module.exports = 'the plain shared runtime'\n",
+      "vendored-context.js": "module.exports = 'the vendored context the hook redirects to'\n"
+    },
+    "styled-like": {
+      "package.json": "{ \"name\": \"styled-like\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "module.exports = 'the installed styled-like'\n"
+    },
+    "styled-bundled": {
+      "package.json": "{ \"name\": \"styled-bundled\", \"version\": \"1.0.0\", \"main\": \"index.js\" }\n",
+      "index.js": "module.exports = 'the copy the hook aliases it to'\n"
+    }
+  },
+  "config": { "jest": { "maxWorkers": 1, "globalSetup": "<rootDir>/patch-module.ts" } },
+  "run": {
+    "argv": { "jest": ["-i", "--useStderr"] },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^(PASS|FAIL) |^\\s*● |^Tests:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

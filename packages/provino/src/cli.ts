@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { enableBinCompileCache } from './internal/compile-cache.ts'
 import { missingBindingMessage } from './internal/native-binding.ts'
+import { recordNodeLoader } from './internal/node-loader.ts'
 import { quickAnswer } from './internal/quick.ts'
 
 // How long the process gets to end by itself once a second signal has killed the workers. This bin is
@@ -21,6 +22,8 @@ const quick = quickAnswer(argv)
 if (quick !== undefined) {
   process.stdout.write(quick)
 } else {
+  // Node's loader as found, before anything can patch it (a Jest config can: next/jest's does).
+  recordNodeLoader()
   // Before the rest is imported, so the chunks it loads, and the workers' (which inherit the
   // variable it sets), are the ones the cache covers. Off under coverage.
   enableBinCompileCache(argv, process.env, process.cwd())

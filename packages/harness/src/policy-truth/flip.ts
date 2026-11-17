@@ -67,6 +67,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'module.moduleSyncCondition': ['never', 'import-and-sync-require'],
   'module.automockShape': ['metadata', 'deep'],
   'module.stackFrameNames': ['mapped-name', 'engine'],
+  'module.nativeLoadPatches': ['apply', 'skip'],
   'snapshot.ciUpdate': ['new', 'none'],
   'snapshot.throwErrorBody': ['message', 'error'],
   'snapshot.inline.indent': ['column0', 'call'],
