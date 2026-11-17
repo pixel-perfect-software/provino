@@ -18,7 +18,13 @@ import { LoaderError } from './errors.ts'
 import { edgeConditions } from './internal/edge-kind.ts'
 import { saveGraph } from './internal/inline.ts'
 import { loaderMessage } from './internal/messages.ts'
-import { createRecords, dropRecords, resolveOrMissing, toModuleId } from './internal/records.ts'
+import {
+  CODE_CACHE_WRITE_BATCH,
+  createRecords,
+  dropRecords,
+  resolveOrMissing,
+  toModuleId,
+} from './internal/records.ts'
 import { activate, promoteLearned, takeLearned } from './internal/reevaluate.ts'
 import { type FileContext, NO_FILE, Registry } from './internal/registry.ts'
 import { blankHashbang } from './internal/source.ts'
@@ -162,6 +168,10 @@ export const createLoader: CreateLoader = (options) => {
           registry.endFile()
         }
         if (registryOptions.tier !== 'none') registry.reset()
+        // Every script the file compiled has run by now, so its entry holds the functions the
+        // file's tests compiled lazily too. A file that left few waiting adds no pack of its own.
+        const { codeCache } = state
+        if (codeCache !== null && codeCache.pending >= CODE_CACHE_WRITE_BATCH) codeCache.write()
         return {
           restored: [],
           prototypePatches: [],
@@ -226,6 +236,9 @@ export const createLoader: CreateLoader = (options) => {
     [Symbol.dispose]: () => {
       // Once per worker, with everything its files scanned.
       saveGraph(state.inline)
+      // What no file end wrote: the last files' few scripts, a worker's only file.
+      state.codeCache?.write()
+      state.codeCache?.close()
       state.records.clear()
       state.externals.clear()
       state.required.clear()

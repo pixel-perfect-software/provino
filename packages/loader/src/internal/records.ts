@@ -6,6 +6,7 @@ import { relative, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Script } from 'node:vm'
 import { LATE_IMPORT, toModuleRunner, usesModuleRunnerForm } from '@provino/transform'
+import { openV8Pack, type V8Pack } from '@provino/transform/v8cache'
 import type {
   CompiledModuleEvent,
   LoaderOptions,
@@ -190,7 +191,21 @@ export interface Records {
    * module whose record was made. `markAsyncGraphs` empties it.
    */
   readonly graphsDirty: Set<ModuleRecord>
+  /**
+   * V8's code cache of the wrapper scripts (`LoaderOptions.codeCache`, B23e), or `null` for none.
+   * `wrapperScript` compiles through it; the loader writes what it queued after a file
+   * (`CODE_CACHE_WRITE_BATCH`) and when it is disposed.
+   */
+  readonly codeCache: V8Pack | null
 }
+
+/**
+ * A test file's end writes the wrapper scripts the code cache queued once this many are waiting;
+ * the loader's dispose writes the rest. So a worker's first file, which compiles the shared graph,
+ * leaves its entries at once (a worker killed later keeps them), and a later file that compiled only
+ * itself and a few modules adds no pack of its own.
+ */
+export const CODE_CACHE_WRITE_BATCH = 64
 
 function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -244,6 +259,7 @@ export function createRecords(options: LoaderOptions, runtime?: RuntimeCapabilit
     scopePatterns,
     importers: new Map(),
     graphsDirty: new Set(),
+    codeCache: options.codeCache == null ? null : openV8Pack({ dir: options.codeCache }),
   }
   return state
 }
@@ -781,11 +797,13 @@ function wrapperScript(
   const suffix = scope.length === 0 ? '\n})' : '\n}})'
   // The wrapper opens on the body's first line; the offset takes it back out of that line's
   // columns, so every frame is a position in the body, which is what the record's map reads.
+  const code = `${prefix}${body}${suffix}`
+  const options = { filename: record.path, columnOffset: -prefix.length }
   const wrapper: WrapperScript = {
-    script: new Script(`${prefix}${body}${suffix}`, {
-      filename: record.path,
-      columnOffset: -prefix.length,
-    }),
+    // With a code cache, from V8's data for exactly this text when an earlier worker left it
+    // (the key is a hash of the text, the filename and the offset).
+    script:
+      state.codeCache === null ? new Script(code, options) : state.codeCache.compile(code, options),
     shared: null,
   }
   if (mode === 'sync') record.compiledSync = wrapper

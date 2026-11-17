@@ -394,7 +394,7 @@
     },
     {
       "name": "boundary-loader",
-      "comment": "@provino/loader (layer 3, runs in both) may import only: @provino/loader/graph, @provino/policy, @provino/resolver, @provino/transform, @provino/types.",
+      "comment": "@provino/loader (layer 3, runs in both) may import only: @provino/loader/graph, @provino/policy, @provino/resolver, @provino/transform, @provino/transform/v8cache, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/loader/(?!(?:src/graph|test)/)"
@@ -411,6 +411,8 @@
           "^@provino/resolver$",
           "^packages/transform/(?!(?:src/v8cache|test)/)",
           "^@provino/transform$",
+          "^packages/transform/src/v8cache/",
+          "^@provino/transform/v8cache$",
           "^packages/loader/src/graph/",
           "^@provino/loader/graph$"
         ]
@@ -1376,7 +1378,7 @@
     },
     {
       "name": "boundary-loader-test",
-      "comment": "@provino/loader/test (layer 3, runs in dev) may import only: @provino/loader, @provino/loader/graph, @provino/policy, @provino/resolver, @provino/transform, @provino/types.",
+      "comment": "@provino/loader/test (layer 3, runs in dev) may import only: @provino/loader, @provino/loader/graph, @provino/policy, @provino/resolver, @provino/transform, @provino/transform/v8cache, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/loader/test/"
@@ -1396,7 +1398,9 @@
           "^packages/resolver/",
           "^@provino/resolver$",
           "^packages/transform/(?!(?:src/v8cache|test)/)",
-          "^@provino/transform$"
+          "^@provino/transform$",
+          "^packages/transform/src/v8cache/",
+          "^@provino/transform/v8cache$"
         ]
       }
     },

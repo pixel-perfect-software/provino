@@ -2,7 +2,7 @@
 // arrive per file (maps once per worker); V8's arrive once, when the worker stops. The coordinator's
 // store decodes both. A warm-transform-cache run gives the same V8 ranges as a cold one.
 import assert from 'node:assert/strict'
-import { mkdtempSync, realpathSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -292,4 +292,76 @@ describe('a warm transform cache', () => {
     assert.equal(cold?.kind, 'istanbul')
     assert.deepEqual(warm, cold)
   })
+})
+
+// B23e: the loader keeps V8's code cache of its wrapper scripts in the transform cache's directory,
+// and never consumes it under coverage: V8 reports no block ranges for a function restored from a
+// code cache (T3.7). JavaScript files, so the wrapped text is the same with and without coverage
+// (the TypeScript strip under V8 coverage would give the cached and the covered run different texts).
+const JS_FILES = {
+  'pricing.js': [
+    'export function price(quantity) {',
+    '  if (quantity > 10) {',
+    '    return quantity * 2 - 1',
+    '  }',
+    '  return quantity * 2',
+    '}',
+    'export function discount(total) {',
+    '  return total * 0.9',
+    '}',
+    '',
+  ].join('\n'),
+  'a.test.js': [
+    "import { price } from './pricing.js'",
+    "test('prices', () => { expect(price(2)).toBe(4) })",
+    '',
+  ].join('\n'),
+}
+
+/** The code cache's packs in a transform cache directory. */
+function packsIn(cacheDir: string): string[] {
+  const dir = join(cacheDir, 'v8')
+  return existsSync(dir) ? readdirSync(dir).filter((name) => name.endsWith('.pack')) : []
+}
+
+describe('a warm code cache', () => {
+  for (const provider of ['v8', 'istanbul'] as const) {
+    it(`${provider}: coverage over a code cache a run without coverage filled equals coverage with none`, async () => {
+      const p = await project(JS_FILES)
+      const base = runtimeConfig(p.dir)
+      const run = async (cacheDir: string, covered: boolean): Promise<RawCoverage | undefined> => {
+        const config = runtimeConfig(p.dir, {
+          ...(covered
+            ? { coverage: coverageOf(p.dir, provider, { testFiles: ['**/*.test.js'] }) }
+            : {}),
+          loader: { ...base.loader, cacheDir },
+        })
+        const ran = await runJobs({
+          pool: 'forks',
+          config,
+          jobs: [runtimeJob(config, p.path('a.test.js'))],
+        })
+        assert.deepEqual(ran.exit, { type: 'exit', code: 0 })
+        return collect(ran.events)[0]
+      }
+      const filled = realpathSync(mkdtempSync(join(tmpdir(), 'provino-coverage-v8pack-')))
+      await run(filled, false)
+      // The run without coverage left a code cache the covered run below could read.
+      const packs = packsIn(filled)
+      assert.ok(packs.length > 0, 'the run without coverage wrote no code cache')
+      const none = realpathSync(mkdtempSync(join(tmpdir(), 'provino-coverage-v8pack-')))
+      const cold = await run(none, true)
+      const warm = await run(filled, true)
+      assert.equal(cold?.kind, provider)
+      // V8 numbers its scripts as they compile, so a script id is the one thing that may differ.
+      const withoutIds = (raw: RawCoverage | undefined): unknown =>
+        raw?.kind === 'v8'
+          ? { ...raw, scripts: raw.scripts.map(({ scriptId: _id, ...rest }) => rest) }
+          : raw
+      assert.deepEqual(withoutIds(warm), withoutIds(cold))
+      // A covered run writes no code cache either.
+      assert.deepEqual(packsIn(filled), packs)
+      assert.deepEqual(packsIn(none), [])
+    })
+  }
 })

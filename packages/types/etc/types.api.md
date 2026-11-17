@@ -1725,6 +1725,7 @@ export interface Loader extends Disposable {
 
 // @public
 export interface LoaderOptions {
+    readonly codeCache?: string | null;
     readonly conditions?: readonly string[];
     // (undocumented)
     readonly engine: EngineKind;

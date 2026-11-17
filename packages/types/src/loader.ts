@@ -171,6 +171,16 @@ export interface LoaderOptions {
    * graph cache. `null` or absent keeps the graph in memory.
    */
   readonly lockfileHash?: string | null
+  /**
+   * Where V8's code cache of the loader's wrapper scripts is kept (B23e): the transform cache's
+   * directory, whose `v8/` holds the packs (`openV8Pack` in `@provino/transform/v8cache`). The
+   * loader reads each pack's index once, compiles a wrapper from its entry when there is one, and
+   * writes the scripts it compiled itself after a test file that left at least 64 of them waiting,
+   * and when it is disposed. `null` or absent compiles every script from its source: the worker
+   * gives none under `--no-cache` or under coverage (V8 reports no block ranges for a function
+   * restored from a code cache, T3.7).
+   */
+  readonly codeCache?: string | null
   /** Where the loader's warnings go. Default `process.emitWarning` with the warning's code. */
   readonly onWarning?: (warning: LoaderWarning) => void
   readonly leaks?: LeakOptions

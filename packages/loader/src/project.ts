@@ -6,6 +6,7 @@ import { resolve } from 'node:path'
 import { createBehaviourLoader } from '@provino/policy'
 import { createNameMapper, createResolver } from '@provino/resolver'
 import { createJestHost, createPipeline, lockfileHash } from '@provino/transform'
+import { type CacheMode, cacheModeFor } from '@provino/transform/v8cache'
 import type {
   CoverageInstrumenter,
   JestCustomResolver,
@@ -115,6 +116,14 @@ export interface ProjectCoverage {
  */
 export interface ProjectLoaderOptions {
   readonly coverage?: ProjectCoverage
+  /**
+   * Whether the wrapper scripts use V8's code cache in `config.cacheDir` (`LoaderOptions.codeCache`,
+   * B23e). Default `'off'`. The worker passes `'on'` unless its project collects coverage (T3.7's
+   * rule, `cacheModeFor`: V8 reports no block ranges for a function restored from a code cache);
+   * `coverage` here turns it off whatever this says, and so does a config with no `cacheDir`
+   * (`--no-cache`).
+   */
+  readonly codeCache?: CacheMode
 }
 
 /**
@@ -206,6 +215,14 @@ export async function buildProjectLoader(
     engine: 'runner',
     graphCache: config.cacheDir ?? null,
     lockfileHash: walksGraph && config.cacheDir !== undefined ? lockfileHash(root) : null,
+    // V8's code cache of the wrapper scripts (B23e): only where the transform cache is (never under
+    // `--no-cache`), when the worker asks, and never under coverage (T3.7's one switch).
+    codeCache:
+      config.cacheDir !== undefined &&
+      options.codeCache === 'on' &&
+      cacheModeFor({ coverage: options.coverage !== undefined }) === 'on'
+        ? config.cacheDir
+        : null,
     resolver,
     transformer: pipeline,
     policy,
