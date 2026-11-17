@@ -101,12 +101,9 @@ jobs:
         with:
           fetch-depth: 0 # `pnpm hygiene` measures API changes against origin/main
           persist-credentials: false
-      # pnpm's and Node's versions come from .tool-versions, as they do locally.
-      - id: tools
-        run: echo "pnpm=$(awk '$1 == "pnpm" { print $2 }' .tool-versions)" >> "$GITHUB_OUTPUT"
+      # pnpm's version is package.json's `packageManager`, as in ci.yml, and Node's comes from
+      # .tool-versions, as it does locally.
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: ${{ steps.tools.outputs.pnpm }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .tool-versions
@@ -136,11 +133,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - id: tools
-        run: echo "pnpm=$(awk '$1 == "pnpm" { print $2 }' .tool-versions)" >> "$GITHUB_OUTPUT"
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: ${{ steps.tools.outputs.pnpm }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .tool-versions
@@ -167,11 +160,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - id: tools
-        run: echo "pnpm=$(awk '$1 == "pnpm" { print $2 }' .tool-versions)" >> "$GITHUB_OUTPUT"
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-        with:
-          version: ${{ steps.tools.outputs.pnpm }}
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .tool-versions
@@ -181,8 +170,8 @@ jobs:
       - run: pnpm build --force
       # The publish below packs from this job's dist, not the one the gates job checked, so the
       # packs (publint, attw, the files each tarball must hold) are checked again on this build.
-      # Its `pnpm build` is a hit on the build above.
-      - run: pnpm hygiene --only packs
+      # The cli directly: the `hygiene` script would build a second time.
+      - run: node tooling/packaging/src/cli.ts hygiene --only packs
 
       # pnpm, not npm: it writes the `catalog:` and `workspace:` ranges in each package.json as
       # real versions in the published manifest and applies `publishConfig`. `-r` publishes every
@@ -207,13 +196,10 @@ jobs:
             /^## / { if (found) exit; found = ($0 == "## " version) }
             found
           ' packages/provino/CHANGELOG.md > "$RUNNER_TEMP/notes.md"
-          if [ ! -s "$RUNNER_TEMP/notes.md" ]; then
-            echo "::error::Found no entry for $VERSION in packages/provino/CHANGELOG.md."
-            exit 1
-          fi
+          # Anything but latest is a prerelease's dist-tag (the check job derived it).
           flags=()
-          case "$VERSION" in
-            *-*) flags+=(--prerelease) ;;
-          esac
+          if [ "$DIST_TAG" != latest ]; then
+            flags+=(--prerelease)
+          fi
           gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
             --title "$VERSION" --notes-file "$RUNNER_TEMP/notes.md" "${flags[@]}"
