@@ -23,7 +23,12 @@ export interface PackageManifest {
   readonly optionalDependencies: Readonly<Record<string, string>>
 }
 
-function record(value: unknown): Readonly<Record<string, unknown>> {
+/**
+ * The value as a plain object, or an empty one when it is anything else (an array, `null`, a
+ * string): what a JSON file's top level or a field of it reads as, without a cast.
+ * @internal
+ */
+export function record(value: unknown): Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
     ? (value as Readonly<Record<string, unknown>>)
     : {}

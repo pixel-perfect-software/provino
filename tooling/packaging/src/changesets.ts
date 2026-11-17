@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { newFilesSince } from './git.ts'
-import type { WorkspacePackage } from './workspace.ts'
+import { record } from './package-json.ts'
+import { isPublished, type WorkspacePackage } from './workspace.ts'
 
 /** A changeset file: which packages it bumps, and by how much. */
 export interface Changeset {
@@ -57,20 +58,62 @@ export function missingChangesets(
 /** What `.changeset/config.json` says that this repo depends on. */
 interface ChangesetConfig {
   readonly ignore: readonly string[]
+  /** The `fixed` groups: each lists package names released at one version (D164). */
+  readonly fixed: readonly (readonly string[])[]
+}
+
+/** A list of names: an array whose every entry is a string; any other entry makes it no list. */
+function isStrings(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((name) => typeof name === 'string')
 }
 
 /**
- * The config's `ignore` list, or an error when the file is missing or isn't shaped as expected.
+ * The config's `ignore` list and `fixed` groups, or an error when the file is missing or isn't
+ * shaped as expected.
  * @internal
  */
 export function readChangesetConfig(root: string): ChangesetConfig {
-  const json: unknown = JSON.parse(readFileSync(join(root, '.changeset', 'config.json'), 'utf8'))
-  const ignore =
-    typeof json === 'object' && json !== null && 'ignore' in json && Array.isArray(json.ignore)
-      ? json.ignore.filter((name): name is string => typeof name === 'string')
-      : undefined
-  if (ignore === undefined) throw new Error('.changeset/config.json has no "ignore" list')
-  return { ignore }
+  const { ignore, fixed } = record(
+    JSON.parse(readFileSync(join(root, '.changeset', 'config.json'), 'utf8')),
+  )
+  if (!isStrings(ignore)) throw new Error('.changeset/config.json has no "ignore" list')
+  if (!Array.isArray(fixed) || !fixed.every(isStrings)) {
+    throw new Error('.changeset/config.json has no "fixed" list of groups')
+  }
+  return { ignore, fixed }
+}
+
+/**
+ * Checks one list of package names in `.changeset/config.json` against the workspace: `side` says
+ * which packages it must hold, and it must hold exactly those. A name that is no workspace
+ * package (the root isn't one) is a problem too.
+ */
+function checkNameList(
+  listName: 'ignore' | 'fixed',
+  listed: readonly string[],
+  packages: readonly WorkspacePackage[],
+  side: 'private' | 'published',
+): readonly string[] {
+  const named = new Set(listed)
+  const workspace = packages.filter((pkg) => pkg.rel !== '.')
+  const problems: string[] = []
+  for (const pkg of workspace) {
+    const name = pkg.manifest.name
+    const kind = isPublished(pkg) ? 'published' : 'private'
+    const isListed = named.has(name)
+    if (kind === side && !isListed) {
+      problems.push(`${name} is ${kind} but not in .changeset/config.json "${listName}"`)
+    }
+    if (kind !== side && isListed) {
+      problems.push(`${name} is ${kind} but in .changeset/config.json "${listName}"`)
+    }
+  }
+  const known = new Set(workspace.map((pkg) => pkg.manifest.name))
+  for (const name of named) {
+    if (!known.has(name))
+      problems.push(`"${listName}" names ${name}, which is not a workspace package`)
+  }
+  return problems
 }
 
 /**
@@ -82,20 +125,27 @@ export function checkChangesetIgnore(
   ignore: readonly string[],
   packages: readonly WorkspacePackage[],
 ): readonly string[] {
-  const problems: string[] = []
-  for (const pkg of packages) {
-    if (pkg.rel === '.') continue
-    const ignored = ignore.includes(pkg.manifest.name)
-    if (pkg.manifest.private && !ignored) {
-      problems.push(`${pkg.manifest.name} is private but not in .changeset/config.json "ignore"`)
-    }
-    if (!pkg.manifest.private && ignored) {
-      problems.push(`${pkg.manifest.name} is published but in .changeset/config.json "ignore"`)
-    }
+  return checkNameList('ignore', ignore, packages, 'private')
+}
+
+/**
+ * Checks `fixed` against the workspace (D164): one group, holding exactly the published
+ * packages, so a release is one version and one tag. A package left out would be versioned alone
+ * and stop matching the tag `release.yml` checks; a private one in the group would be versioned
+ * for nothing.
+ * @internal
+ */
+export function checkChangesetFixed(
+  fixed: readonly (readonly string[])[],
+  packages: readonly WorkspacePackage[],
+): readonly string[] {
+  const [group, ...others] = fixed
+  if (group === undefined || others.length > 0) {
+    return [
+      `.changeset/config.json "fixed" must be one group of every published package, and has ${fixed.length} groups`,
+    ]
   }
-  const names = new Set(packages.map((pkg) => pkg.manifest.name))
-  for (const name of ignore) {
-    if (!names.has(name)) problems.push(`"ignore" names ${name}, which is not a workspace package`)
-  }
+  const problems = [...checkNameList('fixed', group, packages, 'published')]
+  if (new Set(group).size !== group.length) problems.push('"fixed" names a package twice')
   return problems
 }

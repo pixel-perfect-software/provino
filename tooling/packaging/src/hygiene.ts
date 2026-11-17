@@ -12,6 +12,7 @@ import {
 } from './api-reports.ts'
 import {
   changesetsSince,
+  checkChangesetFixed,
   checkChangesetIgnore,
   missingChangesets,
   readChangesetConfig,
@@ -60,9 +61,8 @@ export interface HygieneOptions {
   readonly only?: readonly Section[]
 }
 
-/** The workflow text of `.github/workflows/release.yml`, when B21h has added it. */
-const RELEASE_WORKFLOW = '.github/workflows/release.yml'
-const RELEASE_TEMPLATE = 'tooling/packaging/templates/release.yml'
+/** The release workflow (B21h): the `release` section lints it. */
+export const RELEASE_WORKFLOW = '.github/workflows/release.yml'
 
 /**
  * The `@provino/*` packages `provino` inlines: the ones it lists as workspace dev dependencies and,
@@ -144,30 +144,34 @@ const RUNNERS: Readonly<Record<Section, SectionRunner>> = {
     problems: installScriptProblems(packages),
     notes: [`${packages.length} package.json files checked`],
   }),
-  'changeset-config': ({ options, packages }) => ({
-    problems: checkChangesetIgnore(readChangesetConfig(options.root).ignore, packages),
-    notes: [],
-  }),
+  'changeset-config': ({ options, packages }) => {
+    const config = readChangesetConfig(options.root)
+    return {
+      problems: [
+        ...checkChangesetIgnore(config.ignore, packages),
+        ...checkChangesetFixed(config.fixed, packages),
+      ],
+      notes: [],
+    }
+  },
   'umbrella-deps': ({ packages }) => ({
     problems: umbrellaDependencyProblems(packages),
     notes: [],
   }),
   release: ({ options }) => {
-    const problems: string[] = []
-    const notes: string[] = []
-    const template = readFileSync(join(options.root, RELEASE_TEMPLATE), 'utf8')
-    for (const problem of lintReleaseWorkflow(template, { draft: true })) {
-      problems.push(`${RELEASE_TEMPLATE}: ${problem}`)
-    }
-    if (existsSync(join(options.root, RELEASE_WORKFLOW))) {
-      const text = readFileSync(join(options.root, RELEASE_WORKFLOW), 'utf8')
-      for (const problem of lintReleaseWorkflow(text, { draft: /\bDRAFT\b/.test(text) })) {
-        problems.push(`${RELEASE_WORKFLOW}: ${problem}`)
+    const path = join(options.root, RELEASE_WORKFLOW)
+    if (!existsSync(path)) {
+      return {
+        problems: [`${RELEASE_WORKFLOW} does not exist: Provino's release path is there`],
+        notes: [],
       }
-    } else {
-      notes.push(`${RELEASE_WORKFLOW} does not exist yet (B21h adds it from the template)`)
     }
-    return { problems, notes }
+    return {
+      problems: lintReleaseWorkflow(readFileSync(path, 'utf8')).map(
+        (problem) => `${RELEASE_WORKFLOW}: ${problem}`,
+      ),
+      notes: [],
+    }
   },
   // Pack, then publint and attw, one package at a time per lane, a few lanes at once. The results
   // come back in package order, so the report reads the same as when they ran one after another.

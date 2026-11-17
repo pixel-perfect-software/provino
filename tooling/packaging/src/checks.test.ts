@@ -6,17 +6,24 @@ import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import {
   changesetsSince,
+  checkChangesetFixed,
   checkChangesetIgnore,
   missingChangesets,
   parseChangeset,
   readChangesetConfig,
 } from './changesets.ts'
-import { inlinedPackages, umbrellaDependencyProblems } from './hygiene.ts'
+import {
+  hygiene,
+  inlinedPackages,
+  RELEASE_WORKFLOW,
+  type Section,
+  umbrellaDependencyProblems,
+} from './hygiene.ts'
 import { installScriptProblems } from './install-scripts.ts'
 import type { PackageManifest } from './package-json.ts'
-import { lintReleaseWorkflow } from './release-lint.ts'
-import { repository, writeFiles } from './test-support.ts'
-import { ROOT, readWorkspacePackages, type WorkspacePackage } from './workspace.ts'
+import { activeLines, lintReleaseWorkflow } from './release-lint.ts'
+import { repository, scratchDir, writeFiles } from './test-support.ts'
+import { publicPackages, ROOT, readWorkspacePackages, type WorkspacePackage } from './workspace.ts'
 
 function pkg(name: string, parts: Partial<PackageManifest> = {}, rel = `packages/${name}`) {
   const manifest: PackageManifest = {
@@ -69,112 +76,191 @@ describe('install-script ban (T10.4)', () => {
   })
 })
 
-describe('release workflow lint (T10.4)', () => {
-  const template = readFileSync(join(ROOT, 'tooling/packaging/templates/release.yml'), 'utf8')
+/** Runs one hygiene section on `root` and returns what it found. */
+async function section(root: string, name: Section): Promise<readonly string[]> {
+  const [result] = await hygiene({ root, base: 'HEAD', updateApi: false, only: [name] })
+  return result?.problems ?? []
+}
 
-  test('the draft passes', () => {
-    assert.deepEqual(lintReleaseWorkflow(template, { draft: true }), [])
-  })
+describe('release workflow lint (T10.4, D162, D163)', () => {
+  const workflow = readFileSync(join(ROOT, RELEASE_WORKFLOW), 'utf8')
+  const PUBLISH = 'pnpm -r publish --access public --no-git-checks --provenance --tag "$DIST_TAG"'
+  const PINNED_CHECKOUT = 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1'
+  const NPM = /runs npm, which D75 allows only in install-matrix\.yml/
+  const NOT_DIRECT = /publishes other than with `pnpm -r publish`/
+  const NOT_TAG_ONLY = /does not start from a pushed `v\*` tag alone/
+  const TAGS = '    tags: ["v*"]\n'
 
-  test('the draft without --dry-run is not a draft, but passes as a release', () => {
-    const live = template.replace('--provenance --dry-run', '--provenance')
-    assert.equal(lintReleaseWorkflow(live, { draft: true }).length, 1)
-    assert.deepEqual(lintReleaseWorkflow(live, { draft: false }), [])
+  /** A plant that adds `extra` right after the first `anchor`. */
+  const insertAfter = (anchor: string, extra: string) => (t: string) =>
+    t.replace(anchor, `${anchor}${extra}`)
+  /** A step that runs `commands`: one on its line, several as a block, in place of the typecheck. */
+  const runStep = (...commands: string[]) =>
+    commands.length === 1
+      ? `      - run: ${commands[0]}`
+      : `      - run: |\n${commands.map((command) => `          ${command}`).join('\n')}`
+  const replaceTypecheck =
+    (...commands: string[]) =>
+    (t: string) =>
+      t.replace('      - run: pnpm typecheck', runStep(...commands))
+
+  test('the real workflow passes, and names its publish command only on that line', () => {
+    assert.deepEqual(lintReleaseWorkflow(workflow), [])
+    // The plants replace the first occurrence of `pnpm -r publish`: a comment must not name it.
+    assert.equal(workflow.split('pnpm -r publish').length - 1, 1)
+    assert.equal(activeLines(workflow).filter((line) => line.includes(PUBLISH)).length, 1)
   })
 
   const planted: readonly (readonly [string, (text: string) => string, RegExp])[] = [
-    ['no id-token: write', (t) => t.replace('      id-token: write\n', ''), /no `id-token: write`/],
+    ['no id-token: write', (t) => t.replace(/^ *id-token: write.*\n/m, ''), /no `id-token: write`/],
+    [
+      'a branch trigger in place of the tag',
+      (t) => t.replace(TAGS, '    branches: [main]\n'),
+      NOT_TAG_ONLY,
+    ],
+    ['branches beside the tags', insertAfter(TAGS, '    branches: [main]\n'), NOT_TAG_ONLY],
+    ['a second tag pattern', (t) => t.replace('["v*"]', '["v*", "release-*"]'), NOT_TAG_ONLY],
+    [
+      'a second tag pattern in the block-list form',
+      (t) => t.replace(TAGS, '    tags:\n      - "v*"\n      - "release-*"\n'),
+      NOT_TAG_ONLY,
+    ],
+    [
+      'workflow_dispatch before the push',
+      (t) => t.replace('on:\n  push:\n', 'on:\n  workflow_dispatch:\n  push:\n'),
+      NOT_TAG_ONLY,
+    ],
+    ['workflow_dispatch after the tags', insertAfter(TAGS, '  workflow_dispatch:\n'), NOT_TAG_ONLY],
+    ['a one-line on:', (t) => t.replace(`on:\n  push:\n${TAGS}`, 'on: push\n'), NOT_TAG_ONLY],
     [
       'an NPM_TOKEN secret',
-      (t) =>
-        t.replace(
-          '      - run: pnpm build',
-          `      - run: pnpm build\n        env:\n          NPM_TOKEN: \${{ secrets.NPM_TOKEN }}`,
-        ),
+      insertAfter(
+        '      - name: Publish the packages\n',
+        `        env:\n          NPM_TOKEN: \${{ secrets.NPM_TOKEN }}\n`,
+      ),
       /npm token or a secret/,
     ],
     [
       'NODE_AUTH_TOKEN',
-      (t) =>
-        t.replace(
-          '          node-version: 24',
-          `          node-version: 24\n          token: \${{ secrets.NODE_AUTH_TOKEN }}`,
-        ),
+      insertAfter(
+        '          node-version-file: .tool-versions\n',
+        `          token: \${{ secrets.NODE_AUTH_TOKEN }}\n`,
+      ),
       /npm token or a secret/,
     ],
-    [
-      'a plain npm publish',
-      (t) => t.replace('- run: pnpm -r stage publish', '- run: npm publish'),
-      /publishes other than with `pnpm stage publish`/,
-    ],
+    ['a plain npm publish', (t) => t.replace('pnpm -r publish', 'npm publish'), NOT_DIRECT],
     [
       'npm stage publish: D75 allows npm only inside install-matrix.yml',
-      (t) => t.replace('- run: pnpm -r stage publish', '- run: npm stage publish'),
-      /runs npm, which D75 allows only in install-matrix\.yml/,
+      (t) => t.replace('pnpm -r publish', 'npm stage publish'),
+      NPM,
     ],
     [
-      'npm, npx, yarn or bun for anything else',
-      (t) =>
-        t.replace('      - run: pnpm build', '      - run: npx tsdown && yarn build && bun x y'),
-      /runs npm, which D75 allows only in install-matrix\.yml/,
+      'the staged publish B21e drafted',
+      (t) => t.replace('pnpm -r publish', 'pnpm -r stage publish'),
+      NOT_DIRECT,
     ],
     [
-      'a block-form npx',
-      (t) =>
-        t.replace(
-          '      - run: pnpm build',
-          '      - run: |\n          pnpm install\n          npx tsdown\n          pnpm build',
-        ),
-      /runs npm, which D75 allows only in install-matrix\.yml: npx tsdown/,
+      'a publish that is not recursive',
+      (t) => t.replace('pnpm -r publish', 'pnpm publish'),
+      /is not recursive/,
     ],
     [
-      'a block-form yarn, after &&',
-      (t) =>
-        t.replace(
-          '      - run: pnpm build',
-          '      - run: |\n          pnpm build\n          cd packages/x && yarn build',
-        ),
-      /runs npm, which D75 allows only in install-matrix\.yml: cd packages\/x && yarn build/,
+      'a second publish beside it',
+      (t) => `${t}      - run: pnpm publish --access public --provenance\n`,
+      /publish is not recursive/,
     ],
+    ['no --access public', (t) => t.replace(' --access public', ''), /has no --access public/],
+    ['no --no-git-checks', (t) => t.replace(' --no-git-checks', ''), /has no --no-git-checks/],
+    ['no provenance', (t) => t.replace(' --provenance', ''), /has no --provenance/],
+    ['no --tag', (t) => t.replace(' --tag "$DIST_TAG"', ''), /has no --tag/],
     [
-      'a block-form npm in a subshell',
-      (t) =>
-        t.replace(
-          '      - run: pnpm build',
-          '      - run: |\n          v=$(npm --version)\n          pnpm build',
-        ),
-      /runs npm, which D75 allows only in install-matrix\.yml: v=\$\(npm --version\)/,
+      '--force, which would republish a version',
+      (t) => t.replace(PUBLISH, `${PUBLISH} --force`),
+      /republishes versions already on npm/,
     ],
-    [
-      'a pnpm publish that is not staged',
-      (t) => t.replace('- run: pnpm -r stage publish', '- run: pnpm -r publish'),
-      /publishes other than with `pnpm stage publish`/,
-    ],
-    [
-      'a pnpm publish beside the staged one',
-      (t) => `${t}      - run: pnpm publish -r --provenance --dry-run\n`,
-      /publishes other than with `pnpm stage publish`/,
-    ],
-    ['no provenance', (t) => t.replace(' --provenance', ''), /without --provenance/],
     [
       'a self-hosted runner',
-      (t) => t.replace('runs-on: ubuntu-24.04', 'runs-on: self-hosted'),
+      (t) => t.replace('runs-on: ubuntu-latest', 'runs-on: self-hosted'),
       /not a GitHub-hosted runner/,
     ],
     [
       'a pull_request trigger',
-      (t) => t.replace('  workflow_dispatch:\n', '  workflow_dispatch:\n  pull_request:\n'),
+      (t) => t.replace('on:\n  push:\n', 'on:\n  pull_request:\n  push:\n'),
       /triggers on a pull request/,
     ],
     [
       'no publish step at all',
-      (t) => t.replace(/ *- run: pnpm -r stage publish.*\n/, ''),
-      /no `pnpm stage publish` step/,
+      (t) => t.replace(/ *run: pnpm -r publish.*\n/, ''),
+      /no `pnpm -r publish` step/,
     ],
+    [
+      'an action pinned to a tag',
+      (t) => t.replace(PINNED_CHECKOUT, 'actions/checkout@v4'),
+      /action not pinned to a commit SHA/,
+    ],
+    [
+      'an action pinned to a branch',
+      (t) =>
+        t.replace(
+          'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413',
+          'pnpm/action-setup@main',
+        ),
+      /action not pinned to a commit SHA: - uses: pnpm\/action-setup@main/,
+    ],
+    [
+      'a restored cache',
+      insertAfter(
+        '      - run: pnpm install --frozen-lockfile\n',
+        '      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0\n        with:\n          path: .turbo/cache\n          key: k\n',
+      ),
+      /restores a cache/,
+    ],
+    [
+      'a cache input',
+      insertAfter('          package-manager-cache: false\n', '          cache: pnpm\n'),
+      /a cache input/,
+    ],
+    [
+      'pnpm/action-setup with its cache on',
+      insertAfter(
+        'pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0\n',
+        '        with:\n          cache: true\n',
+      ),
+      /a cache input/,
+    ],
+    [
+      'setup-node with its own package-manager cache',
+      (t) => t.replace('          package-manager-cache: false\n', ''),
+      /setup-node without `package-manager-cache: false`/,
+    ],
+    [
+      'a checkout that keeps the token',
+      (t) => t.replace('          persist-credentials: false\n', ''),
+      /checkout without `persist-credentials: false`/,
+    ],
+    // npm, npx, yarn and bun in each command position: one line, a block, after &&, in a subshell.
+    ...(
+      [
+        ['npx, yarn and bun in one line', ['npx tsdown && yarn build && bun x y'], NPM],
+        ['a block-form npx', ['pnpm typecheck', 'npx tsdown'], /install-matrix\.yml: npx tsdown$/],
+        [
+          'a block-form yarn, after &&',
+          ['pnpm typecheck', 'cd packages/x && yarn build'],
+          /install-matrix\.yml: cd packages\/x && yarn build$/,
+        ],
+        [
+          'a block-form npm in a subshell',
+          ['v=$(npm --version)', 'pnpm typecheck'],
+          /install-matrix\.yml: v=\$\(npm --version\)$/,
+        ],
+      ] as const
+    ).map(([name, commands, expected]) => [name, replaceTypecheck(...commands), expected] as const),
   ]
   for (const [name, mutate, expected] of planted) {
     test(`fails on ${name}`, () => {
-      const problems = lintReleaseWorkflow(mutate(template), { draft: true })
+      const mutated = mutate(workflow)
+      assert.notEqual(mutated, workflow, 'the plant changed nothing: its target text moved')
+      const problems = lintReleaseWorkflow(mutated)
       assert.ok(
         problems.some((problem) => expected.test(problem)),
         `${expected}: ${problems.join('; ')}`,
@@ -182,45 +268,50 @@ describe('release workflow lint (T10.4)', () => {
     })
   }
 
-  test('pnpm stage publish in each of its spellings passes', () => {
+  test('the tag trigger in the block-list form passes', () => {
+    const block = workflow.replace(TAGS, '    tags:\n      - "v*"\n')
+    assert.notEqual(block, workflow)
+    assert.deepEqual(lintReleaseWorkflow(block), [])
+  })
+
+  test('pnpm publish in each of its direct spellings passes', () => {
     for (const command of [
-      'pnpm stage publish ./x.tgz --provenance --dry-run',
-      'pnpm --recursive stage publish --access public --provenance --dry-run',
-      'pnpm -r stage publish --provenance --dry-run',
+      'pnpm -r publish --access public --no-git-checks --provenance --tag rc',
+      'pnpm --recursive publish --access public --no-git-checks --provenance --tag rc',
+      'pnpm publish -r --access public --no-git-checks --provenance --tag "$DIST_TAG"',
+      'pnpm -r publish --access=public --no-git-checks --provenance --tag latest',
     ]) {
-      const text = template.replace(/- run: pnpm -r stage publish.*/, `- run: ${command}`)
-      assert.deepEqual(lintReleaseWorkflow(text, { draft: true }), [], command)
+      assert.deepEqual(lintReleaseWorkflow(workflow.replace(PUBLISH, command)), [])
     }
   })
 
-  test('a manager named as a value is not a command: an action input, an action, a step name', () => {
-    const text = template.replace(
-      '          node-version: 24\n',
-      '          node-version: 24\n          cache: npm\n          registry-url: https://registry.npmjs.org\n',
+  test('a manager named as a value is not a command: an action input, a step name', () => {
+    const input = insertAfter(
+      '          package-manager-cache: false\n',
+      '          registry-url: https://registry.npmjs.org\n          always-auth: npm\n',
     )
-    assert.deepEqual(lintReleaseWorkflow(text, { draft: true }), [])
-    const named = template.replace(
-      '      - run: pnpm build',
-      '      - name: npm is not run here\n        run: pnpm build',
+    assert.deepEqual(lintReleaseWorkflow(input(workflow)), [])
+    const named = workflow.replace(
+      '      - run: pnpm typecheck',
+      '      - name: npm is not run here\n        run: pnpm typecheck',
     )
-    assert.deepEqual(lintReleaseWorkflow(named, { draft: true }), [])
-  })
-
-  test('the draft publishes with pnpm and no npm anywhere (D75), and does not repack by hand', () => {
-    assert.match(template, /pnpm -r stage publish/)
-    assert.doesNotMatch(template.replace(/^\s*#.*\n/gm, ''), /\bnpm\b|\bnpx\b|pack:all/)
+    assert.deepEqual(lintReleaseWorkflow(named), [])
   })
 
   test('reads comments as comments: an NPM_TOKEN named in one is not a token', () => {
     assert.deepEqual(
-      lintReleaseWorkflow(
-        `${template}# there is no NPM_TOKEN secret, and npm publish is banned\n`,
-        {
-          draft: true,
-        },
-      ),
+      lintReleaseWorkflow(`${workflow}# there is no NPM_TOKEN secret, and npm publish is banned\n`),
       [],
     )
+  })
+
+  test('the section fails when the workflow is missing', async () => {
+    const empty = scratchDir('release', {
+      'package.json': '{"name":"x","version":"0.0.0"}',
+      'packages/.keep': '',
+      'tooling/.keep': '',
+    })
+    assert.match((await section(empty, 'release')).join('\n'), /release\.yml does not exist/)
   })
 })
 
@@ -297,6 +388,73 @@ describe('changesets (T1.6)', () => {
         '"ignore" names ghost, which is not a workspace package',
       ],
     )
+  })
+
+  test('fixed is one group of exactly the published packages (D164)', () => {
+    const packages = readWorkspacePackages()
+    const { fixed } = readChangesetConfig(ROOT)
+    assert.deepEqual(checkChangesetFixed(fixed, packages), [])
+    assert.deepEqual(
+      new Set(fixed[0]),
+      new Set(publicPackages().map((published) => published.manifest.name)),
+    )
+
+    const workspace = [
+      pkg('@provino/core'),
+      pkg('@provino/types'),
+      pkg('@provino/bench', { private: true }),
+    ]
+    const both = ['@provino/core', '@provino/types']
+    assert.deepEqual(checkChangesetFixed([both], workspace), [])
+    // No group, and two groups: a release would not be one version.
+    const one = '.changeset/config.json "fixed" must be one group of every published package'
+    assert.deepEqual(checkChangesetFixed([], workspace), [`${one}, and has 0 groups`])
+    assert.deepEqual(checkChangesetFixed([['@provino/core'], ['@provino/types']], workspace), [
+      `${one}, and has 2 groups`,
+    ])
+    // A published package left out, a private one put in, a name that isn't a package, a repeat.
+    assert.deepEqual(checkChangesetFixed([['@provino/core']], workspace), [
+      '@provino/types is published but not in .changeset/config.json "fixed"',
+    ])
+    assert.deepEqual(checkChangesetFixed([[...both, '@provino/bench']], workspace), [
+      '@provino/bench is private but in .changeset/config.json "fixed"',
+    ])
+    assert.deepEqual(checkChangesetFixed([[...both, 'ghost']], workspace), [
+      '"fixed" names ghost, which is not a workspace package',
+    ])
+    assert.deepEqual(checkChangesetFixed([[...both, '@provino/core']], workspace), [
+      '"fixed" names a package twice',
+    ])
+  })
+
+  test('a config with no ignore list or no fixed groups is an error, not a pass', () => {
+    const read = (config: string) => {
+      const root = scratchDir('changeset-config', { '.changeset/config.json': config })
+      return () => readChangesetConfig(root)
+    }
+    assert.throws(read('{"fixed":[[]]}'), /no "ignore" list/)
+    assert.throws(read('{"ignore":[]}'), /no "fixed" list of groups/)
+    assert.throws(read('{"ignore":[],"fixed":["provino"]}'), /no "fixed" list of groups/)
+    // An entry that is not a name makes the list malformed, not shorter.
+    assert.throws(read('{"ignore":["a",1],"fixed":[["b"]]}'), /no "ignore" list/)
+    assert.throws(read('{"ignore":[],"fixed":[["b",123]]}'), /no "fixed" list of groups/)
+    assert.deepEqual(read('{"ignore":["a"],"fixed":[["b","c"]]}')(), {
+      ignore: ['a'],
+      fixed: [['b', 'c']],
+    })
+  })
+
+  test('the changeset-config section fails on a repo whose fixed group is not the published set', async () => {
+    const root = scratchDir('changeset-section', {
+      'package.json': '{"name":"root","private":true}',
+      'packages/a/package.json': '{"name":"a","version":"0.0.0"}',
+      'packages/b/package.json': '{"name":"b","version":"0.0.0"}',
+      'tooling/c/package.json': '{"name":"c","version":"0.0.0","private":true}',
+      '.changeset/config.json': '{"ignore":["c"],"fixed":[["a"]]}',
+    })
+    assert.deepEqual(await section(root, 'changeset-config'), [
+      'b is published but not in .changeset/config.json "fixed"',
+    ])
   })
 })
 

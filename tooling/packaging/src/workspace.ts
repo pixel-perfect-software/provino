@@ -37,11 +37,19 @@ export function readWorkspacePackages(root: string = ROOT): readonly WorkspacePa
 }
 
 /**
- * The packages that are published: not `private`, and not the root.
+ * Whether a package is published: not `private`, and not the root.
+ * @internal
+ */
+export function isPublished(pkg: WorkspacePackage): boolean {
+  return pkg.rel !== '.' && !pkg.manifest.private
+}
+
+/**
+ * The packages that are published.
  * @internal
  */
 export function publicPackages(root: string = ROOT): readonly WorkspacePackage[] {
-  return readWorkspacePackages(root).filter((pkg) => pkg.rel !== '.' && !pkg.manifest.private)
+  return readWorkspacePackages(root).filter(isPublished)
 }
 
 /**
