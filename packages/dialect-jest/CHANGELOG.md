@@ -1,5 +1,18 @@
 # @provino/dialect-jest
 
+## 0.1.0-rc.3
+
+### Patch Changes
+
+- @provino/core@0.1.0-rc.3
+  - @provino/env-shared@0.1.0-rc.3
+  - @provino/expect@0.1.0-rc.3
+  - @provino/mock@0.1.0-rc.3
+  - @provino/policy@0.1.0-rc.3
+  - @provino/resolver@0.1.0-rc.3
+  - @provino/timers@0.1.0-rc.3
+  - @provino/types@0.1.0-rc.3
+
 ## 0.1.0-rc.2
 
 ### Patch Changes

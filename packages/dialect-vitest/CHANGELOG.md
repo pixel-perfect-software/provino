@@ -1,5 +1,12 @@
 # @provino/dialect-vitest
 
+## 0.1.0-rc.3
+
+### Patch Changes
+
+- @provino/policy@0.1.0-rc.3
+  - @provino/types@0.1.0-rc.3
+
 ## 0.1.0-rc.2
 
 ### Patch Changes

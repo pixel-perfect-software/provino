@@ -1,5 +1,11 @@
 # provino
 
+## 0.1.0-rc.3
+
+### Patch Changes
+
+- 49bb02a: A cold cache no longer leaves a worker with some packages shared that a warm run evaluates per file: everything a package learned as per-file imports is evaluated per file too, whatever else loaded it first, so a test that passes on a warm cache no longer hangs on a cold one.
+
 ## 0.1.0-rc.2
 
 ### Patch Changes
