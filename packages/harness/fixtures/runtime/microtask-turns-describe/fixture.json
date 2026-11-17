@@ -1,0 +1,4 @@
+{
+  "description": "The microtask turns a promise chain gets into and out of describe blocks, under the node environment: a test to a block's first beforeAll, between nested beforeAll hooks, a last test to afterAll, out of a block into the next test, into a block with no hooks, and past a block whose only test is skipped. Each trace line is `<function that ended> -> <function that started>: <turns>`. Jest only.",
+  "runners": ["jest"]
+}

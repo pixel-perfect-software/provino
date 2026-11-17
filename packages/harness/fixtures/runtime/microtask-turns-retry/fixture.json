@@ -1,0 +1,4 @@
+{
+  "description": "The microtask turns a promise chain gets across `jest.retryTimes(2)` on a test that fails twice and then passes, with a sibling after it: jest-circus defers the retries until the other tests have run, so the first attempt goes to the sibling and each retry follows the one before. A second block holds a flaky test with no sibling, whose first retry follows its own failed attempt. Each trace line is `<function that ended> -> <function that started>: <turns>`. Jest only.",
+  "runners": ["jest"]
+}
