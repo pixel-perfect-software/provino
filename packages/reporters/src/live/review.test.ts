@@ -423,3 +423,26 @@ test('11: an error’s own location is not repeated, and every user frame follow
   assert.equal(place.where?.file, '/project/own.ts')
   assert.equal(place.frames[0], 'at inner (src/deep/inner.ts:10:5)')
 })
+
+// Found by B26 Phase 3: a run in band announces the next file on the same worker before the last
+// one has ended, and the first file printed `0 tests`.
+test('a file keeps its counts when the next file starts on its worker before it ends (in band)', async () => {
+  const { sink, bus } = setup()
+  const first = buildFile({ path: 'first.test.ts', tests: [{ path: ['a'] }, { path: ['b'] }] })
+  const second = buildFile({ path: 'second.test.ts', tests: [{ path: ['c'] }] })
+  await bus.emit('run:start', RUN, [first.info, second.info])
+  await bus.emit('file:start', first.info, 1)
+  for (const { task, spec } of first.tests) {
+    await bus.emit('task:end', task, testEndEvent(task, resultOf(spec)))
+  }
+  await bus.emit('file:start', second.info, 1)
+  await bus.emit('file:end', first.result)
+  for (const { task, spec } of second.tests) {
+    await bus.emit('task:end', task, testEndEvent(task, resultOf(spec)))
+  }
+  await bus.emit('file:end', second.result)
+  await new Promise((resolve) => setImmediate(resolve))
+  const text = sink.text()
+  assert.match(text, /^✅ first\.test\.ts · 2 tests · /m)
+  assert.match(text, /^✅ second\.test\.ts · 1 test · /m)
+})
