@@ -90,9 +90,9 @@ export const createLoader: CreateLoader = (options) => {
      * name the test file in the error (Vitest's module runner does; an import from inside a test
      * doesn't go through here).
      */
-    const loadEntry = async (specifier: string): Promise<object> => {
+    const loadEntry = async (specifier: string, evaluated?: () => void): Promise<object> => {
       try {
-        return await registry.load(specifier, testFile, true)
+        return await registry.load(specifier, testFile, true, evaluated)
       } catch (error) {
         const code = error instanceof Error ? Reflect.get(error, 'code') : undefined
         if (code !== UNRESOLVED_RELATIVE_MOCK || !(error instanceof Error)) throw error
@@ -108,10 +108,10 @@ export const createLoader: CreateLoader = (options) => {
     const fileRegistry: FileRegistry = {
       file: testFile,
       tier: registryOptions.tier,
-      import: <T>(specifier: string, parent?: ModuleId | null) =>
+      import: <T>(specifier: string, parent?: ModuleId | null, evaluated?: () => void) =>
         (parent == null
           ? specifier === testFile
-            ? loadEntry(specifier)
+            ? loadEntry(specifier, evaluated)
             : registry.load(specifier, testFile, false)
           : registry.importFrom(specifier, parent)) as Promise<T>,
       require: <T>(specifier: string, parent?: ModuleId | null) =>

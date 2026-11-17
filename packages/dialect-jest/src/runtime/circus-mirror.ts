@@ -140,7 +140,14 @@ function inSequence(
             })
           }
       if (result !== undefined && result !== null && typeof result.then === 'function') {
-        void Promise.resolve().then(() => result.then(settled, reject))
+        void Promise.resolve().then(() => {
+          try {
+            result.then(settled, reject)
+          } catch (error) {
+            // circus's `await` rejects with what a throwing `then` throws.
+            reject(error)
+          }
+        })
       } else {
         settled()
       }
@@ -229,12 +236,19 @@ export function createCircusMirror(
   let adapterHook: Hook | undefined
 
   /**
-   * The environment's `handleTestEvent`, as circus awaits it. The environment is made in the
-   * worker's realm, so a promise it returns is not the test realm's own `Promise`, and circus's
-   * `await` adopts it through a thenable job: 3 turns for a handler that has nothing to wait for,
-   * where a native promise takes 1 (`env/microtask-turns-handle-test-event`). A plain thenable
-   * takes the same path in the runtime's own `await`, so each event costs the turns it costs in
-   * Jest, and a handler that awaits more adds its own on top.
+   * The environment's `handleTestEvent`, as jest-circus awaits it. In Jest, jest-circus is not
+   * loaded in the worker's realm: jest-circus's `runner.js` (L32-L38) asks the runtime for its
+   * framework initializer with `runtime.requireInternalModule`, which jest-runtime evaluates in
+   * the test environment's vm context. `handleTestEvent`, a method of the environment object the
+   * worker created outside that context, returns a promise of the worker's realm, which is not
+   * the `Promise` circus's `await` (in `dispatch`, `build/index.js` L1116-L1119) was compiled
+   * against. An `await` of a promise from another realm adopts it as it does any thenable: a job to
+   * call its `then`, the reaction, and the continuation, `max(1, k) + 2` turns for a handler that
+   * itself takes `k` (3 for an empty async function), where a plain return takes 1. This models
+   * that layout, in Jest-dialect code only: the thenable is what a cross-realm promise is to the
+   * `await` of core's own code here, so each event costs the turns it costs in Jest
+   * (`env/microtask-turns-handle-test-event`, with a handler that awaits three times and a plain
+   * one as the other two recordings).
    */
   const call = (event: CircusEvent): void | PromiseLike<void> => {
     const result = (

@@ -353,9 +353,16 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     let collected = true
     try {
       await collector.collect(file, async () => {
-        const imported = await options.importFile(file.path)
-        // The module has been evaluated: what a chain it left running gets before its first function counts from here.
-        executor.beginFile()
+        // What a chain the module left running gets before its first function counts from the end
+        // of its evaluation, where the loader says it ends; a loader that doesn't is counted from
+        // the import's settle.
+        let begun = false
+        const evaluated = (): void => {
+          begun = true
+          executor.beginFile(file)
+        }
+        const imported = await options.importFile(file.path, evaluated)
+        if (!begun) evaluated()
         return imported
       })
     } catch (error) {

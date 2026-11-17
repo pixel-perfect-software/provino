@@ -91,7 +91,18 @@ export async function runUnderCore(
     behaviours: createBehaviourLoader(),
     sink: { emit: (event) => events.push(event) },
     // A fresh module instance per run: the query makes each import a new URL.
-    importFile: (path) => import(`${pathToFileURL(path).href}?core-run=${++imports}`),
+    // A native `import()` can't say where the file's evaluation ends, so the file is imported by a
+    // module of its own whose body, which runs as the file's has finished, calls `evaluated`
+    // (`ImportFile`): the same point the worker's loader reports.
+    importFile: (path, evaluated) => {
+      const url = `${pathToFileURL(path).href}?core-run=${++imports}`
+      if (evaluated === undefined) return import(url)
+      const hook = `__provinoEvaluated${imports}`
+      Reflect.set(globalThis, hook, evaluated)
+      return import(
+        `data:text/javascript,${encodeURIComponent(`import ${JSON.stringify(url)};\nglobalThis[${JSON.stringify(hook)}]();`)}`
+      ).finally(() => Reflect.deleteProperty(globalThis, hook))
+    },
     rootDir,
     // The recorder runs both runners with `CI=1`.
     ci: true,

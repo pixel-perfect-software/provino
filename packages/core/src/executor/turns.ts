@@ -18,8 +18,8 @@
 import type { BoundaryTurns } from '@provino/types'
 import { isThenable } from '../internal/thenable.ts'
 
-/** A boundary of `BoundaryTurns`: every key but the event counts. */
-export type BoundaryKey = Exclude<keyof BoundaryTurns, 'events'>
+/** A boundary of `BoundaryTurns`. */
+export type BoundaryKey = keyof BoundaryTurns
 
 /** Settled once, so a turn allocates only the promise `then` returns. */
 const SETTLED: Promise<void> = Promise.resolve()
@@ -99,6 +99,11 @@ export class TurnClock {
     this.#ended(turns)
   }
 
+  /** Bumped by every new count (and reset): a count in progress is the same one while it holds. */
+  get generation(): number {
+    return this.#generation
+  }
+
   /** The turns counted so far, `-1` while nothing is counted. */
   elapsed(): number {
     return this.#counted
@@ -175,17 +180,6 @@ export class TurnClock {
 
 /** Whether a policy's turns ask for any wait at all: with none, the executor makes no clock. */
 export function anyTurns(turns: BoundaryTurns): boolean {
-  return (
-    turns.hookStart > 0 ||
-    turns.hookEnd > 0 ||
-    turns.fnStart > 0 ||
-    turns.fnEnd > 0 ||
-    turns.testStart > 0 ||
-    turns.testEnd > 0 ||
-    turns.skippedTest > 0 ||
-    turns.suiteStart > 0 ||
-    turns.suiteEnd > 0 ||
-    turns.runStart > 0 ||
-    turns.retry > 0
-  )
+  // Every value, so a boundary added later is counted without being named here.
+  return Object.values(turns).some((value) => value > 0)
 }

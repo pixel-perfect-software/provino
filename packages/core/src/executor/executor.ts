@@ -327,10 +327,8 @@ export class Executor {
   readonly #turns: BoundaryTurns
   /** Counts the turns between the file's functions; `undefined` when the policy gives none. */
   readonly #clock: TurnClock | undefined
-  /** Whether the attempts running are a deferred retry's, which end as jest-circus's retry loop's do. */
-  #inRetryLoop = false
-  /** Whether `beginFile` started the count of the file about to run. */
-  #begun = false
+  /** The file whose run `beginFile` started the count of: `runFile` takes it only for that file. */
+  #begunFor: FileState | undefined
   /**
    * How many concurrent groups and parallel hook runs are running: their paths interleave, so no
    * boundary of theirs is counted.
@@ -354,6 +352,7 @@ export class Executor {
       format: config.formatValue,
       over: () => false,
       late: this.#lateDone,
+      settleOnCall: this.#clock !== undefined,
     }
     this.#deadlines = config.deadlines
     const shared = config.policy.concurrency.limitHooks
@@ -381,12 +380,13 @@ export class Executor {
    * first function. Called by the runtime, so the count starts where circus's `run_start` does,
    * not where core's own code, which depends on how the loader imports a file, gets to `runFile`.
    */
-  beginFile(): void {
+  beginFile(file: FileState): void {
     const clock = this.#clock
     if (clock === undefined) return
     const turns = this.#turns
     clock.reset()
-    this.#begun = true
+    // By identity: a count a failed collection left, for a file `runFile` never ran, is no later file's.
+    this.#begunFor = file
     if (turns.runStart > 0) clock.start(turns.runStart)
   }
 
@@ -400,8 +400,10 @@ export class Executor {
    * the turns the call takes. Plain methods, not an async wrapper, so the call costs core no turn
    * of its own beyond the `await` (the clock counts real turns).
    */
-  #listenerCalled(): number {
-    return this.#pacing()?.elapsed() ?? -1
+  #listenerCalled(): { readonly count: number; readonly generation: number } | undefined {
+    const clock = this.#pacing()
+    if (clock === undefined || clock.elapsed() < 0) return undefined
+    return { count: clock.elapsed(), generation: clock.generation }
   }
 
   /**
@@ -410,10 +412,15 @@ export class Executor {
    * make an environment's promise cost circus's 3) come on top of the boundary's: they are owed
    * to the clock again, which would otherwise count them as part of the boundary.
    */
-  #listenerReturned(before: number): void {
+  #listenerReturned(
+    before: { readonly count: number; readonly generation: number } | undefined,
+  ): void {
     const clock = this.#pacing()
-    if (clock === undefined || before < 0) return
-    const spent = clock.elapsed() - before
+    // A count that was replaced during the call (a function ended, or the run was reset) is a
+    // different count: nothing of this one is left to owe against.
+    if (clock === undefined || before === undefined || clock.generation !== before.generation)
+      return
+    const spent = clock.elapsed() - before.count
     if (spent > 0) clock.owe(spent)
   }
 
@@ -442,8 +449,8 @@ export class Executor {
     this.#life = life
     this.#aborted = undefined
     // Nothing is counted from the last file's last function, unless `beginFile` started the run's.
-    if (!this.#begun) this.#clock?.reset()
-    this.#begun = false
+    if (this.#begunFor !== file) this.#clock?.reset()
+    this.#begunFor = undefined
     try {
       if (life !== undefined) {
         await this.#tell(life, {
@@ -1046,7 +1053,7 @@ export class Executor {
       const startedAt =
         attempt === 0 && repeat === 0 && progress.attempts === 1 ? progress.start : undefined
       const number = progress.attemptBase + attempt
-      const result = await this.#runAttempt(run, test, number, repeat, scope, startedAt)
+      const result = await this.#runAttempt(run, test, number, repeat, scope, startedAt, resuming)
       const errors = result.errors
       // A skip that nothing failed after ends the test; a failure outranks it.
       progress.skipped = errors.length === 0 ? result.skipped : undefined
@@ -1142,13 +1149,9 @@ export class Executor {
     progress.parkedMs = this.#now() - parkedAt
     await this.#announceRetry(test)
     await sleep(this.#config.timers, plan.delay)
-    // jest-circus's retry loop (`rerunTest`): its attempts end, and the loop itself, with their own turns.
-    this.#inRetryLoop = true
-    try {
-      await this.#runAttempts(run, test, scope, plan, progress, true)
-    } finally {
-      this.#inRetryLoop = false
-    }
+    // jest-circus's retry loop (`rerunTest`): its attempts end, and the loop itself, with their own
+    // turns (`AttemptState.retryLoop`).
+    await this.#runAttempts(run, test, scope, plan, progress, true)
     this.#pacing()?.owe(this.#cost('retryExit'))
     return this.#finishTest(test, progress, scope.hold)
   }
@@ -1208,6 +1211,7 @@ export class Executor {
     repeat: number,
     scope: Scope,
     startedAt: number | undefined,
+    retryLoop: boolean,
   ): Promise<{ readonly errors: unknown[]; readonly skipped: AttemptState['skipped'] }> {
     // Set by `finalize` for every node of a collected file.
     const task = test.task as TestTask
@@ -1249,6 +1253,7 @@ export class Executor {
       skipped: undefined,
       deadline: undefined,
       invokeEnv: undefined,
+      retryLoop,
     }
     handle.attempt = state
     this.#running.set(test.id, state)
@@ -1353,7 +1358,7 @@ export class Executor {
       const failed = this.#order(attempt.onFailed, 'afterEach')
       if (failed.length > 0) await this.#runCallbacks(run, attempt, failed, 'onTestFailed')
     }
-    this.#pacing()?.owe(this.#cost(this.#inRetryLoop ? 'retryEnd' : 'testEnd'))
+    this.#pacing()?.owe(this.#cost(attempt.retryLoop ? 'retryEnd' : 'testEnd'))
     if (life !== undefined) await this.#tell(life, { type: 'test-done', ref: test, errors })
   }
 
@@ -1559,6 +1564,7 @@ export class Executor {
         format: this.#config.formatValue,
         over: () => attempt.state !== 'running',
         late: this.#lateDone,
+        settleOnCall: this.#clock !== undefined,
       }
       attempt.invokeEnv = env
     }

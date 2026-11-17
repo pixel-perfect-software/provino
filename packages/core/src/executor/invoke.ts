@@ -32,6 +32,13 @@ export interface InvokeEnv {
   readonly over: () => boolean
   /** Reports the error of a `done(reason)` that came after the end (`late-done`). */
   readonly late: (error: Error) => void
+  /**
+   * Whether a `done` settles the call's promise on the call itself (after the function returns,
+   * when it was called inside it), not a microtask later: jest-circus's turns are counted from there
+   * (`boundaryTurns`), so it is the turn clock's, and with no clock the promise settles as it always
+   * did.
+   */
+  readonly settleOnCall: boolean
 }
 
 /**
@@ -127,10 +134,12 @@ function invokeWithDone(env: InvokeEnv, call: Invocation): Promise<void> {
         if (reason) reject(error)
         else resolve()
       }
-      // A `done` inside the function waits for its return (circus's one tick, for the same
-      // reason); one after it settles the promise on the call itself, so the turn clock
-      // (`turns.ts`) sees the function end as circus does.
-      if (hasReturned) finish()
+      // One tick, in case `done` was called synchronously: the function has returned by then.
+      // With a turn clock (`settleOnCall`), a `done` inside the function waits for its return and
+      // one after it settles the promise on the call itself, so the clock (`turns.ts`) sees the
+      // function end as circus does.
+      if (!env.settleOnCall) void Promise.resolve().then(finish)
+      else if (hasReturned) finish()
       else early.push(finish)
     }
     // A throw here rejects the promise, as a throw in the executor of `new Promise` does.

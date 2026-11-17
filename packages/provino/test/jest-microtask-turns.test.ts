@@ -15,27 +15,6 @@ import { loadFixture, materialize } from './recorded.ts'
 import { linkEnvironments } from './recorded-run.ts'
 import { spawnCli } from './support.ts'
 
-/**
- * The turns core's count is ahead of Jest's at the run's start, through the bin (the loader's
- * module-runner path): the count starts where the file's import settles, and the promise hops the
- * loader and core take between the end of the module's evaluation and that settle are not
- * Jest's (B23f Phase 5, open: through a native `import()` the corpus check sees 6). The plain
- * run-start fixtures differ by 3 here, and so do the environment's.
- */
-const RUN_START_OFFSETS: Readonly<Record<string, number>> = {
-  'runtime/microtask-turns-run-start': 3,
-  'runtime/microtask-turns-run-start-test': 3,
-  'env/microtask-turns-handle-test-event': 3,
-  'env/microtask-turns-handle-test-event-await': 3,
-  'env/microtask-turns-handle-test-event-sync': 3,
-}
-
-/** A trace line with its turn count raised by `by`. */
-function shifted(line: string, by: number): string {
-  const at = line.lastIndexOf(': ')
-  return `${line.slice(0, at + 2)}${Number(line.slice(at + 2)) + by}`
-}
-
 /** The ways a run is made, each held to the same recording. */
 const MODES = [
   ['in band (-i)', ['-i']],
@@ -81,12 +60,8 @@ describe('the turns a promise chain gets between hooks and tests are Jest 30.5.2
             cwd: project.root,
           })
           const got = (await readFile(traced, 'utf8')).trim().split('\n')
-          // The run's start is held apart (`RUN_START_OFFSETS`); every other line must be Jest's.
-          const offsets = RUN_START_OFFSETS[id] ?? 0
           const differing = recorded.flatMap((line, index) =>
-            got[index] === (offsets !== 0 && index === 0 ? shifted(line, offsets) : line)
-              ? []
-              : [`line ${index}:\n provino ${got[index]}\n jest    ${line}`],
+            got[index] === line ? [] : [`line ${index}:\n provino ${got[index]}\n jest    ${line}`],
           )
           assert.deepEqual(differing, [], ended.stderr.slice(-1500))
           assert.equal(got.length, recorded.length, 'as many lines as Jest traced')

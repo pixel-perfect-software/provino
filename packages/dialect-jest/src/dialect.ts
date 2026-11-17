@@ -100,14 +100,33 @@ export const jestPolicy: PolicyOverrides = {
       import.meta.resolve('@provino/dialect-jest/runtime'),
       'shapeTestError',
     ),
-    // jest-circus 30.5.2 awaits its six event handlers at each event (`dispatch`, `state.ts`): 7 turns
-    // an event. A hook's start is `hook_start`; its end `hook_success` and 7 turns of plumbing
-    // (`callAsyncCircusFn`'s `finally`, the `_callCircusHook` wrappers); a test's function starts
-    // with `test_fn_start` and ends with `test_fn_success` and 6; a test starts with `test_start`,
-    // `test_started` and the adapter's own root `beforeEach` (21); it ends with `test_done` and 4.
-    // Runtime corpus `microtask-turns` and `microtask-turns-jsdom` agree: 21 turns between hooks,
-    // 20 from a test to its `afterEach`, 67 from the last `afterEach` to the next `beforeEach`, 66
-    // between tests with no hooks.
+    // The microtask turns jest-circus 30.5.2 puts between a file's functions. These are not tuned: each
+    // value is the cost of the awaits one boundary passes in `jest-circus/build/index.js`, and the
+    // recorded trace lines (the runtime corpus runs core against each one, every line) are sums of
+    // them, so every value is over-determined by more lines than it has digits to fit.
+    //  - An event costs 7 turns: `dispatch` (L1116) awaits each of six handlers (L1117-L1119) and
+    //    its own promise is awaited by the caller. `hookStart` (`hook_start`), `fnStart`
+    //    (`test_fn_start`) and `suiteStart` (`run_describe_start`, L728) are one event each: 7.
+    //    `runtime/microtask-turns` lines `beforeEach -> beforeEach` 21 = hookEnd 14 + hookStart 7.
+    //  - The recordings fix the sums below; how each splits among its boundaries follows circus's code:
+    //    `hookEnd` 14 = `hook_success` (7) + the `_callCircusHook` and `callAsyncCircusFn` awaits (7);
+    //    `fnEnd` 13 = `test_fn_success` (7) + 6; `testEnd` 11 = `test_done` (7) + 4;
+    //    `testStart` 35 = `test_start` (L858), `test_started` (L882), the adapter's root `beforeEach`
+    //    with its two events, and the unwinding. `sync test -> afterEach` 20 = fnEnd 13 + hookStart 7;
+    //    `afterEach -> beforeEach` 67 = hookEnd 14 + testEnd 11 + testStart 35 + hookStart 7;
+    //    `test -> test` 66 = fnEnd 13 + testEnd 11 + testStart 35 + fnStart 7: four sums, six values.
+    //  - `skippedTest` 18: `test_start` and `test_skip` (L858, L869; a todo's `test_todo` L876 is the
+    //    same, a todo and a skip both recorded at 18), 14 turns of events and 4 of frames.
+    //    `microtask-turns-skipped` has one skip, one todo, three in a row (54) and one beside hooks (36).
+    //  - `suiteEnd` 9 = `run_describe_finish` (L850, 7) + 2. `microtask-turns-describe`: afterAll ->
+    //    next test 65 = hookEnd 14 + suiteEnd 9 + testStart 35 + fnStart 7, and four more lines agree.
+    //  - `runStart` 14 = `run_start` (L585) and the root block's `run_describe_start` (7 each);
+    //    `microtask-turns-run-start` (to a `beforeAll`: 14 + hookStart 7 = 21) and `-run-start-test`
+    //    (to a test: 14 + testStart 35 + fnStart 7 = 56) are two sums for the one value.
+    //  - `retry` 7 = `test_retry` (L769), one event. `retryEnd` 9 = `testEnd` less the two frames
+    //    `runTestWithContext` (L792-L795) and the child loop's await (L806) add and `rerunTest`'s
+    //    loop (L764-L775, L830-L831) does not have. `retryExit` 1 = the loop's return awaited by its
+    //    caller. `microtask-turns-retry`: its six lines (66, 73, 73, 71, 81, 71) are sums of those values.
     boundaryTurns: {
       hookStart: 7,
       hookEnd: 14,
@@ -115,11 +134,6 @@ export const jestPolicy: PolicyOverrides = {
       fnEnd: 13,
       testStart: 35,
       testEnd: 11,
-      // jest-circus 30.5.2, recorded: `runtime/microtask-turns-{skipped,describe,run-start,
-      // run-start-test,retry}`. One event costs 7 turns (its six handlers and `dispatch`'s own
-      // promise); a skipped test is `test_start` and `test_skip`, 18 with the frames between.
-      // A retry's attempts end 2 turns sooner inside circus's retry loop (`rerunTest`: no
-      // `handleRetry` or `runTestWithContext` frame to unwind), and the loop's exit takes 1.
       skippedTest: 18,
       suiteStart: 7,
       suiteEnd: 9,

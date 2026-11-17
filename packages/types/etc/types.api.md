@@ -1084,7 +1084,7 @@ export interface FileRegistry extends Disposable {
     dispose(): LeakReport;
     // (undocumented)
     readonly file: string;
-    import<T = unknown>(specifier: string, parent?: ModuleId | null): Promise<T>;
+    import<T = unknown>(specifier: string, parent?: ModuleId | null, evaluated?: () => void): Promise<T>;
     // (undocumented)
     importActual<T = unknown>(specifier: string, parent?: ModuleId | null): Promise<T>;
     invalidate(specifier: string, parent?: ModuleId | null): void;
@@ -1280,7 +1280,7 @@ export type HookKind = "beforeAll" | "beforeEach" | "afterEach" | "afterAll";
 export type HookOrder = "declaration" | "reverse" | "parallel";
 
 // @public
-export type ImportFile = (path: string) => Promise<unknown>;
+export type ImportFile = (path: string, evaluated?: () => void) => Promise<unknown>;
 
 // @public
 export interface ImportRecord {

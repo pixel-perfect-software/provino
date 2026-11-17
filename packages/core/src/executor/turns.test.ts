@@ -4,7 +4,8 @@
 // `microtask-turns` (harness); these use other values, to show the counts are the policy's sums.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { type CoreOverrides, runScript, type Script } from '../internal/test-support.ts'
+import { type CoreOverrides, policyWith, runScript, type Script } from '../internal/test-support.ts'
+import { anyTurns, TurnClock } from './turns.ts'
 
 /** A chain of promise hops started at a function's end, read at the next function's start. */
 function probe(step: (name: string) => void): {
@@ -292,5 +293,25 @@ describe('boundaryTurns', () => {
     // Core's own turns come first, from where the import settles: the count is at least the total.
     assert.ok((await first(40)) >= 40)
     assert.ok((await first(0)) < 40)
+  })
+})
+
+describe('which policies get a clock', () => {
+  test('every turn counts, the ones jest-circus gives only a retry loop too; all 0 gets none', () => {
+    const zero = policyWith().boundaryTurns
+    assert.equal(anyTurns(zero), false)
+    for (const key of Object.keys(zero) as Array<keyof typeof zero>) {
+      assert.equal(anyTurns(policyWith({ boundaryTurns: { [key]: 1 } }).boundaryTurns), true, key)
+    }
+  })
+
+  test('a count is a new one after a function ends or the clock is reset', () => {
+    const clock = new TurnClock()
+    const first = clock.generation
+    clock.through(() => undefined, 3)
+    const second = clock.generation
+    assert.notEqual(second, first)
+    clock.reset()
+    assert.notEqual(clock.generation, second)
   })
 })
