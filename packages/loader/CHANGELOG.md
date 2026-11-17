@@ -1,5 +1,15 @@
 # @provino/loader
 
+## 0.1.0-rc.2
+
+### Patch Changes
+
+- Updated dependencies [d015c8e]
+  - @provino/types@0.1.0-rc.2
+  - @provino/policy@0.1.0-rc.2
+  - @provino/resolver@0.1.0-rc.2
+  - @provino/transform@0.1.0-rc.2
+
 ## 0.1.0-rc.1
 
 ### Patch Changes
