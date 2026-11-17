@@ -111,7 +111,50 @@ interface GlobalErrorHandlers {
 type CircusEvent = { readonly name: string } & Readonly<Record<string, unknown>>
 
 /** What an environment's `handleTestEvent(event, state)` is, as the mirror calls it. */
-export type HandleTestEvent = (event: never, state: never) => void | Promise<void>
+export type HandleTestEvent = (event: never, state: never) => void | PromiseLike<void>
+
+/**
+ * Calls `rest` one after another, each when circus's `await` of the one before would continue, and
+ * settles when the last one's would. circus awaits an environment's promise (made in another
+ * realm) for `max(1, k) + 2` turns, `k` being the turns the handler itself takes, and a plain return
+ * for 1; here a `then` registered on the job turn of that await settles one turn short of that, and
+ * the one turn the caller's own `await` of the returned promise takes makes up the rest, where an
+ * async function awaiting each in turn would add one more (`env/microtask-turns-handle-test-event*`).
+ */
+function inSequence(
+  first: void | PromiseLike<void>,
+  rest: ReadonlyArray<() => void | PromiseLike<void>>,
+): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    const next = (result: void | PromiseLike<void>, index: number): void => {
+      const last = index === rest.length
+      const settled = last
+        ? resolve
+        : (): void => {
+            void Promise.resolve().then(() => {
+              try {
+                next(rest[index]?.(), index + 1)
+              } catch (error) {
+                reject(error)
+              }
+            })
+          }
+      if (result !== undefined && result !== null && typeof result.then === 'function') {
+        void Promise.resolve().then(() => {
+          try {
+            result.then(settled, reject)
+          } catch (error) {
+            // circus's `await` rejects with what a throwing `then` throws.
+            reject(error)
+          }
+        })
+      } else {
+        settled()
+      }
+    }
+    next(first, 0)
+  })
+}
 
 const ROOT_NAME = 'ROOT_DESCRIBE_BLOCK'
 const TEST_TIMEOUT_DEFAULT = 5000
@@ -180,7 +223,7 @@ function isHookType(kind: string): kind is HookType {
 export function createCircusMirror(
   handleTestEvent: HandleTestEvent,
   config: CircusConfig,
-): (event: LifecycleEvent) => void | Promise<void> {
+): (event: LifecycleEvent) => void | PromiseLike<void> {
   let state = createState(config)
   let nodes = new Map<LifecycleRef, DescribeBlock | TestEntry>()
   /** The hooks the file declared, by the runtime's hook: a hook the runtime added for itself never comes. */
@@ -192,11 +235,29 @@ export function createCircusMirror(
   /** The beforeEach hook the Jest adapter adds at the root, which no test file declares. */
   let adapterHook: Hook | undefined
 
-  const call = (event: CircusEvent): void | Promise<void> =>
-    (handleTestEvent as (event: CircusEvent, state: CircusState) => void | Promise<void>)(
-      event,
-      state,
-    )
+  /**
+   * The environment's `handleTestEvent`, as jest-circus awaits it. In Jest, jest-circus is not
+   * loaded in the worker's realm: jest-circus's `runner.js` (L32-L38) asks the runtime for its
+   * framework initializer with `runtime.requireInternalModule`, which jest-runtime evaluates in
+   * the test environment's vm context. `handleTestEvent`, a method of the environment object the
+   * worker created outside that context, returns a promise of the worker's realm, which is not
+   * the `Promise` circus's `await` (in `dispatch`, `build/index.js` L1116-L1119) was compiled
+   * against. An `await` of a promise from another realm adopts it as it does any thenable: a job to
+   * call its `then`, the reaction, and the continuation, `max(1, k) + 2` turns for a handler that
+   * itself takes `k` (3 for an empty async function), where a plain return takes 1. This models
+   * that layout, in Jest-dialect code only: the thenable is what a cross-realm promise is to the
+   * `await` of core's own code here, so each event costs the turns it costs in Jest
+   * (`env/microtask-turns-handle-test-event`, with a handler that awaits three times and a plain
+   * one as the other two recordings).
+   */
+  const call = (event: CircusEvent): void | PromiseLike<void> => {
+    const result = (
+      handleTestEvent as (event: CircusEvent, state: CircusState) => void | PromiseLike<void>
+    )(event, state)
+    if (result === undefined || result === null || typeof result.then !== 'function') return result
+    // biome-ignore lint/suspicious/noThenProperty: a thenable on purpose, so `await` adopts it as circus's does
+    return { then: (resolve, reject) => result.then(resolve, reject) }
+  }
 
   const block = (ref: LifecycleRef): DescribeBlock => {
     const found = nodes.get(ref)
@@ -270,7 +331,7 @@ export function createCircusMirror(
     })
   }
 
-  function hookEnd(event: Extract<LifecycleEvent, { type: 'hook-end' }>): void | Promise<void> {
+  function hookEnd(event: Extract<LifecycleEvent, { type: 'hook-end' }>): void | PromiseLike<void> {
     const hook = declared.get(event.hook)
     if (hook === undefined) return undefined
     const owner = block(event.owner)
@@ -456,11 +517,11 @@ export function createCircusMirror(
         // the chain once the test has an error); a concurrent test has no each-hooks at all
         // (`getEachHooksForTest`, `utils.ts` L142-L146).
         if (hook === undefined || entry.concurrent || entry.errors.length > 0) return started
-        return (async () => {
-          await started
-          await call({ name: 'hook_start', hook })
-          await call({ name: 'hook_success', describeBlock: undefined, hook, test: entry })
-        })()
+        // circus awaits each of the three in turn (see `inSequence`).
+        return inSequence(started, [
+          () => call({ name: 'hook_start', hook }),
+          () => call({ name: 'hook_success', describeBlock: undefined, hook, test: entry }),
+        ])
       }
       case 'test-skip': {
         const entry = test(event.ref)

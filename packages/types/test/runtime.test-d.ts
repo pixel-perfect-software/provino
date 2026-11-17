@@ -4,6 +4,7 @@ import type {
   CloneSafe,
   DefinitionBuilder,
   EachApi,
+  ImportFile,
   LazyEvaluation,
   RuntimeEvent,
   RuntimeEventOf,
@@ -149,3 +150,13 @@ const noLazies: Pick<TaskResult, 'lazies'> = { lazies: undefined }
 const noSite: LazyEvaluation = { key: 'a', override: false, ms: 1, failed: false }
 
 export { id, noLazies, noSite, skipped }
+
+// `ImportFile`: a loader that can say where the file's evaluation ends is handed a callback for it.
+expectTypeOf<ImportFile>().toBeCallableWith('/f.test.ts')
+expectTypeOf<ImportFile>().toBeCallableWith('/f.test.ts', () => undefined)
+// A loader that doesn't take it is still an `ImportFile`.
+const plainImport: ImportFile = async (path: string) => path
+void plainImport
+// @ts-expect-error `evaluated` is a callback, not a flag
+const flagImport: ImportFile = async (path: string, evaluated: boolean) => [path, evaluated]
+void flagImport

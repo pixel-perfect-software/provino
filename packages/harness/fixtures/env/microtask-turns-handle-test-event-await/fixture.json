@@ -1,0 +1,15 @@
+{
+  "description": "The microtask-turns probes (skipped and todo tests, describe blocks, the run start, `done`, retries) under a custom environment whose `handleTestEvent` is an async function that awaits three times. jest-circus awaits the handler at every event, so each boundary gets the turns its events add: an event costs 3 turns with a promise from the environment's realm and 1 with a plain return, and a handler that takes more than one turn itself costs 2 turns more than it takes. The environment extends `jest-environment-node`. One test file holds every section (the run-start chain reaches the first beforeAll).",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "testEnvironment": "<rootDir>/custom-env.cjs",
+      "maxWorkers": 1
+    }
+  },
+  "files": {
+    "jest": {
+      "custom-env.cjs": "const { TestEnvironment } = require('jest-environment-node')\n\n// An environment whose handleTestEvent is an async function that awaits three times: jest-circus awaits it at every event.\nclass EventEnvironment extends TestEnvironment {\n  async handleTestEvent() {\n    await null\n    await null\n    await null\n  }\n}\n\nmodule.exports = EventEnvironment\n"
+    }
+  }
+}

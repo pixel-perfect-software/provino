@@ -30,6 +30,10 @@ import { expectTypeOf } from 'expect-type'
 
 declare const loader: Loader
 declare const reg: FileRegistry
+// The runner's load of a test file can say where its evaluation ends (`ImportFile`'s `evaluated`).
+void reg.import('/f.test.ts', undefined, () => undefined)
+// @ts-expect-error `evaluated` is a function
+void reg.import('/f.test.ts', undefined, 'later')
 
 // No implicit any; return types flow.
 expectTypeOf(reg.import('x')).toEqualTypeOf<Promise<unknown>>()

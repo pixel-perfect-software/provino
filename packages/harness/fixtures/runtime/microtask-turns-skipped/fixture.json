@@ -1,0 +1,4 @@
+{
+  "description": "The microtask turns a promise chain gets across a skipped test (`it.skip`), a todo (`it.todo`) and a skipped describe block, between tests that run, and inside a describe with beforeEach and afterEach, under the node environment. jest-circus 30.5.2 dispatches `test_skip`, `test_todo` and the block events for them, each awaited. Each trace line is `<function that ended> -> <function that started>: <turns>`. Jest only.",
+  "runners": ["jest"]
+}

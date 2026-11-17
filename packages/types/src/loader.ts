@@ -442,7 +442,11 @@ export interface FileRegistry extends Disposable {
    * With no `parent`, the runner loading a setup or test file: that module itself is never mocked
    * (its imports are). With a `parent`, an import from that module, through `decide`.
    */
-  import<T = unknown>(specifier: string, parent?: ModuleId | null): Promise<T>
+  import<T = unknown>(
+    specifier: string,
+    parent?: ModuleId | null,
+    evaluated?: () => void,
+  ): Promise<T>
   /** Sync; throws `ERR_REQUIRE_ASYNC_MODULE` for a graph with top-level await. No `parent` as for `import`. */
   require<T = unknown>(specifier: string, parent?: ModuleId | null): T
   /**

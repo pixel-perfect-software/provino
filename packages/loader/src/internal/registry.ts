@@ -399,8 +399,17 @@ export class Registry {
 
   // ---- the runner's own loads: never mocked themselves ----
 
-  /** The runner's `import(specifier)` of a setup or test file: link asynchronously, then evaluate. */
-  async load(specifier: string, importer: string, isTest: boolean): Promise<object> {
+  /**
+   * The runner's `import(specifier)` of a setup or test file: link asynchronously, then evaluate.
+   * `evaluated` is called as the file's own evaluation ends (`ImportFile`): at once for a module
+   * that evaluates synchronously, when its promise settles for one that waits.
+   */
+  async load(
+    specifier: string,
+    importer: string,
+    isTest: boolean,
+    evaluated?: () => void,
+  ): Promise<object> {
     const target = this.#maybeInline(
       resolveTarget(this.#state, specifier, importer, 'import'),
       true,
@@ -410,7 +419,16 @@ export class Registry {
     this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, isTest)
     await linkAsync(this.#state, record)
-    return this.#evaluateForImport(record)
+    const value = this.#evaluateForImport(record)
+    if (evaluated === undefined) return value
+    if (!(value instanceof Promise)) {
+      evaluated()
+      return value
+    }
+    return value.then((settled) => {
+      evaluated()
+      return settled
+    })
   }
 
   /** The runner's `require(specifier)`: link and evaluate synchronously. */
