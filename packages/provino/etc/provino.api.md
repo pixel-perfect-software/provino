@@ -616,6 +616,7 @@ export interface x {
     readonly expand: boolean;
     readonly matcherNamespace: string;
     readonly matcherTable: Behaviour<MatcherTableFactory> | null;
+    readonly outsideTestCounts: "drop" | "next-test";
     readonly poll: {
         readonly enabled: boolean;
         readonly intervalMs: number;

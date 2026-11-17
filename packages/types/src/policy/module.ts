@@ -184,6 +184,16 @@ export interface ModulePolicy {
    * (speed: one evaluation per worker).
    */
   readonly reevaluateHookingExternals: boolean
+  /**
+   * Whether a shared external that replaces a watched global or builtin export, while it loads or
+   * later while a test file runs, is evaluated per file from the next file on (as jest-runtime's
+   * per-file registry does for such a package). When `false`, nothing is watched for it and every
+   * such package stays shared, loaded natively once per worker. A no-op under isolation `none`.
+   *
+   * Jest: `true`, research: jest-runtime's per-file registry (pending B23f-msw). Vitest: `false`,
+   * pending T11.16. Neutral: `false` (speed: one evaluation per worker).
+   */
+  readonly reevaluatePatchingExternals: boolean
   /** Paths `automock` leaves real (Jest `unmockedModulePathPatterns`). Jest: `[]`. Vitest: `[]`. research: track-04 L316 */
   readonly unmockedPathPatterns: readonly RegExp[]
   /**

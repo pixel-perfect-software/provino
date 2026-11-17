@@ -109,7 +109,32 @@ export const neutralPolicy: Policy = deepFreeze({
     shuffle: null,
     shapeTestError: null,
     // No turns are given or counted: the next function starts as soon as core's own code gets to it.
-    boundaryTurns: { hookStart: 0, hookEnd: 0, fnStart: 0, fnEnd: 0, testStart: 0, testEnd: 0 },
+    boundaryTurns: {
+      hookStart: 0,
+      hookEnd: 0,
+      fnStart: 0,
+      fnEnd: 0,
+      testStart: 0,
+      testEnd: 0,
+      skippedTest: 0,
+      suiteStart: 0,
+      suiteEnd: 0,
+      runStart: 0,
+      retry: 0,
+      events: {
+        hookStart: 0,
+        hookEnd: 0,
+        fnStart: 0,
+        fnEnd: 0,
+        testStart: 0,
+        testEnd: 0,
+        skippedTest: 0,
+        suiteStart: 0,
+        suiteEnd: 0,
+        runStart: 0,
+        retry: 0,
+      },
+    },
   },
   lazy: { readInBeforeAll: 'error' },
   mock: {
@@ -183,6 +208,8 @@ export const neutralPolicy: Policy = deepFreeze({
     mocksReachShared: true,
     // Ours (speed): a shared package loads once per worker, whatever it reads while it loads (D127).
     reevaluateHookingExternals: false,
+    // Ours (speed): a shared package that patches a global or builtin export stays shared too.
+    reevaluatePatchingExternals: false,
     // Ours: a frame keeps the name V8 gave it.
     stackFrameNames: 'engine',
     // Ours: a shared package loads through Node's loader as the process has it.
@@ -220,6 +247,8 @@ export const neutralPolicy: Policy = deepFreeze({
     diffContextLines: 5,
     valueFormatter: 'pretty-format',
     matcherTable: null,
+    // Ours: an assertion made outside any test counts for no test.
+    outsideTestCounts: 'drop',
     errorShape: 'assertion-error',
     equality: { errors: 'assert', invalidDate: 'equal' },
     soft: true,

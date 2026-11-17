@@ -121,6 +121,24 @@ test('the divergences from the neutral policy are Jest`s', () => {
   })
 })
 
+// B23f Phase 1: the values are research values (pending B23f-msw, -counts and -turns); nothing reads
+// them yet, and each lane replaces its comment with a claim.
+test('the B23f keys: per-file patching externals, counts carried to the next test, #114`s turns', () => {
+  assert.equal(resolved.module.reevaluatePatchingExternals, true)
+  assert.equal(neutralPolicy.module.reevaluatePatchingExternals, false)
+  assert.equal(resolved.expect.outsideTestCounts, 'next-test')
+  assert.equal(neutralPolicy.expect.outsideTestCounts, 'drop')
+  const turns = resolved.core.boundaryTurns
+  assert.deepEqual(
+    [turns.skippedTest, turns.suiteStart, turns.suiteEnd, turns.runStart, turns.retry],
+    [18, 7, 9, 21, 0],
+  )
+  assert.deepEqual(
+    Object.keys(turns.events).sort(),
+    Object.keys(neutralPolicy.core.boundaryTurns.events).sort(),
+  )
+})
+
 test('the module slice: a missing export reads undefined, and the registry texts are Jest`s', () => {
   assert.equal(resolved.module.missingFactoryExport, 'undefined')
   assert.equal(

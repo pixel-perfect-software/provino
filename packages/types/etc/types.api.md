@@ -133,11 +133,32 @@ export interface BenchSubject {
 }
 
 // @public
-export interface BoundaryTurns {
+export interface BoundaryEvents {
     readonly fnEnd: number;
     readonly fnStart: number;
     readonly hookEnd: number;
     readonly hookStart: number;
+    readonly retry: number;
+    readonly runStart: number;
+    readonly skippedTest: number;
+    readonly suiteEnd: number;
+    readonly suiteStart: number;
+    readonly testEnd: number;
+    readonly testStart: number;
+}
+
+// @public
+export interface BoundaryTurns {
+    readonly events: BoundaryEvents;
+    readonly fnEnd: number;
+    readonly fnStart: number;
+    readonly hookEnd: number;
+    readonly hookStart: number;
+    readonly retry: number;
+    readonly runStart: number;
+    readonly skippedTest: number;
+    readonly suiteEnd: number;
+    readonly suiteStart: number;
     readonly testEnd: number;
     readonly testStart: number;
 }
@@ -934,6 +955,7 @@ export interface ExpectPolicy {
     readonly expand: boolean;
     readonly matcherNamespace: string;
     readonly matcherTable: Behaviour<MatcherTableFactory> | null;
+    readonly outsideTestCounts: "drop" | "next-test";
     readonly poll: {
         readonly enabled: boolean;
         readonly intervalMs: number;
@@ -2105,6 +2127,7 @@ export interface ModulePolicy {
     readonly moduleSyncCondition: "never" | "import-and-sync-require";
     readonly nativeLoadPatches: "apply" | "skip";
     readonly reevaluateHookingExternals: boolean;
+    readonly reevaluatePatchingExternals: boolean;
     readonly requireVirtualFlag: boolean;
     readonly resetModulesBetween: boolean;
     readonly resetModulesClearsMocks: boolean;

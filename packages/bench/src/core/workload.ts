@@ -13,7 +13,7 @@
 // (`turns: 'jest'`, the full Jest policy) with no bar.
 import { createRuntime } from '@provino/core'
 import { jestPolicy } from '@provino/dialect-jest'
-import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
+import { createBehaviourLoader, neutralPolicy, resolvePolicy } from '@provino/policy'
 import type { CorePolicy } from '@provino/types'
 
 /**
@@ -60,7 +60,7 @@ const JEST_CORE: CorePolicy = resolvePolicy(jestPolicy).core
 const POLICIES: Readonly<Record<CoreTurns, CorePolicy>> = {
   none: {
     ...JEST_CORE,
-    boundaryTurns: { hookStart: 0, hookEnd: 0, fnStart: 0, fnEnd: 0, testStart: 0, testEnd: 0 },
+    boundaryTurns: neutralPolicy.core.boundaryTurns,
   },
   jest: JEST_CORE,
 }
