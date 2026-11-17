@@ -25,6 +25,13 @@ export function clock(ms: number): string {
   return `${Math.floor(seconds / 3600)}h ${minutes < 10 ? '0' : ''}${minutes}m`
 }
 
+/** A finished file's time: whole milliseconds under a second (`310ms`), else seconds (`1.24s`, `12.4s`, `1m 05s`). */
+export function fileTime(ms: number): string {
+  if (ms < 1000) return `${Math.max(0, Math.round(ms))}ms`
+  if (ms < 10_000) return `${(ms / 1000).toFixed(2)}s`
+  return clock(ms)
+}
+
 /** A rough time left: `8s`, `2m`, `1h`. Never more precise than it is. */
 export function roughDuration(ms: number): string {
   const seconds = Math.max(1, Math.round(ms / 1000))

@@ -1,0 +1,22 @@
+❌ src/cart/total.test.ts · 1 of 1 failed · 5ms
+   ● cart › total › applies the discount
+     cannot read the discount
+     › src/cart/discount.ts:3:22
+       1 │ export function discount(cart: Cart): number {
+       2 │   const rules = cart.rules
+     > 3 │   return rules.percent * cart.subtotal
+         │                      ^
+       4 │ }
+       5 │ 
+     at total (src/cart/total.ts:12:20)
+     at Object.<anonymous> (src/cart/total.test.ts:8:19)
+     at step1 (src/steps.ts:1:1)
+     at step2 (src/steps.ts:2:1)
+     at step3 (src/steps.ts:3:1)
+     … 1 more
+
+💥 1 failed · 0 passed · 1 file · 900ms
+🐢 slowest: src/cart/total.test.ts 5ms
+
+failed:
+  ❌ cart › total › applies the discount  src/cart/discount.ts:3:22

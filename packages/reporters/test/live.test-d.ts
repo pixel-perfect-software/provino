@@ -23,6 +23,8 @@ const options: ProvinoReporterOptions = {
   colour: false,
   columns: 80,
   glyphs: GLYPHS.emoji,
+  hyperlinks: false,
+  cwd: '/project',
 }
 
 expectTypeOf(provinoReporter(options)).toEqualTypeOf<ProvinoReporter>()
@@ -37,8 +39,22 @@ expectTypeOf(createFrameScheduler()).toEqualTypeOf<FrameScheduler>()
 // A stream is anything with a `write`; a `process.stdout` fits.
 expectTypeOf(process.stdout).toMatchTypeOf<TerminalStream>()
 
+const withExtras: ProvinoReporterOptions = {
+  ...options,
+  silent: true,
+  noStackTrace: true,
+  readSource: () => Promise.resolve(undefined),
+}
 // @ts-expect-error `live` is required: the caller says whether there is a terminal
-const noLive: ProvinoReporterOptions = { stream, colour: false, columns: 80, glyphs: GLYPHS.emoji }
+const noLive: ProvinoReporterOptions = { ...options, live: undefined }
+// @ts-expect-error `stream` is required
+const noStream: ProvinoReporterOptions = { ...options, stream: undefined }
+// @ts-expect-error `cwd` is required: code frames are read relative to it
+const noCwd: ProvinoReporterOptions = { ...options, cwd: undefined }
+// @ts-expect-error `silent` can only be `true`
+const loudSilent: ProvinoReporterOptions = { ...options, silent: false }
+// @ts-expect-error a source reader returns text or `undefined`, not a number
+const badReader: ProvinoReporterOptions = { ...options, readSource: () => Promise.resolve(1) }
 // @ts-expect-error a glyph set name is not a `Glyphs`
 const wrongGlyphs: ProvinoReporterOptions = { ...options, glyphs: 'emoji' }
 // @ts-expect-error `columns` is a number
@@ -52,4 +68,15 @@ detectGlyphs({ env: {} })
 // @ts-expect-error `ci` is required: the caller has already decided
 detectHyperlinks({ env: {}, tty: true })
 
-void [noLive, wrongGlyphs, wrongColumns, noWrite, wrongSet]
+void [
+  withExtras,
+  noStream,
+  noCwd,
+  loudSilent,
+  badReader,
+  noLive,
+  wrongGlyphs,
+  wrongColumns,
+  noWrite,
+  wrongSet,
+]

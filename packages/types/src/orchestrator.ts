@@ -531,6 +531,13 @@ export interface FileInfo {
    * same `path`.
    */
   readonly runPath?: string
+  /**
+   * How long the file is expected to take, in ms: its last run's time from the results cache, else
+   * its time in the timings file when the run read one (a shard does). Absent when neither has
+   * one, so a reporter that shows a time left counts the file as unknown.
+   * @beta
+   */
+  readonly expectedMs?: number
 }
 
 /**
@@ -550,6 +557,13 @@ export interface RunInfo {
    * reads as `showStatus: false`. Absent when the run doesn't say (a reporter driven by hand).
    */
   readonly inBand?: boolean
+  /**
+   * The pool's worker cap: the most files that run at once. Absent when the run doesn't say (a
+   * watch session's pool is its own, a reporter driven by hand), so a reporter can tell the user
+   * how many workers will start.
+   * @beta
+   */
+  readonly workers?: number
 }
 
 /**

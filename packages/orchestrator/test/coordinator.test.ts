@@ -3,7 +3,7 @@
 // The Jest dialect with the real node environment runs this through `provino/node` in B11's bench
 // check; here the orchestrator may not depend on either, so the fixtures stand in.
 import assert from 'node:assert/strict'
-import { rm } from 'node:fs/promises'
+import { rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import {
@@ -18,7 +18,7 @@ import {
   runProject,
 } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
-import type { Reporter, ReporterBus, TaskId } from '@provino/types'
+import type { FileInfo, Reporter, ReporterBus, RunInfo, TaskId } from '@provino/types'
 import {
   assertWorkersGone,
   Collect,
@@ -961,5 +961,87 @@ describe('runProject: pool and run lifecycle', () => {
     assert.equal(errors[0]?.detail.origin, 'coordinator')
     assert.equal(summary.unhandled.length, 1)
     assert.equal(summary.reason, 'failed')
+  })
+})
+
+describe('run:start: expected times and the worker cap (B26)', () => {
+  /** What `run:start` carried: the run's info and each file by path. */
+  function announce(): {
+    readonly reporter: Reporter
+    readonly info: () => RunInfo | undefined
+    readonly files: () => ReadonlyMap<string, FileInfo>
+  } {
+    let info: RunInfo | undefined
+    const files = new Map<string, FileInfo>()
+    return {
+      reporter: {
+        name: 'announce',
+        'run:start': (started, announced) => {
+          info = started
+          files.clear()
+          for (const file of announced) files.set(file.path, file)
+        },
+      },
+      info: () => info,
+      files: () => files,
+    }
+  }
+
+  it('a file with history carries its last run’s time', async () => {
+    const p = await makeProject({ 'a.test.js': passing(), 'b.test.js': passing() })
+    const project = runtimeProject(p.dir)
+    const cache = createResultsCache(`${p.dir}/.cache`)
+    await run(project, { pool: { kind: 'inline' }, cache })
+    await cache.write()
+    const seen = announce()
+    await runProject(project, {
+      bus: createReporterBus([seen.reporter]),
+      stderr: new Collect(),
+      cache: createResultsCache(`${p.dir}/.cache`),
+      pool: { kind: 'inline' },
+    })
+    for (const name of ['a.test.js', 'b.test.js']) {
+      assert.equal(typeof seen.files().get(name)?.expectedMs, 'number', name)
+    }
+  })
+
+  it('without history, a shard reads the timings file: a time there is carried, a file with none has no key', async () => {
+    const p = await makeProject({ 'a.test.js': passing(), 'b.test.js': passing() })
+    await writeFile(
+      join(p.dir, 'provino.timings.json'),
+      JSON.stringify({ version: 1, files: { 'a.test.js': 321 } }),
+    )
+    const seen = announce()
+    await runProject(runtimeProject(p.dir), {
+      bus: createReporterBus([seen.reporter]),
+      stderr: new Collect(),
+      cache: false,
+      pool: { kind: 'inline' },
+      shard: { index: 1, count: 1 },
+    })
+    assert.equal(seen.files().get('a.test.js')?.expectedMs, 321)
+    assert.ok(seen.files().has('b.test.js'))
+    assert.equal('expectedMs' in (seen.files().get('b.test.js') ?? {}), false)
+  })
+
+  it('with no history and no timings no file has the key, and workers is the pool’s cap', async () => {
+    const p = await makeProject({ 'a.test.js': passing() })
+    const seen = announce()
+    await runProject(runtimeProject(p.dir), {
+      bus: createReporterBus([seen.reporter]),
+      stderr: new Collect(),
+      cache: false,
+      pool: { kind: 'forks', maxWorkers: 3 },
+    })
+    assert.equal('expectedMs' in (seen.files().get('a.test.js') ?? {}), false)
+    assert.equal(seen.info()?.workers, 3)
+    const inline = announce()
+    await runProject(runtimeProject(p.dir), {
+      bus: createReporterBus([inline.reporter]),
+      stderr: new Collect(),
+      cache: false,
+      pool: { kind: 'inline', maxWorkers: 3 },
+    })
+    assert.equal(inline.info()?.workers, 1, 'an inline pool runs one file at a time')
   })
 })
