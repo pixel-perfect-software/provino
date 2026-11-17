@@ -118,7 +118,6 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'vitest core.boundaryTurns.testStart': 'T11.16',
   'vitest core.boundaryTurns.testEnd': 'T11.16',
   // B23f Phase 1: research values nothing reads yet; each lane records its own and removes its entry.
-  'jest module.reevaluatePatchingExternals': 'B23f-msw',
   'vitest module.reevaluatePatchingExternals': 'T11.16',
   'vitest expect.outsideTestCounts': 'T11.16',
   'vitest core.boundaryTurns.skippedTest': 'T11.16',

@@ -3,7 +3,7 @@
 import { totalmem } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pruneTransformCache, type ResolvedProject, withTransformCache } from '@provino/config'
-import { readIsolatePragma, tierFor } from '@provino/loader'
+import { readIsolatePragma, reevaluatesExternals, tierFor } from '@provino/loader'
 import { serializeError } from '@provino/rpc'
 import { resolveUpdateMode } from '@provino/snapshot/node'
 import type {
@@ -498,7 +498,7 @@ function withLearnedExternals(
   versions: Map<string, string>,
 ): SerializedProjectConfig['loader'] {
   const loader = project.config.loader
-  if (cache === undefined || !project.policy.module.reevaluateHookingExternals) return loader
+  if (cache === undefined || !reevaluatesExternals(project.policy.module)) return loader
   const learned = readLearnedExternals(cache, cacheProject, project.rootDir, versions)
   if (learned.length === 0) return loader
   return { ...loader, reevaluate: learned }

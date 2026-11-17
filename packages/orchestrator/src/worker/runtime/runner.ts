@@ -39,6 +39,7 @@ import {
   createProjectLoader,
   installSourceMappedStacks,
   type ProjectCoverage,
+  reevaluatesExternals,
 } from '@provino/loader'
 import {
   createMockRegistry,
@@ -575,10 +576,12 @@ export function createRuntimeRunner(): WorkerRunner {
   let openSnapshots: OpenSnapshots | undefined
   /**
    * The global as the worker found it, for D127's probe (`undefined` when the policy doesn't watch
-   * external loads), with what the worker's once-only steps installed taken in (`adoptingGlobals`:
-   * each environment's `prepare`, the dialect's boot factories).
+   * reads at an external's load), with what the worker's once-only steps installed taken in
+   * (`adoptingGlobals`: each environment's `prepare`, the dialect's boot factories).
    */
   let globalBaseline: GlobalBaseline | undefined
+  /** Whether the policy evaluates externals per file (either reevaluate key). */
+  let reevaluates = false
   /**
    * Opens the file's snapshots when its collection starts (`importFile`), for a project with its
    * own snapshot resolver: loading and checking that is part of the file's run, so a resolver
@@ -637,15 +640,28 @@ export function createRuntimeRunner(): WorkerRunner {
       frameNames: policy.module.stackFrameNames,
     })
     // D127 / P42: a shared external whose first load, while a file runs, reads a per-file global
-    // is evaluated again for each later file. The global as the worker found it, before any
-    // environment or globals: what a file's setup changed is what the watcher watches.
-    if (policy.module.reevaluateHookingExternals) {
-      const baseline = readGlobalBaseline()
-      globalBaseline = baseline
+    // is evaluated again for each later file; B23f: so is one whose load adds or replaces a key of
+    // the global (`reevaluatePatchingExternals`), which the environment's restore takes away. The
+    // global as the worker found it, before any environment or globals: what a file's setup
+    // changed is what the watcher watches.
+    const triggers = {
+      reads: policy.module.reevaluateHookingExternals,
+      writes: policy.module.reevaluatePatchingExternals,
+    }
+    reevaluates = reevaluatesExternals(policy.module)
+    if (reevaluates) {
+      // Only the reads compare with a baseline; writes alone take the descriptors at each window.
+      const baseline: GlobalBaseline = triggers.reads ? readGlobalBaseline() : new Map()
+      if (triggers.reads) globalBaseline = baseline
       parts.loader.watchExternalLoads(() =>
         fallback === undefined
           ? null
-          : watchPerFileGlobals(globalThis, baseline, fallback.environment?.globalReads),
+          : watchPerFileGlobals(
+              globalThis,
+              baseline,
+              triggers.reads ? fallback.environment?.globalReads : undefined,
+              triggers,
+            ),
       )
     }
 
@@ -1182,8 +1198,8 @@ export function createRuntimeRunner(): WorkerRunner {
           : undefined
       // Shared modules the file left holding its own work (a timer of theirs its environment
       // cancelled): every later file gets its own copy (D127), as when a load reads a per-file
-      // global. Only where the policy evaluates externals per file (the baseline exists then).
-      const learnedNow = perFile.length > 0 && globalBaseline !== undefined ? perFile : []
+      // global. Only where the policy evaluates externals per file.
+      const learnedNow = perFile.length > 0 && reevaluates ? perFile : []
       if (learnedNow.length > 0) worker.loader.reevaluateExternals(learnedNow)
       // What the loader learned while this file ran (D127), for the coordinator's results cache.
       const reevaluated = withLearned(worker.loader.takeLearnedExternals(), learnedNow)

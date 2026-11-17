@@ -17,17 +17,13 @@ const FIXTURES = [
   ['ecosystem/jest-when', 'when(fn).calledWith: the load-time assertion goes to the first test'],
   // A shared package's own `require('@jest/globals')` gets the served module.
   ['ecosystem/jest-mock-extended', 'mock<T>() and calledWith over the served @jest/globals'],
+  // B23f (D149 as amended): @mswjs/interceptors adds `__MSW_INTERNAL_CONNECTION_CONTEXT` to the
+  // global as it loads, which the node environment's restore takes away after the first file; the
+  // shared copy never adds it again, so msw's own passthrough sockets were caught as requests and
+  // the second file's unhandled fetch looped. A load that writes the global is now a trigger too
+  // (`module.reevaluatePatchingExternals`), so msw is evaluated per file from the second file on.
+  ['ecosystem/msw-node', "the second file's server intercepts, and its unhandled fetch rejects"],
 ] as const
-
-/**
- * Recorded, and left out until the work named here lands.
- * - `msw-node`: `second.test.ts`'s fetches are no longer intercepted after `handlers.test.ts`
- *   closed its server, and the run hangs. msw reads no per-file global while it loads (the node
- *   environment installs none it reads), so Phase 2d's trigger never fires for it: what the second
- *   file needs is a fresh copy of its module state, which only evaluating it per file whatever it
- *   reads would give.
- */
-const LEFT_OUT: readonly string[] = ['ecosystem/msw-node']
 
 /** The seven fixtures Phase 2b records (other phases add `ecosystem/*` fixtures of their own). */
 const PHASE_2B: ReadonlySet<string> = new Set([
@@ -40,6 +36,4 @@ const PHASE_2B: ReadonlySet<string> = new Set([
   'ecosystem/expect-type',
 ])
 
-describeRecorded('ecosystem matchers, mocks and network, against Jest 30.5.2', PHASE_2B, FIXTURES, {
-  leftOut: LEFT_OUT,
-})
+describeRecorded('ecosystem matchers, mocks and network, against Jest 30.5.2', PHASE_2B, FIXTURES)

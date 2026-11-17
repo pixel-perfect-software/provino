@@ -6,8 +6,11 @@ import {
   createProjectLoader,
   type LoaderError,
   type LoaderErrorCode,
+  NO_REEVALUATION,
   type ProjectCoverage,
   type ProjectLoaderOptions,
+  type ReevaluateKey,
+  reevaluatesExternals,
 } from '@provino/loader'
 import {
   buildThirdPartyGraph,
@@ -134,3 +137,21 @@ coordinator.createFileRegistry('/setup.ts', { tier: 'none' })
 void coordinator.import(1)
 // @ts-expect-error the policy is the `module` slice, never the whole policy
 void createCoordinatorLoader('/repo', loaderConfig)
+
+// B23f: the reevaluate keys, one predicate over them and one override naming every one.
+expectTypeOf<ReevaluateKey>().toEqualTypeOf<
+  'reevaluateHookingExternals' | 'reevaluatePatchingExternals'
+>()
+expectTypeOf(NO_REEVALUATION).toEqualTypeOf<{ readonly [K in ReevaluateKey]: false }>()
+expectTypeOf(reevaluatesExternals).returns.toEqualTypeOf<boolean>()
+expectTypeOf(reevaluatesExternals).toBeCallableWith({
+  reevaluateHookingExternals: true,
+  reevaluatePatchingExternals: false,
+})
+// @ts-expect-error every reevaluate key is required
+reevaluatesExternals({ reevaluateHookingExternals: true })
+export const _on: typeof NO_REEVALUATION = {
+  // @ts-expect-error the override sets each key to false, never true
+  reevaluateHookingExternals: true,
+  reevaluatePatchingExternals: false,
+}

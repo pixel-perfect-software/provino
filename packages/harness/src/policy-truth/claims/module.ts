@@ -128,12 +128,21 @@ export const moduleClaims: Claims = {
     golden('env/conditions-import-module-sync', { read: moduleSyncShown }),
     pending('T11.16', 'no Vitest fixture records a package with a `module-sync` entry'),
   ),
+  // A package whose load adds or replaces a key of the global: the second file on one worker sees
+  // its own evaluation's writes (Jest evaluates it again on each file's fresh global).
   'module.reevaluatePatchingExternals': each(
-    pending(
-      'B23f-msw',
-      "jest-runtime's per-file registry is a research value until Phase 3 records `ecosystem/msw-*` for it",
-    ),
-    pending('T11.16', 'no Vitest fixture records a package that patches a global'),
+    [
+      golden('ecosystem/load-time-global', {
+        read: reevaluatedIn('sees its own evaluation of the package in the second file too'),
+      }),
+      golden('ecosystem/msw-setup-file', {
+        read: reevaluatedIn('intercepts in the second file too'),
+      }),
+      golden('ecosystem/msw-node', {
+        read: reevaluatedIn('intercepts with the second file’s own server'),
+      }),
+    ],
+    pending('T11.16', 'no Vitest fixture records a package that writes the global as it loads'),
   ),
   'module.reevaluateHookingExternals': each(
     [
