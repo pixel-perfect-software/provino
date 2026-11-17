@@ -1,6 +1,6 @@
-// The `provino` reporter, as far as the renderer core goes: the live footer (a status line and a
-// line per busy worker) and the flush at `run:end`. Phase 2 grows it with the finished files' lines
-// and failures. The six performance rules (B26) are the shape of it:
+// The `provino` reporter: the live footer (a status line and a line per busy worker), the finished
+// files with their console, failures and code frames, and the end card. The six performance
+// rules (B26) are the shape of it:
 //
 // 1. A bus handler only updates `RunState` and asks for a frame. It builds no string, measures no
 //    width, writes nothing and awaits nothing. `run:end` is the one exception: nobody waits for it.
@@ -9,12 +9,12 @@
 // 3. A frame is one write. 4. The state is bounded. 5. This code loads only when chosen.
 // 6. Lines are rebuilt only when their inputs change.
 
-import type { FileInfo, Reporter, RunSummary, SerializedError, TaskId } from '@provino/types'
+import type { Reporter, RunSummary, SerializedError, TaskId } from '@provino/types'
 import { serializeError } from '../internal/serialize-error.ts'
 import type { TextSink } from '../sink.ts'
 import { createStyle, type Style } from '../style.ts'
 import { createEstimator } from './model/estimate.ts'
-import { createRunState, type RunState } from './model/state.ts'
+import { createRunState, type FinishedFile, type RunState } from './model/state.ts'
 import type { Glyphs } from './terminal/glyphs.ts'
 import {
   createFrameScheduler,
@@ -23,13 +23,39 @@ import {
 } from './terminal/scheduler.ts'
 import { createTerminalSession, type TerminalSession } from './terminal/session.ts'
 import { createTimedWriter, type TerminalStream } from './terminal/writer.ts'
-import { finalStatusLine, type StatusInput, statusLine } from './view/status-line.ts'
+import type { Snippet } from './view/code-frame.ts'
+import { endCardLines } from './view/end-card.ts'
+import {
+  CODE_FRAME_WAIT_MS,
+  createSnippetLoader,
+  errorBlockLines,
+  type FailureContext,
+  failureLines,
+  failureSummaryLine,
+  readSourceCapped,
+  snippetKey,
+  whereOf,
+} from './view/failure.ts'
+import { consoleLines, fileLine } from './view/file-line.ts'
+import { type StatusInput, statusLine } from './view/status-line.ts'
 import { moreWorkersLine, workerLine } from './view/worker-line.ts'
 
 /** How many worker lines the footer shows; more busy workers are counted on one line. */
 export const MAX_WORKER_LINES = 8
 /** How long the spinner and the clocks wait between frames when nothing else changes. */
 const TICK_MS = 120
+/** How soon a frame looks again at a file that waits for its source. */
+const HOLD_POLL_MS = 50
+/** The failures the end card lists again; the rest are counted. */
+const MAX_LISTED_FAILURES = 200
+
+/** A finished file taken from the ring: drawn once its code frames have been read, or have waited long enough. */
+interface Held {
+  readonly finished: FinishedFile
+  readonly heldAt: number
+  snippets: ReadonlyMap<string, Snippet> | undefined
+  ready: boolean
+}
 
 /**
  * What the `provino` reporter takes.
@@ -42,12 +68,20 @@ export interface ProvinoReporterOptions {
   readonly colour: boolean
   readonly columns: number
   readonly glyphs: Glyphs
+  /** Draw file paths and locations as OSC 8 hyperlinks (`detectHyperlinks`' answer). */
+  readonly hyperlinks: boolean
+  /** The run's root: code frames are read from it and paths show relative to it. */
+  readonly cwd: string
+  /** Print no console output under the files. */
+  readonly silent?: true
+  /** Print no location and no code frame under a failure. */
+  readonly noStackTrace?: true
+  /** How a source file is read for a code frame. Default: a read of at most 1 MB. */
+  readonly readSource?: (path: string) => Promise<string | undefined>
   /** The clock in ms, for the scheduler this reporter makes. Default: `performance.now`. */
   readonly now?: () => number
   /** Tests pass the manual scheduler. Default: the real one, on an unref'd timer. */
   readonly scheduler?: FrameScheduler
-  /** A file's expected time in ms, for the time left (until `FileInfo` carries it). */
-  readonly expectedMs?: (file: FileInfo) => number | undefined
 }
 
 /**
@@ -81,7 +115,11 @@ export function createLiveReporter(
   const style: Style = createStyle(options.colour)
   const scheduler =
     options.scheduler ?? createFrameScheduler(options.now ? { now: options.now } : {})
-  const estimator = createEstimator(options.expectedMs ?? (() => undefined))
+  const estimator = createEstimator((file) => file.expectedMs)
+  const loader = createSnippetLoader({
+    cwd: options.cwd,
+    read: options.readSource ?? readSourceCapped,
+  })
   const writer = createTimedWriter(stream, {
     now: () => scheduler.now(),
     onWrite: (ms) => scheduler.observeWrite(ms),
@@ -102,6 +140,14 @@ export function createLiveReporter(
   let redrawWanted = false
   /** The run is over, or the terminal was restored: no frame will come, so text goes straight out. */
   let detached = false
+  /** Files out of the ring, waiting (in order) for their code frames. */
+  let held: Held[] = []
+  /** The failures as one line each, for the end card, and how many more there were. */
+  let listed: string[] = []
+  let listedMore = 0
+  /** The pool's worker cap and this run's shard, from `run:start`. */
+  let workersCap: number | undefined
+  let shardText: string | undefined
 
   /** Whole lines written to `passthrough`, waiting for the next frame; and the unfinished line. */
   let pending: string[] = []
@@ -116,6 +162,7 @@ export function createLiveReporter(
   // The text is handed to the writer, which keeps it while the stream is full and writes it on
   // `drain`: a non-live run needs no retry timer of its own.
   function flushPlain(): void {
+    drain(false, scheduler.now())
     if (pending.length === 0) return
     const text = `${pending.join('\n')}\n`
     pending = []
@@ -139,7 +186,131 @@ export function createLiveReporter(
       filesTotal: state.filesTotal(),
       elapsedMs: now - state.startedAt(),
       leftMs: estimator.leftMs(now),
+      ...(shardText === undefined ? {} : { shard: shardText }),
     }
+  }
+
+  function context(): FailureContext {
+    return { glyphs, style, columns, hyperlinks: options.hyperlinks, cwd: options.cwd }
+  }
+
+  /** Takes a finished file out of the ring and starts reading the source of its failures. */
+  function admit(finished: FinishedFile, now: number): Held {
+    const item: Held = { finished, heldAt: now, snippets: undefined, ready: true }
+    if (finished.failures.length === 0 || options.noStackTrace === true) return item
+    const places = finished.failures.flatMap((failure) => {
+      const where = whereOf(failure)
+      return where === undefined ? [] : [where]
+    })
+    const reading = loader.load(places)
+    if (reading === undefined) return item
+    item.ready = false
+    const settle = (snippets: ReadonlyMap<string, Snippet> | undefined): void => {
+      item.snippets = snippets
+      item.ready = true
+      wake()
+    }
+    reading.then(settle, () => settle(undefined))
+    return item
+  }
+
+  function listFailure(line: string): void {
+    if (listed.length < MAX_LISTED_FAILURES) listed.push(line)
+    else listedMore++
+  }
+
+  /** A finished file's lines, built once: its line, its console, its failures, its own errors. */
+  function render(item: Held): string[] {
+    const { result, tests, failed, skipped, failures, failuresOmitted, console, consoleOmitted } =
+      item.finished
+    const path = result.file.runPath ?? result.file.path
+    const ctx = context()
+    const lines = [
+      fileLine(
+        {
+          path,
+          project: result.file.project,
+          state: result.state,
+          tests,
+          failed,
+          skipped,
+          durationMs: result.durationMs,
+        },
+        columns,
+        glyphs,
+        style,
+      ),
+    ]
+    if (options.silent !== true) {
+      lines.push(...consoleLines(console, consoleOmitted, columns, style))
+    }
+    for (const failure of failures) {
+      const where = whereOf(failure)
+      const snippet =
+        where === undefined || options.noStackTrace === true
+          ? undefined
+          : item.snippets?.get(snippetKey(where))
+      lines.push(
+        ...failureLines(
+          options.noStackTrace === true
+            ? { ...failure, location: null, errors: failure.errors }
+            : failure,
+          ctx,
+          snippet,
+        ),
+      )
+      listFailure(failureSummaryLine(failure, ctx))
+    }
+    if (failuresOmitted > 0) {
+      lines.push(`   ${style.dim(`… ${failuresOmitted} more failed tests in this file`)}`, '')
+      listedMore += failuresOmitted
+    }
+    if (result.errors.length > 0) {
+      lines.push(
+        ...errorBlockLines(
+          failed > 0 ? 'Errors outside the tests' : 'Test suite failed to run',
+          result.errors,
+          ctx,
+        ),
+      )
+      if (failed === 0) listFailure(`  ${glyphs.fail} ${path}`)
+    }
+    return lines
+  }
+
+  /** The title of an error block, from what `error` and `unhandled` handed over. */
+  function blockTitle(kind: 'error' | 'unhandled', subject: string | null): string {
+    if (kind === 'unhandled') {
+      return subject === null ? 'Unhandled error' : `Unhandled error in ${subject}`
+    }
+    if (subject === 'reporter') return 'Reporter error'
+    if (subject === 'globalSetup') return 'Global setup error'
+    return 'Provino error'
+  }
+
+  /**
+   * Moves what is waiting (error blocks, finished files) into `pending`, in order. A file whose
+   * code frames are still being read holds the ones behind it, until they arrive or have waited
+   * `CODE_FRAME_WAIT_MS` (on a terminal; with none a read is waited for, and `final` ends the wait).
+   */
+  function drain(final: boolean, now: number): void {
+    const ctx = context()
+    for (const block of state.takeBlocks()) {
+      const title = blockTitle(block.kind, block.subject)
+      for (const line of errorBlockLines(title, block.errors, ctx)) pending.push(line)
+    }
+    if (state.blocksDropped() > 0) pending.push(style.dim(`… ${state.blocksDropped()} more errors`))
+    const dropped = state.dropped()
+    for (const finished of state.take()) held.push(admit(finished, now))
+    if (dropped > 0) pending.push(style.dim(`… ${dropped} more files finished`))
+    let done = 0
+    for (const item of held) {
+      const timedOut = live && !broken && now - item.heldAt >= CODE_FRAME_WAIT_MS
+      if (!item.ready && !final && !timedOut) break
+      for (const line of render(item)) pending.push(line)
+      done++
+    }
+    held = done === held.length ? [] : held.slice(done)
   }
 
   function footer(now: number): string[] {
@@ -164,12 +335,29 @@ export function createLiveReporter(
       const workerKey = `${slot.path}|${Math.floor(elapsed / 100)}|${frameNo % glyphs.spinner.length}|${columns}`
       if (workerKeys[id] !== workerKey) {
         workerKeys[id] = workerKey
-        workerTexts[id] = workerLine(id + 1, slot.path, elapsed, frameNo, columns, glyphs)
+        workerTexts[id] = workerLine(
+          id + 1,
+          slot.path,
+          elapsed,
+          frameNo,
+          columns,
+          glyphs,
+          slot.expectedMs,
+        )
       }
       lines.push(workerTexts[id] as string)
       shown++
     }
     if (hidden > 0) lines.push(moreWorkersLine(hidden))
+    if (
+      shown === 0 &&
+      workersCap !== undefined &&
+      state.filesDone() === 0 &&
+      state.filesTotal() > 0
+    ) {
+      const spinner = glyphs.spinner[frameNo % glyphs.spinner.length] as string
+      lines.push(` ${spinner}  starting ${workersCap} worker${workersCap === 1 ? '' : 's'}`)
+    }
     return lines
   }
 
@@ -178,14 +366,19 @@ export function createLiveReporter(
     if (session === undefined || broken) return undefined
     if (!writer.ready()) return undefined
     // Nothing changed and nothing animates (no busy worker): no footer to rebuild, no frame.
-    if (!redrawWanted && pending.length === 0 && !state.dirty() && state.busy() === 0) {
+    if (
+      !redrawWanted &&
+      pending.length === 0 &&
+      held.length === 0 &&
+      !state.dirty() &&
+      state.busy() === 0
+    ) {
       return undefined
     }
     try {
       const now = scheduler.now()
       frameNo++
-      // The finished-file ring is left for Phase 2 to drain where it draws the files' lines; it is
-      // bounded (`RING_CAPACITY`), so leaving it costs nothing.
+      drain(false, now)
       const drawn = session.draw(pending, footer(now))
       if (drawn) {
         pending = []
@@ -196,6 +389,7 @@ export function createLiveReporter(
       breakDown(cause)
       return undefined
     }
+    if (held.length > 0) return HOLD_POLL_MS
     return state.busy() > 0 ? TICK_MS : undefined
   }
 
@@ -243,9 +437,16 @@ export function createLiveReporter(
     },
     lastError: () => lastError,
 
-    'run:start': (_info, files) => {
+    'run:start': (info, files) => {
       const now = scheduler.now()
       state.start(files, now)
+      held = []
+      listed = []
+      listedMore = 0
+      loader.reset()
+      workersCap = info.workers
+      shardText =
+        info.shard === undefined ? undefined : `shard ${info.shard.index}/${info.shard.count}`
       estimator.reset(files)
       frameNo = 0
       statusKey = ''
@@ -271,9 +472,19 @@ export function createLiveReporter(
       wake(now)
     },
     'task:end': (task, event) => {
-      if (event.type !== 'test-end') return
-      state.testEnd(task.fileId as TaskId, event.result.state)
+      if (event.type !== 'test-end' || task.type !== 'test') return
+      if (event.result.state === 'fail') {
+        state.testEnd(task.fileId as TaskId, 'fail', {
+          title: task.fullName,
+          location: task.location,
+          errors: event.result.errors,
+        })
+      } else state.testEnd(task.fileId as TaskId, event.result.state)
       wake()
+    },
+    console: (file, event) => {
+      if (options.silent === true) return
+      state.console(file.fileId as TaskId, event.stream, event.text)
     },
     'file:end': (result) => {
       const now = scheduler.now()
@@ -281,33 +492,54 @@ export function createLiveReporter(
       estimator.fileEnded(result.file, now, state.busy())
       wake(now)
     },
-    error: () => {
-      state.error()
+    error: (error, origin) => {
+      state.error({ kind: 'error', subject: origin, errors: [error] })
       wake()
     },
-    unhandled: () => {
-      state.error()
+    unhandled: (file, event) => {
+      state.error({
+        kind: 'unhandled',
+        subject: file === null ? null : file.path,
+        errors: [event.error],
+      })
       wake()
     },
     'run:end': (summary: RunSummary) => {
       // The one handler that does the work itself: the run is over and no worker waits.
       scheduler.stop()
       detached = true
-      // Release the finished-file ring: nothing draws it in Phase 1 (Phase 2 writes what is left
-      // in it into the final lines), and a run's state must not outlive it (the heap bar).
-      state.take()
-      if (!live || broken) flusher.flushNow()
       if (partial !== '') {
         pending.push(partial)
         partial = ''
       }
-      const input: StatusInput = {
-        ...statusInput(state.startedAt() + summary.durationMs),
-        leftMs: undefined,
-        elapsedMs: summary.durationMs,
-      }
-      const lines = [...pending, finalStatusLine(input, columns, glyphs, style)]
+      drain(true, scheduler.now())
+      state.finish()
+      const card = endCardLines(
+        {
+          ok: summary.reason === 'passed',
+          reason: summary.reason,
+          passed: state.counts.passed,
+          failed: state.counts.failed,
+          skipped: state.counts.skipped,
+          todo: state.counts.todo,
+          filesDone: state.filesDone(),
+          filesFailed: state.filesFailed(),
+          durationMs: summary.durationMs,
+          slowest: state.slowest(),
+          snapshots: summary.snapshots?.counters,
+          openHandles: summary.openHandles,
+          failures: listed,
+          failuresMore: listedMore,
+        },
+        columns,
+        glyphs,
+        style,
+      )
+      // The last block ends in a blank line already: the card's own would make two.
+      const lines = [...pending, ...(pending.at(-1) === '' ? card.slice(1) : card)]
       pending = []
+      listed = []
+      held = []
       if (session !== undefined && !broken) session.finish(lines)
       else writer.writeAlways(`${lines.join('\n')}\n`)
       session = undefined

@@ -1646,7 +1646,8 @@ function planQueue(
     // the results cache the sequencer reads below, else its time in the timings file (read only
     // for a shard), else none.
     const expectedMs =
-      member.cache?.get(member.cacheProject, file.relativePath)?.durationMs ?? timings?.files[runPath]
+      member.cache?.get(member.cacheProject, file.relativePath)?.durationMs ??
+      timings?.files[runPath]
     entries.set(file.relativePath, {
       member,
       file,

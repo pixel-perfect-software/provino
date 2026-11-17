@@ -3,17 +3,56 @@
 // method is constant work (`start` is O(files), once per run). Phase 2 extends the records with
 // failures and console lines; they stay bounded and are released at `file:end`.
 
-import type { FileInfo, FileResult, TaskId } from '@provino/types'
+import type { FileInfo, FileResult, SerializedError, SourceLocation, TaskId } from '@provino/types'
+
+/** A failed test as the file's record keeps it until the file ends. */
+export interface FailedTest {
+  /** Describe titles, then the test's own: the collected task's `fullName`, not copied. */
+  readonly title: readonly string[]
+  readonly location: SourceLocation | null
+  readonly errors: readonly SerializedError[]
+}
+
+/** One console write of a running file, text capped at `CONSOLE_TEXT_CAP`. */
+export interface ConsoleEntry {
+  readonly stream: 'stdout' | 'stderr'
+  readonly text: string
+}
+
+/** An error outside any file's tests, waiting to be printed. */
+export interface RunBlock {
+  readonly kind: 'error' | 'unhandled'
+  /** An `error` event's origin, or the path of the file an unhandled error is charged to. */
+  readonly subject: string | null
+  readonly errors: readonly SerializedError[]
+}
+
+/** The most failed tests a running file keeps; the rest are counted. */
+export const MAX_FILE_FAILURES = 50
+/** The most console writes a running file keeps; the rest are counted. */
+export const MAX_FILE_CONSOLE = 20
+/** The longest console write kept, in characters. */
+export const CONSOLE_TEXT_CAP = 4096
+/** The most error blocks waiting for a frame; the rest are counted. */
+export const MAX_BLOCKS = 200
 
 /** A running file, on a worker's slot. */
 export interface WorkerSlot {
   readonly fileId: TaskId
   readonly path: string
   readonly startedAt: number
+  /** How long the file is expected to take (`FileInfo.expectedMs`). */
+  readonly expectedMs: number | undefined
   /** Tests that ended so far. */
   tests: number
   /** Of those, how many failed. */
   failed: number
+  /** Of those, how many were skipped or todo. */
+  skipped: number
+  readonly failures: FailedTest[]
+  failuresOmitted: number
+  readonly console: ConsoleEntry[]
+  consoleOmitted: number
 }
 
 /** A file that ended and has not been drawn yet. */
@@ -21,6 +60,11 @@ export interface FinishedFile {
   readonly result: FileResult
   readonly tests: number
   readonly failed: number
+  readonly skipped: number
+  readonly failures: readonly FailedTest[]
+  readonly failuresOmitted: number
+  readonly console: readonly ConsoleEntry[]
+  readonly consoleOmitted: number
 }
 
 /** A file's place among the slowest. */
@@ -73,10 +117,23 @@ export interface RunState {
 
   start(files: readonly FileInfo[], now: number): void
   fileStart(file: FileInfo, workerId: number, now: number): void
-  /** A test ended in `state` in `fileId`'s file. */
-  testEnd(fileId: TaskId, state: 'pass' | 'fail' | 'skip' | 'todo' | 'queued' | 'running'): void
+  /** A test ended in `state` in `fileId`'s file; a failed test brings its `failure`. */
+  testEnd(
+    fileId: TaskId,
+    state: 'pass' | 'fail' | 'skip' | 'todo' | 'queued' | 'running',
+    failure?: FailedTest,
+  ): void
+  /** A running file wrote to the console. */
+  console(fileId: TaskId, stream: 'stdout' | 'stderr', text: string): void
   fileEnd(result: FileResult): void
-  error(): void
+  /** An error outside the tests: counted, and its block queued for a frame. */
+  error(block?: RunBlock): void
+  /** The blocks waiting for a frame, in order; empties the queue. */
+  takeBlocks(): readonly RunBlock[]
+  /** Blocks the queue had no room for since the last `takeBlocks`. */
+  blocksDropped(): number
+  /** The run is over: releases the running files' records. */
+  finish(): void
 }
 
 /**
@@ -93,6 +150,8 @@ export function createRunState(): RunState {
   let busy = 0
   let dirty = false
   let dropped = 0
+  let blocks: RunBlock[] = []
+  let blocksDropped = 0
   const workers: (WorkerSlot | undefined)[] = []
   /** The running files, by file, so a test's end finds its slot. */
   const byFile = new Map<TaskId, WorkerSlot>()
@@ -125,6 +184,18 @@ export function createRunState(): RunState {
       return out
     },
     dropped: () => dropped,
+    takeBlocks() {
+      const out = blocks
+      blocks = []
+      blocksDropped = 0
+      return out
+    },
+    blocksDropped: () => blocksDropped,
+    finish() {
+      workers.length = 0
+      byFile.clear()
+      busy = 0
+    },
     slowest: () => slowest,
     dirty: () => dirty,
     clean() {
@@ -135,6 +206,8 @@ export function createRunState(): RunState {
       counts.passed = counts.failed = counts.skipped = counts.todo = 0
       filesTotal = files.length
       filesDone = filesFailed = errors = busy = dropped = 0
+      blocks = []
+      blocksDropped = 0
       startedAt = now
       workers.length = 0
       byFile.clear()
@@ -148,8 +221,14 @@ export function createRunState(): RunState {
         fileId: file.fileId,
         path: file.runPath ?? file.path,
         startedAt: now,
+        expectedMs: file.expectedMs,
         tests: 0,
         failed: 0,
+        skipped: 0,
+        failures: [],
+        failuresOmitted: 0,
+        console: [],
+        consoleOmitted: 0,
       }
       const previous = workers[workerId]
       if (previous === undefined) busy++
@@ -159,7 +238,17 @@ export function createRunState(): RunState {
       byFile.set(file.fileId, slot)
       dirty = true
     },
-    testEnd(fileId, state) {
+    console(fileId, stream, text) {
+      const slot = byFile.get(fileId)
+      if (slot === undefined) return
+      if (slot.console.length >= MAX_FILE_CONSOLE) slot.consoleOmitted++
+      else
+        slot.console.push({
+          stream,
+          text: text.length > CONSOLE_TEXT_CAP ? text.slice(0, CONSOLE_TEXT_CAP) : text,
+        })
+    },
+    testEnd(fileId, state, failure) {
       switch (state) {
         case 'pass':
           counts.passed++
@@ -179,7 +268,13 @@ export function createRunState(): RunState {
       const slot = byFile.get(fileId)
       if (slot !== undefined) {
         slot.tests++
-        if (state === 'fail') slot.failed++
+        if (state === 'fail') {
+          slot.failed++
+          if (failure !== undefined) {
+            if (slot.failures.length >= MAX_FILE_FAILURES) slot.failuresOmitted++
+            else slot.failures.push(failure)
+          }
+        } else if (state === 'skip' || state === 'todo') slot.skipped++
       }
       dirty = true
     },
@@ -207,6 +302,11 @@ export function createRunState(): RunState {
         result,
         tests: slot?.tests ?? 0,
         failed: slot?.failed ?? 0,
+        skipped: slot?.skipped ?? 0,
+        failures: slot?.failures ?? [],
+        failuresOmitted: slot?.failuresOmitted ?? 0,
+        console: slot?.console ?? [],
+        consoleOmitted: slot?.consoleOmitted ?? 0,
       }
       size++
       noteSlow(slowest, {
@@ -215,8 +315,12 @@ export function createRunState(): RunState {
       })
       dirty = true
     },
-    error() {
+    error(block) {
       errors++
+      if (block !== undefined) {
+        if (blocks.length >= MAX_BLOCKS) blocksDropped++
+        else blocks.push(block)
+      }
       dirty = true
     },
   }

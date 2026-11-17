@@ -20,6 +20,8 @@ const reporter = provinoReporter({
   colour: true,
   columns: process.stdout.columns ?? 120,
   glyphs: GLYPHS.emoji,
+  hyperlinks: false,
+  cwd: '/project',
 })
 
 const spec = { ...DEFAULT_SPEC, files: 64 }

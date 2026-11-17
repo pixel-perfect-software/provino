@@ -27,6 +27,8 @@ function setup(options: { live?: boolean; columns?: number; glyphs?: 'emoji' | '
     colour: false,
     columns: options.columns ?? 80,
     glyphs: GLYPHS[options.glyphs ?? 'emoji'],
+    hyperlinks: false,
+    cwd: '/project',
     scheduler,
   })
   return { clock, scheduler, sink, reporter }
@@ -86,6 +88,8 @@ test('rule 1: a handler does the same work for every event however long the run'
         colour: false,
         columns: 80,
         glyphs: GLYPHS.emoji,
+        hyperlinks: false,
+        cwd: '/project',
         scheduler: manualScheduler(),
       },
       counting as unknown as RunState,
@@ -172,9 +176,9 @@ test('run:end erases the footer, writes the final line and shows the cursor, onc
   scheduler.tick()
   await reporter['run:end']?.({ reason: 'passed', files: [], unhandled: [], durationMs: 1234 })
   const last = sink.writes().at(-1) as string
-  assert.ok(last.includes('of'))
+  assert.ok(last.includes('0 tests passed in 0 files'))
   assert.ok(last.endsWith(`${ESC}[?25h`))
-  assert.ok(last.includes('1.2s'))
+  assert.ok(last.includes('1.23s'))
   const count = sink.writes().length
   reporter.terminal.restore()
   assert.equal(sink.writes().length, count, 'restore after run:end writes nothing')
@@ -187,7 +191,7 @@ test('without a terminal there is no timer and no escape: the final line is plai
   await playRun(bus, FIXTURE_FILES, { durationMs: 2000 })
   assert.equal(scheduler.requests(), 0)
   assert.ok(!sink.text().includes(ESC))
-  assert.match(sink.text(), /✅ \d+.* of \d+ files {2}2\.0s\n$/)
+  assert.match(sink.text(), /💥 .* · 2\.00s\n/)
 })
 
 test('passthrough text goes above the footer at the next frame', async () => {
@@ -227,7 +231,7 @@ test('a frame that throws restores the terminal, keeps the error and lets the ru
   assert.ok(sink.writes().at(-1)?.endsWith(`${ESC}[?25h`), 'the cursor is shown again')
   broken = false
   await reporter['run:end']?.({ reason: 'passed', files: [], unhandled: [], durationMs: 5 })
-  assert.ok(sink.text().includes('of 0 files'))
+  assert.ok(sink.text().includes('1 test passed in 0 files'))
 })
 
 test('a second run:start starts clean and draws again', async () => {
@@ -259,7 +263,7 @@ test('without a terminal, text written while the stream is full is kept and writ
   await reporter['run:end']?.({ reason: 'passed', files: [], unhandled: [], durationMs: 5 })
   assert.equal(sink.text(), 'one\n', 'the stream is full: nothing else is written yet')
   sink.drain()
-  assert.match(sink.text(), /^one\ntwo\n.*of 0 files {2}0\.0s\n$/)
+  assert.match(sink.text(), /^one\ntwo\n\n🎉 0 tests passed in 0 files · 5ms\n$/)
 })
 
 test('text written after run:end goes straight out, on a terminal and without one', async () => {
@@ -283,7 +287,7 @@ test('text written after restore() is not lost, and run:end still writes its lin
   reporter.terminal.passthrough.write('from a signal handler\n')
   assert.equal(sink.writes().at(-1), 'from a signal handler\n')
   await reporter['run:end']?.({ reason: 'passed', files: [], unhandled: [], durationMs: 5 })
-  assert.match(sink.writes().at(-1) as string, /of 0 files {2}0\.0s\n$/)
+  assert.match(sink.writes().at(-1) as string, /0 files · 5ms\n$/)
 })
 
 test('text written before run:start is kept and comes out first', async () => {
@@ -359,6 +363,8 @@ test('a frame with nothing changed rebuilds no footer, and no frame drains the f
       colour: false,
       columns: 80,
       glyphs: GLYPHS.emoji,
+      hyperlinks: false,
+      cwd: '/project',
       scheduler,
     },
     state,
@@ -374,11 +380,7 @@ test('a frame with nothing changed rebuilds no footer, and no frame drains the f
   scheduler.request()
   assert.equal(scheduler.tick(), true)
   assert.equal(calls.workers ?? 0, reads, 'the footer was not rebuilt')
-  assert.equal(
-    calls.take ?? 0,
-    0,
-    'no frame drains the ring: it is drained where it is drawn (Phase 2)',
-  )
+  assert.equal(calls.take, 1, 'the frame that drew the file took the ring; the next one left it')
   await reporter['run:end']?.({ reason: 'passed', files: [], unhandled: [], durationMs: 5 })
-  assert.equal(calls.take, 1, 'run:end releases it once')
+  assert.equal(calls.take, 2, 'run:end takes what is left once')
 })

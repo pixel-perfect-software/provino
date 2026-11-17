@@ -21,6 +21,8 @@ export interface StatusInput {
   readonly elapsedMs: number
   /** The expected time left, when the estimator can say. */
   readonly leftMs: number | undefined
+  /** `shard 2/3`, for a run that is one shard of several. */
+  readonly shard?: string
 }
 
 /** The widest the bar gets, and the narrowest it is worth drawing. */
@@ -65,7 +67,7 @@ export function statusLine(
     input.filesTotal === 0 ? 0 : Math.floor((input.filesDone / input.filesTotal) * 100)
   const head = counts(input, glyphs, style)
   const percentText = `${percent}%`.padStart(4)
-  const filesText = `${groupDigits(input.filesDone)} of ${groupDigits(input.filesTotal)} files`
+  const filesText = `${groupDigits(input.filesDone)} of ${groupDigits(input.filesTotal)} files${input.shard === undefined ? '' : ` · ${input.shard}`}`
   const timeText = clock(input.elapsedMs)
   const leftText = input.leftMs === undefined ? '' : ` · ~${roughDuration(input.leftMs)} left`
 
@@ -94,18 +96,4 @@ export function statusLine(
     if (displayWidth(line) <= room) return line
   }
   return fitWidth(assemble(0, false, false), room)
-}
-
-/**
- * The line a run ends with: the counts, the files and the time, no bar.
- * @beta
- */
-export function finalStatusLine(
-  input: StatusInput,
-  columns: number,
-  glyphs: Glyphs,
-  style: Style,
-): string {
-  const line = `${counts(input, glyphs, style)}  ${groupDigits(input.filesDone)} of ${groupDigits(input.filesTotal)} files  ${style.dim(clock(input.elapsedMs))}`
-  return fitWidth(line, Math.max(1, columns - 1))
 }
