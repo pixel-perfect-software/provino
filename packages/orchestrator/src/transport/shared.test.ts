@@ -107,7 +107,7 @@ describe('connect', () => {
       connect('forks', fake.spawned, init, { entry: 'x', startTimeoutMs: 1 }),
       (error: unknown) => {
         assert.equal((error as { code?: unknown }).code, 'ORCH_WORKER_START_TIMEOUT')
-        assert.deepEqual((error as Error).cause, { type: 'timeout', phase: 'start', limitMs: 1 })
+        assert.deepEqual((error as { exit?: unknown }).exit, { type: 'timeout', phase: 'start', limitMs: 1 })
         return true
       },
     )

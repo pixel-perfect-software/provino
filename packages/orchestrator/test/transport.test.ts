@@ -92,7 +92,7 @@ for (const kind of KINDS) {
         )
       assert.ok(error instanceof OrchestratorError)
       assert.equal(error.code, 'ORCH_WORKER_START_TIMEOUT')
-      assert.deepEqual(error.cause, { type: 'timeout', phase: 'start', limitMs: 100 })
+      assert.deepEqual(error.exit, { type: 'timeout', phase: 'start', limitMs: 100 })
     })
   })
 }
@@ -122,7 +122,7 @@ for (const kind of ['forks', 'threads'] as const) {
       await assert.rejects(running, (error: unknown) => {
         assert.ok(error instanceof OrchestratorError)
         assert.equal(error.code, 'ORCH_WORKER_EXITED')
-        assert.deepEqual(error.cause, timedOut)
+        assert.deepEqual(error.exit, timedOut)
         return true
       })
     })
@@ -142,7 +142,7 @@ for (const kind of ['forks', 'threads'] as const) {
       assert.deepEqual(await connection.exited, timedOut)
       await assert.rejects(running, (error: unknown) => {
         assert.ok(error instanceof OrchestratorError)
-        assert.deepEqual(error.cause, timedOut)
+        assert.deepEqual(error.exit, timedOut)
         return true
       })
     })
