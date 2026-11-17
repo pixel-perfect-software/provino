@@ -1,0 +1,19 @@
+{
+  "description": "msw 3 from `msw/node` (T11.11) with the server made in a `setupFilesAfterEnv` module, the common project shape: `listen({ onUnhandledRequest: 'error' })` in `beforeAll`, `resetHandlers` in `afterEach`, `close` in `afterAll`. Two test files on one worker, in the node environment, each fetch a handled URL and an unhandled one (msw 3 warns and passes it through; `api.example.invalid` never resolves, so the real fetch rejects). msw's interceptors add `globalThis.__MSW_INTERNAL_CONNECTION_CONTEXT` as they load and use it to tell msw's own passthrough connection from the client's: Jest evaluates msw again in every file against a fresh global. msw 3 ships ES modules only: the files `import` it under `jestEsm`, and Node runs with `--experimental-vm-modules`, which Jest 30.5.2 needs for its native `require(esm)`. No network. Read by `provino`'s `ecosystem-per-file.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "nodeFlags": ["--experimental-vm-modules"],
+  "config": {
+    "jest": {
+      "setupFilesAfterEnv": ["<rootDir>/msw-setup.ts"]
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^ {2,}(?!at )\\S|^(Test Suites|Tests|Snapshots):|^Ran all test suites|^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
