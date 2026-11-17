@@ -19,6 +19,7 @@ import { dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ModuleId, ModuleMockRegistry, ModuleScopeValues, ResolveKind } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
+import { reevaluatesExternals } from '../reevaluation.ts'
 import { claimedLoad, demoteOnParseFailure, isClaimedUserModule } from './claims.ts'
 import {
   claimedReach,
@@ -50,7 +51,7 @@ import {
   targetOfId,
   toModuleId,
 } from './records.ts'
-import { reevaluatesExternals, watchedLoad } from './reevaluate.ts'
+import { watchedLoad } from './reevaluate.ts'
 import { requireEsmError } from './require-esm.ts'
 
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
@@ -188,9 +189,10 @@ export class Registry {
 
   /**
    * Whether this registry evaluates externals again per file (`reevaluateHookingExternals` or
-   * `reevaluatePatchingExternals`, D127, D132): never one that outlives its files (`sharedAcrossFiles`, isolation `none`), which keeps
-   * every module it evaluated, so neither watches nor inlines for it. Each file is not evaluated
-   * again under `none` by design, so neither is an external.
+   * `reevaluatePatchingExternals`, D127, D132): never one that outlives its files
+   * (`sharedAcrossFiles`, isolation `none`), which keeps every module it evaluated, so neither
+   * watches nor inlines for it. Each file is not evaluated again under `none` by design, so
+   * neither is an external.
    */
   readonly #reevaluates: boolean
   /**

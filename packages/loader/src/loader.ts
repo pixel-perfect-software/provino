@@ -25,15 +25,11 @@ import {
   resolveOrMissing,
   toModuleId,
 } from './internal/records.ts'
-import {
-  activate,
-  promoteLearned,
-  reevaluatesExternals,
-  takeLearned,
-} from './internal/reevaluate.ts'
+import { activate, promoteLearned, takeLearned } from './internal/reevaluate.ts'
 import { type FileContext, NO_FILE, Registry } from './internal/registry.ts'
 import { blankHashbang } from './internal/source.ts'
 import { isEvaluableExternal } from './internal/third-party.ts'
+import { reevaluatesExternals } from './reevaluation.ts'
 import { tierFor } from './tier.ts'
 
 function notYet(what: string, task: string): LoaderError {

@@ -23,6 +23,7 @@ import type {
 } from '@provino/types'
 import { LoaderError } from './errors.ts'
 import { buildProjectLoader, type ProjectCoverage } from './project.ts'
+import { NO_REEVALUATION } from './reevaluation.ts'
 
 /**
  * A loader for modules the coordinator runs itself.
@@ -74,6 +75,16 @@ function withoutMocks(config: SerializedLoaderConfig): SerializedLoaderConfig {
 }
 
 /**
+ * The module policy a coordinator-mode loader runs under: no mock reaches a shared package (no
+ * mocks), and no external is evaluated per file (one registry serves every import, so nothing is
+ * evaluated again): every reevaluate key off, through `NO_REEVALUATION`, which a new key must join.
+ * @internal
+ */
+export function coordinatorModulePolicy(policy: ModulePolicy): ModulePolicy {
+  return { ...policy, mocksReachShared: false, ...NO_REEVALUATION }
+}
+
+/**
  * Creates the coordinator-mode loader of one project: its resolver, mappers and transform (the
  * Jest transformers load here, in this process, from their own paths), at the isolation tier
  * `none`. `config` is the project's `SerializedLoaderConfig`, the one its workers build theirs
@@ -91,17 +102,7 @@ export async function createCoordinatorLoader(
     readonly loader: Loader
     readonly pipeline: Pipeline
     readonly resolver: Resolver
-  } = await buildProjectLoader(
-    root,
-    withoutMocks(config),
-    {
-      ...policy,
-      mocksReachShared: false,
-      reevaluateHookingExternals: false,
-      reevaluatePatchingExternals: false,
-    },
-    options,
-  )
+  } = await buildProjectLoader(root, withoutMocks(config), coordinatorModulePolicy(policy), options)
   const { loader, pipeline, resolver } = built
   const registries: FileRegistry[] = []
   const coordinator: CoordinatorLoader = {
