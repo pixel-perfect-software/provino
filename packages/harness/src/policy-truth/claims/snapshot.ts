@@ -568,4 +568,23 @@ export const expectClaims: Claims = {
     },
   }),
   'expect.expand': golden('defaults'),
+  // jest-circus resets the counters only at `test_done`, so what a module scope, a beforeAll or an
+  // afterAll counted reaches the next test that ends (jestAdapterInit.ts L362-367): the first test
+  // reports its own assertion and the module-scope one.
+  'expect.outsideTestCounts': each(
+    golden('expect/policies/assertions-outside-test', {
+      read: (g) => {
+        const passes = g.files
+          .flatMap((file) => file.tests)
+          .find(
+            (t) => t.id.path.join(' › ') === 'takes the module-scope assertion',
+          )?.passingAssertions
+        return oneOf(passes, [
+          ['drop', passes === 1],
+          ['next-test', passes === 2],
+        ])
+      },
+    }),
+    pending('T11.16', "Vitest's counters aren't recorded: the neutral `drop` stands"),
+  ),
 }

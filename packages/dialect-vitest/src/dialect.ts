@@ -157,6 +157,8 @@ export const vitestPolicy: PolicyOverrides = {
   },
   expect: {
     matcherNamespace: 'vitest',
+    // Not recorded yet (T11.16): the neutral `drop` stands.
+    outsideTestCounts: 'drop',
     pollFailsOnTimeout: true,
     diffContextLines: 5,
     valueFormatter: 'pretty-format',

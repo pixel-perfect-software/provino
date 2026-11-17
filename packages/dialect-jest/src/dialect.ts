@@ -108,7 +108,35 @@ export const jestPolicy: PolicyOverrides = {
     // Runtime corpus `microtask-turns` and `microtask-turns-jsdom` agree: 21 turns between hooks,
     // 20 from a test to its `afterEach`, 67 from the last `afterEach` to the next `beforeEach`, 66
     // between tests with no hooks.
-    boundaryTurns: { hookStart: 7, hookEnd: 14, fnStart: 7, fnEnd: 13, testStart: 35, testEnd: 11 },
+    boundaryTurns: {
+      hookStart: 7,
+      hookEnd: 14,
+      fnStart: 7,
+      fnEnd: 13,
+      testStart: 35,
+      testEnd: 11,
+      // research: D133, jest-circus turns measured against live Jest 30.5.2 in #114 (pending B23f-turns)
+      skippedTest: 18,
+      suiteStart: 7,
+      suiteEnd: 9,
+      runStart: 21,
+      // research: D133, not counted in #114; Phase 5 records the retry boundary (pending B23f-turns)
+      retry: 0,
+      // research: D133, not counted in #114; Phase 5 records the events of each boundary (pending B23f-turns)
+      events: {
+        hookStart: 0,
+        hookEnd: 0,
+        fnStart: 0,
+        fnEnd: 0,
+        testStart: 0,
+        testEnd: 0,
+        skippedTest: 0,
+        suiteStart: 0,
+        suiteEnd: 0,
+        runStart: 0,
+        retry: 0,
+      },
+    },
     // Jest passes `done`, not a context: nothing to call (runtime corpus `done-callback` agrees).
     doneDeprecatedMessage: null,
     // research: track-01 L191 (`none`)
@@ -263,6 +291,10 @@ export const jestPolicy: PolicyOverrides = {
     // evaluates node_modules again in every file's registry, so a package's import-time hooks and
     // globals are the file's own; D127, P42).
     reevaluateHookingExternals: true,
+    // research: D127 and DV151, .refs/jest/packages/jest-runtime/src/index.ts (the per-file module
+    // registry evaluates a package that patches a global or a builtin export again in every file;
+    // pending B23f-msw).
+    reevaluatePatchingExternals: true,
     // jest-source-map names a frame after the map's name at its own position (`cli/failure-frames`).
     stackFrameNames: 'mapped-name',
     // jest-runtime loads a test's modules itself, so a patch of Node's loader made outside the test

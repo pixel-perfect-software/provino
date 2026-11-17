@@ -389,4 +389,33 @@ export interface BoundaryTurns {
   readonly testStart: number
   /** As a test's attempt ends, after its last `afterEach` (`test_done`, and its unwinding). */
   readonly testEnd: number
+  /**
+   * As a skipped or todo test is passed over (`test_skip`, `test_todo`, and the events around
+   * them). Jest: 18, research: #114's live count (pending B23f-turns). Vitest: `0`, not recorded
+   * yet (T11.16).
+   */
+  readonly skippedTest: number
+  /** As a suite starts (`run_describe_start`). Jest: 7, research: #114's live count (pending B23f-turns). Vitest: `0` (T11.16). */
+  readonly suiteStart: number
+  /** As a suite ends (`run_describe_finish`). Jest: 9, research: #114's live count (pending B23f-turns). Vitest: `0` (T11.16). */
+  readonly suiteEnd: number
+  /** As the file's run starts, before its first suite (`run_start`). Jest: 21, research: #114's live count (pending B23f-turns). Vitest: `0` (T11.16). */
+  readonly runStart: number
+  /** As a failed test's next attempt starts (`test_retry`). Jest and Vitest: `0` until Phase 5 records it (B23f-turns, T11.16). */
+  readonly retry: number
+  /**
+   * How many circus-style events are dispatched in each boundary, owed once more each when the
+   * file has a lifecycle listener (`RunFileOptions.lifecycle`, Jest's `handleTestEvent`, which
+   * jest-circus awaits as a seventh handler). All `0` waits for nothing.
+   */
+  readonly events: BoundaryEvents
 }
+
+/**
+ * Per-boundary event counts of `BoundaryTurns`: one number for each of its boundaries (every key
+ * but `events`), derived from it so a new boundary is added in one place. Each is the number of
+ * events dispatched in that boundary. Jest: recorded in Phase 5 (pending B23f-turns). Vitest and
+ * neutral: all `0`.
+ * @public
+ */
+export type BoundaryEvents = { readonly [K in Exclude<keyof BoundaryTurns, 'events'>]: number }
