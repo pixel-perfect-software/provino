@@ -51,7 +51,7 @@ Provino's tests compare almost everything here with Jest 30.5, either against re
 - The `dot`, `json` and `junit` reporters are Provino's own; choose them with `provino run --config <file> --reporter <name>`, Provino's config form.
 
 **Editors**
-- vscode-jest, with `jest.jestCommandLine` set to your project's `provino jest` command (for example `pnpm exec provino jest`). Provino's tests replay vscode-jest 6.4.4's command lines (all tests, one file, one test, a test name pattern, a file pattern, update snapshots, related files, coverage, `jest.useDashedArgs`, test discovery with `--listTests --json`, the debug launch, and `--watch` and `--watchAll`) and hold each to Jest 30.5.2's: the results file with its colour codes, vscode-jest's reporter lines on stderr, and the exit code.
+- vscode-jest, with `jest.jestCommandLine` set to your project's `provino jest` command (for example `pnpm exec provino jest`). Provino's tests replay vscode-jest 6.4.4's command lines (all tests, one file, one test, a test name pattern, a file pattern, update snapshots, related files, coverage, `jest.useDashedArgs`, test discovery with `--listTests --json`, the debug launch, and `--watch` and `--watchAll`) and hold each to Jest 30.5.2's: the results file with its colour codes (for the requests that write one), vscode-jest's reporter lines on stderr, and the exit code.
 - neotest-jest, with `jestCommand` set to the same command. Its run of a file, of one test and of a nested describe block, and its `.each` discovery (Jest's JSON read from stdout), are replayed and held the same way.
 - No editor runs in these tests: each replay uses the command line the editor builds, copied from its source. JetBrains' IDEs aren't covered yet.
 
