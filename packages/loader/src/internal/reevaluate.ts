@@ -14,9 +14,9 @@
 // whether the load did either inside it. Such an external, with every node_modules file its load
 // evaluated, is inlined (loaded through the registry) from the next file on, so its top-level code
 // runs again for each file. Outside a window nothing is watched, so steady-state loads pay one `Set` lookup.
-// What imports such an external, and a dependency of one that only per-file files import (a
-// registry a per-file plugin writes into), are evaluated per file too (D132): `settlePerFile` keeps
-// that set over the part of the graph the worker knows.
+// What such an external imports, what imports it, and a dependency of one of those that only
+// per-file files import (a registry a per-file plugin writes into), are evaluated per file too
+// (D132): `settlePerFile` keeps that set over the part of the graph the worker knows.
 import { createRequire } from 'node:module'
 import type { ExternalLoadWatcher } from '@provino/types'
 import { inGraph, packageDirOf } from '../graph/index.ts'
@@ -42,8 +42,9 @@ export interface ReevaluateState {
  * file or asked about at an edge, both ways, through the user modules a closure goes through
  * (workspace packages linked into `node_modules`). The seeds are the externals evaluated per file
  * for a reason of their own (`active`, D127 and D129; a file the transforms make a user module,
- * D130). The set is the seeds, every file that imports a file of the set (the reach rule), and the
- * dependencies of the set that `settlePerFile` lets join.
+ * D130). The set is the seeds, every file of a seed's static closure (`joinClosure`), every file
+ * that imports a file of the set (the reach rule), and the dependencies of the set that
+ * `settlePerFile` lets join.
  *
  * The set only grows, and a file sees only what it stood at when the file's registry was created,
  * plus what reaches it since (`members`): what joins once the file has asked about an external
@@ -75,6 +76,8 @@ export interface PerFileGraph {
   readonly dynamic: Map<string, ReadonlySet<string>>
   /** Region files whose importers changed since the last settle: decided again then. */
   readonly probes: Set<string>
+  /** Files a seed's closure walk has joined (`joinClosure`): each is walked once per worker. */
+  readonly closed: Set<string>
   /** Whether the running file has asked about an external yet: what joins after that is pending. */
   answered: boolean
   /** How many of `active`, and of the claims' user modules, are in the set as seeds. */
@@ -100,6 +103,7 @@ function createPerFileGraph(): PerFileGraph {
     dynamicByName: new Map(),
     dynamic: new Map(),
     probes: new Set(),
+    closed: new Set(),
     answered: false,
     primedActive: 0,
     primedClaimed: 0,
@@ -227,6 +231,50 @@ function joinSet(
     for (const importer of graph.importers.get(current)?.files ?? NO_TARGETS) {
       stack.push([importer, now || !graph.answered])
     }
+  }
+}
+
+/**
+ * Puts every file of the seed `seed`'s static closure in the set (`joinSet`, so what imports any of
+ * them follows by the reach rule), whatever else imports them. So the set a seed makes does not
+ * depend on whether the worker saw a shared importer of its closure before the seed: a cold worker
+ * that learns the seed in its first file and a warm one seeded with it from the results cache end
+ * with the same set. Only the files the loader could evaluate are walked. A file that a dynamic file
+ * outside the set and the closure could load natively stays out, with everything below it, as the
+ * region's join drops them: they are left to it (`joinProbed`, which refuses them and says so). A
+ * file joined here is never walked again in the worker.
+ */
+function joinClosure(
+  graph: PerFileGraph,
+  seed: string,
+  now: boolean,
+  keep: (path: string) => boolean,
+): void {
+  // The part of the closure no earlier walk joined.
+  const area = new Set<string>()
+  const stack = [seed]
+  while (stack.length > 0) {
+    const current = stack.pop()
+    if (current === undefined || area.has(current) || graph.closed.has(current)) continue
+    if (current !== seed && !candidate(current, keep)) continue
+    area.add(current)
+    for (const target of graph.edges.get(current) ?? NO_TARGETS) stack.push(target)
+  }
+  for (const file of area) {
+    if (file !== seed && dynamicLoaders(graph, file, area).length > 0) stack.push(file)
+  }
+  const blocked = new Set<string>()
+  while (stack.length > 0) {
+    const current = stack.pop()
+    if (current === undefined || current === seed || blocked.has(current)) continue
+    if (!area.has(current)) continue
+    blocked.add(current)
+    for (const target of graph.edges.get(current) ?? NO_TARGETS) stack.push(target)
+  }
+  for (const file of area) {
+    if (blocked.has(file)) continue
+    graph.closed.add(file)
+    joinSet(graph, file, now, keep)
   }
 }
 
@@ -362,10 +410,11 @@ function joinProbed(
 
 /**
  * Settles the set before `evaluatedPerFile` answers for `path`: when the seeds grew, indexes what
- * the worker loaded natively (so a shared importer an earlier file loaded counts) and the new
- * seeds, and puts them in the set; indexes `path`; then decides what the changes probed
- * (`joinProbed`). `index` indexes a file's closure (`indexClosure` in `inline.ts`). Returns the
- * joins a dynamic file refused, for the caller to report.
+ * the worker loaded natively (so what an earlier file loaded follows by reach, and a dynamic file
+ * among it is known) and the new seeds, and puts them in the set; indexes `path`; joins each new
+ * seed's closure (`joinClosure`); then decides what the changes probed (`joinProbed`). `index`
+ * indexes a file's closure (`indexClosure` in `inline.ts`). Returns the joins a dynamic file
+ * refused, for the caller to report.
  */
 export function settlePerFile(
   state: ReevaluateState,
@@ -376,17 +425,17 @@ export function settlePerFile(
   const graph = state.perFile
   const { active } = state
   const { claimed, keep } = sources
+  let seeds: string[] | undefined
   if (graph.primedActive !== active.size || graph.primedClaimed !== claimed.length) {
     for (const loaded of sources.loaded.keys()) if (inGraph(loaded)) index(loaded)
+    seeds = []
     let at = 0
-    for (const seed of active) {
-      if (at++ < graph.primedActive) continue
-      index(seed)
-      joinSet(graph, seed, !graph.answered, keep)
-    }
+    for (const seed of active) if (at++ >= graph.primedActive) seeds.push(seed)
     for (let next = graph.primedClaimed; next < claimed.length; next++) {
       const seed = claimed[next]
-      if (seed === undefined) continue
+      if (seed !== undefined) seeds.push(seed)
+    }
+    for (const seed of seeds) {
       index(seed)
       joinSet(graph, seed, !graph.answered, keep)
     }
@@ -394,6 +443,9 @@ export function settlePerFile(
     graph.primedClaimed = claimed.length
   }
   index(path)
+  // Each new seed's closure, once every new seed is in the set and `path` is known: a dynamic file
+  // either is (a seed, or `path`) can keep a file of a closure out.
+  if (seeds !== undefined) for (const seed of seeds) joinClosure(graph, seed, !graph.answered, keep)
   if (graph.probes.size === 0) return NO_REFUSALS
   const refusals: DynamicRefusal[] = []
   joinProbed(graph, keep, refusals)
