@@ -20,6 +20,8 @@ export async function loadJestReporters(
 ): Promise<JestLoadedReporter[]> {
   const entries: JestLoadedReporter[] = []
   for (const step of plan.steps) {
+    // The host builds its own reporters: there is no module to load.
+    if (step.kind === 'host') continue
     if (step.kind === 'builtin') {
       // The one built-in Jest builds from a class of its own that Provino runs as one.
       if (step.name === 'github-actions') {

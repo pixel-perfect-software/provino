@@ -128,7 +128,9 @@ import type {
   JestLoadedReporter,
   JestReporterEnvironment,
   JestReporterPlan,
+  JestReporterPlanOptions,
   JestReporterStep,
+  NormalizeOptions,
 } from '@provino/dialect-jest/node'
 import {
   createJestReporterHost,
@@ -139,7 +141,18 @@ import type { Reporter } from '@provino/types'
 
 expectTypeOf(jestReporterPlan).returns.toEqualTypeOf<JestReporterPlan>()
 expectTypeOf(jestReporterPlan).parameter(2).toEqualTypeOf<JestReporterEnvironment>()
-expectTypeOf<JestReporterStep['kind']>().toEqualTypeOf<'builtin' | 'custom'>()
+expectTypeOf<JestReporterStep['kind']>().toEqualTypeOf<'builtin' | 'custom' | 'host'>()
+// D141: the host's own reporter names, kept by the reader and planned as `host` steps.
+expectTypeOf(jestReporterPlan).parameter(3).toEqualTypeOf<JestReporterPlanOptions | undefined>()
+expectTypeOf<JestReporterPlanOptions['hostReporters']>().toEqualTypeOf<
+  readonly string[] | undefined
+>()
+expectTypeOf<NormalizeOptions['hostReporters']>().toEqualTypeOf<readonly string[] | undefined>()
+expectTypeOf<Extract<JestReporterStep, { kind: 'host' }>['name']>().toBeString()
+// @ts-expect-error host names are strings
+void ({ hostReporters: [1] } satisfies JestReporterPlanOptions)
+// @ts-expect-error a host step has a name, not a path
+void ({ kind: 'host', path: 'provino', options: {} } satisfies JestReporterStep)
 expectTypeOf(loadJestReporters).returns.resolves.toEqualTypeOf<JestLoadedReporter[]>()
 expectTypeOf(createJestReporterHost).returns.toEqualTypeOf<Reporter[]>()
 // @ts-expect-error the plan needs to know whether an agent or GitHub Actions runs the process

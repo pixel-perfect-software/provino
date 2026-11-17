@@ -1000,7 +1000,12 @@ export function jestReporterPlan(globalConfig: {
     readonly verbose?: boolean | undefined;
 }, projectConfigs: readonly {
     readonly verbose?: boolean | undefined;
-}[], environment: JestReporterEnvironment): JestReporterPlan;
+}[], environment: JestReporterEnvironment, planOptions?: JestReporterPlanOptions): JestReporterPlan;
+
+// @public
+export interface JestReporterPlanOptions {
+    readonly hostReporters?: readonly string[];
+}
 
 // @public
 export type JestReporterStep = {
@@ -1010,6 +1015,10 @@ export type JestReporterStep = {
 } | {
     readonly kind: "custom";
     readonly path: string;
+    readonly options: Readonly<Record<string, unknown>>;
+} | {
+    readonly kind: "host";
+    readonly name: string;
     readonly options: Readonly<Record<string, unknown>>;
 };
 
@@ -1505,6 +1514,7 @@ export interface NormalizeOptions {
     readonly ci?: boolean;
     readonly cwd?: string;
     readonly env?: NodeJS.ProcessEnv;
+    readonly hostReporters?: readonly string[];
     readonly requireResolve?: JestRequireResolve;
     readonly seed?: number;
 }

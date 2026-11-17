@@ -317,6 +317,58 @@ for (const fixture of CASES) {
   })
 }
 
+test('hostReporters: a bare host name is kept as given; a path is still resolved, as jest-config resolves it (D141)', async () => {
+  const root = writeTree(
+    config(`{ reporters: ['./provino', 'default', ['fake-reporter', { out: 'x' }]] }`, {
+      'provino.js': 'module.exports = class {}\n',
+    }),
+  )
+  trees.push(root)
+  const path = join(root, 'jest.config.js')
+  const withHosts = await readJestConfig(path, {
+    cwd: root,
+    requireResolve: oracleRequireResolve,
+    ci: oracle.defaults.ci === true,
+    seed: 0,
+    hostReporters: ['provino', 'html'],
+  })
+  const theirs = (await inDirectory(root, () =>
+    oracle.readConfig({ ...ORACLE_ARGV, _: [] }, path),
+  )) as { globalConfig: { reporters: unknown } }
+  // The path is a module for both: the host list changes nothing about it.
+  assert.deepEqual(withHosts.globalConfig.reporters, theirs.globalConfig.reporters)
+  assert.equal(
+    (withHosts.globalConfig.reporters as readonly (readonly unknown[])[])[0]?.[0],
+    join(root, 'provino.js'),
+  )
+
+  const named = writeTree(config(`{ reporters: ['provino', ['html', { outputFile: 'r.html' }]] }`))
+  trees.push(named)
+  const kept = await readJestConfig(join(named, 'jest.config.js'), {
+    cwd: named,
+    requireResolve: oracleRequireResolve,
+    ci: oracle.defaults.ci === true,
+    seed: 0,
+    hostReporters: ['provino', 'html'],
+  })
+  assert.deepEqual(kept.globalConfig.reporters, [
+    ['provino', {}],
+    ['html', { outputFile: 'r.html' }],
+  ])
+  // Without the list, the bare name is a module Jest can't find, with Jest's text.
+  await assert.rejects(
+    readJestConfig(join(named, 'jest.config.js'), {
+      cwd: named,
+      requireResolve: oracleRequireResolve,
+      ci: oracle.defaults.ci === true,
+      seed: 0,
+    }),
+    (error: unknown) =>
+      error instanceof JestConfigError &&
+      error.message === 'Could not resolve a module for a custom reporter.\n  Module name: provino',
+  )
+})
+
 test('about 30 distilled configs', () => {
   assert.ok(CASES.length >= 30, `${CASES.length}`)
 })
