@@ -1,5 +1,11 @@
 # provino
 
+## 0.1.0-rc.4
+
+### Patch Changes
+
+- ed9eb4e: The first test file to load a package with a `browser` build (Emotion under jsdom, through MUI) now gets the environment's build from that first load, as later files and Jest do, rather than Node's build alongside it.
+
 ## 0.1.0-rc.3
 
 ### Patch Changes
