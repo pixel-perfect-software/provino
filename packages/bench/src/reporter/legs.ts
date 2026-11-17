@@ -244,11 +244,30 @@ export function runHeapLeg(tests: number, rounds: number): HeapResult {
   }
 }
 
-/** The stream through the bus, into a sink, with the real scheduler; events per second. */
-async function throughput(
+/** The width of a batch of the paced replay: events due in each 10 ms are sent together. */
+const BATCH_MS = 10
+
+/** What one paced replay measured. */
+interface PacedRun {
+  readonly perSec: number
+  readonly withEndPerSec: number
+  readonly waitMedianMs: number
+  readonly waitP99Ms: number
+}
+
+/**
+ * The stream through the bus into a sink, with the real scheduler, at `testsPerSec`: the events
+ * are spread evenly over the run's time and sent in batches, each at its slot on the monotonic
+ * clock (`start + k x 10 ms`). A batch that is late is sent as soon as the loop is free, never
+ * skipped, and the loop yields between events' turns so the frame timer can fire. Each event's
+ * wait is the time from its batch's scheduled send to the end of its delivery through the bus.
+ */
+async function pacedReplay(
   events: readonly StreamEvent[],
+  tests: number,
+  testsPerSec: number,
   sink: TerminalStream,
-): Promise<{ readonly perSec: number; readonly withEndPerSec: number }> {
+): Promise<PacedRun> {
   const reporter = provinoReporter({
     stream: sink,
     live: true,
@@ -260,53 +279,76 @@ async function throughput(
   const bus = createReporterBus([reporter])
   const emit = bus.emit.bind(bus) as (name: string, ...args: readonly unknown[]) => Promise<void>
   const last = events.length - 1
+  const durationMs = (tests / testsPerSec) * 1000
+  const waits = new Float64Array(last)
   const start = performance.now()
-  for (let i = 0; i < last; i++) {
-    const event = events[i] as StreamEvent
-    await emit(event.name, ...event.args)
-    // Workers' messages arrive in separate turns of the event loop; without these the timer could never fire.
-    if (i % 100 === 0) await new Promise<void>((resolve) => setImmediate(resolve))
+  let sent = 0
+  for (let batch = 0; sent < last; batch++) {
+    const due = start + batch * BATCH_MS
+    const delay = due - performance.now()
+    if (delay > 1) await new Promise<void>((resolve) => setTimeout(resolve, delay))
+    else await new Promise<void>((resolve) => setImmediate(resolve))
+    const upTo = Math.min(last, Math.ceil((((batch + 1) * BATCH_MS) / durationMs) * last))
+    for (; sent < upTo; sent++) {
+      const event = events[sent] as StreamEvent
+      await emit(event.name, ...event.args)
+      waits[sent] = performance.now() - due
+    }
   }
   const beforeEnd = performance.now()
   const endEvent = events[last] as StreamEvent
   await emit(endEvent.name, ...endEvent.args)
   const end = performance.now()
+  const all = Array.from(waits)
   return {
     perSec: (last / (beforeEnd - start)) * 1000,
     withEndPerSec: (events.length / (end - start)) * 1000,
+    waitMedianMs: median(all),
+    waitP99Ms: quantile(all, 0.99),
   }
 }
 
 /**
- * `slow-sink`: the whole stream through the bus with the real scheduler, into a fast sink and into
- * one whose `write` takes `writeMs`, interleaved over `rounds`. The throughput counts the events
- * up to `run:end`: its flush is the one write nobody can skip, and `ratioWithEnd` counts it.
+ * `slow-sink`: the stream replayed at `testsPerSec` (default 5,000: about 10 s for 50,000 tests)
+ * through the bus with the real scheduler, into a fast sink and into one whose `write` takes
+ * `writeMs`, interleaved over `rounds`. Both sides are one sink implementation; `writeMs` 0 is
+ * the control. The throughput runs from the first event to the last delivered before `run:end`:
+ * its flush is the one write nobody can skip, and `ratioWithEnd` counts it. The wait of each event
+ * is printed for both, with no bar.
  */
 export async function runSlowSinkLeg(
   tests: number,
   rounds: number,
+  testsPerSec = 5000,
   writeMs = 5,
 ): Promise<SlowSinkResult> {
   const stream = buildStream(specForTests(tests))
-  const fast: number[] = []
-  const slow: number[] = []
-  const fastEnd: number[] = []
-  const slowEnd: number[] = []
+  const runs: Record<'fast' | 'slow', PacedRun[]> = { fast: [], slow: [] }
   for (let round = 0; round < rounds + 1; round++) {
     const order = round % 2 === 0 ? (['fast', 'slow'] as const) : (['slow', 'fast'] as const)
     for (const subject of order) {
-      const result = await throughput(stream.events, countingSink(subject === 'fast' ? 0 : writeMs))
-      if (round === 0) continue // the first round is discarded
-      ;(subject === 'fast' ? fast : slow).push(result.perSec)
-      ;(subject === 'fast' ? fastEnd : slowEnd).push(result.withEndPerSec)
+      const result = await pacedReplay(
+        stream.events,
+        stream.counts.tests,
+        testsPerSec,
+        countingSink(subject === 'fast' ? 0 : writeMs),
+      )
+      if (round > 0) runs[subject].push(result) // the first round is discarded
     }
   }
+  const of = (subject: 'fast' | 'slow', pick: (run: PacedRun) => number): number =>
+    median(runs[subject].map(pick))
   return {
-    fastPerSec: median(fast),
-    slowPerSec: median(slow),
-    ratio: median(slow) / median(fast),
-    ratioWithEnd: median(slowEnd) / median(fastEnd),
+    fastPerSec: of('fast', (r) => r.perSec),
+    slowPerSec: of('slow', (r) => r.perSec),
+    ratio: of('slow', (r) => r.perSec) / of('fast', (r) => r.perSec),
+    ratioWithEnd: of('slow', (r) => r.withEndPerSec) / of('fast', (r) => r.withEndPerSec),
     slowWriteMs: writeMs,
+    testsPerSec,
+    fastWaitMedianMs: of('fast', (r) => r.waitMedianMs),
+    fastWaitP99Ms: of('fast', (r) => r.waitP99Ms),
+    slowWaitMedianMs: of('slow', (r) => r.waitMedianMs),
+    slowWaitP99Ms: of('slow', (r) => r.waitP99Ms),
     rounds,
   }
 }

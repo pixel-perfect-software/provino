@@ -1,9 +1,13 @@
 #!/usr/bin/env node
-// `pnpm bench:reporter [leg…] [--tests n] [--rounds n] [--samples n] [bar flags]` (B26 Phase 1,
+// `pnpm bench:reporter [leg…] [--tests n] [--rounds n] [--samples n] [--rate n] [--write-ms n]
+// [bar flags]` (B26 Phase 1,
 // D145): the live renderer's performance bars, one leg each, on a synthetic stream of 16 workers
 // and 2,000 files of 25 tests. Every number is `local`. Legs: `handlers` (the cost of each bus
 // handler), `frames` (a frame at 16 busy workers), `heap` (what the reporter retains), `slow-sink`
-// (events per second into a terminal whose write takes 5 ms), `first-frame` (on a pty). A bar is
+// (the stream replayed at `--rate` tests a second, default 5,000, about 10 s, in 10 ms batches on
+// real timers, into a fast sink and into one whose write takes `--write-ms`, default 5; 0 is the
+// control: events per second, and each event's wait from its scheduled send to the end of its
+// delivery, printed with no bar), `first-frame` (on a pty). A bar is
 // checked only when its flag is given: `--max-handler-us 1 --max-frame-p99-ms 2 --max-heap-mb 4
 // --max-heap-growth-mb 0.5 --min-slow-ratio 0.98 --max-first-frame-ms 50`. `e2e` is Phase 3's and
 // `html` Phase 5's. Exit 0 when nothing missed, 1 on a miss, 2 on bad usage.
@@ -88,11 +92,11 @@ for (const leg of flags.legs) {
       break
     }
     case 'slow-sink': {
-      const result = await runSlowSinkLeg(flags.tests, flags.rounds)
+      const result = await runSlowSinkLeg(flags.tests, flags.rounds, flags.rate, flags.writeMs)
       results.slowSink = result
       say(
         leg,
-        `slow-sink: ${fixed(result.fastPerSec, 0)} events/s into a fast sink, ${fixed(result.slowPerSec, 0)} into a ${result.slowWriteMs} ms sink: ratio ${fixed(result.ratio, 4)} (${fixed(result.ratioWithEnd, 4)} counting the end-of-run flush; ${result.rounds} interleaved rounds)`,
+        `slow-sink: ${fixed(result.fastPerSec, 0)} events/s into a fast sink, ${fixed(result.slowPerSec, 0)} into a ${result.slowWriteMs} ms sink: ratio ${fixed(result.ratio, 4)} (${fixed(result.ratioWithEnd, 4)} counting the end-of-run flush; ${result.rounds} interleaved rounds, ${result.testsPerSec} tests/s)\n  event wait: fast median ${fixed(result.fastWaitMedianMs)} ms p99 ${fixed(result.fastWaitP99Ms)} ms; slow median ${fixed(result.slowWaitMedianMs)} ms p99 ${fixed(result.slowWaitP99Ms)} ms`,
         result,
       )
       break

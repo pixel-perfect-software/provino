@@ -27,6 +27,10 @@ export interface ReporterFlags {
   readonly rounds: number
   /** First-frame samples. */
   readonly samples: number
+  /** The slow-sink leg's replay rate, in tests per second; default 5,000. */
+  readonly rate: number
+  /** The slow sink's write time in ms; default 5, and 0 is the control. */
+  readonly writeMs: number
   readonly maxHandlerUs: number | undefined
   readonly maxFrameP99Ms: number | undefined
   readonly maxHeapMb: number | undefined
@@ -59,6 +63,8 @@ export function parseReporterFlags(argv: readonly string[]): ReporterFlags {
         tests: { type: 'string' },
         rounds: { type: 'string' },
         samples: { type: 'string' },
+        rate: { type: 'string' },
+        'write-ms': { type: 'string' },
         'max-handler-us': { type: 'string' },
         'max-frame-p99-ms': { type: 'string' },
         'max-heap-mb': { type: 'string' },
@@ -94,6 +100,8 @@ export function parseReporterFlags(argv: readonly string[]): ReporterFlags {
     tests: whole('tests', values.tests, 50_000),
     rounds: whole('rounds', values.rounds, 5),
     samples: whole('samples', values.samples, 30),
+    rate: whole('rate', values.rate, 5000),
+    writeMs: parseLimit('write-ms', values['write-ms']) ?? 5,
     maxHandlerUs: parseLimit('max-handler-us', values['max-handler-us']),
     maxFrameP99Ms: parseLimit('max-frame-p99-ms', values['max-frame-p99-ms']),
     maxHeapMb: parseLimit('max-heap-mb', values['max-heap-mb']),
@@ -138,7 +146,10 @@ export interface HeapResult {
   readonly rounds: number
 }
 
-/** `slow-sink`: events per second into a fast sink and a slow one. */
+/**
+ * `slow-sink`: events per second into a fast sink and a slow one, on a stream replayed at a steady
+ * rate, and how long each event waited from its scheduled send to the end of its delivery.
+ */
 export interface SlowSinkResult {
   readonly fastPerSec: number
   readonly slowPerSec: number
@@ -146,6 +157,13 @@ export interface SlowSinkResult {
   /** The same, counting the end-of-run flush (the slow sink pays its write there). */
   readonly ratioWithEnd: number
   readonly slowWriteMs: number
+  /** The replay's rate, in tests per second. */
+  readonly testsPerSec: number
+  /** Each event's wait in ms (medians over the rounds); printed, with no bar. */
+  readonly fastWaitMedianMs: number
+  readonly fastWaitP99Ms: number
+  readonly slowWaitMedianMs: number
+  readonly slowWaitP99Ms: number
   readonly rounds: number
 }
 

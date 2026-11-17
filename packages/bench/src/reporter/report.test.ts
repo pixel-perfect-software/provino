@@ -43,6 +43,17 @@ test('no legs named is every leg; legs and bars parse', () => {
   assert.equal(flags.maxFrameP99Ms, undefined)
 })
 
+test('the replay rate and the slow-sink write time parse, with their defaults', () => {
+  const defaults = parseReporterFlags([])
+  assert.equal(defaults.rate, 5000)
+  assert.equal(defaults.writeMs, 5)
+  const flags = parseReporterFlags(['slow-sink', '--rate', '2500', '--write-ms', '0'])
+  assert.equal(flags.rate, 2500)
+  assert.equal(flags.writeMs, 0)
+  usageError(['--rate', '0'], /--rate needs a positive whole number/)
+  usageError(['--write-ms', 'slow'], /--write-ms needs a number/)
+})
+
 test('bad usage: unknown and later legs, bad numbers, unknown flags', () => {
   usageError(['nope'], /unknown leg "nope"/)
   usageError(['e2e'], /Phase 3/)
@@ -97,6 +108,11 @@ const slow = (ratio: number): SlowSinkResult => ({
   ratio,
   ratioWithEnd: ratio,
   slowWriteMs: 5,
+  testsPerSec: 5000,
+  fastWaitMedianMs: 0.1,
+  fastWaitP99Ms: 0.5,
+  slowWaitMedianMs: 0.2,
+  slowWaitP99Ms: 6,
   rounds: 3,
 })
 const first = (medianMs: number): FirstFrameResult => ({ samples: 30, medianMs, maxMs: medianMs })
