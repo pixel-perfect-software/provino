@@ -10,16 +10,39 @@ describe('takeProvinoFlags (provino jest)', () => {
       timingsFile: undefined,
       updateTimings: false,
       noEmoji: true,
+      views: {},
     })
     assert.deepEqual(takeProvinoFlags(['a.test', '--ci', '--no-emoji']).rest, ['a.test', '--ci'])
     assert.equal(takeProvinoFlags(['a.test', '--ci', '--no-emoji']).noEmoji, true)
     assert.equal(takeProvinoFlags(['a.test']).noEmoji, false)
   })
 
+  it('takes --tree and --map, in any place before --, as the provino reporter’s views', () => {
+    assert.deepEqual(takeProvinoFlags(['--tree', 'a.test']).views, { tree: true })
+    assert.deepEqual(takeProvinoFlags(['a.test', '--map']).views, { map: true })
+    assert.deepEqual(takeProvinoFlags(['--map', '-t', 'x', '--tree', '--ci']).views, {
+      tree: true,
+      map: true,
+    })
+    assert.deepEqual(takeProvinoFlags(['--map', '-t', 'x', '--tree', '--ci']).rest, [
+      '-t',
+      'x',
+      '--ci',
+    ])
+    assert.deepEqual(takeProvinoFlags(['a.test']).views, {})
+    // The flag is the exact word: Jest's own refusal of anything else is left to Jest.
+    assert.deepEqual(takeProvinoFlags(['--treeish', '--maps', '--tree=true']).rest, [
+      '--treeish',
+      '--maps',
+      '--tree=true',
+    ])
+  })
+
   it('leaves everything after -- to Jest: a pattern named like the flag is a pattern', () => {
-    const taken = takeProvinoFlags(['--update-timings', '--', '--no-emoji', '--timings'])
-    assert.deepEqual(taken.rest, ['--', '--no-emoji', '--timings'])
+    const taken = takeProvinoFlags(['--update-timings', '--', '--no-emoji', '--timings', '--tree'])
+    assert.deepEqual(taken.rest, ['--', '--no-emoji', '--timings', '--tree'])
     assert.equal(taken.noEmoji, false)
+    assert.deepEqual(taken.views, {})
     assert.equal(taken.updateTimings, true)
   })
 

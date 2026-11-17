@@ -25,9 +25,14 @@ import {
   type OutputEnvironment,
 } from '@provino/reporters'
 import type { FileInfo, FileResult, Reporter, TextStyle } from '@provino/types'
-import type { ReporterChoice } from '../types.ts'
+import type { ProvinoChoiceOptions, ReporterChoice } from '../types.ts'
 import { HOST_REPORTERS } from './reporter-names.ts'
-import { hostReporterChoice, selectsProvino, type TextExtras } from './reporters.ts'
+import {
+  hostReporterChoice,
+  selectsProvino,
+  type TextExtras,
+  viewsNeedProvino,
+} from './reporters.ts'
 import { UsageError } from './usage-error.ts'
 
 /**
@@ -63,6 +68,12 @@ function choiceName(choice: ReporterChoice): string | undefined {
   return undefined
 }
 
+/** The `provino` reporter the config named, with the views the command line adds to its options. */
+function withViews(choice: ReporterChoice, views: ProvinoChoiceOptions): ReporterChoice {
+  const own = Array.isArray(choice) && choice[0] === 'provino' ? choice[1] : {}
+  return ['provino', { ...own, ...views }]
+}
+
 /** Jest's default `summaryThreshold` (`SummaryReporter.ts`). */
 const DEFAULT_SUMMARY_THRESHOLD = 20
 
@@ -90,6 +101,12 @@ export async function setUpJestReporters(options: {
   readonly context?: JestReporterContext
   /** The project's `report.listTestsForSingleFile` (Jest's single-file rule). Default: off. */
   readonly listTestsForSingleFile?: boolean
+  /**
+   * `--tree` and `--map`: views of the `provino` reporter. With no reporter named they choose it
+   * (whatever the terminal, the verbosity or watch mode: an explicit ask for Provino's output);
+   * with reporters named they go to the `provino` one, and without it they are a usage error.
+   */
+  readonly views?: ProvinoChoiceOptions
 }): Promise<JestReporterSetup> {
   const { globalConfig, results } = options
   const environment = {
@@ -116,21 +133,24 @@ export async function setUpJestReporters(options: {
   // interactive terminal, not watch mode (D142), not verbose (D143), not a run that lists its one
   // file's tests. Provino's own output replaces Jest's `default` and `summary`; notify and coverage
   // stay, in Jest's places, and the seed and Jest's update command go to its end card.
+  const views = options.views ?? {}
+  const wantsViews = views.tree === true || views.map === true
   const provino =
     globalConfig.reporters === undefined &&
-    (await selectsProvino({
-      live: options.output.live,
-      watch,
-      verbose,
-      singleFile: {
-        listTestsForSingleFile: options.listTestsForSingleFile === true,
-        silent: globalConfig.silent === true,
-        verboseOff: globalConfig.verbose === false,
-        files: async () => (await options.filesPerProject()).reduce((sum, n) => sum + n, 0),
-      },
-    }))
+    (wantsViews ||
+      (await selectsProvino({
+        live: options.output.live,
+        watch,
+        verbose,
+        singleFile: {
+          listTestsForSingleFile: options.listTestsForSingleFile === true,
+          silent: globalConfig.silent === true,
+          verboseOff: globalConfig.verbose === false,
+          files: async () => (await options.filesPerProject()).reduce((sum, n) => sum + n, 0),
+        },
+      })))
   if (provino) {
-    const reporters: ReporterChoice[] = ['provino']
+    const reporters: ReporterChoice[] = [wantsViews ? ['provino', views] : 'provino']
     if (globalConfig.notify) {
       reporters.push(
         createNotifyReporter({
@@ -151,6 +171,10 @@ export async function setUpJestReporters(options: {
         updateCommand: jestUpdateCommand(options.env, watch),
       },
     }
+  }
+  // Named reporters: the views go to the `provino` one, or the run is refused before a module loads.
+  if (wantsViews && !plan.steps.some((step) => step.kind === 'host' && step.name === 'provino')) {
+    throw viewsNeedProvino(views)
   }
   let entries: Awaited<ReturnType<typeof loadJestReporters>>
   try {
@@ -191,7 +215,8 @@ export async function setUpJestReporters(options: {
       continue
     }
     if (step.kind === 'host') {
-      reporters.push(hostReporterChoice(step.name, step.options))
+      const choice = hostReporterChoice(step.name, step.options)
+      reporters.push(wantsViews && step.name === 'provino' ? withViews(choice, views) : choice)
       continue
     }
     const host = hosts[hosted++]

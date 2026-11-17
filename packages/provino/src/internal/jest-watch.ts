@@ -36,6 +36,7 @@ import {
 } from '@provino/orchestrator'
 import { type Environment, isCi, type TextSink } from '@provino/reporters'
 import type { FileFilter, RunRequest } from '@provino/types'
+import type { ProvinoChoiceOptions } from '../types.ts'
 import { workerStartupEnv } from './compile-cache.ts'
 import { type ExecuteOptions, executeProject } from './execute.ts'
 import { setUpJestReporters } from './jest-reporters.ts'
@@ -83,6 +84,8 @@ export interface JestWatchCommand {
   readonly pool: ExecuteOptions['pool']
   /** How the reporters' text looks for a run with this global config. */
   readonly display: (globalConfig: JestGlobalConfig, verbose: boolean) => DisplayOptions
+  /** `--tree` and `--map`: the views the `provino` reporter prints after each run. */
+  readonly views: ProvinoChoiceOptions
 }
 
 /** The keys a watch session can't apply yet, each with its task: refused before anything starts. */
@@ -238,6 +241,7 @@ export async function runJestWatch(command: JestWatchCommand): Promise<number> {
       output: outputFor({ env, stderr, ci: config.ci, colour: request.colour }),
       env,
       context: reporterContext,
+      views: command.views,
     })
     const [project, ...others] = projects
     if (project === undefined) throw new UsageError('the config has no project to run')

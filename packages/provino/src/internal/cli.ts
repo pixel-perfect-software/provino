@@ -3,7 +3,7 @@ import { ExitCode } from '@provino/orchestrator'
 import type { TextSink } from '@provino/reporters'
 import type { PoolKind } from '@provino/types'
 import { run } from '../run.ts'
-import type { ReporterChoice, RunOptions } from '../types.ts'
+import type { ProvinoChoiceOptions, ReporterChoice, RunOptions } from '../types.ts'
 import { detectProject } from './detect.ts'
 import { runJestCommand } from './jest-command.ts'
 import { quickAnswer } from './quick.ts'
@@ -13,6 +13,7 @@ import {
   isBuiltInReporter,
   isDocumentReporter,
 } from './reporter-names.ts'
+import { viewsNeedProvino } from './reporters.ts'
 import { USAGE } from './usage.ts'
 import { UsageError } from './usage-error.ts'
 
@@ -153,6 +154,22 @@ function parseReporters(
 }
 
 /**
+ * `--tree` and `--map` are options of the `provino` reporter: with no reporter named they choose
+ * it, with `provino` among the names they go to it, and beside other reporters alone they are a
+ * usage error.
+ */
+function withViews(
+  choices: readonly ReporterChoice[] | undefined,
+  views: ProvinoChoiceOptions,
+): readonly ReporterChoice[] | undefined {
+  if (views.tree !== true && views.map !== true) return choices
+  if (choices === undefined) return [['provino', views]]
+  const at = choices.indexOf('provino')
+  if (at === -1) throw viewsNeedProvino(views)
+  return choices.map((choice, index) => (index === at ? ['provino', views] : choice))
+}
+
+/**
  * Parses the arguments after `run`. A flag it doesn't know, a missing or bad value, or a missing
  * `--config` is a `UsageError`.
  * @internal
@@ -173,14 +190,18 @@ export function parseRunArgs(
     throw new UsageError(`--pool must be one of ${POOL_KINDS.join(', ')} (got "${values.pool}")`)
   }
   const names = values.reporter ?? []
-  const reporters = parseReporters(names, values.outputFile)
+  const named = parseReporters(names, values.outputFile)
+  const reporters = withViews(names.length === 0 ? undefined : named, {
+    ...(values.tree === true ? { tree: true as const } : {}),
+    ...(values.map === true ? { map: true as const } : {}),
+  })
   const options: RunOptions = {
     config: values.config,
     ...(values.maxWorkers === undefined
       ? {}
       : { maxWorkers: parseWhole(values.maxWorkers, '--maxWorkers') }),
     ...(values.pool === undefined ? {} : { pool: values.pool }),
-    ...(names.length === 0 ? {} : { reporters }),
+    ...(reporters === undefined ? {} : { reporters }),
     ...(values.ci === true ? { ci: true } : {}),
     ...(values.updateSnapshot === true ? { updateSnapshot: true } : {}),
     ...(values.passWithNoTests === true ? { passWithNoTests: true } : {}),
@@ -230,6 +251,8 @@ const OPTIONS = {
   timings: { type: 'string' },
   'update-timings': { type: 'boolean' },
   'no-emoji': { type: 'boolean' },
+  tree: { type: 'boolean' },
+  map: { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
 } as const satisfies ParseArgsOptionsConfig
 

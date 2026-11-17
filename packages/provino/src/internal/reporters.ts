@@ -263,14 +263,16 @@ export type ParsedChoice =
   | { readonly kind: 'object'; readonly reporter: Reporter }
 
 /**
- * The options of a `provino` reporter choice, checked: `tree` and `map` (B26 Phase 4 builds the
- * views, so until then either one is a usage error), nothing else.
+ * The options of a `provino` reporter choice, checked: the views `tree` and `map` (each `true`, or
+ * left out), nothing else.
  */
 function provinoOptions(options: unknown): ProvinoChoiceOptions {
   if (options === undefined) return {}
   if (!isRecord(options)) {
     throw new UsageError('the options of the provino reporter must be an object')
   }
+  let tree = false
+  let map = false
   for (const [key, value] of Object.entries(options)) {
     if (key !== 'tree' && key !== 'map') {
       throw new UsageError(`the provino reporter has no "${key}" option (it takes tree and map)`)
@@ -279,9 +281,26 @@ function provinoOptions(options: unknown): ProvinoChoiceOptions {
     if (value !== true) {
       throw new UsageError(`the "${key}" option of the provino reporter must be true`)
     }
-    throw new UsageError(`the provino reporter's ${key} view is not built yet (B26 Phase 4)`)
+    if (key === 'tree') tree = true
+    else map = true
   }
-  return {}
+  return { ...(tree ? { tree: true as const } : {}), ...(map ? { map: true as const } : {}) }
+}
+
+/**
+ * The usage error for `--tree` or `--map` given with reporters named and the `provino` reporter
+ * not among them: the views are the `provino` reporter's. Both `provino run` and `provino jest`
+ * throw it; each command turns it into its own exit code.
+ * @internal
+ */
+export function viewsNeedProvino(views: ProvinoChoiceOptions): UsageError {
+  const flags = [
+    ...(views.tree === true ? ['--tree'] : []),
+    ...(views.map === true ? ['--map'] : []),
+  ]
+  return new UsageError(
+    `${flags.join(' and ')} ${flags.length > 1 ? 'need' : 'needs'} the provino reporter`,
+  )
 }
 
 function isDocumentName(name: string): name is BuiltDocumentName {
@@ -479,6 +498,7 @@ const RUN_UPDATE_COMMAND = 're-run with `-u`'
 async function provinoFor(
   context: ReporterContext,
   output: OutputEnvironment,
+  views: ProvinoChoiceOptions,
 ): Promise<ProvinoReporter> {
   const live = await import('@provino/reporters/live')
   const { display, env } = context
@@ -499,6 +519,7 @@ async function provinoFor(
     ...(context.text?.seed === undefined ? {} : { seed: context.text.seed }),
     ...(display?.silent === true ? { silent: true } : {}),
     ...(display?.noStackTrace === true ? { noStackTrace: true } : {}),
+    ...(views.tree === true || views.map === true ? { views } : {}),
   })
 }
 
@@ -608,7 +629,9 @@ export async function reportersFor(
   const provinoAt = parsed.flatMap((choice, index) => (choice.kind === 'provino' ? [index] : []))
   if (provinoAt.length > 1) throw new UsageError('the provino reporter is named more than once')
   const at = provinoAt[0]
-  const provino = at === undefined ? undefined : await provinoFor(context, output)
+  const chosen = at === undefined ? undefined : parsed[at]
+  const provino =
+    chosen?.kind === 'provino' ? await provinoFor(context, output, chosen.options) : undefined
   try {
     const drawing = provino !== undefined && output.live
     const target: TextTarget = drawing

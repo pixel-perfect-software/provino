@@ -48,6 +48,12 @@ Options of provino run:
                                     with --shard: refresh it on an unsharded run
       --no-emoji                    The provino reporter draws plain symbols, not emoji (also
                                     PROVINO_EMOJI=0; provino jest takes it too)
+      --tree                        After the run, print the files folder by folder: a passing file
+                                    is one row, a file with a failure opens to its failed tests.
+                                    With no reporter named it chooses provino; beside others it is
+                                    an error (provino jest takes it too)
+      --map                         After the end card, print one cell per file, a row per folder
+                                    (the same rules as --tree)
   -h, --help                        Print this text
       --version                     Print the version of provino
 

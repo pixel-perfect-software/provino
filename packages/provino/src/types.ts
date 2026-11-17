@@ -24,14 +24,17 @@ export interface JUnitChoiceOptions {
 }
 
 /**
- * The options the `provino` reporter takes through `run()`: the views beside its live output
- * (B26 Phase 4 builds them; until then either one is a usage error).
+ * The options the `provino` reporter takes through `run()`: the views it prints beside its live
+ * output (`--tree`, `--map`).
  * @public
  */
 export interface ProvinoChoiceOptions {
-  /** List every test as a tree after the run. */
+  /**
+   * After the run's lines, before the end card: the files folder by folder. A file that passed is
+   * one row; a file with a failure opens down to the failed tests.
+   */
   readonly tree?: true
-  /** Show the status map of every file after the run. */
+  /** After the end card: one cell per file, a row per folder. */
   readonly map?: true
 }
 
