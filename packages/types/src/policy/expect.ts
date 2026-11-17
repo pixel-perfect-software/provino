@@ -19,8 +19,9 @@ export interface ExpectPolicy {
    * Where the assertion counters made outside any test go (module scope, `beforeAll`, an
    * `afterAll` after a test's end). `drop`: they count for no test. `next-test`: they go to the
    * next test to end, and what is left after the file's last test is dropped.
-   * Jest: `next-test`, research: `expect/src/index.ts` L310-351 and `jestAdapterInit.ts` L354-391
-   * (pending B23f-counts). Vitest: `drop`, pending T11.16. Neutral: `drop`, Provino's own.
+   * Jest: `next-test` (`fixtures/expect/policies/assertions-outside-test`; jest-circus resets the
+   * counters only at `test_done`, `jestAdapterInit.ts` L362-367). Vitest: `drop`, pending T11.16.
+   * Neutral: `drop`, Provino's own.
    */
   readonly outsideTestCounts: 'drop' | 'next-test'
   /** Whether `expect.poll` fails on timeout. Jest: no `expect.poll` (any value; `poll.enabled` is off). Vitest: `true`. research: track-01 L222 */
