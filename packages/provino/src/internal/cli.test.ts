@@ -26,6 +26,23 @@ describe('parseRunArgs', () => {
     })
   })
 
+  it('--no-emoji is RunOptions.emoji false, and provino and html are reporter names (D141, D144)', () => {
+    assert.deepEqual(parseRunArgs(['-c', 'c.mjs', '--no-emoji', '--reporter', 'provino']), {
+      type: 'run',
+      options: { config: 'c.mjs', reporters: ['provino'], emoji: false },
+    })
+    // html is a document reporter's name, so it takes --outputFile; building it is Phase 5's.
+    assert.deepEqual(
+      parseRunArgs(['-c', 'c.mjs', '--reporter', 'html', '--outputFile', 'r.html']),
+      {
+        type: 'run',
+        options: { config: 'c.mjs', reporters: [['html', { outputFile: 'r.html' }]] },
+      },
+    )
+    usageError(['-c', 'c.mjs', '--emoji'], /--emoji/)
+    usageError(['-c', 'c.mjs', '--reporter', 'provino', '--reporter', 'provino'], /more than once/)
+  })
+
   it('maps every flag to its option', () => {
     assert.deepEqual(
       parseRunArgs([

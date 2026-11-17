@@ -64,6 +64,7 @@ async function execute(
     stderr,
     reporters: options.reporters,
     env,
+    ...(options.emoji === false ? { display: { emoji: false } } : {}),
     pool,
     ...(options.cache === false ? { cache: false } : {}),
     testNamePattern: options.testNamePattern,

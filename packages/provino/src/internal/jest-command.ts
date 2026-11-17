@@ -64,6 +64,8 @@ import {
   withChangedCoverage,
 } from './jest-selection.ts'
 import type { JestWatchInput } from './jest-watch.ts'
+import { takeProvinoFlags } from './provino-flags.ts'
+import { HOST_REPORTERS } from './reporter-names.ts'
 import { type DisplayOptions, outputFor, styleFor, styleOf } from './reporters.ts'
 import {
   chooseProjects,
@@ -188,9 +190,11 @@ function report(diagnostics: readonly Diagnostic[], stderr: NodeJS.WritableStrea
 function presentation(
   read: { readonly verbose: boolean; readonly globalConfig: JestGlobalConfig },
   request: RunRequest,
+  noEmoji: boolean,
 ): DisplayOptions {
   const { globalConfig } = read
   return {
+    ...(noEmoji ? { emoji: false as const } : {}),
     ...(read.verbose
       ? { verbose: true }
       : globalConfig.verbose === false
@@ -251,14 +255,15 @@ async function readProjects(
    */
   readonly noConfig: boolean
 }> {
-  const reader = createJestConfigReader({ argv, cwd })
+  // `provino` and `html` are Provino's own reporters, never modules to resolve (D141).
+  const reader = createJestConfigReader({ argv, cwd, hostReporters: HOST_REPORTERS })
   // `--projects a b`: Jest reads those paths' configs and looks for none from the working
   // directory (`getProjectListFromCLIArgs`, then `readConfigs(argv, projects)`).
   const projectPaths = Array.isArray(argv.projects) ? argv.projects.map(String) : []
   let resolved: Awaited<ReturnType<typeof reader.resolve>>
   let noConfig = false
   if (projectPaths.length > 0) {
-    const read = await readJestConfigs(projectPaths, { argv, cwd })
+    const read = await readJestConfigs(projectPaths, { argv, cwd, hostReporters: HOST_REPORTERS })
     resolved = {
       value: {
         globalConfig: read.globalConfig,
@@ -300,46 +305,6 @@ async function readProjects(
 interface ShardRequest {
   readonly shard: ShardSpec | undefined
   readonly timingsFile: string | undefined
-}
-
-/**
- * Takes Provino's own `--timings <file>` / `--timings=<file>` and `--update-timings` out of a
- * `provino jest` command line, since Jest's parser would refuse them as unknown flags. Everything
- * after a `--` is Jest's (a path pattern named like a flag is a pattern), and a `--timings` whose
- * value is missing, empty or another flag is a usage error, so it never takes the next flag.
- */
-function takeTimingsFlags(args: readonly string[]): {
-  readonly rest: readonly string[]
-  readonly timingsFile: string | undefined
-  readonly updateTimings: boolean
-} {
-  const rest: string[] = []
-  let timingsFile: string | undefined
-  let updateTimings = false
-  // `--timings=-x` names a file called `-x`; the next argument of `--timings x` that starts with `-` is a flag.
-  const needsPath = (value: string | undefined, spaced: boolean): string => {
-    if (value === undefined || value === '' || (spaced && value.startsWith('-'))) {
-      throw new UsageError('--timings needs the path of a timings file')
-    }
-    return value
-  }
-  for (let index = 0; index < args.length; index++) {
-    const arg = args[index] as string
-    if (arg === '--') {
-      rest.push(...args.slice(index))
-      break
-    }
-    if (arg === '--update-timings') {
-      updateTimings = true
-    } else if (arg === '--timings') {
-      timingsFile = needsPath(args[++index], true)
-    } else if (arg.startsWith('--timings=')) {
-      timingsFile = needsPath(arg.slice('--timings='.length), false)
-    } else {
-      rest.push(arg)
-    }
-  }
-  return { rest, timingsFile, updateTimings }
 }
 
 /** The real path of the working directory, as jest-config's `normalize` keeps it (`tryRealpath`). */
@@ -580,7 +545,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
   /** What `--filter` threw (loading it, its `setup`, or a bad result): Jest ends with that error's stack. */
   let filterError: unknown
   try {
-    const { rest, timingsFile, updateTimings } = takeTimingsFlags(args)
+    const { rest, timingsFile, updateTimings, noEmoji } = takeProvinoFlags(args)
     const parsed = jestCli.parse(rest)
     if (report(parsed.diagnostics, stderr)) return usage
     const parsedRequest = jestCli.toRunRequest(parsed.argv)
@@ -682,6 +647,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
           presentation(
             { verbose: verbose || selectedVerbose(globalConfig, selectedConfigs), globalConfig },
             request,
+            noEmoji,
           ),
         ...(watchFilter === undefined ? {} : { filter: watchFilter }),
         ...(hooks === undefined ? {} : { globalSetup: hooks }),
@@ -971,6 +937,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
           globalConfig: read.globalConfig,
         },
         request,
+        noEmoji,
       ),
       pool: poolFor(read.globalConfig, request),
       ...(request.cache === false || !read.cache ? { cache: false } : {}),

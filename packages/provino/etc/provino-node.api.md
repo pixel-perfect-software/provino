@@ -5,6 +5,11 @@
 ```ts
 
 // @public
+export interface HtmlChoiceOptions {
+    readonly outputFile?: string;
+}
+
+// @public
 export interface JUnitChoiceOptions {
     readonly name?: string;
     readonly outputFile?: string;
@@ -17,7 +22,13 @@ export interface NormalizedJsonChoiceOptions {
 }
 
 // @public
-export type ReporterChoice = "default" | "verbose" | "dot" | "agent" | "github-actions" | "summary" | "json" | "normalized-json" | "junit" | readonly ["json" | "normalized-json", NormalizedJsonChoiceOptions] | readonly ["junit", JUnitChoiceOptions] | Reporter;
+export interface ProvinoChoiceOptions {
+    readonly map?: true;
+    readonly tree?: true;
+}
+
+// @public
+export type ReporterChoice = "default" | "verbose" | "dot" | "agent" | "github-actions" | "summary" | "json" | "normalized-json" | "junit" | "provino" | "html" | readonly ["json" | "normalized-json", NormalizedJsonChoiceOptions] | readonly ["junit", JUnitChoiceOptions] | readonly ["provino", ProvinoChoiceOptions] | readonly ["html", HtmlChoiceOptions] | Reporter;
 
 // @public
 export function run(options: RunOptions): Promise<RunResult>;
@@ -30,6 +41,7 @@ export interface RunOptions {
     readonly config: string;
     readonly cwd?: string;
     readonly detectOpenHandles?: boolean;
+    readonly emoji?: false;
     readonly env?: Readonly<Record<string, string | undefined>>;
     readonly fileTimeoutMs?: number;
     readonly forceSignal?: AbortSignal;

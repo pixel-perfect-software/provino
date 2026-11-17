@@ -2,8 +2,10 @@
 import type { PoolKind, Reporter, RunSummary } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 import {
+  type HtmlChoiceOptions,
   type JUnitChoiceOptions,
   type NormalizedJsonChoiceOptions,
+  type ProvinoChoiceOptions,
   type ReporterChoice,
   type RunOptions,
   type RunResult,
@@ -45,6 +47,17 @@ for (const name of [
 }
 expectTypeOf<readonly ['json', NormalizedJsonChoiceOptions]>().toExtend<ReporterChoice>()
 expectTypeOf<readonly ['junit', JUnitChoiceOptions]>().toExtend<ReporterChoice>()
+// B26: the provino reporter (D135) and the reserved html one (D141).
+expectTypeOf<'provino'>().toExtend<ReporterChoice>()
+expectTypeOf<'html'>().toExtend<ReporterChoice>()
+expectTypeOf<readonly ['provino', ProvinoChoiceOptions]>().toExtend<ReporterChoice>()
+expectTypeOf<readonly ['html', HtmlChoiceOptions]>().toExtend<ReporterChoice>()
+expectTypeOf<ProvinoChoiceOptions>().toEqualTypeOf<{
+  readonly tree?: true
+  readonly map?: true
+}>()
+expectTypeOf<HtmlChoiceOptions>().toEqualTypeOf<{ readonly outputFile?: string }>()
+expectTypeOf<RunOptions['emoji']>().toEqualTypeOf<false | undefined>()
 expectTypeOf<JUnitChoiceOptions>().toEqualTypeOf<{
   readonly outputFile?: string
   readonly name?: string
@@ -102,6 +115,14 @@ void run({ config: 'c.mjs', reporters: [['normalized-json', { outputFile: 1 }]] 
 void run({ config: 'c.mjs', reporters: [['default', { outputFile: 'out.json' }]] })
 // @ts-expect-error normalized-json has no such option
 void run({ config: 'c.mjs', reporters: [['normalized-json', { pretty: true }]] })
+// @ts-expect-error the provino reporter has no emoji option (it is RunOptions.emoji)
+void run({ config: 'c.mjs', reporters: [['provino', { emoji: 'no' }]] })
+// @ts-expect-error a view is turned on with true, never off
+void run({ config: 'c.mjs', reporters: [['provino', { tree: false }]] })
+// @ts-expect-error the html output file is a string
+void run({ config: 'c.mjs', reporters: [['html', { outputFile: 1 }]] })
+// @ts-expect-error emoji is only turned off
+void run({ config: 'c.mjs', emoji: true })
 // @ts-expect-error maxWorkers is a number
 void run({ config: 'c.mjs', maxWorkers: '2' })
 // @ts-expect-error cache is a boolean
