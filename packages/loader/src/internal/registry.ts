@@ -19,6 +19,7 @@ import { dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { ModuleId, ModuleMockRegistry, ModuleScopeValues, ResolveKind } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
+import { reevaluatesExternals } from '../reevaluation.ts'
 import { claimedLoad, demoteOnParseFailure, isClaimedUserModule } from './claims.ts'
 import {
   claimedReach,
@@ -187,10 +188,11 @@ export class Registry {
   readonly #dynamicLoads = new Map<ModuleId, Set<ModuleId>>()
 
   /**
-   * Whether this registry evaluates externals again per file (`reevaluateHookingExternals`, D127,
-   * D132): never one that outlives its files (`sharedAcrossFiles`, isolation `none`), which keeps
-   * every module it evaluated, so neither watches nor inlines for it. Each file is not evaluated
-   * again under `none` by design, so neither is an external.
+   * Whether this registry evaluates externals again per file (`reevaluateHookingExternals` or
+   * `reevaluatePatchingExternals`, D127, D132): never one that outlives its files
+   * (`sharedAcrossFiles`, isolation `none`), which keeps every module it evaluated, so neither
+   * watches nor inlines for it. Each file is not evaluated again under `none` by design, so
+   * neither is an external.
    */
   readonly #reevaluates: boolean
   /**
@@ -204,7 +206,7 @@ export class Registry {
   constructor(state: Records, sharedAcrossFiles = false) {
     this.#state = state
     this.#maps = [new Map()]
-    this.#reevaluates = state.options.policy.reevaluateHookingExternals && !sharedAcrossFiles
+    this.#reevaluates = reevaluatesExternals(state.options.policy) && !sharedAcrossFiles
     this.#freshWrappers = !sharedAcrossFiles
   }
 
@@ -399,8 +401,17 @@ export class Registry {
 
   // ---- the runner's own loads: never mocked themselves ----
 
-  /** The runner's `import(specifier)` of a setup or test file: link asynchronously, then evaluate. */
-  async load(specifier: string, importer: string, isTest: boolean): Promise<object> {
+  /**
+   * The runner's `import(specifier)` of a setup or test file: link asynchronously, then evaluate.
+   * `evaluated` is called as the file's own evaluation ends (`ImportFile`): at once for a module
+   * that evaluates synchronously, when its promise settles for one that waits.
+   */
+  async load(
+    specifier: string,
+    importer: string,
+    isTest: boolean,
+    evaluated?: () => void,
+  ): Promise<object> {
     const target = this.#maybeInline(
       resolveTarget(this.#state, specifier, importer, 'import'),
       true,
@@ -410,7 +421,16 @@ export class Registry {
     this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, isTest)
     await linkAsync(this.#state, record)
-    return this.#evaluateForImport(record)
+    const value = this.#evaluateForImport(record)
+    if (evaluated === undefined) return value
+    if (!(value instanceof Promise)) {
+      evaluated()
+      return value
+    }
+    return value.then((settled) => {
+      evaluated()
+      return settled
+    })
   }
 
   /** The runner's `require(specifier)`: link and evaluate synchronously. */

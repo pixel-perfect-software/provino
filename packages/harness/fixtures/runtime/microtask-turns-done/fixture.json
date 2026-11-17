@@ -1,0 +1,4 @@
+{
+  "description": "The microtask turns a promise chain gets after `done` is called in a beforeEach, an afterEach and a test, called synchronously and from a 20 ms timer, under the node environment. The line is `<function that called done> -> <function that started>: <turns>`. Jest only.",
+  "runners": ["jest"]
+}

@@ -49,13 +49,13 @@ export interface CorePass {
 }
 
 /**
- * Which boundary turns the pass runs with: `none` (`ZERO_TURNS`, every turn and event count 0: core's
+ * Which boundary turns the pass runs with: `none` (`ZERO_TURNS`, every turn 0: core's
  * own overhead, the bar's configuration, whatever the neutral values become, D133) or `jest` (the Jest dialect's own, its whole core policy).
  * @public
  */
 export type CoreTurns = 'none' | 'jest'
 
-/** Every turn and every event count at zero (D133): the bar measures core's own overhead, whatever the neutral values become. */
+/** Every turn at zero (D133): the bar measures core's own overhead, whatever the neutral values become. */
 const ZERO_TURNS: BoundaryTurns = {
   hookStart: 0,
   hookEnd: 0,
@@ -68,19 +68,8 @@ const ZERO_TURNS: BoundaryTurns = {
   suiteEnd: 0,
   runStart: 0,
   retry: 0,
-  events: {
-    hookStart: 0,
-    hookEnd: 0,
-    fnStart: 0,
-    fnEnd: 0,
-    testStart: 0,
-    testEnd: 0,
-    skippedTest: 0,
-    suiteStart: 0,
-    suiteEnd: 0,
-    runStart: 0,
-    retry: 0,
-  },
+  retryEnd: 0,
+  retryExit: 0,
 }
 
 const JEST_CORE: CorePolicy = resolvePolicy(jestPolicy).core

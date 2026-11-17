@@ -88,9 +88,15 @@ export interface CurrentTest {
 /**
  * Loads a test file for the runtime to collect. The worker passes the loader's import here
  * (Track 1 §Module boundaries, rule 6), so the core never imports the loader.
+ *
+ * `evaluated`, when the loader can say so, is called synchronously as the file's own evaluation
+ * ends, before its import promise settles: the run's turn clock starts there (what a chain the
+ * module left running gets before the first function, `boundaryTurns.runStart`), not where the
+ * caller's `await` resumes, which depends on how many promise hops the loader takes. A loader that
+ * never calls it is counted from the settle.
  * @public
  */
-export type ImportFile = (path: string) => Promise<unknown>
+export type ImportFile = (path: string, evaluated?: () => void) => Promise<unknown>
 
 /**
  * The arguments a `.each` row passes: when every row is a tuple they spread, otherwise each row is

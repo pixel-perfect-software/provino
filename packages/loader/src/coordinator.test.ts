@@ -9,7 +9,12 @@ import { dirname, join } from 'node:path'
 import { after, test } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
 import type { SerializedLoaderConfig } from '@provino/types'
-import { type CoordinatorLoader, createCoordinatorLoader } from './coordinator.ts'
+import {
+  type CoordinatorLoader,
+  coordinatorModulePolicy,
+  createCoordinatorLoader,
+} from './coordinator.ts'
+import { reevaluatesExternals } from './reevaluation.ts'
 
 const roots: string[] = []
 after(() => {
@@ -259,4 +264,16 @@ test('resolveDependency takes the conditions a caller gives in place of the proj
   } finally {
     loader[Symbol.dispose]()
   }
+})
+
+test('the coordinator’s module policy has every reevaluate key off, whichever keys the policy has', () => {
+  const keys = Object.keys(neutralPolicy.module).filter((key) => key.startsWith('reevaluate'))
+  assert.ok(keys.length >= 2, 'the policy names its reevaluate keys')
+  const on = { ...neutralPolicy.module, mocksReachShared: true }
+  for (const key of keys) Reflect.set(on, key, true)
+  const policy = coordinatorModulePolicy(on)
+  for (const key of keys) assert.equal(Reflect.get(policy, key), false, key)
+  assert.equal(policy.mocksReachShared, false)
+  assert.equal(reevaluatesExternals(policy), false)
+  assert.equal(reevaluatesExternals(on), true)
 })

@@ -185,13 +185,18 @@ export interface ModulePolicy {
    */
   readonly reevaluateHookingExternals: boolean
   /**
-   * Whether a shared external that replaces a watched global or builtin export, while it loads or
-   * later while a test file runs, is evaluated per file from the next file on (as jest-runtime's
-   * per-file registry does for such a package). When `false`, nothing is watched for it and every
-   * such package stays shared, loaded natively once per worker. A no-op under isolation `none`.
+   * Whether a shared external whose first load, while a test file runs, adds a key to the global or
+   * replaces one is evaluated per file from the next file on, with what that load evaluated, as
+   * the externals `reevaluateHookingExternals` learns are. The environment's restore takes such a
+   * key away after the file, and a shared copy never writes it again (msw's interceptors add the
+   * context they mark their own connections with). An accessor that became a data key (a lazy
+   * global's first read) and a deleted key are not writes. When `false`, writes are not watched. A
+   * no-op under isolation `none`.
    *
-   * Jest: `true`, research: jest-runtime's per-file registry (pending B23f-msw). Vitest: `false`,
-   * pending T11.16. Neutral: `false` (speed: one evaluation per worker).
+   * Jest: `true`, as jest-runtime evaluates a package again on every file's fresh global; recorded
+   * by `ecosystem/load-time-global`, `ecosystem/msw-setup-file` and `ecosystem/msw-node` (Jest
+   * 30.5.2). Vitest: `false`, pending T11.16. Neutral: `false` (speed: one evaluation per worker,
+   * and no second walk of the global per watched load).
    */
   readonly reevaluatePatchingExternals: boolean
   /** Paths `automock` leaves real (Jest `unmockedModulePathPatterns`). Jest: `[]`. Vitest: `[]`. research: track-04 L316 */

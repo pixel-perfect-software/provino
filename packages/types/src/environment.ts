@@ -109,7 +109,7 @@ export interface EnvironmentInstance<G extends object = typeof globalThis> {
    */
   readonly globalReads?: GlobalReadWatch
   /** Jest's `handleTestEvent`: sees every lifecycle event of the file (worker-local; see `LifecycleEvent`). */
-  onTestEvent?(event: LifecycleEvent): void | Promise<void>
+  onTestEvent?(event: LifecycleEvent): void | PromiseLike<void>
   /**
    * Puts the global back. Returning nothing means a clean teardown; returning a report means it
    * restored everything it could and names the keys it could not. Throw only for an unexpected

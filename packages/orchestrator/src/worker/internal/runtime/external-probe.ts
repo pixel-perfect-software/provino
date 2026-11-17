@@ -21,6 +21,23 @@
 // redefining each one per window, which is what made a jsdom worker's first file pay hundreds of
 // `defineProperty` calls per external.
 //
+// Writes (B23f, `ModulePolicy.reevaluatePatchingExternals`): a load that adds a key to the global
+// or replaces one (`globalThis.__MSW_INTERNAL_CONNECTION_CONTEXT ??= …`, `globalThis.atob = …`)
+// counts too. The environment's restore takes the key away after the file, and the shared copy
+// never writes it again, where Jest's evaluation in each file's registry writes it on every
+// file's fresh global. So with `writes` on, the window's open keeps every own key's descriptor
+// (symbols too), and the close compares what the load left with it (`wroteGlobal`). The keys that
+// count are exactly those `@provino/env-shared`'s `snapshotProperties.restore` (every
+// environment's teardown) takes back: an added key it can delete (configurable, and no process
+// singleton), and a changed key it can define back. An accessor that became a data key is a write
+// unless the new value is Node's own: a native function, or what the old getter returns (Node's
+// lazy globals, `fetch` and `WebSocket` among them, settle that way on their first read). A key the
+// load deleted is not a write (the restore puts it back, and the shared copy never needed it), and
+// neither is an assignment of the value a key already held (the restore leaves it as it is).
+// **Limit:** an assignment through a get/set accessor whose value lives in a closure (`process`,
+// `performance`) leaves the descriptor as it was, and the restore replays the old value; that is
+// not seen, since reading those getters can run code (Node 26's `localStorage` warns).
+//
 // @internal
 import type { GlobalReadWatch } from '@provino/types'
 
@@ -92,12 +109,18 @@ export function perFileKeys(
   global: object,
   baseline: GlobalBaseline,
   covered?: GlobalReadWatch,
+  snapshot?: Map<string | symbol, PropertyDescriptor>,
 ): [string, PropertyDescriptor][] {
   const keys: [string, PropertyDescriptor][] = []
-  for (const key of Object.getOwnPropertyNames(global)) {
-    if (UNWATCHED.has(key)) continue
-    const descriptor = Object.getOwnPropertyDescriptor(global, key)
-    if (descriptor === undefined || descriptor.configurable !== true) continue
+  // With a snapshot to fill, one walk over every own key serves both; the reads look at strings.
+  const names =
+    snapshot === undefined ? Object.getOwnPropertyNames(global) : Reflect.ownKeys(global)
+  for (const key of names) {
+    const descriptor = Reflect.getOwnPropertyDescriptor(global, key)
+    if (descriptor === undefined) continue
+    snapshot?.set(key, descriptor)
+    if (typeof key !== 'string') continue
+    if (UNWATCHED.has(key) || descriptor.configurable !== true) continue
     if (covered?.covers(key, descriptor) === true) continue
     const base = baseline.get(key)
     if (base !== undefined && sameDescriptor(base, descriptor)) continue
@@ -162,27 +185,47 @@ function watchingAccessor(
   return { accessor, final: () => (original.writable === true ? { ...original, value } : original) }
 }
 
+/** What a window counts: a read of a per-file global (D127, D129), a write to the global (B23f). */
+export interface ProbeTriggers {
+  /** `ModulePolicy.reevaluateHookingExternals`: a read or write of a per-file key. */
+  readonly reads: boolean
+  /** `ModulePolicy.reevaluatePatchingExternals`: a key the load added or replaced. */
+  readonly writes: boolean
+}
+
+const READS_ONLY: ProbeTriggers = { reads: true, writes: false }
+
 /**
  * Turns each per-file key of `global` into an accessor that notes a read, for as long as one
  * external's first load runs, and listens to the environment's own accessors (`covered`) instead
  * of redefining theirs. Returns the call that puts every key back and says whether one was read
  * (or written: a package that sets a per-file global binds the file's too). An accessor and a
  * read-only data key get their exact descriptor back; a writable data key gets its descriptor
- * with the value it holds now.
+ * with the value it holds now. With `triggers.writes`, the call also says whether the load added
+ * or replaced a key of the global (see the header); with `triggers.reads` off, no key is redefined
+ * and no read is heard.
  */
 export function watchPerFileGlobals(
   global: object,
   baseline: GlobalBaseline,
   covered?: GlobalReadWatch,
+  triggers: ProbeTriggers = READS_ONLY,
 ): () => boolean {
   let touched = false
   const note = (): void => {
     touched = true
   }
+  if (!triggers.reads) {
+    // Writes alone: the descriptors, and none of the reads' work (no baseline, no covered keys).
+    if (!triggers.writes) return () => false
+    const before = ownDescriptors(global)
+    return () => wroteGlobal(global, before)
+  }
+  const snapshot = triggers.writes ? new Map<string | symbol, PropertyDescriptor>() : undefined
   const stopCovered = covered?.watch(note)
   const watched: Watched[] = []
   try {
-    for (const [key, original] of perFileKeys(global, baseline, covered)) {
+    for (const [key, original] of perFileKeys(global, baseline, covered, snapshot)) {
       const { accessor, final } = watchingAccessor(original, note)
       Object.defineProperty(global, key, accessor)
       watched.push({ key, accessor, final })
@@ -194,9 +237,119 @@ export function watchPerFileGlobals(
   }
   return () => {
     stopCovered?.()
+    // What the load left, read before the watched keys go back: a key still holding the window's
+    // accessor is what that accessor holds now (`final`), any other key is as the load left it.
+    const wrote = snapshot !== undefined && wroteGlobal(global, snapshot, leftIn(watched))
     restoreWatched(global, watched)
-    return touched
+    return touched || wrote
   }
+}
+
+/** Every own key of `global`, symbols too, with its descriptor. */
+function ownDescriptors(global: object): Map<string | symbol, PropertyDescriptor> {
+  const snapshot = new Map<string | symbol, PropertyDescriptor>()
+  for (const key of Reflect.ownKeys(global)) {
+    const descriptor = Reflect.getOwnPropertyDescriptor(global, key)
+    if (descriptor !== undefined) snapshot.set(key, descriptor)
+  }
+  return snapshot
+}
+
+/** How a key's descriptor reads as the load left it (see `wroteGlobal`'s `left`). */
+type LeftBy = (key: string | symbol, now: PropertyDescriptor) => PropertyDescriptor
+
+const AS_IT_IS: LeftBy = (_key, now) => now
+
+/** For the window's watched keys still holding their accessor, the descriptor they stand for. */
+function leftIn(watched: readonly Watched[]): LeftBy {
+  if (watched.length === 0) return AS_IT_IS
+  const byKey = new Map(watched.map((entry) => [entry.key, entry] as const))
+  return (key, now) => {
+    const entry = typeof key === 'string' ? byKey.get(key) : undefined
+    return entry !== undefined && now.get === entry.accessor.get ? entry.final() : now
+  }
+}
+
+/**
+ * Whether the load wrote a key the environment's restore will take back (see the header): an
+ * added key the restore deletes, or a changed one it can define back. `left` reads a key's current
+ * descriptor as the load left it (the window's own accessors stand for another).
+ */
+export function wroteGlobal(
+  global: object,
+  before: ReadonlyMap<string | symbol, PropertyDescriptor>,
+  left: LeftBy = AS_IT_IS,
+): boolean {
+  for (const key of Reflect.ownKeys(global)) {
+    const current = Reflect.getOwnPropertyDescriptor(global, key)
+    if (current === undefined) continue
+    const now = left(key, current)
+    const previous = before.get(key)
+    if (previous === undefined) {
+      // The restore deletes it, unless it can't (not configurable) or keeps it (a singleton).
+      if (now.configurable === true && !isProcessSingleton(key)) return true
+      continue
+    }
+    if (changedBy(previous, now, global, key) && restorable(previous, now)) return true
+  }
+  return false
+}
+
+/**
+ * Whether `now` is another write's than `previous`. An equal value is none (`Object.is`): the
+ * restore leaves an unchanged descriptor alone, so a re-assertion breaks nothing. An accessor that
+ * became a data key is a write unless the value is Node's own: a native function, or what the old
+ * getter gives (a lazy global settling on its first read).
+ */
+function changedBy(
+  previous: PropertyDescriptor,
+  now: PropertyDescriptor,
+  global: object,
+  key: string | symbol,
+): boolean {
+  if ('value' in previous) return !('value' in now) || !Object.is(previous.value, now.value)
+  if (!('value' in now)) return now.get !== previous.get
+  if (isNativeFunction(now.value)) return false
+  try {
+    return !Object.is(previous.get?.call(global), now.value)
+  } catch {
+    return true
+  } finally {
+    // A lazy getter settles itself again as it is read; the load's value is what stays.
+    Reflect.defineProperty(global, key, now)
+  }
+}
+
+function isNativeFunction(value: unknown): boolean {
+  return (
+    typeof value === 'function' &&
+    Function.prototype.toString.call(value).endsWith('{ [native code] }')
+  )
+}
+
+/**
+ * Whether `snapshotProperties.restore` can define `previous` back over `now`: always over a
+ * configurable key, and over a non-configurable one only as a new value of a writable data key.
+ */
+function restorable(previous: PropertyDescriptor, now: PropertyDescriptor): boolean {
+  if (now.configurable === true) return true
+  return (
+    'value' in now &&
+    'value' in previous &&
+    now.writable === true &&
+    previous.configurable !== true &&
+    previous.writable === true &&
+    now.enumerable === previous.enumerable
+  )
+}
+
+/**
+ * `@provino/env-shared`'s `isProcessSingleton` (`restore.ts`), copied: the worker node may not
+ * import an environment package. Symbols a package defines once per process, which the restore
+ * leaves in place.
+ */
+function isProcessSingleton(key: string | symbol): boolean {
+  return typeof key === 'symbol' && /^(graceful-fs\.queue|undici\.)/.test(key.description ?? '')
 }
 
 function restoreWatched(global: object, watched: readonly Watched[]): void {

@@ -23,12 +23,24 @@ const MODES = [
 ] as const
 
 describe('the turns a promise chain gets between hooks and tests are Jest 30.5.2`s', () => {
-  for (const id of ['runtime/microtask-turns', 'runtime/microtask-turns-jsdom']) {
+  for (const id of [
+    'runtime/microtask-turns',
+    'runtime/microtask-turns-jsdom',
+    'runtime/microtask-turns-skipped',
+    'runtime/microtask-turns-describe',
+    'runtime/microtask-turns-run-start',
+    'runtime/microtask-turns-run-start-test',
+    'runtime/microtask-turns-done',
+    'runtime/microtask-turns-retry',
+    'env/microtask-turns-handle-test-event',
+    'env/microtask-turns-handle-test-event-await',
+    'env/microtask-turns-handle-test-event-sync',
+  ]) {
     for (const [mode, flags] of MODES) {
       it(`${id}, ${mode}`, async () => {
         const fixture = await loadFixture(id)
         const recorded = fixture.golden.trace ?? []
-        assert.ok(recorded.length > 30, 'the recording traced every boundary')
+        assert.ok(recorded.length >= 1, 'the recording traced a boundary')
         const project = await materialize(fixture)
         try {
           await linkEnvironments(project.root)
@@ -48,15 +60,17 @@ describe('the turns a promise chain gets between hooks and tests are Jest 30.5.2
             cwd: project.root,
           })
           const got = (await readFile(traced, 'utf8')).trim().split('\n')
-          const at = got.findIndex((line, index) => line !== recorded[index])
-          assert.equal(
-            at,
-            -1,
-            `line ${at}:\n provino ${got[at]}\n jest    ${recorded[at]}\n${ended.stderr.slice(-1500)}`,
+          const differing = recorded.flatMap((line, index) =>
+            got[index] === line ? [] : [`line ${index}:\n provino ${got[index]}\n jest    ${line}`],
           )
+          assert.deepEqual(differing, [], ended.stderr.slice(-1500))
           assert.equal(got.length, recorded.length, 'as many lines as Jest traced')
           // The fixture's failing tests fail.
-          assert.equal(ended.code, 1, ended.stderr)
+          assert.equal(
+            ended.code,
+            fixture.golden.files.every((file) => file.status === 'passed') ? 0 : 1,
+            ended.stderr,
+          )
         } finally {
           await project.dispose()
         }

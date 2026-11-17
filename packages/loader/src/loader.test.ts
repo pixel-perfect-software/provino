@@ -2221,3 +2221,123 @@ test('transformClaims: a shared CommonJS package that requires a claimed ES modu
     assert.equal(instance.same, true, "the package's copy is the file's own, not Node's")
   }
 })
+
+/** A watcher like the worker's under `reevaluatePatchingExternals`: a key the load added is a write. */
+function writeProbe(watched: string[]): (path: string) => (() => boolean) | null {
+  return (path) => {
+    watched.push(path)
+    const before = new Set(Object.getOwnPropertyNames(globalThis))
+    return () => Object.getOwnPropertyNames(globalThis).some((key) => !before.has(key))
+  }
+}
+
+test('reevaluatePatchingExternals: an ES module package that adds a global as it loads is evaluated per file from the next file, with what only it imports', async () => {
+  const root = writeTree({
+    // ES modules only, loaded by a CommonJS file through Node's require(esm).
+    'node_modules/writes-esm/package.json': JSON.stringify({
+      name: 'writes-esm',
+      type: 'module',
+      exports: './index.js',
+    }),
+    'node_modules/writes-esm/index.js':
+      "import { tag } from 'writes-dep'\nimport shared from 'shared-dep'\nglobalThis.__provinoWritesEsm = (globalThis.__provinoWritesEsm ?? 0) + 1\nexport const token = {}\nexport const depToken = tag\nexport const sharedToken = shared.token\n",
+    // Imported by writes-esm alone: it joins the per-file set (D132).
+    'node_modules/writes-dep/package.json': JSON.stringify({
+      name: 'writes-dep',
+      type: 'module',
+      exports: './index.js',
+    }),
+    'node_modules/writes-dep/index.js': 'export const tag = {}\n',
+    // Imported by writes-esm and by a package that writes nothing: it stays shared.
+    'node_modules/shared-dep/package.json': JSON.stringify({
+      name: 'shared-dep',
+      main: 'index.js',
+    }),
+    'node_modules/shared-dep/index.js': 'module.exports = { token: {} }\n',
+    'node_modules/plain-cjs/package.json': JSON.stringify({ name: 'plain-cjs', main: 'index.js' }),
+    'node_modules/plain-cjs/index.js': "module.exports = { shared: require('shared-dep') }\n",
+    'a.test.js':
+      "module.exports = { plain: require('plain-cjs'), writes: require('writes-esm') }\n",
+    'b.test.js':
+      "module.exports = { plain: require('plain-cjs'), writes: require('writes-esm') }\n",
+  })
+  interface Written {
+    readonly plain: { readonly shared: { readonly token: object } }
+    readonly writes: {
+      readonly token: object
+      readonly depToken: object
+      readonly sharedToken: object
+    }
+  }
+  const loader = loaderFor(root, { reevaluatePatchingExternals: true, interopDefault: 'babel' })
+  const watched: string[] = []
+  loader.watchExternalLoads(writeProbe(watched))
+  const load = (name: string) =>
+    loader
+      .createFileRegistry(join(root, name), { tier: 'registry' })
+      .import<Written>(join(root, name))
+  const flag = (): unknown => Reflect.get(globalThis, '__provinoWritesEsm')
+  try {
+    const first = await load('a.test.js')
+    assert.deepEqual(
+      watched.map((path) => path.slice(root.length + 1)),
+      ['node_modules/plain-cjs/index.js', 'node_modules/writes-esm/index.js'],
+      'one window per external; what a load imports is part of its window',
+    )
+    assert.equal(flag(), 1)
+    const learned = loader.takeLearnedExternals().map((path) => path.slice(root.length + 1))
+    assert.ok(
+      learned.includes('node_modules/writes-esm/index.js'),
+      'the writing package is learned',
+    )
+    assert.ok(
+      !learned.some((path) => path.startsWith('node_modules/plain-cjs/')),
+      'a package that writes nothing is not',
+    )
+    assert.deepEqual(loader.takeLearnedExternals(), [], 'each is handed out once')
+    const second = await load('b.test.js')
+    assert.equal(flag(), 2, 'the second file evaluates the package again')
+    assert.notEqual(second.writes.token, first.writes.token, 'writes-esm is the second file’s own')
+    assert.notEqual(second.writes.depToken, first.writes.depToken, 'so is what only it imports')
+    assert.equal(
+      second.writes.sharedToken,
+      first.writes.sharedToken,
+      'a dependency a shared package imports too stays shared',
+    )
+    assert.equal(second.writes.sharedToken, second.plain.shared.token)
+    assert.deepEqual(
+      watched.slice(2).map((path) => path.slice(root.length + 1)),
+      ['node_modules/shared-dep/index.js'],
+      'only the shared dependency’s first load from a user module (the per-file copy) is a window',
+    )
+  } finally {
+    Reflect.deleteProperty(globalThis, '__provinoWritesEsm')
+  }
+})
+
+test('with both reevaluate keys off, no external load is watched', async () => {
+  const root = writeTree({
+    'node_modules/writes-cjs/package.json': JSON.stringify({
+      name: 'writes-cjs',
+      main: 'index.js',
+    }),
+    'node_modules/writes-cjs/index.js':
+      'globalThis.__provinoWritesCjs = true\nmodule.exports = {}\n',
+    'a.test.js': "module.exports = require('writes-cjs')\n",
+  })
+  const loader = loaderFor(root, {
+    reevaluatePatchingExternals: false,
+    reevaluateHookingExternals: false,
+  })
+  const watched: string[] = []
+  loader.watchExternalLoads(writeProbe(watched))
+  try {
+    await loader
+      .createFileRegistry(join(root, 'a.test.js'), { tier: 'registry' })
+      .import(join(root, 'a.test.js'))
+    assert.deepEqual(watched, [])
+    assert.deepEqual(loader.takeLearnedExternals(), [])
+  } finally {
+    Reflect.deleteProperty(globalThis, '__provinoWritesCjs')
+  }
+})

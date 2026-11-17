@@ -29,6 +29,7 @@ import { activate, promoteLearned, takeLearned } from './internal/reevaluate.ts'
 import { type FileContext, NO_FILE, Registry } from './internal/registry.ts'
 import { blankHashbang } from './internal/source.ts'
 import { isEvaluableExternal } from './internal/third-party.ts'
+import { reevaluatesExternals } from './reevaluation.ts'
 import { tierFor } from './tier.ts'
 
 function notYet(what: string, task: string): LoaderError {
@@ -90,9 +91,9 @@ export const createLoader: CreateLoader = (options) => {
      * name the test file in the error (Vitest's module runner does; an import from inside a test
      * doesn't go through here).
      */
-    const loadEntry = async (specifier: string): Promise<object> => {
+    const loadEntry = async (specifier: string, evaluated?: () => void): Promise<object> => {
       try {
-        return await registry.load(specifier, testFile, true)
+        return await registry.load(specifier, testFile, true, evaluated)
       } catch (error) {
         const code = error instanceof Error ? Reflect.get(error, 'code') : undefined
         if (code !== UNRESOLVED_RELATIVE_MOCK || !(error instanceof Error)) throw error
@@ -108,10 +109,10 @@ export const createLoader: CreateLoader = (options) => {
     const fileRegistry: FileRegistry = {
       file: testFile,
       tier: registryOptions.tier,
-      import: <T>(specifier: string, parent?: ModuleId | null) =>
+      import: <T>(specifier: string, parent?: ModuleId | null, evaluated?: () => void) =>
         (parent == null
           ? specifier === testFile
-            ? loadEntry(specifier)
+            ? loadEntry(specifier, evaluated)
             : registry.load(specifier, testFile, false)
           : registry.importFrom(specifier, parent)) as Promise<T>,
       require: <T>(specifier: string, parent?: ModuleId | null) =>
@@ -217,7 +218,7 @@ export const createLoader: CreateLoader = (options) => {
     },
     watchExternalLoads: (watcher) => {
       // With the policy off nothing is watched, so no window is ever opened.
-      if (!options.policy.reevaluateHookingExternals) return () => {}
+      if (!reevaluatesExternals(options.policy)) return () => {}
       state.reevaluate.watchers.add(watcher)
       return () => {
         state.reevaluate.watchers.delete(watcher)
@@ -225,7 +226,7 @@ export const createLoader: CreateLoader = (options) => {
     },
     takeLearnedExternals: () => takeLearned(state.reevaluate),
     reevaluateExternals: (paths) => {
-      if (!options.policy.reevaluateHookingExternals) return
+      if (!reevaluatesExternals(options.policy)) return
       // A set from an earlier run may name a file a reinstall removed, or one the loader can't
       // evaluate itself: those stay shared.
       activate(

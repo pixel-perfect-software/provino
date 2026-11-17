@@ -1,0 +1,19 @@
+{
+  "description": "A package that writes the global as it loads (load-flag): it adds `globalThis.__loadedFlag`, counting its evaluations, and replaces `globalThis.atob` with a wrapper named patchedAtob. Two files on one worker in the node environment each import it and assert both. Jest evaluates the package in every file's registry against a fresh global, so each file sees the flag at 1 and the wrapper; a runner that loads it once per worker and restores the global after each file leaves the second file with neither. No network. Read by `provino`'s `ecosystem-per-file.test.ts`.",
+  "runners": ["jest"],
+  "jestEsm": true,
+  "packages": {
+    "load-flag": {
+      "package.json": "{\"name\": \"load-flag\", \"version\": \"1.0.0\", \"main\": \"index.js\"}\n",
+      "index.js": "// Writes the global while it loads: one key added, one replaced.\nglobalThis.__loadedFlag = (globalThis.__loadedFlag ?? 0) + 1\nconst realAtob = globalThis.atob\nglobalThis.atob = function patchedAtob(data) {\n  return realAtob(data)\n}\nexports.loaded = true\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["-w", "1"]
+    },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json"],
+    "keepLines": "^ {2,}(?!at )\\S|^(Test Suites|Tests|Snapshots):|^Ran all test suites|^Test results written to:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

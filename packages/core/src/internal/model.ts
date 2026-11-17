@@ -223,4 +223,6 @@ export interface AttemptState {
   deadline: number | undefined
   /** What its user calls are invoked with, built on its first call (`Executor.#invokeEnv`). */
   invokeEnv: InvokeEnv | undefined
+  /** Whether this attempt runs in jest-circus's retry loop (`boundaryTurns.retryEnd`). */
+  readonly retryLoop: boolean
 }

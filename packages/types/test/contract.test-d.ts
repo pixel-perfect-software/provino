@@ -3,7 +3,6 @@
 // they need @provino/config or a real dialect package. A local `acme` dialect stands in here.
 import type {
   Behaviour,
-  BoundaryEvents,
   BoundaryTurns,
   Contribution,
   CorePolicy,
@@ -77,10 +76,8 @@ declare const expectPolicy: ExpectPolicy
 // @ts-expect-error `carry` is not a value of outsideTestCounts
 const countsCarry: ExpectPolicy = { ...expectPolicy, outsideTestCounts: 'carry' }
 void countsCarry
-expectTypeOf<BoundaryTurns['events']>().toEqualTypeOf<BoundaryEvents>()
-expectTypeOf<keyof BoundaryEvents>().toEqualTypeOf<Exclude<keyof BoundaryTurns, 'events'>>()
-// The eleven boundaries, spelled out: a boundary added to `BoundaryTurns` joins `events` with it.
-expectTypeOf<keyof BoundaryEvents>().toEqualTypeOf<
+// The thirteen boundaries, spelled out: every turn is a number a policy gives, and none may be left out.
+expectTypeOf<keyof BoundaryTurns>().toEqualTypeOf<
   | 'hookStart'
   | 'hookEnd'
   | 'fnStart'
@@ -92,21 +89,20 @@ expectTypeOf<keyof BoundaryEvents>().toEqualTypeOf<
   | 'suiteEnd'
   | 'runStart'
   | 'retry'
+  | 'retryEnd'
+  | 'retryExit'
 >()
-// @ts-expect-error `events` has no `events` of its own
-expectTypeOf<BoundaryEvents['events']>().toBeNumber()
 expectTypeOf<BoundaryTurns['skippedTest']>().toEqualTypeOf<number>()
 declare const turns: BoundaryTurns
-// @ts-expect-error `events` is required: the per-boundary event counts always come with the turns
-const noEvents: BoundaryTurns = { ...turns, events: undefined }
-void noEvents
-const withoutEvents: Omit<BoundaryTurns, 'events'> = turns
-// @ts-expect-error a `BoundaryTurns` without `events` is not a `BoundaryTurns`
-const turnsNoEvents: BoundaryTurns = withoutEvents
-void turnsNoEvents
-// @ts-expect-error an event count is a number
-const stringEvent: BoundaryTurns = { ...turns, events: { ...turns.events, hookStart: '1' } }
-void stringEvent
+// @ts-expect-error a boundary is required: a missing one would be `undefined`, and `0 > n` skips it
+const noRetryEnd: BoundaryTurns = { ...turns, retryEnd: undefined }
+void noRetryEnd
+// @ts-expect-error a turn is a number
+const stringTurn: BoundaryTurns = { ...turns, hookStart: '1' }
+void stringTurn
+// @ts-expect-error `events` is not a boundary: the listener's turns come from awaiting it
+const events: BoundaryTurns = { ...turns, events: {} }
+void events
 // Data keys pass through unchanged.
 expectTypeOf<SerializedPolicy['core']['nameSeparator']>().toEqualTypeOf<string>()
 expectTypeOf<SerializedPolicy['module']['unmockedPathPatterns']>().toEqualTypeOf<

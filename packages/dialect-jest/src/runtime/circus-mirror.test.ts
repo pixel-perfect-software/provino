@@ -53,6 +53,29 @@ async function observe(
 const names = (seen: readonly Seen[]): string[] => seen.map((entry) => entry.name)
 
 describe('the circus mirror', () => {
+  test('a handler result whose then throws fails the run, as circus`s await would', {
+    timeout: 5000,
+  }, async () => {
+    // `test_started` is answered with the adapter's two hook events after it, awaited in turn.
+    const seen = await observe(
+      ({ test }) => {
+        test('a', () => undefined)
+      },
+      {},
+      (event) => {
+        if (event.name !== 'test_started') return undefined
+        return {
+          // biome-ignore lint/suspicious/noThenProperty: a thenable on purpose
+          then() {
+            throw new Error('then threw')
+          },
+        } as unknown as Promise<void>
+      },
+    )
+    // The run ended at that event: no hook event came after it, and the call did not hang.
+    assert.equal(names(seen).includes('hook_start'), false)
+  })
+
   test('a handler sees the tree as circus builds it: names, parents, modes, hooks', async () => {
     const seen = await observe(({ describe, test, beforeEach }) => {
       describe('outer', () => {
