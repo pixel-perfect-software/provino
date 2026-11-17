@@ -49,8 +49,11 @@ interface Fake {
   readonly peak: () => number
   /** Files each worker ran, by worker id. */
   readonly ran: Map<number, string[]>
-  /** Ends a worker that `unkillable` kept alive, as the operating system eventually would. */
-  readonly end: (workerId: number) => void
+  /**
+   * Ends a worker the way the operating system would: killed, unless `exit` says otherwise (a
+   * signal sent to the process group, say). Also what ends one that `unkillable` kept alive.
+   */
+  readonly end: (workerId: number, exit?: WorkerExit) => void
   /** Every job a worker was sent, with the id of that worker. */
   readonly jobs: { readonly workerId: number; readonly job: FileJob }[]
   /** The init each worker was started with, in the order the factory was asked. */
@@ -80,7 +83,7 @@ function fake(
   const ran = new Map<number, string[]>()
   const jobs: Fake['jobs'] = []
   const inits: WorkerInit[] = []
-  const enders = new Map<number, () => void>()
+  const enders = new Map<number, (exit?: WorkerExit) => void>()
   let attempts = 0
   let running = 0
   let peak = 0
@@ -117,8 +120,8 @@ function fake(
       const emit = (message: WorkerToCoordinator): void => {
         for (const listener of messages) listener(message)
       }
-      enders.set(init.workerId, () =>
-        finish({ type: 'signal', signal: 'SIGKILL', likelyOom: false }),
+      enders.set(init.workerId, (workerExit) =>
+        finish(workerExit ?? { type: 'signal', signal: 'SIGKILL', likelyOom: false }),
       )
       const transport: Transport = {
         kind,
@@ -209,7 +212,7 @@ function fake(
     exited,
     peak: () => peak,
     ran,
-    end: (id) => enders.get(id)?.(),
+    end: (id, exit) => enders.get(id)?.(exit),
     jobs,
     inits,
   }
@@ -708,6 +711,60 @@ describe('createPool', () => {
     await stuck
     await pool.close()
     assert.deepEqual(errors, [])
+  })
+
+  // A signal sent to the whole process group (what a task runner does to cancel) reaches the
+  // workers as it reaches the coordinator, so a worker can be heard dying of it before the run is
+  // told: that is part of the cancellation, not a lost worker or a crashed file.
+  describe('a signal sent to the whole process group', () => {
+    const sigint: WorkerExit = { type: 'signal', signal: 'SIGINT', likelyOom: false }
+
+    it('is no error of the run for an idle worker that dies of it before the run hears it', async () => {
+      const f = fake(() => 'ok')
+      const errors: unknown[] = []
+      const controller = new AbortController()
+      const pool = createPool(
+        options(1),
+        deps(f, { signal: controller.signal, onError: (error) => void errors.push(error) }),
+      )
+      await pool.run(request('a'))
+      const [worker] = f.started
+      assert.ok(worker !== undefined)
+      f.end(worker, sigint)
+      await sleep(20)
+      controller.abort('SIGINT')
+      await pool.close()
+      assert.deepEqual(errors, [])
+    })
+
+    it('is no crash of the file a worker was running when it dies of it before the run hears it', async () => {
+      const f = fake(() => 'hang')
+      const controller = new AbortController()
+      const pool = createPool(options(1), deps(f, { signal: controller.signal }))
+      const running = pool.run(request('a'))
+      await until(() => f.jobs.length === 1, 'the worker to take the file')
+      f.end(f.jobs[0]?.workerId ?? -1, sigint)
+      await sleep(20)
+      controller.abort('SIGINT')
+      assert.deepEqual(await running, { type: 'aborted' })
+      await pool.close()
+    })
+
+    it('is still reported when the run is never cancelled: a worker lost to a signal from outside', async () => {
+      const f = fake((file) => (file === 'stuck' ? 'hang' : 'ok'))
+      const errors: unknown[] = []
+      const pool = createPool(options(2), deps(f, { onError: (error) => void errors.push(error) }))
+      const stuck = pool.run(request('stuck'))
+      await pool.run(request('a'))
+      await until(() => f.jobs.length === 2, 'a worker to take each file')
+      assert.equal(f.started.length, 2)
+      for (const worker of f.started) f.end(worker, sigint)
+      const outcome = await stuck
+      assert.equal(outcome.type, 'crashed')
+      await until(() => errors.length === 1, 'the idle worker’s exit to be reported')
+      assert.equal((errors[0] as { code?: string }).code, 'ORCH_WORKER_EXITED')
+      await pool.close()
+    })
   })
 
   it('starts no worker for a pool that is already aborted', async () => {

@@ -19,11 +19,25 @@ import type {
 } from '@provino/types'
 import { connectWorker, type FileDone, type WorkerConnection } from './connect.ts'
 import { OrchestratorError } from './errors.ts'
+import { isRunSignal } from './exit-code.ts'
 import { sameWorkerKey, workerKeyId } from './key.ts'
 import { describeExit } from './transport/shared.ts'
 
 /** After this many workers in a row fail to start, the pool starts no more (Track 9). */
 const MAX_START_FAILURES = 3
+
+/**
+ * How long after a worker dies of SIGINT, SIGTERM or SIGHUP the run may still hear that signal
+ * itself. A task runner cancels with one signal to the whole process group, so the workers die of
+ * it as the coordinator receives it, and the exit can be seen first. A worker lost to such a signal
+ * with no cancellation within this window was killed by something else.
+ */
+const GROUP_SIGNAL_WINDOW_MS = 500
+
+/** Whether a worker ended of a signal that ends a run, which a group signal is. */
+function diedOfRunSignal(exit: WorkerExit): boolean {
+  return exit.type === 'signal' && isRunSignal(exit.signal)
+}
 
 /**
  * The default `maxWorkers`: every core but one, and at least one (Track 9 §Pool 4).
@@ -453,22 +467,48 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
   }
 
   /**
+   * Resolves `true` once the run's own signal (or the force signal) is aborted, `false` if that
+   * does not happen within `GROUP_SIGNAL_WINDOW_MS`: whether a worker that died of a signal died of
+   * the run's cancellation.
+   */
+  function cancelledSoon(): Promise<boolean> {
+    const signals = [deps.signal, deps.forceSignal].filter((signal) => signal !== undefined)
+    if (signals.some((signal) => signal.aborted)) return Promise.resolve(true)
+    if (signals.length === 0) return Promise.resolve(false)
+    return new Promise((resolve) => {
+      const either = AbortSignal.any(signals)
+      const settle = (cancelled: boolean): void => {
+        clearTimeout(timer)
+        either.removeEventListener('abort', onAbort)
+        resolve(cancelled)
+      }
+      const onAbort = (): void => settle(true)
+      const timer = setTimeout(() => settle(false), GROUP_SIGNAL_WINDOW_MS)
+      either.addEventListener('abort', onAbort, { once: true })
+    })
+  }
+
+  /**
    * A worker that ended without being asked to, or ended badly while it was asked to stop, and
-   * wasn't running a file (a running file takes the blame as `crashed`), is an error of the run.
+   * wasn't running a file (a running file takes the blame as `crashed`), is an error of the run,
+   * unless it died of the signal that is cancelling the run (`GROUP_SIGNAL_WINDOW_MS`).
    */
   function reportExit(slot: Slot): void {
     const { exit } = slot
     if (exit === undefined || slot.diedBusy || slot.killedFor !== undefined) return
     if (exit.type === 'exit' && exit.code === 0) return
-    report(
-      new OrchestratorError(
-        'ORCH_WORKER_EXITED',
-        `Worker ${slot.id} exited while it ran no file (${describeExit(exit)})`,
-        { exit },
-      ),
-      'worker-lost',
-      slot.id,
-    )
+    const lost = (): void =>
+      report(
+        new OrchestratorError(
+          'ORCH_WORKER_EXITED',
+          `Worker ${slot.id} exited while it ran no file (${describeExit(exit)})`,
+          { exit },
+        ),
+        'worker-lost',
+        slot.id,
+      )
+    if (!diedOfRunSignal(exit)) lost()
+    else void cancelledSoon().then((cancelled) => cancelled || lost())
   }
 
   /** Whether a worker of `workerKey` is alive (and not being stopped) or still starting: one that may take its file. */
@@ -684,6 +724,11 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
       waiter.resolve({ type: 'done', workerId: slot.id, done })
     } catch (error) {
       const exit = workerExitOf(error)
+      // A worker that died of SIGINT, SIGTERM or SIGHUP as the run is being cancelled (one signal
+      // to the whole process group): the run's own signal may come a moment after the exit.
+      if (exit !== undefined && diedOfRunSignal(exit) && slot.killedFor === undefined) {
+        await cancelledSoon()
+      }
       // Killed by an abort of the pool, or by `interrupt`: the file was given up, not crashed.
       if (controller.signal.aborted || slot.killedFor === 'abort')
         waiter.resolve({ type: 'aborted' })
