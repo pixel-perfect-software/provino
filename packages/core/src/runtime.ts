@@ -146,8 +146,9 @@ export interface Runtime {
   onAfterTryTask(listener: TryTaskListener): () => void
   /**
    * Listens on `target` (default: the process) for uncaught exceptions and rejections with no
-   * handler, and charges each as `errors.lateErrors` says (T5.11). The worker calls it once;
-   * returns the function that removes the listeners.
+   * handler, and charges each as `errors.lateErrors` says (T5.11), with the listeners placed as
+   * `errors.processListeners` says. The worker calls it once; returns the function that removes
+   * the listeners.
    */
   captureProcessErrors(target?: ProcessLike): () => void
   /**
@@ -451,6 +452,11 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
       defaults.ms = undefined
       retryDefaults.value = undefined
       requestedTimeout = undefined
+      // circus's `run_finish` and `teardown` wait too (`errors.waitForUnhandledRejections`), so a
+      // rejection the file's last functions left is reported before the runtime stops taking it.
+      if (policy.errors.waitForUnhandledRejections) {
+        await new Promise((resolve) => timers.setTimeout(resolve, 0))
+      }
       // A rejection still held belongs to the task that made it; this is where it is charged.
       processErrors.flush()
     }
@@ -474,7 +480,8 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     runFile,
     onBeforeTryTask: (listener) => addListener(tryTask.before, listener),
     onAfterTryTask: (listener) => addListener(tryTask.after, listener),
-    captureProcessErrors: (target = process) => listenForProcessErrors(processErrors, target),
+    captureProcessErrors: (target = process) =>
+      listenForProcessErrors(processErrors, target, policy.errors.processListeners),
     setDefaultTimeout(ms) {
       requestedTimeout = ms
     },

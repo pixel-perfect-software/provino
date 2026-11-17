@@ -108,6 +108,8 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'vitest coverage.thresholdGrouping': 'B25',
   'vitest expect.matcherTable': 'T7.6',
   'vitest lazy.readInBeforeAll': 'T6.5',
+  'vitest core.errors.processListeners': 'T11.16',
+  'vitest core.errors.waitForUnhandledRejections': 'T11.16',
   'vitest core.boundaryTurns.hookStart': 'T11.16',
   'vitest core.boundaryTurns.hookEnd': 'T11.16',
   'vitest core.boundaryTurns.fnStart': 'T11.16',

@@ -275,6 +275,29 @@ export interface CorePolicy {
     /** An error after its test ended. Jest: `fail-owner`. Vitest: `report-run`. research: track-05 L320 */
     readonly lateErrors: 'fail-owner' | 'report-run'
     /**
+     * Where the runtime's process listeners (uncaught exceptions, rejections with no handler,
+     * `rejectionHandled`) sit. `alongside`: beside the process's own, for the worker's life, so
+     * every such error is the runtime's to charge. `per-file` (jest-circus 30.5.2's
+     * `injectGlobalErrorHandlers` at `setup` and `restoreGlobalErrorHandlers` at `teardown`): while
+     * a file runs they are the process's only ones (its own are taken off, and put back when the
+     * file ends), and after the file an error Node reports is the process's own listeners'; the
+     * runtime keeps listening, and charges it, only for an event the process has no listener of
+     * its own for, where Jest's process would die on it (DV166). Jest: `per-file`
+     * (`cli/rejection-after-run-process-listener`, `cli/rejection-during-run-process-listener`).
+     * Vitest: `alongside`, not recorded (T11.16).
+     */
+    readonly processListeners: 'alongside' | 'per-file'
+    /**
+     * Jest's `waitForUnhandledRejections` option: one macrotask after each hook and test body
+     * ends, and before the file ends, before the owner's rejections are taken, so Node reports a
+     * rejection a function left (it does so only once the microtask queue drains) while the
+     * function's owner still takes it (jest-circus 30.5.2 `unhandledRejectionHandler.ts`,
+     * `untilNextEventLoopTurn`). Jest: `false`, its default, and the Jest config reader sets it from
+     * the config (`cli/rejection-wait-for-unhandled-rejections` with it on). Vitest: `false`, no
+     * such option (T11.16).
+     */
+    readonly waitForUnhandledRejections: boolean
+    /**
      * Whether `expect.hasAssertions` is checked on a test that already failed. Jest: `skip`. Vitest:
      * `skip` too (B14a's `policy/core-outcomes` overruled the research's `check`). The two differ
      * on `expect.assertions(n)`, which Jest checks on a failed test and Vitest doesn't (B17a's

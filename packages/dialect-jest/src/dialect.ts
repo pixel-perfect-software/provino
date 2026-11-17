@@ -170,8 +170,17 @@ export const jestPolicy: PolicyOverrides = {
       // research: track-05 L317
       limitHooks: false,
     },
-    // research: track-05 L320
-    errors: { lateErrors: 'fail-owner', hasAssertionsWhenFailed: 'skip' },
+    // research: track-05 L320. processListeners: jest-circus 30.5.2 `globalErrorHandlers.ts`, the
+    // runtime's listeners are the process's only ones while a file runs, and an error Node reports
+    // after it is the process's own listeners' (`cli/rejection-after-run-process-listener`,
+    // `cli/rejection-during-run-process-listener`). waitForUnhandledRejections: Jest's default; the
+    // config reader sets it from the config (`cli/rejection-wait-for-unhandled-rejections`)
+    errors: {
+      lateErrors: 'fail-owner',
+      processListeners: 'per-file',
+      waitForUnhandledRejections: false,
+      hasAssertionsWhenFailed: 'skip',
+    },
     // research: track-12 L528
     focus: { scope: 'file', insideSkip: 'runs' },
     // research: track-12 L528; expectFail from jest-circus 30.5 `_callCircusTest` (B07 review)

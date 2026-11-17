@@ -91,7 +91,14 @@ export const neutralPolicy: Policy = deepFreeze({
       skippedBlock: 'none',
     },
     concurrency: { grouping: 'consecutive', limitHooks: true },
-    errors: { lateErrors: 'fail-owner', hasAssertionsWhenFailed: 'skip' },
+    // An error a test left is charged to it even when Node reports it after the file and the
+    // process has a listener of its own for it.
+    errors: {
+      lateErrors: 'fail-owner',
+      processListeners: 'alongside',
+      waitForUnhandledRejections: false,
+      hasAssertionsWhenFailed: 'skip',
+    },
     // An explicit skip wins over `.only`.
     focus: { scope: 'file', insideSkip: 'skipped' },
     // `.failing` asserts the body fails; a hook error is still a failure.

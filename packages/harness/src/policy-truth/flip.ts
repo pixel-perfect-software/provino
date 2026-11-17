@@ -38,6 +38,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'core.hooks.skippedBlock': ['run-before-all', 'none'],
   'core.concurrency.grouping': ['hoist-to-first', 'consecutive'],
   'core.errors.lateErrors': ['fail-owner', 'report-run'],
+  'core.errors.processListeners': ['alongside', 'per-file'],
   'core.errors.hasAssertionsWhenFailed': ['skip', 'check'],
   'core.focus.scope': ['file', 'suite'],
   'core.focus.insideSkip': ['runs', 'skipped'],

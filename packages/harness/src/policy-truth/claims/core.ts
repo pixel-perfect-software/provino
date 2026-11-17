@@ -19,6 +19,12 @@ import {
   timeoutOf,
 } from '../observe.ts'
 
+/**
+ * What the `globalSetup` listener of `cli/rejection-*-process-listener` heard (its `heard.txt`), or
+ * `null` when it heard nothing.
+ */
+const heardOf = (g: Golden): string | null => observedOf(g).files?.['heard.txt'] ?? null
+
 /** The seed `cli/randomize-seed-flat` ran with (`--seed=1234`). */
 const FLAT_SEED = 1234
 
@@ -331,6 +337,47 @@ export const coreClaims: Claims = {
         ],
       ]),
   }),
+  'core.errors.processListeners': each(
+    [
+      // A `globalSetup`'s `unhandledRejection` listener on the process that runs the tests. Three
+      // tests leave rejections Node reports only after the run: the listener has them and no test
+      // fails (`per-file`), or the runtime, still listening, charges them to their tests.
+      golden('cli/rejection-after-run-process-listener', {
+        read: (g) =>
+          oneOf(g.observed, [
+            ['per-file', g.observed?.exitCode === 0 && heardOf(g) !== null],
+            ['alongside', statusOf(g, 'leaves a chain that rejects 5 turns later') === 'failed'],
+          ]),
+      }),
+      // A rejection Node reports while the file runs: the listener was taken off the process for
+      // the file and never hears it (`per-file`), or it hears it beside the runtime.
+      golden('cli/rejection-during-run-process-listener', {
+        read: (g) =>
+          oneOf(heardOf(g), [
+            ['per-file', heardOf(g) === null],
+            ['alongside', heardOf(g) !== null],
+          ]),
+      }),
+    ],
+    pending(
+      'T11.16',
+      "Vitest's worker keeps its listeners beside the process's own; not recorded: the neutral value stands",
+    ),
+  ),
+  'core.errors.waitForUnhandledRejections': each(
+    // Jest's default: circus waits no macrotask, so the rejections an all-promise file left are
+    // reported after the run, and the process's own listener hears them; with the wait (the
+    // option on, `cli/rejection-wait-for-unhandled-rejections`) circus charges them while it
+    // listens and the listener hears none.
+    golden('cli/rejection-after-run-process-listener', {
+      read: (g) =>
+        oneOf(heardOf(g), [
+          [false, heardOf(g) !== null],
+          [true, heardOf(g) === null],
+        ]),
+    }),
+    pending('T11.16', 'Vitest has no waitForUnhandledRejections option: the neutral value stands'),
+  ),
   'core.errors.hasAssertionsWhenFailed': golden('core-outcomes', {
     // A test that throws before any assertion: does `hasAssertions` add its own error?
     read: (g) => {

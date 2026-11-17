@@ -1,0 +1,11 @@
+{
+  "description": "`cli/rejection-after-run-process-listener`'s `globalSetup` listener, with a file whose second test waits for a timer: the rejection the first test left is reported while circus is listening (in band, `-i`), so circus charges it to the first test, which fails, and the process's own listener, which circus took off the process for the file, never hears it (no heard.txt), exit 1. Kept: the `PASS`/`FAIL` headers, the `●` titles, the `Error:` lines and the test count. A black-box run, read by `provino`'s `jest-uncaught.test.ts`.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1, "globalSetup": "<rootDir>/listen.ts" } },
+  "run": {
+    "argv": { "jest": ["-i", "--useStderr"] },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json", "file:heard.txt"],
+    "keepLines": "^(PASS|FAIL) |^\\s*● |^Error: |^Tests:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
