@@ -169,9 +169,9 @@ export async function formatFileError(
 ): Promise<string> {
   const util = await messageUtil()
   return util.formatExecError(
-    typeof error.stack === 'string'
-      ? { ...error, stack: withoutProvinoFrames(error.stack) }
-      : error,
+    // An error with no stack (Provino's own, for a file the run cut off or a worker that died) is
+    // its message: `formatExecError` would print an object with no stack as a dump of its fields.
+    { ...error, stack: typeof error.stack === 'string' ? withoutProvinoFrames(error.stack) : '' },
     { rootDir: config.rootDir, testMatch: [...config.testMatch] } as Parameters<
       MessageUtil['formatExecError']
     >[1],

@@ -138,4 +138,21 @@ describe('the failure text of an install', () => {
     )
     assert.doesNotMatch(text, /node_modules\/(provino|@provino)/)
   })
+
+  it('prints the message of an error with no stack (a file the run cut off), not the object', async () => {
+    // Provino's own errors for a file (`Interrupted`, a worker crash) have a message and no stack;
+    // `formatExecError` dumps an object with no stack as `thrown: Object { "message": …, "stack": null }`.
+    for (const stack of [null, undefined]) {
+      const text = await formatFileError(
+        { message: 'The run was interrupted while a.test.ts was running', stack },
+        config,
+        { noStackTrace: false },
+        '/app/a.test.ts',
+      )
+      assert.equal(
+        text,
+        '  ● Test suite failed to run\n\n    The run was interrupted while a.test.ts was running\n',
+      )
+    }
+  })
 })
