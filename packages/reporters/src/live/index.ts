@@ -6,6 +6,7 @@ export {
   type LiveTerminal,
   type ProvinoReporter,
   type ProvinoReporterOptions,
+  type ProvinoViews,
   provinoReporter,
 } from './reporter.ts'
 export {
@@ -14,7 +15,13 @@ export {
   type GlyphOptions,
   type HyperlinkOptions,
 } from './terminal/capabilities.ts'
-export { GLYPHS, type GlyphSet, type Glyphs } from './terminal/glyphs.ts'
+export {
+  GLYPHS,
+  type GlyphSet,
+  type Glyphs,
+  type MapCells,
+  type TreeGuides,
+} from './terminal/glyphs.ts'
 export {
   createFrameScheduler,
   type FrameScheduler,

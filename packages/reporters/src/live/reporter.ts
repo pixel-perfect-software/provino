@@ -9,13 +9,23 @@
 // 3. A frame is one write. 4. The state is bounded. 5. This code loads only when chosen.
 // 6. Lines are rebuilt only when their inputs change.
 
-import type { Reporter, RunSummary, SerializedError, TaskId } from '@provino/types'
+import type {
+  FileInfo,
+  Reporter,
+  RunSummary,
+  RuntimeEventOf,
+  SerializedError,
+  TaskId,
+} from '@provino/types'
 import { serializeError } from '../internal/serialize-error.ts'
+import { groupByFolder } from '../internal/views/folders.ts'
 import type { TextSink } from '../sink.ts'
 import { createStyle, type Style } from '../style.ts'
 import { boundError, boundErrors } from './model/bound.ts'
 import { createEstimator } from './model/estimate.ts'
+import { fileOutcome } from './model/file-outcome.ts'
 import { createRunState, type FinishedFile, type RunState } from './model/state.ts'
+import { createTreeStore, type TreeFile, type TreeStore } from './model/tree-store.ts'
 import type { Glyphs } from './terminal/glyphs.ts'
 import {
   createFrameScheduler,
@@ -41,7 +51,10 @@ import {
   snippetKey,
 } from './view/failure.ts'
 import { consoleLines, fileLine, fileSnapshotLine } from './view/file-line.ts'
+import { groupDigits } from './view/format.ts'
+import { mapLines } from './view/map.ts'
 import { type StatusInput, statusLine } from './view/status-line.ts'
+import { treeLines } from './view/tree.ts'
 import { moreWorkersLine, workerLine } from './view/worker-line.ts'
 
 /** How many worker lines the footer shows; more busy workers are counted on one line. */
@@ -61,6 +74,20 @@ interface Held {
   readonly heldAt: number
   snippets: ReadonlyMap<string, Snippet> | undefined
   ready: boolean
+}
+
+/**
+ * The views the `provino` reporter prints besides its live output (`--tree`, `--map`).
+ * @beta
+ */
+export interface ProvinoViews {
+  /**
+   * The run folder by folder after its lines, before the end card: a passing file is one row,
+   * and a file with a failure opens down to the failed tests.
+   */
+  readonly tree?: true
+  /** One cell per file, a row per folder, after the end card. */
+  readonly map?: true
 }
 
 /**
@@ -89,6 +116,8 @@ export interface ProvinoReporterOptions {
    * end card shows it under the snapshot line when some failed or are obsolete.
    */
   readonly snapshotHint?: string
+  /** The views to print after the run. Each costs memory the plain run does not: `tree` keeps the failed files' trees, both keep a row per file. */
+  readonly views?: ProvinoViews
   /** How a source file is read for a code frame. Default: a read of at most 1 MB. */
   readonly readSource?: (path: string) => Promise<string | undefined>
   /** The clock in ms, for the scheduler this reporter makes. Default: `performance.now`. */
@@ -125,8 +154,16 @@ export type ProvinoReporter = Reporter & { readonly terminal: LiveTerminal }
 export function createLiveReporter(
   options: ProvinoReporterOptions,
   state: RunState,
+  makeTree: () => TreeStore = createTreeStore,
 ): ProvinoReporter {
   const { stream, live, glyphs } = options
+  // The collected trees are kept only under `--tree`: with no flag the store is never made.
+  const trees = options.views?.tree === true ? makeTree() : undefined
+  const wantsMap = options.views?.map === true
+  /** The files that ended, one row each, for the views. Built in the frame that draws the file. */
+  let viewFiles: TreeFile[] = []
+  /** Finished files the ring had no room for: in no view. */
+  let unlisted = 0
   const style: Style = createStyle(options.colour)
   const scheduler =
     options.scheduler ?? createFrameScheduler(options.now ? { now: options.now } : {})
@@ -301,6 +338,9 @@ export function createLiveReporter(
       )
       if (failed === 0) listFailure(`  ${glyphs.fail} ${path}`)
     }
+    // The views' row for the file, in the frame that draws the file: built once, here.
+    if (trees !== undefined) viewFiles.push(trees.compact(item.finished))
+    else if (wantsMap) viewFiles.push({ ...fileOutcome(item.finished), open: undefined })
     return lines
   }
 
@@ -328,6 +368,7 @@ export function createLiveReporter(
     }
     if (blocksDropped > 0) pending.push(style.dim(`… ${blocksDropped} more errors`))
     const dropped = state.dropped()
+    unlisted += dropped
     for (const finished of state.take()) held.push(admit(finished, now))
     if (dropped > 0) pending.push(style.dim(`… ${dropped} more files finished`))
     let done = 0
@@ -506,6 +547,9 @@ export function createLiveReporter(
       held = []
       listed = []
       listedMore = 0
+      viewFiles = []
+      unlisted = 0
+      trees?.clear()
       loader.reset()
       workersCap = info.workers
       shardText =
@@ -534,15 +578,39 @@ export function createLiveReporter(
       estimator.fileStarted(file, now, state.busy())
       wake(now)
     },
+    // Only under `--tree`: with no flag the reporter has no handler for it at all.
+    ...(trees === undefined
+      ? {}
+      : {
+          'file:collected': (file: FileInfo, event: RuntimeEventOf<'file-collect-end'>) => {
+            trees.collected(file.fileId, event.tasks)
+          },
+        }),
     'task:end': (task, event) => {
+      if (event.type === 'suite-end') {
+        if (trees !== undefined && event.result.state === 'fail') {
+          const [first] = event.result.errors
+          trees.suiteFailed(
+            task.fileId,
+            task.id,
+            first === undefined ? undefined : boundError(first),
+          )
+        }
+        return
+      }
       if (event.type !== 'test-end' || task.type !== 'test') return
       if (event.result.state === 'fail') {
+        const errors = boundErrors(event.result.errors)
         state.testEnd(task.fileId as TaskId, 'fail', {
           title: task.fullName,
           location: task.location,
-          errors: boundErrors(event.result.errors),
+          errors,
         })
-      } else state.testEnd(task.fileId as TaskId, event.result.state)
+        trees?.testEnd(task.fileId, task.id, 'fail', event.result.durationMs, errors[0])
+      } else {
+        state.testEnd(task.fileId as TaskId, event.result.state)
+        trees?.testEnd(task.fileId, task.id, event.result.state, event.result.durationMs)
+      }
       wake()
     },
     console: (file, event) => {
@@ -607,10 +675,29 @@ export function createLiveReporter(
         style,
       )
       // The last block ends in a blank line already: the card's own would make two.
-      const lines = [...pending, ...(pending.at(-1) === '' ? card.slice(1) : card)]
+      // The tree goes after the run's lines and before the card, the map after the card.
+      const note =
+        unlisted > 0 ? [style.dim(`… ${groupDigits(unlisted)} more files not shown`)] : []
+      const folders = viewFiles.length === 0 ? [] : groupByFolder(viewFiles)
+      const treeBlock =
+        trees === undefined || folders.length === 0
+          ? []
+          : [...treeLines(folders, columns, glyphs, style), ...note]
+      const mapBlock =
+        !wantsMap || folders.length === 0
+          ? []
+          : ['', ...mapLines(folders, columns, glyphs, style), ...note]
+      const lead =
+        treeBlock.length === 0
+          ? pending
+          : [...pending, ...(pending.at(-1) === '' ? [] : ['']), ...treeBlock]
+      const cardLines = treeBlock.length === 0 && pending.at(-1) === '' ? card.slice(1) : card
+      const lines = [...lead, ...cardLines, ...mapBlock]
       pending = []
       listed = []
       held = []
+      viewFiles = []
+      trees?.clear()
       if (session !== undefined && !broken) session.finish(lines)
       else writer.writeAlways(`${lines.join('\n')}\n`)
       session = undefined

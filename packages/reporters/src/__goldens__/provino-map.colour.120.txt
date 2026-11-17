@@ -1,0 +1,90 @@
+✅ src/math/math.test.ts<ESC>[2m · 3 tests · 12ms<ESC>[22m
+✅ src/math/geometry.test.ts<ESC>[2m · 3 tests · 310ms<ESC>[22m
+❌ <ESC>[31msrc/cart/total.test.ts<ESC>[39m<ESC>[2m · 1 of 8 failed · 120ms<ESC>[22m
+   <ESC>[31m●<ESC>[39m <ESC>[1mcart › total › applies the discount<ESC>[22m
+     expected 90, received 100
+
+     Expected: 90
+     Received: 100
+     <ESC>[2m›<ESC>[22m src/cart/total.test.ts:41:22
+
+❌ <ESC>[31msrc/cart/fails.test.ts<ESC>[39m<ESC>[2m · 1 of 2 failed · 9ms<ESC>[22m
+   <ESC>[31m●<ESC>[39m <ESC>[1mgroup › fails<ESC>[22m
+     expect(received).toBe(expected) // Object.is equality
+
+     Expected: 2
+     Received: 1
+     <ESC>[2m›<ESC>[22m fails.test.ts:3:15
+     <ESC>[2m  1 │ import { expect, test } from 'provino'<ESC>[22m
+     <ESC>[2m  2 │ test('fails', () => {<ESC>[22m
+     > 3 │   expect(compute()).toBe(2)
+     <ESC>[31m    │               ^<ESC>[39m
+     <ESC>[2m  4 │ })<ESC>[22m
+     <ESC>[2m  5 │ <ESC>[22m
+
+❌ <ESC>[31msrc/cart/snapshot.test.ts<ESC>[39m<ESC>[2m · 1 of 1 failed · 7ms<ESC>[22m
+   <ESC>[31m●<ESC>[39m <ESC>[1mmatches a stored snapshot<ESC>[22m
+     expect(received).toMatchSnapshot()
+
+     Snapshot name: `matches a stored snapshot 1`
+
+     - Snapshot  - 1
+     + Received  + 1
+
+       {
+     -   "value": "old",
+     +   "value": "new",
+       }
+     <ESC>[2m›<ESC>[22m snapshot.test.ts:2:28
+     <ESC>[2m  1 │ test('matches a stored snapshot', () => {<ESC>[22m
+     > 2 │   expect({ value: makeValue() }).toMatchSnapshot()
+     <ESC>[31m    │                            ^<ESC>[39m
+     <ESC>[2m  3 │ })<ESC>[22m
+     <ESC>[2m  4 │ <ESC>[22m
+
+❌ <ESC>[31msrc/cart/broken.test.ts<ESC>[39m<ESC>[2m · failed to run · 2ms<ESC>[22m
+   <ESC>[31m●<ESC>[39m <ESC>[1mTest suite failed to run<ESC>[22m
+     ImportError: Cannot find module './missing.ts'
+
+✅ src/components/button.test.tsx<ESC>[2m · 1 test · 5ms<ESC>[22m
+✅ src/components/card.test.tsx<ESC>[2m · 1 test · 6ms<ESC>[22m
+✅ src/components/checkbox.test.tsx<ESC>[2m · 1 test · 7ms<ESC>[22m
+✅ src/components/dialog.test.tsx<ESC>[2m · 1 test · 8ms<ESC>[22m
+✅ src/components/dropdown.test.tsx<ESC>[2m · 1 test · 9ms<ESC>[22m
+✅ src/components/form.test.tsx<ESC>[2m · 1 test · 10ms<ESC>[22m
+✅ src/components/icon.test.tsx<ESC>[2m · 1 test · 11ms<ESC>[22m
+✅ src/components/input.test.tsx<ESC>[2m · 1 test · 12ms<ESC>[22m
+✅ src/components/link.test.tsx<ESC>[2m · 1 test · 13ms<ESC>[22m
+✅ src/components/list.test.tsx<ESC>[2m · 1 test · 14ms<ESC>[22m
+✅ src/components/menu.test.tsx<ESC>[2m · 1 test · 15ms<ESC>[22m
+✅ src/components/modal.test.tsx<ESC>[2m · 1 test · 16ms<ESC>[22m
+✅ src/components/popover.test.tsx<ESC>[2m · 1 test · 17ms<ESC>[22m
+✅ src/components/radio.test.tsx<ESC>[2m · 1 test · 18ms<ESC>[22m
+✅ src/components/select.test.tsx<ESC>[2m · 1 test · 19ms<ESC>[22m
+✅ src/components/tabs.test.tsx<ESC>[2m · 1 test · 20ms<ESC>[22m
+✅ src/components/toast.test.tsx<ESC>[2m · 1 test · 21ms<ESC>[22m
+✅ src/components/tooltip.test.tsx<ESC>[2m · 1 test · 22ms<ESC>[22m
+✅ tests/skipped.test.ts<ESC>[2m · 3 tests · 2 skipped · 3ms<ESC>[22m
+⏩ tests/all-skipped.test.ts<ESC>[2m · 2 tests skipped · 1ms<ESC>[22m
+✅ tests/todo-only.test.ts<ESC>[2m · 1 test · 1 skipped · 1ms<ESC>[22m
+✅ tests/console.test.ts<ESC>[2m · 1 test · 6ms<ESC>[22m
+   <ESC>[2mat import time<ESC>[22m
+   <ESC>[2mfrom the test<ESC>[22m
+   <ESC>[2ma warning<ESC>[22m
+   <ESC>[2ma direct write<ESC>[22m
+
+<ESC>[31m💥<ESC>[39m <ESC>[1m3 failed · 32 passed · 4 skipped · 3 todo · 28 files · 1.23s<ESC>[22m
+<ESC>[2m🐢 slowest: src/math/geometry.test.ts 310ms · src/cart/total.test.ts 120ms · src/components/tooltip.test.tsx 22ms<ESC>[22m
+<ESC>[2msnapshots: 1 failed<ESC>[22m
+
+<ESC>[31mfailed:<ESC>[39m
+  ❌ cart › total › applies the discount  <ESC>[2msrc/cart/total.test.ts:41:22<ESC>[22m
+  ❌ group › fails  <ESC>[2mfails.test.ts:3:15<ESC>[22m
+  ❌ matches a stored snapshot  <ESC>[2msnapshot.test.ts:2:28<ESC>[22m
+  ❌ src/cart/broken.test.ts
+
+🟩 <ESC>[2mpass<ESC>[22m  🟥 <ESC>[2mfail<ESC>[22m  🟨 <ESC>[2mskip<ESC>[22m  ⬜ <ESC>[2mtodo<ESC>[22m
+<ESC>[1msrc/cart/<ESC>[22m        🟥🟥🟥🟥
+<ESC>[1msrc/components/<ESC>[22m  🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩
+<ESC>[1msrc/math/<ESC>[22m        🟩🟩
+<ESC>[1mtests/<ESC>[22m           🟨🟩🟩⬜

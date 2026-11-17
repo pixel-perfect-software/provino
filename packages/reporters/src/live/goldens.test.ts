@@ -1,7 +1,9 @@
 // The `provino` reporter's frames, pinned (B26 Phase 2): the fixture run through the reporter with
 // the manual scheduler (a frame after each file ends) and a clock that moves 37 ms per event, as a
 // plain stream and as a colour terminal, with the emoji and the fallback glyph sets, at 40 and 120
-// columns; one footer state; the two end cards. `PROVINO_UPDATE_GOLDENS=1` writes them.
+// columns; one footer state; the two end cards; and the `--tree` and `--map` views (B26 Phase 4)
+// over the fixture's files laid out in folders. `PROVINO_UPDATE_GOLDENS=1` writes them.
+import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import type { ReporterBus, ReporterEvents } from '@provino/types'
 import { createReporterBus } from '../bus.ts'
@@ -11,6 +13,7 @@ import {
   error,
   FIXTURE_FILES,
   FIXTURE_SNAPSHOTS,
+  type FileSpec,
   playRun,
 } from '../internal/test-support.ts'
 import { createStyle } from '../style.ts'
@@ -290,6 +293,149 @@ describe('a failure thrown deep in source: the call chain under the code frame',
       }
       await playRun(stepped, [spec], { durationMs: 900 })
       await expectGolden(`provino-stack.${mode}`, sink.text())
+    })
+  }
+})
+
+// The views over the fixture run laid out in folders, plus a failing file with nested describes
+// and a folder of small passing files, so a folder wraps at 40 columns. The sources of the fixture's
+// failures are looked up by file name, so moving the files changes no code frame.
+const at = (folder: string, spec: FileSpec): FileSpec => ({
+  ...spec,
+  path: `${folder}/${spec.path}`,
+})
+const fixture = (path: string): FileSpec => {
+  const spec = FIXTURE_FILES.find((each) => each.path === path)
+  if (spec === undefined) throw new Error(`no fixture file ${path}`)
+  return spec
+}
+const passing = (names: readonly string[], folder: string): FileSpec[] =>
+  names.map((name, index) => ({
+    path: `${folder}/${name}.test.tsx`,
+    durationMs: 5 + index,
+    tests: [{ path: [name, 'renders'], durationMs: 1 }],
+  }))
+const VIEW_FILES: readonly FileSpec[] = [
+  at('src/math', fixture('math.test.ts')),
+  {
+    path: 'src/math/geometry.test.ts',
+    durationMs: 310,
+    tests: [
+      { path: ['area', 'circle'], durationMs: 2 },
+      { path: ['area', 'square'], durationMs: 1 },
+      { path: ['perimeter'], durationMs: 1 },
+    ],
+  },
+  {
+    path: 'src/cart/total.test.ts',
+    durationMs: 120,
+    tests: [
+      { path: ['cart', 'total', 'sums the items'], durationMs: 2 },
+      {
+        path: ['cart', 'total', 'applies the discount'],
+        state: 'fail',
+        durationMs: 5,
+        errors: [error('expected 90, received 100\n\nExpected: 90\nReceived: 100')],
+        location: { line: 41, column: 22 },
+      },
+      { path: ['cart', 'total', 'rounds up'], durationMs: 1 },
+      { path: ['cart', 'empty', 'is zero'], durationMs: 1 },
+      { path: ['cart', 'empty', 'has no items'], durationMs: 1 },
+      { path: ['cart', 'tax', 'is planned'], state: 'todo' },
+      { path: ['cart', 'tax', 'skips shipping'], state: 'skip', skipReason: 'modifier' },
+      { path: ['cart', 'adds an item'], durationMs: 2 },
+    ],
+  },
+  at('src/cart', fixture('fails.test.ts')),
+  at('src/cart', fixture('snapshot.test.ts')),
+  at('src/cart', fixture('broken.test.ts')),
+  ...passing(
+    [
+      'button',
+      'card',
+      'checkbox',
+      'dialog',
+      'dropdown',
+      'form',
+      'icon',
+      'input',
+      'link',
+      'list',
+      'menu',
+      'modal',
+      'popover',
+      'radio',
+      'select',
+      'tabs',
+      'toast',
+      'tooltip',
+    ],
+    'src/components',
+  ),
+  at('tests', fixture('skipped.test.ts')),
+  at('tests', fixture('all-skipped.test.ts')),
+  at('tests', fixture('todo-only.test.ts')),
+  at('tests', fixture('console.test.ts')),
+]
+
+async function playViews(options: {
+  views: { tree?: true; map?: true }
+  colour: boolean
+  columns: number
+  glyphs: 'emoji' | 'fallback'
+}): Promise<string> {
+  const clock = fakeClock()
+  const scheduler = manualScheduler(clock)
+  const sink = recordingSink()
+  const reporter = provinoReporter({
+    stream: sink,
+    live: false,
+    colour: options.colour,
+    columns: options.columns,
+    glyphs: SETS[options.glyphs],
+    hyperlinks: false,
+    cwd: '/project',
+    readSource,
+    scheduler,
+    views: options.views,
+  })
+  const bus = createReporterBus([reporter])
+  const stepped: ReporterBus = {
+    add: (each) => bus.add(each),
+    async emit<K extends keyof ReporterEvents>(event: K, ...args: ReporterEvents[K]) {
+      clock.advance(37)
+      await bus.emit(event, ...args)
+      if (event === 'file:end') await settle()
+    },
+  }
+  await playRun(stepped, VIEW_FILES, { snapshots: FIXTURE_SNAPSHOTS, durationMs: 1234 })
+  assert.deepEqual(bus.failures(), [])
+  return sink.text()
+}
+
+describe('the --tree and --map views over the fixture run in folders', () => {
+  for (const view of ['tree', 'map'] as const) {
+    for (const glyphs of ['emoji', 'fallback'] as const) {
+      for (const columns of [40, 120]) {
+        test(`${view}, ${glyphs}, ${columns} columns`, async () => {
+          const text = await playViews({
+            views: { [view]: true },
+            colour: false,
+            columns,
+            glyphs,
+          })
+          await expectGolden(`provino-${view}.${glyphs}.${columns}`, text)
+        })
+      }
+    }
+    test(`${view} in colour, emoji, 120 columns`, async () => {
+      const text = await playViews({
+        views: { [view]: true },
+        colour: true,
+        columns: 120,
+        glyphs: 'emoji',
+      })
+      await expectGolden(`provino-${view}.colour.120`, text)
     })
   }
 })

@@ -1,0 +1,90 @@
+✅ src/math/math.test.ts · 3 tests · 12ms
+✅ src/math/geometry.test.ts · 3 tests · 310ms
+❌ src/cart/total.test.ts · 1 of 8 failed · 120ms
+   ● cart › total › applies the discount
+     expected 90, received 100
+
+     Expected: 90
+     Received: 100
+     › src/cart/total.test.ts:41:22
+
+❌ src/cart/fails.test.ts · 1 of 2 failed · 9ms
+   ● group › fails
+     expect(received).toBe(expected) // Object.is equality
+
+     Expected: 2
+     Received: 1
+     › fails.test.ts:3:15
+       1 │ import { expect, test } from 'provino'
+       2 │ test('fails', () => {
+     > 3 │   expect(compute()).toBe(2)
+         │               ^
+       4 │ })
+       5 │ 
+
+❌ src/cart/snapshot.test.ts · 1 of 1 failed · 7ms
+   ● matches a stored snapshot
+     expect(received).toMatchSnapshot()
+
+     Snapshot name: `matches a stored snapshot 1`
+
+     - Snapshot  - 1
+     + Received  + 1
+
+       {
+     -   "value": "old",
+     +   "value": "new",
+       }
+     › snapshot.test.ts:2:28
+       1 │ test('matches a stored snapshot', () => {
+     > 2 │   expect({ value: makeValue() }).toMatchSnapshot()
+         │                            ^
+       3 │ })
+       4 │ 
+
+❌ src/cart/broken.test.ts · failed to run · 2ms
+   ● Test suite failed to run
+     ImportError: Cannot find module './missing.ts'
+
+✅ src/components/button.test.tsx · 1 test · 5ms
+✅ src/components/card.test.tsx · 1 test · 6ms
+✅ src/components/checkbox.test.tsx · 1 test · 7ms
+✅ src/components/dialog.test.tsx · 1 test · 8ms
+✅ src/components/dropdown.test.tsx · 1 test · 9ms
+✅ src/components/form.test.tsx · 1 test · 10ms
+✅ src/components/icon.test.tsx · 1 test · 11ms
+✅ src/components/input.test.tsx · 1 test · 12ms
+✅ src/components/link.test.tsx · 1 test · 13ms
+✅ src/components/list.test.tsx · 1 test · 14ms
+✅ src/components/menu.test.tsx · 1 test · 15ms
+✅ src/components/modal.test.tsx · 1 test · 16ms
+✅ src/components/popover.test.tsx · 1 test · 17ms
+✅ src/components/radio.test.tsx · 1 test · 18ms
+✅ src/components/select.test.tsx · 1 test · 19ms
+✅ src/components/tabs.test.tsx · 1 test · 20ms
+✅ src/components/toast.test.tsx · 1 test · 21ms
+✅ src/components/tooltip.test.tsx · 1 test · 22ms
+✅ tests/skipped.test.ts · 3 tests · 2 skipped · 3ms
+⏩ tests/all-skipped.test.ts · 2 tests skipped · 1ms
+✅ tests/todo-only.test.ts · 1 test · 1 skipped · 1ms
+✅ tests/console.test.ts · 1 test · 6ms
+   at import time
+   from the test
+   a warning
+   a direct write
+
+💥 3 failed · 32 passed · 4 skipped · 3 todo · 28 files · 1.23s
+🐢 slowest: src/math/geometry.test.ts 310ms · src/cart/total.test.ts 120ms · src/components/tooltip.test.tsx 22ms
+snapshots: 1 failed
+
+failed:
+  ❌ cart › total › applies the discount  src/cart/total.test.ts:41:22
+  ❌ group › fails  fails.test.ts:3:15
+  ❌ matches a stored snapshot  snapshot.test.ts:2:28
+  ❌ src/cart/broken.test.ts
+
+🟩 pass  🟥 fail  🟨 skip  ⬜ todo
+src/cart/        🟥🟥🟥🟥
+src/components/  🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩🟩
+src/math/        🟩🟩
+tests/           🟨🟩🟩⬜

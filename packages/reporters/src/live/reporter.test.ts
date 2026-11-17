@@ -1,17 +1,24 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import type { Reporter, ReporterEvents } from '@provino/types'
+import type { Reporter, ReporterBus, ReporterEvents } from '@provino/types'
 import { createReporterBus } from '../bus.ts'
 import {
   buildFile,
+  collectedEvent,
   FIXTURE_FILES,
   FIXTURE_SNAPSHOTS,
   playRun,
   resultOf,
   testEndEvent,
 } from '../internal/test-support.ts'
-import { createRunState, type RunState } from './model/state.ts'
-import { createLiveReporter, MAX_WORKER_LINES, provinoReporter } from './reporter.ts'
+import { createRunState, RING_CAPACITY, type RunState } from './model/state.ts'
+import { createTreeStore, type TreeStore } from './model/tree-store.ts'
+import {
+  createLiveReporter,
+  MAX_WORKER_LINES,
+  type ProvinoViews,
+  provinoReporter,
+} from './reporter.ts'
 import { GLYPHS } from './terminal/glyphs.ts'
 import { fakeClock, manualScheduler, recordingSink } from './test-support.ts'
 
@@ -388,4 +395,227 @@ test('a frame with nothing changed rebuilds no footer, and no frame drains the f
   assert.equal(calls.take, 1, 'the frame that drew the file took the ring; the next one left it')
   await reporter['run:end']?.({ reason: 'passed', files: [], unhandled: [], durationMs: 5 })
   assert.equal(calls.take, 2, 'run:end takes what is left once')
+})
+
+// B26 Phase 4: the `--tree` and `--map` views.
+
+function viewed(options: { views?: ProvinoViews; live?: boolean; columns?: number } = {}) {
+  const clock = fakeClock()
+  const scheduler = manualScheduler(clock)
+  const sink = recordingSink()
+  const built: string[] = []
+  const stores: TreeStore[] = []
+  const reporter = createLiveReporter(
+    {
+      stream: sink,
+      live: options.live ?? false,
+      colour: false,
+      columns: options.columns ?? 100,
+      glyphs: GLYPHS.emoji,
+      hyperlinks: false,
+      cwd: '/project',
+      scheduler,
+      ...(options.views === undefined ? {} : { views: options.views }),
+    },
+    createRunState(),
+    () => {
+      built.push('tree-store')
+      const store = createTreeStore()
+      stores.push(store)
+      return store
+    },
+  )
+  return { clock, scheduler, sink, reporter, built, stores }
+}
+
+test('without --tree the tree store is never built, and the reporter has no file:collected handler', async () => {
+  for (const views of [undefined, {}, { map: true as const }]) {
+    const { sink, reporter, built } = viewed(views === undefined ? {} : { views })
+    assert.equal(reporter['file:collected'], undefined, JSON.stringify(views))
+    await playRun(createReporterBus([reporter]), FIXTURE_FILES, { snapshots: FIXTURE_SNAPSHOTS })
+    assert.deepEqual(built, [], `no tree store: ${JSON.stringify(views)}`)
+    assert.ok(sink.text().length > 0)
+  }
+  const { reporter, built } = viewed({ views: { tree: true } })
+  assert.equal(typeof reporter['file:collected'], 'function')
+  assert.deepEqual(built, ['tree-store'], 'one store per reporter, made when it is')
+})
+
+test('the views print nothing unless asked: the same run, byte for byte, with and without views: {}', async () => {
+  const plain = viewed()
+  const empty = viewed({ views: {} })
+  await playRun(createReporterBus([plain.reporter]), FIXTURE_FILES, {
+    snapshots: FIXTURE_SNAPSHOTS,
+  })
+  await playRun(createReporterBus([empty.reporter]), FIXTURE_FILES, {
+    snapshots: FIXTURE_SNAPSHOTS,
+  })
+  assert.equal(empty.sink.text(), plain.sink.text())
+})
+
+test('rule 1 with the views on: every handler writes nothing, reads the clock at most once and returns at once', async () => {
+  const { scheduler, sink, reporter } = viewed({ views: { tree: true, map: true }, live: true })
+  const bus = createReporterBus([guarded(reporter, sink, scheduler)])
+  await playRun(bus, FIXTURE_FILES, { snapshots: FIXTURE_SNAPSHOTS })
+  assert.deepEqual(bus.failures(), [])
+  assert.equal(sink.writes().length, 1, 'run:end is the only write, with no frame ticked')
+})
+
+test('rule 1 with --tree: one store call per event, however long the run', async () => {
+  const file = buildFile({ path: 'a.test.ts', tests: [{ path: ['t'] }] })
+  const first = file.tests[0]
+  assert.ok(first)
+  const { task } = first
+  const event = testEndEvent(task, resultOf({ path: ['t'] }))
+
+  async function calls(events: number): Promise<number> {
+    let count = 0
+    const real = createTreeStore()
+    const counting: TreeStore = {
+      collected: (...args) => {
+        count++
+        real.collected(...args)
+      },
+      testEnd: (...args) => {
+        count++
+        real.testEnd(...args)
+      },
+      suiteFailed: (...args) => {
+        count++
+        real.suiteFailed(...args)
+      },
+      compact: (finished) => real.compact(finished),
+      held: () => real.held(),
+      clear: () => real.clear(),
+    }
+    const reporter = createLiveReporter(
+      {
+        stream: recordingSink(),
+        live: true,
+        colour: false,
+        columns: 80,
+        glyphs: GLYPHS.emoji,
+        hyperlinks: false,
+        cwd: '/project',
+        scheduler: manualScheduler(),
+        views: { tree: true },
+      },
+      createRunState(),
+      () => counting,
+    )
+    await reporter['run:start']?.({ root: '/p', projects: [''], startTime: 0, watch: false }, [
+      file.info,
+    ])
+    await reporter['file:start']?.(file.info, 0)
+    await reporter['file:collected']?.(file.info, collectedEvent(file))
+    const before = count
+    for (let i = 0; i < events; i++) await reporter['task:end']?.(task, event)
+    return count - before
+  }
+
+  assert.equal(await calls(1000), 1000)
+  assert.equal(await calls(50_000), 50_000)
+})
+
+test('--tree prints after the run’s lines and before the end card; --map after the end card', async () => {
+  const { sink, reporter } = viewed({ views: { tree: true, map: true } })
+  await playRun(createReporterBus([reporter]), FIXTURE_FILES, { snapshots: FIXTURE_SNAPSHOTS })
+  const text = sink.text()
+  const lastFile = text.indexOf('✅ console.test.ts')
+  const tree = text.indexOf('❌ ./ · ')
+  const card = text.indexOf('💥 ')
+  const map = text.indexOf('🟩 pass  🟥 fail')
+  assert.ok(lastFile !== -1 && tree > lastFile, 'the tree is after the file lines')
+  assert.ok(card > tree, 'the card is after the tree')
+  assert.ok(map > card, 'the map is after the card')
+  assert.ok(text.endsWith('\n'))
+  // One blank line between each block and the next.
+  assert.match(text, /\n\n❌ \.\/ · /)
+  assert.match(text, /\n\n💥 /)
+  assert.ok(!/\n\n\n/.test(text), 'never two blank lines in a row')
+})
+
+test('--tree alone prints no map, and --map alone no tree', async () => {
+  const tree = viewed({ views: { tree: true } })
+  await playRun(createReporterBus([tree.reporter]), FIXTURE_FILES, {})
+  assert.ok(tree.sink.text().includes('├─'))
+  assert.ok(!tree.sink.text().includes('🟩 pass'))
+  const map = viewed({ views: { map: true } })
+  await playRun(createReporterBus([map.reporter]), FIXTURE_FILES, {})
+  assert.ok(map.sink.text().includes('🟩 pass  🟥 fail'))
+  assert.ok(!map.sink.text().includes('├─'))
+})
+
+test('on a terminal the views are part of the last write, before the cursor comes back', async () => {
+  const { scheduler, clock, sink, reporter } = viewed({
+    views: { tree: true, map: true },
+    live: true,
+  })
+  const bus = createReporterBus([reporter])
+  const stepped: ReporterBus = {
+    add: (each) => bus.add(each),
+    async emit(event, ...args) {
+      clock.advance(37)
+      await bus.emit(event, ...args)
+      if (event === 'file:end') {
+        await turn()
+        scheduler.tick()
+      }
+    },
+  }
+  await playRun(stepped, FIXTURE_FILES, { snapshots: FIXTURE_SNAPSHOTS })
+  const last = sink.writes().at(-1) as string
+  assert.ok(last.includes('├─ '))
+  assert.ok(last.includes('🟩 pass'))
+  assert.ok(last.endsWith(`${ESC}[?25h`))
+})
+
+test('a run whose files never ended prints no view; a second run starts the views clean', async () => {
+  const { sink, reporter } = viewed({ views: { tree: true, map: true } })
+  const a = buildFile({ path: 'a.test.ts', tests: [{ path: ['t'] }] })
+  await reporter['run:start']?.(RUN, [a.info])
+  await reporter['run:end']?.({ reason: 'interrupted', files: [], unhandled: [], durationMs: 5 })
+  assert.ok(!sink.text().includes('├─') && !sink.text().includes('🟩'))
+  const bus = createReporterBus([reporter])
+  await playRun(bus, [{ path: 'x/one.test.ts', tests: [{ path: ['t'] }] }], {})
+  const first = sink.text().length
+  await playRun(bus, [{ path: 'y/two.test.ts', tests: [{ path: ['t'] }] }], {})
+  const second = sink.text().slice(first)
+  assert.ok(
+    second.includes('y/') && !second.includes('x/'),
+    'the second run shows only its own files',
+  )
+})
+
+test('every file that ended is in the views once, and the stores hold nothing after the run', async () => {
+  const { reporter, sink, stores } = viewed({ views: { tree: true, map: true } })
+  await playRun(createReporterBus([reporter]), FIXTURE_FILES, {})
+  const store = stores[0]
+  assert.ok(store)
+  assert.equal(store.held(), 0)
+  const cells = sink
+    .text()
+    .split('\n')
+    .filter((line) => /^\.\/ +[🟩🟥🟨⬜]+$/u.test(line))
+  assert.equal(cells.length, 1)
+  assert.equal([...(cells[0]?.matchAll(/[🟩🟥🟨⬜]/gu) ?? [])].length, FIXTURE_FILES.length)
+})
+
+test('files the ring had no room for are named under each view, not shown', async () => {
+  const { reporter, sink } = viewed({ views: { tree: true, map: true } })
+  const files = Array.from(
+    { length: RING_CAPACITY + 3 },
+    (_, index) => buildFile({ path: `f/${index}.test.ts` }).info,
+  )
+  await reporter['run:start']?.(RUN, files)
+  for (const info of files) {
+    await reporter['file:start']?.(info, 0)
+    await reporter['file:end']?.({ file: info, state: 'pass', durationMs: 1, errors: [] })
+  }
+  await reporter['run:end']?.({ reason: 'passed', files: [], unhandled: [], durationMs: 5 })
+  const notes = sink
+    .text()
+    .split('\n')
+    .filter((line) => line === '… 3 more files not shown')
+  assert.equal(notes.length, 2, 'once under the tree and once under the map')
 })

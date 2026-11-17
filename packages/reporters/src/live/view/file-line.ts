@@ -36,7 +36,14 @@ function plural(count: number, noun: string): string {
   return `${groupDigits(count)} ${noun}${count === 1 ? '' : 's'}`
 }
 
-function detail(input: FileLineInput): string {
+/**
+ * What a file's counts say, after its path: `12 tests`, `1 of 9 failed`, `failed to run`. The tree
+ * view words its rows the same way.
+ * @internal
+ */
+export function fileDetail(
+  input: Pick<FileLineInput, 'state' | 'tests' | 'failed' | 'skipped'>,
+): string {
   switch (input.state) {
     case 'fail':
       return input.failed > 0
@@ -73,7 +80,7 @@ export function fileLine(
       ? fileTime(input.durationMs)
       : `${fileTime(input.durationMs)} · ${groupDigits(Math.floor(input.heapBytes / 1024 / 1024))} MB heap`
   // The whole tail when the path keeps a useful part of itself, else only the time, else none.
-  const tails = [` · ${detail(input)} · ${time}`, ` · ${time}`, '']
+  const tails = [` · ${fileDetail(input)} · ${time}`, ` · ${time}`, '']
   let tail = ''
   let pathRoom = 1
   for (const candidate of tails) {
