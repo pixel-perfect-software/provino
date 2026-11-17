@@ -1,4 +1,6 @@
-// Shared externals evaluated again per file (D127, P42; `ModulePolicy.reevaluateHookingExternals`).
+// Shared externals evaluated again per file (D127, P42; `ModulePolicy.reevaluateHookingExternals`,
+// and B23f's `reevaluatePatchingExternals`: a load that writes the global, which the worker's
+// watcher reports through the same window).
 // A node_modules package loads natively once per worker, but Jest evaluates it again in every test
 // file's registry, so whatever it did as it loaded (`afterEach(cleanup)`, `expect.extend`, a
 // `screen` bound to the file's `document`, a `jest.fn` of the file's `jest`) is the file's own. The
@@ -11,8 +13,18 @@
 // registry a per-file plugin writes into), are evaluated per file too (D132): `settlePerFile` keeps
 // that set over the part of the graph the worker knows.
 import { createRequire } from 'node:module'
-import type { ExternalLoadWatcher } from '@provino/types'
+import type { ExternalLoadWatcher, ModulePolicy } from '@provino/types'
 import { inGraph, packageDirOf } from '../graph/index.ts'
+
+/**
+ * Whether the loader watches externals' first loads and evaluates the ones it learns per file:
+ * either key turns it on. What a window counts (a read, a write) is the watcher's business.
+ */
+export function reevaluatesExternals(
+  policy: Pick<ModulePolicy, 'reevaluateHookingExternals' | 'reevaluatePatchingExternals'>,
+): boolean {
+  return policy.reevaluateHookingExternals || policy.reevaluatePatchingExternals
+}
 
 /** What a worker knows about the externals it evaluates per file. */
 export interface ReevaluateState {

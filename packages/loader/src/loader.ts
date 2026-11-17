@@ -25,7 +25,12 @@ import {
   resolveOrMissing,
   toModuleId,
 } from './internal/records.ts'
-import { activate, promoteLearned, takeLearned } from './internal/reevaluate.ts'
+import {
+  activate,
+  promoteLearned,
+  reevaluatesExternals,
+  takeLearned,
+} from './internal/reevaluate.ts'
 import { type FileContext, NO_FILE, Registry } from './internal/registry.ts'
 import { blankHashbang } from './internal/source.ts'
 import { isEvaluableExternal } from './internal/third-party.ts'
@@ -217,7 +222,7 @@ export const createLoader: CreateLoader = (options) => {
     },
     watchExternalLoads: (watcher) => {
       // With the policy off nothing is watched, so no window is ever opened.
-      if (!options.policy.reevaluateHookingExternals) return () => {}
+      if (!reevaluatesExternals(options.policy)) return () => {}
       state.reevaluate.watchers.add(watcher)
       return () => {
         state.reevaluate.watchers.delete(watcher)
@@ -225,7 +230,7 @@ export const createLoader: CreateLoader = (options) => {
     },
     takeLearnedExternals: () => takeLearned(state.reevaluate),
     reevaluateExternals: (paths) => {
-      if (!options.policy.reevaluateHookingExternals) return
+      if (!reevaluatesExternals(options.policy)) return
       // A set from an earlier run may name a file a reinstall removed, or one the loader can't
       // evaluate itself: those stay shared.
       activate(

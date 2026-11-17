@@ -50,7 +50,7 @@ import {
   targetOfId,
   toModuleId,
 } from './records.ts'
-import { watchedLoad } from './reevaluate.ts'
+import { reevaluatesExternals, watchedLoad } from './reevaluate.ts'
 import { requireEsmError } from './require-esm.ts'
 
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
@@ -187,8 +187,8 @@ export class Registry {
   readonly #dynamicLoads = new Map<ModuleId, Set<ModuleId>>()
 
   /**
-   * Whether this registry evaluates externals again per file (`reevaluateHookingExternals`, D127,
-   * D132): never one that outlives its files (`sharedAcrossFiles`, isolation `none`), which keeps
+   * Whether this registry evaluates externals again per file (`reevaluateHookingExternals` or
+   * `reevaluatePatchingExternals`, D127, D132): never one that outlives its files (`sharedAcrossFiles`, isolation `none`), which keeps
    * every module it evaluated, so neither watches nor inlines for it. Each file is not evaluated
    * again under `none` by design, so neither is an external.
    */
@@ -204,7 +204,7 @@ export class Registry {
   constructor(state: Records, sharedAcrossFiles = false) {
     this.#state = state
     this.#maps = [new Map()]
-    this.#reevaluates = state.options.policy.reevaluateHookingExternals && !sharedAcrossFiles
+    this.#reevaluates = reevaluatesExternals(state.options.policy) && !sharedAcrossFiles
     this.#freshWrappers = !sharedAcrossFiles
   }
 
