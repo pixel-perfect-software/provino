@@ -65,6 +65,7 @@ async function execute(
     reporters: options.reporters,
     env,
     ...(options.emoji === false ? { display: { emoji: false } } : {}),
+    ...(options.views === undefined ? {} : { views: options.views }),
     // Jest's single-file rule decides between `provino` and a listing of the one file's tests
     // (`selectsProvino`), so the reporters may need the count before the run: asked only then. A
     // sharded run's count is the shard's, which only the run knows; it is left to the run.

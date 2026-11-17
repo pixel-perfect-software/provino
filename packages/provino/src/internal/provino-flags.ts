@@ -2,6 +2,7 @@
 // taken out before it sees the rest.
 import type { ProvinoChoiceOptions } from '../types.ts'
 import { UsageError } from './usage-error.ts'
+import { viewsOf } from './views.ts'
 
 /**
  * What `takeProvinoFlags` took out of a `provino jest` command line, and the rest for Jest.
@@ -70,6 +71,6 @@ export function takeProvinoFlags(args: readonly string[]): ProvinoFlags {
     timingsFile,
     updateTimings,
     noEmoji,
-    views: { ...(tree ? { tree: true as const } : {}), ...(map ? { map: true as const } : {}) },
+    views: viewsOf(tree, map),
   }
 }

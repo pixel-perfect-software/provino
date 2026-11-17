@@ -1,4 +1,5 @@
 import type { TextSink } from '@provino/reporters'
+import type { ProvinoViews } from '@provino/reporters/live'
 import type { PoolKind, Reporter, RunSummary } from '@provino/types'
 
 /**
@@ -25,18 +26,12 @@ export interface JUnitChoiceOptions {
 
 /**
  * The options the `provino` reporter takes through `run()`: the views it prints beside its live
- * output (`--tree`, `--map`).
+ * output (`--tree`: the files folder by folder, a file that passed one row and a file with a
+ * failure opened down to its failed tests, before the end card; `--map`: one cell per file, a row
+ * per folder, after it). The one shape of the reporter's `views`.
  * @public
  */
-export interface ProvinoChoiceOptions {
-  /**
-   * After the run's lines, before the end card: the files folder by folder. A file that passed is
-   * one row; a file with a failure opens down to the failed tests.
-   */
-  readonly tree?: true
-  /** After the end card: one cell per file, a row per folder. */
-  readonly map?: true
-}
+export type ProvinoChoiceOptions = ProvinoViews
 
 /**
  * The options the `html` reporter takes through `run()` (B26 Phase 5 builds it; until then the
@@ -101,6 +96,13 @@ export interface RunOptions {
   readonly reporters?: readonly ReporterChoice[]
   /** `false`: the `provino` reporter draws plain symbols, not emoji (`--no-emoji`). Default: emoji where the terminal draws them. */
   readonly emoji?: false
+  /**
+   * `--tree` and `--map`: views of the `provino` reporter. With `reporters` left out they choose
+   * `provino` in place of `default`, wherever the run is (the environment still adds
+   * `github-actions`); with `provino` among `reporters` they are its options; with other reporters
+   * named and not `provino` the run is a usage error.
+   */
+  readonly views?: ProvinoChoiceOptions
   /** Whether this is a CI run. Default: the `CI` environment variable is set, and not `false` or `0`. */
   readonly ci?: boolean
   /**

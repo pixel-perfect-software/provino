@@ -13,7 +13,7 @@ import {
 } from '@provino/orchestrator'
 import { createReporterBus, type Environment } from '@provino/reporters'
 import type { FileFilter, Reporter, ReporterBus, RunSummary, SerializedError } from '@provino/types'
-import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
+import type { ProvinoChoiceOptions, ReporterChoice, RunOptions, RunResult } from '../types.ts'
 import { workerStartupEnv } from './compile-cache.ts'
 import { hookTerminal, streamOver } from './live-terminal.ts'
 import { type DisplayOptions, reportersFor, type TextExtras } from './reporters.ts'
@@ -44,6 +44,8 @@ export interface ExecuteOptions {
   readonly display?: DisplayOptions
   /** What a dialect adds to the text reporters (its failure text, a summary of its own). */
   readonly text?: TextExtras
+  /** `--tree` and `--map`: views of the `provino` reporter (see `ReporterContext.views`). */
+  readonly views?: ProvinoChoiceOptions
   /**
    * How many files the run will run, asked only when it decides the reporters (Jest's single-file
    * rule: `selectsProvino`). A caller that can't tell before the run leaves it out.
@@ -133,6 +135,7 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
     env: options.env,
     ...(options.display === undefined ? {} : { display: options.display }),
     ...(options.text === undefined ? {} : { text: options.text }),
+    ...(options.views === undefined ? {} : { views: options.views }),
     ...(options.session === undefined ? {} : { watch: true as const }),
     ...(options.fileCount === undefined ? {} : { fileCount: options.fileCount }),
   })

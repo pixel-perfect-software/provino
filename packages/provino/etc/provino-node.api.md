@@ -22,10 +22,7 @@ export interface NormalizedJsonChoiceOptions {
 }
 
 // @public
-export interface ProvinoChoiceOptions {
-    readonly map?: true;
-    readonly tree?: true;
-}
+export type ProvinoChoiceOptions = ProvinoViews;
 
 // @public
 export type ReporterChoice = "default" | "verbose" | "dot" | "agent" | "github-actions" | "summary" | "json" | "normalized-json" | "junit" | "provino" | "html" | readonly ["json" | "normalized-json", NormalizedJsonChoiceOptions] | readonly ["junit", JUnitChoiceOptions] | readonly ["provino", ProvinoChoiceOptions] | readonly ["html", HtmlChoiceOptions] | Reporter;
@@ -61,6 +58,7 @@ export interface RunOptions {
     readonly timingsFile?: string;
     readonly updateSnapshot?: boolean;
     readonly updateTimings?: boolean;
+    readonly views?: ProvinoChoiceOptions;
     readonly workerMemoryLimit?: number;
 }
 

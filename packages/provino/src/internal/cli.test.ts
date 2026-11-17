@@ -43,32 +43,24 @@ describe('parseRunArgs', () => {
     usageError(['-c', 'c.mjs', '--reporter', 'provino', '--reporter', 'provino'], /more than once/)
   })
 
-  it('--tree and --map are the provino reporter’s views: no reporter named chooses it, a named one takes them', () => {
-    const reportersOf = (args: readonly string[]): unknown => {
+  it('--tree and --map are RunOptions.views, whatever reporters are named: choosing and refusing are the run’s (reportersFor)', () => {
+    const optionsOf = (args: readonly string[]) => {
       const parsed = parseRunArgs(['-c', 'c.mjs', ...args])
-      return parsed.type === 'run' ? parsed.options.reporters : 'help'
+      assert.equal(parsed.type, 'run')
+      return parsed.type === 'run' ? parsed.options : undefined
     }
-    assert.deepEqual(reportersOf(['--tree']), [['provino', { tree: true }]])
-    assert.deepEqual(reportersOf(['--map', '--tree']), [['provino', { tree: true, map: true }]])
-    assert.deepEqual(reportersOf(['--reporter', 'agent', '--reporter', 'provino', '--map']), [
-      'agent',
-      ['provino', { map: true }],
-    ])
-    // With no view the choices are as they were.
-    assert.equal(reportersOf([]), undefined)
-    assert.deepEqual(reportersOf(['--reporter', 'provino']), ['provino'])
-  })
-
-  it('--tree or --map beside reporters that are not provino is a usage error naming the flags', () => {
-    usageError(
-      ['-c', 'c.mjs', '--reporter', 'agent', '--tree'],
-      /^--tree needs the provino reporter$/,
-    )
-    usageError(['-c', 'c.mjs', '--reporter', 'json', '--map'], /^--map needs the provino reporter$/)
-    usageError(
-      ['-c', 'c.mjs', '--reporter', 'default', '--tree', '--map'],
-      /^--tree and --map need the provino reporter$/,
-    )
+    assert.deepEqual(optionsOf(['--tree']), { config: 'c.mjs', views: { tree: true } })
+    assert.deepEqual(optionsOf(['--map', '--tree'])?.views, { tree: true, map: true })
+    // The reporters are as named, with no `provino` made up for them.
+    assert.deepEqual(optionsOf(['--reporter', 'agent', '--reporter', 'provino', '--map']), {
+      config: 'c.mjs',
+      reporters: ['agent', 'provino'],
+      views: { map: true },
+    })
+    assert.deepEqual(optionsOf(['--reporter', 'agent', '--tree'])?.reporters, ['agent'])
+    // With no view there is no `views`.
+    assert.equal(optionsOf([])?.views, undefined)
+    assert.equal(optionsOf(['--reporter', 'provino'])?.views, undefined)
     // --outputFile still needs a document reporter, whatever the views say.
     usageError(['-c', 'c.mjs', '--tree', '--outputFile', 'o.json'], /--outputFile needs --reporter/)
   })

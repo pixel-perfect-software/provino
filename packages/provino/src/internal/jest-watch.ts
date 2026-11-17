@@ -260,6 +260,7 @@ export async function runJestWatch(command: JestWatchCommand): Promise<number> {
       stderr,
       reporters: setup.reporters,
       text: setup.text,
+      views: command.views,
       announceReporterFailures: setup.announceThrown ? 'thrown' : false,
       leadingReporters: [results.reporter],
       env,

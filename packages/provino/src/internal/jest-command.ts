@@ -926,6 +926,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
             : {
                 reporters: setup.reporters,
                 text: setup.text,
+                views,
                 announceReporterFailures: setup.announceThrown
                   ? ('thrown' as const)
                   : (false as const),
