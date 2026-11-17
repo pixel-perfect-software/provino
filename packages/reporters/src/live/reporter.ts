@@ -40,7 +40,7 @@ import {
   readSourceCapped,
   snippetKey,
 } from './view/failure.ts'
-import { consoleLines, fileLine } from './view/file-line.ts'
+import { consoleLines, fileLine, fileSnapshotLine } from './view/file-line.ts'
 import { type StatusInput, statusLine } from './view/status-line.ts'
 import { moreWorkersLine, workerLine } from './view/worker-line.ts'
 
@@ -82,6 +82,13 @@ export interface ProvinoReporterOptions {
   readonly silent?: true
   /** Print no location and no code frame under a failure. */
   readonly noStackTrace?: true
+  /** The run's random seed, shown in the end card (the caller decides when: `--showSeed`, `--randomize`). */
+  readonly seed?: number
+  /**
+   * How to update snapshots, in the words the run was started with (`re-run with \`-u\``): the
+   * end card shows it under the snapshot line when some failed or are obsolete.
+   */
+  readonly snapshotHint?: string
   /** How a source file is read for a code frame. Default: a read of at most 1 MB. */
   readonly readSource?: (path: string) => Promise<string | undefined>
   /** The clock in ms, for the scheduler this reporter makes. Default: `performance.now`. */
@@ -164,6 +171,9 @@ export function createLiveReporter(
   // Cached lines (performance rule 6).
   let statusKey = ''
   let statusText = ''
+  /** The rule over the footer, made again only when the width changes. */
+  let ruleColumns = 0
+  let ruleText = ''
   const workerKeys: string[] = []
   const workerTexts: string[] = []
 
@@ -257,12 +267,16 @@ export function createLiveReporter(
           failed,
           skipped,
           durationMs: result.durationMs,
+          ...(result.heapUsedBytes === undefined ? {} : { heapBytes: result.heapUsedBytes }),
         },
         columns,
         glyphs,
         style,
       ),
     ]
+    const snapshotNote =
+      result.snapshot === undefined ? undefined : fileSnapshotLine(result.snapshot, columns, style)
+    if (snapshotNote !== undefined) lines.push(snapshotNote)
     if (options.silent !== true) {
       lines.push(...consoleLines(console, consoleOmitted, columns, style, options.colour))
     }
@@ -343,7 +357,12 @@ export function createLiveReporter(
       statusKey = key
       statusText = statusLine(input, columns, glyphs, style)
     }
-    const lines = [statusText]
+    if (ruleColumns !== columns) {
+      ruleColumns = columns
+      ruleText = style.dim(glyphs.rule.repeat(Math.max(1, columns - 1)))
+    }
+    // The rule, the busy workers, then the bar line at the very bottom.
+    const lines = [ruleText]
     const slots = state.workers()
     let shown = 0
     let hidden = 0
@@ -381,6 +400,7 @@ export function createLiveReporter(
       const spinner = glyphs.spinner[frameNo % glyphs.spinner.length] as string
       lines.push(` ${spinner}  starting ${workersCap} worker${workersCap === 1 ? '' : 's'}`)
     }
+    lines.push(statusText)
     return lines
   }
 
@@ -433,8 +453,28 @@ export function createLiveReporter(
     terminal: {
       restore() {
         scheduler.stop()
+        if (holdTimer !== undefined) timers.clearTimeout(holdTimer)
+        holdTimer = undefined
+        const wasDetached = detached
         detached = true
+        // The footer goes and the cursor comes back first, then what was waiting for a frame (the
+        // workers' own text, finished files, error blocks) as plain lines, so a run that ends by
+        // throwing or by a signal still shows the output that explains it.
         session?.restore()
+        if (wasDetached) return
+        if (partial !== '') {
+          pending.push(partial)
+          partial = ''
+        }
+        try {
+          drain(true, scheduler.now())
+        } catch {
+          // Rendering what was held is best effort here: the queued text below still goes out.
+        }
+        if (pending.length === 0) return
+        const text = `${pending.join('\n')}\n`
+        pending = []
+        writer.writeSync(text)
       },
       resize(width) {
         columns = width
@@ -554,6 +594,9 @@ export function createLiveReporter(
           durationMs: summary.durationMs,
           slowest: state.slowest(),
           snapshots: summary.snapshots?.counters,
+          ...(summary.snapshots === undefined ? {} : { snapshotUpdate: summary.snapshots.update }),
+          ...(options.snapshotHint === undefined ? {} : { snapshotHint: options.snapshotHint }),
+          ...(options.seed === undefined ? {} : { seed: options.seed }),
           openHandles: summary.openHandles,
           lateConsole: state.lateConsole(),
           failures: listed,

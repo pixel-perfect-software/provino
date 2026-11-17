@@ -134,10 +134,15 @@ test('the footer: a status line and a line per busy worker, drawn on a tick', as
   const frame = sink.text()
   assert.ok(frame.startsWith(`${ESC}[?2026h${ESC}[?25l`))
   assert.ok(frame.includes('✅ 1'))
-  assert.ok(frame.includes('0 of 2 files'))
+  assert.ok(frame.includes('0/2 files'))
   assert.ok(frame.includes('src/a.test.ts'))
   assert.ok(frame.includes('src/b.test.ts'))
   assert.ok(frame.endsWith(`${ESC}[?2026l`))
+  // The rule first, the workers, the bar line at the very bottom (B26, Tyler's layout).
+  const rows = frame.slice(0, -`${ESC}[?2026l`.length).split('\n').filter(Boolean)
+  assert.match(rows[0] ?? '', /─{20,}$/)
+  assert.match(rows[1] ?? '', /src\/a\.test\.ts/)
+  assert.match(rows.at(-1) ?? '', /^[█░]+ {2}0\/2 files {2}0% {3}✅ 1 {2}❌ 0 {3}/)
   // Nothing changed and the spinner is not due: the next tick, asked for by the frame, redraws the spinner only.
   scheduler.clock.advance(120)
   assert.equal(scheduler.tick(), true)
@@ -246,7 +251,7 @@ test('a second run:start starts clean and draws again', async () => {
   ])
   assert.equal(scheduler.tick(), true)
   assert.ok(sink.writes().length > before)
-  assert.ok(sink.writes().at(-1)?.includes('0 of 1 files'))
+  assert.ok(sink.writes().at(-1)?.includes('0/1 files'))
 })
 
 const RUN = { root: '/p', projects: [''], startTime: 0, watch: false }
@@ -312,7 +317,7 @@ test('a run after a broken one has a working scheduler and a clean error', async
   scheduler.tick()
   const write = sink.write.bind(sink)
   sink.write = (chunk) => {
-    if (typeof chunk === 'string' && chunk.includes('0 of')) throw new Error('EIO')
+    if (typeof chunk === 'string' && chunk.includes(' files ')) throw new Error('EIO')
     return write(chunk)
   }
   const a = buildFile({ path: 'a.test.ts', tests: [{ path: ['t'] }] })
@@ -325,7 +330,7 @@ test('a run after a broken one has a working scheduler and a clean error', async
   assert.equal(reporter.lastError?.(), undefined)
   assert.equal(scheduler.stopped(), false)
   assert.equal(scheduler.tick(), true)
-  assert.ok(sink.writes().at(-1)?.includes('0 of 1 files'))
+  assert.ok(sink.writes().at(-1)?.includes('0/1 files'))
 })
 
 test('an error on a full stream is kept for the bus and frames stop', async () => {

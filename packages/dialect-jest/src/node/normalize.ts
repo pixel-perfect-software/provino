@@ -82,6 +82,13 @@ export interface NormalizeOptions {
   readonly ci?: boolean
   /** Jest's random seed when `argv.seed` is unset. Default: random. */
   readonly seed?: number
+  /**
+   * Reporter names the host builds itself (`provino` gives `['provino', 'html']`, D141): a bare
+   * name in this list, in `reporters` or `--reporters`, is kept as given and never resolved as a
+   * module, so `jestReporterPlan` makes it a `host` step. A path (`./provino`) is still a module.
+   * Default: none.
+   */
+  readonly hostReporters?: readonly string[]
 }
 
 /**
@@ -270,6 +277,8 @@ interface Run {
   readonly seed: number | undefined
   /** Whether Jest's own install resolves its packages (`babel-jest` finds one). */
   readonly jestFound: boolean
+  /** `NormalizeOptions.hostReporters`. */
+  readonly hostReporters: ReadonlySet<string>
 }
 
 /** Jest's own `require.resolve`, or the bare name when no Jest install has it. */
@@ -559,7 +568,11 @@ function normalizeReporters(run: Run, reporters: unknown, rootDir: string): unkn
   return reporters.map((entry: unknown) => {
     const config: unknown[] = typeof entry === 'string' ? [entry, {}] : [...(entry as unknown[])]
     const reporterPath = replaceRootDirInPath(rootDir, config[0] as string)
-    if (!['agent', 'default', 'github-actions', 'summary'].includes(reporterPath)) {
+    // A host's own reporter (D141) is a name, never a module: kept as given, as Jest keeps its own.
+    if (
+      !['agent', 'default', 'github-actions', 'summary'].includes(reporterPath) &&
+      !run.hostReporters.has(reporterPath)
+    ) {
       const reporter = run.resolution.findNodeModule(reporterPath, { basedir: rootDir })
       if (!reporter) {
         throw new JestConfigError(
@@ -755,6 +768,7 @@ export async function normalizeJestConfig(
     ci: options.ci ?? ciFromEnvironment(options.env ?? process.env),
     seed: options.seed,
     jestFound: resolution.requireResolve('babel-jest') !== undefined,
+    hostReporters: new Set(options.hostReporters ?? []),
   }
   const DEFAULTS = jestDefaults(run.ci)
   const rootDir = (): string => merged.rootDir

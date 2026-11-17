@@ -11,6 +11,7 @@ import {
   readdirSync,
   readFileSync,
   symlinkSync,
+  writeFileSync,
 } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -492,5 +493,97 @@ describe('the coordinator without coverage (T1.10, T7.12)', () => {
       loaded.some((url) => url.endsWith('/packages/coverage/src/node/index.ts')),
       loaded.join('\n'),
     )
+  })
+})
+
+/**
+ * The built files of the `provino` reporter (B26), found by what they hold: the file that defines
+ * `provinoReporter`, then any file that imports only files already in the set (the dynamic
+ * import's facade).
+ */
+function liveFiles(sources: ReadonlyMap<string, string>): Set<string> {
+  const found = new Set<string>()
+  for (const [path, source] of sources) {
+    if (/\bfunction provinoReporter\(/.test(source)) found.add(path)
+  }
+  for (let grew = true; grew; ) {
+    grew = false
+    for (const [path, source] of sources) {
+      const imports = staticImports(path, source)
+      if (!found.has(path) && imports.length > 0 && imports.every((file) => found.has(file))) {
+        found.add(path)
+        grew = true
+      }
+    }
+  }
+  return found
+}
+
+/** The `provino` reporter's files and the HTML report's (none until B26 Phase 5) among `loaded` URLs. */
+function reporterChunksIn(loaded: readonly string[]): { live: string[]; html: string[] } {
+  const dist = `${join(PACKAGE, 'dist')}/`
+  const live = liveFiles(builtSources())
+  const paths = loaded
+    .filter((url) => url.startsWith('file://'))
+    .map((url) => fileURLToPath(url))
+    .filter((path) => path.startsWith(dist))
+    .map((path) => path.slice(dist.length))
+  return {
+    live: paths.filter((path) => live.has(path)),
+    html: paths.filter((path) => /(?:^|\/)html\d*\.js$/.test(path)),
+  }
+}
+
+describe('the provino reporter is its own chunk (B26)', () => {
+  test('no file outside it imports one of its files statically; one dynamic import reaches it', () => {
+    const sources = builtSources()
+    const live = liveFiles(sources)
+    assert.ok(live.size >= 1 && live.size <= 2, [...live].join(', '))
+    assert.ok(![...live].some((file) => file.startsWith('worker/')), [...live].join(', '))
+    const reaching: string[] = []
+    for (const [path, source] of sources) {
+      if (live.has(path)) continue
+      assert.deepEqual(
+        staticImports(path, source).filter((file) => live.has(file)),
+        [],
+        path,
+      )
+      if (dynamicImports(path, source).some((file) => live.has(file))) reaching.push(path)
+    }
+    assert.deepEqual(reaching, ['coordinator.js'])
+  })
+
+  test('--reporter agent loads neither chunk anywhere; --reporter provino loads live in the coordinator only, never html', async () => {
+    const dir = await builtProject()
+    writeFileSync(
+      join(dir, 'provino.config.mjs'),
+      "export default { dialect: 'jest', testMatch: ['**/*.test.js'] }\n",
+    )
+    for (const [reporter, wantLive] of [
+      ['agent', false],
+      ['provino', true],
+    ] as const) {
+      const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
+      after(() => rm(logs, { recursive: true, force: true }))
+      const run = runBuilt(
+        ['run', '--config', 'provino.config.mjs', '--reporter', reporter, '--no-cache'],
+        { cwd: dir, preloads: ['load-recorder'], env: { PROVINO_LOAD_LOG: logs } },
+      )
+      assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
+      let workers = 0
+      let coordinatorLive = 0
+      for (const file of readdirSync(logs)) {
+        const lines = readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean)
+        const found = reporterChunksIn(lines.map((line) => line.split('\t')[1] ?? ''))
+        assert.deepEqual(found.html, [], 'no html chunk is ever loaded')
+        if (lines[0]?.split('\t')[0]?.endsWith('worker/bootstrap.js')) {
+          workers++
+          assert.deepEqual(found.live, [], `a worker loaded ${found.live.join(', ')}`)
+        } else coordinatorLive += found.live.length
+      }
+      assert.ok(workers >= 1, 'no worker process was recorded')
+      if (wantLive) assert.ok(coordinatorLive >= 1, 'the coordinator loaded no live chunk')
+      else assert.equal(coordinatorLive, 0, '--reporter agent loaded the live chunk')
+    }
   })
 })

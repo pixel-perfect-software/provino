@@ -54,9 +54,64 @@ test('the replay rate and the slow-sink write time parse, with their defaults', 
   usageError(['--write-ms', 'slow'], /--write-ms needs a number/)
 })
 
+test('e2e runs only when named, with its suites, runs and bars', () => {
+  assert.ok(!(REPORTER_LEGS as readonly string[]).includes('e2e'), 'all leaves the suite runs out')
+  const plain = parseReporterFlags(['e2e'])
+  assert.deepEqual(plain.legs, ['e2e'])
+  assert.deepEqual(plain.suites, ['app-500'])
+  assert.equal(plain.runs, 7)
+  const flags = parseReporterFlags([
+    'e2e',
+    '--suite',
+    'app-500',
+    '--suite',
+    'mock-heavy-500',
+    '--runs',
+    '3',
+    '--max-wall-ratio',
+    '1.02',
+    '--max-cpu-overhead',
+    '0.02',
+  ])
+  assert.deepEqual(flags.suites, ['app-500', 'mock-heavy-500'])
+  assert.equal(flags.runs, 3)
+  assert.equal(flags.maxWallRatio, 1.02)
+  assert.equal(flags.maxCpuOverhead, 0.02)
+  usageError(['e2e', '--runs', '0'], /--runs needs a positive whole number/)
+})
+
+test('the e2e bars: the wall ratio and the CPU overhead, a NaN missing both', () => {
+  const flags = parseReporterFlags([
+    'e2e',
+    '--max-wall-ratio',
+    '1.02',
+    '--max-cpu-overhead',
+    '0.02',
+  ])
+  const suite = {
+    suite: 'app-500',
+    runs: 7,
+    provinoMedianMs: 1000,
+    agentMedianMs: 990,
+    ratio: 1.0101,
+    ratioLow: 1,
+    ratioHigh: 1.02,
+    provinoCpuMs: 101,
+    agentCpuMs: 100,
+    cpuOverhead: 0.01,
+  }
+  assert.deepEqual(reporterFailures({ e2e: [suite] }, flags), [])
+  assert.equal(reporterFailures({ e2e: [{ ...suite, ratio: 1.03 }] }, flags).length, 1)
+  assert.equal(reporterFailures({ e2e: [{ ...suite, cpuOverhead: 0.021 }] }, flags).length, 1)
+  assert.equal(
+    reporterFailures({ e2e: [{ ...suite, ratio: Number.NaN, cpuOverhead: Number.NaN }] }, flags)
+      .length,
+    2,
+  )
+})
+
 test('bad usage: unknown and later legs, bad numbers, unknown flags', () => {
   usageError(['nope'], /unknown leg "nope"/)
-  usageError(['e2e'], /Phase 3/)
   usageError(['html'], /Phase 5/)
   usageError(['--tests', '0'], /--tests needs a positive whole number/)
   usageError(['--rounds', '1.5'], /--rounds/)

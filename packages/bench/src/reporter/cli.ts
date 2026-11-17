@@ -9,10 +9,15 @@
 // control: events per second, and each event's wait from its scheduled send to the end of its
 // delivery, printed with no bar), `first-frame` (on a pty). A bar is
 // checked only when its flag is given: `--max-handler-us 1 --max-frame-p99-ms 2 --max-heap-mb 4
-// --max-heap-growth-mb 0.5 --min-slow-ratio 0.98 --max-first-frame-ms 50`. `e2e` is Phase 3's and
-// `html` Phase 5's. Exit 0 when nothing missed, 1 on a miss, 2 on bad usage.
+// --max-heap-growth-mb 0.5 --min-slow-ratio 0.98 --max-first-frame-ms 50`. `e2e [--suite s]…
+// [--runs n]` (Phase 3) runs only when named: each suite (default app-500) under the built bin on a
+// pty, `--reporter provino` against `--reporter agent`, 1 discarded plus `--runs` (default 7) of
+// each, interleaved: the wall ratio with its bootstrap CI and the coordinator CPU the reporter
+// adds, with the bars `--max-wall-ratio 1.02 --max-cpu-overhead 0.02`. `html` is Phase 5's. Exit 0
+// when nothing missed, 1 on a miss, 2 on bad usage.
 import { exitOnSignals } from '@provino/harness'
 import { exitCodeFor, parseOrExitUsage } from '../internal/limits.ts'
+import { runE2eLeg } from './e2e.ts'
 import {
   runFirstFrameLeg,
   runFramesLeg,
@@ -21,6 +26,7 @@ import {
   runSlowSinkLeg,
 } from './legs.ts'
 import {
+  type E2eResult,
   type FirstFrameResult,
   type FramesResult,
   type HandlersResult,
@@ -42,6 +48,7 @@ const results: {
   heap?: HeapResult
   slowSink?: SlowSinkResult
   firstFrame?: FirstFrameResult
+  e2e?: E2eResult[]
 } = {}
 const node = process.version
 const out: string[] = []
@@ -99,6 +106,18 @@ for (const leg of flags.legs) {
         `slow-sink: ${fixed(result.fastPerSec, 0)} events/s into a fast sink, ${fixed(result.slowPerSec, 0)} into a ${result.slowWriteMs} ms sink: ratio ${fixed(result.ratio, 4)} (${fixed(result.ratioWithEnd, 4)} counting the end-of-run flush; ${result.rounds} interleaved rounds, ${result.testsPerSec} tests/s)\n  event wait: fast median ${fixed(result.fastWaitMedianMs)} ms p99 ${fixed(result.fastWaitP99Ms)} ms; slow median ${fixed(result.slowWaitMedianMs)} ms p99 ${fixed(result.slowWaitP99Ms)} ms`,
         result,
       )
+      break
+    }
+    case 'e2e': {
+      for (const suite of flags.suites) {
+        const result = await runE2eLeg(suite, flags.runs)
+        results.e2e = [...(results.e2e ?? []), result]
+        say(
+          leg,
+          `e2e ${suite}: --reporter provino against --reporter agent on a pty, ${result.runs} interleaved runs of each after one discarded: wall median ${fixed(result.provinoMedianMs, 0)} ms against ${fixed(result.agentMedianMs, 0)} ms, ratio ${fixed(result.ratio, 4)} (95% CI ${fixed(result.ratioLow, 4)} to ${fixed(result.ratioHigh, 4)}); coordinator CPU ${fixed(result.provinoCpuMs, 0)} ms against ${fixed(result.agentCpuMs, 0)} ms, ${fixed(result.cpuOverhead * 100, 2)}% added`,
+          result,
+        )
+      }
       break
     }
     case 'first-frame': {

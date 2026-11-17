@@ -1,0 +1,4 @@
+
+🎉 4,000 tests passed in 1,980 files · 12.4s
+🐢 slowest: src/a.test.ts 4.20s · src/b.test.ts 3.90s · src/c.test.ts 3.10s
+snapshots: 2 updated · 2 files removed · 4 passed

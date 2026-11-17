@@ -104,6 +104,7 @@ export {
 export {
   type JestReporterEnvironment,
   type JestReporterPlan,
+  type JestReporterPlanOptions,
   type JestReporterStep,
   jestReporterPlan,
 } from './reporters/plan.ts'

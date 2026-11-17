@@ -29,6 +29,35 @@ describe('jestReporterPlan', () => {
     assert.ok(plan.summary !== undefined)
   })
 
+  it('a name the host keeps is a host step, with no summary of its own (D141)', () => {
+    const hostReporters = ['provino', 'html']
+    const alone = jestReporterPlan({ reporters: [entry('provino')] }, [{}], PLAIN, {
+      hostReporters,
+    })
+    assert.deepEqual(alone, {
+      steps: [{ kind: 'host', name: 'provino', options: {} }],
+      summary: undefined,
+    })
+    const beside = jestReporterPlan(
+      {
+        reporters: [entry('default'), entry('html', { outputFile: 'r.html' }), entry('/abs/p.js')],
+      },
+      [{}],
+      PLAIN,
+      { hostReporters },
+    )
+    assert.deepEqual(beside.steps, [
+      { kind: 'builtin', name: 'default', options: {} },
+      { kind: 'host', name: 'html', options: { outputFile: 'r.html' } },
+      { kind: 'custom', path: '/abs/p.js', options: {} },
+    ])
+    assert.ok(beside.summary !== undefined)
+    // Without the list the same name is a custom module, as Jest reads it.
+    assert.deepEqual(jestReporterPlan({ reporters: [entry('provino')] }, [{}], PLAIN).steps, [
+      { kind: 'custom', path: 'provino', options: {} },
+    ])
+  })
+
   it('makes default verbose when the global config or any project is verbose', () => {
     const named = { reporters: [entry('default')] }
     assert.deepEqual(jestReporterPlan({ ...named, verbose: true }, [{}], PLAIN).steps, [

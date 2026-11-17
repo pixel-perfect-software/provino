@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
+import type { Writable } from 'node:stream'
 import { describe, it } from 'node:test'
 import { run } from 'provino/node'
 import { runJest } from './live-jest.ts'
@@ -17,6 +18,7 @@ import {
   passing,
   spawnCli,
   trackedProjects,
+  withoutCiEnvironment,
   withoutNodeNoise,
 } from './support.ts'
 
@@ -352,10 +354,18 @@ class Terminal extends Collect {
 describe('a terminal (through run(), where a stderr can say it is one)', () => {
   const ok = { 'tests/a.test.js': passing('a'), 'tests/b.test.js': passing('b') }
 
-  it('gets colour and the live block of the running files, erased before the results', async () => {
+  // D135: with no reporter named, an interactive terminal gets `provino`; `default`'s own live
+  // block is held here by naming it.
+  it('default gets colour and the live block of the running files, erased before the results', async () => {
     const project = await makeProject(ok)
     const stderr = new Terminal()
-    const ran = await run({ config: project.config, stdout: new Collect(), stderr, env: {} })
+    const ran = await run({
+      config: project.config,
+      stdout: new Collect(),
+      stderr,
+      env: {},
+      reporters: ['default'],
+    })
     assert.equal(ran.exitCode, 0, stderr.text)
     assert.match(stderr.text, new RegExp(`${ESC}\\[33m RUNS ${ESC}`))
     assert.match(stderr.text, new RegExp(`${ESC}\\[1F${ESC}\\[0J`))
@@ -382,14 +392,16 @@ describe('a terminal (through run(), where a stderr can say it is one)', () => {
     assert.match(stderr.text, /FAIL tests\/bad\.test\.js/)
   })
 
-  it('NO_COLOR turns the colour off and keeps the live block; TERM=dumb has neither', async () => {
+  it('NO_COLOR turns the colour off and keeps default’s live block; TERM=dumb has neither', async () => {
     const project = await makeProject(ok)
     const plain = new Terminal()
+    // Named (D135: a terminal that names none gets `provino`).
     await run({
       config: project.config,
       stdout: new Collect(),
       stderr: plain,
       env: { NO_COLOR: '1' },
+      reporters: ['default'],
     })
     // Jest pads RUNS whatever the colour (`Status.ts` L23-L24).
     assert.match(plain.text, / RUNS {2}tests\/[ab]\.test\.js/)
@@ -411,6 +423,386 @@ describe('a terminal (through run(), where a stderr can say it is one)', () => {
     await run({ config: project.config, stdout: new Collect(), stderr, env: { FORCE_COLOR: '1' } })
     assert.doesNotMatch(stderr.text, /RUNS/)
     assert.match(stderr.text, new RegExp(`${ESC}\\[32m PASS `))
+  })
+})
+
+/**
+ * `runJestCommand`, loaded by URL: the type-test project includes this directory but not the
+ * package's source. In this process, so its stderr can say it is a terminal.
+ */
+const { runJestCommand } = (await import(
+  new URL('../src/internal/jest-command.ts', import.meta.url).href
+)) as {
+  runJestCommand(
+    args: readonly string[],
+    io: {
+      stdout: Writable
+      stderr: Writable
+      cwd: string
+      env: Readonly<Record<string, string | undefined>>
+    },
+  ): Promise<number>
+}
+
+/** The harness's terminal model, loaded by path: `provino` may not import `@provino/harness`. */
+const { renderTranscript } = (await import(
+  new URL('../../harness/src/internal/watch-transcript.ts', import.meta.url).href
+)) as { renderTranscript(output: string): string }
+
+const HIDE_CURSOR = `${ESC}[?25l`
+const SHOW_CURSOR = `${ESC}[?25h`
+
+/** Whether a run's stderr is the `provino` reporter's live output: the cursor hidden and shown again, its end card, none of Jest's totals. */
+function assertProvinoLive(text: string): void {
+  assert.ok(text.includes(HIDE_CURSOR), text)
+  assert.ok(text.lastIndexOf(SHOW_CURSOR) > text.indexOf(HIDE_CURSOR), text)
+  assert.match(text, /2 tests passed in 2 files/)
+  assert.doesNotMatch(text, /Test Suites:|Ran all test suites| RUNS /)
+  // The footer is gone from the screen the bytes leave: the end card is what is left.
+  const screen = renderTranscript(text)
+  assert.doesNotMatch(screen, / of \d+ files? |starting \d+ workers?/, screen)
+  assert.match(screen, /2 tests passed in 2 files/)
+}
+
+/** Whether it is Jest's text and no `provino` output. */
+function assertJestText(text: string): void {
+  assert.match(text, /Test Suites:|Tests:/)
+  assert.ok(!text.includes(HIDE_CURSOR), text)
+  assert.doesNotMatch(text, /tests passed in \d+ files/)
+}
+
+describe('D135: an interactive terminal with no reporter named gets provino', () => {
+  const ok = { 'tests/a.test.js': passing('a'), 'tests/b.test.js': passing('b') }
+
+  it('under provino run (run(), a stderr that is a terminal, not CI, no agent)', async () => {
+    const project = await makeProject(ok)
+    const stderr = new Terminal()
+    const ran = await run({ config: project.config, stdout: new Collect(), stderr, env: {} })
+    assert.equal(ran.exitCode, 0, stderr.text)
+    assertProvinoLive(stderr.text)
+  })
+
+  it('under provino jest: no summary, no closing line, no RUNS block', async () => {
+    const project = await makeProject(ok)
+    const stderr = new Terminal()
+    // An interactive terminal: none of a CI runner's variables reach the Jest reader.
+    const code = await withoutCiEnvironment(() =>
+      runJestCommand([`--config=${jestConfigJson(project.dir)}`], {
+        stdout: new Collect(),
+        stderr,
+        cwd: project.dir,
+        env: {},
+      }),
+    )
+    assert.equal(code, 0, stderr.text)
+    assertProvinoLive(stderr.text)
+  })
+
+  it('not in CI, under an agent, with TERM=dumb, or with --verbose: Jest’s text stays', async () => {
+    const project = await makeProject(ok)
+    // The Jest reader in this process takes CI from the process, not from `io.env`, so the Jest
+    // side of the CI case is `--ci` (the bin reads both from one environment).
+    for (const [env, flags] of [
+      [{ CI: '1' }, ['--ci']],
+      [{ CLAUDECODE: '1' }, []],
+      [{ TERM: 'dumb' }, []],
+    ] as const) {
+      const viaRun = new Terminal()
+      await run({ config: project.config, stdout: new Collect(), stderr: viaRun, env })
+      assertJestText(viaRun.text)
+      const viaJest = new Terminal()
+      await runJestCommand([`--config=${jestConfigJson(project.dir)}`, ...flags], {
+        stdout: new Collect(),
+        stderr: viaJest,
+        cwd: project.dir,
+        env,
+      })
+      assertJestText(viaJest.text)
+    }
+    // D143: `--verbose`, or `verbose` in the config, keeps Jest's verbose reporter.
+    for (const args of [
+      [`--config=${jestConfigJson(project.dir)}`, '--verbose'],
+      [`--config=${jestConfigJson(project.dir, { verbose: true })}`],
+    ]) {
+      const stderr = new Terminal()
+      await runJestCommand(args, { stdout: new Collect(), stderr, cwd: project.dir, env: {} })
+      assertJestText(stderr.text)
+      // Jest's verbose list, coloured on the terminal.
+      assert.match(stderr.text.replaceAll(new RegExp(`${ESC}\\[\\d+m`, 'g'), ''), /✓ a/)
+    }
+  })
+
+  it('not when a reporter is named: --reporters, the reporters key, run()’s reporters', async () => {
+    const project = await makeProject(ok)
+    const named = new Terminal()
+    await run({
+      config: project.config,
+      stdout: new Collect(),
+      stderr: named,
+      env: {},
+      reporters: ['default'],
+    })
+    assertJestText(named.text)
+    for (const args of [
+      [`--config=${jestConfigJson(project.dir)}`, '--reporters', 'default'],
+      [`--config=${jestConfigJson(project.dir, { reporters: ['default'] })}`],
+    ]) {
+      const stderr = new Terminal()
+      await runJestCommand(args, { stdout: new Collect(), stderr, cwd: project.dir, env: {} })
+      assertJestText(stderr.text)
+    }
+  })
+
+  it('not without a terminal: a pipe gets Jest’s text under both commands', async () => {
+    const project = await makeProject(ok)
+    const viaRun = await spawnCli(['run', '--config', project.config], { cwd: project.dir })
+    assertJestText(viaRun.stderr)
+    const viaJest = await spawnCli(['jest', `--config=${jestConfigJson(project.dir)}`], {
+      cwd: project.dir,
+    })
+    assertJestText(viaJest.stderr)
+  })
+})
+
+describe('the provino reporter by name (D141)', () => {
+  const ok = { 'tests/a.test.js': passing('a'), 'tests/b.test.js': passing('b') }
+
+  it('on a pipe prints plain lines: no cursor moves, no escape at all', async () => {
+    const project = await makeProject(ok)
+    const runs = [
+      await spawnCli(['run', '--config', project.config, '--reporter', 'provino'], {
+        cwd: project.dir,
+      }),
+      await spawnCli(
+        ['jest', `--config=${jestConfigJson(project.dir)}`, '--reporters', 'provino'],
+        { cwd: project.dir },
+      ),
+      await spawnCli(
+        ['jest', `--config=${jestConfigJson(project.dir, { reporters: ['provino'] })}`],
+        { cwd: project.dir },
+      ),
+    ]
+    for (const ran of runs) {
+      assert.equal(ran.code, 0, ran.stderr)
+      assert.ok(!ran.stderr.includes(ESC), ran.stderr)
+      assert.match(ran.stderr, /^✅ tests\/a\.test\.js · 1 test · /m)
+      assert.match(ran.stderr, /^🎉 2 tests passed in 2 files · /m)
+      assert.doesNotMatch(ran.stderr, /Test Suites:/)
+    }
+  })
+
+  it('--no-emoji gives the plain symbols, under provino run and provino jest', async () => {
+    const project = await makeProject(ok)
+    const runs = [
+      await spawnCli(['run', '--config', project.config, '--reporter', 'provino', '--no-emoji'], {
+        cwd: project.dir,
+      }),
+      await spawnCli(
+        ['jest', `--config=${jestConfigJson(project.dir)}`, '--no-emoji', '--reporters', 'provino'],
+        { cwd: project.dir },
+      ),
+    ]
+    for (const ran of runs) {
+      assert.equal(ran.code, 0, ran.stderr)
+      assert.match(ran.stderr, /^✓ tests\/a\.test\.js · 1 test · /m)
+      assert.doesNotMatch(ran.stderr, /✅|🎉/)
+    }
+    // PROVINO_EMOJI=0 is the same, and Jest's parser never saw the flag.
+    const env = await spawnCli(['run', '--config', project.config, '--reporter', 'provino'], {
+      cwd: project.dir,
+      env: { PROVINO_EMOJI: '0' },
+    })
+    assert.match(env.stderr, /^✓ tests\/a\.test\.js/m)
+  })
+
+  it('a path named ./provino is still a module, resolved as Jest resolves a custom reporter', async () => {
+    const project = await makeProject(ok)
+    const ran = await spawnCli(
+      ['jest', `--config=${jestConfigJson(project.dir, { reporters: ['./provino'] })}`],
+      { cwd: project.dir },
+    )
+    assert.equal(ran.code, 1, ran.stderr)
+    assert.match(
+      ran.stderr,
+      /Could not resolve a module for a custom reporter\.\n {2}Module name: \.\/provino/,
+    )
+  })
+
+  it('html is reserved and not built yet: a usage error under both commands', async () => {
+    const project = await makeProject(ok)
+    const viaRun = await spawnCli(['run', '--config', project.config, '--reporter', 'html'], {
+      cwd: project.dir,
+    })
+    assert.equal(viaRun.code, 2, viaRun.stderr)
+    assert.match(
+      viaRun.stderr,
+      /html is Provino’s reserved reporter name, and its HTML report is not built yet \(B26 Phase 5\); for a reporter module named html, give its path, such as \.\/node_modules\/html/,
+    )
+    const viaJest = await spawnCli(
+      ['jest', `--config=${jestConfigJson(project.dir)}`, '--reporters', 'html'],
+      { cwd: project.dir },
+    )
+    assert.equal(viaJest.code, 1, viaJest.stderr)
+    assert.match(
+      viaJest.stderr,
+      /html is Provino’s reserved reporter name, and its HTML report is not built yet \(B26 Phase 5\); for a reporter module named html, give its path, such as \.\/node_modules\/html/,
+    )
+  })
+})
+
+/** The text with its colour codes taken out. */
+function plain(text: string): string {
+  return text.replaceAll(new RegExp(`${ESC}\\[[0-9;]*m`, 'g'), '')
+}
+
+/**
+ * `provino jest` in this process on a fake terminal, no reporter named: D135's live path. The CI
+ * and agent variables are taken out of `process.env` for the call, as an interactive terminal has
+ * none (the Jest reader reads `CI` there, and CI's runners set it).
+ */
+async function liveJest(dir: string, args: readonly string[]): Promise<string> {
+  const stderr = new Terminal()
+  await withoutCiEnvironment(() =>
+    runJestCommand(args, { stdout: new Collect(), stderr, cwd: dir, env: {} }),
+  )
+  return stderr.text
+}
+
+describe('B26 Phase 3 review: what the flags ask for under D135’s live path', () => {
+  it('--showSeed (and --randomize) put the seed in the end card', async () => {
+    const project = await makeProject({
+      'tests/a.test.js': passing('a'),
+      'tests/b.test.js': passing('b'),
+    })
+    const config = `--config=${jestConfigJson(project.dir)}`
+    const shown = plain(await liveJest(project.dir, [config, '--showSeed', '--seed=7']))
+    assert.ok(shown.includes(HIDE_CURSOR), 'the provino reporter drew')
+    assert.match(shown, /^seed: 7$/m)
+    const randomized = plain(await liveJest(project.dir, [config, '--randomize', '--seed=8']))
+    assert.match(randomized, /^seed: 8$/m)
+    const none = plain(await liveJest(project.dir, [config]))
+    assert.doesNotMatch(none, /^seed:/m)
+  })
+
+  it('--logHeapUsage puts each file’s heap after its time', async () => {
+    const project = await makeProject({
+      'tests/a.test.js': passing('a'),
+      'tests/b.test.js': passing('b'),
+    })
+    const text = plain(
+      await liveJest(project.dir, [`--config=${jestConfigJson(project.dir)}`, '--logHeapUsage']),
+    )
+    assert.match(text, /tests\/a\.test\.js · 1 test · \S+ · \d+ MB heap/)
+  })
+
+  it('obsolete snapshots: the file’s line, the end card’s count, and Jest’s update command', async () => {
+    const project = await makeProject({
+      'tests/s.test.js': "test('s', () => { expect(1).toMatchSnapshot() })\n",
+      'tests/b.test.js': passing('b'),
+      'tests/__snapshots__/s.test.js.snap': [
+        '// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing',
+        '',
+        'exports[`gone 1`] = `2`;',
+        '',
+        'exports[`s 1`] = `1`;',
+        '',
+      ].join('\n'),
+    })
+    const text = plain(await liveJest(project.dir, [`--config=${jestConfigJson(project.dir)}`]))
+    assert.match(text, /^ {3}snapshots: 1 obsolete$/m)
+    assert.match(text, /^snapshots: 1 obsolete · 1 passed$/m)
+    assert.match(text, /^ {2}re-run jest with `-u` to update them$/m)
+  })
+
+  it('a global setup that throws is printed on a terminal the footer has left', async () => {
+    const project = await makeProject({
+      'tests/a.test.js': passing('a'),
+      'tests/b.test.js': passing('b'),
+      'setup.js': "module.exports = async () => { throw new Error('setup broke') }\n",
+    })
+    const text = await liveJest(project.dir, [
+      `--config=${jestConfigJson(project.dir, { globalSetup: '<rootDir>/setup.js' })}`,
+    ])
+    const at = text.indexOf('setup broke')
+    assert.ok(at !== -1, text)
+    // Whatever was drawn before it is gone, and the cursor is shown, before the failure is printed.
+    assert.ok(
+      text.lastIndexOf(HIDE_CURSOR) < text.lastIndexOf(SHOW_CURSOR) || !text.includes(HIDE_CURSOR),
+    )
+    assert.ok(!text.slice(at).includes(HIDE_CURSOR))
+    assert.doesNotMatch(renderTranscript(text), / of \d+ files? /)
+  })
+})
+
+describe('B26 Phase 3 review: one rule chooses provino under both commands', () => {
+  it('a run of one file lists its tests (Jest’s single-file rule) under provino run and provino jest alike', async () => {
+    const one = await makeProject({ 'tests/a.test.js': passing('a') })
+    const viaRun = new Terminal()
+    await run({ config: one.config, stdout: new Collect(), stderr: viaRun, env: {} })
+    const viaJest = await liveJest(one.dir, [`--config=${jestConfigJson(one.dir)}`])
+    for (const text of [viaRun.text, viaJest]) {
+      assert.ok(!text.includes(HIDE_CURSOR), 'no live footer for one file')
+      assert.match(plain(text), /✓ a/)
+    }
+    // --silent turns the rule off: then both get provino.
+    const silentJest = await liveJest(one.dir, [`--config=${jestConfigJson(one.dir)}`, '--silent'])
+    assert.ok(silentJest.includes(HIDE_CURSOR))
+  })
+
+  it('two files: provino under both; a verbose config keeps Jest’s verbose under both', async () => {
+    const two = await makeProject({
+      'tests/a.test.js': passing('a'),
+      'tests/b.test.js': passing('b'),
+    })
+    const viaRun = new Terminal()
+    await run({ config: two.config, stdout: new Collect(), stderr: viaRun, env: {} })
+    const viaJest = await liveJest(two.dir, [`--config=${jestConfigJson(two.dir)}`])
+    for (const text of [viaRun.text, viaJest]) assert.ok(text.includes(HIDE_CURSOR))
+    const verbose = await liveJest(two.dir, [
+      `--config=${jestConfigJson(two.dir, { verbose: true })}`,
+    ])
+    assert.ok(!verbose.includes(HIDE_CURSOR))
+  })
+})
+
+describe('B26 Phase 3 review: this process’s own writes go above the footer', () => {
+  it('a test’s direct process.stdout.write and an inline worker’s console, then the streams as they were', async () => {
+    const project = await makeProject({
+      'tests/a.test.js': [
+        "test('writes', () => {",
+        "  process.stdout.write('a direct write\\n')",
+        "  console.log('an inline console line')",
+        '})',
+        '',
+      ].join('\n'),
+      'tests/b.test.js': passing('b'),
+    })
+    const stdout = process.stdout
+    const wasTTY = Object.getOwnPropertyDescriptor(stdout, 'isTTY')
+    const hadOwnWrite = Object.hasOwn(stdout, 'write')
+    const write = stdout.write
+    // This process's stdout is node:test's pipe: say it is the terminal, as a bin's is.
+    Object.defineProperty(stdout, 'isTTY', { value: true, configurable: true, writable: true })
+    const stderr = new Terminal()
+    try {
+      const ran = await run({
+        config: project.config,
+        stdout: new Collect(),
+        stderr,
+        env: {},
+        pool: 'inline',
+      })
+      assert.equal(ran.exitCode, 0, stderr.text)
+    } finally {
+      if (wasTTY === undefined) Reflect.deleteProperty(stdout, 'isTTY')
+      else Object.defineProperty(stdout, 'isTTY', wasTTY)
+    }
+    assert.match(stderr.text, /a direct write\n/)
+    assert.match(stderr.text, /an inline console line/)
+    // Above the footer: printed by a frame, before the end card.
+    assert.ok(stderr.text.indexOf('a direct write') < stderr.text.indexOf('2 tests passed'))
+    assert.equal(Object.hasOwn(stdout, 'write'), hadOwnWrite, 'stdout.write is its own again')
+    assert.equal(stdout.write, write)
   })
 })
 

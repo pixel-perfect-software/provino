@@ -235,10 +235,10 @@ export function createRunState(): RunState {
         console: [],
         consoleOmitted: 0,
       }
-      const previous = workers[workerId]
-      if (previous === undefined) busy++
-      // A file whose `file:end` never came (a crashed worker) loses its record with its slot.
-      else if (byFile.get(previous.fileId) === previous) byFile.delete(previous.fileId)
+      // The slot shows the newest file. The previous one keeps its record until its own `file:end`:
+      // a run in band announces the next file before the last one has ended, on the same worker
+      // (B26 Phase 3 found it: the first file ended with no tests). `finish` releases what never ends.
+      if (workers[workerId] === undefined) busy++
       workers[workerId] = slot
       byFile.set(file.fileId, slot)
       dirty = true

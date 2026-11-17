@@ -102,7 +102,8 @@ const MARK = '__provino_ref__:'
 const COORDINATOR = new RegExp(
   [
     'orchestrator[\\/]src[\\/](?!worker[\\/])',
-    'reporters[\\/]src[\\/]',
+    // The live terminal output is its own chunk (`LIVE`), loaded only when it is chosen.
+    'reporters[\\/]src[\\/](?!live[\\/])',
     'config[\\/]src[\\/]',
     'snapshot[\\/]src[\\/]node[\\/]',
     // provino's own files, but not the bin's light ones.
@@ -157,6 +158,14 @@ const WATCH = new RegExp(
     .map((alternative) => `[\\\\/]packages[\\\\/]${alternative}`)
     .join('|'),
 )
+
+/**
+ * The `provino` reporter (B26): `@provino/reporters/live`, the renderer and the live terminal output.
+ * `provino` imports it with `await import()` only when the reporter is chosen, so a worker, the
+ * `expect` import and a run with another reporter load none of it. What it shares with the other
+ * reporters (`style.ts`, the error serializer) stays in `coordinator.js`, which it imports.
+ */
+const LIVE = /[\\/]packages[\\/]reporters[\\/]src[\\/]live[\\/](?!.*\.test\.ts$)/
 
 /** The three `@provino/lazy` leaves `provino`'s own `lazy` forwarders import (`import 'provino'`). */
 const LAZY_API = /[\\/]packages[\\/]lazy[\\/]src[\\/](?:errors|slot|runtime[\\/]site)\.ts$/
@@ -278,6 +287,13 @@ export function umbrellaConfig(dir: string): UserConfig[] {
               name: 'loading',
               test: LOADING,
               priority: 3,
+              includeDependenciesRecursively: false,
+            },
+            // The `provino` reporter: loaded by a dynamic import when it is chosen only.
+            {
+              name: 'live',
+              test: LIVE,
+              priority: 5,
               includeDependenciesRecursively: false,
             },
             // Watch mode: loaded by a dynamic import under `--watch`/`--watchAll` only.

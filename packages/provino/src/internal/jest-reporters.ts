@@ -26,7 +26,8 @@ import {
 } from '@provino/reporters'
 import type { FileInfo, FileResult, Reporter, TextStyle } from '@provino/types'
 import type { ReporterChoice } from '../types.ts'
-import type { TextExtras } from './reporters.ts'
+import { HOST_REPORTERS } from './reporter-names.ts'
+import { hostReporterChoice, selectsProvino, type TextExtras } from './reporters.ts'
 import { UsageError } from './usage-error.ts'
 
 /**
@@ -47,7 +48,20 @@ export interface JestReporterSetup {
 }
 
 /** The built-ins that print what a reporter threw (they hear it as an `error` event). */
-const TEXT_REPORTERS: ReadonlySet<string> = new Set(['default', 'verbose', 'agent', 'dot'])
+const TEXT_REPORTERS: ReadonlySet<string> = new Set([
+  'default',
+  'verbose',
+  'agent',
+  'dot',
+  'provino',
+])
+
+/** A reporter choice's name, for a string or an options tuple. */
+function choiceName(choice: ReporterChoice): string | undefined {
+  if (typeof choice === 'string') return choice
+  if (Array.isArray(choice)) return choice[0]
+  return undefined
+}
 
 /** Jest's default `summaryThreshold` (`SummaryReporter.ts`). */
 const DEFAULT_SUMMARY_THRESHOLD = 20
@@ -74,6 +88,8 @@ export async function setUpJestReporters(options: {
    * one for the session, with its `startRun`. Default: a first run's.
    */
   readonly context?: JestReporterContext
+  /** The project's `report.listTestsForSingleFile` (Jest's single-file rule). Default: off. */
+  readonly listTestsForSingleFile?: boolean
 }): Promise<JestReporterSetup> {
   const { globalConfig, results } = options
   const environment = {
@@ -81,7 +97,8 @@ export async function setUpJestReporters(options: {
     githubActions: options.output.githubActions,
   }
   let configs = options.configs
-  let plan = jestReporterPlan(globalConfig, configs, environment)
+  const planOptions = { hostReporters: HOST_REPORTERS }
+  let plan = jestReporterPlan(globalConfig, configs, environment, planOptions)
   // Jest reads `verbose` from the projects that have a test; finding the files costs a discovery,
   // so it is done only when the projects disagree on `verbose`. `onRunStart`'s `showStatus` is the
   // run's own in-band decision (`RunInfo.inBand`), which the host reads at `run:start`.
@@ -91,9 +108,50 @@ export async function setUpJestReporters(options: {
   if (mixedVerbose) {
     const counts = await options.filesPerProject()
     configs = configs.filter((_, index) => (counts[index] ?? 0) > 0)
-    plan = jestReporterPlan(globalConfig, configs, environment)
+    plan = jestReporterPlan(globalConfig, configs, environment, planOptions)
   }
   const verbose = globalConfig.verbose === true || configs.some((config) => config.verbose === true)
+  const watch = globalConfig.watch || globalConfig.watchAll
+  // D135: with no reporter named, the one rule `provino run` uses too (`selectsProvino`): an
+  // interactive terminal, not watch mode (D142), not verbose (D143), not a run that lists its one
+  // file's tests. Provino's own output replaces Jest's `default` and `summary`; notify and coverage
+  // stay, in Jest's places, and the seed and Jest's update command go to its end card.
+  const provino =
+    globalConfig.reporters === undefined &&
+    (await selectsProvino({
+      live: options.output.live,
+      watch,
+      verbose,
+      singleFile: {
+        listTestsForSingleFile: options.listTestsForSingleFile === true,
+        silent: globalConfig.silent === true,
+        verboseOff: globalConfig.verbose === false,
+        files: async () => (await options.filesPerProject()).reduce((sum, n) => sum + n, 0),
+      },
+    }))
+  if (provino) {
+    const reporters: ReporterChoice[] = ['provino']
+    if (globalConfig.notify) {
+      reporters.push(
+        createNotifyReporter({
+          globalConfig,
+          loaded: loadJestNotifier(globalConfig.rootDir),
+          aggregated: () => results.aggregated(),
+        }),
+      )
+    }
+    if (options.coverage !== undefined) reporters.push(options.coverage)
+    const seed = globalConfig.showSeed === true ? globalConfig.seed : undefined
+    return {
+      reporters,
+      announceThrown: false,
+      verbose,
+      text: {
+        ...(seed === undefined ? {} : { seed }),
+        updateCommand: jestUpdateCommand(options.env, watch),
+      },
+    }
+  }
   let entries: Awaited<ReturnType<typeof loadJestReporters>>
   try {
     // The run's own colour decision, as the `default` reporter gets it.
@@ -132,6 +190,10 @@ export async function setUpJestReporters(options: {
       reporters.push(step.name)
       continue
     }
+    if (step.kind === 'host') {
+      reporters.push(hostReporterChoice(step.name, step.options))
+      continue
+    }
     const host = hosts[hosted++]
     if (host !== undefined) reporters.push(host)
   }
@@ -150,9 +212,10 @@ export async function setUpJestReporters(options: {
   }
   // `_setupReporters`: the CoverageReporter after the config's reporters, before the summary.
   if (options.coverage !== undefined) reporters.push(options.coverage)
-  const announceThrown = !reporters.some(
-    (reporter) => typeof reporter === 'string' && TEXT_REPORTERS.has(reporter),
-  )
+  const announceThrown = !reporters.some((reporter) => {
+    const name = choiceName(reporter)
+    return name !== undefined && TEXT_REPORTERS.has(name)
+  })
   if (plan.summary !== undefined) {
     const threshold = plan.summary.options.summaryThreshold
     if (threshold && typeof threshold !== 'number') {

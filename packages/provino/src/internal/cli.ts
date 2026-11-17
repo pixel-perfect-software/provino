@@ -200,6 +200,7 @@ export function parseRunArgs(
     ...(values.shard === undefined ? {} : { shard: parseShard(values.shard) }),
     ...(values.timings === undefined ? {} : { timingsFile: values.timings }),
     ...(values['update-timings'] === true ? { updateTimings: true } : {}),
+    ...(values['no-emoji'] === true ? { emoji: false as const } : {}),
   }
   return {
     type: 'run',
@@ -228,6 +229,7 @@ const OPTIONS = {
   shard: { type: 'string' },
   timings: { type: 'string' },
   'update-timings': { type: 'boolean' },
+  'no-emoji': { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
 } as const satisfies ParseArgsOptionsConfig
 

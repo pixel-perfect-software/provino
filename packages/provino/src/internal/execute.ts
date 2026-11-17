@@ -15,6 +15,7 @@ import { createReporterBus, type Environment } from '@provino/reporters'
 import type { FileFilter, Reporter, ReporterBus, RunSummary, SerializedError } from '@provino/types'
 import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
 import { workerStartupEnv } from './compile-cache.ts'
+import { hookTerminal, streamOver } from './live-terminal.ts'
 import { type DisplayOptions, reportersFor, type TextExtras } from './reporters.ts'
 
 /**
@@ -43,6 +44,11 @@ export interface ExecuteOptions {
   readonly display?: DisplayOptions
   /** What a dialect adds to the text reporters (its failure text, a summary of its own). */
   readonly text?: TextExtras
+  /**
+   * How many files the run will run, asked only when it decides the reporters (Jest's single-file
+   * rule: `selectsProvino`). A caller that can't tell before the run leaves it out.
+   */
+  readonly fileCount?: () => Promise<number>
   /**
    * `false`: a reporter that failed is not announced on stderr (Jest prints nothing for
    * `getLastError`); the run still fails. `'thrown'`: only an error a reporter threw or rejected
@@ -119,6 +125,24 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
   const { project, cwd, stdout, stderr } = options
   // What reporters threw (the bus tells every other reporter as an `error` of source `reporter`).
   const thrown: SerializedError[] = []
+  const chosen = await reportersFor(options.reporters, {
+    project,
+    cwd,
+    stdout,
+    stderr,
+    env: options.env,
+    ...(options.display === undefined ? {} : { display: options.display }),
+    ...(options.text === undefined ? {} : { text: options.text }),
+    ...(options.session === undefined ? {} : { watch: true as const }),
+    ...(options.fileCount === undefined ? {} : { fileCount: options.fileCount }),
+  })
+  // Hooked as soon as the terminal exists, so nothing after this leaves it hidden.
+  const { terminal } = chosen
+  let unhook = terminal === undefined ? undefined : hookTerminal(terminal, stderr)
+  const restoreTerminal = (): void => {
+    unhook?.()
+    unhook = undefined
+  }
   const bus = createReporterBus([
     ...(options.announceReporterFailures === 'thrown'
       ? [
@@ -131,21 +155,18 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
         ]
       : []),
     ...(options.leadingReporters ?? []),
-    ...reportersFor(options.reporters, {
-      project,
-      cwd,
-      stdout,
-      stderr,
-      env: options.env,
-      ...(options.display === undefined ? {} : { display: options.display }),
-      ...(options.text === undefined ? {} : { text: options.text }),
-    }),
+    ...chosen.reporters,
   ])
 
+  // With a live footer, the workers' own stderr goes above it, at the next frame.
+  const workerStderr = terminal === undefined ? stderr : streamOver(terminal.passthrough, stderr)
   let summary: RunSummary
   try {
-    summary = await run(options, bus, [project, ...(options.others ?? [])])
+    summary = await run(options, bus, [project, ...(options.others ?? [])], workerStderr)
   } catch (error) {
+    // The terminal is put back (the footer erased, the cursor shown, what was queued printed)
+    // before anything below, or the bin, prints the error.
+    restoreTerminal()
     if (!(error instanceof OrchestratorError) || error.code !== 'ORCH_GLOBAL_SETUP_FAILED') {
       throw error
     }
@@ -154,6 +175,8 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
     // code.
     stderr.write(hookFailureReport(error))
     return { exitCode: project.policy.orchestrator.exitCodes.failure, summary: null }
+  } finally {
+    restoreTerminal()
   }
 
   // A reporter that failed (a JSON file that couldn't be written) fails the run. The default
@@ -184,8 +207,9 @@ function run(
   options: ExecuteOptions,
   bus: ReporterBus,
   projects: readonly ResolvedProject[],
+  stderr: NodeJS.WritableStream,
 ): Promise<RunSummary> {
-  const { stderr, cwd } = options
+  const { cwd } = options
   // What every run takes, the session's or not.
   const perRun: WatchRunOptions = {
     bus,

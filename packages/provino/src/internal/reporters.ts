@@ -22,7 +22,10 @@ import {
   type TextSink,
   verboseReporter,
 } from '@provino/reporters'
+import type { LiveTerminal, ProvinoReporter } from '@provino/reporters/live'
 import type { FileInfo, FileResult, Reporter, RunSummary, TextStyle } from '@provino/types'
+import type { ProvinoChoiceOptions, ReporterChoice } from '../types.ts'
+import { pinnedSink, pinnedStream } from './live-terminal.ts'
 import {
   BUILT_IN_REPORTERS,
   type BuiltInReporterName,
@@ -52,6 +55,8 @@ export interface DisplayOptions {
   readonly noStackTrace?: boolean
   /** Colour on or off, whatever the environment says. */
   readonly colour?: boolean
+  /** `false`: the `provino` reporter draws plain symbols, not emoji (`--no-emoji`). */
+  readonly emoji?: false
 }
 
 /**
@@ -79,6 +84,11 @@ export interface TextExtras {
   readonly snapshotsAlways?: true
   /** Jest's `--showSeed`: the summary has a `Seed:` line with this seed. */
   readonly seed?: number
+  /**
+   * How the run's command line asks to update snapshots (`re-run jest with \`-u\``): the `provino`
+   * reporter's end card shows it when snapshots failed or are obsolete. Default: `provino run`'s.
+   */
+  readonly updateCommand?: string
 }
 
 /**
@@ -95,6 +105,24 @@ export interface ReporterContext {
   readonly env: Environment
   readonly display?: DisplayOptions
   readonly text?: TextExtras
+  /** A watch run: a run that names no reporter never gets `provino` (D142). */
+  readonly watch?: true
+  /**
+   * How many files the run will run, asked only when the answer decides the reporter (Jest's
+   * single-file rule, `selectsProvino`).
+   */
+  readonly fileCount?: () => Promise<number>
+}
+
+/**
+ * The reporters of a run, and the live terminal when the `provino` reporter draws on one: the
+ * process hooks (`exit`, `resize`) and the sink the run's own stderr text goes through, so it
+ * prints above the footer.
+ * @internal
+ */
+export interface ReporterSet {
+  readonly reporters: Reporter[]
+  readonly terminal?: LiveTerminal
 }
 
 function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -207,9 +235,108 @@ function documentPath(
   return path
 }
 
+/**
+ * The `html` reporter: D141 reserves the name for Provino's own report, which B26 Phase 5 builds.
+ * A module named `html` is still reachable by its path.
+ */
+function htmlNotBuilt(): UsageError {
+  return new UsageError(
+    'html is Provino’s reserved reporter name, and its HTML report is not built yet (B26 Phase 5); for a reporter module named html, give its path, such as ./node_modules/html',
+  )
+}
+
+/** The names of the reporters that write a document `documentReporter` builds today. */
+type BuiltDocumentName = Exclude<DocumentReporterName, 'html'>
+
+/** The names `builtIn` builds: every built-in that is neither a document nor Provino's own. */
+type TextReporterName = Exclude<BuiltInReporterName, DocumentReporterName | 'provino'>
+
+/**
+ * One reporter choice, checked once: what `reportersFor` builds it from. Every option rule (the
+ * names, the tuples, `provino`'s views) lives in `parseReporterChoice`.
+ * @internal
+ */
+export type ParsedChoice =
+  | { readonly kind: 'text'; readonly name: TextReporterName }
+  | { readonly kind: 'document'; readonly name: BuiltDocumentName; readonly options: unknown }
+  | { readonly kind: 'provino'; readonly options: ProvinoChoiceOptions }
+  | { readonly kind: 'object'; readonly reporter: Reporter }
+
+/**
+ * The options of a `provino` reporter choice, checked: `tree` and `map` (B26 Phase 4 builds the
+ * views, so until then either one is a usage error), nothing else.
+ */
+function provinoOptions(options: unknown): ProvinoChoiceOptions {
+  if (options === undefined) return {}
+  if (!isRecord(options)) {
+    throw new UsageError('the options of the provino reporter must be an object')
+  }
+  for (const [key, value] of Object.entries(options)) {
+    if (key !== 'tree' && key !== 'map') {
+      throw new UsageError(`the provino reporter has no "${key}" option (it takes tree and map)`)
+    }
+    if (value === undefined) continue
+    if (value !== true) {
+      throw new UsageError(`the "${key}" option of the provino reporter must be true`)
+    }
+    throw new UsageError(`the provino reporter's ${key} view is not built yet (B26 Phase 4)`)
+  }
+  return {}
+}
+
+function isDocumentName(name: string): name is BuiltDocumentName {
+  return name !== 'html' && isDocumentReporter(name)
+}
+
+/**
+ * Checks one reporter choice and says what it is: a built-in by name, a document reporter with its
+ * options, `provino` with its options, or a reporter object. `html` and anything else is a
+ * `UsageError`.
+ * @internal
+ */
+export function parseReporterChoice(choice: unknown): ParsedChoice {
+  if (typeof choice === 'string' && isBuiltInReporter(choice)) {
+    if (choice === 'html') throw htmlNotBuilt()
+    if (choice === 'provino') return { kind: 'provino', options: {} }
+    if (isDocumentName(choice)) return { kind: 'document', name: choice, options: undefined }
+    // What is left of the built-in names after the three cases above.
+    const name: TextReporterName = choice
+    return { kind: 'text', name }
+  }
+  if (Array.isArray(choice)) {
+    const [name, options, ...rest]: unknown[] = choice
+    if (rest.length === 0 && name === 'html') throw htmlNotBuilt()
+    if (rest.length === 0 && name === 'provino') {
+      return { kind: 'provino', options: provinoOptions(options) }
+    }
+    if (rest.length === 0 && typeof name === 'string' && isDocumentName(name)) {
+      return { kind: 'document', name, options }
+    }
+  } else if (isReporter(choice)) {
+    return { kind: 'object', reporter: choice }
+  }
+  throw new UsageError(
+    `unknown reporter ${describeChoice(choice)}; use ${BUILT_IN_REPORTERS.map((name) => JSON.stringify(name)).join(', ')}, ["json", { outputFile }], ["junit", { outputFile }], ["provino", {}] or a reporter object`,
+  )
+}
+
+/**
+ * The `ReporterChoice` a dialect's host step names (`provino jest`'s `reporters: ['provino']`),
+ * checked by the one parser.
+ * @internal
+ */
+export function hostReporterChoice(
+  name: string,
+  options: Readonly<Record<string, unknown>>,
+): ReporterChoice {
+  const parsed = parseReporterChoice([name, options])
+  if (parsed.kind !== 'provino') throw new UsageError(`unknown host reporter "${name}"`)
+  return Object.keys(parsed.options).length === 0 ? 'provino' : ['provino', parsed.options]
+}
+
 /** The reporter `name` names, writing its document where `options` say: `{ outputFile }`, or stdout without one. */
 function documentReporter(
-  name: DocumentReporterName,
+  name: BuiltDocumentName,
   context: ReporterContext,
   options: unknown,
 ): Built {
@@ -219,7 +346,9 @@ function documentReporter(
   const given = options ?? {}
   const path = documentPath(name, context, given)
   const { project } = context
-  const target = path === undefined ? { stream: context.stdout } : { outputFile: path }
+  // The stdout's own `write`, taken now: while a live footer routes the process's other stdout
+  // writes above it, the document still goes where it was asked to.
+  const target = path === undefined ? { stream: pinnedSink(context.stdout) } : { outputFile: path }
   const writes = path === undefined ? 'stdout' : 'file'
   if (name === 'junit') {
     const title = optionalString(name, given, 'name')
@@ -249,11 +378,21 @@ function documentReporter(
   }
 }
 
+/**
+ * Where the text reporters write and what they are told of the terminal: stderr as detected, or,
+ * beside a live `provino` reporter, its `passthrough` with no live block, so one region redraws.
+ */
+interface TextTarget {
+  readonly stream: TextSink
+  readonly output: OutputEnvironment
+}
+
 /** The text reporters' options: where the run is shown, in what colour, and what it leaves out. */
-function textOptions(context: ReporterContext, output: OutputEnvironment): TextReporterOptions {
+function textOptions(context: ReporterContext, target: TextTarget): TextReporterOptions {
   const { display } = context
+  const { output } = target
   return {
-    stream: context.stderr,
+    stream: target.stream,
     report: context.project.policy.report,
     colour: output.colour,
     live: output.live,
@@ -285,66 +424,158 @@ function text(reporter: Reporter): Built {
   return { reporter }
 }
 
-/** A built-in reporter by name. No `default` arm: a name `BUILT_IN_REPORTERS` gains without one here fails to compile. */
-function builtIn(
-  name: BuiltInReporterName,
-  context: ReporterContext,
-  output: OutputEnvironment,
-): Built {
+/** A built-in text reporter by name. No `default` arm: a name the list gains without one here fails to compile. */
+function builtIn(name: TextReporterName, context: ReporterContext, target: TextTarget): Built {
   switch (name) {
     case 'default':
-      return text(defaultReporter(textOptions(context, output)))
+      return text(defaultReporter(textOptions(context, target)))
     case 'verbose':
-      return text(verboseReporter(textOptions(context, output)))
+      return text(verboseReporter(textOptions(context, target)))
     case 'dot':
-      return text(dotReporter(textOptions(context, output)))
+      return text(dotReporter(textOptions(context, target)))
     case 'agent':
-      return text(agentReporter(textOptions(context, output)))
+      return text(agentReporter(textOptions(context, target)))
     case 'summary':
-      return text(summaryReporter(textOptions(context, output)))
+      return text(summaryReporter(textOptions(context, target)))
     case 'github-actions': {
       const workspace = context.env.GITHUB_WORKSPACE
       return text(
         githubActionsReporter({
-          stream: context.stderr,
+          stream: target.stream,
           report: context.project.policy.report,
           ...(workspace === undefined || workspace === '' ? {} : { workspace }),
         }),
       )
     }
-    case 'json':
-    case 'normalized-json':
-    case 'junit':
-      return documentReporter(name, context, undefined)
   }
 }
 
-function reporterFor(choice: unknown, context: ReporterContext, output: OutputEnvironment): Built {
-  if (typeof choice === 'string') {
-    if (isBuiltInReporter(choice)) return builtIn(choice, context, output)
-  } else if (Array.isArray(choice)) {
-    const [name, options, ...rest]: unknown[] = choice
-    if (rest.length === 0 && typeof name === 'string' && isDocumentReporter(name)) {
-      return documentReporter(name, context, options)
-    }
-  } else if (isReporter(choice)) {
-    return text(choice)
+/** Builds a checked choice; `provino` is built by `reportersFor` itself. */
+function reporterFor(choice: ParsedChoice, context: ReporterContext, target: TextTarget): Built {
+  switch (choice.kind) {
+    case 'text':
+      return builtIn(choice.name, context, target)
+    case 'document':
+      return documentReporter(choice.name, context, choice.options)
+    case 'object':
+      return text(choice.reporter)
+    case 'provino':
+      throw new Error('the provino reporter is built by reportersFor')
   }
-  throw new UsageError(
-    `unknown reporter ${describeChoice(choice)}; use ${BUILT_IN_REPORTERS.map((name) => JSON.stringify(name)).join(', ')}, ["json", { outputFile }], ["junit", { outputFile }] or a reporter object`,
-  )
+}
+
+/**
+ * How `--update` is asked for on `provino run` (the end card's hint); a dialect's command line
+ * gives its own words in `TextExtras.updateCommand`.
+ */
+const RUN_UPDATE_COMMAND = 're-run with `-u`'
+
+/**
+ * The `provino` reporter (B26), loaded by dynamic import only now that it is chosen, so a run
+ * without it loads none of its code (performance rule 5, speed). Its glyphs and hyperlinks are
+ * decided from the run's environment, once. It writes with stderr's own methods, taken now, so the
+ * live region can route the process's other writes through it (`hookTerminal`).
+ */
+async function provinoFor(
+  context: ReporterContext,
+  output: OutputEnvironment,
+): Promise<ProvinoReporter> {
+  const live = await import('@provino/reporters/live')
+  const { display, env } = context
+  const set = live.detectGlyphs({
+    env,
+    platform: process.platform,
+    ...(display?.emoji === false ? { emoji: false } : {}),
+  })
+  return live.provinoReporter({
+    stream: pinnedStream(context.stderr),
+    live: output.live,
+    colour: output.colour,
+    columns: output.columns,
+    glyphs: live.GLYPHS[set],
+    hyperlinks: live.detectHyperlinks({ env, tty: output.tty, ci: context.project.config.ci }),
+    cwd: context.cwd,
+    snapshotHint: context.text?.updateCommand ?? RUN_UPDATE_COMMAND,
+    ...(context.text?.seed === undefined ? {} : { seed: context.text.seed }),
+    ...(display?.silent === true ? { silent: true } : {}),
+    ...(display?.noStackTrace === true ? { noStackTrace: true } : {}),
+  })
+}
+
+/**
+ * Whether a run lists each test of its one file (Jest's single-file rule, `runJest`): the
+ * policy's `report.listTestsForSingleFile`, exactly one file, not `--silent`, and `verbose` not
+ * turned off on purpose.
+ * @internal
+ */
+export function listsSingleFile(input: {
+  readonly listTestsForSingleFile: boolean
+  readonly files: number
+  readonly silent: boolean
+  readonly verboseOff: boolean
+}): boolean {
+  return input.listTestsForSingleFile && input.files === 1 && !input.silent && !input.verboseOff
+}
+
+/**
+ * The one rule for when a run that names no reporter gets the `provino` reporter (D135): an
+ * interactive terminal (`detectOutput`'s `live`), not watch mode (D142), not verbose (D143: the
+ * config's `verbose`, a project's, `--verbose`), and not a run that lists its one file's tests (Jest's
+ * single-file rule, the same listing `verbose` gives). `provino run` (`implicitChoices`) and
+ * `provino jest` (`setUpJestReporters`) both ask it. `files` is asked only when the rest holds, so a
+ * run that can't get `provino` counts nothing.
+ * @internal
+ */
+export async function selectsProvino(input: {
+  readonly live: boolean
+  readonly watch: boolean
+  readonly verbose: boolean
+  readonly singleFile: {
+    readonly listTestsForSingleFile: boolean
+    readonly silent: boolean
+    readonly verboseOff: boolean
+    /** The files the run will run; `undefined` when the caller can't tell before the run. */
+    readonly files: (() => Promise<number>) | undefined
+  }
+}): Promise<boolean> {
+  if (!input.live || input.watch || input.verbose) return false
+  const { singleFile } = input
+  if (!singleFile.listTestsForSingleFile || singleFile.files === undefined) return true
+  const files = await singleFile.files()
+  return !listsSingleFile({ ...singleFile, files })
 }
 
 /**
  * The reporters of a run when none are named: the policy's `report.defaultReporters`, with
- * `default` replaced by `agent` when an agent runs the process (and by `verbose` under
- * `--verbose`), and `github-actions` added on GitHub Actions.
+ * `default` replaced by `provino` when `selectsProvino` says so (D135), else by `agent` when an
+ * agent runs the process (and by `verbose` under `--verbose`), and `github-actions` added on GitHub
+ * Actions (never beside `provino`: a live terminal is not CI).
  */
-function implicitChoices(context: ReporterContext, output: OutputEnvironment): readonly unknown[] {
+async function implicitChoices(
+  context: ReporterContext,
+  output: OutputEnvironment,
+): Promise<readonly unknown[]> {
+  const { display } = context
+  const provino = await selectsProvino({
+    live: output.live,
+    watch: context.watch === true,
+    verbose: display?.verbose === true,
+    singleFile: {
+      listTestsForSingleFile: context.project.policy.report.listTestsForSingleFile,
+      silent: display?.silent === true,
+      verboseOff: display?.verbose === false,
+      files: context.fileCount,
+    },
+  })
+  if (provino) {
+    return context.project.policy.report.defaultReporters.map((name) =>
+      name === 'default' ? 'provino' : name,
+    )
+  }
   const named = context.project.policy.report.defaultReporters.map((name) => {
     if (name !== 'default') return name
     if (output.agent !== undefined) return 'agent'
-    return context.display?.verbose === true ? 'verbose' : name
+    return display?.verbose === true ? 'verbose' : name
   })
   return output.githubActions && !named.includes('github-actions')
     ? [...named, 'github-actions']
@@ -353,14 +584,17 @@ function implicitChoices(context: ReporterContext, output: OutputEnvironment): r
 
 /**
  * The reporters for a run: `choices`, else the policy's `report.defaultReporters` (each a
- * built-in name) as the environment reshapes them (`implicitChoices`). A choice that is none of
- * the built-ins, an options tuple or a reporter object is a `UsageError`.
+ * built-in name) as the environment reshapes them (`implicitChoices`). Each choice is checked
+ * once (`parseReporterChoice`); one that is none of the built-ins, an options tuple or a reporter
+ * object is a `UsageError`. With a `provino` reporter on a live terminal, the other text reporters
+ * write through its `passthrough` with no live block of their own, and its `LiveTerminal` comes
+ * back for the caller's process hooks. A throw after the reporter exists restores its terminal.
  * @internal
  */
-export function reportersFor(
+export async function reportersFor(
   choices: readonly unknown[] | undefined,
   context: ReporterContext,
-): Reporter[] {
+): Promise<ReporterSet> {
   if (choices !== undefined && !Array.isArray(choices)) {
     throw new UsageError('the reporters option must be an array')
   }
@@ -370,17 +604,33 @@ export function reportersFor(
     ci: context.project.config.ci,
     ...(context.display?.colour === undefined ? {} : { colour: context.display.colour }),
   })
-  const built = (choices ?? implicitChoices(context, output)).map((choice) =>
-    reporterFor(choice, context, output),
-  )
-  if (built.filter((entry) => entry.writes === 'stdout').length > 1) {
-    throw new UsageError(
-      'two reporters would both write to stdout; give each an outputFile (json, normalized-json and junit write there without one)',
+  const parsed = (choices ?? (await implicitChoices(context, output))).map(parseReporterChoice)
+  const provinoAt = parsed.flatMap((choice, index) => (choice.kind === 'provino' ? [index] : []))
+  if (provinoAt.length > 1) throw new UsageError('the provino reporter is named more than once')
+  const at = provinoAt[0]
+  const provino = at === undefined ? undefined : await provinoFor(context, output)
+  try {
+    const drawing = provino !== undefined && output.live
+    const target: TextTarget = drawing
+      ? { stream: provino.terminal.passthrough, output: { ...output, live: false } }
+      : { stream: context.stderr, output }
+    const built = parsed.map((choice, index) =>
+      index === at && provino !== undefined ? text(provino) : reporterFor(choice, context, target),
     )
+    if (built.filter((entry) => entry.writes === 'stdout').length > 1) {
+      throw new UsageError(
+        'two reporters would both write to stdout; give each an outputFile (json, normalized-json and junit write there without one)',
+      )
+    }
+    // Last, so it sees every other reporter's failure (the bus tells the reporters after a failing
+    // one about it before they get the same event) before it writes its document.
+    const reporters = built
+      .toSorted((a, b) => Number(a.writes !== undefined) - Number(b.writes !== undefined))
+      .map((entry) => entry.reporter)
+    return drawing ? { reporters, terminal: provino.terminal } : { reporters }
+  } catch (error) {
+    // Nothing is drawn before `run:start`, but the terminal is the reporter's from here on.
+    provino?.terminal.restore()
+    throw error
   }
-  // Last, so it sees every other reporter's failure (the bus tells the reporters after a failing
-  // one about it before they get the same event) before it writes its document.
-  return built
-    .toSorted((a, b) => Number(a.writes !== undefined) - Number(b.writes !== undefined))
-    .map((entry) => entry.reporter)
 }

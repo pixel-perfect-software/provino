@@ -18,6 +18,12 @@ export type JestReporterStep =
       readonly path: string
       readonly options: Readonly<Record<string, unknown>>
     }
+  | {
+      /** A reporter the host builds itself, named by one of `hostReporters` (D141). */
+      readonly kind: 'host'
+      readonly name: string
+      readonly options: Readonly<Record<string, unknown>>
+    }
 
 /**
  * The reporters of a run, in the order they are added, and the options of the summary reporter
@@ -39,11 +45,24 @@ export interface JestReporterEnvironment {
 }
 
 /**
+ * What the plan is told by its host.
+ * @public
+ */
+export interface JestReporterPlanOptions {
+  /**
+   * The bare names the config reader kept for the host (`NormalizeOptions.hostReporters`): each
+   * becomes a `host` step, not a custom module. They print no summary of their own, so a plan of
+   * host steps alone has none. Default: none.
+   */
+  readonly hostReporters?: readonly string[]
+}
+
+/**
  * The plan for a run. `globalConfig.reporters` is what the config reader produced (`undefined` when
  * the config and the command line name none). With none, Jest runs `agent` under an agent and
  * `default` otherwise; Provino also adds `github-actions` on GitHub Actions (D88, DV59), where Jest
  * adds it only when it is named. `default` is the verbose reporter when the global config or any
- * project is verbose.
+ * project is verbose. A name in `options.hostReporters` is a `host` step.
  * @public
  */
 export function jestReporterPlan(
@@ -55,7 +74,9 @@ export function jestReporterPlan(
   },
   projectConfigs: readonly { readonly verbose?: boolean | undefined }[],
   environment: JestReporterEnvironment,
+  planOptions: JestReporterPlanOptions = {},
 ): JestReporterPlan {
+  const hosted = new Set(planOptions.hostReporters ?? [])
   const verbose =
     globalConfig.verbose === true || projectConfigs.some((config) => config.verbose === true)
   const implicit = globalConfig.reporters === undefined
@@ -80,7 +101,8 @@ export function jestReporterPlan(
         summary = { options }
         break
       default:
-        steps.push({ kind: 'custom', path: name, options })
+        if (hosted.has(name)) steps.push({ kind: 'host', name, options })
+        else steps.push({ kind: 'custom', path: name, options })
     }
   }
   if (implicit && environment.githubActions) {

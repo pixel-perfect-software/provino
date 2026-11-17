@@ -99,7 +99,7 @@ test('another reporter’s error is a block above the footer', async () => {
   const text = sink.text()
   assert.ok(text.includes('● Reporter error'))
   assert.ok(text.includes('the other reporter broke'))
-  assert.ok(text.indexOf('Reporter error') < text.indexOf('0 of 0 files'))
+  assert.ok(text.indexOf('Reporter error') < text.indexOf('0/0 files'))
   void reporter
 })
 

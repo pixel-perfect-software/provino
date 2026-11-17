@@ -16,7 +16,23 @@ export const BUILT_IN_REPORTERS = [
   'junit',
   'github-actions',
   'summary',
+  'provino',
+  'html',
 ] as const
+
+/**
+ * The reporters `provino` builds itself whatever the dialect (D141): a Jest config's `reporters` and
+ * `--reporters` take these bare names as Provino's, not as modules to resolve. `provino` is the live
+ * terminal output (B26); `html` is the static report (B26 Phase 5).
+ * @internal
+ */
+export const HOST_REPORTERS = ['provino', 'html'] as const
+
+/**
+ * A host reporter's name.
+ * @internal
+ */
+export type HostReporterName = (typeof HOST_REPORTERS)[number]
 
 /**
  * A built-in reporter's name.
@@ -29,7 +45,7 @@ export type BuiltInReporterName = (typeof BUILT_IN_REPORTERS)[number]
  * other reporter's failure before it writes.
  * @internal
  */
-export const DOCUMENT_REPORTERS = ['json', 'normalized-json', 'junit'] as const
+export const DOCUMENT_REPORTERS = ['json', 'normalized-json', 'junit', 'html'] as const
 
 /**
  * The name of a reporter that writes a document.
@@ -43,6 +59,14 @@ export type DocumentReporterName = (typeof DOCUMENT_REPORTERS)[number]
  */
 export function isBuiltInReporter(name: string): name is BuiltInReporterName {
   return BUILT_IN_REPORTERS.some((known) => known === name)
+}
+
+/**
+ * Whether `name` is one of `HOST_REPORTERS`.
+ * @internal
+ */
+export function isHostReporter(name: string): name is HostReporterName {
+  return HOST_REPORTERS.some((known) => known === name)
 }
 
 /**

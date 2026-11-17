@@ -24,6 +24,28 @@ export interface JUnitChoiceOptions {
 }
 
 /**
+ * The options the `provino` reporter takes through `run()`: the views beside its live output
+ * (B26 Phase 4 builds them; until then either one is a usage error).
+ * @public
+ */
+export interface ProvinoChoiceOptions {
+  /** List every test as a tree after the run. */
+  readonly tree?: true
+  /** Show the status map of every file after the run. */
+  readonly map?: true
+}
+
+/**
+ * The options the `html` reporter takes through `run()` (B26 Phase 5 builds it; until then the
+ * name is a usage error).
+ * @public
+ */
+export interface HtmlChoiceOptions {
+  /** Where the page goes, relative to `cwd`. */
+  readonly outputFile?: string
+}
+
+/**
  * One reporter for `run()`: a built-in by name, `json` (or its older name `normalized-json`) or
  * `junit` with options, or a reporter object (`defineReporter` from `@provino/reporters`).
  *
@@ -32,6 +54,8 @@ export interface JUnitChoiceOptions {
  * - `junit`: JUnit XML, on `stdout` or in `outputFile`.
  * - `github-actions`: error annotations on `stderr`.
  * - `summary`: the totals alone, on `stderr`.
+ * - `provino`: Provino's own output on `stderr`, live on a terminal (the default there).
+ * - `html`: a static HTML report (not built yet: a usage error).
  * @public
  */
 export type ReporterChoice =
@@ -44,8 +68,12 @@ export type ReporterChoice =
   | 'json'
   | 'normalized-json'
   | 'junit'
+  | 'provino'
+  | 'html'
   | readonly ['json' | 'normalized-json', NormalizedJsonChoiceOptions]
   | readonly ['junit', JUnitChoiceOptions]
+  | readonly ['provino', ProvinoChoiceOptions]
+  | readonly ['html', HtmlChoiceOptions]
   | Reporter
 
 /**
@@ -62,10 +90,14 @@ export interface RunOptions {
   /** Default: the policy's `orchestrator.pool.default`. */
   readonly pool?: PoolKind
   /**
-   * Default: the policy's `report.defaultReporters`, each a built-in name; `agent` in place of
-   * `default` when an agent runs the process, and `github-actions` added on GitHub Actions.
+   * Default: on an interactive terminal (`stderr` is one, and the run is not CI, not an agent's and
+   * not `TERM=dumb`), `provino`. Elsewhere the policy's `report.defaultReporters`, each a built-in
+   * name; `agent` in place of `default` when an agent runs the process, and `github-actions` added
+   * on GitHub Actions.
    */
   readonly reporters?: readonly ReporterChoice[]
+  /** `false`: the `provino` reporter draws plain symbols, not emoji (`--no-emoji`). Default: emoji where the terminal draws them. */
+  readonly emoji?: false
   /** Whether this is a CI run. Default: the `CI` environment variable is set, and not `false` or `0`. */
   readonly ci?: boolean
   /**

@@ -22,6 +22,8 @@ export interface FileLineInput {
   readonly failed: number
   readonly skipped: number
   readonly durationMs: number
+  /** The worker's heap after the file, when the run measured it (`--logHeapUsage`). */
+  readonly heapBytes?: number
 }
 
 /** The least of a path worth keeping before the tail gives way. */
@@ -66,7 +68,10 @@ export function fileLine(
     false,
   )
   const room = Math.max(1, columns - 1)
-  const time = fileTime(input.durationMs)
+  const time =
+    input.heapBytes === undefined
+      ? fileTime(input.durationMs)
+      : `${fileTime(input.durationMs)} · ${groupDigits(Math.floor(input.heapBytes / 1024 / 1024))} MB heap`
   // The whole tail when the path keeps a useful part of itself, else only the time, else none.
   const tails = [` · ${detail(input)} · ${time}`, ` · ${time}`, '']
   let tail = ''
@@ -79,6 +84,32 @@ export function fileLine(
   const shown = displayWidth(label) <= pathRoom ? label : fitWidthLeft(label, pathRoom)
   const path = input.state === 'fail' ? style.red(shown) : shown
   return `${mark} ${path}${style.dim(tail)}`
+}
+
+/**
+ * What a finished file did to its snapshots, as one dim line under its line; `undefined` when it
+ * wrote, updated and left nothing to say (a match is no news: the file's line says it passed).
+ * @beta
+ */
+export function fileSnapshotLine(
+  snapshot: {
+    readonly added: number
+    readonly unmatched: number
+    readonly updated: number
+    readonly unchecked: number
+    readonly fileDeleted: boolean
+  },
+  columns: number,
+  style: Style,
+): string | undefined {
+  const parts: string[] = []
+  if (snapshot.unmatched > 0) parts.push(`${groupDigits(snapshot.unmatched)} failed`)
+  if (snapshot.added > 0) parts.push(`${groupDigits(snapshot.added)} written`)
+  if (snapshot.updated > 0) parts.push(`${groupDigits(snapshot.updated)} updated`)
+  if (snapshot.unchecked > 0) parts.push(`${groupDigits(snapshot.unchecked)} obsolete`)
+  if (snapshot.fileDeleted) parts.push('file removed')
+  if (parts.length === 0) return undefined
+  return `   ${style.dim(fitWidth(`snapshots: ${parts.join(' · ')}`, Math.max(1, columns - 4)))}`
 }
 
 /**

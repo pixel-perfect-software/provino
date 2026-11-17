@@ -2,8 +2,10 @@
 // `provino/node` (`createProvino()`, `resolveConfig()`, event types) is not built yet.
 export { run } from './run.ts'
 export type {
+  HtmlChoiceOptions,
   JUnitChoiceOptions,
   NormalizedJsonChoiceOptions,
+  ProvinoChoiceOptions,
   ReporterChoice,
   RunOptions,
   RunResult,

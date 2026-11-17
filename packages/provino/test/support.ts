@@ -44,6 +44,60 @@ export function outputFree(env: NodeJS.ProcessEnv = process.env): NodeJS.Process
 }
 
 /**
+ * The variables that make a run a CI one to anything in this process: `detectOutput`'s
+ * (`OUTPUT_VARIABLES`) and the Jest config reader's CI list (`ciFromEnvironment`, ci-info's names:
+ * `CI`, `GITHUB_ACTIONS`, `CONTINUOUS_INTEGRATION`, `BUILD_NUMBER`, …).
+ */
+const CI_VARIABLES: readonly string[] = [
+  ...OUTPUT_VARIABLES,
+  'BUILD_ID',
+  'BUILD_NUMBER',
+  'CI_APP_ID',
+  'CI_BUILD_ID',
+  'CI_BUILD_NUMBER',
+  'CI_NAME',
+  'CONTINUOUS_INTEGRATION',
+  'RUN_ID',
+  'GITLAB_CI',
+  'CIRCLECI',
+  'TRAVIS',
+  'BUILDKITE',
+  'TF_BUILD',
+  'JENKINS_URL',
+]
+
+/**
+ * `env` without any variable that makes a run a CI one (`CI_VARIABLES`), nor what `outputFree`
+ * takes out: the environment of a child a test wants on an interactive terminal.
+ */
+export function interactiveEnv(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const kept = outputFree(env)
+  for (const name of CI_VARIABLES) delete kept[name]
+  return kept
+}
+
+/**
+ * Runs `work` with none of the CI and agent variables in this process's `process.env`, and puts
+ * them back after, whatever `work` did. For a command run in this process that a test wants on an
+ * interactive terminal: an in-process `runJestCommand` reads `CI` from `process.env` through the
+ * Jest config reader, not from `io.env`, so on a CI runner (`CI=true`, `GITHUB_ACTIONS=true`) it
+ * would be a CI run whatever the test passes. A test of the CI rule itself sets `CI` on purpose.
+ */
+export async function withoutCiEnvironment<T>(work: () => Promise<T>): Promise<T> {
+  const saved = new Map<string, string>()
+  for (const name of CI_VARIABLES) {
+    const value = process.env[name]
+    if (value !== undefined) saved.set(name, value)
+    delete process.env[name]
+  }
+  try {
+    return await work()
+  } finally {
+    for (const [name, value] of saved) process.env[name] = value
+  }
+}
+
+/**
  * What a process writes to stderr before the run's own text, with the lines Node and the sandbox
  * add taken out: Node 22.15 (CI runs it with `--experimental-strip-types`) prints an
  * `ExperimentalWarning` and a `--trace-warnings` hint once per process that loads a `.ts` file,

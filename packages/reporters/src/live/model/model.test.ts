@@ -9,16 +9,22 @@ function result(file: FileInfo, durationMs = 1, state: 'pass' | 'fail' | 'skip' 
   return { file, state, durationMs, errors: [] } as const
 }
 
-test('a worker slot that is reused drops the old file: nothing leaks and a late end clears nothing', () => {
+// A run in band announces the next file on the same worker before the last one has ended (B26
+// Phase 3), so the old file keeps its record, and its counts, until its own `file:end`; `finish`
+// releases one that never ends.
+test('a worker slot that is reused shows the new file, the old one keeps its record until it ends, and a late end clears nothing', () => {
   const state = createRunState()
   const a = fileInfo('a.test.ts')
   const b = fileInfo('b.test.ts')
   state.start([a, b], 0)
   state.fileStart(a, 0, 1)
+  state.testEnd(a.fileId, 'pass')
   state.fileStart(b, 0, 2)
   assert.equal(state.busy(), 1)
-  assert.equal(state.running(), 1, 'only the file on the slot is tracked')
+  assert.equal(state.workers()[0]?.path, 'b.test.ts')
+  assert.equal(state.running(), 2, 'a has not ended yet')
   state.fileEnd(result(a))
+  assert.equal(state.take()[0]?.tests, 1, 'a keeps its test')
   assert.equal(state.busy(), 1)
   assert.equal(state.workers()[0]?.path, 'b.test.ts')
   assert.equal(state.running(), 1)
