@@ -62,7 +62,7 @@ export interface HygieneOptions {
 }
 
 /** The release workflow (B21h): the `release` section lints it. */
-const RELEASE_WORKFLOW = '.github/workflows/release.yml'
+export const RELEASE_WORKFLOW = '.github/workflows/release.yml'
 
 /**
  * The `@provino/*` packages `provino` inlines: the ones it lists as workspace dev dependencies and,
@@ -166,10 +166,8 @@ const RUNNERS: Readonly<Record<Section, SectionRunner>> = {
         notes: [],
       }
     }
-    // A workflow that calls itself a draft must not publish; the real one does.
-    const text = readFileSync(path, 'utf8')
     return {
-      problems: lintReleaseWorkflow(text, { draft: /\bDRAFT\b/.test(text) }).map(
+      problems: lintReleaseWorkflow(readFileSync(path, 'utf8')).map(
         (problem) => `${RELEASE_WORKFLOW}: ${problem}`,
       ),
       notes: [],

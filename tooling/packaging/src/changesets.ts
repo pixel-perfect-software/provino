@@ -1,7 +1,8 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { newFilesSince } from './git.ts'
-import type { WorkspacePackage } from './workspace.ts'
+import { record } from './package-json.ts'
+import { isPublished, type WorkspacePackage } from './workspace.ts'
 
 /** A changeset file: which packages it bumps, and by how much. */
 export interface Changeset {
@@ -61,10 +62,9 @@ interface ChangesetConfig {
   readonly fixed: readonly (readonly string[])[]
 }
 
-/** The strings of a JSON array, or `undefined` when the value isn't an array. */
-/** The list when it is an array of strings only; a list with any other entry is no list. */
-function strings(value: unknown): readonly string[] | undefined {
-  return Array.isArray(value) && value.every((name) => typeof name === 'string') ? value : undefined
+/** A list of names: an array whose every entry is a string; any other entry makes it no list. */
+function isStrings(value: unknown): value is readonly string[] {
+  return Array.isArray(value) && value.every((name) => typeof name === 'string')
 }
 
 /**
@@ -73,16 +73,47 @@ function strings(value: unknown): readonly string[] | undefined {
  * @internal
  */
 export function readChangesetConfig(root: string): ChangesetConfig {
-  const json: unknown = JSON.parse(readFileSync(join(root, '.changeset', 'config.json'), 'utf8'))
-  const record = typeof json === 'object' && json !== null ? json : {}
-  const ignore = 'ignore' in record ? strings(record.ignore) : undefined
-  if (ignore === undefined) throw new Error('.changeset/config.json has no "ignore" list')
-  const groups = 'fixed' in record && Array.isArray(record.fixed) ? record.fixed : undefined
-  const fixed = groups?.map(strings)
-  if (fixed === undefined || fixed.some((group) => group === undefined)) {
+  const { ignore, fixed } = record(
+    JSON.parse(readFileSync(join(root, '.changeset', 'config.json'), 'utf8')),
+  )
+  if (!isStrings(ignore)) throw new Error('.changeset/config.json has no "ignore" list')
+  if (!Array.isArray(fixed) || !fixed.every(isStrings)) {
     throw new Error('.changeset/config.json has no "fixed" list of groups')
   }
-  return { ignore, fixed: fixed.filter((group) => group !== undefined) }
+  return { ignore, fixed }
+}
+
+/**
+ * Checks one list of package names in `.changeset/config.json` against the workspace: `side` says
+ * which packages it must hold, and it must hold exactly those. A name that is no workspace
+ * package (the root isn't one) is a problem too.
+ */
+function checkNameList(
+  listName: 'ignore' | 'fixed',
+  listed: readonly string[],
+  packages: readonly WorkspacePackage[],
+  side: 'private' | 'published',
+): readonly string[] {
+  const named = new Set(listed)
+  const workspace = packages.filter((pkg) => pkg.rel !== '.')
+  const problems: string[] = []
+  for (const pkg of workspace) {
+    const name = pkg.manifest.name
+    const kind = isPublished(pkg) ? 'published' : 'private'
+    const isListed = named.has(name)
+    if (kind === side && !isListed) {
+      problems.push(`${name} is ${kind} but not in .changeset/config.json "${listName}"`)
+    }
+    if (kind !== side && isListed) {
+      problems.push(`${name} is ${kind} but in .changeset/config.json "${listName}"`)
+    }
+  }
+  const known = new Set(workspace.map((pkg) => pkg.manifest.name))
+  for (const name of named) {
+    if (!known.has(name))
+      problems.push(`"${listName}" names ${name}, which is not a workspace package`)
+  }
+  return problems
 }
 
 /**
@@ -94,22 +125,7 @@ export function checkChangesetIgnore(
   ignore: readonly string[],
   packages: readonly WorkspacePackage[],
 ): readonly string[] {
-  const problems: string[] = []
-  for (const pkg of packages) {
-    if (pkg.rel === '.') continue
-    const ignored = ignore.includes(pkg.manifest.name)
-    if (pkg.manifest.private && !ignored) {
-      problems.push(`${pkg.manifest.name} is private but not in .changeset/config.json "ignore"`)
-    }
-    if (!pkg.manifest.private && ignored) {
-      problems.push(`${pkg.manifest.name} is published but in .changeset/config.json "ignore"`)
-    }
-  }
-  const names = new Set(packages.map((pkg) => pkg.manifest.name))
-  for (const name of ignore) {
-    if (!names.has(name)) problems.push(`"ignore" names ${name}, which is not a workspace package`)
-  }
-  return problems
+  return checkNameList('ignore', ignore, packages, 'private')
 }
 
 /**
@@ -129,22 +145,7 @@ export function checkChangesetFixed(
       `.changeset/config.json "fixed" must be one group of every published package, and has ${fixed.length} groups`,
     ]
   }
-  const named = new Set(group)
-  const problems: string[] = []
-  const workspace = packages.filter((pkg) => pkg.rel !== '.')
-  for (const pkg of workspace) {
-    const name = pkg.manifest.name
-    if (!pkg.manifest.private && !named.has(name)) {
-      problems.push(`${name} is published but not in .changeset/config.json "fixed"`)
-    }
-    if (pkg.manifest.private && named.has(name)) {
-      problems.push(`${name} is private but in .changeset/config.json "fixed"`)
-    }
-  }
-  const known = new Set(workspace.map((pkg) => pkg.manifest.name))
-  for (const name of named) {
-    if (!known.has(name)) problems.push(`"fixed" names ${name}, which is not a workspace package`)
-  }
-  if (named.size !== group.length) problems.push('"fixed" names a package twice')
+  const problems = [...checkNameList('fixed', group, packages, 'published')]
+  if (new Set(group).size !== group.length) problems.push('"fixed" names a package twice')
   return problems
 }
