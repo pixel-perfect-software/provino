@@ -125,7 +125,15 @@ export interface RecordingSink extends TerminalStream {
   text(): string
   /** Makes `write` return false, as a full pipe does, until `drain()`. */
   full: boolean
+  /** Ends `full` and emits `drain`. */
   drain(): void
+  /** Emits `event` to the listeners waiting for it, once each. */
+  emit(event: 'drain' | 'error' | 'close', argument?: unknown): void
+  /** How many listeners are waiting, over every event. */
+  listenerCount(): number
+  /** What `writableLength` reports: bytes held in the stream, not yet at the descriptor. */
+  writableLength: number
+  fd: number | undefined
 }
 
 /**
@@ -139,11 +147,13 @@ export function recordingSink(
   } = {},
 ): RecordingSink {
   const chunks: string[] = []
-  const listeners: (() => void)[] = []
+  const listeners = new Map<string, ((argument?: unknown) => void)[]>()
   const sink: RecordingSink = {
     full: false,
+    writableLength: 0,
+    fd: undefined,
     write(chunk) {
-      chunks.push(chunk)
+      chunks.push(typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString())
       const { writeMs, clock } = options
       if (writeMs !== undefined && clock !== undefined) {
         if (clock.advance !== undefined) clock.advance(writeMs)
@@ -156,13 +166,30 @@ export function recordingSink(
       }
       return !sink.full
     },
-    once(_event, listener) {
-      listeners.push(listener)
+    once(event, listener) {
+      listeners.set(event, [...(listeners.get(event) ?? []), listener])
       return sink
+    },
+    off(event, listener) {
+      listeners.set(
+        event,
+        (listeners.get(event) ?? []).filter((each) => each !== listener),
+      )
+      return sink
+    },
+    emit(event, argument) {
+      const waiting = listeners.get(event) ?? []
+      listeners.set(event, [])
+      for (const listener of waiting) listener(argument)
+    },
+    listenerCount() {
+      let count = 0
+      for (const each of listeners.values()) count += each.length
+      return count
     },
     drain() {
       sink.full = false
-      for (const listener of listeners.splice(0)) listener()
+      sink.emit('drain')
     },
     writes: () => chunks,
     text: () => chunks.join(''),
