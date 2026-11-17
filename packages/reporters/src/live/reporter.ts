@@ -171,6 +171,9 @@ export function createLiveReporter(
   // Cached lines (performance rule 6).
   let statusKey = ''
   let statusText = ''
+  /** The rule over the footer, made again only when the width changes. */
+  let ruleColumns = 0
+  let ruleText = ''
   const workerKeys: string[] = []
   const workerTexts: string[] = []
 
@@ -354,7 +357,12 @@ export function createLiveReporter(
       statusKey = key
       statusText = statusLine(input, columns, glyphs, style)
     }
-    const lines = [statusText]
+    if (ruleColumns !== columns) {
+      ruleColumns = columns
+      ruleText = style.dim(glyphs.rule.repeat(Math.max(1, columns - 1)))
+    }
+    // The rule, the busy workers, then the bar line at the very bottom.
+    const lines = [ruleText]
     const slots = state.workers()
     let shown = 0
     let hidden = 0
@@ -392,6 +400,7 @@ export function createLiveReporter(
       const spinner = glyphs.spinner[frameNo % glyphs.spinner.length] as string
       lines.push(` ${spinner}  starting ${workersCap} worker${workersCap === 1 ? '' : 's'}`)
     }
+    lines.push(statusText)
     return lines
   }
 

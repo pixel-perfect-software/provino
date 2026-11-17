@@ -31,6 +31,8 @@ export interface Glyphs {
   /** A filled and an empty cell of the progress bar. */
   readonly barFull: string
   readonly barEmpty: string
+  /** One cell of the rule that separates the finished files from the live footer. */
+  readonly rule: string
 }
 
 const BRAILLE = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
@@ -53,6 +55,7 @@ export const GLYPHS: Readonly<Record<GlyphSet, Glyphs>> = {
     spinner: BRAILLE,
     barFull: '█',
     barEmpty: '░',
+    rule: '─',
   },
   unicode: {
     set: 'unicode',
@@ -66,6 +69,7 @@ export const GLYPHS: Readonly<Record<GlyphSet, Glyphs>> = {
     spinner: BRAILLE,
     barFull: '█',
     barEmpty: '░',
+    rule: '─',
   },
   ascii: {
     set: 'ascii',
@@ -79,5 +83,6 @@ export const GLYPHS: Readonly<Record<GlyphSet, Glyphs>> = {
     spinner: ['-', '\\', '|', '/'],
     barFull: '#',
     barEmpty: '.',
+    rule: '-',
   },
 }
