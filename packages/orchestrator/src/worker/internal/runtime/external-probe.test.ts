@@ -342,6 +342,153 @@ describe('the external probe’s writes (B23f, reevaluatePatchingExternals)', ()
     assert.equal(Object.getOwnPropertyDescriptor(global, 'expect')?.value, 'replaced')
   })
 
+  /** A lazy accessor as Node defines one: its first read loads the value and settles to a data key. */
+  function lazyAccessor(global: Record<string, unknown>, key: string, load: () => unknown): void {
+    let loaded: unknown
+    const settle = (value: unknown): void => {
+      Object.defineProperty(global, key, { configurable: true, writable: true, value })
+    }
+    Object.defineProperty(global, key, {
+      configurable: true,
+      get() {
+        loaded ??= load()
+        settle(loaded)
+        return loaded
+      },
+      set: settle,
+    })
+  }
+
+  it('an accessor a load replaces with its own function is a write; one that settles is not', () => {
+    const settles = fileGlobal()
+    // Node's own fetch is JavaScript (undici), so its source is no `[native code]`: the getter's
+    // value is what tells a settle apart.
+    function fetch(): string {
+      return 'node'
+    }
+    lazyAccessor(settles.global, 'fetch', () => fetch)
+    const read = watchPerFileGlobals(settles.global, settles.baseline, undefined, WRITES)
+    void settles.global.fetch
+    assert.equal(read(), false, 'a lazy read leaves the getter’s own value')
+
+    const native = fileGlobal()
+    lazyAccessor(native.global, 'structuredClone', () => structuredClone)
+    const nativeRead = watchPerFileGlobals(native.global, native.baseline, undefined, WRITES)
+    void native.global.structuredClone
+    assert.equal(nativeRead(), false, 'a native function is Node’s own')
+
+    for (const patch of [
+      (global: Record<string, unknown>) => {
+        global.fetch = () => 'patched'
+      },
+      (global: Record<string, unknown>) => {
+        Object.defineProperty(global, 'fetch', { configurable: true, value: () => 'patched' })
+      },
+    ]) {
+      const patched = fileGlobal()
+      lazyAccessor(patched.global, 'fetch', () => fetch)
+      const end = watchPerFileGlobals(patched.global, patched.baseline, undefined, WRITES)
+      patch(patched.global)
+      assert.equal(end(), true, 'a JavaScript function in the getter’s place is a patch')
+    }
+  })
+
+  it('counts only what the environment’s restore takes back: a configurable or a writable key', () => {
+    // `@provino/env-shared`'s `snapshotProperties.restore`: every own key, symbols included, is
+    // deleted when added and redefined when changed, unless it can't be (a non-configurable key
+    // added, a key made non-configurable) or is a process singleton (graceful-fs's queue,
+    // undici's dispatchers).
+    const write = (change: (global: Record<string | symbol, unknown>) => void): boolean => {
+      const { global, baseline } = fileGlobal()
+      const end = watchPerFileGlobals(global, baseline, undefined, WRITES)
+      change(global)
+      return end()
+    }
+    assert.equal(
+      write((global) => {
+        global[Symbol.for('provino.test.added')] = {}
+      }),
+      true,
+      'an added symbol key is deleted by the restore',
+    )
+    assert.equal(
+      write((global) => {
+        Object.defineProperty(global, '__pinned', { configurable: false, value: 1 })
+      }),
+      false,
+      'an added non-configurable key stays: the shared copy keeps it',
+    )
+    assert.equal(
+      write((global) => {
+        Object.defineProperty(global, Symbol.for('undici.globalDispatcher.1'), {
+          configurable: false,
+          value: {},
+        })
+        global[Symbol('graceful-fs.queue')] = []
+      }),
+      false,
+      'a process singleton is left alone by the restore',
+    )
+    assert.equal(
+      write((global) => {
+        Object.defineProperty(global, 'setTimeout', {
+          configurable: false,
+          writable: false,
+          value: () => 1,
+        })
+      }),
+      false,
+      'a key the load made non-configurable and read-only can’t be put back',
+    )
+    assert.equal(
+      write((global) => {
+        global.process = { replaced: true }
+      }),
+      true,
+      'process is restored too: it is only kept out of the reads',
+    )
+  })
+
+  it('reads the load’s state before the read-watched keys go back, and an equal value is no write', () => {
+    const both = fileGlobal()
+    const end = watchPerFileGlobals(both.global, both.baseline, undefined, BOTH)
+    // A package that reads a worker key and replaces it in the same load.
+    const real = both.global.setTimeout
+    both.global.setTimeout = () => (typeof real === 'function' ? 2 : 0)
+    assert.equal(end(), true)
+
+    // The restore puts the value back as it is, so an assignment of the same value breaks nothing.
+    const same = fileGlobal()
+    const again = watchPerFileGlobals(same.global, same.baseline, undefined, WRITES)
+    const { setTimeout: timer, expect: expected } = same.global
+    same.global.setTimeout = timer
+    same.global.expect = expected
+    assert.equal(again(), false)
+  })
+
+  it('with reads off, takes only the descriptors: no baseline, no covered keys', () => {
+    const { global } = fileGlobal()
+    let asked = 0
+    const baseline = new Proxy(new Map<string, PropertyDescriptor>(), {
+      get(target, name) {
+        asked++
+        const value: unknown = Reflect.get(target, name, target)
+        return typeof value === 'function' ? value.bind(target) : value
+      },
+    })
+    const covered: GlobalReadWatch = {
+      covers: () => {
+        asked++
+        return false
+      },
+      watch: () => () => {},
+    }
+    const end = watchPerFileGlobals(global, baseline, covered, WRITES)
+    global.__added = 1
+    assert.equal(end(), true)
+    assert.equal(asked, 0, 'neither the baseline nor the covered keys were read')
+  })
+
   it('costs one more walk of the global per window (`local`)', () => {
     // A global of jsdom's size: about 874 own keys, a few hundred of them accessors.
     const global: Record<string, unknown> = {}
@@ -370,18 +517,21 @@ describe('the external probe’s writes (B23f, reevaluatePatchingExternals)', ()
     }
     // Interleaved, the first round discarded.
     const reads: number[] = []
+    const writes: number[] = []
     const both: number[] = []
     for (let round = 0; round < 6; round++) {
       const a = time({ reads: true, writes: false })
-      const b = time(BOTH)
+      const b = time(WRITES)
+      const c = time(BOTH)
       if (round > 0) {
         reads.push(a)
-        both.push(b)
+        writes.push(b)
+        both.push(c)
       }
     }
     const median = (values: number[]): number => values.toSorted((x, y) => x - y)[2] ?? 0
     console.log(
-      `local: a window over ${Object.keys(global).length} keys, reads only ${median(reads).toFixed(1)} µs, reads and writes ${median(both).toFixed(1)} µs (median of 5 rounds of ${windows})`,
+      `local: a window over ${Object.keys(global).length} keys, reads only ${median(reads).toFixed(1)} µs, writes only ${median(writes).toFixed(1)} µs, reads and writes ${median(both).toFixed(1)} µs (median of 5 rounds of ${windows})`,
     )
   })
 })
