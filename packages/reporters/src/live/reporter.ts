@@ -293,6 +293,9 @@ export function createLiveReporter(
       // The one handler that does the work itself: the run is over and no worker waits.
       scheduler.stop()
       detached = true
+      // Release the finished-file ring: nothing draws it in Phase 1 (Phase 2 writes what is left
+      // in it into the final lines), and a run's state must not outlive it (the heap bar).
+      state.take()
       if (!live || broken) flusher.flushNow()
       if (partial !== '') {
         pending.push(partial)

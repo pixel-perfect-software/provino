@@ -374,6 +374,11 @@ test('a frame with nothing changed rebuilds no footer, and no frame drains the f
   scheduler.request()
   assert.equal(scheduler.tick(), true)
   assert.equal(calls.workers ?? 0, reads, 'the footer was not rebuilt')
+  assert.equal(
+    calls.take ?? 0,
+    0,
+    'no frame drains the ring: it is drained where it is drawn (Phase 2)',
+  )
   await reporter['run:end']?.({ reason: 'passed', files: [], unhandled: [], durationMs: 5 })
-  assert.equal(calls.take ?? 0, 0, 'the ring is drained only where it is drawn (Phase 2)')
+  assert.equal(calls.take, 1, 'run:end releases it once')
 })
