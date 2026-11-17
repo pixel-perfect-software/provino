@@ -188,6 +188,61 @@ describe('the end card', () => {
     )
     await expectGolden('provino-end.fail', `${lines.join('\n')}\n`)
   })
+
+  // B26 Phase 3 review: the seed (`--showSeed`, `--randomize`) and every snapshot outcome, with the
+  // hint how to update them, in the provino reporter's own words.
+  test('seed and snapshots', async () => {
+    const lines = endCardLines(
+      {
+        ...base,
+        ok: false,
+        reason: 'failed',
+        passed: 3999,
+        failed: 1,
+        filesFailed: 1,
+        snapshots: {
+          added: 2,
+          matched: 8,
+          unmatched: 1,
+          updated: 0,
+          unchecked: 3,
+          filesRemoved: 1,
+        },
+        snapshotUpdate: 'new',
+        snapshotHint: 're-run with `-u`',
+        seed: 1234,
+        failures: ['  ❌ cart › matches  src/cart.test.ts:4:7'],
+        failuresMore: 0,
+      },
+      120,
+      GLYPHS.emoji,
+      plain,
+    )
+    await expectGolden('provino-end.seed-snapshots', `${lines.join('\n')}\n`)
+  })
+
+  test('snapshots updated under -u: removed files, no hint', async () => {
+    const lines = endCardLines(
+      {
+        ...base,
+        ok: true,
+        snapshots: {
+          added: 0,
+          matched: 4,
+          unmatched: 0,
+          updated: 2,
+          unchecked: 0,
+          filesRemoved: 2,
+        },
+        snapshotUpdate: 'all',
+        snapshotHint: 're-run with `-u`',
+      },
+      120,
+      GLYPHS.emoji,
+      plain,
+    )
+    await expectGolden('provino-end.snapshots-updated', `${lines.join('\n')}\n`)
+  })
 })
 
 describe('a failure thrown deep in source: the call chain under the code frame', () => {

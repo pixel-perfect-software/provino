@@ -45,6 +45,8 @@ function setup(
     columns?: number
     noStackTrace?: true
     readSource?: (path: string) => Promise<string | undefined>
+    seed?: number
+    snapshotHint?: string
   } = {},
 ) {
   const clock = fakeClock()
@@ -62,6 +64,8 @@ function setup(
     scheduler,
     timers: clock.timers,
     ...(options.noStackTrace === undefined ? {} : { noStackTrace: options.noStackTrace }),
+    ...(options.seed === undefined ? {} : { seed: options.seed }),
+    ...(options.snapshotHint === undefined ? {} : { snapshotHint: options.snapshotHint }),
   })
   return { clock, scheduler, sink, reporter, bus: createReporterBus([reporter]) }
 }
@@ -445,4 +449,101 @@ test('a file keeps its counts when the next file starts on its worker before it 
   const text = sink.text()
   assert.match(text, /^✅ first\.test\.ts · 2 tests · /m)
   assert.match(text, /^✅ second\.test\.ts · 1 test · /m)
+})
+
+// B26 Phase 3 review, finding 1: what the flags ask for, in the provino reporter's own layout.
+test('--logHeapUsage: the heap follows the file’s time on its line', async () => {
+  const { sink, bus } = setup()
+  const file = buildFile({ path: 'heap.test.ts', tests: [{ path: ['a'] }] })
+  await bus.emit('run:start', RUN, [file.info])
+  await bus.emit('file:start', file.info, 1)
+  for (const { task, spec } of file.tests) {
+    await bus.emit('task:end', task, testEndEvent(task, resultOf(spec)))
+  }
+  await bus.emit('file:end', { ...file.result, heapUsedBytes: 47 * 1024 * 1024 })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.match(sink.text(), /^✅ heap\.test\.ts · 1 test · \S+ · 47 MB heap$/m)
+})
+
+test('a file’s snapshots: written, failed, obsolete, a removed file, under its line', async () => {
+  const { sink, bus } = setup()
+  const file = buildFile({ path: 'snap.test.ts', tests: [{ path: ['a'] }] })
+  await bus.emit('run:start', RUN, [file.info])
+  await bus.emit('file:start', file.info, 1)
+  await bus.emit('file:end', {
+    ...file.result,
+    snapshot: {
+      file: null,
+      added: 2,
+      matched: 1,
+      unmatched: 1,
+      updated: 0,
+      unchecked: 3,
+      uncheckedKeys: ['x 1', 'x 2', 'x 3'],
+      fileDeleted: true,
+    },
+  })
+  await new Promise((resolve) => setImmediate(resolve))
+  assert.match(
+    sink.text(),
+    /^✅ snap\.test\.ts[^\n]*\n {3}snapshots: 1 failed · 2 written · 3 obsolete · file removed$/m,
+  )
+})
+
+test('the seed and the update hint reach the end card', async () => {
+  const { sink, bus } = setup({ seed: 99, snapshotHint: 're-run with `-u`' })
+  await playRun(bus, [{ path: 'a.test.ts', tests: [{ path: ['a'] }] }], {
+    snapshots: {
+      counters: {
+        added: 0,
+        matched: 0,
+        unmatched: 0,
+        updated: 0,
+        unchecked: 2,
+        total: 2,
+        filesAdded: 0,
+        filesRemoved: 0,
+        filesUnmatched: 0,
+        filesUpdated: 0,
+      },
+      uncheckedKeysByFile: [],
+      update: 'new',
+      files: [],
+    },
+  })
+  const text = sink.text()
+  assert.match(text, /^snapshots: 2 obsolete$/m)
+  assert.match(text, /^ {2}re-run with `-u` to update them$/m)
+  assert.match(text, /^seed: 99$/m)
+})
+
+// B26 Phase 3 review, finding 4: a run that throws ends with no run:end; the restore must still
+// erase the footer, show the cursor and print what was waiting for a frame.
+test('restore() without run:end erases the footer, shows the cursor, then prints what was queued', async () => {
+  const { scheduler, sink, bus, reporter } = setup({ live: true })
+  const file = buildFile({ path: 'a.test.ts', tests: [{ path: ['a'] }] })
+  await bus.emit('run:start', RUN, [file.info])
+  await bus.emit('file:start', file.info, 1)
+  scheduler.tick()
+  assert.ok(sink.text().includes(`${ESC}[?25l`), 'a frame hid the cursor')
+  reporter.terminal.passthrough.write('the worker said why\nand half a line')
+  for (const { task, spec } of file.tests) {
+    await bus.emit('task:end', task, testEndEvent(task, resultOf(spec)))
+  }
+  await bus.emit('file:end', file.result)
+  reporter.terminal.restore()
+  const text = sink.text()
+  const shown = text.lastIndexOf(`${ESC}[?25h`)
+  assert.ok(shown > text.lastIndexOf(`${ESC}[?25l`), 'the cursor is shown')
+  const after = text.slice(shown + `${ESC}[?25h`.length)
+  assert.match(after, /the worker said why\nand half a line\n/)
+  assert.match(after, /✅ a\.test\.ts · 1 test/)
+  assert.ok(
+    !after.includes(ESC),
+    `what follows the restore is plain lines: ${JSON.stringify(after)}`,
+  )
+  // A second restore writes nothing.
+  const length = text.length
+  reporter.terminal.restore()
+  assert.equal(sink.text().length, length)
 })

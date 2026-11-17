@@ -19,6 +19,8 @@ export interface SnapshotCounts {
   readonly unmatched: number
   readonly updated: number
   readonly unchecked: number
+  /** Snapshot files no test file has: obsolete, or removed when the run updated them. */
+  readonly filesRemoved?: number
 }
 
 /**
@@ -37,6 +39,15 @@ export interface EndCardInput {
   readonly durationMs: number
   readonly slowest: readonly SlowFile[]
   readonly snapshots: SnapshotCounts | undefined
+  /** The run's snapshot update mode: `all` (`-u`) removes obsolete files; the others leave them. */
+  readonly snapshotUpdate?: 'all' | 'new' | 'none'
+  /**
+   * How to update snapshots, as the run was started (the dialect's words, given by the caller):
+   * shown under the snapshot line when some failed or are obsolete and the run did not update.
+   */
+  readonly snapshotHint?: string
+  /** The run's random seed, shown when the caller asks (`--showSeed`, `--randomize`). */
+  readonly seed?: number
   readonly openHandles: readonly OpenHandle[] | undefined
   /** Console writes that arrived after their file ended and were not printed. */
   readonly lateConsole: number
@@ -50,14 +61,29 @@ function plural(count: number, noun: string): string {
   return `${groupDigits(count)} ${noun}${count === 1 ? '' : 's'}`
 }
 
-function snapshotLine(counts: SnapshotCounts): string {
+function snapshotLine(counts: SnapshotCounts, update: EndCardInput['snapshotUpdate']): string {
   const parts: string[] = []
+  const filesRemoved = counts.filesRemoved ?? 0
   if (counts.unmatched > 0) parts.push(`${groupDigits(counts.unmatched)} failed`)
   if (counts.added > 0) parts.push(`${groupDigits(counts.added)} written`)
   if (counts.updated > 0) parts.push(`${groupDigits(counts.updated)} updated`)
   if (counts.unchecked > 0) parts.push(`${groupDigits(counts.unchecked)} obsolete`)
+  if (filesRemoved > 0) {
+    parts.push(
+      update === 'all'
+        ? `${plural(filesRemoved, 'file')} removed`
+        : `${plural(filesRemoved, 'obsolete file')}`,
+    )
+  }
   if (counts.matched > 0) parts.push(`${groupDigits(counts.matched)} passed`)
   return parts.length === 0 ? '' : `snapshots: ${parts.join(' · ')}`
+}
+
+/** Whether the run left snapshots to update: some failed, or are obsolete and were not removed. */
+function wantsUpdate(counts: SnapshotCounts, update: EndCardInput['snapshotUpdate']): boolean {
+  if (counts.unmatched > 0) return true
+  if (update === 'all') return false
+  return counts.unchecked > 0 || (counts.filesRemoved ?? 0) > 0
 }
 
 /**
@@ -111,9 +137,13 @@ export function endCardLines(
     lines.push(fitWidth(style.dim(`${lead}slowest: ${slow}`), room))
   }
   if (input.snapshots !== undefined) {
-    const text = snapshotLine(input.snapshots)
-    if (text !== '') lines.push(style.dim(text))
+    const text = snapshotLine(input.snapshots, input.snapshotUpdate)
+    if (text !== '') lines.push(fitWidth(style.dim(text), room))
+    if (input.snapshotHint !== undefined && wantsUpdate(input.snapshots, input.snapshotUpdate)) {
+      lines.push(fitWidth(style.dim(`  ${input.snapshotHint} to update them`), room))
+    }
   }
+  if (input.seed !== undefined) lines.push(style.dim(`seed: ${input.seed}`))
   if (input.lateConsole > 0) {
     lines.push(
       style.dim(`${plural(input.lateConsole, 'console write')} came after their file ended`),
