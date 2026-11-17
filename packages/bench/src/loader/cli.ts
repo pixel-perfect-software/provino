@@ -54,6 +54,7 @@ const { positionals, values: args } = parseArgs({
     esm: { type: 'boolean', default: false },
     baseline: { type: 'string' },
     'idle-memory-limit': { type: 'string' },
+    functions: { type: 'string' },
   },
 })
 const command = positionals[0]
@@ -132,6 +133,7 @@ if (command === 'ui-library') {
     runs: count('runs', args.runs, 3),
     keep: args.keep,
     esm: args.esm,
+    functions: args.functions === undefined ? 0 : count('functions', args.functions, 0),
     subjects: subjectsOf(args.esm),
     ...(args.baseline === undefined ? {} : { baseline: args.baseline }),
     ...(args['idle-memory-limit'] === undefined

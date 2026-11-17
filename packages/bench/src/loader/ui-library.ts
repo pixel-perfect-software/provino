@@ -12,7 +12,10 @@
 // collection only with `--esm`): the memory of the worker that ran it, and with
 // `--idle-memory-limit` how often a worker was replaced. A `--baseline <checkout>` runs that tree's
 // `provino jest` too, for a change's before and after. `--esm` writes the same graph as ES modules
-// in the project's `src/` and runs Provino's subjects only. No bar; every number is `local`.
+// in the project's `src/` and runs Provino's subjects only. `--functions <n>` gives every core and
+// component module n more functions, each called once as the module loads, so a module weighs
+// what a real UI library's does (its compile and lazy compilation are what a code cache saves; the
+// default graph's modules are a few hundred characters). No bar; every number is `local`.
 import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -58,6 +61,8 @@ export interface UiLibraryOptions {
    * each memory row. Provino's subjects only: Jest's default transform leaves ES modules as they are.
    */
   readonly esm: boolean
+  /** More functions in every core and component module, each called once at load (`--functions`). */
+  readonly functions: number
 }
 
 /** The variable that names a run's memory log. */
@@ -68,10 +73,32 @@ const MEMORY_GC = 'UI_LIBRARY_MEMORY_GC'
 const pad = (index: number): string => String(index).padStart(4, '0')
 
 /**
+ * `count` functions of a module (`--functions`), each a small loop with a branch, and one call of
+ * each at load: what a UI library's module body costs to compile, lazily too, on its first load.
+ */
+function extraFunctions(module: number, count: number, esm: boolean): string {
+  if (count === 0) return ''
+  const lines: string[] = []
+  for (let index = 0; index < count; index++) {
+    const name = `w${index}`
+    const body = `(props) {\n  var out = {};\n  for (var key in props) {\n    if (props[key] > ${index}) out[key + '${module}'] = props[key] * 2;\n    else out[key] = String(props[key]) + '${index}';\n  }\n  return out;\n}`
+    lines.push(
+      esm ? `export function ${name}${body}` : `exports.${name} = function ${name}${body};`,
+    )
+  }
+  const call = (index: number): string => (esm ? `w${index}` : `exports.w${index}`)
+  lines.push(
+    `var warm${module} = { a: 1, b: ${count} };`,
+    ...Array.from({ length: count }, (_, index) => `${call(index)}(warm${module});`),
+  )
+  return `${lines.join('\n')}\n`
+}
+
+/**
  * The generated packages, each as `path in the package -> text`. Plain CommonJS, as a UI library's
  * `cjs` build ships.
  */
-function libraryPackages(): Map<string, Map<string, string>> {
+function libraryPackages(functions: number): Map<string, Map<string, string>> {
   const packages = new Map<string, Map<string, string>>()
   const pkg = (name: string): Map<string, string> => {
     const files = new Map<string, string>()
@@ -100,7 +127,7 @@ function libraryPackages(): Map<string, Map<string, string>> {
     const back = Math.floor(index / 2)
     core.set(
       `m${pad(index)}.js`,
-      `'use strict';\nObject.defineProperty(exports, '__esModule', { value: true });\nvar dom = require('ui-dom');\nvar back = require('./m${pad(back)}.js');\nexports.id = ${index};\nexports.style = function style(props) {\n  var out = {};\n  for (var key in props) out[key + '${index}'] = props[key];\n  return out;\n};\nexports.next = function next() {\n  return require('./m${pad(next)}.js').id;\n};\nexports.canUseDom = function canUseDom() {\n  return dom.canUseDom && back.id >= 0;\n};\n`,
+      `'use strict';\nObject.defineProperty(exports, '__esModule', { value: true });\nvar dom = require('ui-dom');\nvar back = require('./m${pad(back)}.js');\nexports.id = ${index};\nexports.style = function style(props) {\n  var out = {};\n  for (var key in props) out[key + '${index}'] = props[key];\n  return out;\n};\nexports.next = function next() {\n  return require('./m${pad(next)}.js').id;\n};\nexports.canUseDom = function canUseDom() {\n  return dom.canUseDom && back.id >= 0;\n};\n${extraFunctions(index, functions, false)}`,
     )
     coreRequires.push(`exports.m${index} = require('./m${pad(index)}.js');`)
   }
@@ -137,7 +164,7 @@ function libraryPackages(): Map<string, Map<string, string>> {
     const below = Math.floor(index / 3)
     lib.set(
       `C${pad(index)}.js`,
-      `'use strict';\nObject.defineProperty(exports, '__esModule', { value: true });\nvar core = require('ui-core');\nvar dom = require('ui-dom');\nvar sibling = require('./C${pad(sibling)}.js');\nvar below = require('./C${pad(below)}.js');\nexports.render = function render(label) {\n  var node = dom.createElement('div');\n  node.setAttribute('data-c', '${index}');\n  node.textContent = String(label);\n  return node;\n};\nexports.related = function related() {\n  return [sibling.render, below.render, core.m${index % CORE_MODULES}.id];\n};\n`,
+      `'use strict';\nObject.defineProperty(exports, '__esModule', { value: true });\nvar core = require('ui-core');\nvar dom = require('ui-dom');\nvar sibling = require('./C${pad(sibling)}.js');\nvar below = require('./C${pad(below)}.js');\nexports.render = function render(label) {\n  var node = dom.createElement('div');\n  node.setAttribute('data-c', '${index}');\n  node.textContent = String(label);\n  return node;\n};\nexports.related = function related() {\n  return [sibling.render, below.render, core.m${index % CORE_MODULES}.id];\n};\n${extraFunctions(CORE_MODULES + index, functions, false)}`,
     )
   }
   return packages
@@ -147,7 +174,7 @@ function libraryPackages(): Map<string, Map<string, string>> {
  * The same graph as ES modules in the project's own `src/ui/` (`--esm`): user modules, so each is
  * transformed, kept in its module-runner form by the transform cache, and evaluated per file.
  */
-function esmLibraryFiles(): Map<string, string> {
+function esmLibraryFiles(functions: number): Map<string, string> {
   const files = new Map<string, string>()
   const domExports: string[] = []
   for (let index = 0; index < DOM_MODULES; index++) {
@@ -167,7 +194,7 @@ function esmLibraryFiles(): Map<string, string> {
     const back = Math.floor(index / 2)
     files.set(
       `src/ui/core/m${pad(index)}.js`,
-      `import * as dom from '../dom/index.js';\nimport * as back from './m${pad(back)}.js';\nimport * as nextModule from './m${pad(next)}.js';\nexport const id = ${index};\nexport function style(props) {\n  const out = {};\n  for (const key in props) out[key + '${index}'] = props[key];\n  return out;\n}\nexport function next() {\n  return nextModule.id;\n}\nexport function canUseDom() {\n  return dom.canUseDom && back.id >= 0;\n}\n`,
+      `import * as dom from '../dom/index.js';\nimport * as back from './m${pad(back)}.js';\nimport * as nextModule from './m${pad(next)}.js';\nexport const id = ${index};\nexport function style(props) {\n  const out = {};\n  for (const key in props) out[key + '${index}'] = props[key];\n  return out;\n}\nexport function next() {\n  return nextModule.id;\n}\nexport function canUseDom() {\n  return dom.canUseDom && back.id >= 0;\n}\n${extraFunctions(index, functions, true)}`,
     )
     coreExports.push(`export * as m${index} from './m${pad(index)}.js';`)
   }
@@ -193,7 +220,7 @@ function esmLibraryFiles(): Map<string, string> {
     const below = Math.floor(index / 3)
     files.set(
       `src/ui/lib/C${pad(index)}.js`,
-      `import * as core from '../core/index.js';\nimport * as dom from '../dom/index.js';\nimport * as sibling from './C${pad(sibling)}.js';\nimport * as below from './C${pad(below)}.js';\nexport function render(label) {\n  const node = dom.createElement('div');\n  node.setAttribute('data-c', '${index}');\n  node.textContent = String(label);\n  return node;\n}\nexport function related() {\n  return [sibling.render, below.render, core.m${index % CORE_MODULES}.id];\n}\n`,
+      `import * as core from '../core/index.js';\nimport * as dom from '../dom/index.js';\nimport * as sibling from './C${pad(sibling)}.js';\nimport * as below from './C${pad(below)}.js';\nexport function render(label) {\n  const node = dom.createElement('div');\n  node.setAttribute('data-c', '${index}');\n  node.textContent = String(label);\n  return node;\n}\nexport function related() {\n  return [sibling.render, below.render, core.m${index % CORE_MODULES}.id];\n}\n${extraFunctions(CORE_MODULES + index, functions, true)}`,
     )
   }
   return files
@@ -244,10 +271,11 @@ async function writeProject(
   testFiles: number,
   idleMemoryLimit: string | undefined,
   esm: boolean,
+  functions: number,
 ): Promise<void> {
-  const files = esm ? esmLibraryFiles() : new Map<string, string>()
+  const files = esm ? esmLibraryFiles(functions) : new Map<string, string>()
   if (!esm) {
-    for (const [name, packageFiles] of libraryPackages()) {
+    for (const [name, packageFiles] of libraryPackages(functions)) {
       writePackage(root, name, packageFiles, 'index.js')
     }
   }
@@ -400,7 +428,7 @@ export async function uiLibraryLines(options: UiLibraryOptions): Promise<string[
     if (options.esm && options.subjects.includes('jest')) {
       throw new Error('--esm runs Provino only: Jest leaves ES modules untransformed')
     }
-    await writeProject(root, options.files, options.idleMemoryLimit, options.esm)
+    await writeProject(root, options.files, options.idleMemoryLimit, options.esm, options.functions)
     const runs: Record<Subject, RunNumbers[]> = { provino: [], jest: [], baseline: [] }
     for (let run = 0; run <= options.runs; run++) {
       // The first side alternates, so none always runs on a machine another just warmed.
@@ -425,7 +453,7 @@ export async function uiLibraryLines(options: UiLibraryOptions): Promise<string[
       : 'CommonJS in node_modules, dom reads document at load'
     const lines = [
       `loader ui-library (local, Node ${process.version}, ${options.files} files, -w 1, ${limit}, jsdom through jest-environment-jsdom; median of ${options.runs} warm runs after 1 discarded, interleaved)`,
-      `  graph: ${ICONS} icons + barrel + util, ${CORE_MODULES} core, ${COMPONENTS} components, ${DOM_MODULES + 1} dom (${shape})`,
+      `  graph: ${ICONS} icons + barrel + util, ${CORE_MODULES} core, ${COMPONENTS} components, ${DOM_MODULES + 1} dom (${shape}${options.functions === 0 ? '' : `; ${options.functions} more functions in every core and component module, each called at load`})`,
     ]
     const summaries = new Map<Subject, Summary>()
     for (const subject of options.subjects) {
