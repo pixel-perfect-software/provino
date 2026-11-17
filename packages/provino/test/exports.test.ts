@@ -14,7 +14,7 @@ import {
 } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { join, posix } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { childEnv, runBuilt, trackedProjects } from './support.ts'
@@ -248,8 +248,8 @@ describe("`import 'provino'` alone", () => {
       loaded.join('\n'),
     )
     assert.deepEqual(
-      loaded.filter((url) =>
-        /\/dist\/(?:shared|loading|coordinator|watch|jest-watch)\.js/.test(url),
+      loaded.filter(
+        (url) => /\/dist\/(?:shared|loading|coordinator)\.js/.test(url) || isWatchFile(url),
       ),
       [],
     )
@@ -296,43 +296,112 @@ describe('the worker-side expect (T7.12)', () => {
   })
 })
 
-describe('watch mode is its own chunk (B23f)', () => {
+/** Every built file (the chunks, the entries and the worker's), by path relative to `dist/`. */
+function builtSources(): Map<string, string> {
   const dist = join(PACKAGE, 'dist')
-  const chunks = (): string[] =>
-    readdirSync(dist).filter(
-      (file) => file.endsWith('.js') && !['watch.js', 'jest-watch.js'].includes(file),
-    )
-
-  test('no other chunk or entry imports watch.js or jest-watch.js statically', () => {
-    for (const file of chunks()) {
-      const source = readFileSync(join(dist, file), 'utf8')
-      assert.doesNotMatch(
-        source,
-        /^(?:import|export) [^\n]*? from "\.\/(?:jest-)?watch\.js"/m,
-        file,
-      )
+  const sources = new Map<string, string>()
+  for (const dir of ['', 'worker']) {
+    for (const file of readdirSync(join(dist, dir)).filter((name) => name.endsWith('.js'))) {
+      const path = dir === '' ? file : `${dir}/${file}`
+      sources.set(path, readFileSync(join(dist, path), 'utf8'))
     }
-    for (const file of readdirSync(join(dist, 'worker')).filter((name) => name.endsWith('.js'))) {
-      const source = readFileSync(join(dist, 'worker', file), 'utf8')
-      assert.doesNotMatch(source, /watch\.js/, `worker/${file}`)
+  }
+  return sources
+}
+
+/** The built files `source` (at `from`) imports with a static `import`/`export … from`, multiline included. */
+function staticImports(from: string, source: string): string[] {
+  const targets = [
+    ...source.matchAll(/\bfrom\s*["'](\.{1,2}\/[^"']+)["']/g),
+    ...source.matchAll(/\bimport\s*["'](\.{1,2}\/[^"']+)["']/g),
+  ].map((match) => match[1] ?? '')
+  return targets.map((target) => posix.normalize(posix.join(posix.dirname(from), target)))
+}
+
+/** The built files `source` reaches with a dynamic `import("./…")`. */
+function dynamicImports(from: string, source: string): string[] {
+  return [...source.matchAll(/\bimport\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/g)].map((match) =>
+    posix.normalize(posix.join(posix.dirname(from), match[1] ?? '')),
+  )
+}
+
+/**
+ * The built files that are watch mode, found by what they hold, not by what Rolldown named them:
+ * the files with Jest's watch loop (`startJestWatch`) or Node's file watcher (`watch` imported from
+ * `node:fs`), then any file that imports only files already in the set (the driver's stub).
+ */
+function watchFiles(sources: ReadonlyMap<string, string>): Set<string> {
+  const found = new Set<string>()
+  for (const [path, source] of sources) {
+    if (
+      /\bfunction startJestWatch\b|\bstartJestWatch\s*=/.test(source) ||
+      /\bimport\s*\{[^}]*\bwatch\b[^}]*\}\s*from\s*["']node:fs["']/.test(source)
+    ) {
+      found.add(path)
+    }
+  }
+  for (let grew = true; grew; ) {
+    grew = false
+    for (const [path, source] of sources) {
+      const imports = staticImports(path, source)
+      if (!found.has(path) && imports.length > 0 && imports.every((file) => found.has(file))) {
+        found.add(path)
+        grew = true
+      }
+    }
+  }
+  return found
+}
+
+/** Whether a loaded URL is one of the built watch files (found by content). */
+const isWatchFile = (url: string): boolean => {
+  const dist = `${join(PACKAGE, 'dist')}/`
+  const path = url.startsWith('file://') ? fileURLToPath(url) : url
+  return path.startsWith(dist) && watchFiles(builtSources()).has(path.slice(dist.length))
+}
+
+describe('watch mode is its own chunk (B23f)', () => {
+  test('the loop and the file watcher are in built files of their own', () => {
+    const watch = watchFiles(builtSources())
+    assert.ok(watch.size >= 1 && watch.size <= 3, [...watch].join(', '))
+    assert.ok(!watch.has('cli.js') && !watch.has('index.js'), [...watch].join(', '))
+    assert.ok(![...watch].some((file) => file.startsWith('worker/')), [...watch].join(', '))
+  })
+
+  test('no file outside it imports one of its files statically, in the bin, a chunk or a worker', () => {
+    const sources = builtSources()
+    const watch = watchFiles(sources)
+    for (const [path, source] of sources) {
+      if (watch.has(path)) continue
+      assert.deepEqual(
+        staticImports(path, source).filter((file) => watch.has(file)),
+        [],
+        path,
+      )
     }
   })
 
-  test('the bin reaches the driver by one dynamic import, and the chunk exists', () => {
-    const sources = chunks().map((file) => readFileSync(join(dist, file), 'utf8'))
-    const dynamic = sources.flatMap((source) => [
-      ...source.matchAll(/import\("\.\/jest-watch\.js"\)/g),
-    ])
-    assert.equal(dynamic.length, 1)
-    const driver = readFileSync(join(dist, 'jest-watch.js'), 'utf8')
-    assert.match(driver, /from "\.\/watch\.js"/)
-    // The loop and the session are in it: Jest's watch loop, the file watcher.
-    const watch = readFileSync(join(dist, 'watch.js'), 'utf8')
-    assert.match(watch, /startJestWatch/)
-    assert.match(
-      watch,
-      /\bwatch\b[^\n]*from "node:fs"|import \{[^}]*\bwatch\b[^}]*\} from "node:fs"/,
-    )
+  test('exactly one dynamic import reaches it, and it is in a file the bin loads', () => {
+    const sources = builtSources()
+    const watch = watchFiles(sources)
+    const reaching = [...sources]
+      .filter(([path]) => !watch.has(path))
+      .flatMap(([path, source]) =>
+        dynamicImports(path, source)
+          .filter((file) => watch.has(file))
+          .map(() => path),
+      )
+    assert.equal(reaching.length, 1, reaching.join(', '))
+    // The bin's graph without watch mode: `cli.js` and what it imports, statically or dynamically
+    // (the light bin imports the rest of itself dynamically), however many hops.
+    const bin = new Set(['cli.js'])
+    for (const file of bin) {
+      const source = sources.get(file) ?? ''
+      for (const next of [...staticImports(file, source), ...dynamicImports(file, source)]) {
+        if (!watch.has(next)) bin.add(next)
+      }
+    }
+    assert.ok(bin.has(reaching[0] ?? ''), `${reaching[0]} is not reached from the bin`)
   })
 })
 
@@ -354,12 +423,7 @@ describe('a built worker (T1.10)', () => {
     const everything = readdirSync(logs).flatMap((file) =>
       readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean),
     )
-    assert.deepEqual(
-      everything
-        .map((line) => line.split('\t')[1] ?? '')
-        .filter((url) => /\/dist\/(?:jest-)?watch\.js$/.test(url)),
-      [],
-    )
+    assert.deepEqual(everything.map((line) => line.split('\t')[1] ?? '').filter(isWatchFile), [])
     const workers = readdirSync(logs)
       .map((file) => readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean))
       .filter((lines) => lines[0]?.split('\t')[0]?.endsWith('worker/bootstrap.js'))

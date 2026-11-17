@@ -31,11 +31,14 @@ export const DEFAULT_FILES = 5_000
 /** Jest drops a change that lands while a run is finishing (`watch.ts` L284-287), so a save waits this long after one. */
 export const DEFAULT_SETTLE_MS = 250
 
-function whole(flag: string, text: string | undefined, fallback: number): number {
+function whole(flag: string, text: string | undefined, fallback: number, min = 1): number {
   if (text === undefined) return fallback
   const value = Number(text)
-  if (!/^[1-9]\d*$/.test(text) || !Number.isSafeInteger(value)) {
-    throw new BenchError('BENCH_USAGE', `--${flag} needs a positive whole number, got "${text}"`)
+  if (!/^\d+$/.test(text) || !Number.isSafeInteger(value) || value < min) {
+    throw new BenchError(
+      'BENCH_USAGE',
+      `--${flag} needs a whole number of at least ${min}, got "${text}"`,
+    )
   }
   return value
 }
@@ -68,8 +71,7 @@ export function parseWatchFlags(argv: readonly string[]): WatchFlags {
     throw new BenchError('BENCH_USAGE', `--runner takes jest (as a signal), got "${runner}"`)
   }
   const withJest = runner === 'jest'
-  const files = whole('files', text('files'), DEFAULT_FILES)
-  if (files < 2) throw new BenchError('BENCH_USAGE', `--files needs at least 2, got ${files}`)
+  const files = whole('files', text('files'), DEFAULT_FILES, 2)
   return {
     maxMs: parseLimit('max-ms', text('max-ms')),
     saves: whole('saves', text('saves'), DEFAULT_SAVES),
@@ -77,8 +79,7 @@ export function parseWatchFlags(argv: readonly string[]): WatchFlags {
     // One session has nothing to interleave with; with Jest two of each do.
     sessions: whole('sessions', text('sessions'), withJest ? 2 : 1),
     files,
-    settleMs:
-      text('settle-ms') === '0' ? 0 : whole('settle-ms', text('settle-ms'), DEFAULT_SETTLE_MS),
+    settleMs: whole('settle-ms', text('settle-ms'), DEFAULT_SETTLE_MS, 0),
     keep: values.keep === true,
   }
 }
@@ -100,12 +101,13 @@ export function parseProbeLine(line: string): ProbeEvent | undefined {
 }
 
 /**
- * Save-to-first-file-start for one save: the first `start` at or after `savedAt` less `savedAt`;
- * `undefined` when none came.
+ * What the header says of the tree's size: nothing when the tree has the files asked for, else the
+ * count it has (the tests and their chains must divide the count evenly, so it can differ).
  */
-export function latencyOf(events: readonly ProbeEvent[], savedAt: number): number | undefined {
-  const first = events.find((event) => event.kind === 'start' && event.at >= savedAt)
-  return first === undefined ? undefined : first.at - savedAt
+export function filesNote(requested: number, generated: number): string | undefined {
+  return requested === generated
+    ? undefined
+    : `--files ${requested} does not divide into whole chains of modules under their tests: the tree has ${generated} files`
 }
 
 /** Every save of every session of one subject. */

@@ -16,7 +16,13 @@ import { join } from 'node:path'
 import { exitOnSignals, resolveRunnerPackage } from '@provino/harness'
 import { exitCodeFor, parseOrExitUsage } from '../internal/limits.ts'
 import { generateWatchTree } from './generate.ts'
-import { parseWatchFlags, type WatchSubject, watchFailures, watchLines } from './report.ts'
+import {
+  filesNote,
+  parseWatchFlags,
+  type WatchSubject,
+  watchFailures,
+  watchLines,
+} from './report.ts'
 import { runSession, writeWatchProject } from './run.ts'
 
 // Each runner is in its own process group, so Ctrl-C must end them through this hook.
@@ -26,6 +32,8 @@ const SESSION_TIMEOUT_MS = 120_000
 
 const flags = parseOrExitUsage('bench:watch', () => parseWatchFlags(process.argv.slice(2)))
 const tree = generateWatchTree({ files: flags.files })
+const note = filesNote(flags.files, tree.files.size)
+if (note !== undefined) process.stderr.write(`bench:watch: warning: ${note}\n`)
 const subjects: readonly WatchSubject[] = flags.withJest ? ['provino', 'jest'] : ['provino']
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'provino-watch-')))
 const samples: Record<WatchSubject, number[]> = { provino: [], jest: [] }
@@ -57,7 +65,7 @@ const names: Record<WatchSubject, string> = {
   provino: 'provino jest --watch',
   jest: `jest ${jest.version} --watch`,
 }
-const header = `watch bench (local, Node ${process.version}, ${process.platform} ${process.arch}; ${tree.tests + tree.tests * tree.chainLength} files in ${tree.directories} directories, ${tree.tests} tests over chains of ${tree.chainLength}; save to first file start, no terminal, git selection; ${flags.sessions} session${flags.sessions === 1 ? '' : 's'} of ${flags.saves} saves per subject${flags.withJest ? ', interleaved' : ''})`
+const header = `watch bench (local, Node ${process.version}, ${process.platform} ${process.arch}; ${tree.files.size} files${note === undefined ? '' : ` (${flags.files} asked for)`} in ${tree.directories} directories, ${tree.tests} tests over chains of ${tree.chainLength}; save to first file start, no terminal, git selection; ${flags.sessions} session${flags.sessions === 1 ? '' : 's'} of ${flags.saves} saves per subject${flags.withJest ? ', interleaved' : ''})`
 const expected = flags.sessions * flags.saves
 const missed = watchFailures(samples, expected, flags.maxMs)
 process.stdout.write(

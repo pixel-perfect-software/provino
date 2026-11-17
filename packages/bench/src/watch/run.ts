@@ -1,12 +1,12 @@
 // `bench:watch`'s runs (T9.11): the tree written into a hermetic git repository, and a watch
 // session of one subject driven through its saves. The session is started with no terminal (no
 // keys), each runner prints nothing (stdout is ignored; the probe reporter's lines come on fd 3),
-// and each save is one write of the leaf, stamped just before it. The latency of a save is the
+// and each save replaces the leaf in one rename (a temp file beside it, written first), stamped just before the rename. The latency of a save is the
 // first file start of the run it caused, less that stamp. The session keeps its pool by design
 // (D19 governs kill-checks and published numbers, not this bar). Jest is run with
 // `--watchman=false`, so both watch with their own file watchers.
 
-import { mkdir, writeFile } from 'node:fs/promises'
+import { mkdir, rename, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { performance } from 'node:perf_hooks'
 import { fileURLToPath } from 'node:url'
@@ -14,7 +14,8 @@ import { runProcess, spawnInGroup } from '@provino/harness'
 import { errorMessage } from '../internal/guards.ts'
 import { type Subject, subjectArgs } from '../loader/subjects.ts'
 import type { WatchTree } from './generate.ts'
-import { latencyOf, type ProbeEvent, parseProbeLine, type WatchSubject } from './report.ts'
+import { type ProbeEvent, parseProbeLine, type WatchSubject } from './report.ts'
+import { type Found, measureSaves, type SessionDriver } from './session.ts'
 
 const PROBE = fileURLToPath(new URL('probe-reporter.ts', import.meta.url))
 
@@ -98,17 +99,17 @@ class Probe {
     for (const wake of this.#waiters.splice(0)) wake()
   }
 
-  /** The first event after `index` that `matches`, or a rejection once `signal` aborts. */
+  /** The first event from index `from` that `matches` and the index after it; `undefined` once `signal` aborts. */
   async next(
     from: number,
     matches: (event: ProbeEvent) => boolean,
     signal: AbortSignal,
-    what: string,
-  ): Promise<ProbeEvent> {
+  ): Promise<Found | undefined> {
     for (;;) {
-      const found = this.events.slice(from).find(matches)
-      if (found !== undefined) return found
-      if (signal.aborted) throw new Error(`timed out waiting for ${what}`)
+      const index = this.events.findIndex((event, at) => at >= from && matches(event))
+      const event = this.events[index]
+      if (event !== undefined) return { event, next: index + 1 }
+      if (signal.aborted) return undefined
       await new Promise<void>((resolve) => {
         const done = (): void => {
           signal.removeEventListener('abort', done)
@@ -136,10 +137,10 @@ const sleep = (delayMs: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, delayMs))
 
 /**
- * Starts the subject's `--watch` in its own group, waits for the first run (the leaf is edited
- * before the start, so the run has a test to run), then makes `saves` saves, each after the run
- * the last one caused has ended and `settleMs` has passed. Returns each save's latency in ms.
- * The group is ended, and gone, before this returns or throws.
+ * Starts the subject's `--watch` in its own group and drives `measureSaves` over it: the leaf is
+ * edited before the start (so the first run has a test), then the watcher is armed and `saves`
+ * measured saves are made. Returns each save's latency in ms. The group is ended, and gone, before
+ * this returns or throws.
  */
 export async function runSession(options: SessionOptions): Promise<number[]> {
   const { subject, root, tree, saves, settleMs, timeoutMs } = options
@@ -167,54 +168,40 @@ export async function runSession(options: SessionOptions): Promise<number[]> {
     if (stderr.length > 50) stderr.shift()
   })
   child.stdio[3]?.on('data', (chunk: Buffer) => probe.push(chunk.toString()))
-  // A runner that ends on its own ends the wait, with its own words.
+  // A runner that ends on its own ends the wait; the stderr tail is added once, below.
   const died = exited.then((exit) => {
-    throw new Error(
-      `${subject} exited ${exit.exitCode ?? exit.signal} before the session ended:\n${stderr.join('').slice(-2000)}`,
-    )
+    throw new Error(`${subject} exited ${exit.exitCode ?? exit.signal} before the session ended`)
   })
   died.catch(() => undefined)
 
-  const within = async <T>(what: string, work: (signal: AbortSignal) => Promise<T>): Promise<T> => {
-    const limit = AbortSignal.timeout(timeoutMs)
-    return await Promise.race([work(limit), died]).catch((error: unknown) => {
-      throw new Error(`${what}: ${errorMessage(error)}\n${stderr.join('').slice(-2000)}`)
-    })
+  const driver: SessionDriver = {
+    write: async (save, stamp) => {
+      // One event for the watcher: the new text goes to a temp file beside the leaf first (its
+      // extension is no module's), and the rename over the leaf is stamped.
+      const temp = `${leafPath}.tmp`
+      await writeFile(temp, tree.leafText(save))
+      stamp(performance.timeOrigin + performance.now())
+      await rename(temp, leafPath)
+    },
+    waitFor: async (kind, from, atLeast, ms, what) => {
+      try {
+        return await Promise.race([
+          probe.next(
+            from,
+            (event) => event.kind === kind && event.at >= atLeast,
+            AbortSignal.timeout(ms),
+          ),
+          died,
+        ])
+      } catch (error) {
+        throw new Error(`${what}: ${errorMessage(error)}\n${stderr.join('').slice(-2000)}`)
+      }
+    },
+    settle: sleep,
+    count: () => probe.events.length,
   }
-
-  const latencies: number[] = []
   try {
-    let seen = 0
-    const first = await within('the first run', (signal) =>
-      probe.next(0, (event) => event.kind === 'done', signal, 'the first run to end'),
-    )
-    seen = probe.events.indexOf(first) + 1
-    for (let save = 2; save < saves + 2; save++) {
-      await sleep(settleMs)
-      const savedAt = performance.timeOrigin + performance.now()
-      await writeFile(leafPath, tree.leafText(save))
-      const started = await within(`save ${save - 1}`, (signal) =>
-        probe.next(
-          seen,
-          (event) => event.kind === 'start' && event.at >= savedAt,
-          signal,
-          'its run to start',
-        ),
-      )
-      const ended = await within(`save ${save - 1}`, (signal) =>
-        probe.next(
-          seen,
-          (event) => event.kind === 'done' && event.at >= started.at,
-          signal,
-          'its run to end',
-        ),
-      )
-      const latency = latencyOf(probe.events.slice(seen), savedAt)
-      if (latency === undefined) throw new Error(`save ${save - 1}: no file started`)
-      latencies.push(latency)
-      seen = probe.events.indexOf(ended) + 1
-    }
-    return latencies
+    return await measureSaves(driver, { saves, settleMs, timeoutMs })
   } finally {
     kill.abort()
     await exited

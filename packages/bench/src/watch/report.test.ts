@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { BenchError } from '../errors.ts'
-import { latencyOf, parseProbeLine, parseWatchFlags, watchFailures, watchLines } from './report.ts'
+import { filesNote, parseProbeLine, parseWatchFlags, watchFailures, watchLines } from './report.ts'
 
 test('flags: the bar, saves, runner and sizes, with defaults', () => {
   assert.deepEqual(parseWatchFlags([]), {
@@ -57,16 +57,9 @@ test('the probe line: a kind and a time; anything else on the descriptor is igno
   assert.equal(parseProbeLine(''), undefined)
 })
 
-test('a save is the first file start at or after it, less its time', () => {
-  const events = [
-    { kind: 'start', at: 90 },
-    { kind: 'done', at: 95 },
-    { kind: 'start', at: 130 },
-    { kind: 'start', at: 400 },
-  ] as const
-  assert.equal(latencyOf(events, 100), 30)
-  assert.equal(latencyOf(events, 130), 0)
-  assert.equal(latencyOf(events, 401), undefined)
+test('the header names a tree that is not the size asked for, and says nothing otherwise', () => {
+  assert.equal(filesNote(5_000, 5_000), undefined)
+  assert.match(filesNote(105, 100) ?? '', /--files 105 .* the tree has 100 files/)
 })
 
 test('the bar is on Provino alone, on the median, and never reads a miss as a tie', () => {
