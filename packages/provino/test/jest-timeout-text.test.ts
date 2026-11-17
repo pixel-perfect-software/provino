@@ -9,6 +9,12 @@ import { describe, it } from 'node:test'
 import { loadFixture, materialize } from './recorded.ts'
 import { spawnCli } from './support.ts'
 
+/** A recorded failure: its message and the user frame the harness kept. */
+interface RecordedError {
+  readonly message: string
+  readonly userFrame?: string
+}
+
 /** What Jest printed for a failure: each line of the message indented four spaces. */
 function printed(message: string): string {
   return message
@@ -27,7 +33,8 @@ describe('a timeout under provino jest reads as Jest 30.5.2 prints it', () => {
       const fixture = await loadFixture(id)
       const timeouts = fixture.golden.files.flatMap((file) =>
         (file.tests ?? []).flatMap((test) =>
-          test.errors
+          // The golden's tests carry their errors; `recorded.ts` types only the id and status.
+          ((test as { readonly errors?: readonly RecordedError[] }).errors ?? [])
             // Not a negative timeout (`jest.setTimeout(-1)`): the facade turns it into a 1 ms
             // deadline before core sees it, so the text says `1 ms` where Jest's says `-1 ms`.
             .filter(
