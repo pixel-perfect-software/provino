@@ -264,10 +264,6 @@ function startFailed(failure: Pick<StartFailure, 'workerId' | 'error'>): PoolOut
   return { type: 'start-failed', workerId, error, ...(exit === undefined ? {} : { exit }) }
 }
 
-function isWorkerExit(value: unknown): value is WorkerExit {
-  return typeof value === 'object' && value !== null && 'type' in value
-}
-
 /**
  * The `WorkerExit` inside an error that says a worker exited before or while it worked: a file
  * rejected by `ORCH_WORKER_EXITED`, or a start that ended in `ORCH_WORKER_EXITED` or
@@ -278,7 +274,7 @@ export function workerExitOf(error: unknown): WorkerExit | undefined {
   if (error.code !== 'ORCH_WORKER_EXITED' && error.code !== 'ORCH_WORKER_START_TIMEOUT') {
     return undefined
   }
-  return isWorkerExit(error.cause) ? error.cause : undefined
+  return error.exit
 }
 
 /**
@@ -468,7 +464,7 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
       new OrchestratorError(
         'ORCH_WORKER_EXITED',
         `Worker ${slot.id} exited while it ran no file (${describeExit(exit)})`,
-        { cause: exit },
+        { exit },
       ),
       'worker-lost',
       slot.id,

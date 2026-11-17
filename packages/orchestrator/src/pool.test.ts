@@ -688,7 +688,9 @@ describe('createPool', () => {
     await pool.close()
     assert.equal(errors.length, 1)
     assert.equal((errors[0] as { code?: string }).code, 'ORCH_WORKER_EXITED')
-    assert.deepEqual((errors[0] as { cause?: unknown }).cause, stopExit)
+    // The exit is plain data, so it rides as a field of its own: a `cause` is printed as an error.
+    assert.equal((errors[0] as { cause?: unknown }).cause, undefined)
+    assert.deepEqual((errors[0] as { exit?: unknown }).exit, stopExit)
   })
 
   it('reports nothing for a worker that stops cleanly or that the pool killed', async () => {
@@ -765,7 +767,7 @@ describe('createPool', () => {
       create: async (init, signal) => {
         if (first) {
           first = false
-          throw new OrchestratorError('ORCH_WORKER_EXITED', 'gone before ready', { cause: exit })
+          throw new OrchestratorError('ORCH_WORKER_EXITED', 'gone before ready', { exit })
         }
         return await create(init, signal)
       },

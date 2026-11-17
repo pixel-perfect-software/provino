@@ -105,7 +105,7 @@ for (const kind of ['forks', 'threads'] as const) {
         (error: unknown) => {
           assert.ok(error instanceof OrchestratorError)
           assert.equal(error.code, 'ORCH_WORKER_EXITED')
-          assert.deepEqual(error.cause, { type: 'exit', code: 5 })
+          assert.deepEqual(error.exit, { type: 'exit', code: 5 })
           return true
         },
       )
@@ -263,7 +263,7 @@ describe('inline transport', () => {
       (error: unknown) => {
         assert.ok(error instanceof OrchestratorError)
         assert.equal(error.code, 'ORCH_WORKER_EXITED')
-        assert.deepEqual(error.cause, { type: 'exit', code: 1 })
+        assert.deepEqual(error.exit, { type: 'exit', code: 1 })
         return true
       },
     )

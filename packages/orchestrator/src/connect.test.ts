@@ -118,7 +118,7 @@ describe('connectWorker', () => {
     await assert.rejects(running, (error: unknown) => {
       assert.deepEqual(seen, [7], 'the last pack was delivered first')
       assert.equal((error as { code?: unknown }).code, 'ORCH_WORKER_EXITED')
-      assert.equal((error as Error).cause, exit)
+      assert.equal((error as { exit?: unknown }).exit, exit)
       assert.match((error as Error).message, /killed by SIGSEGV/)
       return true
     })

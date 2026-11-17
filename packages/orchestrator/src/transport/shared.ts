@@ -200,12 +200,12 @@ function handshake(
           ? new OrchestratorError(
               'ORCH_WORKER_START_TIMEOUT',
               `The ${kind} worker didn't start within ${startTimeoutMs} ms`,
-              { cause: workerExit },
+              { exit: workerExit },
             )
           : new OrchestratorError(
               'ORCH_WORKER_EXITED',
               `The ${kind} worker exited before it started (${describeExit(workerExit)})`,
-              { cause: workerExit },
+              { exit: workerExit },
             ),
       )
     })
