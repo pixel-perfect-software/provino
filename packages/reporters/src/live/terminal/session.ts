@@ -20,7 +20,8 @@ export interface TerminalSession {
   draw(scrolled: readonly string[], footer: readonly string[]): boolean
   /**
    * The last write of a run: erases the footer, writes `lines`, shows the cursor again. The
-   * session is over afterwards.
+   * session is over afterwards. After a `restore` the terminal is already back: the lines are
+   * still written, as plain text.
    */
   finish(lines: readonly string[]): void
   /** Erases the footer, shows the cursor and ends any open synchronized update. Writes once; a second call writes nothing. */
@@ -39,7 +40,10 @@ export function createTerminalSession(writer: TimedWriter, columns: number): Ter
   const region = createRegion(columns)
   let cursorHidden = false
   let syncOpen = false
+  /** The terminal is put back (by `restore` or `finish`): no more frames. */
   let over = false
+  /** `finish` has written its lines. */
+  let finished = false
 
   return {
     draw(scrolled, footer) {
@@ -56,7 +60,13 @@ export function createTerminalSession(writer: TimedWriter, columns: number): Ter
       return written
     },
     finish(lines) {
-      if (over) return
+      if (finished) return
+      finished = true
+      if (over) {
+        // `restore` already put the terminal back: the lines are all that is left to write.
+        if (lines.length > 0) writer.writeSync(lines.map((line) => `${line}\n`).join(''))
+        return
+      }
       over = true
       let out = region.erase()
       for (const line of lines) out += `${line}\n`

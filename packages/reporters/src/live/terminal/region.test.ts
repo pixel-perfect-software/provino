@@ -76,5 +76,24 @@ test('a resize redraws the footer whole, at the new width', () => {
   const region = createRegion(80)
   region.render([], ['abcdefghij'])
   region.resize(6)
-  assert.equal(region.render([], ['abcdefghij']), `${up(1)}${erase}abcd…\n`)
+  // The ten columns drawn at 80 wrap onto two rows of 6 (finding 7): the erase goes up over both.
+  assert.equal(region.render([], ['abcdefghij']), `${up(2)}${erase}abcd…\n`)
+})
+
+test('a resize erases the rows the old lines now occupy at the new width, not one per line', () => {
+  const region = createRegion(80)
+  const long = 'a'.repeat(30)
+  region.render([], [long, 'b'])
+  region.resize(10)
+  // 30 columns reflow onto 3 rows of 10; 'b' stays on one: 4 rows.
+  assert.equal(region.render([], [long, 'b']), `${up(4)}${erase}aaaaaaaa…\nb\n`)
+})
+
+test('erase after a resize also goes up by the reflowed rows, once', () => {
+  const region = createRegion(80)
+  region.render([], ['a'.repeat(25), ''])
+  region.resize(10)
+  assert.equal(region.erase(), `${up(4)}${erase}`)
+  region.render([], ['x'])
+  assert.equal(region.erase(), `${up(1)}${erase}`)
 })

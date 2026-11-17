@@ -11,7 +11,7 @@
 // the number of lines drawn. Scrolled lines are written as given: they leave the footer's reach.
 
 import { cursorDown, cursorUp, ERASE_DOWN, ERASE_LINE } from './ansi.ts'
-import { fitWidth } from './width.ts'
+import { displayWidth, fitWidth } from './width.ts'
 
 /**
  * The footer as it is on screen.
@@ -36,9 +36,21 @@ export function createRegion(columns: number): Region {
   let width = Math.max(1, columns - 1)
   let drawn: readonly string[] = []
   let redraw = false
+  /** The terminal's width after a resize, until the footer is erased: the old lines reflowed to it. */
+  let reflowedTo: number | undefined
+
+  /** How many screen rows the drawn lines occupy: one each, unless a resize narrowed the terminal under them. */
+  function rows(): number {
+    if (reflowedTo === undefined) return drawn.length
+    let total = 0
+    for (const line of drawn) total += Math.max(1, Math.ceil(displayWidth(line) / reflowedTo))
+    return total
+  }
 
   function eraseOld(): string {
-    return drawn.length === 0 ? '' : `${cursorUp(drawn.length)}${ERASE_DOWN}`
+    const count = rows()
+    reflowedTo = undefined
+    return count === 0 ? '' : `${cursorUp(count)}${ERASE_DOWN}`
   }
 
   return {
@@ -76,6 +88,7 @@ export function createRegion(columns: number): Region {
     },
     resize(columns) {
       width = Math.max(1, columns - 1)
+      if (drawn.length > 0) reflowedTo = Math.max(1, columns)
       redraw = true
     },
     height: () => drawn.length,

@@ -71,3 +71,15 @@ test('a frame is not written, and nothing is consumed, while the stream has not 
   assert.equal(session.draw(['kept'], ['b']), true)
   assert.ok((sink.writes().at(-1) as string).includes('kept'))
 })
+
+test('finish after restore still writes the final lines, as plain text', () => {
+  const { sink, session } = make()
+  session.draw([], ['status'])
+  session.restore()
+  const count = sink.writes().length
+  session.finish(['final', 'line two'])
+  assert.equal(sink.writes().length, count + 1)
+  assert.equal(sink.writes().at(-1), 'final\nline two\n')
+  session.finish(['again'])
+  assert.equal(sink.writes().length, count + 1, 'finish writes once')
+})

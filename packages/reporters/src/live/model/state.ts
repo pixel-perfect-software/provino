@@ -7,6 +7,7 @@ import type { FileInfo, FileResult, TaskId } from '@provino/types'
 
 /** A running file, on a worker's slot. */
 export interface WorkerSlot {
+  readonly fileId: TaskId
   readonly path: string
   readonly startedAt: number
   /** Tests that ended so far. */
@@ -59,6 +60,8 @@ export interface RunState {
   workers(): readonly (WorkerSlot | undefined)[]
   /** Workers with a file. */
   busy(): number
+  /** Running files the state tracks by file: never more than `busy`. */
+  running(): number
   /** The files that finished and wait for a frame: `take` hands them over and empties the ring. */
   take(): readonly FinishedFile[]
   /** Finished files the ring had no room for since the last `take`. */
@@ -108,6 +111,7 @@ export function createRunState(): RunState {
     startedAt: () => startedAt,
     workers: () => workers,
     busy: () => busy,
+    running: () => byFile.size,
     take() {
       const out: FinishedFile[] = []
       for (let i = 0; i < size; i++) {
@@ -141,12 +145,16 @@ export function createRunState(): RunState {
     },
     fileStart(file, workerId, now) {
       const slot: WorkerSlot = {
+        fileId: file.fileId,
         path: file.runPath ?? file.path,
         startedAt: now,
         tests: 0,
         failed: 0,
       }
-      if (workers[workerId] === undefined) busy++
+      const previous = workers[workerId]
+      if (previous === undefined) busy++
+      // A file whose `file:end` never came (a crashed worker) loses its record with its slot.
+      else if (byFile.get(previous.fileId) === previous) byFile.delete(previous.fileId)
       workers[workerId] = slot
       byFile.set(file.fileId, slot)
       dirty = true

@@ -9,6 +9,24 @@ function result(file: FileInfo, durationMs = 1, state: 'pass' | 'fail' | 'skip' 
   return { file, state, durationMs, errors: [] } as const
 }
 
+test('a worker slot that is reused drops the old file: nothing leaks and a late end clears nothing', () => {
+  const state = createRunState()
+  const a = fileInfo('a.test.ts')
+  const b = fileInfo('b.test.ts')
+  state.start([a, b], 0)
+  state.fileStart(a, 0, 1)
+  state.fileStart(b, 0, 2)
+  assert.equal(state.busy(), 1)
+  assert.equal(state.running(), 1, 'only the file on the slot is tracked')
+  state.fileEnd(result(a))
+  assert.equal(state.busy(), 1)
+  assert.equal(state.workers()[0]?.path, 'b.test.ts')
+  assert.equal(state.running(), 1)
+  state.fileEnd(result(b))
+  assert.equal(state.busy(), 0)
+  assert.equal(state.running(), 0)
+})
+
 test('counts by outcome, per running file', () => {
   const state = createRunState()
   const a = fileInfo('a.test.ts')
