@@ -105,6 +105,8 @@ pnpm exec provino jest                    # the whole suite
 | `provino jest --showConfig`          | Print the config as Provino resolved it                              |
 | `provino jest --clearCache`          | Remove Provino's cache                                               |
 | `provino jest --shard=i/n`           | Run one shard; add `--timings <file>` to cut by recorded time        |
+| `provino jest --watch`               | Rerun the tests a change reaches; `--watchAll` reruns them all       |
+| `provino jest -o`                    | Run only the tests for files changed since the last commit           |
 | `provino --help`                     | Every command and option                                             |
 
 ## 🚧 Not in place yet
