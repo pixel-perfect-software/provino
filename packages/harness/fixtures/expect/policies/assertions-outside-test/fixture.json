@@ -1,0 +1,4 @@
+{
+  "description": "Assertions counted outside a test: Jest keeps one counter state per file and resets it only when a test ends, so the counts made at module scope, in a beforeAll or in an afterAll after a test's end go to the next test that ends (skipped and todo tests end none, each retry attempt ends one), and what is left after the last test is dropped.",
+  "runners": ["jest"]
+}
