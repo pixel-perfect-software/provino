@@ -385,6 +385,8 @@ export interface CorePolicy {
     readonly eachTitleTruncate: number | null;
     readonly errors: {
         readonly lateErrors: "fail-owner" | "report-run";
+        readonly processListeners: "alongside" | "per-file";
+        readonly waitForUnhandledRejections: boolean;
         readonly hasAssertionsWhenFailed: "skip" | "check";
     };
     readonly firstArg: "done-if-arity" | "context";
@@ -2100,6 +2102,7 @@ export interface ModulePolicy {
     readonly mocksReachShared: boolean;
     readonly mockValueOwner: "module-registry" | "registration";
     readonly moduleSyncCondition: "never" | "import-and-sync-require";
+    readonly nativeLoadPatches: "apply" | "skip";
     readonly reevaluateHookingExternals: boolean;
     readonly requireVirtualFlag: boolean;
     readonly resetModulesBetween: boolean;
