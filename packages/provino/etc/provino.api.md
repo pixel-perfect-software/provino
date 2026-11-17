@@ -580,6 +580,7 @@ export interface W extends t, ProjectKeys, c, z {}
 
 // @beta
 export interface w {
+    readonly expectedMs?: number;
     // (undocumented)
     readonly fileId: st;
     readonly path: string;

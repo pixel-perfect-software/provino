@@ -1042,6 +1042,7 @@ export interface FileHistory {
 
 // @beta
 export interface FileInfo {
+    readonly expectedMs?: number;
     // (undocumented)
     readonly fileId: TaskId;
     readonly path: string;
@@ -2810,6 +2811,7 @@ export interface RunInfo {
     readonly startTime: number;
     // (undocumented)
     readonly watch: boolean;
+    readonly workers?: number;
 }
 
 // @public

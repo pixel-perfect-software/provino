@@ -7,6 +7,7 @@ import type {
   DefineReporter,
   FileHistory,
   FileInfo,
+  RunInfo,
   FileJob,
   FileResult,
   GlobalSetupContext,
@@ -118,8 +119,29 @@ expectTypeOf<FileInfo['projectIndex']>().toEqualTypeOf<number | undefined>()
 const badIndex: FileInfo = { ...file, projectIndex: 'first' }
 // @ts-expect-error exactOptionalPropertyTypes: omitted, not undefined
 const undefinedIndex: FileInfo = { ...file, projectIndex: undefined }
+// The time a file is expected to take, and the pool's worker cap (B26): numbers, omitted when unknown.
+expectTypeOf<FileInfo['expectedMs']>().toEqualTypeOf<number | undefined>()
+expectTypeOf<RunInfo['workers']>().toEqualTypeOf<number | undefined>()
+// @ts-expect-error exactOptionalPropertyTypes: omitted, not undefined
+const undefinedExpected: FileInfo = { ...file, expectedMs: undefined }
+// @ts-expect-error an expected time is a number of ms
+const textExpected: FileInfo = { ...file, expectedMs: '12' }
+declare const runInfo: RunInfo
+// @ts-expect-error exactOptionalPropertyTypes: omitted, not undefined
+const undefinedWorkers: RunInfo = { ...runInfo, workers: undefined }
+// @ts-expect-error a worker cap is a number
+const textWorkers: RunInfo = { ...runInfo, workers: '4' }
 
-export { badIndex, partialSnapshot, undefinedIndex, withSnapshot }
+export {
+  badIndex,
+  partialSnapshot,
+  textExpected,
+  textWorkers,
+  undefinedExpected,
+  undefinedIndex,
+  undefinedWorkers,
+  withSnapshot,
+}
 
 // One event model: the wire carries RuntimeEvents (plus the worker's own two), and every
 // runtime-originated bus event hands reporters the RuntimeEvent itself.
