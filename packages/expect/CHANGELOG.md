@@ -1,5 +1,12 @@
 # @provino/expect
 
+## 0.1.0-rc.1
+
+### Patch Changes
+
+- @provino/snapshot@0.1.0-rc.1
+  - @provino/types@0.1.0-rc.1
+
 ## 0.1.0-rc.0
 
 ### Patch Changes

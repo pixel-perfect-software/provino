@@ -10,7 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/pixel-perfect-software/provino/actions/workflows/ci.yml"><img src="https://github.com/pixel-perfect-software/provino/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
-  <img src="https://img.shields.io/badge/status-pre--alpha-F59E0B" alt="Status: pre-alpha" />
+  <a href="https://www.npmjs.com/package/provino"><img src="https://img.shields.io/npm/v/provino/rc?label=npm" alt="npm version" /></a>
   <img src="https://img.shields.io/badge/node-22.15%2B%20%7C%2024%2B-339933" alt="Node.js 22.15 or later, or 24 or later" />
   <img src="https://img.shields.io/badge/runs-Jest%2030%20projects-C21325" alt="Runs Jest 30 projects" />
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
@@ -19,21 +19,16 @@
 `provino jest` runs a Jest project as it is: the same `jest.config` and Jest's flags, matchers and mocks. It writes snapshot files byte for byte as Jest does, and exits with Jest's exit codes. There's nothing to migrate: you change the command. Underneath, it's built not to redo work for every test file. [Why Provino →](wiki/why-provino.md)
 
 ```console
-$ pnpm exec provino jest --verbose
-PASS src/cart.test.ts
-  cart
-    ✓ adds up the items (4 ms)
-    ✓ applies a coupon
-    ✓ renders a receipt (2 ms)
+$ pnpm exec provino jest
+✅ src/cart.test.ts · 3 tests · 6ms
+✅ src/checkout.test.ts · 1 test · 1ms
 
-PASS src/checkout.test.ts
-  ✓ charges the total once (2 ms)
-
-Test Suites: 2 passed, 2 total
-Tests:       4 passed, 4 total
-Snapshots:   1 passed, 1 total
-Time:        1.412 s
+🎉 4 tests passed in 2 files · 44ms
+🐢 slowest: src/cart.test.ts 6ms · src/checkout.test.ts 1ms
+snapshots: 1 passed
 ```
+
+On a terminal, Provino draws its own live view while the run goes. A pipe, CI, an editor, an AI agent, `--verbose` and `--watch` get Jest's text, byte for byte.
 
 | Your project has                                   | Under `provino jest`                                                    |
 | -------------------------------------------------- | ----------------------------------------------------------------------- |
@@ -53,13 +48,12 @@ Time:        1.412 s
 - 🦥 **Lazy variables,** RSpec style: `import { lazy } from 'provino'` for values that are built on first read, memoized per test and overridden in a nested `describe`. [Lazy variables →](wiki/lazy-variables.md)
 - 📊 **Coverage** with `--coverage`: Istanbul or V8, Jest's reports and thresholds.
 - 🧵 **Sharding that balances:** Jest's split, or by recorded time.
-- 🤖 **Output for people, CI and agents:** Jest's text in a terminal, annotations on GitHub Actions, and a compact report under an AI agent.
+- 🤖 **Output for people, CI and agents:** Provino's own live view in a terminal (`--tree` and `--map` add a folder tree and a status map), Jest's text byte for byte wherever a machine reads it, annotations on GitHub Actions, and a compact report under an AI agent.
 
 ## 📋 Requirements
 
 - **Node.js** 22.15 or later, or 24 or later (24 recommended).
 - **A Jest project.** Provino matches Jest 30.5's behaviour.
-- **pnpm,** to build the package until it's published.
 
 ```ts
 import { lazy } from 'provino'
@@ -78,14 +72,10 @@ describe('greeting', () => {
 
 ## 🚀 Install
 
-Provino is pre-alpha and not on npm yet. Build the package from this repository, then add it to your project (with `-w` at a pnpm workspace root):
+Provino is a release candidate. Add it to your Jest project (with `-w` at a pnpm workspace root):
 
 ```bash
-git clone https://github.com/pixel-perfect-software/provino.git && cd provino
-pnpm install && pnpm pack:all --out ~/provino-packs
-
-cd ~/your-project
-pnpm add -D ~/provino-packs/provino-0.0.0.tgz
+pnpm add -D provino@rc
 ```
 
 ## 🧭 Getting started

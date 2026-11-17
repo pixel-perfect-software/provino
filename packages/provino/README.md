@@ -14,14 +14,10 @@ This package is the one you install. It holds every `@provino/*` package in one 
 
 ## 🚀 Install
 
-**Pre-alpha, and not published yet.** Until the first release, build the package from [the repository](https://github.com/pixel-perfect-software/provino), then add it to your Jest project. It needs Node 22.15 or later, or 24.
+A release candidate. Add it to your Jest project (with `-w` at a pnpm workspace root). It needs Node 22.15 or later, or 24.
 
 ```bash
-git clone https://github.com/pixel-perfect-software/provino.git && cd provino
-pnpm install && pnpm pack:all --out ~/provino-packs
-
-cd ~/your-project
-pnpm add -D ~/provino-packs/provino-0.0.0.tgz
+pnpm add -D provino@rc
 ```
 
 ## 🧭 Getting started
@@ -31,6 +27,18 @@ pnpm exec provino jest --listTests        # the files it would run
 pnpm exec provino jest path/to/a.test.ts  # one file first
 pnpm exec provino jest                    # the whole suite
 ```
+
+```console
+$ pnpm exec provino jest
+✅ src/cart.test.ts · 3 tests · 6ms
+✅ src/checkout.test.ts · 1 test · 1ms
+
+🎉 4 tests passed in 2 files · 44ms
+🐢 slowest: src/cart.test.ts 6ms · src/checkout.test.ts 1ms
+snapshots: 1 passed
+```
+
+On a terminal, Provino draws its own live view while the run goes. A pipe, CI, an editor, an AI agent, `--verbose` and `--watch` get Jest's text, byte for byte.
 
 A flag Provino can't run yet is refused by name. `provino vitest` comes next. Watch mode (`--watch`, `--watchAll`) works, except that `--coverage`, `--collectTests` and `--detectOpenHandles` are refused by name with it, and coverage from saved reports (`--merge-reports`) is planned. [Jest compatibility](https://github.com/pixel-perfect-software/provino/blob/main/wiki/compatibility.md) has the full list. If a test passes under Jest and fails under Provino, please [open an issue](https://github.com/pixel-perfect-software/provino/issues).
 

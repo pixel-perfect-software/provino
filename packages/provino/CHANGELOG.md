@@ -1,5 +1,11 @@
 # provino
 
+## 0.1.0-rc.1
+
+### Patch Changes
+
+- The READMEs say how to install the release candidate (`pnpm add -D provino@rc`) and show Provino's own output.
+
 ## 0.1.0-rc.0
 
 ### Minor Changes
