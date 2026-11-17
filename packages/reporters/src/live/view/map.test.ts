@@ -108,6 +108,24 @@ describe('the status map', () => {
     assert.deepEqual(lines([]), ['🟩 pass  🟥 fail  🟨 skip  ⬜ todo'])
   })
 
+  test('cells of different widths: rows are cut by the widest cell, so none can wrap', () => {
+    // A hand-made set whose fail cell is wider than the rest (the built-in sets keep them equal).
+    const mixed = { ...GLYPHS.ascii, cell: { pass: '.', fail: '🟥', skipped: 's', todo: 't' } }
+    const kinds: FileKind[] = ['pass', 'fail', 'skip', 'todo', 'fail']
+    const files = Array.from({ length: 53 }, (_, index) =>
+      file(`q/f${String(index).padStart(2, '0')}.ts`, kinds[index % kinds.length]),
+    )
+    const wide = files.filter((each) => each.kind === 'fail').length
+    for (const columns of [12, 20, 40, 80]) {
+      const out = mapLines(groupByFolder(files), columns, mixed, plain)
+      for (const line of out) assert.ok(displayWidth(line) <= columns - 1, `${columns}: ${line}`)
+      // Every file has its cell: the rows less their label, and the legend's.
+      const prefix = 'q/'.length + 2
+      const cells = out.slice(1).reduce((sum, row) => sum + displayWidth(row) - prefix, 0)
+      assert.equal(cells, files.length - wide + wide * 2, `${columns}: ${out.join('|')}`)
+    }
+  })
+
   test('an emoji cell is two columns wide: the sets’ cells all agree within a set', () => {
     for (const set of ['emoji', 'unicode', 'ascii'] as const) {
       const widths = new Set(Object.values(GLYPHS[set].cell).map((cell) => displayWidth(cell)))

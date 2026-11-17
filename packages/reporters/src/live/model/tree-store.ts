@@ -3,14 +3,17 @@
 //
 // A running file's record is its collected tasks (the event's own array, not copied) and, for each
 // test that ends, three numbers pushed on parallel arrays, so a handler is constant work. The
-// record is turned into a `TreeFile` by `compact`, which the reporter calls where it builds the
-// file's own line (a frame, or `run:end`), never in a handler:
+// record is turned into a `TreeFile` by `compact`, which the reporter calls as the file ends, so
+// the views never depend on the live ring admitting the file and a record never outlives its file
+// (the held records are the running files'). A file that fully passed costs a map delete; a file
+// with a failure costs a walk of its own tasks, once:
 //
 // - a file that fully passed keeps its numbers only: its folded line is built from them, and its
 //   tasks and results are released;
 // - any other file keeps its suites with their counts and times, and only its failed tests (at most
 //   `MAX_LISTED_FAILURES`, the rest counted), each with the first line of its error. Passing,
 //   skipped and todo tests are counted into their suite's `rest`, which the view prints as one row.
+//   A suite whose own hook threw is a failure for every suite above it, so the tree opens down to it.
 
 import type { FileResult, SerializedError, TaskId, TaskNode, TestTask } from '@provino/types'
 import type { FolderFile } from '../../internal/views/folders.ts'
@@ -152,6 +155,8 @@ interface Level {
   readonly children: TreeNode[]
   tests: number
   failed: number
+  /** Suites below this level that failed (their own hook threw, or a failure is below them). */
+  failedSuites: number
   skipped: number
   durationMs: number
   /** The tests of this level that are not listed. */
@@ -166,6 +171,7 @@ function level(ids: readonly TaskId[], walk: Walk): Level {
     children: [],
     tests: 0,
     failed: 0,
+    failedSuites: 0,
     skipped: 0,
     durationMs: 0,
     passed: 0,
@@ -179,6 +185,9 @@ function level(ids: readonly TaskId[], walk: Walk): Level {
     if (task.type === 'suite') {
       const node = suiteNode(task.id, task.name, task.children, walk)
       out.children.push(node)
+      // A failed suite is a failure for every level above it, whether or not a test of it failed:
+      // the tree opens down to it.
+      if (node.state === 'fail') out.failedSuites++
       out.tests += node.tests
       out.failed += node.failed
       out.skipped += node.skipped
@@ -248,7 +257,7 @@ function restOf(tally: Level): TreeRest | undefined {
 function suiteNode(id: TaskId, name: string, childIds: readonly TaskId[], walk: Walk): TreeNode {
   const tally = level(childIds, walk)
   const hasOwnError = walk.record.suiteErrors?.has(id) === true
-  const failed = tally.failed > 0 || hasOwnError
+  const failed = tally.failed > 0 || tally.failedSuites > 0 || hasOwnError
   const state: NodeState = failed
     ? 'fail'
     : tally.tests > 0 && tally.skipped === tally.tests
@@ -358,7 +367,15 @@ export function createTreeStore(): TreeStore {
       const id = result.file.fileId
       const record = records.get(id)
       records.delete(id)
-      if (finished.failed === 0 && result.state !== 'fail' && result.errors.length === 0) {
+      // Fully passed: no failed test, no failed suite (whatever the file's own state says of it:
+      // an error a suite's hook threw must stay visible), no error of the file's own.
+      const suiteFailed = record?.suiteErrors !== undefined
+      if (
+        finished.failed === 0 &&
+        !suiteFailed &&
+        result.state !== 'fail' &&
+        result.errors.length === 0
+      ) {
         return { ...base, open: undefined }
       }
       const open =

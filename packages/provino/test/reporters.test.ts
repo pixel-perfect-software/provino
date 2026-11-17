@@ -1093,6 +1093,31 @@ describe('B26 Phase 4: --tree and --map', () => {
     }
   })
 
+  it('a retried test is one test-end through the real stack: the tree’s counts agree with the file’s row (jest.retryTimes)', async () => {
+    const flaky = [
+      'jest.retryTimes(2)',
+      'let calls = 0',
+      "test('passes at the third attempt', () => { calls++; if (calls < 3) throw new Error('not yet') })",
+      "test('never passes', () => { throw new Error('boom') })",
+      "test('steady', () => {})",
+      '',
+    ].join('\n')
+    const project = await makeProject({ 'tests/flaky.test.js': flaky })
+    const ran = await spawnCli(
+      ['jest', `--config=${jestConfigJson(project.dir)}`, '--reporters', 'provino', '--tree'],
+      { cwd: project.dir },
+    )
+    assert.equal(ran.code, 1, ran.stderr)
+    // Three tests, whatever the attempts: the file's line, the folder's heading and the end card.
+    assert.match(ran.stderr, /^❌ tests\/flaky\.test\.js · 1 of 3 failed · /m)
+    assert.match(ran.stderr, /^❌ tests\/ · 1 file · 3 tests · 1 failed +\d+ms$/m)
+    assert.match(ran.stderr, /^└─ ❌ flaky\.test\.js · 1 of 3 failed +\d+ms$/m)
+    assert.match(ran.stderr, /^💥 1 failed · 2 passed · 1 file/m)
+    // One row for the test that never passed, not one per attempt; the other two are not listed.
+    assert.equal(ran.stderr.match(/^ {3}├─ ❌ never passes +\d+ms$/gm)?.length, 1, ran.stderr)
+    assert.match(ran.stderr, /^ {3}└─ ✅ 2 more tests +\d+ms$/m)
+  })
+
   it('on a terminal they are part of the run’s last lines, and the footer is gone', async () => {
     const project = await makeProject(files)
     const viaJest = await liveJest(project.dir, [
@@ -1105,6 +1130,18 @@ describe('B26 Phase 4: --tree and --map', () => {
     assert.match(screen, /^└─ ❌ c\.test\.js · 1 of 1 failed +\d+ms$/m, screen)
     assert.match(screen, /^tests\/ui\/ +🟩🟥$/m, screen)
     assert.doesNotMatch(screen, / of \d+ files? |starting \d+ workers?/, screen)
+    // One blank line before the tree, before the end card and before the map, whichever file ended last.
+    const rows = screen.split('\n')
+    const blanksBefore = (pattern: RegExp): number => {
+      const at = rows.findIndex((row) => pattern.test(row))
+      assert.ok(at !== -1, `${pattern}: ${screen}`)
+      let blanks = 0
+      for (let index = at - 1; index >= 0 && rows[index]?.trim() === ''; index--) blanks++
+      return blanks
+    }
+    assert.equal(blanksBefore(/^(✅|❌) tests\/ · /u), 1, screen)
+    assert.equal(blanksBefore(/^💥 /u), 1, screen)
+    assert.equal(blanksBefore(/^🟩 pass/u), 1, screen)
     const viaRun = new Terminal()
     await run({
       config: project.config,

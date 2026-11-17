@@ -51,7 +51,6 @@ import {
   snippetKey,
 } from './view/failure.ts'
 import { consoleLines, fileLine, fileSnapshotLine } from './view/file-line.ts'
-import { groupDigits } from './view/format.ts'
 import { mapLines } from './view/map.ts'
 import { type StatusInput, statusLine } from './view/status-line.ts'
 import { treeLines } from './view/tree.ts'
@@ -160,10 +159,12 @@ export function createLiveReporter(
   // The collected trees are kept only under `--tree`: with no flag the store is never made.
   const trees = options.views?.tree === true ? makeTree() : undefined
   const wantsMap = options.views?.map === true
-  /** The files that ended, one row each, for the views. Built in the frame that draws the file. */
+  /**
+   * The files that ended, one row each, for the views: taken as each file ends (`file:end`), not
+   * when a frame draws it, so the live ring dropping a file (a slow terminal, a long run) never
+   * takes it out of a view.
+   */
   let viewFiles: TreeFile[] = []
-  /** Finished files the ring had no room for: in no view. */
-  let unlisted = 0
   const style: Style = createStyle(options.colour)
   const scheduler =
     options.scheduler ?? createFrameScheduler(options.now ? { now: options.now } : {})
@@ -204,6 +205,16 @@ export function createLiveReporter(
   /** Whole lines written to `passthrough`, waiting for the next frame; and the unfinished line. */
   let pending: string[] = []
   let partial = ''
+  /** The last line handed to the terminal, so the views can tell whether a blank line is already there. */
+  let lastLine: string | undefined
+
+  /** Takes the lines waiting for the terminal, remembering the last of them. */
+  function takePending(): string[] {
+    const taken = pending
+    if (taken.length > 0) lastLine = taken[taken.length - 1]
+    pending = []
+    return taken
+  }
 
   // Cached lines (performance rule 6).
   let statusKey = ''
@@ -219,9 +230,7 @@ export function createLiveReporter(
   function flushPlain(): void {
     drain(false, scheduler.now())
     if (pending.length === 0) return
-    const text = `${pending.join('\n')}\n`
-    pending = []
-    writer.writeAlways(text)
+    writer.writeAlways(`${takePending().join('\n')}\n`)
   }
   const flusher = createImmediateFlusher(flushPlain)
   const timers: SchedulerTimers = options.timers ?? {
@@ -338,9 +347,6 @@ export function createLiveReporter(
       )
       if (failed === 0) listFailure(`  ${glyphs.fail} ${path}`)
     }
-    // The views' row for the file, in the frame that draws the file: built once, here.
-    if (trees !== undefined) viewFiles.push(trees.compact(item.finished))
-    else if (wantsMap) viewFiles.push({ ...fileOutcome(item.finished), open: undefined })
     return lines
   }
 
@@ -368,7 +374,6 @@ export function createLiveReporter(
     }
     if (blocksDropped > 0) pending.push(style.dim(`… ${blocksDropped} more errors`))
     const dropped = state.dropped()
-    unlisted += dropped
     for (const finished of state.take()) held.push(admit(finished, now))
     if (dropped > 0) pending.push(style.dim(`… ${dropped} more files finished`))
     let done = 0
@@ -465,7 +470,7 @@ export function createLiveReporter(
       drain(false, now)
       const drawn = session.draw(pending, footer(now))
       if (drawn) {
-        pending = []
+        takePending()
         redrawWanted = false
       }
       state.clean()
@@ -513,9 +518,7 @@ export function createLiveReporter(
           // Rendering what was held is best effort here: the queued text below still goes out.
         }
         if (pending.length === 0) return
-        const text = `${pending.join('\n')}\n`
-        pending = []
-        writer.writeSync(text)
+        writer.writeSync(`${takePending().join('\n')}\n`)
       },
       resize(width) {
         columns = width
@@ -548,8 +551,8 @@ export function createLiveReporter(
       listed = []
       listedMore = 0
       viewFiles = []
-      unlisted = 0
       trees?.clear()
+      lastLine = undefined
       loader.reset()
       workersCap = info.workers
       shardText =
@@ -619,9 +622,14 @@ export function createLiveReporter(
     },
     'file:end': (result) => {
       const now = scheduler.now()
-      state.fileEnd(
+      const finished = state.fileEnd(
         result.errors.length === 0 ? result : { ...result, errors: boundErrors(result.errors) },
       )
+      // The views take the file now, apart from the ring: a row of numbers (a map delete for a
+      // file that passed, one walk of its own tasks for a file with a failure), so no file is
+      // missing from a view and no record outlives its file.
+      if (trees !== undefined) viewFiles.push(trees.compact(finished))
+      else if (wantsMap) viewFiles.push({ ...fileOutcome(finished), open: undefined })
       estimator.fileEnded(result.file, now, state.busy())
       wake(now)
     },
@@ -674,23 +682,20 @@ export function createLiveReporter(
         glyphs,
         style,
       )
-      // The last block ends in a blank line already: the card's own would make two.
-      // The tree goes after the run's lines and before the card, the map after the card.
-      const note =
-        unlisted > 0 ? [style.dim(`… ${groupDigits(unlisted)} more files not shown`)] : []
+      // The last block ends in a blank line already: the card's own would make two. The tree goes
+      // after the run's lines and before the card, the map after the card, each behind exactly one
+      // blank line: before the tree one unless the last line handed over (queued or already
+      // written) is blank, before the card the card's own, after the tree's non-blank rows.
       const folders = viewFiles.length === 0 ? [] : groupByFolder(viewFiles)
       const treeBlock =
         trees === undefined || folders.length === 0
           ? []
-          : [...treeLines(folders, columns, glyphs, style), ...note]
+          : treeLines(folders, columns, glyphs, style)
       const mapBlock =
-        !wantsMap || folders.length === 0
-          ? []
-          : ['', ...mapLines(folders, columns, glyphs, style), ...note]
+        !wantsMap || folders.length === 0 ? [] : ['', ...mapLines(folders, columns, glyphs, style)]
+      const endsBlank = (pending.length > 0 ? pending[pending.length - 1] : lastLine) === ''
       const lead =
-        treeBlock.length === 0
-          ? pending
-          : [...pending, ...(pending.at(-1) === '' ? [] : ['']), ...treeBlock]
+        treeBlock.length === 0 ? pending : [...pending, ...(endsBlank ? [] : ['']), ...treeBlock]
       const cardLines = treeBlock.length === 0 && pending.at(-1) === '' ? card.slice(1) : card
       const lines = [...lead, ...cardLines, ...mapBlock]
       pending = []

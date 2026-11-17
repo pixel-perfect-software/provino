@@ -42,10 +42,6 @@
      <ESC>[2m  3 │ })<ESC>[22m
      <ESC>[2m  4 │ <ESC>[22m
 
-❌ <ESC>[31msrc/cart/broken.test.ts<ESC>[39m<ESC>[2m · failed to run · 2ms<ESC>[22m
-   <ESC>[31m●<ESC>[39m <ESC>[1mTest suite failed to run<ESC>[22m
-     ImportError: Cannot find module './missing.ts'
-
 ✅ src/components/button.test.tsx<ESC>[2m · 1 test · 5ms<ESC>[22m
 ✅ src/components/card.test.tsx<ESC>[2m · 1 test · 6ms<ESC>[22m
 ✅ src/components/checkbox.test.tsx<ESC>[2m · 1 test · 7ms<ESC>[22m
@@ -72,6 +68,9 @@
    <ESC>[2mfrom the test<ESC>[22m
    <ESC>[2ma warning<ESC>[22m
    <ESC>[2ma direct write<ESC>[22m
+❌ <ESC>[31msrc/cart/broken.test.ts<ESC>[39m<ESC>[2m · failed to run · 2ms<ESC>[22m
+   <ESC>[31m●<ESC>[39m <ESC>[1mTest suite failed to run<ESC>[22m
+     ImportError: Cannot find module './missing.ts'
 
 ❌ <ESC>[1m<ESC>[31msrc/cart/<ESC>[39m<ESC>[22m<ESC>[2m · 4 files · 11 tests · 3 failed<ESC>[22m                                                                      <ESC>[2m138ms<ESC>[22m
 <ESC>[2m├─ <ESC>[22m❌ <ESC>[31mbroken.test.ts<ESC>[39m<ESC>[2m · failed to run<ESC>[22m                                                                                <ESC>[2m2ms<ESC>[22m

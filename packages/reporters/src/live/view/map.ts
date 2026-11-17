@@ -61,8 +61,8 @@ export function mapLines(
   const labels = folders.map((folder) => cleanText(folderLabel(folder), false).replace(/\s+/g, ' '))
   const widest = labels.reduce((most, label) => Math.max(most, displayWidth(label)), 0)
   const labelWidth = Math.min(widest, Math.max(1, Math.floor(room * LABEL_SHARE)))
-  // A cell is as wide as its glyph; every kind's is the same width within a set.
-  const cellWidth = Math.max(1, displayWidth(glyphs.cell.pass))
+  // A cell is as wide as the widest of the set's, so a row of any mix of outcomes fits.
+  const cellWidth = Math.max(1, ...Object.values(glyphs.cell).map((cell) => displayWidth(cell)))
   const perRow = Math.max(1, Math.floor((room - labelWidth - GAP) / cellWidth))
   const indent = ' '.repeat(labelWidth + GAP)
   const lines = [fitWidth(mapLegend(glyphs, style), room)]
@@ -76,7 +76,8 @@ export function mapLines(
         .slice(from, from + perRow)
         .map((file) => cellOf(file.kind, glyphs, style))
         .join('')
-      lines.push(`${from === 0 ? lead : indent}${cells}`)
+      // Cut like the legend: whatever the glyphs measure, no row is wider than the terminal less one.
+      lines.push(fitWidth(`${from === 0 ? lead : indent}${cells}`, room))
     }
   })
   return lines

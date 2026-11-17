@@ -42,10 +42,6 @@
        3 │ })
        4 │ 
 
-❌ src/cart/broken.test.ts · failed to run · 2ms
-   ● Test suite failed to run
-     ImportError: Cannot find module './missing.ts'
-
 ✅ src/components/button.test.tsx · 1 test · 5ms
 ✅ src/components/card.test.tsx · 1 test · 6ms
 ✅ src/components/checkbox.test.tsx · 1 test · 7ms
@@ -72,6 +68,10 @@
    from the test
    a warning
    a direct write
+❌ src/cart/broken.test.ts · failed to run · 2ms
+   ● Test suite failed to run
+     ImportError: Cannot find module './missing.ts'
+
 
 💥 3 failed · 32 passed · 4 skipped · 3 todo · 28 files · 1.23s
 🐢 slowest: src/math/geometry.test.ts 310ms · src/cart/total.test.ts 120ms · src/components/tooltip.test.tsx 22ms

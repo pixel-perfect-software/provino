@@ -10,7 +10,10 @@ export type FileKind = 'pass' | 'fail' | 'skip' | 'todo'
  * @internal
  */
 export interface FolderFile {
-  /** The path the run shows (`FileInfo.runPath ?? path`), POSIX. */
+  /**
+   * The path the run shows (`FileInfo.runPath ?? path`), POSIX: the grouping splits on `/` only,
+   * so a native path goes through `toPosix` (`../posix-relative.ts`) first.
+   */
   readonly path: string
   /** The project's display name; `''` when it has none. */
   readonly project: string

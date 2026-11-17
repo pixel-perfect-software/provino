@@ -232,6 +232,62 @@ describe('a file with a failure', () => {
   })
 })
 
+describe('a suite whose own hook threw', () => {
+  const nested = (state?: 'pass'): FileSpec => ({
+    path: 'a.test.ts',
+    ...(state === undefined ? {} : { state }),
+    tests: tests(
+      { path: ['outer', 'inner', 'passes'] },
+      { path: ['outer', 'other', 'also passes'] },
+      { path: ['outer', 'direct'] },
+      { path: ['alone'] },
+    ),
+    suiteErrors: [
+      { path: ['outer', 'inner'], errors: [error('afterAll broke', { name: 'HookError' })] },
+    ],
+  })
+
+  test('is a failure for every suite above it: the tree opens down to it, though every test passed', () => {
+    const { store, finished } = play(nested())
+    const file = store.compact(finished)
+    assert.equal(file.kind, 'fail')
+    const [outer] = file.open?.children ?? []
+    assert.equal(outer?.name, 'outer')
+    assert.equal(outer?.state, 'fail', 'the parent is not folded into one passing row')
+    assert.equal(outer?.failed, 0, 'no test of it failed: the count is of tests')
+    const [inner, other] = outer?.children ?? []
+    assert.equal(inner?.name, 'inner')
+    assert.equal(inner?.state, 'fail')
+    assert.equal(inner?.message, 'HookError: afterAll broke')
+    // A sibling with nothing wrong is still one folded row; the parent's own test is counted in its rest.
+    assert.equal(other?.state, 'pass')
+    assert.deepEqual(other?.children, [])
+    assert.equal(outer?.rest?.passed, 1)
+  })
+
+  test('opens the file even when the file’s own state says it passed', () => {
+    const { store, finished } = play(nested('pass'))
+    const file = store.compact(finished)
+    // The orchestrator's word on the file stands; the tree still shows what the suite threw.
+    assert.equal(file.kind, 'pass')
+    assert.notEqual(file.open, undefined, 'not taken as a fully passed file')
+    assert.equal(file.open?.children[0]?.children[0]?.message, 'HookError: afterAll broke')
+  })
+
+  test('a suite that failed three levels down opens all three', () => {
+    const { store, finished } = play({
+      path: 'a.test.ts',
+      tests: tests({ path: ['a', 'b', 'c', 'passes'] }),
+      suiteErrors: [{ path: ['a', 'b', 'c'], errors: [error('boom')] }],
+    })
+    const a = store.compact(finished).open?.children[0]
+    assert.deepEqual(
+      [a?.state, a?.children[0]?.state, a?.children[0]?.children[0]?.state],
+      ['fail', 'fail', 'fail'],
+    )
+  })
+})
+
 describe('a file that failed to run', () => {
   test('has its own errors and no tree when nothing was collected', () => {
     const store = createTreeStore()

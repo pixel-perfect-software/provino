@@ -131,7 +131,11 @@ export interface RunState {
   console(fileId: TaskId, stream: 'stdout' | 'stderr', text: string): void
   /** Console writes that arrived after their file ended (a worker's wind-down), or for a file never started. */
   lateConsole(): number
-  fileEnd(result: FileResult): void
+  /**
+   * A file ended: its slot is freed and its record joins the ring. Returns the record, so a view
+   * that must see every file (the ring may drop it before a frame) takes its numbers now.
+   */
+  fileEnd(result: FileResult): FinishedFile
   /** An error outside the tests: counted, and its block queued for a frame. */
   error(block?: RunBlock): void
   /** The blocks waiting for a frame, in order; empties the queue. */
@@ -315,7 +319,7 @@ export function createRunState(): RunState {
         size--
         dropped++
       }
-      ring[(head + size) % RING_CAPACITY] = {
+      const finished: FinishedFile = {
         result,
         tests: slot?.tests ?? 0,
         failed: slot?.failed ?? 0,
@@ -326,12 +330,14 @@ export function createRunState(): RunState {
         console: slot?.console ?? [],
         consoleOmitted: slot?.consoleOmitted ?? 0,
       }
+      ring[(head + size) % RING_CAPACITY] = finished
       size++
       noteSlow(slowest, {
         path: result.file.runPath ?? result.file.path,
         durationMs: result.durationMs,
       })
       dirty = true
+      return finished
     },
     error(block) {
       errors++

@@ -258,6 +258,37 @@ describe('the tree', () => {
     assert.ok(out[0]?.startsWith('❌ a/ · 1 file'))
   })
 
+  test('a suite that failed with no failed test opens its parents and says so', () => {
+    const out = lines(
+      [
+        failing('a/x.test.ts', {
+          children: [
+            suite('outer', {
+              state: 'fail',
+              tests: 3,
+              children: [
+                suite('inner', { state: 'fail', tests: 1, message: 'HookError: afterAll broke' }),
+                suite('fine'),
+              ],
+            }),
+          ],
+        }),
+      ],
+      100,
+    )
+    assert.deepEqual(
+      out.map((line) => line.replace(/ +\d+ms$/, '')),
+      [
+        '❌ a/ · 1 file · 9 tests · 1 failed',
+        '└─ ❌ x.test.ts · 1 of 9 failed',
+        '   └─ ❌ outer · failed',
+        '      ├─ ❌ inner · failed',
+        '      │     HookError: afterAll broke',
+        '      └─ ✅ fine · 2 tests',
+      ],
+    )
+  })
+
   test('no files, no lines', () => {
     assert.deepEqual(lines([]), [])
   })

@@ -42,10 +42,6 @@
        3 │ })
        4 │ 
 
-❌ …roken.test.ts · failed to run · 2ms
-   ● Test suite failed to run
-     ImportError: Cannot find module './missing.ts'
-
 ✅ …ents/button.test.tsx · 1 test · 5ms
 ✅ …onents/card.test.tsx · 1 test · 6ms
 ✅ …ts/checkbox.test.tsx · 1 test · 7ms
@@ -72,6 +68,10 @@
    from the test
    a warning
    a direct write
+❌ …roken.test.ts · failed to run · 2ms
+   ● Test suite failed to run
+     ImportError: Cannot find module './missing.ts'
+
 
 💥 3 failed · 32 passed · 4 skipped · …
 🐢 slowest: src/math/geometry.test.ts …

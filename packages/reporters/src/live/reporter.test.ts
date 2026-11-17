@@ -5,6 +5,8 @@ import { createReporterBus } from '../bus.ts'
 import {
   buildFile,
   collectedEvent,
+  emitFile,
+  error,
   FIXTURE_FILES,
   FIXTURE_SNAPSHOTS,
   playRun,
@@ -601,21 +603,151 @@ test('every file that ended is in the views once, and the stores hold nothing af
   assert.equal([...(cells[0]?.matchAll(/[🟩🟥🟨⬜]/gu) ?? [])].length, FIXTURE_FILES.length)
 })
 
-test('files the ring had no room for are named under each view, not shown', async () => {
-  const { reporter, sink } = viewed({ views: { tree: true, map: true } })
-  const files = Array.from(
-    { length: RING_CAPACITY + 3 },
-    (_, index) => buildFile({ path: `f/${index}.test.ts` }).info,
-  )
-  await reporter['run:start']?.(RUN, files)
-  for (const info of files) {
-    await reporter['file:start']?.(info, 0)
-    await reporter['file:end']?.({ file: info, state: 'pass', durationMs: 1, errors: [] })
+test('a run longer than the live ring: every file is in both views, no record outlives its file, and no note says files are missing', async () => {
+  const { reporter, sink, stores } = viewed({ views: { tree: true, map: true } })
+  const store = stores[0]
+  assert.ok(store)
+  const bus = createReporterBus([reporter])
+  const count = RING_CAPACITY + 5
+  await bus.emit('run:start', RUN, [])
+  // The first files, which the ring drops (nothing draws a frame here), include a failed one.
+  for (let index = 0; index < count; index++) {
+    await emitFile(bus, {
+      path: `f/${index}.test.ts`,
+      tests:
+        index === 3
+          ? [{ path: ['bad'], state: 'fail', errors: [error('boom')] }]
+          : [{ path: ['t'] }],
+    })
+    assert.equal(store.held(), 0, `file ${index}: its record is released as it ends`)
   }
-  await reporter['run:end']?.({ reason: 'passed', files: [], unhandled: [], durationMs: 5 })
-  const notes = sink
-    .text()
-    .split('\n')
-    .filter((line) => line === '… 3 more files not shown')
-  assert.equal(notes.length, 2, 'once under the tree and once under the map')
+  await bus.emit('run:end', { reason: 'failed', files: [], unhandled: [], durationMs: 5 })
+  assert.deepEqual(bus.failures(), [])
+  const text = sink.text()
+  assert.ok(text.includes('… 5 more files finished'), 'the live lines still say the ring dropped 5')
+  assert.ok(!text.includes('not shown'), 'the views are complete: no note')
+  // The tree: the folder's totals and the dropped failed file, opened.
+  const shown = count.toLocaleString('en-US')
+  assert.match(
+    text,
+    new RegExp(`^❌ f/ · ${shown} files · ${shown} tests · 1 failed +[\\d.]+m?s$`, 'm'),
+  )
+  assert.match(text, /^├─ ❌ 3\.test\.ts · 1 of 1 failed/m)
+  // The map: one cell per file, the dropped failed one among them.
+  const lines = text.split('\n')
+  const cells = lines.slice(lines.findIndex((line) => line.startsWith('🟩 pass'))).join('')
+  // The legend has one of each; every file has a cell.
+  assert.equal([...cells.matchAll(/🟩/gu)].length, count - 1 + 1)
+  assert.equal([...cells.matchAll(/🟥/gu)].length, 1 + 1)
+})
+
+test('a failed file is compacted as it ends, from the handlers alone: no frame, no ring, no run:end needed', async () => {
+  const { reporter, stores } = viewed({ views: { tree: true } })
+  const store = stores[0]
+  assert.ok(store)
+  const bus = createReporterBus([reporter])
+  await bus.emit('run:start', RUN, [])
+  const file = buildFile({
+    path: 'a/x.test.ts',
+    tests: [{ path: ['s', 'bad'], state: 'fail', errors: [error('boom')] }],
+  })
+  await bus.emit('file:start', file.info, 0)
+  await bus.emit('file:collected', file.info, collectedEvent(file))
+  assert.equal(store.held(), 1, 'a running file has a record')
+  const [first] = file.tests
+  assert.ok(first)
+  await bus.emit('task:end', first.task, testEndEvent(first.task, resultOf(first.spec)))
+  await bus.emit('file:end', file.result)
+  assert.equal(store.held(), 0, 'its record is gone as it ends')
+})
+
+test('a retried test is one task:end, so the tree and the file row count it once (the attempts are test:attempt-end)', async () => {
+  const { reporter, sink } = viewed({ views: { tree: true } })
+  await playRun(
+    createReporterBus([reporter]),
+    [
+      {
+        path: 'a/flaky.test.ts',
+        tests: [
+          { path: ['never passes'], state: 'fail', errors: [error('boom')], retries: 2 },
+          { path: ['passes at last'], retries: 2 },
+          { path: ['steady'] },
+        ],
+      },
+    ],
+    {},
+  )
+  const text = sink.text()
+  // Three tests, one failed: the file row, the folder and the failed test's row agree.
+  assert.match(text, /^❌ a\/ · 1 file · 3 tests · 1 failed +\d+ms$/m)
+  assert.match(text, /^└─ ❌ flaky\.test\.ts · 1 of 3 failed +\d+ms$/m)
+  // One row for the test, not one per attempt.
+  assert.equal(text.match(/^ {3}├─ ❌ never passes +\d+ms$/gm)?.length, 1)
+  assert.equal(
+    text.split('passes at last').length - 1,
+    0,
+    'a test that passed on a retry is not listed',
+  )
+  assert.match(text, /^ {3}└─ ✅ 2 more tests +\d+ms$/m)
+})
+
+/** One blank line before a block: not none, not two. */
+function blanksBefore(lines: readonly string[], at: number): number {
+  let blanks = 0
+  for (let index = at - 1; index >= 0 && lines[index] === ''; index--) blanks++
+  return blanks
+}
+
+/** The blank lines before the tree's heading, before the end card's headline, and before the map's legend. */
+async function layout(options: {
+  lastFails: boolean
+  flush: boolean
+}): Promise<{ tree: number; card: number; map: number }> {
+  const { scheduler, clock, sink, reporter } = viewed({ views: { tree: true, map: true } })
+  const bus = createReporterBus([reporter])
+  const stepped: ReporterBus = {
+    add: (each) => bus.add(each),
+    async emit(event, ...args) {
+      clock.advance(37)
+      await bus.emit(event, ...args)
+      // Written as each file ends (a flush), or left queued until run:end.
+      if (event === 'file:end' && options.flush) {
+        await turn()
+        scheduler.tick()
+      }
+    },
+  }
+  await playRun(
+    stepped,
+    [
+      { path: 'a/ok.test.ts', tests: [{ path: ['t'] }] },
+      options.lastFails
+        ? {
+            path: 'a/bad.test.ts',
+            tests: [{ path: ['t'], state: 'fail', errors: [error('boom')] }],
+          }
+        : { path: 'a/also-ok.test.ts', tests: [{ path: ['t'] }] },
+    ],
+    {},
+  )
+  const lines = sink.text().split('\n')
+  const at = (pattern: RegExp): number => lines.findIndex((line) => pattern.test(line))
+  assert.ok(at(/^[✅❌] a\/ · /u) !== -1 && at(/^(💥|🎉) /u) !== -1 && at(/^🟩 pass/u) !== -1)
+  return {
+    tree: blanksBefore(lines, at(/^[✅❌] a\/ · /u)),
+    card: blanksBefore(lines, at(/^(💥|🎉) /u)),
+    map: blanksBefore(lines, at(/^🟩 pass/u)),
+  }
+}
+
+test('one blank line before the tree, before the card and before the map, whether the last file passed or failed and was written already or is still queued', async () => {
+  for (const lastFails of [false, true]) {
+    for (const flush of [false, true]) {
+      assert.deepEqual(
+        await layout({ lastFails, flush }),
+        { tree: 1, card: 1, map: 1 },
+        `last file fails ${lastFails}, flushed ${flush}`,
+      )
+    }
+  }
 })

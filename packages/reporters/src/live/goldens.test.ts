@@ -298,8 +298,9 @@ describe('a failure thrown deep in source: the call chain under the code frame',
 })
 
 // The views over the fixture run laid out in folders, plus a failing file with nested describes
-// and a folder of small passing files, so a folder wraps at 40 columns. The sources of the fixture's
-// failures are looked up by file name, so moving the files changes no code frame.
+// and a folder of small passing files, so a folder wraps at 40 columns. The last file fails, so the
+// goldens show one blank line before the tree and one before the card after a failure block. The
+// sources of the fixture's failures are looked up by file name, so moving files changes no code frame.
 const at = (folder: string, spec: FileSpec): FileSpec => ({
   ...spec,
   path: `${folder}/${spec.path}`,
@@ -348,7 +349,6 @@ const VIEW_FILES: readonly FileSpec[] = [
   },
   at('src/cart', fixture('fails.test.ts')),
   at('src/cart', fixture('snapshot.test.ts')),
-  at('src/cart', fixture('broken.test.ts')),
   ...passing(
     [
       'button',
@@ -376,6 +376,8 @@ const VIEW_FILES: readonly FileSpec[] = [
   at('tests', fixture('all-skipped.test.ts')),
   at('tests', fixture('todo-only.test.ts')),
   at('tests', fixture('console.test.ts')),
+  // Last, and failing: its block ends in a blank line, which the tree must not double.
+  at('src/cart', fixture('broken.test.ts')),
 ]
 
 async function playViews(options: {
@@ -424,6 +426,18 @@ describe('the --tree and --map views over the fixture run in folders', () => {
             columns,
             glyphs,
           })
+          if (view === 'tree') {
+            // Exactly one blank line before the tree and one before the card, though the last file's
+            // failure block already ended in a blank line.
+            assert.doesNotMatch(text, /\n\n\n/, 'never two blank lines in a row')
+            const rows = text.split('\n')
+            for (const heading of [/^(❌|x) src\/cart\/ · /u, /^(💥|x) \d+ failed · \d+ passed/u]) {
+              const at = rows.findIndex((row) => heading.test(row))
+              assert.ok(at > 1, `${heading}`)
+              assert.equal(rows[at - 1], '', `${heading}: a blank line before`)
+              assert.notEqual(rows[at - 2], '', `${heading}: and only one`)
+            }
+          }
           await expectGolden(`provino-${view}.${glyphs}.${columns}`, text)
         })
       }

@@ -42,10 +42,6 @@ x src/cart/snapshot.test.ts · 1 of 1 failed · 7ms
        3 │ })
        4 │ 
 
-x src/cart/broken.test.ts · failed to run · 2ms
-   ● Test suite failed to run
-     ImportError: Cannot find module './missing.ts'
-
 ok src/components/button.test.tsx · 1 test · 5ms
 ok src/components/card.test.tsx · 1 test · 6ms
 ok src/components/checkbox.test.tsx · 1 test · 7ms
@@ -72,6 +68,9 @@ ok tests/console.test.ts · 1 test · 6ms
    from the test
    a warning
    a direct write
+x src/cart/broken.test.ts · failed to run · 2ms
+   ● Test suite failed to run
+     ImportError: Cannot find module './missing.ts'
 
 x src/cart/ · 4 files · 11 tests · 3 failed                                                                       138ms
 |- x broken.test.ts · failed to run                                                                                 2ms
