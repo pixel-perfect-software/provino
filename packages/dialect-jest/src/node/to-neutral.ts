@@ -228,6 +228,10 @@ export function jestProjectToNeutral(
     core: {
       injectGlobals: project.injectGlobals,
       maxConcurrency: globalConfig.maxConcurrency,
+      // jest-circus reads `globalConfig.waitForUnhandledRejections` (`jestAdapterInit.ts` L167).
+      ...(globalConfig.waitForUnhandledRejections
+        ? { errors: { waitForUnhandledRejections: true } }
+        : {}),
       // circus runs hooks with `hook.timeout || getState().testTimeout`, and `testTimeout` is
       // `globalConfig.testTimeout`: the one value is the default of tests and of hooks.
       ...(project.testTimeout === undefined

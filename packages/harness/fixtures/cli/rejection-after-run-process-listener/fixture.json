@@ -1,0 +1,11 @@
+{
+  "description": "Jest 30.5.2 in band (`-i`) with a `globalSetup` that adds an `unhandledRejection` listener to the process the tests run in, which notes what it hears in heard.txt (Next.js's transformer adds one there too). Three tests each leave a promise chain that rejects with no handler 5, 300 and (from an async test) 40 microtask turns after the test returned; the file waits for no timer, so Node reports the rejections only once circus has torn its handlers down and put the process's own back. The process's listener hears all three, no test fails and the run exits 0. `cli/uncaught-after-run` is the same with no listener (Jest's process dies). Kept: the `PASS`/`FAIL` headers, the `●` titles, the `Error:` lines and the test count. A black-box run, read by `provino`'s `jest-uncaught.test.ts`.",
+  "runners": ["jest"],
+  "config": { "jest": { "maxWorkers": 1, "globalSetup": "<rootDir>/listen.ts" } },
+  "run": {
+    "argv": { "jest": ["-i", "--useStderr"] },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json", "file:heard.txt"],
+    "keepLines": "^(PASS|FAIL) |^\\s*● |^Error: |^Tests:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}

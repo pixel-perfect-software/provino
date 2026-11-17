@@ -10,8 +10,9 @@
 // - `error` and `error_handled` are never sent: the runtime charges uncaught errors itself;
 // - every `asyncError` is an `Error` made here, so its stack points inside Provino, not at the
 //   registration in the test file;
-// - `state.originalGlobalErrorHandlers` holds the process's listeners as they were at `setup`, which
-//   stay installed (circus swaps its own in);
+// - `state.originalGlobalErrorHandlers` holds the process's listeners as they were at `setup`: the
+//   runtime's own, which it put in place of the process's for the file (`errors.processListeners`),
+//   where circus's holds the ones it set aside;
 // - `numPassingAsserts` stays 0 and `seenDone` false: the runtime does not report them;
 // - a test's `fn` of a todo is an empty function;
 // - in a concurrent group the state each event finds follows circus's microtask order only as far
@@ -237,8 +238,9 @@ export function createCircusMirror(
 
   async function setup(root: DescribeBlock, testNamePattern: string | undefined): Promise<void> {
     state.parentProcess = process
-    // The listeners circus would set aside to put its own in; Provino's stay, so these are the
-    // process's listeners as they are (not circus's own wrappers).
+    // The listeners circus would set aside to put its own in; these are the process's listeners as
+    // they are (not circus's own wrappers): under `errors.processListeners: 'per-file'` the
+    // runtime has already set the process's own aside for the file, so they are Provino's.
     state.originalGlobalErrorHandlers = {
       rejectionHandled: [...process.rawListeners('rejectionHandled')],
       uncaughtException: [...process.rawListeners('uncaughtException')],

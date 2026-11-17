@@ -332,6 +332,8 @@ export class Executor {
    * boundary of theirs is counted.
    */
   #concurrentGroups = 0
+  /** `CorePolicy.errors.waitForUnhandledRejections`. */
+  readonly #waitsForRejections: boolean
 
   constructor(config: ExecutorConfig) {
     this.#config = config
@@ -355,6 +357,18 @@ export class Executor {
     this.#tests = shared ? createLimiter(config.policy.maxConcurrency) : unlimited
     this.#turns = config.policy.boundaryTurns
     this.#clock = anyTurns(this.#turns) ? new TurnClock() : undefined
+    this.#waitsForRejections = config.policy.errors.waitForUnhandledRejections
+  }
+
+  /**
+   * One macrotask on the runtime's timers (`errors.waitForUnhandledRejections`, jest-circus
+   * 30.5.2's `untilNextEventLoopTurn`): Node reports a rejection only once the microtask queue
+   * drains, so after it what a function left is reported, in its owner's async context.
+   */
+  #untilNextEventLoopTurn(): Promise<void> {
+    return new Promise((resolve) => {
+      this.#config.timers.setTimeout(resolve, 0)
+    })
   }
 
   /** The turn clock, when the policy gives turns and no concurrent group is running. */
@@ -1419,6 +1433,7 @@ export class Executor {
     if (test.expectFail && policy.status.expectFail === 'body') reverseExpectFail(failures, test)
     attempt.errors.push(...failures)
     // A rejection nobody handled by now is the test's own (jest-circus `test_fn_success`).
+    if (this.#waitsForRejections) await this.#untilNextEventLoopTurn()
     attempt.errors.push(...this.#config.processErrors.take(attempt.frame))
     if (life !== undefined) await this.#bodyEnd(life, test, attempt, failures, threw)
   }
@@ -1683,6 +1698,8 @@ export class Executor {
         result = { ok: false, error }
       }
     }
+    // circus waits at `hook_success` and `hook_failure` of the hooks it knows: the file's own.
+    if (declared && this.#waitsForRejections) await this.#untilNextEventLoopTurn()
     if (life !== undefined && hook !== undefined)
       result = await this.#hookEnd(life, hook, spec, result)
     this.#emitHookEnd(spec, result)

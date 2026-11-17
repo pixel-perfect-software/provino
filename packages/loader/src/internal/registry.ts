@@ -30,6 +30,7 @@ import {
   servedReach,
 } from './inline.ts'
 import { actualView, cjsNamespace, createInteropCache, esmExports } from './interop.ts'
+import { withNodeLoader } from './node-loader.ts'
 import {
   type Compiled,
   compile,
@@ -689,9 +690,13 @@ export class Registry {
     }
     // The external's first native load in this worker: a window the worker may watch (D127). One
     // that throws on an ES module the transforms leave out is the dialect's `require-esm` error.
+    const native = (): unknown => createRequire(target.path)(key)
+    const skipsPatches = state.options.policy.nativeLoadPatches === 'skip'
     const load = (): unknown => {
       try {
-        return createRequire(target.path)(key)
+        // Under `skip` the external's own requires meet none of the process's patches of Node's
+        // loader (Jest's runtime never calls Node's), as Provino found the loader.
+        return skipsPatches ? withNodeLoader(native) : native()
       } catch (error) {
         throw requireEsmError(state.options, state.edgeKinds, target.path, error) ?? error
       }

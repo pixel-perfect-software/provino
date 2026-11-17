@@ -95,7 +95,14 @@ export const vitestPolicy: PolicyOverrides = {
     },
     concurrency: { grouping: 'consecutive', limitHooks: true },
     // Vitest checks `expect.hasAssertions` only on a test that passed (`policy/core-outcomes`).
-    errors: { lateErrors: 'report-run', hasAssertionsWhenFailed: 'skip' },
+    // processListeners: Vitest's worker keeps its listeners beside the process's own (not recorded,
+    // T11.16), and it has no `waitForUnhandledRejections`.
+    errors: {
+      lateErrors: 'report-run',
+      processListeners: 'alongside',
+      waitForUnhandledRejections: false,
+      hasAssertionsWhenFailed: 'skip',
+    },
     focus: { scope: 'suite', insideSkip: 'skipped' },
     status: { todoUnderSkip: 'todo', expectFail: 'attempt' },
     locationFrame: 'test-file',

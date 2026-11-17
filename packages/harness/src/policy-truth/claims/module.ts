@@ -160,6 +160,26 @@ export const moduleClaims: Claims = {
     }),
     pending('T11.16', 'no Vitest fixture records a failing frame'),
   ),
+  // A `globalSetup` patches Node's loader in the process the tests run in; each test's title holds
+  // what an installed package's own `require`s got: the files on disk (the patches reached none of
+  // them) or what the patches gave.
+  'module.nativeLoadPatches': each(
+    golden('cli/module-patch-outer-realm', {
+      read: (g) => {
+        const titles = g.files.flatMap((file) => file.tests.map((test) => test.id.path.join(' ')))
+        return oneOf(titles, [
+          ['skip', titles.includes('a .shared-runtime request gives the plain shared runtime')],
+          [
+            'apply',
+            titles.includes(
+              'a .shared-runtime request gives the vendored context the hook redirects to',
+            ),
+          ],
+        ])
+      },
+    }),
+    pending('T11.16', 'no Vitest fixture patches Node’s loader'),
+  ),
   'module.unmockedPathPatterns': each(
     mod('mod-automock-all', 'mod-unmocked-patterns'),
     inert(

@@ -9,6 +9,10 @@ import { eventsOf, runScript } from '../internal/test-support.ts'
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))
 const owner = { errors: { lateErrors: 'fail-owner', hasAssertionsWhenFailed: 'skip' } } as const
 const run = { errors: { lateErrors: 'report-run', hasAssertionsWhenFailed: 'skip' } } as const
+const perFile = { errors: { lateErrors: 'fail-owner', processListeners: 'per-file' } } as const
+const alongside = { errors: { lateErrors: 'fail-owner', processListeners: 'alongside' } } as const
+/** One macrotask: what a file left in its microtasks has run, and an immediate it set has fired. */
+const nextMacrotask = (): Promise<void> => new Promise((resolve) => setImmediate(resolve))
 
 describe('fail-owner', () => {
   test('an exception raised while its test runs fails that test', async () => {
@@ -296,5 +300,127 @@ describe('the listeners', () => {
       test('t', () => {})
     }, owner)
     assert.equal(globalThis.process.listenerCount('uncaughtException'), before)
+  })
+})
+
+describe('processListeners', () => {
+  /** A script whose one test leaves a rejection Node reports a macrotask later, after the file. */
+  const leavesRejection =
+    (process: EventEmitter): Parameters<typeof runScript>[0] =>
+    ({ test }, _step, runtime) => {
+      runtime.captureProcessErrors(process)
+      test('leaves it', () => {
+        setImmediate(() => {
+          process.emit(
+            'unhandledRejection',
+            new Error('reported after the file'),
+            Promise.resolve(),
+          )
+        })
+      })
+    }
+
+  test('per-file: while a file runs they are the process’s only ones, and after it its own are back', async () => {
+    const process = new EventEmitter()
+    const own = (): void => {}
+    process.on('unhandledRejection', own)
+    let during: unknown
+    await runScript(({ test }, _step, runtime) => {
+      runtime.captureProcessErrors(process)
+      test('t', () => {
+        during = {
+          own: process.rawListeners('unhandledRejection').includes(own),
+          counts: ['uncaughtException', 'unhandledRejection', 'rejectionHandled'].map((event) =>
+            process.listenerCount(event),
+          ),
+        }
+      })
+    }, perFile)
+    assert.deepEqual(during, { own: false, counts: [1, 1, 1] })
+    // The process's own listener is back alone; an event with none of its own keeps the runtime's.
+    assert.deepEqual(process.rawListeners('unhandledRejection'), [own])
+    assert.equal(process.listenerCount('uncaughtException'), 1)
+    assert.equal(process.listenerCount('rejectionHandled'), 1)
+  })
+
+  test('per-file: a rejection Node reports after the file goes to the process’s own listener, and is charged to nothing', async () => {
+    const process = new EventEmitter()
+    const heard: string[] = []
+    process.on('unhandledRejection', (reason: Error) => heard.push(reason.message))
+    const result = await runScript(leavesRejection(process), perFile)
+    await nextMacrotask()
+    assert.deepEqual(heard, ['reported after the file'])
+    assert.deepEqual(eventsOf(result.events, 'unhandled-error'), [])
+    assert.equal(result.states['leaves it'], 'pass')
+  })
+
+  test('per-file: with no listener of the process’s own, the runtime still charges it to the test that left it', async () => {
+    const process = new EventEmitter()
+    const result = await runScript(leavesRejection(process), perFile)
+    await nextMacrotask()
+    const leaves = result.tasks.find((task) => task.type === 'test' && task.name === 'leaves it')
+    const [event, ...rest] = eventsOf(result.events, 'unhandled-error')
+    assert.equal(rest.length, 0)
+    assert.equal(event?.ownerId, leaves?.id)
+    assert.equal(event?.error.message, 'reported after the file')
+  })
+
+  test('alongside: it is charged to the test that left it even when the process has a listener of its own', async () => {
+    const process = new EventEmitter()
+    const heard: string[] = []
+    process.on('unhandledRejection', (reason: Error) => heard.push(reason.message))
+    const result = await runScript(leavesRejection(process), alongside)
+    await nextMacrotask()
+    assert.deepEqual(heard, ['reported after the file'])
+    assert.equal(eventsOf(result.events, 'unhandled-error').length, 1)
+  })
+
+  test('per-file: the calls are jest-circus’s, so a target whose methods a library replaced ends as it does under Jest', async () => {
+    const calls: string[] = []
+    const process = new EventEmitter()
+    for (const method of ['on', 'removeListener', 'removeAllListeners', 'rawListeners'] as const) {
+      const original = process[method].bind(process) as (...args: unknown[]) => unknown
+      Object.defineProperty(process, method, {
+        value: (event: string, ...rest: unknown[]) => {
+          if (event === 'unhandledRejection') calls.push(method)
+          return original(event, ...rest)
+        },
+      })
+    }
+    const own = (): void => {}
+    process.on('unhandledRejection', own)
+    calls.length = 0
+    const result = await runScript(({ test }, _step, runtime) => {
+      runtime.captureProcessErrors(process)
+      test('t', () => {})
+    }, perFile)
+    // Placed while the file ran (`on`, then circus's take-over), then circus's restore.
+    assert.deepEqual(calls, [
+      'on',
+      'rawListeners',
+      'removeListener',
+      'rawListeners',
+      'removeAllListeners',
+      'on',
+      'removeListener',
+      'on',
+    ])
+    assert.equal(result.file.state, 'pass')
+    assert.deepEqual(process.rawListeners('unhandledRejection'), [own])
+  })
+
+  test('per-file: the function captureProcessErrors returns puts back what a running file took off', async () => {
+    const process = new EventEmitter()
+    const own = (): void => {}
+    process.on('uncaughtException', own)
+    await runScript(({ test }, _step, runtime) => {
+      const stop = runtime.captureProcessErrors(process)
+      test('t', () => {
+        stop()
+        assert.deepEqual(process.rawListeners('uncaughtException'), [own])
+        assert.equal(process.listenerCount('unhandledRejection'), 0)
+      })
+    }, perFile)
+    assert.deepEqual(process.rawListeners('uncaughtException'), [own])
   })
 })

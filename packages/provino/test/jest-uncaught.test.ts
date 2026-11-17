@@ -204,6 +204,18 @@ describe('provino jest charges an unhandled error to its owner as Jest 30.5.2 do
     ['cli/uncaught-timer-of-earlier-file', 'a timer of the first file fires while the second runs'],
     ['cli/uncaught-after-run', 'a rejection the last test leaves, in band, fails that test'],
     ['cli/uncaught-after-run-worker', 'a rejection the last test leaves, in a worker, fails it'],
+    [
+      'cli/rejection-after-run-process-listener',
+      'rejections Node reports after the run go to the process’s own listener and fail no test',
+    ],
+    [
+      'cli/rejection-during-run-process-listener',
+      'a rejection Node reports while the file runs fails the test that left it',
+    ],
+    [
+      'cli/rejection-wait-for-unhandled-rejections',
+      'waitForUnhandledRejections charges each rejection to the test that left it',
+    ],
   ] as const) {
     it(`${id}: ${what}`, async () => {
       const declared = DECLARED[id]

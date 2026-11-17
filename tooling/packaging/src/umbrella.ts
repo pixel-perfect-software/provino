@@ -46,6 +46,7 @@ const BIN_LIGHT_FILES = [
   'native-binding',
   'quick',
   'compile-cache',
+  'node-loader',
 ]
 
 /**

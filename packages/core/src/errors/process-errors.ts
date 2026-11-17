@@ -13,16 +13,27 @@
 //   the file's `testExecError` (`cli/uncaught-during-test`); between files it is the run's.
 // - `report-run` (Vitest 5.0): every such error is an `unhandled-error` charged to the run, at once.
 //
+// `errors.processListeners` says where the listeners sit: beside the process's own for the worker's
+// life (`alongside`), or, as jest-circus 30.5.2's `injectGlobalErrorHandlers` and
+// `restoreGlobalErrorHandlers` place its own (`per-file`), as the process's only ones while a file
+// runs, the process's own taken off and put back when the file ends. After the file an error Node
+// reports is then the process's own listeners' (a library loaded outside the test files may have one:
+// Next.js's transformer installs an unhandled-rejection filter), and the runtime keeps listening, to
+// charge it, only for an event the process has no listener of its own for: there Jest's process would
+// die on Node's report (`cli/uncaught-after-run`), and the runtime fails the test that left it (D7).
+//
 // Core never installs a listener by itself: `captureProcessErrors` does, for the worker.
-import type { Frame, RuntimeEvent, TaskId, UnhandledErrorOrigin } from '@provino/types'
+import type { CorePolicy, Frame, RuntimeEvent, TaskId, UnhandledErrorOrigin } from '@provino/types'
 import { serializeError } from '../errors.ts'
 import type { AttemptState } from '../internal/model.ts'
 
 /**
- * The part of `process` the listeners need: `on` and `removeListener`, so an `EventEmitter` stands
- * in for it in tests.
+ * The part of `process` the listeners need, so an `EventEmitter` stands in for it in tests.
  */
-export type ProcessLike = Pick<NodeJS.EventEmitter, 'on' | 'removeListener'>
+export type ProcessLike = Pick<
+  NodeJS.EventEmitter,
+  'on' | 'removeListener' | 'removeAllListeners' | 'rawListeners'
+>
 
 /** What `ProcessErrors` needs from the runtime and the executor. */
 export interface ProcessErrorsConfig {
@@ -64,9 +75,24 @@ export class ProcessErrors {
   #active = false
   /** The file that is running, or ran last. */
   #fileId: TaskId | undefined
+  /** The listeners `listenForProcessErrors` placed, told when a file starts and ends. */
+  readonly #listenings = new Set<FileBoundListening>()
 
   constructor(config: ProcessErrorsConfig) {
     this.#config = config
+  }
+
+  /** Whether a file is running now. */
+  get active(): boolean {
+    return this.#active
+  }
+
+  /** Tells `listening` when each file starts and ends, until the returned function is called. */
+  bind(listening: FileBoundListening): () => void {
+    this.#listenings.add(listening)
+    return () => {
+      this.#listenings.delete(listening)
+    }
   }
 
   /** Whether an error was charged to the current file's tests or to the file itself. */
@@ -93,6 +119,7 @@ export class ProcessErrors {
     this.#chargedTests.clear()
     this.#chargedFiles = 0
     this.#active = true
+    for (const listening of this.#listenings) listening.fileStarts()
   }
 
   /**
@@ -151,6 +178,8 @@ export class ProcessErrors {
       this.#charge(frame, 'unhandledRejection', error, frame === undefined)
     }
     this.#pending.clear()
+    // circus's `teardown`: from here an error is the process's own listeners', where it has any.
+    for (const listening of this.#listenings) listening.fileEnds()
   }
 
   /**
@@ -201,29 +230,124 @@ export class ProcessErrors {
   }
 }
 
+/** What `ProcessErrors` tells a placement of listeners as files start and end. */
+interface FileBoundListening {
+  fileStarts(): void
+  fileEnds(): void
+}
+
+/** The events the runtime listens for, in the order jest-circus 30.5.2 takes them over. */
+const EVENTS = ['uncaughtException', 'unhandledRejection', 'rejectionHandled'] as const
+type ProcessEvent = (typeof EVENTS)[number]
+type Listener = (...args: unknown[]) => void
+
 /**
- * Listens for the process's uncaught exceptions and rejections with no handler, and reports them.
- * Returns the function that removes the listeners. The worker calls it once; core never does.
+ * The runtime's three listeners on one target, placed as `errors.processListeners` says.
+ * `per-file` makes jest-circus 30.5.2's calls (`globalErrorHandlers.ts`), so a target whose methods
+ * a library replaced (Next.js's filter replaces `on`, `removeAllListeners` and `listeners` for
+ * `unhandledRejection`) ends in the state it ends in under Jest.
  */
-export function listenForProcessErrors(errors: ProcessErrors, target: ProcessLike): () => void {
-  const uncaught = (error: Error, origin: string): void => {
+class Listening implements FileBoundListening {
+  readonly #target: ProcessLike
+  readonly #ours: Readonly<Record<ProcessEvent, Listener>>
+  readonly #perFile: boolean
+  /** The process's own listeners, taken off while a file runs; `undefined` between files. */
+  #taken: ReadonlyMap<ProcessEvent, readonly Listener[]> | undefined
+
+  constructor(
+    target: ProcessLike,
+    ours: Readonly<Record<ProcessEvent, Listener>>,
+    perFile: boolean,
+  ) {
+    this.#target = target
+    this.#ours = ours
+    this.#perFile = perFile
+    for (const event of EVENTS) target.on(event, ours[event])
+    // Between files the process's own listeners have an error first (none is running yet).
+    if (perFile) this.#yieldToOwn()
+  }
+
+  /** circus's `injectGlobalErrorHandlers`: the process's own off, ours the only ones. */
+  fileStarts(): void {
+    if (!this.#perFile || this.#taken !== undefined) return
+    const taken = new Map<ProcessEvent, readonly Listener[]>()
+    for (const event of EVENTS) taken.set(event, this.#ownListeners(event))
+    for (const event of EVENTS) this.#target.removeAllListeners(event)
+    for (const event of EVENTS) this.#target.on(event, this.#ours[event])
+    this.#taken = taken
+  }
+
+  /** circus's `restoreGlobalErrorHandlers`, except that ours stay for an event with none of its own. */
+  fileEnds(): void {
+    const taken = this.#taken
+    if (taken === undefined) return
+    this.#taken = undefined
+    for (const event of EVENTS) {
+      const own = taken.get(event) ?? []
+      if (own.length === 0 && this.#ownListeners(event).length === 0) continue
+      this.#target.removeListener(event, this.#ours[event])
+      for (const listener of own) this.#target.on(event, listener)
+    }
+  }
+
+  /** Removes ours, and puts back what a file still running took off. */
+  stop(): void {
+    const taken = this.#taken
+    this.#taken = undefined
+    for (const event of EVENTS) {
+      this.#target.removeListener(event, this.#ours[event])
+      for (const listener of taken?.get(event) ?? []) this.#target.on(event, listener)
+    }
+  }
+
+  /** Takes ours off each event the process has a listener of its own for. */
+  #yieldToOwn(): void {
+    for (const event of EVENTS) {
+      if (this.#ownListeners(event).length > 0) {
+        this.#target.removeListener(event, this.#ours[event])
+      }
+    }
+  }
+
+  /** The target's listeners for `event` other than ours (`rawListeners`, as circus reads them). */
+  #ownListeners(event: ProcessEvent): Listener[] {
+    const ours = this.#ours[event]
+    return (this.#target.rawListeners(event) as Listener[]).filter((listener) => listener !== ours)
+  }
+}
+
+/**
+ * Listens for the process's uncaught exceptions and rejections with no handler, and reports them,
+ * placed as `processListeners` says (`CorePolicy.errors.processListeners`). Returns the function
+ * that removes the listeners. The worker calls it once; core never does.
+ */
+export function listenForProcessErrors(
+  errors: ProcessErrors,
+  target: ProcessLike,
+  processListeners: CorePolicy['errors']['processListeners'] = 'alongside',
+): () => void {
+  const uncaught = (error: unknown, origin: unknown): void => {
     errors.report(
       origin === 'unhandledRejection' ? 'unhandledRejection' : 'uncaughtException',
       error,
     )
   }
-  const rejected = (reason: unknown, promise: Promise<unknown>): void => {
-    errors.report('unhandledRejection', reason, promise)
+  const rejected = (reason: unknown, promise: unknown): void => {
+    errors.report('unhandledRejection', reason, promise as Promise<unknown>)
   }
-  const handled = (promise: Promise<unknown>): void => {
-    errors.handled(promise)
+  const handled = (promise: unknown): void => {
+    errors.handled(promise as Promise<unknown>)
   }
-  target.on('uncaughtException', uncaught)
-  target.on('unhandledRejection', rejected)
-  target.on('rejectionHandled', handled)
+  const listening = new Listening(
+    target,
+    { uncaughtException: uncaught, unhandledRejection: rejected, rejectionHandled: handled },
+    processListeners === 'per-file',
+  )
+  // Asked for while a file runs (a test's own call): that file is circus's from now on.
+  if (errors.active) listening.fileStarts()
+  const unbind = errors.bind(listening)
   return () => {
-    target.removeListener('uncaughtException', uncaught)
-    target.removeListener('unhandledRejection', rejected)
-    target.removeListener('rejectionHandled', handled)
+    unbind()
+    listening.stop()
   }
 }

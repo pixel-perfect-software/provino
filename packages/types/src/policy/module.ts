@@ -195,6 +195,18 @@ export interface ModulePolicy {
    */
   readonly stackFrameNames: 'mapped-name' | 'engine'
   /**
+   * What a shared external's native load sees of the patches the process's own code made to
+   * Node's CommonJS loader (`Module.prototype.require`, `Module._load`, `Module._resolveFilename`;
+   * Next.js's require hook, which next/jest's config and transformer install, patches two). `apply`:
+   * the loader as it is, so the external's own `require`s go through them, as Node has it. `skip`:
+   * the load runs with the three as Provino found them when it started, so no patch made outside
+   * the test files reaches a test file's modules, as jest-runtime loads them itself and never calls
+   * Node's loader (`require`s a module makes later, outside its load, are not covered). Jest:
+   * `skip`, recorded by `cli/module-patch-outer-realm` (Jest 30.5.2). Vitest: `apply`, not recorded
+   * (T11.16: an externalized dependency loads through Node). Neutral: `apply`.
+   */
+  readonly nativeLoadPatches: 'apply' | 'skip'
+  /**
    * The registry's error texts, by code. Empty means the neutral text. Jest's come from
    * jest-runtime's `MockState.ts` and jest-resolve; Vitest's from `@vitest/mocker`.
    */

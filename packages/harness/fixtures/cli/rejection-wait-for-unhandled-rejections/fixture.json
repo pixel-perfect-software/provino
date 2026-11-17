@@ -1,0 +1,17 @@
+{
+  "description": "`cli/rejection-after-run-process-listener`'s file and `globalSetup` listener under `waitForUnhandledRejections: true` (in band, `-i`): circus waits a macrotask after each test's function and hook, so Node reports each rejection while circus is listening, in its test's async context, and each of the three tests that left one fails; the process's own listener never hears one (no heard.txt), exit 1. Kept: the `PASS`/`FAIL` headers, the `●` titles, the `Error:` lines and the test count. A black-box run, read by `provino`'s `jest-uncaught.test.ts`.",
+  "runners": ["jest"],
+  "config": {
+    "jest": {
+      "maxWorkers": 1,
+      "globalSetup": "<rootDir>/listen.ts",
+      "waitForUnhandledRejections": true
+    }
+  },
+  "run": {
+    "argv": { "jest": ["-i", "--useStderr"] },
+    "capture": ["exitCode", "stderr", "json:.harness-out/jest.json", "file:heard.txt"],
+    "keepLines": "^(PASS|FAIL) |^\\s*● |^Error: |^Tests:",
+    "timeKeys": ["startTime", "endTime", "duration", "startAt", "start", "end", "runtime"]
+  }
+}
