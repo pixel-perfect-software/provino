@@ -35,6 +35,7 @@ import {
 } from './reporter-names.ts'
 import { UsageError } from './usage-error.ts'
 import { packageVersion } from './version.ts'
+import { hasViews, viewsNeedProvino, viewsOf } from './views.ts'
 
 /**
  * What a command line or a config says about how text looks, whatever dialect it came from: Jest's
@@ -105,6 +106,11 @@ export interface ReporterContext {
   readonly env: Environment
   readonly display?: DisplayOptions
   readonly text?: TextExtras
+  /**
+   * `--tree` and `--map`: views of the `provino` reporter. They choose it when no reporter is
+   * named, go to it among the ones that are, and are a usage error when it is not among them.
+   */
+  readonly views?: ProvinoChoiceOptions
   /** A watch run: a run that names no reporter never gets `provino` (D142). */
   readonly watch?: true
   /**
@@ -263,14 +269,16 @@ export type ParsedChoice =
   | { readonly kind: 'object'; readonly reporter: Reporter }
 
 /**
- * The options of a `provino` reporter choice, checked: `tree` and `map` (B26 Phase 4 builds the
- * views, so until then either one is a usage error), nothing else.
+ * The options of a `provino` reporter choice, checked: the views `tree` and `map` (each `true`, or
+ * left out), nothing else.
  */
 function provinoOptions(options: unknown): ProvinoChoiceOptions {
   if (options === undefined) return {}
   if (!isRecord(options)) {
     throw new UsageError('the options of the provino reporter must be an object')
   }
+  let tree = false
+  let map = false
   for (const [key, value] of Object.entries(options)) {
     if (key !== 'tree' && key !== 'map') {
       throw new UsageError(`the provino reporter has no "${key}" option (it takes tree and map)`)
@@ -279,9 +287,10 @@ function provinoOptions(options: unknown): ProvinoChoiceOptions {
     if (value !== true) {
       throw new UsageError(`the "${key}" option of the provino reporter must be true`)
     }
-    throw new UsageError(`the provino reporter's ${key} view is not built yet (B26 Phase 4)`)
+    if (key === 'tree') tree = true
+    else map = true
   }
-  return {}
+  return viewsOf(tree, map)
 }
 
 function isDocumentName(name: string): name is BuiltDocumentName {
@@ -479,6 +488,7 @@ const RUN_UPDATE_COMMAND = 're-run with `-u`'
 async function provinoFor(
   context: ReporterContext,
   output: OutputEnvironment,
+  views: ProvinoChoiceOptions,
 ): Promise<ProvinoReporter> {
   const live = await import('@provino/reporters/live')
   const { display, env } = context
@@ -499,6 +509,7 @@ async function provinoFor(
     ...(context.text?.seed === undefined ? {} : { seed: context.text.seed }),
     ...(display?.silent === true ? { silent: true } : {}),
     ...(display?.noStackTrace === true ? { noStackTrace: true } : {}),
+    ...(hasViews(views) ? { views } : {}),
   })
 }
 
@@ -547,30 +558,38 @@ export async function selectsProvino(input: {
 
 /**
  * The reporters of a run when none are named: the policy's `report.defaultReporters`, with
- * `default` replaced by `provino` when `selectsProvino` says so (D135), else by `agent` when an
- * agent runs the process (and by `verbose` under `--verbose`), and `github-actions` added on GitHub
- * Actions (never beside `provino`: a live terminal is not CI).
+ * `default` replaced by `provino` when `selectsProvino` says so (D135) or views ask for it
+ * (`--tree`, `--map`: an explicit ask, wherever the run is), else by `agent` when an agent runs the
+ * process (and by `verbose` under `--verbose`), and `github-actions` added on GitHub Actions (not
+ * beside a `provino` the terminal chose: a live terminal is not CI; beside one the views chose it
+ * is, so a run's annotations are not lost).
  */
 async function implicitChoices(
   context: ReporterContext,
   output: OutputEnvironment,
 ): Promise<readonly unknown[]> {
   const { display } = context
-  const provino = await selectsProvino({
-    live: output.live,
-    watch: context.watch === true,
-    verbose: display?.verbose === true,
-    singleFile: {
-      listTestsForSingleFile: context.project.policy.report.listTestsForSingleFile,
-      silent: display?.silent === true,
-      verboseOff: display?.verbose === false,
-      files: context.fileCount,
-    },
-  })
+  const asked = hasViews(context.views ?? {})
+  const provino =
+    asked ||
+    (await selectsProvino({
+      live: output.live,
+      watch: context.watch === true,
+      verbose: display?.verbose === true,
+      singleFile: {
+        listTestsForSingleFile: context.project.policy.report.listTestsForSingleFile,
+        silent: display?.silent === true,
+        verboseOff: display?.verbose === false,
+        files: context.fileCount,
+      },
+    }))
   if (provino) {
-    return context.project.policy.report.defaultReporters.map((name) =>
+    const chosen = context.project.policy.report.defaultReporters.map((name) =>
       name === 'default' ? 'provino' : name,
     )
+    return asked && output.githubActions && !chosen.includes('github-actions')
+      ? [...chosen, 'github-actions']
+      : chosen
   }
   const named = context.project.policy.report.defaultReporters.map((name) => {
     if (name !== 'default') return name
@@ -608,7 +627,14 @@ export async function reportersFor(
   const provinoAt = parsed.flatMap((choice, index) => (choice.kind === 'provino' ? [index] : []))
   if (provinoAt.length > 1) throw new UsageError('the provino reporter is named more than once')
   const at = provinoAt[0]
-  const provino = at === undefined ? undefined : await provinoFor(context, output)
+  const chosen = at === undefined ? undefined : parsed[at]
+  const views = context.views ?? {}
+  // The views are the options of the one `provino` choice, from wherever it came: merged here, once.
+  if (hasViews(views) && chosen?.kind !== 'provino') throw viewsNeedProvino(views)
+  const provino =
+    chosen?.kind === 'provino'
+      ? await provinoFor(context, output, { ...chosen.options, ...views })
+      : undefined
   try {
     const drawing = provino !== undefined && output.live
     const target: TextTarget = drawing

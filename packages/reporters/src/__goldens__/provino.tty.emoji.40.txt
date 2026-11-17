@@ -57,8 +57,7 @@
 
 <ESC>[2m───────────────────────────────────────<ESC>[22m
 100%   <ESC>[32m✅ 6<ESC>[39m  <ESC>[31m❌ 2<ESC>[39m  <ESC>[33m⏩ 3<ESC>[39m  <ESC>[33m📝 2<ESC>[39m   <ESC>[2m2.7s<ESC>[22m
-<ESC>[?2026l<ESC>[2F<ESC>[0J
-<ESC>[31m💥<ESC>[39m <ESC>[1m2 failed · 6 passed · 3 skipped · 2…<ESC>[22m
+<ESC>[?2026l<ESC>[2F<ESC>[0J<ESC>[31m💥<ESC>[39m <ESC>[1m2 failed · 6 passed · 3 skipped · 2…<ESC>[22m
 <ESC>[2m🐢 slowest: math.test.ts 12ms · fails.…<ESC>[22m
 <ESC>[2msnapshots: 1 failed<ESC>[22m
 

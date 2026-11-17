@@ -9,13 +9,23 @@
 // 3. A frame is one write. 4. The state is bounded. 5. This code loads only when chosen.
 // 6. Lines are rebuilt only when their inputs change.
 
-import type { Reporter, RunSummary, SerializedError, TaskId } from '@provino/types'
+import type {
+  FileInfo,
+  Reporter,
+  RunSummary,
+  RuntimeEventOf,
+  SerializedError,
+  TaskId,
+} from '@provino/types'
 import { serializeError } from '../internal/serialize-error.ts'
+import { groupByFolder } from '../internal/views/folders.ts'
 import type { TextSink } from '../sink.ts'
 import { createStyle, type Style } from '../style.ts'
 import { boundError, boundErrors } from './model/bound.ts'
 import { createEstimator } from './model/estimate.ts'
+import { fileOutcome } from './model/file-outcome.ts'
 import { createRunState, type FinishedFile, type RunState } from './model/state.ts'
+import { createTreeStore, type TreeFile, type TreeStore } from './model/tree-store.ts'
 import type { Glyphs } from './terminal/glyphs.ts'
 import {
   createFrameScheduler,
@@ -41,7 +51,9 @@ import {
   snippetKey,
 } from './view/failure.ts'
 import { consoleLines, fileLine, fileSnapshotLine } from './view/file-line.ts'
+import { mapLines } from './view/map.ts'
 import { type StatusInput, statusLine } from './view/status-line.ts'
+import { treeLines } from './view/tree.ts'
 import { moreWorkersLine, workerLine } from './view/worker-line.ts'
 
 /** How many worker lines the footer shows; more busy workers are counted on one line. */
@@ -61,6 +73,20 @@ interface Held {
   readonly heldAt: number
   snippets: ReadonlyMap<string, Snippet> | undefined
   ready: boolean
+}
+
+/**
+ * The views the `provino` reporter prints besides its live output (`--tree`, `--map`).
+ * @beta
+ */
+export interface ProvinoViews {
+  /**
+   * The run folder by folder after its lines, before the end card: a passing file is one row,
+   * and a file with a failure opens down to the failed tests.
+   */
+  readonly tree?: true
+  /** One cell per file, a row per folder, after the end card. */
+  readonly map?: true
 }
 
 /**
@@ -89,6 +115,8 @@ export interface ProvinoReporterOptions {
    * end card shows it under the snapshot line when some failed or are obsolete.
    */
   readonly snapshotHint?: string
+  /** The views to print after the run. Each costs memory the plain run does not: `tree` keeps the failed files' trees, both keep a row per file. */
+  readonly views?: ProvinoViews
   /** How a source file is read for a code frame. Default: a read of at most 1 MB. */
   readonly readSource?: (path: string) => Promise<string | undefined>
   /** The clock in ms, for the scheduler this reporter makes. Default: `performance.now`. */
@@ -125,8 +153,19 @@ export type ProvinoReporter = Reporter & { readonly terminal: LiveTerminal }
 export function createLiveReporter(
   options: ProvinoReporterOptions,
   state: RunState,
+  makeTree: () => TreeStore = createTreeStore,
 ): ProvinoReporter {
   const { stream, live, glyphs } = options
+  // The collected trees are kept only under `--tree`: with no flag the store is never made.
+  const trees = options.views?.tree === true ? makeTree() : undefined
+  const wantsMap = options.views?.map === true
+  const viewing = trees !== undefined || wantsMap
+  /**
+   * The files that ended, one row each, for the views: taken as each file ends (`file:end`), not
+   * when a frame draws it, so the live ring dropping a file (a slow terminal, a long run) never
+   * takes it out of a view.
+   */
+  let viewFiles: TreeFile[] = []
   const style: Style = createStyle(options.colour)
   const scheduler =
     options.scheduler ?? createFrameScheduler(options.now ? { now: options.now } : {})
@@ -167,6 +206,28 @@ export function createLiveReporter(
   /** Whole lines written to `passthrough`, waiting for the next frame; and the unfinished line. */
   let pending: string[] = []
   let partial = ''
+  /** The last line handed to the terminal before `pending`: what a block that follows must not double. */
+  let lastTaken: string | undefined
+
+  /** Takes the lines waiting for the terminal, remembering the last of them. */
+  function takePending(): string[] {
+    const taken = pending
+    if (taken.length > 0) lastTaken = taken[taken.length - 1]
+    pending = []
+    return taken
+  }
+
+  /**
+   * Adds a block of lines (the tree, the end card, the map) to what waits, behind exactly one blank
+   * line: none is added when the last line, queued or already handed over, is blank, and the
+   * block's own leading blank lines are dropped. The run's end lays every block out with this.
+   */
+  function append(block: readonly string[]): void {
+    const first = block.findIndex((line) => line !== '')
+    if (first === -1) return
+    if ((pending.length > 0 ? pending[pending.length - 1] : lastTaken) !== '') pending.push('')
+    for (let index = first; index < block.length; index++) pending.push(block[index] as string)
+  }
 
   // Cached lines (performance rule 6).
   let statusKey = ''
@@ -182,9 +243,7 @@ export function createLiveReporter(
   function flushPlain(): void {
     drain(false, scheduler.now())
     if (pending.length === 0) return
-    const text = `${pending.join('\n')}\n`
-    pending = []
-    writer.writeAlways(text)
+    writer.writeAlways(`${takePending().join('\n')}\n`)
   }
   const flusher = createImmediateFlusher(flushPlain)
   const timers: SchedulerTimers = options.timers ?? {
@@ -424,7 +483,7 @@ export function createLiveReporter(
       drain(false, now)
       const drawn = session.draw(pending, footer(now))
       if (drawn) {
-        pending = []
+        takePending()
         redrawWanted = false
       }
       state.clean()
@@ -472,9 +531,7 @@ export function createLiveReporter(
           // Rendering what was held is best effort here: the queued text below still goes out.
         }
         if (pending.length === 0) return
-        const text = `${pending.join('\n')}\n`
-        pending = []
-        writer.writeSync(text)
+        writer.writeSync(`${takePending().join('\n')}\n`)
       },
       resize(width) {
         columns = width
@@ -506,6 +563,9 @@ export function createLiveReporter(
       held = []
       listed = []
       listedMore = 0
+      viewFiles = []
+      trees?.clear()
+      lastTaken = undefined
       loader.reset()
       workersCap = info.workers
       shardText =
@@ -534,15 +594,37 @@ export function createLiveReporter(
       estimator.fileStarted(file, now, state.busy())
       wake(now)
     },
+    // Only under `--tree`: with no flag the reporter has no handler for it at all.
+    ...(trees === undefined
+      ? {}
+      : {
+          'file:collected': (file: FileInfo, event: RuntimeEventOf<'file-collect-end'>) => {
+            trees.collected(file.fileId, event.tasks)
+          },
+        }),
     'task:end': (task, event) => {
+      if (event.type === 'suite-end') {
+        if (trees !== undefined && event.result.state === 'fail') {
+          const [first] = event.result.errors
+          trees.suiteFailed(
+            task.fileId,
+            task.id,
+            first === undefined ? undefined : boundError(first),
+          )
+        }
+        return
+      }
       if (event.type !== 'test-end' || task.type !== 'test') return
-      if (event.result.state === 'fail') {
-        state.testEnd(task.fileId as TaskId, 'fail', {
-          title: task.fullName,
-          location: task.location,
-          errors: boundErrors(event.result.errors),
-        })
-      } else state.testEnd(task.fileId as TaskId, event.result.state)
+      const { result } = event
+      const errors = result.state === 'fail' ? boundErrors(result.errors) : undefined
+      state.testEnd(
+        task.fileId as TaskId,
+        result.state,
+        errors === undefined
+          ? undefined
+          : { title: task.fullName, location: task.location, errors },
+      )
+      trees?.testEnd(task.fileId, task.id, result.state, result.durationMs, errors?.[0])
       wake()
     },
     console: (file, event) => {
@@ -551,9 +633,13 @@ export function createLiveReporter(
     },
     'file:end': (result) => {
       const now = scheduler.now()
-      state.fileEnd(
+      const finished = state.fileEnd(
         result.errors.length === 0 ? result : { ...result, errors: boundErrors(result.errors) },
       )
+      // The views take the file now, apart from the ring: a row of numbers (a map delete for a
+      // file that passed, one walk of its own tasks for a file with a failure), so no file is
+      // missing from a view and no record outlives its file.
+      if (viewing) viewFiles.push(trees?.compact(finished) ?? fileOutcome(finished))
       estimator.fileEnded(result.file, now, state.busy())
       wake(now)
     },
@@ -606,11 +692,17 @@ export function createLiveReporter(
         glyphs,
         style,
       )
-      // The last block ends in a blank line already: the card's own would make two.
-      const lines = [...pending, ...(pending.at(-1) === '' ? card.slice(1) : card)]
-      pending = []
+      // The tree goes after the run's lines and before the card, the map after the card, each behind
+      // exactly one blank line (`append`).
+      const folders = groupByFolder(viewFiles)
+      if (trees !== undefined) append(treeLines(folders, columns, glyphs, style))
+      append(card)
+      if (wantsMap) append(mapLines(folders, columns, glyphs, style))
+      const lines = takePending()
       listed = []
       held = []
+      viewFiles = []
+      trees?.clear()
       if (session !== undefined && !broken) session.finish(lines)
       else writer.writeAlways(`${lines.join('\n')}\n`)
       session = undefined

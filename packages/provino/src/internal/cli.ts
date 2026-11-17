@@ -15,6 +15,7 @@ import {
 } from './reporter-names.ts'
 import { USAGE } from './usage.ts'
 import { UsageError } from './usage-error.ts'
+import { hasViews, viewsOf } from './views.ts'
 
 /** What the process exits with for an error that is a bug in Provino. */
 const INTERNAL_ERROR_EXIT = 1
@@ -174,6 +175,7 @@ export function parseRunArgs(
   }
   const names = values.reporter ?? []
   const reporters = parseReporters(names, values.outputFile)
+  const views = viewsOf(values.tree, values.map)
   const options: RunOptions = {
     config: values.config,
     ...(values.maxWorkers === undefined
@@ -181,6 +183,7 @@ export function parseRunArgs(
       : { maxWorkers: parseWhole(values.maxWorkers, '--maxWorkers') }),
     ...(values.pool === undefined ? {} : { pool: values.pool }),
     ...(names.length === 0 ? {} : { reporters }),
+    ...(hasViews(views) ? { views } : {}),
     ...(values.ci === true ? { ci: true } : {}),
     ...(values.updateSnapshot === true ? { updateSnapshot: true } : {}),
     ...(values.passWithNoTests === true ? { passWithNoTests: true } : {}),
@@ -230,6 +233,8 @@ const OPTIONS = {
   timings: { type: 'string' },
   'update-timings': { type: 'boolean' },
   'no-emoji': { type: 'boolean' },
+  tree: { type: 'boolean' },
+  map: { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
 } as const satisfies ParseArgsOptionsConfig
 

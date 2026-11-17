@@ -1,0 +1,131 @@
+✅ …/math/math.test.ts · 3 tests · 12ms
+✅ …/geometry.test.ts · 3 tests · 310ms
+❌ …tal.test.ts · 1 of 8 failed · 120ms
+   ● cart › total › applies the discount
+     expected 90, received 100
+
+     Expected: 90
+     Received: 100
+     › src/cart/total.test.ts:41:22
+
+❌ …fails.test.ts · 1 of 2 failed · 9ms
+   ● group › fails
+     expect(received).toBe(expected) // Object.is equality
+
+     Expected: 2
+     Received: 1
+     › fails.test.ts:3:15
+       1 │ import { expect, test } fro…
+       2 │ test('fails', () => {
+     > 3 │   expect(compute()).toBe(2)
+         │               ^
+       4 │ })
+       5 │ 
+
+❌ …pshot.test.ts · 1 of 1 failed · 7ms
+   ● matches a stored snapshot
+     expect(received).toMatchSnapshot()
+
+     Snapshot name: `matches a stored snapshot 1`
+
+     - Snapshot  - 1
+     + Received  + 1
+
+       {
+     -   "value": "old",
+     +   "value": "new",
+       }
+     › snapshot.test.ts:2:28
+       1 │ test('matches a stored snap…
+     > 2 │   expect({ value: makeValue…
+         │                            ^
+       3 │ })
+       4 │ 
+
+✅ …ents/button.test.tsx · 1 test · 5ms
+✅ …onents/card.test.tsx · 1 test · 6ms
+✅ …ts/checkbox.test.tsx · 1 test · 7ms
+✅ …ents/dialog.test.tsx · 1 test · 8ms
+✅ …ts/dropdown.test.tsx · 1 test · 9ms
+✅ …nents/form.test.tsx · 1 test · 10ms
+✅ …nents/icon.test.tsx · 1 test · 11ms
+✅ …ents/input.test.tsx · 1 test · 12ms
+✅ …nents/link.test.tsx · 1 test · 13ms
+✅ …nents/list.test.tsx · 1 test · 14ms
+✅ …nents/menu.test.tsx · 1 test · 15ms
+✅ …ents/modal.test.tsx · 1 test · 16ms
+✅ …ts/popover.test.tsx · 1 test · 17ms
+✅ …ents/radio.test.tsx · 1 test · 18ms
+✅ …nts/select.test.tsx · 1 test · 19ms
+✅ …nents/tabs.test.tsx · 1 test · 20ms
+✅ …ents/toast.test.tsx · 1 test · 21ms
+✅ …ts/tooltip.test.tsx · 1 test · 22ms
+✅ tests/skipped.test.ts · 3ms
+⏩ …ped.test.ts · 2 tests skipped · 1ms
+✅ tests/todo-only.test.ts · 1ms
+✅ tests/console.test.ts · 1 test · 6ms
+   at import time
+   from the test
+   a warning
+   a direct write
+❌ …roken.test.ts · failed to run · 2ms
+   ● Test suite failed to run
+     ImportError: Cannot find module './missing.ts'
+
+❌ src/cart/ · 4 files · 11 test… 138ms
+├─ ❌ broken.test.ts · failed to r… 2ms
+│     ImportError: Cannot find module …
+├─ ❌ fails.test.ts · 1 of 2 failed 9ms
+│  └─ ❌ group · 1 of 2 failed      5ms
+│     ├─ ❌ fails                   4ms
+│     │     expect(received).toBe(expe…
+│     └─ ✅ 1 more test             1ms
+├─ ❌ snapshot.test.ts · 1 of 1 fa… 7ms
+│  └─ ❌ matches a stored snapshot  5ms
+│        expect(received).toMatchSnaps…
+└─ ❌ total.test.ts · 1 of 8 fai… 120ms
+   └─ ❌ cart · 1 of 8 failed      14ms
+      ├─ ❌ total · 1 of 3 failed   8ms
+      │  ├─ ❌ applies the discount 5ms
+      │  │     expected 90, received 1…
+      │  └─ ✅ 2 more tests         3ms
+      ├─ ✅ empty · 2 tests         2ms
+      ├─ ⏩ tax · 2 tests skipped   2ms
+      └─ ✅ 1 more test             2ms
+✅ src/components/ · 18 files · … 243ms
+├─ ✅ button.test.tsx · 1 test      5ms
+├─ ✅ card.test.tsx · 1 test        6ms
+├─ ✅ checkbox.test.tsx · 1 test    7ms
+├─ ✅ dialog.test.tsx · 1 test      8ms
+├─ ✅ dropdown.test.tsx · 1 test    9ms
+├─ ✅ form.test.tsx · 1 test       10ms
+├─ ✅ icon.test.tsx · 1 test       11ms
+├─ ✅ input.test.tsx · 1 test      12ms
+├─ ✅ link.test.tsx · 1 test       13ms
+├─ ✅ list.test.tsx · 1 test       14ms
+├─ ✅ menu.test.tsx · 1 test       15ms
+├─ ✅ modal.test.tsx · 1 test      16ms
+├─ ✅ popover.test.tsx · 1 test    17ms
+├─ ✅ radio.test.tsx · 1 test      18ms
+├─ ✅ select.test.tsx · 1 test     19ms
+├─ ✅ tabs.test.tsx · 1 test       20ms
+├─ ✅ toast.test.tsx · 1 test      21ms
+└─ ✅ tooltip.test.tsx · 1 test    22ms
+✅ src/math/ · 2 files · 6 tests  322ms
+├─ ✅ geometry.test.ts · 3 tests  310ms
+└─ ✅ math.test.ts · 3 tests       12ms
+✅ tests/ · 4 files · 7 tests      11ms
+├─ ⏩ all-skipped.test.ts · 2 test… 1ms
+├─ ✅ console.test.ts · 1 test      6ms
+├─ ✅ skipped.test.ts · 3 tests · … 3ms
+└─ 📝 todo-only.test.ts · 1 test ·… 1ms
+
+💥 3 failed · 32 passed · 4 skipped · …
+🐢 slowest: src/math/geometry.test.ts …
+snapshots: 1 failed
+
+failed:
+  ❌ cart › total › applies the discount  src/cart/total.test.ts:41:22
+  ❌ group › fails  fails.test.ts:3:15
+  ❌ matches a stored snapshot  snapshot.test.ts:2:28
+  ❌ src/cart/broken.test.ts

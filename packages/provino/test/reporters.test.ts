@@ -960,3 +960,240 @@ describe('the reporters provino run names', () => {
     assert.doesNotMatch(ran.stderr, /Test Suites/)
   })
 })
+
+describe('B26 Phase 4: --tree and --map', () => {
+  const files = {
+    'tests/a.test.js': passing('a'),
+    'tests/ui/b.test.js': passing('b'),
+    'tests/ui/c.test.js': failing('c'),
+  }
+
+  /** The run's stderr under both commands, with the flags after each command's own. */
+  async function both(
+    dir: string,
+    config: string,
+    runFlags: readonly string[],
+    jestFlags: readonly string[],
+  ): Promise<
+    readonly { readonly command: string; readonly code: number | null; readonly text: string }[]
+  > {
+    const viaRun = await spawnCli(['run', '--config', config, ...runFlags], { cwd: dir })
+    const viaJest = await spawnCli(['jest', `--config=${jestConfigJson(dir)}`, ...jestFlags], {
+      cwd: dir,
+    })
+    return [
+      { command: 'run', code: viaRun.code, text: viaRun.stderr },
+      { command: 'jest', code: viaJest.code, text: viaJest.stderr },
+    ]
+  }
+
+  it('--tree with no reporter named chooses provino even without a terminal: the tree comes before the end card', async () => {
+    const project = await makeProject(files)
+    for (const ran of await both(project.dir, project.config, ['--tree'], ['--tree'])) {
+      assert.equal(ran.code, 1, `${ran.command}: ${ran.text}`)
+      assert.ok(!ran.text.includes(ESC), `${ran.command}: plain lines on a pipe`)
+      assert.doesNotMatch(ran.text, /Test Suites:|Ran all test suites/)
+      const at = (pattern: RegExp): number => ran.text.search(pattern)
+      assert.ok(at(/^❌ tests\/ui\/ · 2 files · 2 tests · 1 failed +\d+ms$/m) !== -1, ran.text)
+      assert.match(ran.text, /^├─ ✅ b\.test\.js · 1 test +\d+ms$/m)
+      assert.match(ran.text, /^└─ ❌ c\.test\.js · 1 of 1 failed +\d+ms$/m)
+      assert.match(ran.text, /^ {3}└─ ❌ c +\d+ms$/m)
+      assert.match(ran.text, /^ {9}expect\(received\)\.toBe\(expected\)/m)
+      assert.ok(at(/^✅ tests\/ · 1 file · 1 test +\d+ms$/m) !== -1, ran.text)
+      assert.ok(at(/^💥 /m) > at(/^❌ tests\/ui\/ · /m), 'the tree is before the end card')
+      assert.ok(!/🟩|🟥/.test(ran.text), 'no map unless asked')
+    }
+  })
+
+  it('--map prints one cell per file after the end card, a row per folder', async () => {
+    const project = await makeProject(files)
+    for (const ran of await both(project.dir, project.config, ['--map'], ['--map'])) {
+      assert.equal(ran.code, 1, `${ran.command}: ${ran.text}`)
+      assert.match(ran.text, /^🟩 pass {2}🟥 fail {2}🟨 skip {2}⬜ todo$/m)
+      assert.match(ran.text, /^tests\/ +🟩$/m)
+      assert.match(ran.text, /^tests\/ui\/ +🟩🟥$/m)
+      assert.ok(
+        ran.text.search(/^🟩 pass/m) > ran.text.search(/^💥 /m),
+        'the map is after the end card',
+      )
+      assert.ok(!ran.text.includes('├─') && !ran.text.includes('└─'), 'no tree unless asked')
+    }
+  })
+
+  it('both flags, with --no-emoji: the box tree with plain marks, and the lettered map', async () => {
+    const project = await makeProject(files)
+    const flags = ['--tree', '--map', '--no-emoji']
+    for (const ran of await both(project.dir, project.config, flags, flags)) {
+      assert.equal(ran.code, 1, `${ran.command}: ${ran.text}`)
+      assert.match(ran.text, /^└─ ✕ c\.test\.js · 1 of 1 failed +\d+ms$/m)
+      assert.match(ran.text, /^\. pass {2}X fail {2}s skip {2}t todo$/m)
+      assert.match(ran.text, /^tests\/ui\/ +\.X$/m)
+      assert.doesNotMatch(ran.text, /[🟩🟥✅❌]/u)
+    }
+  })
+
+  it('they ride on a named provino reporter: --reporter provino and --reporters provino', async () => {
+    const project = await makeProject(files)
+    const ran = await both(
+      project.dir,
+      project.config,
+      ['--reporter', 'provino', '--tree'],
+      ['--reporters', 'provino', '--tree'],
+    )
+    for (const each of ran) {
+      assert.match(each.text, /^└─ ❌ c\.test\.js · 1 of 1 failed +\d+ms$/m, each.command)
+    }
+    // `provino` named beside another reporter takes them too.
+    const beside = await spawnCli(
+      ['run', '--config', project.config, '--reporter', 'agent', '--reporter', 'provino', '--map'],
+      { cwd: project.dir },
+    )
+    assert.match(beside.stderr, /^tests\/ui\/ +🟩🟥$/m)
+    // And the config's `reporters` key naming it, with the flag adding the view to its options.
+    const keyed = await spawnCli(
+      ['jest', `--config=${jestConfigJson(project.dir, { reporters: ['provino'] })}`, '--tree'],
+      { cwd: project.dir },
+    )
+    assert.match(keyed.stderr, /^└─ ❌ c\.test\.js · 1 of 1 failed +\d+ms$/m)
+  })
+
+  it('beside reporters that are not provino they are a usage error: 2 under provino run, 1 under provino jest', async () => {
+    const project = await makeProject(files)
+    const message = '--tree needs the provino reporter'
+    const viaRun = await spawnCli(
+      ['run', '--config', project.config, '--reporter', 'agent', '--tree'],
+      { cwd: project.dir },
+    )
+    assert.equal(viaRun.code, 2, viaRun.stderr)
+    assert.ok(viaRun.stderr.includes(message), viaRun.stderr)
+    // Named by `--reporters` or by the config's `reporters` key, and refused before any run starts.
+    for (const args of [
+      [`--config=${jestConfigJson(project.dir)}`, '--reporters', 'default'],
+      [`--config=${jestConfigJson(project.dir, { reporters: ['default'] })}`],
+    ]) {
+      const viaJest = await spawnCli(['jest', ...args, '--tree'], { cwd: project.dir })
+      assert.equal(viaJest.code, 1, viaJest.stderr)
+      assert.ok(viaJest.stderr.includes(message), viaJest.stderr)
+      assert.doesNotMatch(viaJest.stderr, /Test Suites:|tests passed/)
+    }
+  })
+
+  it('provino run --tree on GitHub Actions keeps the github-actions reporter beside provino', async () => {
+    const project = await makeProject({ 'tests/bad.test.js': failing('bad') })
+    const ran = await spawnCli(['run', '--config', project.config, '--tree'], {
+      cwd: project.dir,
+      env: { GITHUB_ACTIONS: 'true', GITHUB_WORKSPACE: project.dir },
+    })
+    assert.equal(ran.code, 1, ran.stderr)
+    assert.match(ran.stderr, /^::error file=tests\/bad\.test\.js,line=\d+,col=\d+,title=bad::/m)
+    assert.match(ran.stderr, /^└─ ❌ bad\.test\.js · 1 of 1 failed +\d+ms$/m)
+    assert.match(ran.stderr, /^💥 1 failed · /m)
+    assert.doesNotMatch(ran.stderr, /^FAIL /m, 'provino, not default')
+  })
+
+  it('a retried test is one test-end through the real stack: the tree’s counts agree with the file’s row (jest.retryTimes)', async () => {
+    const flaky = [
+      'jest.retryTimes(2)',
+      'let calls = 0',
+      "test('passes at the third attempt', () => { calls++; if (calls < 3) throw new Error('not yet') })",
+      "test('never passes', () => { throw new Error('boom') })",
+      "test('steady', () => {})",
+      '',
+    ].join('\n')
+    const project = await makeProject({ 'tests/flaky.test.js': flaky })
+    const ran = await spawnCli(
+      ['jest', `--config=${jestConfigJson(project.dir)}`, '--reporters', 'provino', '--tree'],
+      { cwd: project.dir },
+    )
+    assert.equal(ran.code, 1, ran.stderr)
+    // Three tests, whatever the attempts: the file's line, the folder's heading and the end card.
+    assert.match(ran.stderr, /^❌ tests\/flaky\.test\.js · 1 of 3 failed · /m)
+    assert.match(ran.stderr, /^❌ tests\/ · 1 file · 3 tests · 1 failed +\d+ms$/m)
+    assert.match(ran.stderr, /^└─ ❌ flaky\.test\.js · 1 of 3 failed +\d+ms$/m)
+    assert.match(ran.stderr, /^💥 1 failed · 2 passed · 1 file/m)
+    // One row for the test that never passed, not one per attempt; the other two are not listed.
+    assert.equal(ran.stderr.match(/^ {3}├─ ❌ never passes +\d+ms$/gm)?.length, 1, ran.stderr)
+    assert.match(ran.stderr, /^ {3}└─ ✅ 2 more tests +\d+ms$/m)
+  })
+
+  it('on a terminal they are part of the run’s last lines, and the footer is gone', async () => {
+    const project = await makeProject(files)
+    const viaJest = await liveJest(project.dir, [
+      `--config=${jestConfigJson(project.dir)}`,
+      '--tree',
+      '--map',
+    ])
+    assert.ok(viaJest.includes(HIDE_CURSOR), 'the provino reporter drew')
+    const screen = renderTranscript(viaJest)
+    assert.match(screen, /^└─ ❌ c\.test\.js · 1 of 1 failed +\d+ms$/m, screen)
+    assert.match(screen, /^tests\/ui\/ +🟩🟥$/m, screen)
+    assert.doesNotMatch(screen, / of \d+ files? |starting \d+ workers?/, screen)
+    const viaRun = new Terminal()
+    await run({
+      config: project.config,
+      stdout: new Collect(),
+      stderr: viaRun,
+      env: {},
+      reporters: [['provino', { tree: true, map: true }]],
+    })
+    assert.match(plain(viaRun.text), /└─ ❌ c\.test\.js · 1 of 1 failed/)
+  })
+
+  it('an explicit ask beats the terminal rules: under CI, an agent and --verbose the views still choose provino', async () => {
+    const project = await makeProject(files)
+    const verbose = await liveJest(project.dir, [
+      `--config=${jestConfigJson(project.dir, { verbose: true })}`,
+      '--tree',
+    ])
+    assert.ok(verbose.includes(HIDE_CURSOR))
+    assert.match(plain(verbose), /c\.test\.js · 1 of 1 failed/)
+    for (const env of [{ CI: '1' }, { CLAUDECODE: '1' }]) {
+      const stderr = new Terminal()
+      await run({
+        config: project.config,
+        stdout: new Collect(),
+        stderr,
+        env,
+        views: { tree: true },
+      })
+      assert.match(plain(stderr.text), /└─ ❌ c\.test\.js · 1 of 1 failed/, JSON.stringify(env))
+    }
+  })
+
+  it('run() takes the views as options, beside or among its reporters, and a bad one is a usage error', async () => {
+    const project = await makeProject(files)
+    const outcome = async (options: Partial<Parameters<typeof run>[0]>) => {
+      const stderr = new Collect()
+      const ran = await run({
+        config: project.config,
+        stdout: new Collect(),
+        stderr,
+        env: {},
+        ...options,
+      })
+      return { exitCode: ran.exitCode, text: stderr.text }
+    }
+    // The choice's own options, `views`, or both merged into the one `provino` choice.
+    for (const options of [
+      { reporters: [['provino', { map: true }]] as const },
+      { views: { map: true as const } },
+      { reporters: ['provino'] as const, views: { map: true as const } },
+    ]) {
+      const ran = await outcome(options)
+      assert.equal(ran.exitCode, 1)
+      assert.match(ran.text, /^tests\/ui\/ +🟩🟥$/m)
+    }
+    const merged = await outcome({
+      reporters: [['provino', { tree: true }]],
+      views: { map: true },
+    })
+    assert.match(merged.text, /^└─ ❌ c\.test\.js · /m)
+    assert.match(merged.text, /^tests\/ui\/ +🟩🟥$/m)
+    // Views with reporters named and no `provino` among them, and options that are not views.
+    assert.equal((await outcome({ reporters: ['agent'], views: { tree: true } })).exitCode, 2)
+    for (const options of [{ tree: false }, { timeline: true }]) {
+      const refused = await outcome({ reporters: [['provino', options as never]] })
+      assert.equal(refused.exitCode, 2, refused.text)
+    }
+  })
+})

@@ -49,6 +49,8 @@ export interface WorkerSlot {
   failed: number
   /** Of those, how many were skipped or todo. */
   skipped: number
+  /** Of those skipped, how many are todo. */
+  todo: number
   readonly failures: FailedTest[]
   failuresOmitted: number
   readonly console: ConsoleEntry[]
@@ -61,6 +63,8 @@ export interface FinishedFile {
   readonly tests: number
   readonly failed: number
   readonly skipped: number
+  /** Of `skipped`, how many are todo. */
+  readonly todo: number
   readonly failures: readonly FailedTest[]
   readonly failuresOmitted: number
   readonly console: readonly ConsoleEntry[]
@@ -127,7 +131,11 @@ export interface RunState {
   console(fileId: TaskId, stream: 'stdout' | 'stderr', text: string): void
   /** Console writes that arrived after their file ended (a worker's wind-down), or for a file never started. */
   lateConsole(): number
-  fileEnd(result: FileResult): void
+  /**
+   * A file ended: its slot is freed and its record joins the ring. Returns the record, so a view
+   * that must see every file (the ring may drop it before a frame) takes its numbers now.
+   */
+  fileEnd(result: FileResult): FinishedFile
   /** An error outside the tests: counted, and its block queued for a frame. */
   error(block?: RunBlock): void
   /** The blocks waiting for a frame, in order; empties the queue. */
@@ -230,6 +238,7 @@ export function createRunState(): RunState {
         tests: 0,
         failed: 0,
         skipped: 0,
+        todo: 0,
         failures: [],
         failuresOmitted: 0,
         console: [],
@@ -282,7 +291,11 @@ export function createRunState(): RunState {
             if (slot.failures.length >= MAX_FILE_FAILURES) slot.failuresOmitted++
             else slot.failures.push(failure)
           }
-        } else if (state === 'skip' || state === 'todo') slot.skipped++
+        } else if (state === 'skip') slot.skipped++
+        else if (state === 'todo') {
+          slot.skipped++
+          slot.todo++
+        }
       }
       dirty = true
     },
@@ -306,22 +319,25 @@ export function createRunState(): RunState {
         size--
         dropped++
       }
-      ring[(head + size) % RING_CAPACITY] = {
+      const finished: FinishedFile = {
         result,
         tests: slot?.tests ?? 0,
         failed: slot?.failed ?? 0,
         skipped: slot?.skipped ?? 0,
+        todo: slot?.todo ?? 0,
         failures: slot?.failures ?? [],
         failuresOmitted: slot?.failuresOmitted ?? 0,
         console: slot?.console ?? [],
         consoleOmitted: slot?.consoleOmitted ?? 0,
       }
+      ring[(head + size) % RING_CAPACITY] = finished
       size++
       noteSlow(slowest, {
         path: result.file.runPath ?? result.file.path,
         durationMs: result.durationMs,
       })
       dirty = true
+      return finished
     },
     error(block) {
       errors++

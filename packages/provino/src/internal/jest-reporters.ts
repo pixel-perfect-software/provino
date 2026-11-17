@@ -25,10 +25,11 @@ import {
   type OutputEnvironment,
 } from '@provino/reporters'
 import type { FileInfo, FileResult, Reporter, TextStyle } from '@provino/types'
-import type { ReporterChoice } from '../types.ts'
+import type { ProvinoChoiceOptions, ReporterChoice } from '../types.ts'
 import { HOST_REPORTERS } from './reporter-names.ts'
 import { hostReporterChoice, selectsProvino, type TextExtras } from './reporters.ts'
 import { UsageError } from './usage-error.ts'
+import { hasViews, viewsNeedProvino } from './views.ts'
 
 /**
  * What the Jest path hands `executeProject`: the reporters in Jest's order and what the text
@@ -90,6 +91,13 @@ export async function setUpJestReporters(options: {
   readonly context?: JestReporterContext
   /** The project's `report.listTestsForSingleFile` (Jest's single-file rule). Default: off. */
   readonly listTestsForSingleFile?: boolean
+  /**
+   * `--tree` and `--map`: views of the `provino` reporter, which `executeProject` merges into its
+   * options. With no reporter named they choose it (whatever the terminal, the verbosity or watch
+   * mode: an explicit ask for Provino's output). With reporters named and no `provino` among them
+   * they are a usage error, thrown here, before a third-party reporter module loads.
+   */
+  readonly views?: ProvinoChoiceOptions
 }): Promise<JestReporterSetup> {
   const { globalConfig, results } = options
   const environment = {
@@ -116,19 +124,22 @@ export async function setUpJestReporters(options: {
   // interactive terminal, not watch mode (D142), not verbose (D143), not a run that lists its one
   // file's tests. Provino's own output replaces Jest's `default` and `summary`; notify and coverage
   // stay, in Jest's places, and the seed and Jest's update command go to its end card.
+  const views = options.views ?? {}
+  const wantsViews = hasViews(views)
   const provino =
     globalConfig.reporters === undefined &&
-    (await selectsProvino({
-      live: options.output.live,
-      watch,
-      verbose,
-      singleFile: {
-        listTestsForSingleFile: options.listTestsForSingleFile === true,
-        silent: globalConfig.silent === true,
-        verboseOff: globalConfig.verbose === false,
-        files: async () => (await options.filesPerProject()).reduce((sum, n) => sum + n, 0),
-      },
-    }))
+    (wantsViews ||
+      (await selectsProvino({
+        live: options.output.live,
+        watch,
+        verbose,
+        singleFile: {
+          listTestsForSingleFile: options.listTestsForSingleFile === true,
+          silent: globalConfig.silent === true,
+          verboseOff: globalConfig.verbose === false,
+          files: async () => (await options.filesPerProject()).reduce((sum, n) => sum + n, 0),
+        },
+      })))
   if (provino) {
     const reporters: ReporterChoice[] = ['provino']
     if (globalConfig.notify) {
@@ -151,6 +162,11 @@ export async function setUpJestReporters(options: {
         updateCommand: jestUpdateCommand(options.env, watch),
       },
     }
+  }
+  // Named reporters: the views go to the `provino` one (`reportersFor` merges them), or the run is
+  // refused now, before a module loads.
+  if (wantsViews && !plan.steps.some((step) => step.kind === 'host' && step.name === 'provino')) {
+    throw viewsNeedProvino(views)
   }
   let entries: Awaited<ReturnType<typeof loadJestReporters>>
   try {

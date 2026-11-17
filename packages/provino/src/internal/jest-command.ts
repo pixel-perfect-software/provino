@@ -545,7 +545,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
   /** What `--filter` threw (loading it, its `setup`, or a bad result): Jest ends with that error's stack. */
   let filterError: unknown
   try {
-    const { rest, timingsFile, updateTimings, noEmoji } = takeProvinoFlags(args)
+    const { rest, timingsFile, updateTimings, noEmoji, views } = takeProvinoFlags(args)
     const parsed = jestCli.parse(rest)
     if (report(parsed.diagnostics, stderr)) return usage
     const parsedRequest = jestCli.toRunRequest(parsed.argv)
@@ -649,6 +649,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
             request,
             noEmoji,
           ),
+        views,
         ...(watchFilter === undefined ? {} : { filter: watchFilter }),
         ...(hooks === undefined ? {} : { globalSetup: hooks }),
         ...(io.stdin === undefined ? {} : { stdin: io.stdin }),
@@ -878,6 +879,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
             env,
             coverage: coverage?.reporter,
             listTestsForSingleFile: project.policy.report.listTestsForSingleFile,
+            views,
           })
     // No Jest config at the root, and directories below it with one of their own: one line before
     // the run (an improvement over Jest, which says nothing; DIVERGENCES). Never when stdout is
@@ -924,6 +926,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
             : {
                 reporters: setup.reporters,
                 text: setup.text,
+                views,
                 announceReporterFailures: setup.announceThrown
                   ? ('thrown' as const)
                   : (false as const),
