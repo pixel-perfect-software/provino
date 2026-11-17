@@ -128,6 +128,13 @@ export const moduleClaims: Claims = {
     golden('env/conditions-import-module-sync', { read: moduleSyncShown }),
     pending('T11.16', 'no Vitest fixture records a package with a `module-sync` entry'),
   ),
+  'module.reevaluatePatchingExternals': each(
+    pending(
+      'B23f-msw',
+      "jest-runtime's per-file registry is a research value until Phase 3 records `ecosystem/msw-*` for it",
+    ),
+    pending('T11.16', 'no Vitest fixture records a package that patches a global'),
+  ),
   'module.reevaluateHookingExternals': each(
     [
       golden('ecosystem/rtl-cleanup', {

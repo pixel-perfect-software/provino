@@ -488,6 +488,20 @@ export const coreClaims: Claims = {
       "Vitest's turns between hooks and tests aren't recorded: the neutral 0s stand",
     ),
   ),
+  // B23f Phase 1: the boundaries beyond a test's own, and the event counts. Jest's are #114's live
+  // counts, until Phase 5 records them (`runtime/microtask-turns-*` fixtures).
+  ...Object.fromEntries(
+    ['skippedTest', 'suiteStart', 'suiteEnd', 'runStart', 'retry', 'events'].map((key) => [
+      `core.boundaryTurns.${key}`,
+      each(
+        pending(
+          'B23f-turns',
+          "jest-circus's turns at this boundary are research values (#114's counts) until Phase 5 records them",
+        ),
+        pending('T11.16', "Vitest's turns aren't recorded: the neutral 0s stand"),
+      ),
+    ]),
+  ),
 }
 
 export const lazyClaims: Claims = {

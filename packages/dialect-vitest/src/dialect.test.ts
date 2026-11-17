@@ -58,6 +58,13 @@ test('the mock and module slices are whole, so none of their keys is left at the
   assert.deepEqual(Object.keys(vitestModulePolicy).sort(), Object.keys(neutralPolicy.module).sort())
 })
 
+// B23f: Vitest's values for the three Jest wrap-up keys are the neutral ones until T11.16 records them.
+test('the B23f keys stay at the neutral values', () => {
+  assert.equal(resolved.module.reevaluatePatchingExternals, false)
+  assert.equal(resolved.expect.outsideTestCounts, 'drop')
+  assert.deepEqual(resolved.core.boundaryTurns, neutralPolicy.core.boundaryTurns)
+})
+
 test('a few divergences from the neutral policy are Vitest`s', () => {
   const rows = diffPolicy(neutralPolicy, resolved)
   const row = (path: string) => rows.find((candidate) => candidate.path === path)

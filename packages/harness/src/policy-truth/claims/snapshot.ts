@@ -568,4 +568,11 @@ export const expectClaims: Claims = {
     },
   }),
   'expect.expand': golden('defaults'),
+  'expect.outsideTestCounts': each(
+    pending(
+      'B23f-counts',
+      "jest-circus's `next-test` carry is a research value (expect/src/index.ts L310-351) until Phase 4 records `expect/policies/*` for it",
+    ),
+    pending('T11.16', "Vitest's counters aren't recorded: the neutral `drop` stands"),
+  ),
 }

@@ -157,6 +157,8 @@ export const vitestPolicy: PolicyOverrides = {
   },
   expect: {
     matcherNamespace: 'vitest',
+    // Not recorded yet (T11.16): Vitest's own counters aren't read for this key; the neutral `drop`.
+    outsideTestCounts: 'drop',
     pollFailsOnTimeout: true,
     diffContextLines: 5,
     valueFormatter: 'pretty-format',
