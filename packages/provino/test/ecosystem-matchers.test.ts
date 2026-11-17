@@ -18,11 +18,10 @@ const FIXTURES = [
 
 /**
  * Recorded, and left out until the work named here lands.
- * - `jest-when`: Jest's `AssertionError` text. `verifyAllWhenMocksCalled` throws Node's
- *   `assert.equal` error, which Jest prints as `assert.equal(received, expected)` with `Expected
- *   value to be equal to:`, `Received:`, `Message:` and a `Difference:`, where Provino prints
- *   `AssertionError [ERR_ASSERTION]: Failed verifyAllWhenMocksCalled: 1 not called:`. The count is
- *   Jest's since Phase 2d (`when` is evaluated per file); the text is `task/B23e-node-assert`'s.
+ * - `jest-when`: one difference, in the results file (the exit code, the kept stderr lines and every
+ *   other field equal Jest's, Node's `AssertionError` text included, since `core.shapeTestError`).
+ *   `verify.test.ts`'s failing test (`fails on the when-mocks no call reached`) has
+ *   `numPassingAsserts` 1 where Jest's is 2.
  * - `msw-node`: `second.test.ts`'s fetches are no longer intercepted after `handlers.test.ts`
  *   closed its server, and the run hangs. msw reads no per-file global while it loads (the node
  *   environment installs none it reads), so Phase 2d's trigger never fires for it: what the second

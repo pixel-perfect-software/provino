@@ -32,7 +32,7 @@ pnpm exec provino jest path/to/a.test.ts  # one file first
 pnpm exec provino jest                    # the whole suite
 ```
 
-A flag Provino can't run yet is refused by name. Coverage, watch mode, `--json` output and custom reporters are planned; [Jest compatibility](https://github.com/pixel-perfect-software/provino/blob/main/wiki/compatibility.md) has the full list. If a test passes under Jest and fails under Provino, please [open an issue](https://github.com/pixel-perfect-software/provino/issues).
+A flag Provino can't run yet is refused by name. `provino vitest` comes next. Watch mode (`--watch`, `--watchAll`) works, except that `--coverage`, `--collectTests` and `--detectOpenHandles` are refused by name with it, and coverage from saved reports (`--merge-reports`) is planned. [Jest compatibility](https://github.com/pixel-perfect-software/provino/blob/main/wiki/compatibility.md) has the full list. If a test passes under Jest and fails under Provino, please [open an issue](https://github.com/pixel-perfect-software/provino/issues).
 
 ## 📝 License
 
