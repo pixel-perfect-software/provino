@@ -133,16 +133,14 @@ export interface BenchSubject {
 }
 
 // @public
-export type BoundaryEvents = { readonly [K in Exclude<keyof BoundaryTurns, "events">]: number; };
-
-// @public
 export interface BoundaryTurns {
-    readonly events: BoundaryEvents;
     readonly fnEnd: number;
     readonly fnStart: number;
     readonly hookEnd: number;
     readonly hookStart: number;
     readonly retry: number;
+    readonly retryEnd: number;
+    readonly retryExit: number;
     readonly runStart: number;
     readonly skippedTest: number;
     readonly suiteEnd: number;
@@ -800,7 +798,7 @@ export interface EnvironmentInstance<G extends object = typeof globalThis> {
     readonly context?: Context;
     readonly global: G;
     readonly globalReads?: GlobalReadWatch;
-    onTestEvent?(event: LifecycleEvent): void | Promise<void>;
+    onTestEvent?(event: LifecycleEvent): void | PromiseLike<void>;
     teardown(): void | EnvironmentTeardownReport | Promise<void | EnvironmentTeardownReport>;
 }
 
@@ -1052,6 +1050,7 @@ export interface FileHistory {
 
 // @beta
 export interface FileInfo {
+    readonly expectedMs?: number;
     // (undocumented)
     readonly fileId: TaskId;
     readonly path: string;
@@ -1086,7 +1085,7 @@ export interface FileRegistry extends Disposable {
     dispose(): LeakReport;
     // (undocumented)
     readonly file: string;
-    import<T = unknown>(specifier: string, parent?: ModuleId | null): Promise<T>;
+    import<T = unknown>(specifier: string, parent?: ModuleId | null, evaluated?: () => void): Promise<T>;
     // (undocumented)
     importActual<T = unknown>(specifier: string, parent?: ModuleId | null): Promise<T>;
     invalidate(specifier: string, parent?: ModuleId | null): void;
@@ -1282,7 +1281,7 @@ export type HookKind = "beforeAll" | "beforeEach" | "afterEach" | "afterAll";
 export type HookOrder = "declaration" | "reverse" | "parallel";
 
 // @public
-export type ImportFile = (path: string) => Promise<unknown>;
+export type ImportFile = (path: string, evaluated?: () => void) => Promise<unknown>;
 
 // @public
 export interface ImportRecord {
@@ -1691,7 +1690,7 @@ export interface LifecycleHookRef {
 }
 
 // @public
-export type LifecycleListener = (event: LifecycleEvent) => void | Promise<void>;
+export type LifecycleListener = (event: LifecycleEvent) => void | PromiseLike<void>;
 
 // @public
 export type LifecycleMode = "only" | "skip" | "todo" | undefined;
@@ -2821,6 +2820,7 @@ export interface RunInfo {
     readonly startTime: number;
     // (undocumented)
     readonly watch: boolean;
+    readonly workers?: number;
 }
 
 // @public

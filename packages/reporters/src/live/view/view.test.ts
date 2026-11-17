@@ -4,7 +4,7 @@ import { createStyle } from '../../style.ts'
 import { GLYPHS } from '../terminal/glyphs.ts'
 import { displayWidth } from '../terminal/width.ts'
 import { clock, groupDigits, roughDuration } from './format.ts'
-import { finalStatusLine, type StatusInput, statusLine } from './status-line.ts'
+import { type StatusInput, statusLine } from './status-line.ts'
 import { moreWorkersLine, SLOW_FILE_MS, workerLine } from './worker-line.ts'
 
 const plain = createStyle(false)
@@ -81,11 +81,9 @@ test('with no files the percent is 0 and nothing divides by zero', () => {
   assert.ok(text.includes('0%'))
 })
 
-test('the final line has no bar and no time left', () => {
-  assert.equal(
-    finalStatusLine(input, 120, GLYPHS.emoji, plain),
-    '✅ 1,204  ❌ 3  ⏩ 12  1,204 of 1,980 files  12.4s',
-  )
+test('a shard is named after the files', () => {
+  const text = statusLine({ ...input, shard: 'shard 2/3' }, 120, GLYPHS.emoji, plain)
+  assert.ok(text.includes('1,980 files · shard 2/3'), text)
 })
 
 test('a worker line: spinner, number, path, time; the path is cut from the left', () => {

@@ -1,0 +1,4 @@
+{
+  "description": "The microtask turns a promise chain started at module scope gets before the first function jest-circus runs when that function is a test with no hooks, under the node environment. The line is `<module scope> -> <first test>: <turns>`. Jest only.",
+  "runners": ["jest"]
+}

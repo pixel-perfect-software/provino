@@ -62,7 +62,6 @@ export type {
   PolicyAtom,
 } from './behaviour.ts'
 export type {
-  BoundaryEvents,
   BoundaryTurns,
   CorePolicy,
   EachTableKind,

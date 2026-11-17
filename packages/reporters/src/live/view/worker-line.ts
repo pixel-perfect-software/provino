@@ -6,8 +6,10 @@ import type { Glyphs } from '../terminal/glyphs.ts'
 import { displayWidth, fitWidthLeft } from '../terminal/width.ts'
 import { clock } from './format.ts'
 
-/** A file that has run this long is marked slow. */
+/** A file with no expected time that has run this long is marked slow. */
 export const SLOW_FILE_MS = 2000
+/** A file with an expected time is marked slow once it passes it, but never under this long. */
+export const EXPECTED_FLOOR_MS = 500
 
 /**
  * One worker line, `columns - 1` columns wide at most.
@@ -20,10 +22,15 @@ export function workerLine(
   spinnerPhase: number,
   columns: number,
   glyphs: Glyphs,
+  expectedMs?: number,
 ): string {
   const spinner = glyphs.spinner[spinnerPhase % glyphs.spinner.length] as string
   const prefix = ` ${spinner} ${workerNumber}  `
-  const time = clock(elapsedMs) + (elapsedMs >= SLOW_FILE_MS ? ` ${glyphs.slow}` : '')
+  const slow =
+    expectedMs === undefined
+      ? elapsedMs >= SLOW_FILE_MS
+      : elapsedMs > Math.max(expectedMs, EXPECTED_FLOOR_MS)
+  const time = clock(elapsedMs) + (slow ? ` ${glyphs.slow}` : '')
   const room = Math.max(1, columns - 1)
   const pathRoom = room - displayWidth(prefix) - displayWidth(time) - 1
   if (pathRoom < 4) return `${prefix}${time}`

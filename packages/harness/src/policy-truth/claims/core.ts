@@ -482,41 +482,32 @@ export const coreClaims: Claims = {
   // hookStart = 67, …), not where each turn sits: the split follows jest-circus's code, one
   // dispatch of 7 turns before a hook or a test's function.
   // One claim per leaf, never one for the group: a group claim's golden would vouch for every leaf
-  // under it, the research values of B23f included.
+  // under it. Each is held to the recording that shows its boundary: the runtime corpus runs core
+  // against the golden, so a flipped value changes a trace line.
   ...Object.fromEntries(
-    ['hookStart', 'hookEnd', 'fnStart', 'fnEnd', 'testStart', 'testEnd'].map((key) => [
+    (
+      [
+        ['hookStart', ['runtime/microtask-turns', 'runtime/microtask-turns-jsdom']],
+        ['hookEnd', ['runtime/microtask-turns', 'runtime/microtask-turns-jsdom']],
+        ['fnStart', ['runtime/microtask-turns', 'runtime/microtask-turns-jsdom']],
+        ['fnEnd', ['runtime/microtask-turns', 'runtime/microtask-turns-jsdom']],
+        ['testStart', ['runtime/microtask-turns', 'runtime/microtask-turns-jsdom']],
+        ['testEnd', ['runtime/microtask-turns', 'runtime/microtask-turns-jsdom']],
+        ['skippedTest', ['runtime/microtask-turns-skipped']],
+        ['suiteStart', ['runtime/microtask-turns-describe']],
+        ['suiteEnd', ['runtime/microtask-turns-describe']],
+        [
+          'runStart',
+          ['runtime/microtask-turns-run-start', 'runtime/microtask-turns-run-start-test'],
+        ],
+        ['retry', ['runtime/microtask-turns-retry']],
+        ['retryEnd', ['runtime/microtask-turns-retry']],
+        ['retryExit', ['runtime/microtask-turns-retry']],
+      ] as const
+    ).map(([key, fixtures]) => [
       `core.boundaryTurns.${key}`,
       each(
-        corpus('runtime', 'runtime/microtask-turns', 'runtime/microtask-turns-jsdom'),
-        pending(
-          'T11.16',
-          "Vitest's turns between hooks and tests aren't recorded: the neutral 0s stand",
-        ),
-      ),
-    ]),
-  ),
-  // B23f Phase 1: the boundaries beyond a test's own, and the event counts of every boundary.
-  // Jest's are #114's live counts (D133) until Phase 5 records them (`runtime/microtask-turns-*`).
-  ...Object.fromEntries(
-    [
-      'skippedTest',
-      'suiteStart',
-      'suiteEnd',
-      'runStart',
-      'retry',
-      ...['hookStart', 'hookEnd', 'fnStart', 'fnEnd', 'testStart', 'testEnd'].map(
-        (key) => `events.${key}`,
-      ),
-      ...['skippedTest', 'suiteStart', 'suiteEnd', 'runStart', 'retry'].map(
-        (key) => `events.${key}`,
-      ),
-    ].map((key) => [
-      `core.boundaryTurns.${key}`,
-      each(
-        pending(
-          'B23f-turns',
-          "jest-circus's turns at this boundary are research values (#114's counts, D133) until Phase 5 records them",
-        ),
+        corpus('runtime', ...fixtures),
         pending('T11.16', "Vitest's turns aren't recorded: the neutral 0s stand"),
       ),
     ]),

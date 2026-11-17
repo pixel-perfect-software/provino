@@ -160,8 +160,8 @@ export type LifecycleEvent =
     }
 
 /**
- * Receives a file's lifecycle events. Returning a promise makes the runtime wait for it at the
- * run events; at the definition events the result is not awaited.
+ * Receives a file's lifecycle events. Returning a promise (or any thenable) makes the runtime wait
+ * for it at the run events; at the definition events the result is not awaited.
  * @public
  */
-export type LifecycleListener = (event: LifecycleEvent) => void | Promise<void>
+export type LifecycleListener = (event: LifecycleEvent) => void | PromiseLike<void>

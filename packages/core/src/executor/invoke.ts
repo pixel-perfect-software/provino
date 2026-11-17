@@ -32,6 +32,13 @@ export interface InvokeEnv {
   readonly over: () => boolean
   /** Reports the error of a `done(reason)` that came after the end (`late-done`). */
   readonly late: (error: Error) => void
+  /**
+   * Whether a `done` settles the call's promise on the call itself (after the function returns,
+   * when it was called inside it), not a microtask later: jest-circus's turns are counted from there
+   * (`boundaryTurns`), so it is the turn clock's, and with no clock the promise settles as it always
+   * did.
+   */
+  readonly settleOnCall: boolean
 }
 
 /**
@@ -85,6 +92,9 @@ function invokeWithDone(env: InvokeEnv, call: Invocation): Promise<void> {
     let seenDone = false
     let settled = false
     let returned: unknown
+    // Whether the function has returned: a `done` called inside it waits for that.
+    let hasReturned = false
+    const early: Array<() => void> = []
     const done = (reason?: unknown): void => {
       // The stack is taken here, before the promise tick, as jest-circus does.
       const errorAtDone = new Error()
@@ -98,8 +108,7 @@ function invokeWithDone(env: InvokeEnv, call: Invocation): Promise<void> {
         throw errorAtDone
       }
       if (!over) seenDone = true
-      // One tick, in case `done` was called synchronously: the function has returned by then.
-      void Promise.resolve().then(() => {
+      const finish = (): void => {
         if (returned !== undefined) {
           settled = true
           reject(
@@ -124,10 +133,19 @@ function invokeWithDone(env: InvokeEnv, call: Invocation): Promise<void> {
         settled = true
         if (reason) reject(error)
         else resolve()
-      })
+      }
+      // One tick, in case `done` was called synchronously: the function has returned by then.
+      // With a turn clock (`settleOnCall`), a `done` inside the function waits for its return and
+      // one after it settles the promise on the call itself, so the clock (`turns.ts`) sees the
+      // function end as circus does.
+      if (!env.settleOnCall) void Promise.resolve().then(finish)
+      else if (hasReturned) finish()
+      else early.push(finish)
     }
     // A throw here rejects the promise, as a throw in the executor of `new Promise` does.
     returned = callUser(call.fn, call.thisArg, [...call.args, done])
+    hasReturned = true
+    for (const finish of early) finish()
   })
 }
 

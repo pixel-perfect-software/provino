@@ -849,6 +849,7 @@ export async function runProjectsOn(
     const deps = poolDeps(poolKind)
     if (host !== undefined) return host.attach(deps)
     const { factory, poolOptions } = poolSettings(options, poolKind)
+    poolWorkers = poolOptions.maxWorkers
     return createPool(poolOptions, { ...deps, transport: () => factory })
   }
 
@@ -898,6 +899,8 @@ export async function runProjectsOn(
       ...(options.forceSignal === undefined ? {} : { forceSignal: options.forceSignal }),
     }
   }
+  /** The worker cap of the pool this run made (`RunInfo.workers`); a watch session's pool is its own. */
+  let poolWorkers: number | undefined
   let pool = makePool(kind)
 
   /** What a worker sends while it stops reaches the bus under its last file, after that file's `file:end`. */
@@ -1332,6 +1335,7 @@ export async function runProjectsOn(
       startTime: startedAt,
       watch: host !== undefined,
       inBand: kind === 'inline',
+      ...(poolWorkers === undefined ? {} : { workers: poolWorkers }),
     }
     if (found.every((entry) => entry.discovered.length === 0)) {
       announced = true
@@ -1364,7 +1368,7 @@ export async function runProjectsOn(
     // Project by project, in the config's order: workers change project only at a boundary.
     queue = qualifyDuplicatePaths(
       found.flatMap(({ member, everything, discovered }, index) =>
-        planQueue(member, everything, discovered, runRoot, keys[index] ?? new Map()),
+        planQueue(member, everything, discovered, runRoot, keys[index] ?? new Map(), timings),
       ),
     )
 
@@ -1631,12 +1635,19 @@ function planQueue(
   discovered: readonly DiscoveredFile[],
   runRoot: string,
   keys: ReadonlyMap<string, WorkerKey>,
+  timings: TimingsFile | undefined,
 ): QueuedFile[] {
   const { project, cache, cacheProject } = member
   cache?.prune(cacheProject, new Set(everything.map((file) => file.relativePath)))
   const entries = new Map<string, QueuedFile>()
   const inputs: ScheduleInput[] = discovered.map((file) => {
     const runPath = relativePosix(runRoot, join(project.rootDir, file.relativePath))
+    // How long the file is expected to take, for a reporter's time left: its last run's time from
+    // the results cache the sequencer reads below, else its time in the timings file (read only
+    // for a shard), else none.
+    const expectedMs =
+      member.cache?.get(member.cacheProject, file.relativePath)?.durationMs ??
+      timings?.files[runPath]
     entries.set(file.relativePath, {
       member,
       file,
@@ -1648,6 +1659,7 @@ function planQueue(
         project: project.name,
         projectIndex: member.projectIndex,
         ...(runPath === file.relativePath ? {} : { runPath }),
+        ...(expectedMs === undefined ? {} : { expectedMs }),
       },
     })
     return scheduleInputOf(member, file, project.name)

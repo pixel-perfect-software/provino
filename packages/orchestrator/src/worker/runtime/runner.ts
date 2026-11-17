@@ -709,7 +709,7 @@ export function createRuntimeRunner(): WorkerRunner {
     })
 
     // Setup files run inside core's collection, so the hooks they register belong to the file.
-    const importFile = async (path: string): Promise<unknown> => {
+    const importFile = async (path: string, evaluated?: () => void): Promise<unknown> => {
       const files = activeRegistry()
       const later = openSnapshotsLater
       if (later !== undefined) {
@@ -744,7 +744,7 @@ export function createRuntimeRunner(): WorkerRunner {
         await files.import(setup)
       }
       if (shared) files.invalidate(path)
-      return await files.import(path)
+      return await files.import(path, undefined, evaluated)
     }
     const lazyReport = lazyReportSink(
       observingSink(assertionCountSink(source, context.sink), (event) =>

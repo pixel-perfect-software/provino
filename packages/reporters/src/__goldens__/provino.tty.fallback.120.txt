@@ -1,0 +1,63 @@
+<ESC>[?2026h<ESC>[?25lok math.test.ts<ESC>[2m · 3 tests · 12ms<ESC>[22m
+<ESC>[32mok 3<ESC>[39m   <ESC>[32m###<ESC>[39m<ESC>[2m.....................<ESC>[22m   12%  1 of 8 files   <ESC>[2m0.4s<ESC>[22m
+<ESC>[?2026l<ESC>[?2026h<ESC>[1F<ESC>[2K<ESC>[32mok 4<ESC>[39m  <ESC>[31mx 1<ESC>[39m   <ESC>[31m######<ESC>[39m<ESC>[2m..................<ESC>[22m   25%  2 of 8 files   <ESC>[2m0.8s<ESC>[22m<ESC>[1E<ESC>[?2026l<ESC>[?2026h<ESC>[1F<ESC>[0Jx <ESC>[31mfails.test.ts<ESC>[39m<ESC>[2m · 1 of 2 failed · 9ms<ESC>[22m
+   <ESC>[31m●<ESC>[39m <ESC>[1mgroup › fails<ESC>[22m
+     expect(received).toBe(expected) // Object.is equality
+
+     Expected: 2
+     Received: 1
+     <ESC>[2m›<ESC>[22m fails.test.ts:3:15
+     <ESC>[2m  1 │ import { expect, test } from 'provino'<ESC>[22m
+     <ESC>[2m  2 │ test('fails', () => {<ESC>[22m
+     > 3 │   expect(compute()).toBe(2)
+     <ESC>[31m    │               ^<ESC>[39m
+     <ESC>[2m  4 │ })<ESC>[22m
+     <ESC>[2m  5 │ <ESC>[22m
+
+ok skipped.test.ts<ESC>[2m · 3 tests · 2 skipped · 3ms<ESC>[22m
+<ESC>[32mok 5<ESC>[39m  <ESC>[31mx 1<ESC>[39m  <ESC>[33m- 1<ESC>[39m  <ESC>[33m* 1<ESC>[39m   <ESC>[31m#########<ESC>[39m<ESC>[2m...............<ESC>[22m   37%  3 of 8 files   <ESC>[2m1.3s<ESC>[22m
+<ESC>[?2026l<ESC>[?2026h<ESC>[1F<ESC>[0J- all-skipped.test.ts<ESC>[2m · 2 tests skipped · 1ms<ESC>[22m
+<ESC>[32mok 5<ESC>[39m  <ESC>[31mx 1<ESC>[39m  <ESC>[33m- 3<ESC>[39m  <ESC>[33m* 1<ESC>[39m   <ESC>[31m############<ESC>[39m<ESC>[2m............<ESC>[22m   50%  4 of 8 files   <ESC>[2m1.7s<ESC>[22m
+<ESC>[?2026l<ESC>[?2026h<ESC>[1F<ESC>[0Jok todo-only.test.ts<ESC>[2m · 1 test · 1 skipped · 1ms<ESC>[22m
+<ESC>[32mok 5<ESC>[39m  <ESC>[31mx 1<ESC>[39m  <ESC>[33m- 3<ESC>[39m  <ESC>[33m* 2<ESC>[39m   <ESC>[31m###############<ESC>[39m<ESC>[2m.........<ESC>[22m   62%  5 of 8 files   <ESC>[2m1.9s<ESC>[22m
+<ESC>[?2026l<ESC>[?2026h<ESC>[1F<ESC>[0Jok console.test.ts<ESC>[2m · 1 test · 6ms<ESC>[22m
+   <ESC>[2mat import time<ESC>[22m
+   <ESC>[2mfrom the test<ESC>[22m
+   <ESC>[2ma warning<ESC>[22m
+   <ESC>[2ma direct write<ESC>[22m
+<ESC>[32mok 6<ESC>[39m  <ESC>[31mx 1<ESC>[39m  <ESC>[33m- 3<ESC>[39m  <ESC>[33m* 2<ESC>[39m   <ESC>[31m##################<ESC>[39m<ESC>[2m......<ESC>[22m   75%  6 of 8 files   <ESC>[2m2.3s<ESC>[22m
+<ESC>[?2026l<ESC>[?2026h<ESC>[1F<ESC>[2K<ESC>[32mok 6<ESC>[39m  <ESC>[31mx 2<ESC>[39m  <ESC>[33m- 3<ESC>[39m  <ESC>[33m* 2<ESC>[39m   <ESC>[31m#####################<ESC>[39m<ESC>[2m...<ESC>[22m   87%  7 of 8 files   <ESC>[2m2.6s<ESC>[22m<ESC>[1E<ESC>[?2026l<ESC>[?2026h<ESC>[1F<ESC>[0Jx <ESC>[31msnapshot.test.ts<ESC>[39m<ESC>[2m · 1 of 1 failed · 7ms<ESC>[22m
+   <ESC>[31m●<ESC>[39m <ESC>[1mmatches a stored snapshot<ESC>[22m
+     expect(received).toMatchSnapshot()
+
+     Snapshot name: `matches a stored snapshot 1`
+
+     - Snapshot  - 1
+     + Received  + 1
+
+       {
+     -   "value": "old",
+     +   "value": "new",
+       }
+     <ESC>[2m›<ESC>[22m snapshot.test.ts:2:28
+     <ESC>[2m  1 │ test('matches a stored snapshot', () => {<ESC>[22m
+     > 2 │   expect({ value: makeValue() }).toMatchSnapshot()
+     <ESC>[31m    │                            ^<ESC>[39m
+     <ESC>[2m  3 │ })<ESC>[22m
+     <ESC>[2m  4 │ <ESC>[22m
+
+x <ESC>[31mbroken.test.ts<ESC>[39m<ESC>[2m · failed to run · 2ms<ESC>[22m
+   <ESC>[31m●<ESC>[39m <ESC>[1mTest suite failed to run<ESC>[22m
+     ImportError: Cannot find module './missing.ts'
+
+<ESC>[32mok 6<ESC>[39m  <ESC>[31mx 2<ESC>[39m  <ESC>[33m- 3<ESC>[39m  <ESC>[33m* 2<ESC>[39m   <ESC>[31m########################<ESC>[39m  100%  8 of 8 files   <ESC>[2m2.7s<ESC>[22m
+<ESC>[?2026l<ESC>[1F<ESC>[0J
+<ESC>[31mx<ESC>[39m <ESC>[1m2 failed · 6 passed · 3 skipped · 2 todo · 8 files · 1.23s<ESC>[22m
+<ESC>[2mslowest: math.test.ts 12ms · fails.test.ts 9ms · snapshot.test.ts 7ms<ESC>[22m
+<ESC>[2msnapshots: 1 failed<ESC>[22m
+
+<ESC>[31mfailed:<ESC>[39m
+  x group › fails  <ESC>[2mfails.test.ts:3:15<ESC>[22m
+  x matches a stored snapshot  <ESC>[2msnapshot.test.ts:2:28<ESC>[22m
+  x broken.test.ts
+<ESC>[?25h

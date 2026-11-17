@@ -1,0 +1,292 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "runtime/microtask-turns-skipped",
+  "files": [
+    {
+      "file": "turns.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "k a"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 31,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "k skipped"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 35,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "k b"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 38,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "k todo"
+            ],
+            "dupIndex": 0
+          },
+          "status": "todo",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 42,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "k c"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 43,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "k skipped block",
+              "k inside"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 48,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "k d"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 52,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "k skipped 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 56,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "k todo 1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "todo",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 59,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "k skipped 2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 60,
+            "column": 4
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "k e"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 63,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "k with hooks",
+              "k t1"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 79,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "k with hooks",
+              "k skipped in block"
+            ],
+            "dupIndex": 0
+          },
+          "status": "skipped",
+          "skipReason": "unknown",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 83,
+            "column": 6
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "k with hooks",
+              "k todo in block"
+            ],
+            "dupIndex": 0
+          },
+          "status": "todo",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 86,
+            "column": 6
+          }
+        },
+        {
+          "id": {
+            "file": "turns.test.ts",
+            "path": [
+              "k with hooks",
+              "k t2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 0,
+          "location": {
+            "line": 87,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true,
+  "trace": [
+    "k a -> k b: 84",
+    "k b -> k c: 84",
+    "k c -> k d: 100",
+    "k d -> k e: 120",
+    "k e -> k beforeEach: 73",
+    "k beforeEach -> k t1: 21",
+    "k t1 -> k afterEach: 20",
+    "k afterEach -> k beforeEach: 103",
+    "k beforeEach -> k t2: 21"
+  ]
+}

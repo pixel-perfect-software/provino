@@ -87,6 +87,8 @@ function newReporter(stream: TerminalStream, scheduler: FrameScheduler): Reporte
     colour: false,
     columns: COLUMNS,
     glyphs: GLYPHS.emoji,
+    hyperlinks: false,
+    cwd: '/project',
     scheduler,
   })
 }
@@ -274,6 +276,8 @@ async function pacedReplay(
     colour: false,
     columns: COLUMNS,
     glyphs: GLYPHS.emoji,
+    hyperlinks: false,
+    cwd: '/project',
     scheduler: createFrameScheduler(),
   })
   const bus = createReporterBus([reporter])

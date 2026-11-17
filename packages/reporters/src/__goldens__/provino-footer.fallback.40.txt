@@ -1,0 +1,11 @@
+<ESC>[?2026h<ESC>[?25lok 0    0%  0 of 20 files   1.6s
+ \ 1  …ure-0/module-0.test.ts 1.6s slow
+ \ 2  …ure-1/module-1.test.ts 1.6s slow
+ \ 3  …ure-2/module-2.test.ts 1.6s slow
+ \ 4  …/feature-3/module-3.test.ts 1.6s
+ \ 5  …/feature-4/module-4.test.ts 1.6s
+ \ 6  …/feature-5/module-5.test.ts 1.6s
+ \ 7  …/feature-6/module-6.test.ts 1.6s
+ \ 8  …/feature-7/module-7.test.ts 1.5s
+ + 8 more workers
+<ESC>[?2026l
