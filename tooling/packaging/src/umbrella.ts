@@ -141,6 +141,23 @@ const LOADING =
  */
 const COVERAGE = /[\\/]packages[\\/]coverage[\\/]src[\\/]/
 
+/**
+ * Watch mode (B23f): the driver, its interrupt latch, the orchestrator's watch session and file
+ * watcher, and Jest's watch loop rebuilt in the dialect. `provino jest` imports the driver
+ * dynamically under `--watch` and `--watchAll`, so no other run reads them. The plugin error
+ * and the terminal constants are the files of the loop the bin names on every run, so they stay out
+ * (`plugin-error.ts`, `terminal.ts`).
+ */
+const WATCH = new RegExp(
+  [
+    'orchestrator[\\\\/]src[\\\\/]watch[\\\\/](?!.*\\.test\\.ts$)',
+    'dialect-jest[\\\\/]src[\\\\/]node[\\\\/]watch[\\\\/](?!plugin-error\\.ts$|terminal\\.ts$|.*\\.test\\.ts$)',
+    'provino[\\\\/]src[\\\\/]internal[\\\\/](?:jest-watch|watch-interrupt)\\.ts$',
+  ]
+    .map((alternative) => `[\\\\/]packages[\\\\/]${alternative}`)
+    .join('|'),
+)
+
 /** The three `@provino/lazy` leaves `provino`'s own `lazy` forwarders import (`import 'provino'`). */
 const LAZY_API = /[\\/]packages[\\/]lazy[\\/]src[\\/](?:errors|slot|runtime[\\/]site)\.ts$/
 
@@ -261,6 +278,13 @@ export function umbrellaConfig(dir: string): UserConfig[] {
               name: 'loading',
               test: LOADING,
               priority: 3,
+              includeDependenciesRecursively: false,
+            },
+            // Watch mode: loaded by a dynamic import under `--watch`/`--watchAll` only.
+            {
+              name: 'watch',
+              test: WATCH,
+              priority: 5,
               includeDependenciesRecursively: false,
             },
             // Taken first: with coverage off, no worker loads it.
