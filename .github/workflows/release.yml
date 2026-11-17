@@ -1,0 +1,215 @@
+name: Release
+
+# Pushing a tag like `v0.1.0-rc.0` tests the tagged source, publishes all 22 public packages to
+# npm at that one version (the changesets `fixed` group, DECISIONS D164), and creates the GitHub
+# release with that version's CHANGELOG.md entry as its notes. The tag must match `version` in
+# every public package.json, sit on main, and have an entry in packages/provino/CHANGELOG.md.
+# A version with a prerelease part (`-rc.0`) is published under the npm dist-tag it names (`rc`),
+# so `npm install provino` still gets the last stable release, and the GitHub release is marked
+# a prerelease. Tyler pushes the tag after merging the Version Packages PR (DECISIONS D162).
+#
+# npm authenticates the publish through trusted publishing (OIDC): no token is stored in the
+# repository. It needs this workflow registered once as each package's trusted publisher on
+# npmjs.com (organization pixel-perfect-software, repository provino, workflow release.yml), so
+# the first publish of the 22 packages is Tyler's own, by hand (DECISIONS D165).
+#
+# `pnpm hygiene` lints this file (tooling/packaging/src/release-lint.ts), so the properties
+# below are held by a check and not by this comment alone.
+
+on:
+  push:
+    tags: ["v*"]
+
+# Actions are pinned to the commit of a release (the version is in the comment beside it), so a
+# moved or compromised tag can't change what runs. Nothing here restores a cache: a release builds
+# only from its tagged source, so a poisoned cache can't reach what users install.
+permissions:
+  contents: read
+
+# One release at a time, and a started release is never cancelled halfway.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  TURBO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      dist-tag: ${{ steps.version.outputs.dist-tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # to check the tag is on main
+          persist-credentials: false
+      - id: version
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          if ! printf '%s' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
+            echo "::error::$GITHUB_REF_NAME isn't a version tag like v1.2.3 or v1.2.3-rc.0."
+            exit 1
+          fi
+          # The 22 public packages move together (the changesets `fixed` group), so each one's
+          # version is the tag's. `provino`'s CHANGELOG.md is the one the release notes come from.
+          mismatched=$(VERSION="$version" node -p '
+            process.argv.slice(1)
+              .map((file) => require(require("node:path").resolve(file)))
+              .filter((manifest) => !manifest.private && manifest.version !== process.env.VERSION)
+              .map((manifest) => manifest.name + "@" + manifest.version)
+              .join(" ")
+          ' packages/*/package.json)
+          if [ -n "$mismatched" ]; then
+            echo "::error::$GITHUB_REF_NAME doesn't match the version of: $mismatched"
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" origin/main; then
+            echo "::error::$GITHUB_REF_NAME isn't on main."
+            exit 1
+          fi
+          if ! grep -qxF "## $version" packages/provino/CHANGELOG.md; then
+            echo "::error::packages/provino/CHANGELOG.md has no entry for $version."
+            exit 1
+          fi
+          # `1.2.3` goes to latest; `1.2.3-rc.0` to `rc`, the first part of its prerelease.
+          dist_tag=latest
+          case "$version" in
+            *-*)
+              dist_tag="${version#*-}"
+              dist_tag="${dist_tag%%.*}"
+              ;;
+          esac
+          if ! printf '%s' "$dist_tag" | grep -Eq '^[a-z][a-z0-9-]*$'; then
+            echo "::error::The prerelease part of $version doesn't name a dist-tag (lowercase letters, digits and hyphens, starting with a letter)."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "dist-tag=$dist_tag" >> "$GITHUB_OUTPUT"
+
+  # The gates CI runs on a pull request, on the tagged source, so a tag can't publish a build that
+  # fails one of them.
+  gates:
+    needs: check
+    name: Typecheck, lint, type tests and hygiene
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # `pnpm hygiene` measures API changes against origin/main
+          persist-credentials: false
+      # pnpm's and Node's versions come from .tool-versions, as they do locally.
+      - id: tools
+        run: echo "pnpm=$(awk '$1 == "pnpm" { print $2 }' .tool-versions)" >> "$GITHUB_OUTPUT"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ steps.tools.outputs.pnpm }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .tool-versions
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm format:check
+      - run: pnpm boundaries
+      - run: pnpm test:types
+      - run: pnpm test:types:ts5.9
+      # Builds first, then publint, attw, API Extractor, knip and the release lint on this file.
+      - run: pnpm hygiene
+
+  # `pnpm test`, as the two shards CI runs (`tooling/packaging/src/test-shards.ts`, which fails
+  # the job when a package with tests is in no shard or in both), side by side.
+  test:
+    name: Unit tests (shard ${{ matrix.shard }}/2)
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: tools
+        run: echo "pnpm=$(awk '$1 == "pnpm" { print $2 }' .tool-versions)" >> "$GITHUB_OUTPUT"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ steps.tools.outputs.pnpm }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .tool-versions
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      # The crash tests kill a worker with SIGSEGV and must see it die at once; see ci.yml.
+      - name: Turn core dumps off
+        run: |
+          echo "core_pattern was: $(cat /proc/sys/kernel/core_pattern)"
+          echo core | sudo tee /proc/sys/kernel/core_pattern || echo "::warning::could not change core_pattern; crash tests will be slow"
+      - run: ulimit -c 0 && pnpm test:shard run ${{ matrix.shard }} --log-order=stream
+
+  publish:
+    needs: [check, gates, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write # to create the release
+      id-token: write # npm trusted publishing, which also attaches provenance
+    env:
+      VERSION: ${{ needs.check.outputs.version }}
+      DIST_TAG: ${{ needs.check.outputs.dist-tag }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - id: tools
+        run: echo "pnpm=$(awk '$1 == "pnpm" { print $2 }' .tool-versions)" >> "$GITHUB_OUTPUT"
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          version: ${{ steps.tools.outputs.pnpm }}
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .tool-versions
+          package-manager-cache: false
+      - run: pnpm install --frozen-lockfile
+      # No package has a prepack script, so dist is built here, from this clean checkout.
+      - run: pnpm build --force
+
+      # pnpm, not npm: it writes the `catalog:` and `workspace:` ranges in each package.json as
+      # real versions in the published manifest and applies `publishConfig`. `-r` publishes every
+      # public package (the private ones are never published) in dependency order, and skips a
+      # version that is already on the registry, so a rerun after a later step failed, or after a
+      # publish that stopped halfway, publishes only what is missing. The tag is a detached HEAD,
+      # which pnpm's git checks reject; the check job already proved it is on main. Keep this
+      # command on one line: the release lint reads it line by line.
+      - name: Publish the packages
+        run: pnpm -r publish --access public --no-git-checks --provenance --tag "$DIST_TAG"
+
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "The release for $GITHUB_REF_NAME already exists."
+            exit 0
+          fi
+          # The notes are this version's CHANGELOG.md entry: its heading down to the next one.
+          awk -v version="$VERSION" '
+            /^## / { if (found) exit; found = ($0 == "## " version) }
+            found
+          ' packages/provino/CHANGELOG.md > "$RUNNER_TEMP/notes.md"
+          if [ ! -s "$RUNNER_TEMP/notes.md" ]; then
+            echo "::error::Found no entry for $VERSION in packages/provino/CHANGELOG.md."
+            exit 1
+          fi
+          flags=()
+          case "$VERSION" in
+            *-*) flags+=(--prerelease) ;;
+          esac
+          gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+            --title "$VERSION" --notes-file "$RUNNER_TEMP/notes.md" "${flags[@]}"

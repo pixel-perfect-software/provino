@@ -57,20 +57,33 @@ export function missingChangesets(
 /** What `.changeset/config.json` says that this repo depends on. */
 interface ChangesetConfig {
   readonly ignore: readonly string[]
+  /** The `fixed` groups: each lists package names released at one version (D164). */
+  readonly fixed: readonly (readonly string[])[]
+}
+
+/** The strings of a JSON array, or `undefined` when the value isn't an array. */
+function strings(value: unknown): readonly string[] | undefined {
+  return Array.isArray(value)
+    ? value.filter((name): name is string => typeof name === 'string')
+    : undefined
 }
 
 /**
- * The config's `ignore` list, or an error when the file is missing or isn't shaped as expected.
+ * The config's `ignore` list and `fixed` groups, or an error when the file is missing or isn't
+ * shaped as expected.
  * @internal
  */
 export function readChangesetConfig(root: string): ChangesetConfig {
   const json: unknown = JSON.parse(readFileSync(join(root, '.changeset', 'config.json'), 'utf8'))
-  const ignore =
-    typeof json === 'object' && json !== null && 'ignore' in json && Array.isArray(json.ignore)
-      ? json.ignore.filter((name): name is string => typeof name === 'string')
-      : undefined
+  const record = typeof json === 'object' && json !== null ? json : {}
+  const ignore = 'ignore' in record ? strings(record.ignore) : undefined
   if (ignore === undefined) throw new Error('.changeset/config.json has no "ignore" list')
-  return { ignore }
+  const groups = 'fixed' in record && Array.isArray(record.fixed) ? record.fixed : undefined
+  const fixed = groups?.map(strings)
+  if (fixed === undefined || fixed.some((group) => group === undefined)) {
+    throw new Error('.changeset/config.json has no "fixed" list of groups')
+  }
+  return { ignore, fixed: fixed.filter((group) => group !== undefined) }
 }
 
 /**
@@ -97,5 +110,42 @@ export function checkChangesetIgnore(
   for (const name of ignore) {
     if (!names.has(name)) problems.push(`"ignore" names ${name}, which is not a workspace package`)
   }
+  return problems
+}
+
+/**
+ * Checks `fixed` against the workspace (D164): one group, holding exactly the published
+ * packages, so a release is one version and one tag. A package left out would be versioned alone
+ * and stop matching the tag `release.yml` checks; a private one in the group would be versioned
+ * for nothing.
+ * @internal
+ */
+export function checkChangesetFixed(
+  fixed: readonly (readonly string[])[],
+  packages: readonly WorkspacePackage[],
+): readonly string[] {
+  const [group, ...others] = fixed
+  if (group === undefined || others.length > 0) {
+    return [
+      `.changeset/config.json "fixed" must be one group of every published package, and has ${fixed.length} groups`,
+    ]
+  }
+  const named = new Set(group)
+  const problems: string[] = []
+  const workspace = packages.filter((pkg) => pkg.rel !== '.')
+  for (const pkg of workspace) {
+    const name = pkg.manifest.name
+    if (!pkg.manifest.private && !named.has(name)) {
+      problems.push(`${name} is published but not in .changeset/config.json "fixed"`)
+    }
+    if (pkg.manifest.private && named.has(name)) {
+      problems.push(`${name} is private but in .changeset/config.json "fixed"`)
+    }
+  }
+  const known = new Set(workspace.map((pkg) => pkg.manifest.name))
+  for (const name of named) {
+    if (!known.has(name)) problems.push(`"fixed" names ${name}, which is not a workspace package`)
+  }
+  if (named.size !== group.length) problems.push('"fixed" names a package twice')
   return problems
 }
