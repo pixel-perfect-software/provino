@@ -91,7 +91,11 @@ describe('the turns a promise chain gets between hooks and tests are Jest 30.5.2
           assert.deepEqual(differing, [], ended.stderr.slice(-1500))
           assert.equal(got.length, recorded.length, 'as many lines as Jest traced')
           // The fixture's failing tests fail.
-          assert.equal(ended.code, fixture.golden.success ? 0 : 1, ended.stderr)
+          assert.equal(
+            ended.code,
+            fixture.golden.files.every((file) => file.status === 'passed') ? 0 : 1,
+            ended.stderr,
+          )
         } finally {
           await project.dispose()
         }

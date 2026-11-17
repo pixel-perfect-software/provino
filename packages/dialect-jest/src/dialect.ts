@@ -282,8 +282,9 @@ export const jestPolicy: PolicyOverrides = {
     // evaluates node_modules again in every file's registry, so a package's import-time hooks and
     // globals are the file's own; D127, P42).
     reevaluateHookingExternals: true,
-    // research: jest-runtime's per-file registry evaluates a package that patches a global or a
-    // builtin export again in every file (pending B23f-msw).
+    // research: D127 and DV151, .refs/jest/packages/jest-runtime/src/index.ts (the per-file module
+    // registry evaluates a package that patches a global or a builtin export again in every file;
+    // pending B23f-msw).
     reevaluatePatchingExternals: true,
     // jest-source-map names a frame after the map's name at its own position (`cli/failure-frames`).
     stackFrameNames: 'mapped-name',

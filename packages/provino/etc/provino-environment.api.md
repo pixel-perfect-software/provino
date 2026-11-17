@@ -25,7 +25,7 @@ export interface EnvironmentInstance<G extends object = typeof globalThis> {
     readonly context?: Context;
     readonly global: G;
     readonly globalReads?: GlobalReadWatch;
-    onTestEvent?(event: LifecycleEvent): void | Promise<void>;
+    onTestEvent?(event: LifecycleEvent): void | PromiseLike<void>;
     teardown(): void | EnvironmentTeardownReport | Promise<void | EnvironmentTeardownReport>;
 }
 

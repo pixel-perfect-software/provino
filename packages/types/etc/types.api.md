@@ -133,28 +133,14 @@ export interface BenchSubject {
 }
 
 // @public
-export interface BoundaryEvents {
-    readonly fnEnd: number;
-    readonly fnStart: number;
-    readonly hookEnd: number;
-    readonly hookStart: number;
-    readonly retry: number;
-    readonly runStart: number;
-    readonly skippedTest: number;
-    readonly suiteEnd: number;
-    readonly suiteStart: number;
-    readonly testEnd: number;
-    readonly testStart: number;
-}
-
-// @public
 export interface BoundaryTurns {
-    readonly events: BoundaryEvents;
     readonly fnEnd: number;
     readonly fnStart: number;
     readonly hookEnd: number;
     readonly hookStart: number;
     readonly retry: number;
+    readonly retryEnd: number;
+    readonly retryExit: number;
     readonly runStart: number;
     readonly skippedTest: number;
     readonly suiteEnd: number;
@@ -812,7 +798,7 @@ export interface EnvironmentInstance<G extends object = typeof globalThis> {
     readonly context?: Context;
     readonly global: G;
     readonly globalReads?: GlobalReadWatch;
-    onTestEvent?(event: LifecycleEvent): void | Promise<void>;
+    onTestEvent?(event: LifecycleEvent): void | PromiseLike<void>;
     teardown(): void | EnvironmentTeardownReport | Promise<void | EnvironmentTeardownReport>;
 }
 
@@ -1703,7 +1689,7 @@ export interface LifecycleHookRef {
 }
 
 // @public
-export type LifecycleListener = (event: LifecycleEvent) => void | Promise<void>;
+export type LifecycleListener = (event: LifecycleEvent) => void | PromiseLike<void>;
 
 // @public
 export type LifecycleMode = "only" | "skip" | "todo" | undefined;

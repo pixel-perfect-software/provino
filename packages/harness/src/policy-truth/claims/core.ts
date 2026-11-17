@@ -481,18 +481,18 @@ export const coreClaims: Claims = {
   // the sums (hookEnd + hookStart = 21, fnEnd + hookStart = 20, hookEnd + testEnd + testStart +
   // hookStart = 67, …), not where each turn sits: the split follows jest-circus's code, one
   // dispatch of 7 turns before a hook or a test's function.
-  'core.boundaryTurns': each(
-    corpus('runtime', 'runtime/microtask-turns', 'runtime/microtask-turns-jsdom'),
-    pending(
-      'T11.16',
-      "Vitest's turns between hooks and tests aren't recorded: the neutral 0s stand",
-    ),
-  ),
-  // B23f Phase 5: the boundaries beyond a test's own, each from its own recording (the runtime
-  // corpus runs core against the golden, so a flipped value changes a trace line).
+  // One claim per leaf, never one for the group: a group claim's golden would vouch for every leaf
+  // under it. Each is held to the recording that shows its boundary: the runtime corpus runs core
+  // against the golden, so a flipped value changes a trace line.
   ...Object.fromEntries(
     (
       [
+        ['hookStart', ['runtime/microtask-turns', 'runtime/microtask-turns-jsdom']],
+        ['hookEnd', ['runtime/microtask-turns', 'runtime/microtask-turns-jsdom']],
+        ['fnStart', ['runtime/microtask-turns', 'runtime/microtask-turns-jsdom']],
+        ['fnEnd', ['runtime/microtask-turns', 'runtime/microtask-turns-jsdom']],
+        ['testStart', ['runtime/microtask-turns', 'runtime/microtask-turns-jsdom']],
+        ['testEnd', ['runtime/microtask-turns', 'runtime/microtask-turns-jsdom']],
         ['skippedTest', ['runtime/microtask-turns-skipped']],
         ['suiteStart', ['runtime/microtask-turns-describe']],
         ['suiteEnd', ['runtime/microtask-turns-describe']],
