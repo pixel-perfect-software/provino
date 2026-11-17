@@ -1,5 +1,11 @@
 # @provino/policy
 
+## 0.1.0-rc.1
+
+### Patch Changes
+
+- @provino/types@0.1.0-rc.1
+
 ## 0.1.0-rc.0
 
 ### Minor Changes

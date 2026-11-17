@@ -1,6 +1,6 @@
 {
   "name": "@provino/timers",
-  "version": "0.1.0-rc.0",
+  "version": "0.1.0-rc.1",
   "description": "Provino's fake timers: one clock over @sinonjs/fake-timers, driven by a dialect's timers policy.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {

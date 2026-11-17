@@ -1,6 +1,6 @@
 # Contributing to Provino
 
-Thanks for helping. Provino is pre-alpha: the README says what works and what doesn't, and an issue that shows Provino and Jest disagreeing on a real test is the most useful thing you can send.
+Thanks for helping. Provino is a release candidate: the README says what works and what doesn't, and an issue that shows Provino and Jest disagreeing on a real test is the most useful thing you can send.
 
 ## Set up
 

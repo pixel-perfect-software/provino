@@ -1,6 +1,6 @@
 {
   "name": "@provino/orchestrator",
-  "version": "0.1.0-rc.0",
+  "version": "0.1.0-rc.1",
   "description": "Provino's coordinator: discovery, ordering, the worker pool and the run; worker transports (forks, threads, inline), the per-worker connection, and the worker runtime.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {
