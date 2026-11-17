@@ -34,6 +34,7 @@
     "@provino/mock": "workspace:*",
     "@provino/orchestrator": "workspace:*",
     "@provino/policy": "workspace:*",
+    "@provino/reporters": "workspace:*",
     "@provino/resolver": "workspace:*",
     "@provino/timers": "workspace:*",
     "@provino/transform": "workspace:*",

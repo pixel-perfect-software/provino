@@ -55,6 +55,15 @@ export const OUTPUT_VARIABLES: readonly string[] = [
   'FORCE_COLOR',
   'GITHUB_ACTIONS',
   'AI_AGENT',
+  // What the `provino` reporter's capability detection reads (B26, D144).
+  'PROVINO_EMOJI',
+  'FORCE_HYPERLINK',
+  'WT_SESSION',
+  'TERMINUS_SUBLIME',
+  'ConEmuTask',
+  'TERMINAL_EMULATOR',
+  'VTE_VERSION',
+  'KITTY_WINDOW_ID',
   ...AGENT_VARIABLES.map(([, variable]) => variable),
   ...AGENT_PATTERNS.map(({ variable }) => variable).filter((variable) => variable !== 'PATH'),
 ]
