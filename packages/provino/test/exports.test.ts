@@ -248,7 +248,9 @@ describe("`import 'provino'` alone", () => {
       loaded.join('\n'),
     )
     assert.deepEqual(
-      loaded.filter((url) => /\/dist\/(?:shared|loading|coordinator)\.js/.test(url)),
+      loaded.filter((url) =>
+        /\/dist\/(?:shared|loading|coordinator|watch|jest-watch)\.js/.test(url),
+      ),
       [],
     )
   })
@@ -294,6 +296,46 @@ describe('the worker-side expect (T7.12)', () => {
   })
 })
 
+describe('watch mode is its own chunk (B23f)', () => {
+  const dist = join(PACKAGE, 'dist')
+  const chunks = (): string[] =>
+    readdirSync(dist).filter(
+      (file) => file.endsWith('.js') && !['watch.js', 'jest-watch.js'].includes(file),
+    )
+
+  test('no other chunk or entry imports watch.js or jest-watch.js statically', () => {
+    for (const file of chunks()) {
+      const source = readFileSync(join(dist, file), 'utf8')
+      assert.doesNotMatch(
+        source,
+        /^(?:import|export) [^\n]*? from "\.\/(?:jest-)?watch\.js"/m,
+        file,
+      )
+    }
+    for (const file of readdirSync(join(dist, 'worker')).filter((name) => name.endsWith('.js'))) {
+      const source = readFileSync(join(dist, 'worker', file), 'utf8')
+      assert.doesNotMatch(source, /watch\.js/, `worker/${file}`)
+    }
+  })
+
+  test('the bin reaches the driver by one dynamic import, and the chunk exists', () => {
+    const sources = chunks().map((file) => readFileSync(join(dist, file), 'utf8'))
+    const dynamic = sources.flatMap((source) => [
+      ...source.matchAll(/import\("\.\/jest-watch\.js"\)/g),
+    ])
+    assert.equal(dynamic.length, 1)
+    const driver = readFileSync(join(dist, 'jest-watch.js'), 'utf8')
+    assert.match(driver, /from "\.\/watch\.js"/)
+    // The loop and the session are in it: Jest's watch loop, the file watcher.
+    const watch = readFileSync(join(dist, 'watch.js'), 'utf8')
+    assert.match(watch, /startJestWatch/)
+    assert.match(
+      watch,
+      /\bwatch\b[^\n]*from "node:fs"|import \{[^}]*\bwatch\b[^}]*\} from "node:fs"/,
+    )
+  })
+})
+
 describe('a built worker (T1.10)', () => {
   test('runs a project whose test imports `provino`, and starts with at most 10 files from the package', async () => {
     const dir = await builtProject()
@@ -308,6 +350,16 @@ describe('a built worker (T1.10)', () => {
     assert.match(run.stderr, /Tests:\s+3 passed, 3 total/)
 
     const dist = `${join(PACKAGE, 'dist')}/`
+    // A run without --watch, in the bin and in every worker, loads no watch chunk (B23f).
+    const everything = readdirSync(logs).flatMap((file) =>
+      readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean),
+    )
+    assert.deepEqual(
+      everything
+        .map((line) => line.split('\t')[1] ?? '')
+        .filter((url) => /\/dist\/(?:jest-)?watch\.js$/.test(url)),
+      [],
+    )
     const workers = readdirSync(logs)
       .map((file) => readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean))
       .filter((lines) => lines[0]?.split('\t')[0]?.endsWith('worker/bootstrap.js'))
