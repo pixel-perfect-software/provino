@@ -122,6 +122,9 @@ const NULL_FLIPS: Readonly<Record<string, unknown>> = {
 const REF_FLIPS: Readonly<Record<string, readonly unknown[]>> = {
   'core.formatEachTitle': [neutralPolicy.core.formatEachTitle],
   'core.formatValue': [neutralPolicy.core.formatValue],
+  // Core's own words for a timeout: Jest's recordings (`policy/core-timeouts`, `runtime/done-*`)
+  // say `Exceeded timeout of …`, which `null` doesn't.
+  'core.timeouts.message': [neutralPolicy.core.timeouts.message],
   // `--randomize --seed` on 30 tests: no shuffle keeps the declared order, which the recording isn't.
   'core.shuffle': [neutralPolicy.core.shuffle],
   // The four `cli/global-setup-throws*` recordings word a failing hook as Jest's behaviour does; the

@@ -27,6 +27,7 @@ export {
 } from './jest-environment.ts'
 export { shapeTestError } from './node-assert-errors.ts'
 export { jestShuffle } from './shuffle.ts'
+export { formatTimeout } from './timeout-message.ts'
 export { jestSnapshotPrinter } from './snapshot-printer.ts'
 export { jestSnapshotResolver } from './snapshot-resolver.ts'
 export {

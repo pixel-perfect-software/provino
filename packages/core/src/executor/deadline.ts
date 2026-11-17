@@ -3,7 +3,7 @@
 // fake timers can't freeze them. An elapsed-time check on settle catches synchronous overruns
 // when the policy asks (`timeouts.catchSyncOverrun`). `createDeadlines` owns every user call's
 // deadline: its bound, its `CORE_TIMEOUT` message and the test signal it aborts.
-import type { CorePolicy } from '@provino/types'
+import type { CorePolicy, FormatTimeout, SourceLocation } from '@provino/types'
 import { CoreError } from '../errors.ts'
 import { isThenable } from '../internal/thenable.ts'
 
@@ -173,6 +173,10 @@ export interface DeadlineCall {
   readonly catchSyncOverrun?: boolean
   /** When the call started, if the caller has just read the clock (`DeadlineOptions.start`). */
   readonly start?: number | undefined
+  /** Whether the function takes a `done` callback: its timeout is the callback never being called. */
+  readonly takesDone?: boolean
+  /** Where the test or hook was registered, for a timeout the policy words (`timeouts.message`). */
+  readonly at?: SourceLocation | null | undefined
 }
 
 /** Where a teardown stack stops, and whose signal a timeout aborts. */
@@ -204,12 +208,14 @@ class CallBound implements DeadlineOptions {
   readonly now: () => number
   readonly start: number | undefined
   readonly #spec: DeadlineCall
+  readonly #format: FormatTimeout | undefined
 
   constructor(
     spec: DeadlineCall,
     catchSyncOverrun: boolean,
     timers: RealTimers,
     now: () => number,
+    format: FormatTimeout | undefined,
   ) {
     this.#spec = spec
     this.timeoutMs = spec.timeoutMs
@@ -217,14 +223,19 @@ class CallBound implements DeadlineOptions {
     this.timers = timers
     this.now = now
     this.start = spec.start
+    this.#format = format
   }
 
   timeoutError(): Error {
     const spec = this.#spec
-    return new CoreError(
-      'CORE_TIMEOUT',
-      TIMEOUT_MESSAGES[spec.what](spec.namedMs ?? spec.timeoutMs),
-    )
+    const ms = spec.namedMs ?? spec.timeoutMs
+    const { what } = spec
+    // The policy words a test's and a hook's timeout; a teardown's and a listener's are core's.
+    if (this.#format !== undefined && (what === 'test' || what === 'hook')) {
+      const message = this.#format({ subject: what, ms, done: spec.takesDone === true })
+      return registeredTimeout(message, spec.at)
+    }
+    return new CoreError('CORE_TIMEOUT', TIMEOUT_MESSAGES[what](ms))
   }
 
   onTimeout(error: Error): void {
@@ -232,14 +243,32 @@ class CallBound implements DeadlineOptions {
   }
 }
 
-/** A runtime's deadlines, on the timers and clock it was given. */
+/**
+ * A timeout the policy words (`timeouts.message`), as jest-circus reports it: a plain `Error`
+ * named so, whose stack is its message and the place the test or hook was registered (the call's
+ * `asyncError`, never a frame of ours), with the timeout's code (`cli/*` and the reporters read
+ * it).
+ */
+function registeredTimeout(message: string, at: SourceLocation | null | undefined): Error {
+  const error = new CoreError('CORE_TIMEOUT', message)
+  Object.defineProperty(error, 'name', { value: 'Error', writable: true, configurable: true })
+  const frame = at === null || at === undefined ? '' : `\n    at ${at.file}:${at.line}:${at.column}`
+  error.stack = `Error: ${message}${frame}`
+  return error
+}
+
+/**
+ * A runtime's deadlines, on the timers and clock it was given. `format` words a test's and a
+ * hook's timeout (`timeouts.message`, loaded); without it they are core's own.
+ */
 export function createDeadlines(
   timeouts: CorePolicy['timeouts'],
   timers: RealTimers,
   now: () => number,
+  format?: FormatTimeout,
 ): Deadlines {
   const optionsFor = (spec: DeadlineCall): DeadlineOptions =>
-    new CallBound(spec, spec.catchSyncOverrun ?? timeouts.catchSyncOverrun, timers, now)
+    new CallBound(spec, spec.catchSyncOverrun ?? timeouts.catchSyncOverrun, timers, now, format)
   return {
     call: (fn, spec) => withDeadline(fn, optionsFor(spec)),
     async drain(stack, { keep = 0, attempt } = {}) {

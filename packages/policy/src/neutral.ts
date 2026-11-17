@@ -38,7 +38,15 @@ export const neutralPolicy: Policy = deepFreeze({
     // A generator test whose body never runs would pass silently.
     allowGeneratorFns: false,
     // 0 conventionally means "no timeout".
-    timeouts: { test: 5000, hook: 10000, teardown: 10000, catchSyncOverrun: true, zero: 'none' },
+    // Core's own words for a timeout (Vitest's, too).
+    timeouts: {
+      test: 5000,
+      hook: 10000,
+      teardown: 10000,
+      catchSyncOverrun: true,
+      zero: 'none',
+      message: null,
+    },
     nameSeparator: ' > ',
     testNamePatternFlags: '',
     // RSpec-style: an example without a body is pending.

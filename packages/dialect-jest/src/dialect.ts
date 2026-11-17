@@ -27,6 +27,7 @@ import type {
   EnvironmentResolver,
   FormatEachTitle,
   FormatMapperMiss,
+  FormatTimeout,
   FormatValue,
   GlobalSetupFailure,
   GlobalsFactory,
@@ -66,7 +67,20 @@ export const jestPolicy: PolicyOverrides = {
     allowGeneratorFns: true,
     // research: track-05 L315, L318 (runtime corpus `timeouts` agrees on catchSyncOverrun)
     // research: jest-circus 30.5 `test.timeout || testTimeout` (B07 review) for `zero`
-    timeouts: { test: 5000, hook: 5000, teardown: 5000, catchSyncOverrun: false, zero: 'default' },
+    timeouts: {
+      test: 5000,
+      hook: 5000,
+      teardown: 5000,
+      catchSyncOverrun: false,
+      zero: 'default',
+      // jest-circus 30.5.2's `_makeTimeoutMessage` (`src/runtime/timeout-message.ts`): `thrown:
+      // "Exceeded timeout of 5000 ms for a test.` and its advice (`runtime/timeouts`,
+      // `runtime/done-callback`, `runtime/done-hooks`).
+      message: moduleRef<FormatTimeout>(
+        import.meta.resolve('@provino/dialect-jest/runtime'),
+        'formatTimeout',
+      ),
+    },
     // research: track-05 L321
     nameSeparator: ' ',
     // research: track-01 L186
