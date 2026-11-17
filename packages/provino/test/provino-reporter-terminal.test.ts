@@ -1,6 +1,6 @@
 // B26 Phase 3: the `provino` reporter on a real terminal, through the built bin on the harness's
 // pty relay. The cursor it hides on the first frame is shown again on every way out: a normal
-// end, a reporter that throws, SIGINT (130), SIGTERM (143) and a second signal (the force path,
+// end, a reporter that throws, SIGINT (130), SIGTERM (143), SIGHUP (129), SIGQUIT (131) and a second signal (the force path,
 // `process.exit`), and no footer is left on the screen (the harness's terminal model). Each run
 // is a session of its own (a pty child leads its group), killed and checked gone afterwards.
 //
@@ -138,9 +138,14 @@ describe('the provino reporter restores the terminal (B26 Phase 3)', { skip }, (
     }
   })
 
+  // SIGINT, SIGTERM and SIGHUP are the bin's (the run ends, and its end restores the terminal);
+  // SIGQUIT is no one's, so the live region's own handler restores it and raises it again: the
+  // default action ends the process, 128 + 3.
   for (const [signal, code] of [
     ['SIGINT', 130],
     ['SIGTERM', 143],
+    ['SIGHUP', 129],
+    ['SIGQUIT', 131],
   ] as const) {
     it(`${signal} mid-run: exit ${code}, the cursor shown, no footer left`, async () => {
       const project = await makeProject({

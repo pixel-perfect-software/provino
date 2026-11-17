@@ -1,5 +1,3 @@
-import { Writable } from 'node:stream'
-import { StringDecoder } from 'node:string_decoder'
 import type { ResolvedProject } from '@provino/config'
 import {
   exitCodeFor,
@@ -13,11 +11,11 @@ import {
   type WatchRunOptions,
   type WatchSession,
 } from '@provino/orchestrator'
-import { createReporterBus, type Environment, type TextSink } from '@provino/reporters'
-import type { LiveTerminal } from '@provino/reporters/live'
+import { createReporterBus, type Environment } from '@provino/reporters'
 import type { FileFilter, Reporter, ReporterBus, RunSummary, SerializedError } from '@provino/types'
 import type { ReporterChoice, RunOptions, RunResult } from '../types.ts'
 import { workerStartupEnv } from './compile-cache.ts'
+import { hookTerminal, streamOver } from './live-terminal.ts'
 import { type DisplayOptions, reportersFor, type TextExtras } from './reporters.ts'
 
 /**
@@ -46,6 +44,11 @@ export interface ExecuteOptions {
   readonly display?: DisplayOptions
   /** What a dialect adds to the text reporters (its failure text, a summary of its own). */
   readonly text?: TextExtras
+  /**
+   * How many files the run will run, asked only when it decides the reporters (Jest's single-file
+   * rule: `selectsProvino`). A caller that can't tell before the run leaves it out.
+   */
+  readonly fileCount?: () => Promise<number>
   /**
    * `false`: a reporter that failed is not announced on stderr (Jest prints nothing for
    * `getLastError`); the run still fails. `'thrown'`: only an error a reporter threw or rejected
@@ -113,45 +116,6 @@ export function timingsOf(options: {
   }
 }
 
-/** A stream over a text sink: what the workers write to their own stderr reaches the live footer's `passthrough`. */
-function streamOver(sink: TextSink): NodeJS.WritableStream {
-  const decoder = new StringDecoder('utf8')
-  return new Writable({
-    decodeStrings: false,
-    write(chunk: unknown, _encoding, done) {
-      const text = typeof chunk === 'string' ? chunk : decoder.write(chunk as Buffer)
-      if (text !== '') void sink.write(text)
-      done()
-    },
-    final(done) {
-      const rest = decoder.end()
-      if (rest !== '') void sink.write(rest)
-      done()
-    },
-  })
-}
-
-/**
- * The process hooks a live terminal needs while a run draws on it: the restore on `exit` (it
- * writes synchronously, so it lands on a `process.exit` too: `--forceExit` and the force signal)
- * and the width on `resize`. Returns the one call that removes both and restores the terminal.
- */
-function hookTerminal(terminal: LiveTerminal, stderr: NodeJS.WritableStream): () => void {
-  const restore = (): void => terminal.restore()
-  const resize = (): void => {
-    const columns: unknown = Reflect.get(stderr, 'columns')
-    if (typeof columns === 'number' && columns >= 1) terminal.resize(Math.floor(columns))
-  }
-  process.once('exit', restore)
-  stderr.on('resize', resize)
-  return () => {
-    process.off('exit', restore)
-    stderr.off('resize', resize)
-    // After `run:end` this writes nothing; after a run that threw, it puts the terminal back.
-    terminal.restore()
-  }
-}
-
 /**
  * Runs a resolved project, or several through one pool: the reporters and their bus, `runProject`, and the exit code the
  * summary and the reporters' failures call for.
@@ -170,7 +134,15 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
     ...(options.display === undefined ? {} : { display: options.display }),
     ...(options.text === undefined ? {} : { text: options.text }),
     ...(options.session === undefined ? {} : { watch: true as const }),
+    ...(options.fileCount === undefined ? {} : { fileCount: options.fileCount }),
   })
+  // Hooked as soon as the terminal exists, so nothing after this leaves it hidden.
+  const { terminal } = chosen
+  let unhook = terminal === undefined ? undefined : hookTerminal(terminal, stderr)
+  const restoreTerminal = (): void => {
+    unhook?.()
+    unhook = undefined
+  }
   const bus = createReporterBus([
     ...(options.announceReporterFailures === 'thrown'
       ? [
@@ -186,14 +158,15 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
     ...chosen.reporters,
   ])
 
-  const { terminal } = chosen
-  const unhook = terminal === undefined ? undefined : hookTerminal(terminal, stderr)
   // With a live footer, the workers' own stderr goes above it, at the next frame.
-  const workerStderr = terminal === undefined ? stderr : streamOver(terminal.passthrough)
+  const workerStderr = terminal === undefined ? stderr : streamOver(terminal.passthrough, stderr)
   let summary: RunSummary
   try {
     summary = await run(options, bus, [project, ...(options.others ?? [])], workerStderr)
   } catch (error) {
+    // The terminal is put back (the footer erased, the cursor shown, what was queued printed)
+    // before anything below, or the bin, prints the error.
+    restoreTerminal()
     if (!(error instanceof OrchestratorError) || error.code !== 'ORCH_GLOBAL_SETUP_FAILED') {
       throw error
     }
@@ -203,7 +176,7 @@ export async function executeProject(options: ExecuteOptions): Promise<RunResult
     stderr.write(hookFailureReport(error))
     return { exitCode: project.policy.orchestrator.exitCodes.failure, summary: null }
   } finally {
-    unhook?.()
+    restoreTerminal()
   }
 
   // A reporter that failed (a JSON file that couldn't be written) fails the run. The default

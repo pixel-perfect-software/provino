@@ -27,7 +27,7 @@ import {
 import type { FileInfo, FileResult, Reporter, TextStyle } from '@provino/types'
 import type { ReporterChoice } from '../types.ts'
 import { HOST_REPORTERS } from './reporter-names.ts'
-import { provinoChoiceOptions, type TextExtras } from './reporters.ts'
+import { hostReporterChoice, selectsProvino, type TextExtras } from './reporters.ts'
 import { UsageError } from './usage-error.ts'
 
 /**
@@ -63,16 +63,6 @@ function choiceName(choice: ReporterChoice): string | undefined {
   return undefined
 }
 
-/** A `host` step of the plan (D141): Provino's own reporter by name, with its options checked. */
-function hostChoice(name: string, options: Readonly<Record<string, unknown>>): ReporterChoice {
-  if (name === 'provino') {
-    const checked = provinoChoiceOptions(options)
-    return Object.keys(checked).length === 0 ? 'provino' : ['provino', checked]
-  }
-  if (name === 'html') return 'html'
-  throw new UsageError(`unknown host reporter "${name}"`)
-}
-
 /** Jest's default `summaryThreshold` (`SummaryReporter.ts`). */
 const DEFAULT_SUMMARY_THRESHOLD = 20
 
@@ -98,6 +88,8 @@ export async function setUpJestReporters(options: {
    * one for the session, with its `startRun`. Default: a first run's.
    */
   readonly context?: JestReporterContext
+  /** The project's `report.listTestsForSingleFile` (Jest's single-file rule). Default: off. */
+  readonly listTestsForSingleFile?: boolean
 }): Promise<JestReporterSetup> {
   const { globalConfig, results } = options
   const environment = {
@@ -119,15 +111,25 @@ export async function setUpJestReporters(options: {
     plan = jestReporterPlan(globalConfig, configs, environment, planOptions)
   }
   const verbose = globalConfig.verbose === true || configs.some((config) => config.verbose === true)
-  // D135: on an interactive terminal, with no reporter named, outside watch mode (D142) and not
-  // verbose (D143), Provino's own output replaces Jest's `default` and `summary`. Notify and
-  // coverage stay, in Jest's places.
-  if (
+  const watch = globalConfig.watch || globalConfig.watchAll
+  // D135: with no reporter named, the one rule `provino run` uses too (`selectsProvino`): an
+  // interactive terminal, not watch mode (D142), not verbose (D143), not a run that lists its one
+  // file's tests. Provino's own output replaces Jest's `default` and `summary`; notify and coverage
+  // stay, in Jest's places, and the seed and Jest's update command go to its end card.
+  const provino =
     globalConfig.reporters === undefined &&
-    options.output.live &&
-    !(globalConfig.watch || globalConfig.watchAll) &&
-    !verbose
-  ) {
+    (await selectsProvino({
+      live: options.output.live,
+      watch,
+      verbose,
+      singleFile: {
+        listTestsForSingleFile: options.listTestsForSingleFile === true,
+        silent: globalConfig.silent === true,
+        verboseOff: globalConfig.verbose === false,
+        files: async () => (await options.filesPerProject()).reduce((sum, n) => sum + n, 0),
+      },
+    }))
+  if (provino) {
     const reporters: ReporterChoice[] = ['provino']
     if (globalConfig.notify) {
       reporters.push(
@@ -139,7 +141,16 @@ export async function setUpJestReporters(options: {
       )
     }
     if (options.coverage !== undefined) reporters.push(options.coverage)
-    return { reporters, announceThrown: false, verbose, text: {} }
+    const seed = globalConfig.showSeed === true ? globalConfig.seed : undefined
+    return {
+      reporters,
+      announceThrown: false,
+      verbose,
+      text: {
+        ...(seed === undefined ? {} : { seed }),
+        updateCommand: jestUpdateCommand(options.env, watch),
+      },
+    }
   }
   let entries: Awaited<ReturnType<typeof loadJestReporters>>
   try {
@@ -180,7 +191,7 @@ export async function setUpJestReporters(options: {
       continue
     }
     if (step.kind === 'host') {
-      reporters.push(hostChoice(step.name, step.options))
+      reporters.push(hostReporterChoice(step.name, step.options))
       continue
     }
     const host = hosts[hosted++]

@@ -877,6 +877,7 @@ export async function runJestCommand(args: readonly string[], io: JestCommandIo)
             output: outputFor({ env, stderr, ci: read.globalConfig.ci, colour: request.colour }),
             env,
             coverage: coverage?.reporter,
+            listTestsForSingleFile: project.policy.report.listTestsForSingleFile,
           })
     // No Jest config at the root, and directories below it with one of their own: one line before
     // the run (an improvement over Jest, which says nothing; DIVERGENCES). Never when stdout is

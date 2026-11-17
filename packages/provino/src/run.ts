@@ -1,7 +1,7 @@
 import { resolve } from 'node:path'
 import { loadProject } from '@provino/config'
 import { jestDialect } from '@provino/dialect-jest'
-import { ExitCode, type RunProjectOptions } from '@provino/orchestrator'
+import { discoverProject, ExitCode, type RunProjectOptions } from '@provino/orchestrator'
 import { isCi } from '@provino/reporters'
 import { ENVIRONMENTS } from './internal/built-ins.ts'
 import { usageMessage } from './internal/describe.ts'
@@ -65,6 +65,12 @@ async function execute(
     reporters: options.reporters,
     env,
     ...(options.emoji === false ? { display: { emoji: false } } : {}),
+    // Jest's single-file rule decides between `provino` and a listing of the one file's tests
+    // (`selectsProvino`), so the reporters may need the count before the run: asked only then. A
+    // sharded run's count is the shard's, which only the run knows; it is left to the run.
+    ...(options.shard === undefined
+      ? { fileCount: async () => (await discoverProject(project)).length }
+      : {}),
     pool,
     ...(options.cache === false ? { cache: false } : {}),
     testNamePattern: options.testNamePattern,
