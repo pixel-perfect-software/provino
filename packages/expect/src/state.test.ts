@@ -208,24 +208,50 @@ test('next-test: a concurrent pair, the first attempt made takes the counters', 
   assert.equal(source.current().assertionCalls, 1)
 })
 
-test('next-test: an attempt that counted nothing takes the counters when its state is read at its end', () => {
+test('next-test: stateOf is a pure lookup, so a read moves no counts', () => {
+  const { source } = carrying()
+  source.file().assertionCalls = 3
+  assert.equal(source.stateOf('a', first), undefined)
+  assert.equal(source.file().assertionCalls, 3)
+  assert.equal(source.stateOf('a', first), undefined)
+})
+
+test('next-test: settle gives an attempt that counted nothing the counters at its end', () => {
   const { source } = carrying()
   const file = source.file()
   file.isExpectingAssertions = true
-  const state = source.stateOf('a', first)
+  const state = source.settle('a', first)
   assert.equal(state?.isExpectingAssertions, true)
   assert.equal(state?.currentTestId, 'a')
   assert.equal(file.isExpectingAssertions, false)
+  assert.equal(source.settle('a', first), state)
   assert.equal(source.stateOf('a', first), state)
-  assert.equal(source.stateOf('b', first), undefined)
+  // Nothing to take: no state is made.
+  assert.equal(source.settle('b', first), undefined)
 })
 
-test('next-test: an attempt that ended empty takes nothing counted after its end', () => {
-  const { source } = carrying()
+test('next-test: counts left after an attempt settled empty reach the next attempt, not a later read of it', () => {
+  const { current, source } = carrying()
+  assert.equal(source.settle('a', first), undefined)
+  source.file().numPassingAsserts = 1
   assert.equal(source.stateOf('a', first), undefined)
-  source.file().assertionCalls = 1
-  assert.equal(source.stateOf('a', first), undefined)
-  assert.equal(source.file().assertionCalls, 1)
+  current.enter(testTask('b'))
+  assert.equal(source.current().numPassingAsserts, 1)
+})
+
+test('next-test: counts that land in the file state after an attempt that had a state of its own go to the next attempt', () => {
+  const { current, source } = carrying()
+  const a = testTask('a')
+  current.enter(a, 0)
+  source.current().numPassingAsserts = 1
+  assert.equal(source.settle('a', first)?.numPassingAsserts, 1)
+  current.enter(null)
+  // An afterAll's assertion: the file state is current outside a test.
+  source.current().numPassingAsserts = 2
+  assert.equal(source.stateOf('a', first)?.numPassingAsserts, 1)
+  current.enter(a, 1)
+  assert.equal(source.current().numPassingAsserts, 2)
+  assert.equal(source.file().numPassingAsserts, 0)
 })
 
 test('drop: the counters made outside a test reach no test', () => {
@@ -237,7 +263,7 @@ test('drop: the counters made outside a test reach no test', () => {
   assert.equal(source.current().assertionCalls, 0)
   assert.equal(source.current().isExpectingAssertions, false)
   assert.equal(file.assertionCalls, 2)
-  assert.equal(source.stateOf('b', first), undefined)
+  assert.equal(source.settle('b', first), undefined)
 })
 
 test('the last-frame cache follows frames, and startFile clears it even for the same frame', () => {
