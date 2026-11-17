@@ -1,5 +1,5 @@
 {
-  "description": "The microtask-turns probes (skipped and todo tests, describe blocks, the run start, `done`, retries) under a custom environment whose `handleTestEvent` is an empty async function. jest-circus awaits the handler at every event, so each boundary gets the turns its events add: the count of events at a boundary is this golden's turns minus the plain fixture's. The environment extends `jest-environment-node`. One test file holds every section (the run-start chain reaches the first beforeAll).",
+  "description": "The microtask-turns probes (skipped and todo tests, describe blocks, the run start, `done`, retries) under a custom environment whose `handleTestEvent` is an empty async function. jest-circus awaits the handler at every event, so each boundary gets the turns its events add: an event costs 3 turns with a promise from the environment's realm and 1 with a plain return, and a handler that takes more than one turn itself costs 2 turns more than it takes. The environment extends `jest-environment-node`. One test file holds every section (the run-start chain reaches the first beforeAll).",
   "runners": ["jest"],
   "config": {
     "jest": {
@@ -9,7 +9,7 @@
   },
   "files": {
     "jest": {
-      "custom-env.cjs": "const { TestEnvironment } = require('jest-environment-node')\n\n// An environment whose handleTestEvent does nothing: jest-circus awaits it at every event.\nclass EventEnvironment extends TestEnvironment {\n  async handleTestEvent() {}\n}\n\nmodule.exports = EventEnvironment\n"
+      "custom-env.cjs": "const { TestEnvironment } = require('jest-environment-node')\n\n// An environment whose handleTestEvent is an empty async function: jest-circus awaits it at every event.\nclass EventEnvironment extends TestEnvironment {\n  async handleTestEvent() {}\n}\n\nmodule.exports = EventEnvironment\n"
     }
   }
 }

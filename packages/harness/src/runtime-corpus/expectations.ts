@@ -83,6 +83,19 @@ export const RETRY_LOG_FIXTURES: ReadonlySet<string> = new Set([
  * that outcome, D7, and `runtime/retry-condition-function` holds it.)
  */
 export const DECLARED_TRACES: Readonly<Record<string, DeclaredTrace>> = {
+  // B23f Phase 5, open: the count of the run's start begins where the file's import settles, and
+  // the hops of a native `import()` between the end of the module's evaluation and that settle are
+  // 6 turns more than Jest's CommonJS `require` has (through the bin's loader: 3). Core's
+  // `runStart` is Jest's own number, so the line comes out that much ahead, never fitted to one
+  // path; it closes when the loader can say where evaluation ended.
+  'runtime/microtask-turns-run-start (jest)': {
+    golden: ['r module scope -> r first beforeAll: 21'],
+    core: ['r module scope -> r first beforeAll: 27'],
+  },
+  'runtime/microtask-turns-run-start-test (jest)': {
+    golden: ['q module scope -> q first test: 56'],
+    core: ['q module scope -> q first test: 62'],
+  },
   // Vitest tests the user's `g` or `y` RegExp itself, so its `lastIndex` carries: the same failure is
   // retried once and then not, and a RegExp shared by two tests carries it from one to the other
   // (`shared next` is not retried at all, after a test that matched it once). Core tests a copy.

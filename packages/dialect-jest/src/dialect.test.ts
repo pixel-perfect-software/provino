@@ -130,12 +130,16 @@ test('the B23f keys: per-file patching externals, counts carried to the next tes
   assert.equal(neutralPolicy.expect.outsideTestCounts, 'drop')
   const turns = resolved.core.boundaryTurns
   assert.deepEqual(
-    [turns.skippedTest, turns.suiteStart, turns.suiteEnd, turns.runStart, turns.retry],
-    [18, 7, 9, 21, 0],
-  )
-  assert.deepEqual(
-    Object.keys(turns.events).sort(),
-    Object.keys(neutralPolicy.core.boundaryTurns.events).sort(),
+    [
+      turns.skippedTest,
+      turns.suiteStart,
+      turns.suiteEnd,
+      turns.runStart,
+      turns.retry,
+      turns.retryEnd,
+      turns.retryExit,
+    ],
+    [18, 7, 9, 14, 7, 9, 1],
   )
 })
 

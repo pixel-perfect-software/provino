@@ -173,4 +173,124 @@ describe('boundaryTurns', () => {
     assert.deepEqual(run.trace, ['after the group -> afterEach: 9'])
     assert.equal(run.states['after the group'], 'pass')
   })
+
+  test('a skipped or todo test, and a suite start and end, pay their own turns', async () => {
+    const run = await runScript(
+      ({ test, describe }, step) => {
+        const { mark, seen } = probe(step)
+        test('a', () => {
+          seen('a')
+          mark('a')
+        })
+        test.skip('skipped', () => {})
+        test.todo('todo')
+        test('b', () => {
+          seen('b')
+          mark('b')
+        })
+        describe('suite', () => {
+          test('in', () => {
+            seen('in')
+            mark('in')
+          })
+        })
+        test('after', () => {
+          seen('after')
+        })
+      },
+      { boundaryTurns: { skippedTest: 40, suiteStart: 30, suiteEnd: 35 } },
+    )
+    // Two passed over, 40 each; a suite's start (30) before its first test, and its end (35) after.
+    // The values are above what core's own code takes between functions (about 5 a skipped test).
+    assert.deepEqual(run.trace, ['a -> b: 80', 'b -> in: 30', 'in -> after: 35'])
+  })
+
+  test('a retry pays its own turns, and an attempt in the retry loop ends with retryEnd', async () => {
+    const run = await runScript(
+      ({ test, describe }, step) => {
+        const { mark, seen } = probe(step)
+        describe('block', () => {
+          let attempts = 0
+          test('flaky', { retry: 2 }, () => {
+            attempts += 1
+            seen(`flaky ${attempts}`)
+            mark(`flaky ${attempts}`)
+            if (attempts < 3) throw new Error('expected')
+          })
+          test('sibling', () => {
+            seen('sibling')
+            mark('sibling')
+          })
+        })
+        test('last', () => {
+          seen('last')
+        })
+      },
+      {
+        retry: { timing: 'deferred' },
+        boundaryTurns: { testEnd: 30, retry: 20, retryEnd: 25, retryExit: 12 },
+      },
+    )
+    assert.deepEqual(run.trace, [
+      // testEnd
+      'flaky 1 -> sibling: 30',
+      // testEnd + retry: the retry runs after the block's other tests
+      'sibling -> flaky 2: 50',
+      // retryEnd + retry
+      'flaky 2 -> flaky 3: 45',
+      // retryEnd + retryExit: the loop ends with the last attempt
+      'flaky 3 -> last: 37',
+    ])
+  })
+
+  test('a done callback ends where it is called: sync, and from a later turn', async () => {
+    const run = await runScript(
+      ({ test, beforeEach }, step) => {
+        const { mark, seen } = probe(step)
+        let ran = 0
+        beforeEach(((done: () => void) => {
+          ran += 1
+          seen(`beforeEach ${ran}`)
+          if (ran === 1) {
+            mark('beforeEach 1')
+            done()
+          } else {
+            void Promise.resolve().then(() => {
+              mark('beforeEach 2')
+              done()
+            })
+          }
+        }) as never)
+        test('one', () => {
+          seen('one')
+        })
+        test('two', () => {
+          seen('two')
+        })
+      },
+      { firstArg: 'done-if-arity', boundaryTurns: { hookEnd: 20, fnStart: 20 } },
+    )
+    // hookEnd + fnStart and the one turn a function that settles a promise takes (as an async
+    // hook's), the same for a `done` called inside the hook and for one called later: the promise
+    // is settled on the call, not a turn after it (that was 2).
+    assert.deepEqual(run.trace, ['beforeEach 1 -> one: 41', 'beforeEach 2 -> two: 41'])
+  })
+
+  test('a run start pays its turns to the first function a chain from the module reaches', async () => {
+    const first = async (runStart: number): Promise<number> => {
+      const run = await runScript(
+        ({ test, beforeAll }, step) => {
+          const { mark, seen } = probe(step)
+          mark('module')
+          beforeAll(() => seen('beforeAll'))
+          test('t', () => {})
+        },
+        { boundaryTurns: { runStart } },
+      )
+      return Number(run.trace[0]?.slice(run.trace[0].lastIndexOf(' ') + 1))
+    }
+    // Core's own turns come first, from where the import settles: the count is at least the total.
+    assert.ok((await first(40)) >= 40)
+    assert.ok((await first(0)) < 40)
+  })
 })

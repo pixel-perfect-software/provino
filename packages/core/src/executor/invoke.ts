@@ -85,6 +85,9 @@ function invokeWithDone(env: InvokeEnv, call: Invocation): Promise<void> {
     let seenDone = false
     let settled = false
     let returned: unknown
+    // Whether the function has returned: a `done` called inside it waits for that.
+    let hasReturned = false
+    const early: Array<() => void> = []
     const done = (reason?: unknown): void => {
       // The stack is taken here, before the promise tick, as jest-circus does.
       const errorAtDone = new Error()
@@ -98,8 +101,7 @@ function invokeWithDone(env: InvokeEnv, call: Invocation): Promise<void> {
         throw errorAtDone
       }
       if (!over) seenDone = true
-      // One tick, in case `done` was called synchronously: the function has returned by then.
-      void Promise.resolve().then(() => {
+      const finish = (): void => {
         if (returned !== undefined) {
           settled = true
           reject(
@@ -124,10 +126,17 @@ function invokeWithDone(env: InvokeEnv, call: Invocation): Promise<void> {
         settled = true
         if (reason) reject(error)
         else resolve()
-      })
+      }
+      // A `done` inside the function waits for its return (circus's one tick, for the same
+      // reason); one after it settles the promise on the call itself, so the turn clock
+      // (`turns.ts`) sees the function end as circus does.
+      if (hasReturned) finish()
+      else early.push(finish)
     }
     // A throw here rejects the promise, as a throw in the executor of `new Promise` does.
     returned = callUser(call.fn, call.thisArg, [...call.args, done])
+    hasReturned = true
+    for (const finish of early) finish()
   })
 }
 

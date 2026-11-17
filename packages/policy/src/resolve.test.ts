@@ -22,6 +22,18 @@ const facade: PolicyOverrides = {
 }
 
 describe('resolvePolicy precedence: neutral ← dialect ← project ← facade', () => {
+  test('a layer that sets one boundary turn leaves every other, and the new ones, at the lower layer`s value', () => {
+    const turns = resolvePolicy({ core: { boundaryTurns: { hookStart: 3 } } }).core.boundaryTurns
+    assert.equal(turns.hookStart, 3)
+    // A shallow merge would leave these `undefined`, and a `0 > n` check would skip them silently.
+    assert.deepEqual(
+      { ...turns, hookStart: 0 },
+      neutralPolicy.core.boundaryTurns,
+      'every other turn is the neutral one',
+    )
+    assert.equal(typeof turns.retryEnd, 'number')
+  })
+
   test('with no layers, it is the neutral policy', () => {
     assert.deepEqual(resolvePolicy(), neutralPolicy)
   })

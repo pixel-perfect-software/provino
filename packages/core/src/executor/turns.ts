@@ -18,6 +18,9 @@
 import type { BoundaryTurns } from '@provino/types'
 import { isThenable } from '../internal/thenable.ts'
 
+/** A boundary of `BoundaryTurns`: every key but the event counts. */
+export type BoundaryKey = Exclude<keyof BoundaryTurns, 'events'>
+
 /** Settled once, so a turn allocates only the promise `then` returns. */
 const SETTLED: Promise<void> = Promise.resolve()
 
@@ -86,6 +89,19 @@ export class TurnClock {
     }
     value.then(settled, settled)
     return value
+  }
+
+  /**
+   * Starts a count with `turns` due from now, where nothing ended: the file's run starts, with
+   * what a chain a module's own code left running gets before the first function (`runStart`).
+   */
+  start(turns: number): void {
+    this.#ended(turns)
+  }
+
+  /** The turns counted so far, `-1` while nothing is counted. */
+  elapsed(): number {
+    return this.#counted
   }
 
   /** The run passed a boundary that costs `turns` on the way to the next function. */
@@ -165,6 +181,11 @@ export function anyTurns(turns: BoundaryTurns): boolean {
     turns.fnStart > 0 ||
     turns.fnEnd > 0 ||
     turns.testStart > 0 ||
-    turns.testEnd > 0
+    turns.testEnd > 0 ||
+    turns.skippedTest > 0 ||
+    turns.suiteStart > 0 ||
+    turns.suiteEnd > 0 ||
+    turns.runStart > 0 ||
+    turns.retry > 0
   )
 }

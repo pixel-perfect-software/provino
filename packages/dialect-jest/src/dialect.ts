@@ -115,27 +115,18 @@ export const jestPolicy: PolicyOverrides = {
       fnEnd: 13,
       testStart: 35,
       testEnd: 11,
-      // research: #114's live counts of jest-circus 30.5.2 (pending B23f-turns)
+      // jest-circus 30.5.2, recorded: `runtime/microtask-turns-{skipped,describe,run-start,
+      // run-start-test,retry}`. One event costs 7 turns (its six handlers and `dispatch`'s own
+      // promise); a skipped test is `test_start` and `test_skip`, 18 with the frames between.
+      // A retry's attempts end 2 turns sooner inside circus's retry loop (`rerunTest`: no
+      // `handleRetry` or `runTestWithContext` frame to unwind), and the loop's exit takes 1.
       skippedTest: 18,
       suiteStart: 7,
       suiteEnd: 9,
-      runStart: 21,
-      // research: not counted yet; Phase 5 records the retry boundary (pending B23f-turns)
-      retry: 0,
-      // research: not counted yet; Phase 5 records the events of each boundary (pending B23f-turns)
-      events: {
-        hookStart: 0,
-        hookEnd: 0,
-        fnStart: 0,
-        fnEnd: 0,
-        testStart: 0,
-        testEnd: 0,
-        skippedTest: 0,
-        suiteStart: 0,
-        suiteEnd: 0,
-        runStart: 0,
-        retry: 0,
-      },
+      runStart: 14,
+      retry: 7,
+      retryEnd: 9,
+      retryExit: 1,
     },
     // Jest passes `done`, not a context: nothing to call (runtime corpus `done-callback` agrees).
     doneDeprecatedMessage: null,

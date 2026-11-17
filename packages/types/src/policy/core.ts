@@ -391,53 +391,28 @@ export interface BoundaryTurns {
   readonly testEnd: number
   /**
    * As a skipped or todo test is passed over (`test_skip`, `test_todo`, and the events around
-   * them). Jest: 18, research: #114's live count (pending B23f-turns). Vitest: `0`, not recorded
-   * yet (T11.16).
+   * them). Jest: 18 (`runtime/microtask-turns-skipped`). Vitest: `0`, not recorded yet (T11.16).
    */
   readonly skippedTest: number
-  /** As a suite starts (`run_describe_start`). Jest: 7, research: #114's live count (pending B23f-turns). Vitest: `0` (T11.16). */
+  /** As a suite starts (`run_describe_start`). Jest: 7 (`runtime/microtask-turns-describe`). Vitest: `0` (T11.16). */
   readonly suiteStart: number
-  /** As a suite ends (`run_describe_finish`). Jest: 9, research: #114's live count (pending B23f-turns). Vitest: `0` (T11.16). */
+  /** As a suite ends (`run_describe_finish`). Jest: 9 (`runtime/microtask-turns-describe`). Vitest: `0` (T11.16). */
   readonly suiteEnd: number
-  /** As the file's run starts, before its first suite (`run_start`). Jest: 21, research: #114's live count (pending B23f-turns). Vitest: `0` (T11.16). */
+  /** As the file's run starts, counted from where the file's import settles (`run_start`, and the root block's start). Jest: 14 (`runtime/microtask-turns-run-start`). Vitest: `0` (T11.16). */
   readonly runStart: number
-  /** As a failed test's next attempt starts (`test_retry`). Jest and Vitest: `0` until Phase 5 records it (B23f-turns, T11.16). */
+  /** As a failed test's next attempt starts (`test_retry`). Jest: 7 (`runtime/microtask-turns-retry`). Vitest: `0` (T11.16). */
   readonly retry: number
   /**
-   * How many circus-style events are dispatched in each boundary, owed once more each when the
-   * file has a lifecycle listener (`RunFileOptions.lifecycle`, Jest's `handleTestEvent`, which
-   * jest-circus awaits as a seventh handler). All `0` waits for nothing.
+   * As a test's attempt ends inside jest-circus's retry loop (`rerunTest`), instead of `testEnd`:
+   * the loop's `await _runTest(...)` has no `handleRetry` or `runTestWithContext` frames to unwind,
+   * so an attempt there ends 2 turns sooner. Jest: 9 (`runtime/microtask-turns-retry`). Neutral and
+   * Vitest: `0`.
    */
-  readonly events: BoundaryEvents
-}
-
-/**
- * Per-boundary event counts of `BoundaryTurns`: the same keys, each the number of events
- * dispatched in that boundary. Jest: recorded in Phase 5 (pending B23f-turns). Vitest and
- * neutral: all `0`.
- * @public
- */
-export interface BoundaryEvents {
-  /** Events dispatched before a hook's function is called. */
-  readonly hookStart: number
-  /** Events dispatched after a hook's function ended. */
-  readonly hookEnd: number
-  /** Events dispatched before a test's function is called. */
-  readonly fnStart: number
-  /** Events dispatched after a test's function ended. */
-  readonly fnEnd: number
-  /** Events dispatched as a test's attempt starts. */
-  readonly testStart: number
-  /** Events dispatched as a test's attempt ends. */
-  readonly testEnd: number
-  /** Events dispatched as a skipped or todo test is passed over. */
-  readonly skippedTest: number
-  /** Events dispatched as a suite starts. */
-  readonly suiteStart: number
-  /** Events dispatched as a suite ends. */
-  readonly suiteEnd: number
-  /** Events dispatched as the file's run starts. */
-  readonly runStart: number
-  /** Events dispatched as a failed test's next attempt starts. */
-  readonly retry: number
+  readonly retryEnd: number
+  /**
+   * As jest-circus's retry loop ends, whether the test passed or ran out of retries (`rerunTest`
+   * returns, and its caller awaits it). Jest: 1 (`runtime/microtask-turns-retry`). Neutral and
+   * Vitest: `0`.
+   */
+  readonly retryExit: number
 }

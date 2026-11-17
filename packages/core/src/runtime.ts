@@ -352,7 +352,12 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   async function collect(file: FileState): Promise<boolean> {
     let collected = true
     try {
-      await collector.collect(file, () => options.importFile(file.path))
+      await collector.collect(file, async () => {
+        const imported = await options.importFile(file.path)
+        // The module has been evaluated: what a chain it left running gets before its first function counts from here.
+        executor.beginFile()
+        return imported
+      })
     } catch (error) {
       collected = false
       file.errors.push(error)
