@@ -39,6 +39,29 @@ const MICROTASKS: ReadonlySet<string> = new Set(['nextTick', 'queueMicrotask'])
 /** The part of an environment global the clock reads. */
 type EnvGlobal = typeof globalThis
 
+/** What sinon saved of a Node timers module it replaced exports of. */
+type SavedModuleMethods = Clock['timersModuleMethods']
+
+/**
+ * Puts back the `node:timers` and `node:timers/promises` exports sinon replaced. It fakes them too
+ * when its global is Node's own, which a worker's is (a window file's included), but neither
+ * runner does (`mocking/timers-defaults`). A module that takes its scheduler from
+ * `require('timers')` keeps the real one: React's async `act` resolves through its
+ * `setImmediate`, so a fake one, which only an advance runs, hangs a `waitFor` that awaits `act`
+ * between advances. The lists are emptied so `uninstall` puts nothing back over them.
+ */
+function keepNodeTimersModulesReal(faked: Clock): void {
+  putBack(process.getBuiltinModule('node:timers'), faked.timersModuleMethods)
+  faked.timersModuleMethods = undefined
+  putBack(process.getBuiltinModule('node:timers/promises'), faked.timersPromisesModuleMethods)
+  faked.timersPromisesModuleMethods = undefined
+}
+
+function putBack(module: object, saved: SavedModuleMethods): void {
+  if (saved === undefined) return
+  for (const { methodName, original } of saved) Reflect.set(module, methodName, original)
+}
+
 /**
  * Creates the clock for one environment global. `withGlobal` reads which timers the global has
  * (`Temporal`, `requestAnimationFrame`, ...) when it is called, so the global must be complete by
@@ -202,6 +225,7 @@ export function createFakeClock(
       const fakeDate = dateOnly ?? realNow()
       uninstallClock()
       clock = sinon.install(toSinonConfig(merged, fakeDate))
+      keepNodeTimersModulesReal(clock)
       installed = clock
       bindSchedulers(clock)
     },

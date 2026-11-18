@@ -15,6 +15,13 @@ const real = {
   performance,
   Intl,
 }
+// The CommonJS exports a module reaches with `require('timers')`, as React's `act` does.
+const nodeTimers = process.getBuiltinModule('node:timers')
+const nodeTimersPromises = process.getBuiltinModule('node:timers/promises')
+const realNode = {
+  timers: { ...nodeTimers },
+  promises: { ...nodeTimersPromises },
+}
 const sleep = (ms: number) => new Promise<void>((resolve) => real.setTimeout(resolve, ms))
 
 const c = (id: string, run: () => unknown) => {
@@ -42,6 +49,21 @@ c('useFakeTimers() with no options: which globals are faked', () => {
     hrtime: process.hrtime !== real.hrtime,
     performance: performance !== real.performance,
     Intl: Intl !== real.Intl,
+  }
+})
+
+c('useFakeTimers() with no options: which node:timers exports are faked', () => {
+  M.useFakeTimers()
+  return {
+    setTimeout: nodeTimers.setTimeout !== realNode.timers.setTimeout,
+    clearTimeout: nodeTimers.clearTimeout !== realNode.timers.clearTimeout,
+    setInterval: nodeTimers.setInterval !== realNode.timers.setInterval,
+    clearInterval: nodeTimers.clearInterval !== realNode.timers.clearInterval,
+    setImmediate: nodeTimers.setImmediate !== realNode.timers.setImmediate,
+    clearImmediate: nodeTimers.clearImmediate !== realNode.timers.clearImmediate,
+    promisesSetTimeout: nodeTimersPromises.setTimeout !== realNode.promises.setTimeout,
+    promisesSetInterval: nodeTimersPromises.setInterval !== realNode.promises.setInterval,
+    promisesSetImmediate: nodeTimersPromises.setImmediate !== realNode.promises.setImmediate,
   }
 })
 
