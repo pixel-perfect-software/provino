@@ -59,6 +59,13 @@ export interface InlineState {
   readonly claimed: Map<string, boolean>
   /** Per package directory, the package names a file of it that scans as dynamic could load (D132). */
   readonly declared: Map<string, ReadonlySet<string>>
+  /**
+   * Whether each node_modules path's closure has an edge Node would resolve to another file than
+   * the loader does (`conditionalReach`), kept for the worker.
+   */
+  readonly conditional: Map<string, boolean>
+  /** Per package directory, whether its `exports` or `imports` name a diverging condition. */
+  readonly conditioned: Map<string, boolean>
 }
 
 export function createInlineState(): InlineState {
@@ -69,6 +76,8 @@ export function createInlineState(): InlineState {
     served: new Map(),
     claimed: new Map(),
     declared: new Map(),
+    conditional: new Map(),
+    conditioned: new Map(),
   }
 }
 
@@ -290,7 +299,7 @@ function cachedReach(
   state: InlineState,
   options: LoaderOptions,
   path: string,
-  takes: (edge: GraphEdge) => string | null,
+  takes: (edge: GraphEdge, importer: string) => string | null,
   userEdges: UserEdges,
   direct?: () => boolean,
 ): boolean {
@@ -510,6 +519,123 @@ export function claimedReach(
   userEdges: UserEdges,
 ): boolean {
   return reachesTarget(state.claimed, state, options, path, claimed, userEdges)
+}
+
+/** The conditions a native load's own requests resolve with: Node's, the loader's default. */
+const NATIVE_CONDITIONS: readonly string[] = conditionsOf({})
+
+/**
+ * The conditions that tell the loader's resolution from Node's: those it resolves with and Node
+ * does not, and Node's that it lacks (`browser` and `node` under a DOM environment's
+ * `['browser']`), or `null` when it resolves as Node does (the node environment).
+ */
+export function divergingConditions(options: {
+  readonly conditions?: readonly string[] | undefined
+}): ReadonlySet<string> | null {
+  const own = conditionsOf(options)
+  const diverging = new Set<string>()
+  for (const condition of own) if (!NATIVE_CONDITIONS.includes(condition)) diverging.add(condition)
+  for (const condition of NATIVE_CONDITIONS) if (!own.includes(condition)) diverging.add(condition)
+  return diverging.size === 0 ? null : diverging
+}
+
+/** Whether `map` (an `exports` or `imports` value) names one of `conditions`, at any depth. */
+function namesCondition(map: unknown, conditions: ReadonlySet<string>): boolean {
+  if (map === null || typeof map !== 'object') return false
+  for (const [key, value] of Object.entries(map)) {
+    if (conditions.has(key) || namesCondition(value, conditions)) return true
+  }
+  return false
+}
+
+/** Whether the package at `dir`'s `exports` or `imports` names one of `diverging`; kept per directory. */
+function conditionedPackage(
+  state: InlineState,
+  dir: string,
+  diverging: ReadonlySet<string>,
+): boolean {
+  const known = state.conditioned.get(dir)
+  if (known !== undefined) return known
+  let names = false
+  try {
+    const manifest: unknown = JSON.parse(readFileSync(`${dir}/package.json`, 'utf8'))
+    if (typeof manifest === 'object' && manifest !== null) {
+      names =
+        namesCondition(Reflect.get(manifest, 'exports'), diverging) ||
+        namesCondition(Reflect.get(manifest, 'imports'), diverging)
+    }
+  } catch {
+    // No readable manifest: no map, so the conditions choose nothing.
+  }
+  state.conditioned.set(dir, names)
+  return names
+}
+
+/** A specifier that resolves through a manifest's map (a package, or a `#` import), not a path or a URL. */
+const MAPPED_SPECIFIER = /^(?!\.{1,2}(?:\/|$)|\/|[a-z][a-z\d+.-]*:)/i
+
+/**
+ * Whether Node, loading `importer` natively, would resolve `edge` to another file than the loader
+ * did (or to none). Only a specifier a manifest maps can differ by condition, and only through a
+ * map that names a diverging condition: the target's package (and, for a `#` import, the
+ * importer's), read once each. Only such an edge is resolved again, with Node's conditions.
+ */
+function resolvesElsewhere(
+  state: InlineState,
+  options: LoaderOptions,
+  edge: GraphEdge,
+  importer: string,
+  diverging: ReadonlySet<string>,
+): boolean {
+  const { specifier, kind, target } = edge
+  if (!isFileTarget(target) || !MAPPED_SPECIFIER.test(specifier)) return false
+  const own = packageDirOf(target)
+  const imports = specifier.startsWith('#') ? packageDirOf(importer) : null
+  if (
+    !(own !== null && conditionedPackage(state, own, diverging)) &&
+    !(imports !== null && conditionedPackage(state, imports, diverging))
+  ) {
+    return false
+  }
+  let native: string | null = null
+  try {
+    const result = options.resolver.resolve(specifier, {
+      importer,
+      kind,
+      conditions: NATIVE_CONDITIONS,
+    })
+    if (result.type === 'file') native = result.path
+  } catch {
+    // Node would not find it where the loader did: another outcome all the same.
+  }
+  return native !== target
+}
+
+/**
+ * Whether `path`'s closure has an edge that Node, loading the file natively, would resolve to
+ * another file than the loader does (`resolvesElsewhere`): under a DOM environment's `['browser']`,
+ * a package whose `exports` map a `browser` build (Emotion's `.browser.cjs.js`) gets its Node build
+ * from a native `require`, beside the browser build the file's own modules get. Such an external is
+ * inlined, so its edges resolve as the loader's do from its first load, as under Jest, where every
+ * module resolves with the environment's conditions. Kept per worker (`cachedReach`); `diverging`
+ * is `divergingConditions`'s set, and with none nothing is asked.
+ */
+export function conditionalReach(
+  state: InlineState,
+  options: LoaderOptions,
+  path: string,
+  diverging: ReadonlySet<string>,
+  userEdges: UserEdges,
+): boolean {
+  return cachedReach(
+    state.conditional,
+    state,
+    options,
+    path,
+    (edge, importer) =>
+      resolvesElsewhere(state, options, edge, importer, diverging) ? edge.specifier : null,
+    userEdges,
+  )
 }
 
 /**

@@ -23,6 +23,7 @@ import { reevaluatesExternals } from '../reevaluation.ts'
 import { claimedLoad, demoteOnParseFailure, isClaimedUserModule } from './claims.ts'
 import {
   claimedReach,
+  conditionalReach,
   createLedger,
   evaluatedPerFile,
   mockedReach,
@@ -582,15 +583,17 @@ export class Registry {
 
   /**
    * An external as the edge should load it: the same external, or a user module (inlined) for one
-   * of four reasons. It is in the per-file set (`reevaluateHookingExternals`, `evaluatedPerFile`:
+   * of five reasons. It is in the per-file set (`reevaluateHookingExternals`, `evaluatedPerFile`:
    * its first load in this worker read a per-file global, D127, or the transforms make it a user
    * module, D130; such a file imports it through any chain; it imports such a file through any
    * chain, so it shares the file's copy and never Node's cached one; or it is a dependency of the
    * set that only files evaluated per file import, D132, such as a registry a per-file plugin
    * writes into); its closure reaches a module the dialect
    * serves (`@jest/globals`, which only the registry can serve); its closure reaches a
-   * `node_modules` file the transforms make a user module (B23e, `claimedReach`); or
-   * `mocksReachShared` is on and the file's mocks take an edge in its graph closure. The answer is
+   * `node_modules` file the transforms make a user module (B23e, `claimedReach`); its closure has an
+   * edge Node would resolve to another file than the loader does (the environment's conditions,
+   * `conditionalReach`), so a native load would get another build; or `mocksReachShared` is on and
+   * the file's mocks take an edge in its graph closure. The answer is
    * kept for the instance map in play, and later edges follow it. The runner's own loads (`runner`)
    * never ask the mocks, as the module itself is never mocked.
    *
@@ -644,7 +647,10 @@ export class Registry {
       (state.reevaluate.active.size > 0 || (claims !== null && claims.users.length > 0))
     const served = state.options.moduleScope?.modules ?? NO_MODULES
     const mocks = runner || !policy.mocksReachShared ? null : this.context.mocks
-    if (!seeded && served.length === 0 && claims === null && mocks === null) return false
+    const diverging = state.diverging
+    if (!seeded && served.length === 0 && claims === null && mocks === null && diverging === null) {
+      return false
+    }
     const map = this.#instances
     let memory = this.#memory.get(map)
     if (memory === undefined) {
@@ -674,7 +680,9 @@ export class Registry {
               path,
               (file) => isClaimedUserModule(claims, file),
               userEdges,
-            ))
+            )) ||
+          (diverging !== null &&
+            conditionalReach(state.inline, state.options, path, diverging, userEdges))
         ) {
           inlined = 'kept'
         } else if (mocks?.active()) {

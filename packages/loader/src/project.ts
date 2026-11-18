@@ -21,7 +21,9 @@ import type {
 } from '@provino/types'
 import { LoaderError } from './errors.ts'
 import { initLexer } from './graph/index.ts'
+import { divergingConditions } from './internal/inline.ts'
 import { createLoader } from './loader.ts'
+import { reevaluatesExternals } from './reevaluation.ts'
 
 /**
  * The config's `tsconfig` for the resolver and the pipeline: `'auto'` and `false` pass through, and
@@ -185,8 +187,12 @@ export async function buildProjectLoader(
       ? undefined
       : await loadCustomResolver(behaviours, config.resolver)
   // The lexer's WebAssembly build starts here, once per worker, where an `await` is free (B13d Gap 9).
-  // The node_modules graph is walked for a mock's reach and for a served module's (`servedReach`).
-  const walksGraph = policy.mocksReachShared || (config.scopeModules ?? []).length > 0
+  // The node_modules graph is walked for a mock's reach, for a served module's (`servedReach`), and
+  // for an edge Node would resolve otherwise under the environment's conditions (`conditionalReach`).
+  const walksGraph =
+    policy.mocksReachShared ||
+    (config.scopeModules ?? []).length > 0 ||
+    (reevaluatesExternals(policy) && divergingConditions(config) !== null)
   if (walksGraph) await initLexer()
   const pipeline = createPipeline({
     root,

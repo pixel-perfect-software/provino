@@ -17,6 +17,7 @@ import type {
 } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
 import { type GraphEdge, inGraph } from '../graph/index.ts'
+import { reevaluatesExternals } from '../reevaluation.ts'
 import { type ClaimsState, compileClaims, isClaimedExternal } from './claims.ts'
 import {
   createEdgeKindState,
@@ -26,7 +27,9 @@ import {
   type RuntimeCapabilities,
 } from './edge-kind.ts'
 import {
+  conditionalReach,
   createInlineState,
+  divergingConditions,
   type InlinePerFileSources,
   type InlineState,
   servedReach,
@@ -168,6 +171,13 @@ export interface Records {
   readonly inlineRules: InlineRules
   /** The files the transforms take (`LoaderOptions.transformClaims`); `null` for none. */
   readonly claims: ClaimsState | null
+  /**
+   * The conditions that tell the loader's resolution from a native load's (`divergingConditions`),
+   * where the policy evaluates externals as Jest's registry does (`reevaluatesExternals`): an
+   * external whose closure Node would resolve otherwise is inlined (`conditionalReach`). `null`:
+   * none, or the policy loads externals as Node does.
+   */
+  readonly diverging: ReadonlySet<string> | null
   /** Whether a node_modules file could be evaluated per file (`isEvaluableExternal`), built once. */
   readonly evaluable: (path: string) => boolean
   /** `userEdgesOf` for this worker, built once. */
@@ -232,6 +242,7 @@ export function createRecords(options: LoaderOptions, runtime?: RuntimeCapabilit
   const evaluable = (path: string): boolean => isEvaluableExternal(path, inlineRules)
   const userEdges: UserEdges = (path) => userEdgesOf(state, path)
   const served = options.moduleScope?.modules ?? []
+  const diverging = reevaluatesExternals(options.policy) ? divergingConditions(options) : null
   const state: Records = {
     options,
     inline,
@@ -243,6 +254,7 @@ export function createRecords(options: LoaderOptions, runtime?: RuntimeCapabilit
     edgeKinds,
     inlineRules,
     claims,
+    diverging,
     evaluable,
     userEdges,
     perFileSources: {
@@ -250,10 +262,15 @@ export function createRecords(options: LoaderOptions, runtime?: RuntimeCapabilit
       loaded: required,
       keep: evaluable,
       userEdges,
+      // Inlined in every file, for a served module or for Node's other resolution: never Node's copy.
       elsewhere:
-        served.length === 0
+        served.length === 0 && diverging === null
           ? null
-          : (path) => inGraph(path) && servedReach(inline, options, path, served, userEdges),
+          : (path) =>
+              inGraph(path) &&
+              ((served.length > 0 && servedReach(inline, options, path, served, userEdges)) ||
+                (diverging !== null &&
+                  conditionalReach(inline, options, path, diverging, userEdges))),
     },
     scopeNames: { esm, cjs: dialect },
     scopePatterns,

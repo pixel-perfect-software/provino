@@ -2315,6 +2315,49 @@ test('reevaluatePatchingExternals: an ES module package that adds a global as it
   }
 })
 
+test('reevaluateHookingExternals: a package whose closure Node would resolve to another build under the environment’s conditions goes through the registry from the first file', () => {
+  // `split` maps a `browser` build, the DOM environment's; Node's own `require` finds the other.
+  const source =
+    "module.exports = { lib: require('lib'), split: require('split'), plain: require('plain') }\n"
+  const root = writeTree({
+    'node_modules/split/package.json': JSON.stringify({
+      name: 'split',
+      exports: { '.': { browser: './browser.js', default: './node.js' } },
+    }),
+    'node_modules/split/browser.js': "module.exports = { build: 'browser' }\n",
+    'node_modules/split/node.js': "module.exports = { build: 'node' }\n",
+    ...pkg('lib', "module.exports = { split: require('split') }\n"),
+    ...pkg('plain', 'module.exports = {}\n'),
+    'a.test.js': source,
+    'b.test.js': source,
+  })
+  type Loaded = { lib: { split: { build: string } }; split: { build: string }; plain: object }
+  const loaderUnder = (conditions: readonly string[]): Loader =>
+    createLoader({
+      ...loaderOptionsFor(root, {
+        policy: { reevaluateHookingExternals: true, interopDefault: 'babel' },
+      }),
+      conditions,
+    })
+  const load = (loader: Loader, name: string): Loaded =>
+    loader
+      .createFileRegistry(join(root, name), { tier: 'registry' })
+      .require<Loaded>(join(root, name))
+  const dom = loaderUnder(['browser'])
+  const first = load(dom, 'a.test.js')
+  assert.equal(first.lib.split.build, 'browser', 'the first file gets the environment’s build')
+  assert.equal(first.lib.split, first.split, 'and one copy of it')
+  const second = load(dom, 'b.test.js')
+  assert.equal(second.lib.split.build, 'browser')
+  assert.notEqual(second.lib, first.lib, 'the package is evaluated per file')
+  assert.equal(second.plain, first.plain, 'one Node resolves the same way stays shared')
+  // Under Node's own conditions nothing changes: the package loads natively, once per worker.
+  const node = loaderUnder(['node'])
+  const nodeFirst = load(node, 'a.test.js')
+  assert.equal(nodeFirst.lib.split.build, 'node')
+  assert.equal(load(node, 'b.test.js').lib, nodeFirst.lib)
+})
+
 test('with both reevaluate keys off, no external load is watched', async () => {
   const root = writeTree({
     'node_modules/writes-cjs/package.json': JSON.stringify({
