@@ -1,6 +1,6 @@
 {
   "name": "@provino/env-node",
-  "version": "0.1.0-rc.4",
+  "version": "0.1.0-rc.5",
   "description": "Provino's Node test environment: the worker's own global, put back exactly as it was after each file.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {

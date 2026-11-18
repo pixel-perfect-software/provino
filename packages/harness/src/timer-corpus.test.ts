@@ -42,8 +42,8 @@ const NODE_FLAGS: Readonly<Record<string, readonly string[]>> = {
  * T4.9's bar is 22 cases for both policies; a fixture that went silent must fail.
  */
 const EXPECTED_COUNTED: Readonly<Partial<Record<FixtureProfile, number>>> = {
-  jest: 48,
-  vitest: 48,
+  jest: 49,
+  vitest: 49,
 }
 
 // `timers-temporal` lives with the policy fixtures: it needs a Node with `Temporal`, so it is

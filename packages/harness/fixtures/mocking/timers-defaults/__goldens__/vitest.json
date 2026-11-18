@@ -19,7 +19,22 @@
           "status": "passed",
           "errors": [],
           "location": {
-            "line": 21,
+            "line": 28,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "defaults.test.ts",
+            "path": [
+              "useFakeTimers() with no options: which node:timers exports are faked"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 28,
             "column": 3
           }
         },
@@ -34,7 +49,7 @@
           "status": "passed",
           "errors": [],
           "location": {
-            "line": 21,
+            "line": 28,
             "column": 3
           }
         },
@@ -49,7 +64,7 @@
           "status": "passed",
           "errors": [],
           "location": {
-            "line": 21,
+            "line": 28,
             "column": 3
           }
         },
@@ -64,7 +79,7 @@
           "status": "passed",
           "errors": [],
           "location": {
-            "line": 21,
+            "line": 28,
             "column": 3
           }
         },
@@ -79,7 +94,7 @@
           "status": "passed",
           "errors": [],
           "location": {
-            "line": 21,
+            "line": 28,
             "column": 3
           }
         }
@@ -105,6 +120,7 @@
   "success": true,
   "trace": [
     "{\"id\":\"useFakeTimers() with no options: which globals are faked\",\"value\":{\"setTimeout\":true,\"clearTimeout\":true,\"setInterval\":true,\"clearInterval\":true,\"setImmediate\":true,\"clearImmediate\":true,\"Date\":true,\"nextTick\":false,\"queueMicrotask\":false,\"hrtime\":true,\"performance\":true,\"Intl\":true}}",
+    "{\"id\":\"useFakeTimers() with no options: which node:timers exports are faked\",\"value\":{\"setTimeout\":false,\"clearTimeout\":false,\"setInterval\":false,\"clearInterval\":false,\"setImmediate\":false,\"clearImmediate\":false,\"promisesSetTimeout\":false,\"promisesSetInterval\":false,\"promisesSetImmediate\":false}}",
     "{\"id\":\"the fake clock starts at the real time and moves only when told\",\"value\":{\"startsNearReal\":true,\"frozenBetweenReads\":true,\"advancedBy\":25}}",
     "{\"id\":\"timers fire in due order, and a timer set by a callback joins the queue\",\"value\":{\"afterFourteen\":[\"t5\",\"t10\",\"t12\"],\"afterAll\":[\"t5\",\"t10\",\"t12\",\"t10+5\",\"t20\"]}}",
     "{\"id\":\"an interval fires once per period and stops when cleared\",\"value\":{\"beforeClear\":3,\"afterClear\":3}}",

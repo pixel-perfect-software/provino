@@ -1,5 +1,23 @@
 # @provino/orchestrator
 
+## 0.1.0-rc.5
+
+### Patch Changes
+
+- Updated dependencies [fb1e2ad]
+  - @provino/timers@0.1.0-rc.5
+  - @provino/config@0.1.0-rc.5
+  - @provino/core@0.1.0-rc.5
+  - @provino/coverage@0.1.0-rc.5
+  - @provino/expect@0.1.0-rc.5
+  - @provino/lazy@0.1.0-rc.5
+  - @provino/loader@0.1.0-rc.5
+  - @provino/mock@0.1.0-rc.5
+  - @provino/policy@0.1.0-rc.5
+  - @provino/rpc@0.1.0-rc.5
+  - @provino/snapshot@0.1.0-rc.5
+  - @provino/types@0.1.0-rc.5
+
 ## 0.1.0-rc.4
 
 ### Patch Changes

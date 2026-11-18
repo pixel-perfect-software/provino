@@ -1,6 +1,6 @@
 {
   "name": "@provino/lazy",
-  "version": "0.1.0-rc.4",
+  "version": "0.1.0-rc.5",
   "description": "Provino's lazy variables: RSpec-style values defined with lazy.let, typed by chaining, memoized per test.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {
