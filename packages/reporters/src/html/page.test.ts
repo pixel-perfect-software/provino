@@ -1212,3 +1212,111 @@ describe('the report page, focus and names', async () => {
     }
   })
 })
+
+describe('the report page, redrawing and the tree’s keys', async () => {
+  const { html } = await reportFor()
+
+  it('draws one timeline after a resize on another tab: the stale one is cleared, not added to', () => {
+    const page = load(html)
+    open(page, 'Timeline')
+    assert.equal(all(page, '.timeline').length, 1)
+    open(page, 'Map')
+    page.window.dispatchEvent(new page.window.Event('resize'))
+    page.flush()
+    // Not on screen, so nothing is built for it until it is.
+    assert.equal(one(page, '#panel-4').childElementCount, 0)
+    open(page, 'Timeline')
+    assert.equal(all(page, '.timeline').length, 1)
+    assert.equal(all(page, '#tl-table').length, 1)
+    assert.equal(all(page, '[id^="t-f-"]').length, 8)
+    // A resize on the Timeline itself draws it again in place.
+    page.window.dispatchEvent(new page.window.Event('resize'))
+    page.flush()
+    assert.equal(all(page, '.timeline').length, 1)
+    assert.equal(all(page, '#tl-table').length, 1)
+    assertClean(page)
+  })
+
+  it('draws only the tab on screen when the range changes, and the others when they are next shown', () => {
+    const page = load(html)
+    open(page, 'Tests')
+    open(page, 'Folders')
+    open(page, 'Map')
+    applyRange(page, '0', '0.015')
+    // Map is on screen and drawn for the range; Tests and Folders were drawn and are cleared.
+    assert.equal(all(page, '#panel-2 .cell.dim').length, 3)
+    assert.equal(one(page, '#panel-1').childElementCount, 0)
+    assert.equal(one(page, '#panel-3').childElementCount, 0)
+    // Shown again, each is drawn for the range.
+    open(page, 'Tests')
+    assert.equal(all(page, '.node.k-file').length, 5)
+    open(page, 'Folders')
+    assert.equal(text(all(page, '.folders tbody td')[2]), '26 ms')
+    click(page, one(page, '.range button:not([aria-controls])'))
+    open(page, 'Tests')
+    assert.equal(all(page, '.node.k-file').length, 8)
+    assertClean(page)
+  })
+
+  it('leaves the tree a tab stop after a range is set on another tab', () => {
+    const page = load(html)
+    open(page, 'Tests')
+    open(page, 'Map')
+    applyRange(page, '0', '0.015')
+    open(page, 'Tests')
+    const stops = all(page, '[role="treeitem"]').filter((item) => item.tabIndex === 0)
+    assert.equal(stops.length, 1)
+    assert.equal(stops[0], one(page, '.treeitem'))
+    // And a key moves from it.
+    stops[0]?.focus()
+    press(page, stops[0] as Element, 'ArrowDown')
+    assert.notEqual(page.document.activeElement, stops[0])
+    assert.equal(page.document.activeElement?.getAttribute('role'), 'treeitem')
+    assertClean(page)
+  })
+
+  it('walks the tree in document order with Down and back with Up, through open and closed groups', () => {
+    const page = load(html)
+    open(page, 'Tests')
+    // Open a few more levels, so the walk goes in and out of groups.
+    for (const path of ['math.test.ts', 'skipped.test.ts']) {
+      const item = fileItem(page, path)
+      item.focus()
+      press(page, item, 'ArrowRight')
+    }
+    const shown = (): HTMLElement[] =>
+      all(page, '[role="treeitem"]').filter(
+        (item) => item.parentElement?.closest('[hidden]') == null,
+      )
+    const order = shown()
+    assert.ok(order.length > 10, `only ${order.length} items shown`)
+    const first = order[0] as HTMLElement
+    first.focus()
+    const down: Element[] = [first]
+    for (let step = 1; step < order.length; step++) {
+      press(page, page.document.activeElement as Element, 'ArrowDown')
+      down.push(page.document.activeElement as Element)
+    }
+    assert.deepEqual(down, order)
+    // Down on the last item stays on it, and End goes to it from anywhere.
+    const last = order[order.length - 1] as HTMLElement
+    press(page, last, 'ArrowDown')
+    assert.equal(page.document.activeElement, last)
+    first.focus()
+    press(page, first, 'End')
+    assert.equal(page.document.activeElement, last)
+    const up: Element[] = [last]
+    for (let step = 1; step < order.length; step++) {
+      press(page, page.document.activeElement as Element, 'ArrowUp')
+      up.push(page.document.activeElement as Element)
+    }
+    assert.deepEqual(up, [...order].reverse())
+    // Up on the first stays on it, and Home returns to it.
+    press(page, first, 'ArrowUp')
+    assert.equal(page.document.activeElement, first)
+    last.focus()
+    press(page, last, 'Home')
+    assert.equal(page.document.activeElement, first)
+    assertClean(page)
+  })
+})

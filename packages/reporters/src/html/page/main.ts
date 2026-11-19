@@ -696,23 +696,32 @@ export function renderReport(data: ReportData): void {
     panels.forEach((panel, i) => {
       panel.hidden = i !== index
     })
-    const panel = panels[index]
-    if (panel !== undefined && rendered[index] !== true) {
-      rendered[index] = true
-      renderers[index]?.(panel)
-    }
+    if (rendered[index] !== true) build(index)
   }
   const heading = (panel: HTMLElement, index: number): void => {
     panel.append(el('h2', { class: 'sr-only' }, tabNames[index] ?? ''))
   }
-  const rerenderOnRange = (index: number): void => {
-    listeners.push(() => {
-      const panel = panels[index]
-      if (panel === undefined || rendered[index] !== true) return
-      panel.replaceChildren()
-      renderers[index]?.(panel)
-    })
+  // A panel's view, built afresh.
+  const build = (index: number): void => {
+    const panel = panels[index]
+    if (panel === undefined) return
+    panel.replaceChildren()
+    rendered[index] = true
+    renderers[index]?.(panel)
   }
+  // What a panel shows changed (the range, the window's size): the one on screen is built again,
+  // any other is cleared and built when it is next shown.
+  const redraw = (index: number): void => {
+    if (index === selected) {
+      build(index)
+      return
+    }
+    panels[index]?.replaceChildren()
+    rendered[index] = false
+  }
+  listeners.push(() => {
+    for (let index = 0; index < panels.length; index++) redraw(index)
+  })
 
   // ---- An error as a code frame: the first line and the `>` lines are red, the diff is coloured
   const failureText = (text: string): HTMLElement => {
@@ -827,13 +836,11 @@ export function renderReport(data: ReportData): void {
     })
     panel.append(list)
   }
-  rerenderOnRange(0)
 
   // ---- Tests: the tree. A node builds what is under it the first time it opens.
   let nodeSeq = 0
   const builders = new WeakMap<HTMLElement, () => void>()
   const groups = new WeakMap<HTMLElement, HTMLElement>()
-  let treeRoot: HTMLElement | null = null
   let treeFocus: HTMLElement | null = null
   let activeRow: HTMLElement | null = null
   let fileItems = new Map<number, HTMLElement>()
@@ -1061,12 +1068,50 @@ export function renderReport(data: ReportData): void {
     folderItems.set(folder.key, item)
     return item
   }
-  const visibleItems = (): HTMLElement[] =>
-    treeRoot === null
-      ? []
-      : Array.from(treeRoot.querySelectorAll<HTMLElement>('[role="treeitem"]')).filter(
-          (item) => item.parentElement?.closest('[hidden]') == null,
-        )
+  // The tree's items in the order the arrow keys walk them: an item, then its children when it is
+  // open, then its next sibling, and so on up. Each step is along the DOM from the item, and an
+  // item is open or closed by its own state, not by whether the panel it is in is on screen.
+  const isItem = (node: Element | null): node is HTMLElement =>
+    node !== null && node.getAttribute('role') === 'treeitem'
+  const sibling = (item: Element, before: boolean): HTMLElement | null => {
+    let node = before ? item.previousElementSibling : item.nextElementSibling
+    while (node !== null && !isItem(node)) {
+      node = before ? node.previousElementSibling : node.nextElementSibling
+    }
+    return node
+  }
+  const edgeItem = (parent: Element | undefined, last: boolean): HTMLElement | null => {
+    let node = last ? (parent?.lastElementChild ?? null) : (parent?.firstElementChild ?? null)
+    while (node !== null && !isItem(node)) {
+      node = last ? node.previousElementSibling : node.nextElementSibling
+    }
+    return node
+  }
+  const childrenOf = (item: HTMLElement): HTMLElement | undefined =>
+    item.getAttribute('aria-expanded') === 'true' ? groups.get(item) : undefined
+  const parentItem = (item: HTMLElement): HTMLElement | null =>
+    item.parentElement?.closest<HTMLElement>('[role="treeitem"]') ?? null
+  const lastShown = (item: HTMLElement): HTMLElement => {
+    let node = item
+    for (let inner = edgeItem(childrenOf(node), true); inner !== null; ) {
+      node = inner
+      inner = edgeItem(childrenOf(node), true)
+    }
+    return node
+  }
+  const itemAfter = (item: HTMLElement): HTMLElement | null => {
+    const inside = edgeItem(childrenOf(item), false)
+    if (inside !== null) return inside
+    for (let node: HTMLElement | null = item; node !== null; node = parentItem(node)) {
+      const next = sibling(node, false)
+      if (next !== null) return next
+    }
+    return null
+  }
+  const itemBefore = (item: HTMLElement): HTMLElement | null => {
+    const before = sibling(item, true)
+    return before === null ? parentItem(item) : lastShown(before)
+  }
   const focusItem = (
     item: HTMLElement | null | undefined,
     block: ScrollLogicalPosition = 'nearest',
@@ -1092,7 +1137,6 @@ export function renderReport(data: ReportData): void {
       role: 'tree',
       'aria-label': 'Tests by folder and file',
     })
-    treeRoot = tree
     const searching = query !== '' || statusFilter.size > 0
     if (!searching) {
       searchNote.textContent = filtered ? 'All tests shown.' : ''
@@ -1160,8 +1204,8 @@ export function renderReport(data: ReportData): void {
     }
     filtered = searching
     container.append(tree)
-    const first = visibleItems()[0]
-    if (first !== undefined) {
+    const first = edgeItem(tree, false)
+    if (first !== null) {
       first.tabIndex = 0
       treeFocus = first
     }
@@ -1182,23 +1226,22 @@ export function renderReport(data: ReportData): void {
         event.metaKey
       )
         return
-      const items = visibleItems()
-      const position = items.indexOf(current)
-      if (position < 0) return
       const state = current.getAttribute('aria-expanded')
       switch (event.key) {
         case 'ArrowDown':
-          focusItem(items[position + 1])
+          focusItem(itemAfter(current))
           break
         case 'ArrowUp':
-          focusItem(items[position - 1])
+          focusItem(itemBefore(current))
           break
         case 'Home':
-          focusItem(items[0])
+          focusItem(edgeItem(tree, false))
           break
-        case 'End':
-          focusItem(items[items.length - 1])
+        case 'End': {
+          const last = edgeItem(tree, true)
+          focusItem(last === null ? null : lastShown(last))
           break
+        }
         case 'ArrowRight':
           if (state === 'false') setOpen(current, true)
           else if (state === 'true')
@@ -1283,7 +1326,6 @@ export function renderReport(data: ReportData): void {
     panel.append(treeHost)
     buildTree(treeHost)
   }
-  rerenderOnRange(1)
   // Reveals the file an element stands for (its `data-f`), and says whether it stood for one.
   function revealOf(node: Element | null | undefined): boolean {
     const index = node?.getAttribute('data-f') ?? null
@@ -1434,7 +1476,6 @@ export function renderReport(data: ReportData): void {
       )
     }
   }
-  rerenderOnRange(2)
 
   // ---- Folders: time by folder, slowest first
   renderers[3] = (panel) => {
@@ -1516,7 +1557,6 @@ export function renderReport(data: ReportData): void {
       table,
     )
   }
-  rerenderOnRange(3)
 
   // ---- Timeline: a lane for each worker, sized to its container
   let timelineWidth: number | null = null
@@ -1679,18 +1719,11 @@ export function renderReport(data: ReportData): void {
     })
     panel.append(el('div', { class: 'toolbar spaced' }, toggle), wrap)
   }
-  rerenderOnRange(4)
 
   let resizeTimer: ReturnType<typeof setTimeout> | undefined
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer)
-    resizeTimer = setTimeout(() => {
-      const panel = panels[4]
-      if (panel !== undefined && rendered[4] === true && selected === 4) {
-        panel.replaceChildren()
-        renderers[4]?.(panel)
-      } else rendered[4] = false
-    }, 150)
+    resizeTimer = setTimeout(() => redraw(4), 150)
   })
   shell.append(
     el('main', null, overview, el('div', { class: 'tabbar' }, tabList, where), ...panels),
