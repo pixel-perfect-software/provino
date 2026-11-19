@@ -4,7 +4,13 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { createResultsCache } from './cache.ts'
-import { learnExternals, packageVersionOf, readLearnedExternals } from './learned-externals.ts'
+import {
+  learnExternals,
+  packageVersionOf,
+  readLearnedExternals,
+  readLoadedExternals,
+  recordLoadedExternals,
+} from './learned-externals.ts'
 
 const roots: string[] = []
 after(() => {
@@ -69,5 +75,44 @@ describe('the learned externals in the results cache (D127)', () => {
       [['node_modules/kept/index.js', '1.0.0']],
       'the stale entries are gone from the file too',
     )
+  })
+
+  it('prunes what the workers loaded natively (D132) the same way, apart from the learned set', async () => {
+    const root = tree({ seed: '1.0.0', kept: '1.0.0', upgraded: '1.0.0', removed: '1.0.0' })
+    const dir = join(root, 'cache')
+    const path = (name: string) => join(root, 'node_modules', name, 'index.js')
+    const writing = createResultsCache(dir)
+    learnExternals(writing, 'p', root, [path('seed')], new Map())
+    recordLoadedExternals(writing, 'p', root, ['kept', 'upgraded', 'removed'].map(path), new Map())
+    await writing.write()
+    assert.deepEqual(
+      [...createResultsCache(dir).loadedExternals('p')],
+      [
+        ['node_modules/kept/index.js', '1.0.0'],
+        ['node_modules/upgraded/index.js', '1.0.0'],
+        ['node_modules/removed/index.js', '1.0.0'],
+      ],
+      'relative to the root, with each package’s version',
+    )
+
+    writeFileSync(
+      join(root, 'node_modules/upgraded/package.json'),
+      JSON.stringify({ name: 'upgraded', version: '2.0.0' }),
+    )
+    rmSync(join(root, 'node_modules/removed'), { recursive: true })
+
+    const reading = createResultsCache(dir)
+    const memo = new Map<string, string>()
+    assert.deepEqual(readLoadedExternals(reading, 'p', root, memo), [path('kept')])
+    assert.deepEqual(readLearnedExternals(reading, 'p', root, memo), [path('seed')])
+    reading.record('p', 'a.test.js', { durationMs: 1, failed: false, tests: 1, at: 1 })
+    await reading.write()
+    const reread = createResultsCache(dir)
+    assert.deepEqual(
+      [...reread.loadedExternals('p')],
+      [['node_modules/kept/index.js', '1.0.0']],
+      'the stale entries are gone from the file too',
+    )
+    assert.deepEqual([...reread.externals('p')], [['node_modules/seed/index.js', '1.0.0']])
   })
 })

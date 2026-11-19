@@ -212,6 +212,20 @@ const fileDoneLeaks: FileDoneMessage = { ...fileDoneClean, leaks: true, heapUsed
 const fileDoneNotLeaking: FileDoneMessage = { ...fileDoneClean, leaks: false }
 // @ts-expect-error the heap is a number of bytes
 const fileDoneHeapText: FileDoneMessage = { ...fileDoneClean, heapUsedBytes: '12 MB' }
+
+// D127, D132: what the worker learned to evaluate per file, and what it loaded natively, as paths.
+expectTypeOf<FileDoneMessage['reevaluated']>().toEqualTypeOf<readonly string[] | undefined>()
+expectTypeOf<FileDoneMessage['loadedExternals']>().toEqualTypeOf<readonly string[] | undefined>()
+const fileDoneLoaded: FileDoneMessage = {
+  ...fileDoneClean,
+  reevaluated: ['/r/node_modules/plugin/index.js'],
+  loadedExternals: ['/r/node_modules/widget/index.js'],
+}
+expectTypeOf(fileDoneLoaded).toExtend<CloneSafe<FileDoneMessage>>()
+// @ts-expect-error exactOptionalPropertyTypes: leave the key out when nothing was loaded
+const fileDoneNoneLoaded: FileDoneMessage = { ...fileDoneClean, loadedExternals: undefined }
+// @ts-expect-error the paths cross as a list, not with their versions (the coordinator reads those)
+const fileDoneVersions: FileDoneMessage = { ...fileDoneClean, loadedExternals: { a: '1.0.0' } }
 const jobWithChecks: FileJob = {
   file: '/a.test.ts',
   fileId: 'f' as TaskId,
@@ -351,8 +365,10 @@ export {
   fileDoneClean,
   fileDoneHeapText,
   fileDoneLeaks,
+  fileDoneNoneLoaded,
   fileDoneNotLeaking,
   fileDoneSymbols,
+  fileDoneVersions,
   fileDoneWithout,
   fullHistory,
   jobWithChecks,

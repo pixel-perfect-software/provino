@@ -178,6 +178,82 @@ describe('createResultsCache', () => {
     )
   })
 
+  it('keeps the externals the workers loaded natively (D132) beside the learned ones, merged, forgotten and dropped the same way', async () => {
+    const dir = await scratch()
+    const first = createResultsCache(dir)
+    const second = createResultsCache(dir)
+    first.recordLoadedExternals('p', [
+      ['node_modules/a/index.js', '1.0.0'],
+      ['node_modules/b/index.js', '1.0.0'],
+    ])
+    first.learnExternals('p', [['node_modules/seed/index.js', '1.0.0']])
+    second.recordLoadedExternals('p', [['node_modules/c/index.js', '']])
+    second.recordLoadedExternals('gone', [['node_modules/d/index.js', '1.0.0']])
+    await first.write()
+    await second.write()
+    const reader = createResultsCache(dir)
+    assert.deepEqual(
+      [...reader.loadedExternals('p')],
+      [
+        ['node_modules/a/index.js', '1.0.0'],
+        ['node_modules/b/index.js', '1.0.0'],
+        ['node_modules/c/index.js', ''],
+      ],
+      'another run’s entries are kept',
+    )
+    assert.deepEqual(
+      [...reader.externals('p')],
+      [['node_modules/seed/index.js', '1.0.0']],
+      'a list of its own: the learned set is untouched',
+    )
+    reader.forgetLoadedExternals('p', ['node_modules/a/index.js'])
+    assert.deepEqual(
+      [...reader.loadedExternals('p').keys()],
+      ['node_modules/b/index.js', 'node_modules/c/index.js'],
+    )
+    reader.record('p', 'a.test.js', history(5))
+    await reader.write()
+    const reread = createResultsCache(dir)
+    assert.deepEqual(
+      [...reread.loadedExternals('p').keys()],
+      ['node_modules/b/index.js', 'node_modules/c/index.js'],
+      'forgotten from the disk’s copy too',
+    )
+    assert.equal(
+      reread.loadedExternals('gone').size,
+      0,
+      'dropped with a project key that has no history and recorded nothing this run',
+    )
+    assert.deepEqual([...reread.externals('p').keys()], ['node_modules/seed/index.js'])
+  })
+
+  it('reads no loaded externals from an entry that is not a record of versions, and a file without the field (an older cache) has none', async () => {
+    const dir = await scratch()
+    await mkdir(dir, { recursive: true })
+    await writeFile(
+      join(dir, 'results.json'),
+      JSON.stringify({
+        version: 3,
+        projects: {},
+        externals: { r: { 'seed.js': '1.0.0' } },
+        loadedExternals: { p: 'x', q: ['old.js'], r: { 'ok.js': '1.0.0' }, s: { 'bad.js': 1 } },
+      }),
+    )
+    const cache = createResultsCache(dir)
+    assert.deepEqual(
+      ['p', 'q', 'r', 's'].map((project) => [...cache.loadedExternals(project)]),
+      [[], [], [['ok.js', '1.0.0']], []],
+    )
+    assert.deepEqual([...cache.externals('r')], [['seed.js', '1.0.0']], 'the learned set reads')
+    await writeFile(
+      join(dir, 'results.json'),
+      JSON.stringify({ version: 3, projects: {}, externals: { r: { 'seed.js': '1.0.0' } } }),
+    )
+    const older = createResultsCache(dir)
+    assert.equal(older.loadedExternals('r').size, 0)
+    assert.deepEqual([...older.externals('r')], [['seed.js', '1.0.0']])
+  })
+
   it('keeps what a run that overlapped wrote: two caches opened from one file, each with its own entry', async () => {
     const dir = await scratch()
     const seed = createResultsCache(dir)

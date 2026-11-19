@@ -15,6 +15,7 @@ import type {
   ModuleMockRegistry,
 } from '@provino/types'
 import { LoaderError } from './errors.ts'
+import { inGraph } from './graph/index.ts'
 import { edgeConditions } from './internal/edge-kind.ts'
 import { saveGraph } from './internal/inline.ts'
 import { loaderMessage } from './internal/messages.ts'
@@ -25,7 +26,13 @@ import {
   resolveOrMissing,
   toModuleId,
 } from './internal/records.ts'
-import { activate, promoteLearned, takeLearned } from './internal/reevaluate.ts'
+import {
+  activate,
+  noteLoaded,
+  promoteLearned,
+  takeLearned,
+  takeLoaded,
+} from './internal/reevaluate.ts'
 import { type FileContext, NO_FILE, Registry } from './internal/registry.ts'
 import { blankHashbang } from './internal/source.ts'
 import { isEvaluableExternal } from './internal/third-party.ts'
@@ -38,6 +45,9 @@ function notYet(what: string, task: string): LoaderError {
 
 /** The code of the module-mock registry's error for a mock that can't stand in for a relative path. */
 const UNRESOLVED_RELATIVE_MOCK = 'unresolved-relative-mock'
+
+/** `takeLoadedExternals` with the policy off: nothing is evaluated per file, so nothing is kept. */
+const NOTHING_LOADED: readonly string[] = []
 
 /**
  * Creates a worker's loader.
@@ -225,7 +235,11 @@ export const createLoader: CreateLoader = (options) => {
       }
     },
     takeLearnedExternals: () => takeLearned(state.reevaluate),
-    reevaluateExternals: (paths) => {
+    takeLoadedExternals: () =>
+      reevaluatesExternals(options.policy)
+        ? takeLoaded(state.reevaluate, state.required)
+        : NOTHING_LOADED,
+    reevaluateExternals: (paths, loaded) => {
       if (!reevaluatesExternals(options.policy)) return
       // A set from an earlier run may name a file a reinstall removed, or one the loader can't
       // evaluate itself: those stay shared.
@@ -233,6 +247,13 @@ export const createLoader: CreateLoader = (options) => {
         state.reevaluate,
         paths.filter((path) => isEvaluableExternal(path, state.inlineRules) && existsSync(path)),
       )
+      // A file a reinstall removed would read as one the graph can't scan, which blocks joins.
+      if (loaded !== undefined) {
+        noteLoaded(
+          state.reevaluate,
+          loaded.filter((path) => inGraph(path) && existsSync(path)),
+        )
+      }
     },
     [Symbol.dispose]: () => {
       // Once per worker, with everything its files scanned.

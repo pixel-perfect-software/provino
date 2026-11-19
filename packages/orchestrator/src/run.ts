@@ -50,7 +50,12 @@ import { type GlobalSetupRun, type RunGlobalHooks, runGlobalSetup } from './glob
 import { shouldRunInBand } from './in-band.ts'
 import { createInlineSnapshotWrites, withInlineSnapshots } from './inline-snapshots.ts'
 import { configHash, hashOf, type WorkerKeyInput, workerKeyOf } from './key.ts'
-import { learnExternals, readLearnedExternals } from './learned-externals.ts'
+import {
+  learnExternals,
+  readLearnedExternals,
+  readLoadedExternals,
+  recordLoadedExternals,
+} from './learned-externals.ts'
 import { prepareObsoleteSnapshotCleanup } from './obsolete-snapshots.ts'
 import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
 import {
@@ -488,8 +493,9 @@ type SeededProject = Omit<ResolvedProject, 'config'> & { readonly config: Serial
 /**
  * The project's loader config with the node_modules files its workers learned to evaluate per
  * file in earlier runs (D127), from its history in `cache` under `cacheProject` (the key the run
- * also writes them under), as absolute paths. Unchanged when the policy doesn't ask for it or
- * nothing was learned.
+ * also writes them under), as absolute paths, and with the ones they loaded natively (D132), which
+ * a worker indexes before those join. Unchanged when the policy doesn't ask for it or nothing was
+ * learned: without seeds nothing joins, so what was loaded is not sent either.
  */
 function withLearnedExternals(
   project: ResolvedProject,
@@ -500,8 +506,14 @@ function withLearnedExternals(
   const loader = project.config.loader
   if (cache === undefined || !reevaluatesExternals(project.policy.module)) return loader
   const learned = readLearnedExternals(cache, cacheProject, project.rootDir, versions)
+  // Read (and pruned) whether or not it is sent, as the learned set is.
+  const loaded = readLoadedExternals(cache, cacheProject, project.rootDir, versions)
   if (learned.length === 0) return loader
-  return { ...loader, reevaluate: learned }
+  return {
+    ...loader,
+    reevaluate: learned,
+    ...(loaded.length === 0 ? {} : { loadedExternals: loaded }),
+  }
 }
 
 /** One project of a run, with what the run decided for it once. */
@@ -1127,6 +1139,20 @@ export async function runProjectsOn(
           member.cacheProject,
           member.project.rootDir,
           outcome.done.reevaluated,
+          packageVersions,
+        )
+      }
+      // What it loaded natively (D132): the next run's workers know those importers first.
+      if (
+        outcome.type === 'done' &&
+        outcome.done.loadedExternals !== undefined &&
+        member.cache !== undefined
+      ) {
+        recordLoadedExternals(
+          member.cache,
+          member.cacheProject,
+          member.project.rootDir,
+          outcome.done.loadedExternals,
           packageVersions,
         )
       }

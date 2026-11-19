@@ -280,6 +280,11 @@ function loaderConfig(value: unknown): SerializedLoaderConfig {
     ...(loader.reevaluate === undefined
       ? {}
       : { reevaluate: absolutePaths(loader.reevaluate, 'loader.reevaluate') }),
+    ...(loader.loadedExternals === undefined
+      ? {}
+      : {
+          loadedExternals: absolutePaths(loader.loadedExternals, 'loader.loadedExternals'),
+        }),
   }
 }
 

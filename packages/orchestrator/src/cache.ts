@@ -18,9 +18,10 @@ const FILE_NAME = 'results.json'
  * The format version; a file with another one is treated as empty. 2: the project key is the
  * project's name and a hash of its root and globs (1 keyed by the bare name). 3: a file's record
  * may hold an inputs hash, a learned tier and a coverage map (T9.6; nothing writes them yet), so an
- * older reader would drop them. Still 3 with `externals` (D127) beside `projects`: a reader that
- * doesn't know it keeps every file's history and drops only that, which a worker learns again. A
- * project's `externals` is `{ [path]: version }`, any other shape is none.
+ * older reader would drop them. Still 3 with `externals` (D127) and `loadedExternals` (D132)
+ * beside `projects`: a reader that doesn't know one keeps every file's history and drops only that,
+ * which a worker learns again. A project's entry in either is `{ [path]: version }`, any other
+ * shape is none.
  */
 const VERSION = 3
 
@@ -103,6 +104,18 @@ export interface ResultsCache {
   /** Removes files from `externals`, here and from the disk's at `write` (a stale entry). */
   forgetExternals(project: string, paths: Iterable<string>): void
   /**
+   * The node_modules files the project's workers loaded natively (`Loader.takeLoadedExternals`,
+   * D132), kept as `externals` is: relative to the project root with `/`, each with its package's
+   * version, dropped by a reader when the file is gone or the version moved
+   * (`forgetLoadedExternals`). The next run's workers know them before `externals` join, so a
+   * warm worker keeps shared what a cold one kept shared.
+   */
+  loadedExternals(project: string): ReadonlyMap<string, string>
+  /** Adds files to `loadedExternals`, each with its package's version; kept until `write`. */
+  recordLoadedExternals(project: string, entries: Iterable<readonly [string, string]>): void
+  /** Removes files from `loadedExternals`, here and from the disk's at `write` (a stale entry). */
+  forgetLoadedExternals(project: string, paths: Iterable<string>): void
+  /**
    * Writes the cache to its directory (created if need be). It reads `results.json` again first
    * (a missing, unreadable or other-version file is empty, as when the cache was opened), applies
    * this cache's `record`ed entries and `prune`s on top of what is there, and writes the result as
@@ -116,13 +129,18 @@ export interface ResultsCache {
 
 type Projects = Map<string, Map<string, FileHistory>>
 
-/** Per project, the node_modules files evaluated per file (D127) and their packages' versions, in learned order. */
+/**
+ * Per project, node_modules files and their packages' versions, in the order they came: those
+ * evaluated per file (D127), or those loaded natively (D132).
+ */
 type Externals = Map<string, Map<string, string>>
 
 /** What `results.json` holds. */
 interface Contents {
   readonly projects: Projects
   readonly externals: Externals
+  /** The same shape: the node_modules files the workers loaded natively (D132). */
+  readonly loaded: Externals
 }
 
 /** `coverage`: test ids to lists of function ids, all text. */
@@ -152,7 +170,7 @@ function isHistory(value: unknown): value is FileHistory {
 }
 
 function empty(): Contents {
-  return { projects: new Map(), externals: new Map() }
+  return { projects: new Map(), externals: new Map(), loaded: new Map() }
 }
 
 /** Each project's files and versions in `value`, keeping only records of text. */
@@ -189,7 +207,11 @@ function parse(text: string): Contents {
     }
     projects.set(project, known)
   }
-  return { projects, externals: parseExternals(data.externals) }
+  return {
+    projects,
+    externals: parseExternals(data.externals),
+    loaded: parseExternals(data.loadedExternals),
+  }
 }
 
 function read(file: string): Contents {
@@ -209,12 +231,15 @@ async function load(file: string): Promise<Contents> {
 }
 
 /**
- * Whether a project key's externals are still wanted: the key has file history, or this run
- * learned for it. A key whose project was removed, or whose globs (part of the key) changed, has
- * neither, and its externals would otherwise be carried forever.
+ * Whether a project key's externals and loaded externals are still wanted: the key has file
+ * history, or this run added to either list for it. A key whose project was removed, or whose
+ * globs (part of the key) changed, has neither, and its lists would otherwise be carried forever.
  */
-function hasOwner(projects: Projects, learned: Externals, project: string): boolean {
-  return (projects.get(project)?.size ?? 0) > 0 || (learned.get(project)?.size ?? 0) > 0
+function hasOwner(projects: Projects, added: readonly Externals[], project: string): boolean {
+  return (
+    (projects.get(project)?.size ?? 0) > 0 ||
+    added.some((list) => (list.get(project)?.size ?? 0) > 0)
+  )
 }
 
 /** The entry of `map` under `key`, made and kept by `make` when there is none. */
@@ -235,6 +260,64 @@ function addExternals(
 ): void {
   const known = entryOf(externals, project, () => new Map())
   for (const [path, version] of entries) known.set(path, version)
+}
+
+/**
+ * One of the cache's per-project lists of node_modules files with their versions (`externals`,
+ * `loadedExternals`): what `known` answers from (the file as opened, plus what this cache added,
+ * less what it forgot), and what `write` puts on top of the disk's.
+ */
+interface VersionedFiles {
+  readonly known: Externals
+  /** Only what this cache added. */
+  readonly added: Externals
+  /** What this cache removed, by project: what `write` drops from the disk's. */
+  readonly forgotten: Map<string, Set<string>>
+}
+
+function versionedFiles(known: Externals): VersionedFiles {
+  return { known, added: new Map(), forgotten: new Map() }
+}
+
+function addVersioned(
+  files: VersionedFiles,
+  project: string,
+  entries: Iterable<readonly [string, string]>,
+): void {
+  const list = [...entries]
+  addExternals(files.known, project, list)
+  addExternals(files.added, project, list)
+}
+
+function forgetVersioned(files: VersionedFiles, project: string, paths: Iterable<string>): void {
+  const dropped = entryOf(files.forgotten, project, () => new Set<string>())
+  for (const path of paths) {
+    dropped.add(path)
+    files.known.get(project)?.delete(path)
+    files.added.get(project)?.delete(path)
+  }
+}
+
+/** Applies what this cache forgot and added to `disk`, the same list as the file holds it now. */
+function mergeVersioned(files: VersionedFiles, disk: Externals): void {
+  for (const [project, paths] of files.forgotten) {
+    const known = disk.get(project)
+    if (known !== undefined) for (const path of paths) known.delete(path)
+  }
+  for (const [project, entries] of files.added) addExternals(disk, project, entries)
+}
+
+/** `disk`'s list as `results.json` holds it, less every project key `hasOwner` gives up. */
+function versionedBody(
+  disk: Externals,
+  projects: Projects,
+  added: readonly Externals[],
+): Record<string, Record<string, string>> {
+  return Object.fromEntries(
+    [...disk]
+      .filter(([project, entries]) => entries.size > 0 && hasOwner(projects, added, project))
+      .map(([project, entries]) => [project, Object.fromEntries(entries)]),
+  )
 }
 
 function filesOf(projects: Projects, project: string): Map<string, FileHistory> {
@@ -259,12 +342,12 @@ function dropOutside(files: Map<string, FileHistory> | undefined, keep: Readonly
 export function createResultsCache(dir: string): ResultsCache {
   const file = join(dir, FILE_NAME)
   /** What `get` answers from: the file as it was when opened, plus what this cache recorded. */
-  const { projects, externals } = read(file)
+  const opened = read(file)
+  const { projects } = opened
+  const externals = versionedFiles(opened.externals)
+  const loaded = versionedFiles(opened.loaded)
   /** Only what this cache recorded: what `write` puts on top of the disk's. */
   const recorded: Projects = new Map()
-  const learned: Externals = new Map()
-  /** The externals `forgetExternals` removed, by project: what `write` drops from the disk's. */
-  const forgotten = new Map<string, Set<string>>()
   /** The files `prune` kept, by project: what `write` drops from the disk's. */
   const kept = new Map<string, ReadonlySet<string>>()
   return {
@@ -278,29 +361,19 @@ export function createResultsCache(dir: string): ResultsCache {
       dropOutside(projects.get(project), keep)
       dropOutside(recorded.get(project), keep)
     },
-    externals: (project) => new Map(externals.get(project)),
-    learnExternals(project, entries) {
-      const list = [...entries]
-      addExternals(externals, project, list)
-      addExternals(learned, project, list)
-    },
-    forgetExternals(project, paths) {
-      const dropped = entryOf(forgotten, project, () => new Set<string>())
-      for (const path of paths) {
-        dropped.add(path)
-        externals.get(project)?.delete(path)
-        learned.get(project)?.delete(path)
-      }
-    },
+    externals: (project) => new Map(externals.known.get(project)),
+    learnExternals: (project, entries) => addVersioned(externals, project, entries),
+    forgetExternals: (project, paths) => forgetVersioned(externals, project, paths),
+    loadedExternals: (project) => new Map(loaded.known.get(project)),
+    recordLoadedExternals: (project, entries) => addVersioned(loaded, project, entries),
+    forgetLoadedExternals: (project, paths) => forgetVersioned(loaded, project, paths),
     async write() {
       // Another run may have written since this cache was opened: start from the file as it is.
       const disk = await load(file)
       const merged = disk.projects
-      for (const [project, paths] of forgotten) {
-        const known = disk.externals.get(project)
-        if (known !== undefined) for (const path of paths) known.delete(path)
-      }
-      for (const [project, entries] of learned) addExternals(disk.externals, project, entries)
+      mergeVersioned(externals, disk.externals)
+      mergeVersioned(loaded, disk.loaded)
+      const added = [externals.added, loaded.added]
       for (const [project, paths] of kept) dropOutside(merged.get(project), paths)
       for (const [project, files] of recorded) {
         const into = filesOf(merged, project)
@@ -315,15 +388,10 @@ export function createResultsCache(dir: string): ResultsCache {
         ),
         ...(disk.externals.size === 0
           ? {}
-          : {
-              externals: Object.fromEntries(
-                [...disk.externals]
-                  .filter(
-                    ([project, entries]) => entries.size > 0 && hasOwner(merged, learned, project),
-                  )
-                  .map(([project, entries]) => [project, Object.fromEntries(entries)]),
-              ),
-            }),
+          : { externals: versionedBody(disk.externals, merged, added) }),
+        ...(disk.loaded.size === 0
+          ? {}
+          : { loadedExternals: versionedBody(disk.loaded, merged, added) }),
       }
       await mkdir(dir, { recursive: true })
       const temporary = `${file}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`

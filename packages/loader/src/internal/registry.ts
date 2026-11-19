@@ -585,11 +585,10 @@ export class Registry {
    * An external as the edge should load it: the same external, or a user module (inlined) for one
    * of five reasons. It is in the per-file set (`reevaluateHookingExternals`, `evaluatedPerFile`:
    * its first load in this worker read a per-file global, D127, or the transforms make it a user
-   * module, D130; such a file imports it through any chain; it imports such a file through any
-   * chain, so it shares the file's copy and never Node's cached one; or it is a dependency of the
-   * set that only files evaluated per file import, D132, such as a registry a per-file plugin
-   * writes into); its closure reaches a module the dialect
-   * serves (`@jest/globals`, which only the registry can serve); its closure reaches a
+   * module, D130; it imports such a file through any chain, so it shares the file's copy and never
+   * Node's cached one; or it is a dependency of the set that only files evaluated per file import,
+   * D132, such as a registry a per-file plugin writes into); its closure reaches a module the
+   * dialect serves (`@jest/globals`, which only the registry can serve); its closure reaches a
    * `node_modules` file the transforms make a user module (B23e, `claimedReach`); its closure has an
    * edge Node would resolve to another file than the loader does (the environment's conditions,
    * `conditionalReach`), so a native load would get another build; or `mocksReachShared` is on and

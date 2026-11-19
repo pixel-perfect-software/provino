@@ -1736,8 +1736,9 @@ export interface Loader extends Disposable {
     // (undocumented)
     getSourceMap(id: ModuleId): SourceMapV3 | null;
     onModuleCompiled(listener: (event: CompiledModuleEvent) => void): () => void;
-    reevaluateExternals(paths: readonly string[]): void;
+    reevaluateExternals(paths: readonly string[], loaded?: readonly string[]): void;
     takeLearnedExternals(): readonly string[];
+    takeLoadedExternals(): readonly string[];
     tierFor(testFile: string, sources: TierSources): TierChoice;
     watchExternalLoads(watcher: ExternalLoadWatcher): () => void;
 }
@@ -3093,6 +3094,7 @@ export interface SerializedLoaderConfig {
     readonly esmExtensions?: readonly string[];
     readonly extensions: readonly string[];
     readonly hoist: HoistPolicy | null;
+    readonly loadedExternals?: readonly string[];
     readonly mappers: readonly SerializedModuleMapper[];
     readonly moduleDirectories?: readonly string[];
     readonly modulePaths?: readonly string[];
@@ -3937,6 +3939,7 @@ export type WorkerToCoordinator = {
     readonly leaks?: true;
     readonly heapUsedBytes?: number;
     readonly reevaluated?: readonly string[];
+    readonly loadedExternals?: readonly string[];
 } | {
     readonly t: "stopped";
 } | RpcCall<CoordinatorMethods> | RpcReply<WorkerMethods>;

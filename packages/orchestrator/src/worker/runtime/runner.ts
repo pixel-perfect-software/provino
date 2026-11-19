@@ -1203,9 +1203,13 @@ export function createRuntimeRunner(): WorkerRunner {
       if (learnedNow.length > 0) worker.loader.reevaluateExternals(learnedNow)
       // What the loader learned while this file ran (D127), for the coordinator's results cache.
       const reevaluated = withLearned(worker.loader.takeLearnedExternals(), learnedNow)
+      // What it loaded natively (D132): the next run's workers know those importers before their
+      // seeds join, as this worker knew them once its first file had loaded them.
+      const loadedExternals = worker.loader.takeLoadedExternals()
       return {
         deps,
         ...(reevaluated.length === 0 ? {} : { reevaluated }),
+        ...(loadedExternals.length === 0 ? {} : { loadedExternals }),
         ...(heap === undefined ? {} : { heapUsedBytes: heap }),
         ...(isLeaking === undefined ? {} : { isLeaking }),
         ...(leaked.length > 0 ? { leakedGlobals: leaked } : {}),

@@ -252,7 +252,10 @@ export async function buildProjectLoader(
           },
         }),
   })
-  // What an earlier run learned to evaluate per file (D127), from the results cache.
-  if (config.reevaluate !== undefined) loader.reevaluateExternals(config.reevaluate)
+  // What an earlier run learned to evaluate per file (D127), and what it loaded natively (D132),
+  // from the results cache.
+  if (config.reevaluate !== undefined || config.loadedExternals !== undefined) {
+    loader.reevaluateExternals(config.reevaluate ?? [], config.loadedExternals)
+  }
   return { loader, pipeline, resolver }
 }

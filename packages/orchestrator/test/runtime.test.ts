@@ -1399,6 +1399,12 @@ describe('a shared external that reads a per-file global as it loads (D127, P42)
     assert.equal(await loads(p.dir), 2, 'once natively for a.test.js, once inlined for b.test.js')
     assert.deepEqual(done[0]?.reevaluated, [p.path('node_modules/hooker/index.js')])
     assert.equal(done[1]?.reevaluated, undefined, 'nothing new to tell')
+    assert.deepEqual(
+      done[0]?.loadedExternals,
+      [p.path('node_modules/plain/index.js')],
+      'what it loaded natively (D132), less what it learned',
+    )
+    assert.equal(done[1]?.loadedExternals, undefined, 'nothing new to tell')
   })
 
   it('under the neutral value, is evaluated once per worker and nothing is reported', async () => {
@@ -1412,6 +1418,11 @@ describe('a shared external that reads a per-file global as it loads (D127, P42)
     assert.deepEqual(
       done.map((entry) => entry.reevaluated),
       [undefined, undefined],
+    )
+    assert.deepEqual(
+      done.map((entry) => entry.loadedExternals),
+      [undefined, undefined],
+      'nor what it loaded natively',
     )
   })
 
@@ -1464,11 +1475,63 @@ describe('a shared external that reads a per-file global as it loads (D127, P42)
       [['node_modules/hooker/index.js', '']],
       'with its package’s version (none here)',
     )
+    assert.deepEqual(
+      [...reread.loadedExternals(projectCacheKey(target))],
+      [['node_modules/plain/index.js', '']],
+      'and beside it, what the worker loaded natively (D132)',
+    )
 
     // A new run, a new worker: its first file evaluates `hooker` through its registry. (An inline
     // worker shares this process, so a native load would find Node's cached copy and add none.)
     await run(target, { cache: reread, pool: { kind: 'inline', maxWorkers: 1 } })
     assert.equal(await loads(p.dir), 4, 'both files of the second run evaluated it')
+  })
+
+  it('carries what the worker loaded natively too, so a warm run keeps shared what the cold one did (D132)', async () => {
+    // `plugin` is learned (it registers an `afterEach`); `core-lib`, which it imports, is imported
+    // by `widget` too, which the first file loaded natively before `plugin`. A file asks about
+    // `first` before `widget`, so the seed has joined before the file names `widget`.
+    const p = await project({
+      'node_modules/first/package.json': JSON.stringify({ name: 'first', main: 'index.js' }),
+      'node_modules/first/index.js': 'module.exports = {}',
+      'node_modules/core-lib/package.json': JSON.stringify({ name: 'core-lib', main: 'index.js' }),
+      'node_modules/core-lib/index.js': [
+        "require('node:fs').appendFileSync(require('node:path').join(__dirname, 'loads.txt'), 'x')",
+        'module.exports = {}',
+      ].join('\n'),
+      'node_modules/plugin/package.json': JSON.stringify({ name: 'plugin', main: 'index.js' }),
+      'node_modules/plugin/index.js': "afterEach(() => {})\nmodule.exports = require('core-lib')",
+      'node_modules/widget/package.json': JSON.stringify({ name: 'widget', main: 'index.js' }),
+      'node_modules/widget/index.js': "module.exports = require('core-lib')",
+      'a.test.js': "require('first')\nrequire('widget')\nrequire('plugin')\ntest('a', () => {})",
+      'b.test.js': "require('first')\nrequire('widget')\nrequire('plugin')\ntest('b', () => {})",
+    })
+    const target = runtimeProject(p.dir, {
+      policy: { module: { reevaluateHookingExternals: true } },
+    })
+    const key = projectCacheKey(target)
+    const coreLoads = async (): Promise<number> => {
+      const text = await readFile(join(p.dir, 'node_modules/core-lib/loads.txt'), 'utf8')
+      return text.length
+    }
+    // Forks: each run's worker is a new process, so Node's cache holds nothing of the last one.
+    const once = async (): Promise<void> => {
+      await run(target, {
+        cache: createResultsCache(defaultCacheDir(p.dir)),
+        pool: { kind: 'forks', maxWorkers: 1 },
+      })
+    }
+    await once()
+    assert.equal(await coreLoads(), 1, 'cold: core-lib is evaluated once per worker')
+    const written = createResultsCache(defaultCacheDir(p.dir))
+    assert.deepEqual([...written.externals(key).keys()], ['node_modules/plugin/index.js'])
+    assert.deepEqual([...written.loadedExternals(key).keys()].toSorted(), [
+      'node_modules/core-lib/index.js',
+      'node_modules/first/index.js',
+      'node_modules/widget/index.js',
+    ])
+    await once()
+    assert.equal(await coreLoads(), 2, 'warm: once per worker again')
   })
 
   it('is read under the key it was written under, also for projects that share a cache key', async () => {

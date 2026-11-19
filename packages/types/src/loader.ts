@@ -524,10 +524,19 @@ export interface Loader extends Disposable {
    */
   takeLearnedExternals(): readonly string[]
   /**
-   * Adds node_modules files (absolute paths) to evaluate per file from the next file on, such as a
-   * set an earlier run learned. Ignored unless `ModulePolicy.reevaluateHookingExternals` is on.
+   * The node_modules files this worker loaded natively since the last call (shared, each once, as
+   * absolute paths), leaving out the ones it evaluates per file. A run keeps them for the next
+   * one's `reevaluateExternals`. Empty unless `ModulePolicy.reevaluateHookingExternals` is on.
    */
-  reevaluateExternals(paths: readonly string[]): void
+  takeLoadedExternals(): readonly string[]
+  /**
+   * Adds node_modules files (absolute paths) to evaluate per file from the next file on, such as a
+   * set an earlier run learned. `loaded` is what that run's workers loaded natively
+   * (`takeLoadedExternals`): known before these join, so a dependency one of them imports stays
+   * shared as it did in that run, rather than joining with the whole closure (D132). Ignored
+   * unless `ModulePolicy.reevaluateHookingExternals` is on.
+   */
+  reevaluateExternals(paths: readonly string[], loaded?: readonly string[]): void
 }
 
 /**

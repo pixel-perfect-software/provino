@@ -180,6 +180,22 @@ void noExtensions
 const numericExtensions: NeutralResolution = { esmExtensions: [1] }
 void numericExtensions
 
+// D132: what a worker loaded natively goes to the next run's workers beside the learned set.
+expectTypeOf(loader.takeLoadedExternals).returns.toEqualTypeOf<readonly string[]>()
+expectTypeOf(loader.takeLearnedExternals).returns.toEqualTypeOf<readonly string[]>()
+loader.reevaluateExternals(['/r/node_modules/plugin/index.js'])
+loader.reevaluateExternals(['/r/node_modules/plugin/index.js'], loader.takeLoadedExternals())
+// @ts-expect-error the loaded externals are paths, not paths with their versions
+loader.reevaluateExternals([], new Map<string, string>())
+// @ts-expect-error what was loaded is a list of its own, not more paths in the first one
+loader.reevaluateExternals([], '/r/node_modules/widget/index.js')
+expectTypeOf<SerializedLoaderConfig['loadedExternals']>().toEqualTypeOf<
+  readonly string[] | undefined
+>()
+// @ts-expect-error exactOptionalPropertyTypes: leave the key out when nothing was loaded
+const noLoaded: SerializedLoaderConfig = { ...serialized, loadedExternals: undefined }
+void noLoaded
+
 // T2.11: `tierFor` takes the sources of a tier and says which one won.
 expectTypeOf(loader.tierFor).parameters.toEqualTypeOf<[string, TierSources]>()
 expectTypeOf(loader.tierFor).returns.toEqualTypeOf<TierChoice>()

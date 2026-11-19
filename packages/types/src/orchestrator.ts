@@ -343,6 +343,12 @@ export type WorkerToCoordinator =
        * absent when it learned none. The coordinator keeps them in the results cache.
        */
       readonly reevaluated?: readonly string[]
+      /**
+       * The node_modules files (absolute paths) the worker loaded natively while this file ran
+       * (`Loader.takeLoadedExternals`, D132); absent when there were none. The coordinator keeps
+       * them in the results cache, for the next run's `SerializedLoaderConfig.loadedExternals`.
+       */
+      readonly loadedExternals?: readonly string[]
     }
   | { readonly t: 'stopped' }
   | RpcCall<CoordinatorMethods>
