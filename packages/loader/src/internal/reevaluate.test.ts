@@ -52,11 +52,11 @@ function names(paths: Iterable<string>): string[] {
   return [...paths].map((path) => path.slice('/r/node_modules/'.length)).toSorted()
 }
 
-/** The set after seeding `seed` (`plugin` unless named) over `edges`. */
-function setOf(edges: Edges, seed = nm('plugin')): string[] {
+/** The set after seeding `plugin` over `edges`. */
+function setOf(edges: Edges): string[] {
   const state = createReevaluateState()
   index(state, edges)
-  settle(state, [seed])
+  settle(state, [nm('plugin')])
   return names(state.perFile.members)
 }
 
@@ -71,29 +71,14 @@ test('settlePerFile: downward through a chain that only per-file packages import
   )
 })
 
-test('settlePerFile: below a package that reaches a seed, a dependency a shared package imports stays shared, and so does what it imports', () => {
-  // `plugin` is per file because it imports the seed `dom`, not for a reason of its own.
-  assert.deepEqual(
-    setOf(
-      [
-        [nm('plugin'), [nm('dom'), nm('core')]],
-        [nm('widget'), [nm('core')]],
-        [nm('core'), [nm('core-dep')]],
-      ],
-      nm('dom'),
-    ),
-    ['dom/index.js', 'plugin/index.js'],
-  )
-})
-
-test('settlePerFile: a seed’s whole closure is per file, and a shared package that imports it follows', () => {
+test('settlePerFile: a dependency a shared package imports stays shared, and so does what it imports', () => {
   assert.deepEqual(
     setOf([
       [nm('plugin'), [nm('core')]],
       [nm('widget'), [nm('core')]],
       [nm('core'), [nm('core-dep')]],
     ]),
-    ['core-dep/index.js', 'core/index.js', 'plugin/index.js', 'widget/index.js'],
+    ['plugin/index.js'],
   )
 })
 
@@ -129,18 +114,15 @@ test('settlePerFile: a barrel the registry imports back joins with it', () => {
   )
 })
 
-test('settlePerFile: below a package that reaches a seed, a cycle a shared package also reaches stays shared', () => {
+test('settlePerFile: a cycle a shared package also reaches stays shared', () => {
   assert.deepEqual(
-    setOf(
-      [
-        [nm('plugin'), [nm('dom'), nm('reg')]],
-        [nm('reg'), [nm('reg', 'a.js')]],
-        [nm('reg', 'a.js'), [nm('reg')]],
-        [nm('widget'), [nm('reg', 'a.js')]],
-      ],
-      nm('dom'),
-    ),
-    ['dom/index.js', 'plugin/index.js'],
+    setOf([
+      [nm('plugin'), [nm('reg')]],
+      [nm('reg'), [nm('reg', 'a.js')]],
+      [nm('reg', 'a.js'), [nm('reg')]],
+      [nm('widget'), [nm('reg', 'a.js')]],
+    ]),
+    ['plugin/index.js'],
   )
 })
 
@@ -152,7 +134,7 @@ test('settlePerFile: the set does not depend on the order the edges were indexed
     [nm('reg', 'a.js'), [nm('reg'), nm('leaf')]],
     [nm('widget'), [nm('leaf')]],
   ]
-  // The seed is `dom`, so `plugin` is per file by reaching it; `leaf` a shared package imports too.
+  // `dom` only the plugin imports; `leaf` a shared package imports too.
   const expected = [
     'barrel/index.js',
     'dom/index.js',
@@ -170,36 +152,82 @@ test('settlePerFile: the set does not depend on the order the edges were indexed
       state,
       order.filter((edge) => edge !== undefined),
     )
-    settle(state, [nm('dom')])
+    settle(state, [nm('plugin')])
     assert.deepEqual(names(state.perFile.members), expected)
   }
   // Edges indexed after the seed settle to the same set.
   const late = createReevaluateState()
-  settle(late, [nm('dom')])
+  settle(late, [nm('plugin')])
   index(late, edges)
   settlePerFile(late, SOURCES, () => {}, nm('plugin'))
   assert.deepEqual(names(late.perFile.members), expected)
 })
 
-test('settlePerFile: a seed’s closure is per file whether its shared importer was indexed before the seed or after, as in a cold and a warm worker', () => {
-  const closure: Edges = [
-    [nm('plugin'), [nm('core')]],
-    [nm('core'), [nm('core-dep')]],
-  ]
-  const importer: Edges = [[nm('widget'), [nm('core')]]]
-  // Cold: an earlier file loaded the shared importer, so it is indexed before the seed joins.
-  const cold = createReevaluateState()
-  index(cold, [...importer, ...closure])
-  settle(cold, [nm('plugin')])
-  // Warm: the seed joins as the first file starts; the importer is indexed when the file loads it.
-  const warm = createReevaluateState()
-  index(warm, closure)
-  settle(warm, [nm('plugin')])
-  index(warm, importer)
-  settlePerFile(warm, SOURCES, () => {}, nm('widget'))
-  const expected = ['core-dep/index.js', 'core/index.js', 'plugin/index.js', 'widget/index.js']
-  assert.deepEqual(names(warm.perFile.members), expected)
-  assert.deepEqual(names(cold.perFile.members), expected, 'the cold worker’s set is the warm one’s')
+/** An `index` for `settlePerFile` that indexes a file's closure from `edges`, as `indexClosure` does. */
+function indexer(state: ReevaluateState, edges: Edges): (path: string) => void {
+  const targets = new Map(edges)
+  return (path) => {
+    const stack = [path]
+    while (stack.length > 0) {
+      const current = stack.pop()
+      if (current === undefined || state.perFile.edges.has(current)) continue
+      const next = targets.get(current) ?? []
+      index(state, [[current, next]])
+      stack.push(...next)
+    }
+  }
+}
+
+/** `plugin` writes into `reg`, which the shared `widget` imports too. */
+const WRITER: Edges = [
+  [nm('plugin'), [nm('reg')]],
+  [nm('widget'), [nm('reg')]],
+]
+
+/**
+ * A cold worker: its first file loads `firstFile` natively and learns `plugin`, which joins at the
+ * second file's first settle. The set as the second file sees it.
+ */
+function coldSet(firstFile: readonly string[]): string[] {
+  const state = createReevaluateState()
+  promoteLearned(state)
+  promoteLearned(state)
+  activate(state, [nm('plugin')])
+  const sources = { ...SOURCES, loaded: new Map(firstFile.map((path) => [path, {}])) }
+  settlePerFile(state, sources, indexer(state, WRITER), nm('plugin'))
+  return names(state.perFile.members)
+}
+
+/**
+ * A warm worker, seeded with `plugin`: its first file asks about `asked` in order, the second
+ * about `plugin`. The set during the first file, and as the second sees it.
+ */
+function warmSets(asked: readonly string[]): {
+  readonly first: string[]
+  readonly second: string[]
+} {
+  const state = createReevaluateState()
+  activate(state, [nm('plugin')])
+  promoteLearned(state)
+  for (const path of asked) settlePerFile(state, SOURCES, indexer(state, WRITER), path)
+  const first = names([...state.perFile.members, ...state.perFile.pending])
+  promoteLearned(state)
+  settlePerFile(state, SOURCES, indexer(state, WRITER), nm('plugin'))
+  return { first, second: names(state.perFile.members) }
+}
+
+test('settlePerFile: a warm worker whose first file loads the shared importer keeps the registry shared, as a cold one does', () => {
+  assert.deepEqual(coldSet([nm('plugin'), nm('widget')]), ['plugin/index.js'])
+  const warm = warmSets([nm('plugin'), nm('reg'), nm('widget')])
+  assert.deepEqual(warm.first, ['plugin/index.js'], 'nothing of the region joins in file 1')
+  assert.deepEqual(warm.second, ['plugin/index.js'], 'the cold worker’s set')
+})
+
+test('settlePerFile: a warm worker whose first file never loads the shared importer joins the registry from its second file, as a cold one does', () => {
+  assert.deepEqual(coldSet([nm('plugin')]), ['plugin/index.js', 'reg/index.js'])
+  const warm = warmSets([nm('plugin'), nm('reg')])
+  assert.deepEqual(warm.first, ['plugin/index.js'], 'the registry is shared in file 1')
+  assert.deepEqual(warm.second, ['plugin/index.js', 'reg/index.js'], 'the cold worker’s set')
 })
 
 test('settlePerFile: an addon is never per file', () => {
@@ -268,15 +296,14 @@ test('settlePerFile: a user module between a member and a dependency joins when 
   ])
   settle(state, [nm('plugin')])
   assert.ok(state.perFile.members.has(nm('reg')))
-  // Below a package that is per file by reaching the seed `dom`, a shared importer keeps it shared.
   const shared = createReevaluateState()
   index(shared, [
-    [nm('plugin'), [nm('dom'), '/r/workspace/lib/index.js']],
+    [nm('plugin'), ['/r/workspace/lib/index.js']],
     [nm('widget'), ['/r/workspace/lib/index.js']],
     ['/r/workspace/lib/index.js', [nm('reg')]],
   ])
-  settle(shared, [nm('dom')])
-  assert.deepEqual(names(shared.perFile.members), ['dom/index.js', 'plugin/index.js'])
+  settle(shared, [nm('plugin')])
+  assert.deepEqual(names(shared.perFile.members), ['plugin/index.js'])
 })
 
 test('settlePerFile: a dynamic file outside the set keeps what it could load shared, and says so', () => {

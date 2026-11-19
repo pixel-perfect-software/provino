@@ -1,5 +1,11 @@
 # @provino/rpc
 
+## 0.1.0-rc.6
+
+### Patch Changes
+
+- @provino/types@0.1.0-rc.6
+
 ## 0.1.0-rc.5
 
 ### Patch Changes

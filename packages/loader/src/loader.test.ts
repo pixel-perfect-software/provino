@@ -1332,9 +1332,7 @@ test('reevaluateHookingExternals (D132): a dependency only per-file packages imp
   })
 })
 
-test('reevaluateHookingExternals (D132): a learned package’s dependency is per file even when a shared package imports it too, and that package follows', async () => {
-  // As a worker seeded with the plugin from the results cache has it from its first file: the
-  // set does not depend on the first file having loaded `widget` before the plugin was learned.
+test('reevaluateHookingExternals (D132): a dependency a shared package imports too stays shared', async () => {
   const root = writeTree(CLOSURE)
   const load = closureLoader(root)
   await withFileGlobals(async () => {
@@ -1343,12 +1341,74 @@ test('reevaluateHookingExternals (D132): a learned package’s dependency is per
     const second = load('b.test.js')
     assert.deepEqual(
       closureEvals(root).filter((name) => name === 'core-lib'),
-      ['core-lib', 'core-lib'],
-      'core-lib is evaluated in each file',
+      ['core-lib'],
+      'core-lib is evaluated once per worker',
     )
-    assert.notEqual(second.widget.core, first.widget.core, 'widget is per file from the next file')
-    assert.equal(second.plugin.core, second.widget.core, 'one core-lib in the file')
+    assert.equal(second.widget.core, first.widget.core, 'widget stays shared')
+    assert.equal(second.plugin.core, second.widget.core, 'the per-file plugin sees the shared one')
     assert.notEqual(second.plugin.entry, first.plugin.entry, 'the plugin itself is per file')
+  })
+})
+
+test('reevaluateHookingExternals (D132): a worker seeded with what a cold one learned holds its instances from the second file, and shares the seeds’ dependencies in the first', async () => {
+  const policy = { reevaluateHookingExternals: true, interopDefault: 'babel' } as const
+  /** What a run on a fresh copy of the tree (Node's own cache is the process's) did. */
+  interface Run {
+    readonly root: string
+    readonly results: readonly ClosureLoaded[]
+    readonly learned: readonly string[]
+    readonly evals: readonly string[]
+  }
+  /**
+   * Runs two files on a new loader over a new copy of the tree, seeded with `from`'s learned set
+   * carried over as the results cache carries it, relative to the root.
+   */
+  const run = (from?: Run): Run => {
+    const root = writeTree(CLOSURE)
+    const loader = loaderFor(root, policy)
+    loader.watchExternalLoads(probe([]))
+    if (from !== undefined) {
+      loader.reevaluateExternals(
+        from.learned.map((path) => join(root, path.slice(from.root.length + 1))),
+      )
+    }
+    const learned: string[] = []
+    closureEvals(root)
+    const results = ['a.test.js', 'b.test.js'].map((name) => {
+      const result = loader
+        .createFileRegistry(join(root, name), { tier: 'registry' })
+        .require<ClosureLoaded>(join(root, name))
+      learned.push(...loader.takeLearnedExternals())
+      return result
+    })
+    const evals = closureEvals(root)
+    loader[Symbol.dispose]()
+    return { root, results, learned, evals }
+  }
+  await withFileGlobals(async () => {
+    const cold = run()
+    assert.deepEqual(
+      cold.evals,
+      ['registry', 'core-lib', 'registry'],
+      'cold: both shared in file 1, the registry per file in file 2, core-lib once per worker',
+    )
+    const warm = run(cold)
+    assert.deepEqual(warm.evals, cold.evals, 'warm: the same evaluations')
+    assert.deepEqual(warm.learned, [], 'nothing new is learned')
+    const [first, second] = warm.results
+    assert.ok(first !== undefined && second !== undefined)
+    assert.equal(
+      first.plugin.registry,
+      first.registry,
+      'file 1: the per-file plugin writes into the shared registry',
+    )
+    assert.equal(first.plugin.core, first.widget.core)
+    assert.notEqual(second.registry, first.registry, 'file 2: the registry is the file’s own')
+    assert.equal(second.plugin.registry, second.registry)
+    assert.equal(second.registry.lookup('plugin'), second.plugin.entry, 'registered once')
+    assert.equal(second.widget.core, first.widget.core, 'widget and core-lib stay shared')
+    assert.equal(second.plugin.core, second.widget.core)
+    assert.notEqual(second.plugin.entry, first.plugin.entry, 'the plugin is per file')
   })
 })
 
@@ -1556,7 +1616,7 @@ test('reevaluateHookingExternals (D132): a workspace package between a per-file 
   assert.notEqual(second.entry, first.entry)
 })
 
-test('reevaluateHookingExternals (D132): a workspace package below a seed is per file with it, and a shared package that also loads it follows', () => {
+test('reevaluateHookingExternals (D132): a workspace package a shared package also loads is Node’s copy, so the registry below it stays shared', () => {
   const root = writeTree({
     ...pkg('plugin', "module.exports = { reg: require('ws-lib').reg }\n"),
     ...pkg('shared-user', "module.exports = { reg: require('ws-lib').reg }\n"),
@@ -1569,8 +1629,8 @@ test('reevaluateHookingExternals (D132): a workspace package below a seed is per
   type Loaded = { shared: { reg: object }; plugin: { reg: object } }
   const first = load<Loaded>('a.test.js')
   const second = load<Loaded>('b.test.js')
-  assert.notEqual(second.shared.reg, first.shared.reg, 'the registry is the file’s own')
-  assert.equal(second.plugin.reg, second.shared.reg, 'and both packages see the same one')
+  assert.equal(second.shared.reg, first.shared.reg, 'the shared package keeps the worker’s copy')
+  assert.equal(second.plugin.reg, second.shared.reg, 'and the plugin sees the same one')
 })
 
 test('reevaluateHookingExternals (D132): a dependency a shared package could load by a computed require stays shared, with a debug warning', () => {
@@ -2250,8 +2310,7 @@ test('reevaluatePatchingExternals: an ES module package that adds a global as it
       exports: './index.js',
     }),
     'node_modules/writes-dep/index.js': 'export const tag = {}\n',
-    // Imported by writes-esm and by a package that writes nothing: per file with writes-esm, and
-    // the package that writes nothing follows.
+    // Imported by writes-esm and by a package that writes nothing: it stays shared.
     'node_modules/shared-dep/package.json': JSON.stringify({
       name: 'shared-dep',
       main: 'index.js',
@@ -2302,14 +2361,17 @@ test('reevaluatePatchingExternals: an ES module package that adds a global as it
     assert.equal(flag(), 2, 'the second file evaluates the package again')
     assert.notEqual(second.writes.token, first.writes.token, 'writes-esm is the second file’s own')
     assert.notEqual(second.writes.depToken, first.writes.depToken, 'so is what only it imports')
-    assert.notEqual(
+    assert.equal(
       second.writes.sharedToken,
       first.writes.sharedToken,
-      'so is a dependency a shared package imports too',
+      'a dependency a shared package imports too stays shared',
     )
-    assert.equal(second.writes.sharedToken, second.plain.shared.token, 'one copy in the file')
-    assert.notEqual(second.plain.shared, first.plain.shared, 'its other importer follows')
-    assert.deepEqual(watched.slice(2), [], 'the second file loads no external natively')
+    assert.equal(second.writes.sharedToken, second.plain.shared.token)
+    assert.deepEqual(
+      watched.slice(2).map((path) => path.slice(root.length + 1)),
+      ['node_modules/shared-dep/index.js'],
+      'only the shared dependency’s first load from a user module (the per-file copy) is a window',
+    )
   } finally {
     Reflect.deleteProperty(globalThis, '__provinoWritesEsm')
   }

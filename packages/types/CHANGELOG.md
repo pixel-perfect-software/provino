@@ -1,5 +1,9 @@
 # @provino/types
 
+## 0.1.0-rc.6
+
+No changes in this release.
+
 ## 0.1.0-rc.5
 
 No changes in this release.

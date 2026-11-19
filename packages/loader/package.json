@@ -1,6 +1,6 @@
 {
   "name": "@provino/loader",
-  "version": "0.1.0-rc.5",
+  "version": "0.1.0-rc.6",
   "description": "Provino's module loader: a two-phase module-runner engine with a fresh module registry per test file, and node_modules shared natively.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {

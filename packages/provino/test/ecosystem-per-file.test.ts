@@ -3,8 +3,7 @@
 // the environment's `document` at load (D129) registers an entry into a module-level registry it
 // reaches through a re-export, so the registry is evaluated per file with it, and the entry is
 // registered once in each of three files on one worker. A dependency it shares with a package
-// that reads nothing per file (core-lib under plain-widget) is per file too, as Jest's is: a learned
-// package's whole closure is per file, so a cold worker's set is a warm one's (D132 as amended).
+// that reads nothing per file stays shared per worker: the one declared difference.
 // B23f (D149 as amended): a package whose load adds or replaces a key of the global is evaluated
 // per file from the next file on (`module.reevaluatePatchingExternals`), since the environment's
 // restore takes the key away after each file and a shared copy never writes it again
@@ -23,9 +22,18 @@ after(async () => {
 })
 
 describe('packages evaluated per file take what only they import (D132), against Jest 30.5.2', () => {
-  it('ecosystem/per-file-registry: one registration per file, and core-lib per file as in Jest', async () => {
+  it('ecosystem/per-file-registry: one registration per file, one shared core-lib per worker', async () => {
     const id = 'ecosystem/per-file-registry'
-    assertMatchesGolden(id, await provinoOn(id, { parent: PARENT }))
+    assertMatchesGolden(id, await provinoOn(id, { parent: PARENT }), {
+      declared: {
+        'file:core-lib-loads.txt': {
+          golden: 'evaluated\nevaluated\nevaluated\n',
+          provino: 'evaluated\n',
+          reason:
+            'Jest evaluates every module per file; core-lib is imported by a package that reads nothing per file too, so it stays shared per worker (D132)',
+        },
+      },
+    })
   })
 
   it('ecosystem/per-file-registry-cycle: a registry whose files import each other is per file with the plugin', async () => {

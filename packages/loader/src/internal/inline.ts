@@ -469,11 +469,11 @@ export interface InlinePerFileSources extends PerFileSources {
 
 /**
  * Whether the external at `path` is evaluated per file in the running file (D127, D129, D132): it
- * is a seed (`active`, or a claimed user module) or a file of a seed's static closure, it imports a
- * member through any chain of edges (so it shares the file's copy, never Node's cached one: a
- * component library over a learned `react`, an "Invalid hook call"), or it is a dependency of
- * members that only files evaluated per file import (a registry a per-file package writes into as
- * it loads, which would otherwise keep the first file's entries). `settlePerFile` keeps the set; a join this file can't take yet
+ * is a seed (`active`, or a claimed user module), it imports a member through any chain of edges
+ * (so it shares the file's copy, never Node's cached one: a component library over a learned
+ * `react`, an "Invalid hook call"), or it is a dependency of members that only files evaluated per
+ * file import (a registry a per-file package writes into as it loads, which would otherwise keep
+ * the first file's entries). `settlePerFile` keeps the set; a join this file can't take yet
  * (it asked about an external already) is the next file's. A join a dynamic file refused is
  * reported once as `PROVINO_INLINE_DYNAMIC`. Once the graph is known, a question costs a lookup.
  */

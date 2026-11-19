@@ -1,6 +1,6 @@
 {
   "name": "@provino/rpc",
-  "version": "0.1.0-rc.5",
+  "version": "0.1.0-rc.6",
   "description": "Provino's typed RPC between the coordinator and its workers: clone-safe method schemas over MessagePort and child-process IPC links.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {
