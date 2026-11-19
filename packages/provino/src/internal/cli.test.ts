@@ -31,16 +31,48 @@ describe('parseRunArgs', () => {
       type: 'run',
       options: { config: 'c.mjs', reporters: ['provino'], emoji: false },
     })
-    // html is a document reporter's name, so it takes --outputFile; building it is Phase 5's.
-    assert.deepEqual(
-      parseRunArgs(['-c', 'c.mjs', '--reporter', 'html', '--outputFile', 'r.html']),
-      {
-        type: 'run',
-        options: { config: 'c.mjs', reporters: [['html', { outputFile: 'r.html' }]] },
-      },
-    )
     usageError(['-c', 'c.mjs', '--emoji'], /--emoji/)
     usageError(['-c', 'c.mjs', '--reporter', 'provino', '--reporter', 'provino'], /more than once/)
+  })
+
+  it('--outputFile goes to html alone, and beside json or junit it is theirs (D146)', () => {
+    const reportersOf = (args: readonly string[]) => {
+      const parsed = parseRunArgs(['-c', 'c.mjs', ...args])
+      return parsed.type === 'run' ? parsed.options.reporters : undefined
+    }
+    assert.deepEqual(reportersOf(['--reporter', 'html', '--outputFile', 'r.html']), [
+      ['html', { outputFile: 'r.html' }],
+    ])
+    // With no file, html is its name and writes its default (provino-report.html in the root).
+    assert.deepEqual(reportersOf(['--reporter', 'html']), ['html'])
+    assert.deepEqual(
+      reportersOf(['--reporter', 'html', '--reporter', 'json', '--outputFile', 'r.json']),
+      ['html', ['json', { outputFile: 'r.json' }]],
+    )
+    assert.deepEqual(
+      reportersOf(['--reporter', 'junit', '--reporter', 'html', '--outputFile', 'r.xml']),
+      [['junit', { outputFile: 'r.xml' }], 'html'],
+    )
+    // Two writers that are not html still share one path, whatever html does.
+    usageError(
+      [
+        '-c',
+        'c.mjs',
+        '--reporter',
+        'json',
+        '--reporter',
+        'junit',
+        '--reporter',
+        'html',
+        '--outputFile',
+        'x',
+      ],
+      /--outputFile is one path, and json and junit each write a document/,
+    )
+    usageError(
+      ['-c', 'c.mjs', '--reporter', 'agent', '--outputFile', 'x'],
+      /--outputFile needs --reporter json, normalized-json, junit or html/,
+    )
   })
 
   it('--tree and --map are RunOptions.views, whatever reporters are named: choosing and refusing are the run’s (reportersFor)', () => {
@@ -261,11 +293,11 @@ describe('parseRunArgs', () => {
     )
     usageError(
       ['--config', 'c.mjs', '--outputFile', 'o.json'],
-      /needs --reporter json, normalized-json or junit/,
+      /needs --reporter json, normalized-json, junit or html/,
     )
     usageError(
       ['--config', 'c.mjs', '--reporter', 'default', '--outputFile', 'o.json'],
-      /needs --reporter json, normalized-json or junit/,
+      /needs --reporter json, normalized-json, junit or html/,
     )
     usageError(
       ['--config', 'c.mjs', '--reporter', 'json', '--reporter', 'junit', '--outputFile', 'o.json'],

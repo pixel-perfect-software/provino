@@ -102,8 +102,9 @@ const MARK = '__provino_ref__:'
 const COORDINATOR = new RegExp(
   [
     'orchestrator[\\/]src[\\/](?!worker[\\/])',
-    // The live terminal output is its own chunk (`LIVE`), loaded only when it is chosen.
-    'reporters[\\/]src[\\/](?!live[\\/])',
+    // The live terminal output and the HTML report are chunks of their own (`LIVE`, `HTML`),
+    // loaded only when they are chosen.
+    'reporters[\\/]src[\\/](?!live[\\/]|html[\\/])',
     'config[\\/]src[\\/]',
     'snapshot[\\/]src[\\/]node[\\/]',
     // provino's own files, but not the bin's light ones.
@@ -166,6 +167,17 @@ const WATCH = new RegExp(
  * reporters (`style.ts`, the error serializer) stays in `coordinator.js`, which it imports.
  */
 const LIVE = /[\\/]packages[\\/]reporters[\\/]src[\\/]live[\\/](?!.*\.test\.ts$)/
+
+/**
+ * The `html` reporter (B26 Phase 5): `@provino/reporters/html`, the report's data, its document and
+ * the page's script and styles. `provino` imports it with `await import()` only when `html` is
+ * chosen, so a worker, the `expect` import and a run with another reporter load none of it. What it
+ * shares with the other reporters (the collector, `formatErrors`, `writeAtomically`) stays in
+ * `coordinator.js`, which it imports. The page's script is `renderReport` written out by
+ * `Function.prototype.toString()`, so it must close over nothing: the chunk is built without
+ * minification, and `packages/provino/test/exports.test.ts` runs the built page's script.
+ */
+const HTML = /[\\/]packages[\\/]reporters[\\/]src[\\/]html[\\/](?!.*\.test\.ts$)/
 
 /** The three `@provino/lazy` leaves `provino`'s own `lazy` forwarders import (`import 'provino'`). */
 const LAZY_API = /[\\/]packages[\\/]lazy[\\/]src[\\/](?:errors|slot|runtime[\\/]site)\.ts$/
@@ -293,6 +305,13 @@ export function umbrellaConfig(dir: string): UserConfig[] {
             {
               name: 'live',
               test: LIVE,
+              priority: 5,
+              includeDependenciesRecursively: false,
+            },
+            // The HTML report: loaded by a dynamic import when `html` is chosen only.
+            {
+              name: 'html',
+              test: HTML,
               priority: 5,
               includeDependenciesRecursively: false,
             },

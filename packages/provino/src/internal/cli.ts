@@ -113,15 +113,22 @@ function parseShard(text: string): { readonly index: number; readonly count: num
   return { index, count }
 }
 
-/** One `--reporter` name as the choice it stands for: a document reporter takes `outputFile`, any other stands for itself. */
-function choiceFor(name: BuiltInReporterName, outputFile: string | undefined): ReporterChoice {
-  return isDocumentReporter(name) && outputFile !== undefined ? [name, { outputFile }] : name
+/** One `--reporter` name as the choice it stands for: the reporter that owns `--outputFile` takes it, any other stands for itself. */
+function choiceFor(
+  name: BuiltInReporterName,
+  owner: BuiltInReporterName | undefined,
+  outputFile: string | undefined,
+): ReporterChoice {
+  return name === owner && outputFile !== undefined && isDocumentReporter(name)
+    ? [name, { outputFile }]
+    : name
 }
 
 /**
- * `--reporter` names, with `--outputFile` going to the one reporter that writes a document
- * (`json`, `normalized-json` or `junit`). Every name is checked first, so a misspelt one is
- * named as such whatever else is wrong.
+ * `--reporter` names, with `--outputFile` going to the one reporter that writes a document:
+ * `json`, `normalized-json` or `junit`, and `html` only when none of those is named (D146: beside
+ * one of them `--outputFile` is theirs, and `html` writes `provino-report.html` in the run's root).
+ * Every name is checked first, so a misspelt one is named as such whatever else is wrong.
  */
 function parseReporters(
   names: readonly string[],
@@ -139,10 +146,11 @@ function parseReporters(
     }
     known.push(name)
   }
+  // The document reporters that take `--outputFile` before `html` does.
+  const writers = known.filter((name) => isDocumentReporter(name) && name !== 'html')
   if (outputFile !== undefined) {
-    const writers = known.filter(isDocumentReporter)
-    if (writers.length === 0) {
-      throw new UsageError('--outputFile needs --reporter json, normalized-json or junit')
+    if (writers.length === 0 && !known.includes('html')) {
+      throw new UsageError('--outputFile needs --reporter json, normalized-json, junit or html')
     }
     if (writers.length > 1) {
       throw new UsageError(
@@ -150,7 +158,8 @@ function parseReporters(
       )
     }
   }
-  return known.map((name) => choiceFor(name, outputFile))
+  const owner = writers[0] ?? (known.includes('html') ? 'html' : undefined)
+  return known.map((name) => choiceFor(name, owner, outputFile))
 }
 
 /**
