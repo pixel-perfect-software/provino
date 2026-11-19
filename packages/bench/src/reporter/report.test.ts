@@ -6,6 +6,7 @@ import {
   type FramesResult,
   type HandlersResult,
   type HeapResult,
+  type HtmlResult,
   handlerKind,
   legLine,
   parseReporterFlags,
@@ -110,9 +111,105 @@ test('the e2e bars: the wall ratio and the CPU overhead, a NaN missing both', ()
   )
 })
 
-test('bad usage: unknown and later legs, bad numbers, unknown flags', () => {
+test('the html leg runs only when named, with its own files, rounds and bars', () => {
+  assert.deepEqual(parseReporterFlags([]).legs.includes('html' as never), false)
+  assert.deepEqual(parseReporterFlags(['all']).legs.includes('html' as never), false)
+  const defaults = parseReporterFlags(['html'])
+  assert.deepEqual(defaults.legs, ['html'])
+  assert.equal(defaults.files, 500)
+  assert.equal(defaults.htmlRounds, 15)
+  assert.equal(defaults.maxHtmlMs, undefined)
+  const bars = parseReporterFlags([
+    'html',
+    '--files',
+    '2000',
+    '--html-rounds',
+    '3',
+    '--max-html-ms',
+    '50',
+    '--max-html-kb',
+    '400',
+    '--max-html-failures-kb',
+    '1024',
+  ])
+  assert.equal(bars.files, 2000)
+  assert.equal(bars.htmlRounds, 3)
+  assert.deepEqual([bars.maxHtmlMs, bars.maxHtmlKb, bars.maxHtmlFailuresKb], [50, 400, 1024])
+})
+
+test('the html bars: the build in ms for both variants, 400 KB passing and 1,024 KB with failures', () => {
+  const html = parseReporterFlags([
+    'html',
+    '--max-html-ms',
+    '50',
+    '--max-html-kb',
+    '400',
+    '--max-html-failures-kb',
+    '1024',
+  ])
+  const variant = (
+    name: 'passing' | 'failures',
+    buildMs: number,
+    kb: number,
+  ): HtmlResult['variants'][number] => ({
+    name,
+    tests: 12_500,
+    failures: name === 'passing' ? 0 : 125,
+    noopMs: 0.01,
+    htmlMs: buildMs + 0.01,
+    buildMs,
+    kb,
+  })
+  const result = (
+    passing: HtmlResult['variants'][number],
+    failures: HtmlResult['variants'][number],
+  ) => ({ files: 500, rounds: 15, variants: [passing, failures] }) satisfies HtmlResult
+  assert.deepEqual(
+    reporterFailures(
+      { html: result(variant('passing', 12, 300), variant('failures', 14, 700)) },
+      html,
+    ),
+    [],
+  )
+  // Each bar names the variant it missed, and a value over its own bar is reported with decimals.
+  const missed = reporterFailures(
+    { html: result(variant('passing', 51, 401), variant('failures', 60, 1025)) },
+    html,
+  )
+  assert.equal(missed.length, 4, missed.join('\n'))
+  assert.ok(missed.some((text) => /html \(passing\) build .* is over 50 ms/.test(text)))
+  assert.ok(missed.some((text) => /html \(passing\) size .* KB .* is over 400 KB/.test(text)))
+  assert.ok(missed.some((text) => /html \(failures\) build .* is over 50 ms/.test(text)))
+  assert.ok(missed.some((text) => /html \(failures\) size .* KB .* is over 1024 KB/.test(text)))
+  // A size that is fine for the page with failures is not fine for the passing one.
+  assert.equal(
+    reporterFailures(
+      { html: result(variant('passing', 1, 500), variant('failures', 1, 500)) },
+      html,
+    ).length,
+    1,
+  )
+  // A bar that is not given is not checked, and a NaN misses.
+  assert.deepEqual(
+    reporterFailures(
+      { html: result(variant('passing', 99, 9999), variant('failures', 99, 9999)) },
+      parseReporterFlags([]),
+    ),
+    [],
+  )
+  assert.equal(
+    reporterFailures(
+      { html: result(variant('passing', Number.NaN, 1), variant('failures', 1, 1)) },
+      html,
+    ).length,
+    1,
+  )
+})
+
+test('bad usage: unknown legs, bad numbers, unknown flags', () => {
   usageError(['nope'], /unknown leg "nope"/)
-  usageError(['html'], /Phase 5/)
+  usageError(['--files', '0'], /--files needs a positive whole number/)
+  usageError(['--max-html-ms', 'fast'], /--max-html-ms needs a number/)
   usageError(['--tests', '0'], /--tests needs a positive whole number/)
   usageError(['--rounds', '1.5'], /--rounds/)
   usageError(['--max-handler-us', 'fast'], /--max-handler-us needs a number/)
