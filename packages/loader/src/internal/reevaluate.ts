@@ -30,9 +30,10 @@ export interface ReevaluateState {
   /** What was learned since `takeLearned` last said so, in the order it was (never a seeded one). */
   readonly learned: string[]
   /**
-   * Externals an earlier run's workers loaded natively (`noteLoaded`), not indexed yet: the next
-   * settle where the seeds grew indexes them before the seeds join, as it indexes what this worker
-   * loaded (D132), so a warm worker keeps shared what a cold one's first file kept shared.
+   * What the worker's first file loaded natively when it last ran first (`noteLoaded`), not
+   * indexed yet: the first settle where the seeds grow indexes it before they join, as it indexes
+   * what this worker loaded (D132), so a worker that starts with its seeds knows what one that
+   * learned them in that file would.
    */
   readonly loadedBefore: string[]
   /** How many of the worker's native loads `takeLoaded` has looked at. */
@@ -370,8 +371,9 @@ function joinProbed(
 
 /**
  * Settles the set before `evaluatedPerFile` answers for `path`: when the seeds grew, indexes what
- * the worker loaded natively and what an earlier run's workers did (`loadedBefore`), so a shared
- * importer an earlier file or run loaded counts, then the new seeds, and puts them in the set;
+ * the worker loaded natively and what its first file loaded when it last ran first
+ * (`loadedBefore`), so a shared importer an earlier file loaded counts, then the new seeds, and
+ * puts them in the set;
  * indexes `path`; then decides what the changes probed (`joinProbed`). `index` indexes a file's
  * closure (`indexClosure` in `inline.ts`). Returns the joins a dynamic file refused, for the
  * caller to report.
@@ -387,8 +389,8 @@ export function settlePerFile(
   const { claimed, keep } = sources
   if (graph.primedActive !== active.size || graph.primedClaimed !== claimed.length) {
     for (const loaded of sources.loaded.keys()) if (inGraph(loaded)) index(loaded)
-    // A warm worker's seeds join before its files have loaded their shared importers: an earlier
-    // run's native loads stand in for them, so the set is the cold worker's, or smaller.
+    // A worker given its seeds joins them before its first file has loaded their shared
+    // importers: what that file loaded when it last ran first stands in for them.
     for (const loaded of state.loadedBefore.splice(0)) index(loaded)
     let at = 0
     for (const seed of active) {
@@ -453,10 +455,14 @@ export function takeLearned(state: ReevaluateState): readonly string[] {
 }
 
 /**
- * Notes externals an earlier run's workers loaded natively, indexed at the next settle where the
- * seeds grow, before they join (`loadedBefore`).
+ * Notes what the worker's first file loaded natively when it last ran first, indexed at the first
+ * settle where the seeds grow, before they join (`loadedBefore`). Ignored once some seed has
+ * joined: a worker that learned its seeds knew only what it had loaded by then, so a later file's
+ * list would make it know more, and keep shared a registry no importer it loaded shares.
  */
 export function noteLoaded(state: ReevaluateState, paths: Iterable<string>): void {
+  const graph = state.perFile
+  if (graph.primedActive > 0 || graph.primedClaimed > 0) return
   for (const path of paths) state.loadedBefore.push(path)
 }
 

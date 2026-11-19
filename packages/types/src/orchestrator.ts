@@ -172,6 +172,14 @@ export interface FileJob {
    * none did.
    */
   readonly staleModules?: readonly string[]
+  /**
+   * What this file loaded natively the last time it was a worker's first file (absolute paths,
+   * `FileHistory.loadedExternals`), sent when it is this worker's first file and the worker starts
+   * with externals to evaluate per file: the worker tells its loader before the file starts, so
+   * the seeds join knowing what a worker that learned them in this file would (D132). Absent when
+   * there is none.
+   */
+  readonly loadedExternals?: readonly string[]
 }
 
 /**
@@ -345,8 +353,9 @@ export type WorkerToCoordinator =
       readonly reevaluated?: readonly string[]
       /**
        * The node_modules files (absolute paths) the worker loaded natively while this file ran
-       * (`Loader.takeLoadedExternals`, D132); absent when there were none. The coordinator keeps
-       * them in the results cache, for the next run's `SerializedLoaderConfig.loadedExternals`.
+       * (`Loader.takeLoadedExternals`, D132), sent for the worker's first file only (empty when it
+       * loaded none) and only where the policy evaluates externals per file; absent otherwise. The
+       * coordinator keeps them on the file's history, for `FileJob.loadedExternals`.
        */
       readonly loadedExternals?: readonly string[]
     }
@@ -478,6 +487,13 @@ export interface FileHistory {
    * nothing writes it yet.
    */
   readonly coverage?: Readonly<Record<string, readonly string[]>>
+  /**
+   * The node_modules files the file loaded natively the last time it was a worker's first file
+   * (`fileDone.loadedExternals`, D132), relative to the project root with `/`, each with its
+   * package's `version` then (`''` for none): an entry whose file is gone or whose package moved
+   * is left out when it is read. Absent when the file never ran first, or loaded none then.
+   */
+  readonly loadedExternals?: Readonly<Record<string, string>>
 }
 
 /**

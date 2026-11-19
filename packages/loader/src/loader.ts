@@ -247,8 +247,9 @@ export const createLoader: CreateLoader = (options) => {
         state.reevaluate,
         paths.filter((path) => isEvaluableExternal(path, state.inlineRules) && existsSync(path)),
       )
-      // A file a reinstall removed would read as one the graph can't scan, which blocks joins.
-      if (loaded !== undefined) {
+      // A file a reinstall removed would read as one the graph can't scan, which blocks joins;
+      // `noteLoaded` ignores a list given once the seeds have joined.
+      if (loaded !== undefined && loaded.length > 0) {
         noteLoaded(
           state.reevaluate,
           loaded.filter((path) => inGraph(path) && existsSync(path)),

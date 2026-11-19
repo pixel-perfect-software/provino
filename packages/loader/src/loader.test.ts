@@ -1350,7 +1350,7 @@ test('reevaluateHookingExternals (D132): a dependency a shared package imports t
   })
 })
 
-test('reevaluateHookingExternals (D132): a worker seeded with what a cold one learned and loaded natively has its instances; seeded with the learned set alone, the whole closure', async () => {
+test('reevaluateHookingExternals (D132): a worker seeded with what a cold one learned and what its first file loaded natively has its instances; seeded with the learned set alone, the whole closure', async () => {
   const policy = { reevaluateHookingExternals: true, interopDefault: 'babel' } as const
   /** What a run on a fresh copy of the tree (Node's own cache is the process's) did, by file. */
   interface Run {
@@ -1362,8 +1362,9 @@ test('reevaluateHookingExternals (D132): a worker seeded with what a cold one le
   }
   /**
    * Runs two files on a new loader over a new copy of the tree, seeded with `from`'s learned set
-   * (and its native loads, with `loaded`) carried over as the results cache carries them, relative
-   * to the root. What the loader learned and loaded is taken after each file, as the worker does.
+   * (and its first file's native loads, with `loaded`) carried over as the results cache carries
+   * them, relative to the root. What the loader learned is taken after each file, and what it
+   * loaded natively after the first, as the worker does.
    */
   const run = (from?: Run, loaded = false): Run => {
     const root = writeTree(CLOSURE)
@@ -1377,12 +1378,12 @@ test('reevaluateHookingExternals (D132): a worker seeded with what a cold one le
     const learnedNow: string[] = []
     const loadedNow: string[] = []
     closureEvals(root)
-    const results = ['a.test.js', 'b.test.js'].map((name) => {
+    const results = ['a.test.js', 'b.test.js'].map((name, at) => {
       const result = loader
         .createFileRegistry(join(root, name), { tier: 'registry' })
         .require<ClosureLoaded>(join(root, name))
       learnedNow.push(...loader.takeLearnedExternals())
-      loadedNow.push(...loader.takeLoadedExternals())
+      if (at === 0) loadedNow.push(...loader.takeLoadedExternals())
       return result
     })
     const coreLoads = closureEvals(root).filter((name) => name === 'core-lib')
@@ -1393,12 +1394,8 @@ test('reevaluateHookingExternals (D132): a worker seeded with what a cold one le
     const cold = run()
     assert.deepEqual(
       cold.loaded.map((path) => path.slice(cold.root.length + 1)).toSorted(),
-      [
-        'node_modules/core-lib/index.js',
-        'node_modules/registry/index.js',
-        'node_modules/widget/index.js',
-      ],
-      'what the tests and the per-file plugin required natively, less the plugin it learned',
+      ['node_modules/registry/index.js', 'node_modules/widget/index.js'],
+      'what the first file required natively, less the plugin it learned',
     )
     assert.deepEqual(cold.coreLoads, ['core-lib'], 'cold: core-lib is evaluated once per worker')
 

@@ -3,7 +3,9 @@
 // a project supplies by ref: an environment that records its calls, a matcher table, and a globals
 // factory. They write to `globalThis.__trace`, which an inline worker shares with the test.
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { randomUUID } from 'node:crypto'
+import { readFile, rm } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { MATCHERS_SLOT } from '@provino/expect'
@@ -1476,9 +1478,11 @@ describe('a shared external that reads a per-file global as it loads (D127, P42)
       'with its package’s version (none here)',
     )
     assert.deepEqual(
-      [...reread.loadedExternals(projectCacheKey(target))],
-      [['node_modules/plain/index.js', '']],
-      'and beside it, what the worker loaded natively (D132)',
+      ['a.test.js', 'b.test.js'].map(
+        (file) => reread.get(projectCacheKey(target), file)?.loadedExternals,
+      ),
+      [{ 'node_modules/plain/index.js': '' }, undefined],
+      'and on the worker’s first file’s record, what that file loaded natively (D132)',
     )
 
     // A new run, a new worker: its first file evaluates `hooker` through its registry. (An inline
@@ -1525,13 +1529,83 @@ describe('a shared external that reads a per-file global as it loads (D127, P42)
     assert.equal(await coreLoads(), 1, 'cold: core-lib is evaluated once per worker')
     const written = createResultsCache(defaultCacheDir(p.dir))
     assert.deepEqual([...written.externals(key).keys()], ['node_modules/plugin/index.js'])
-    assert.deepEqual([...written.loadedExternals(key).keys()].toSorted(), [
-      'node_modules/core-lib/index.js',
+    const first = written.get(key, 'a.test.js')
+    assert.deepEqual(Object.keys(first?.loadedExternals ?? {}).toSorted(), [
       'node_modules/first/index.js',
       'node_modules/widget/index.js',
     ])
+    assert.equal(written.get(key, 'b.test.js')?.loadedExternals, undefined, 'not a first file')
+    // The warm worker starts with `a.test.js` again: its record says it took longest.
+    if (first !== undefined) written.record(key, 'a.test.js', { ...first, durationMs: 60_000 })
+    await written.write()
     await once()
     assert.equal(await coreLoads(), 2, 'warm: once per worker again')
+  })
+
+  it('tells a worker only what its own first file loaded natively, so a registry stays per file where no file of that worker loads its shared importer (D132)', async () => {
+    // `plugin` (learned: it registers an `afterEach`) registers into `reg`, which throws on an id
+    // it holds already; `widget`, a shared package, imports `reg` too. Two workers: the one that
+    // takes `w.test.js` loads `widget` and waits until both `p*.test.js` have run, so the other
+    // runs both of them and never loads `widget`. The `p*` files require `reg` before `plugin`, so
+    // the plugin's load adds no new file to Node's cache and `reg` is no seed: it joins or not.
+    const marker = (name: string) =>
+      join(tmpdir(), `provino-d132-${name}-${process.pid}-${randomUUID()}`)
+    const markers = [marker('p1'), marker('p2')]
+    const writes = (at: string) =>
+      `test('runs', () => { require('node:fs').writeFileSync(${JSON.stringify(at)}, 'ran') })`
+    const p = await project({
+      'node_modules/first/package.json': JSON.stringify({ name: 'first', main: 'index.js' }),
+      'node_modules/first/index.js': 'module.exports = {}',
+      'node_modules/reg/package.json': JSON.stringify({ name: 'reg', main: 'index.js' }),
+      'node_modules/reg/index.js': [
+        'const ids = new Set()',
+        "exports.register = (id) => { if (ids.has(id)) throw new RangeError('Duplicate use of id ' + id); ids.add(id) }",
+      ].join('\n'),
+      'node_modules/plugin/package.json': JSON.stringify({ name: 'plugin', main: 'index.js' }),
+      'node_modules/plugin/index.js': "afterEach(() => {})\nrequire('reg').register('plugin')",
+      'node_modules/widget/package.json': JSON.stringify({ name: 'widget', main: 'index.js' }),
+      'node_modules/widget/index.js': "module.exports = require('reg')",
+      'w.test.js': [
+        // The largest file, so a cold run queues it first; its wait makes it the longest after.
+        `// ${'x'.repeat(400)}`,
+        "require('first')",
+        "require('widget')",
+        "test('waits for both p files', () => {",
+        "  const { existsSync } = require('node:fs')",
+        '  const sleep = new Int32Array(new SharedArrayBuffer(4))',
+        '  const until = Date.now() + 30000',
+        `  while (!${JSON.stringify(markers)}.every((at) => existsSync(at))) {`,
+        "    if (Date.now() > until) throw new Error('the p files never ran')",
+        '    Atomics.wait(sleep, 0, 0, 10)',
+        '  }',
+        '})',
+      ].join('\n'),
+      'p1.test.js': `require('first')\nrequire('reg')\nrequire('plugin')\n${writes(markers[0] ?? '')}`,
+      'p2.test.js': `require('first')\nrequire('reg')\nrequire('plugin')\n${writes(markers[1] ?? '')}`,
+    })
+    const target = runtimeProject(p.dir, {
+      policy: { module: { reevaluateHookingExternals: true } },
+    })
+    const once = async () => {
+      await Promise.all(markers.map((at) => rm(at, { force: true })))
+      const { summary } = await run(target, {
+        cache: createResultsCache(defaultCacheDir(p.dir)),
+        pool: { kind: 'forks', maxWorkers: 2 },
+      })
+      return Object.fromEntries(summary.files.map((file) => [file.file.path, file.state]))
+    }
+    try {
+      const passing = { 'p1.test.js': 'pass', 'p2.test.js': 'pass', 'w.test.js': 'pass' }
+      assert.deepEqual(await once(), passing, 'cold')
+      const written = createResultsCache(defaultCacheDir(p.dir))
+      assert.deepEqual(
+        [...written.externals(projectCacheKey(target)).keys()],
+        ['node_modules/plugin/index.js'],
+      )
+      assert.deepEqual(await once(), passing, 'warm: no duplicate registration')
+    } finally {
+      await Promise.all(markers.map((at) => rm(at, { force: true })))
+    }
   })
 
   it('is read under the key it was written under, also for projects that share a cache key', async () => {

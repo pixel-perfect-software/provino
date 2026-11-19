@@ -93,7 +93,10 @@ export interface FileOutcome {
    * `fileDone.reevaluated`.
    */
   readonly reevaluated?: readonly string[]
-  /** The node_modules files the loader loaded natively while the file ran (D132): `fileDone.loadedExternals`. */
+  /**
+   * The node_modules files the loader loaded natively while the worker's first file ran (D132),
+   * empty when none: `fileDone.loadedExternals`. Absent for every later file.
+   */
   readonly loadedExternals?: readonly string[]
 }
 

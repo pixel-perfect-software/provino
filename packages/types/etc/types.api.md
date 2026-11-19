@@ -1044,6 +1044,7 @@ export interface FileHistory {
     // (undocumented)
     readonly failed: boolean;
     readonly inputsHash?: string;
+    readonly loadedExternals?: Readonly<Record<string, string>>;
     // (undocumented)
     readonly tests: number;
     readonly tier?: IsolationTier;
@@ -1069,6 +1070,7 @@ export interface FileJob {
     readonly file: string;
     // (undocumented)
     readonly fileId: TaskId;
+    readonly loadedExternals?: readonly string[];
     readonly logHeapUsage?: true;
     readonly staleModules?: readonly string[];
     readonly testIds?: readonly TaskId[];
@@ -3094,7 +3096,6 @@ export interface SerializedLoaderConfig {
     readonly esmExtensions?: readonly string[];
     readonly extensions: readonly string[];
     readonly hoist: HoistPolicy | null;
-    readonly loadedExternals?: readonly string[];
     readonly mappers: readonly SerializedModuleMapper[];
     readonly moduleDirectories?: readonly string[];
     readonly modulePaths?: readonly string[];

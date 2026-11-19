@@ -1303,4 +1303,31 @@ describe('a pool kept across runs (B23c, watch)', () => {
       [['/p/b.ts'], undefined],
     )
   })
+
+  it('asks for a file’s loaded externals only when its worker has run no file yet (D132)', async () => {
+    const f = fake(() => 'ok')
+    const pool = createPool(options(1), deps(f))
+    let asked = 0
+    const loadedExternals = (): readonly string[] => {
+      asked++
+      return ['/p/node_modules/widget/index.js']
+    }
+    await pool.run(request('a', { loadedExternals }))
+    await pool.run(request('b', { loadedExternals }))
+    await pool.close()
+    assert.equal(asked, 1, 'the worker’s second file is not asked')
+    assert.deepEqual(
+      f.jobs.map(({ job }) => job.loadedExternals),
+      [['/p/node_modules/widget/index.js'], undefined],
+    )
+    // A new worker's first file, with an empty list: no field.
+    const g = fake(() => 'ok')
+    const fresh = createPool(options(1), deps(g))
+    await fresh.run(request('c', { loadedExternals: () => [] }))
+    await fresh.close()
+    assert.deepEqual(
+      g.jobs.map(({ job }) => job.loadedExternals),
+      [undefined],
+    )
+  })
 })

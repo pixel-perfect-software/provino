@@ -1,11 +1,13 @@
 // D127: the node_modules files a project's workers learned to evaluate per file, as the results
 // cache carries them between runs. Each is kept with its package's `version`, so a reinstall that
 // moves or upgrades a package drops what was learned of it, rather than the set only growing.
-// D132: the files they loaded natively, kept the same way, so the next run's workers know the
-// shared importers a cold worker's first file loaded before their seeds join.
+// D132: what a test file loaded natively when it was a worker's first file, kept on its record
+// the same way, so a worker that starts with that file next time knows the shared importers a
+// worker that learned its seeds there knew when they joined.
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { packageDirOf } from '@provino/loader/graph'
+import type { FileHistory } from '@provino/types'
 import type { ResultsCache } from './cache.ts'
 import { relativePosix } from './file-id.ts'
 
@@ -49,18 +51,18 @@ export function readLearnedExternals(
 }
 
 /**
- * What `project`'s workers loaded natively in earlier runs (D132), as absolute paths, pruned as
- * `readLearnedExternals` prunes (`forgetLoadedExternals`).
+ * What the file of `history` loaded natively the last time it was a worker's first file (D132),
+ * as absolute paths, less an entry whose file is gone or whose package has another version now
+ * (the record itself is rewritten when the file next runs first).
  */
 export function readLoadedExternals(
-  cache: ResultsCache,
-  project: string,
+  history: FileHistory | undefined,
   rootDir: string,
   memo: Map<string, string>,
 ): string[] {
-  return freshPaths(cache.loadedExternals(project), rootDir, memo, (stale) =>
-    cache.forgetLoadedExternals(project, stale),
-  )
+  const loaded = history?.loadedExternals
+  if (loaded === undefined) return []
+  return freshPaths(new Map(Object.entries(loaded)), rootDir, memo, () => {})
 }
 
 /**
@@ -98,15 +100,16 @@ export function learnExternals(
   cache.learnExternals(project, versioned(rootDir, paths, memo))
 }
 
-/** Adds what a worker loaded natively (absolute paths, D132) to the project's entry, likewise. */
-export function recordLoadedExternals(
-  cache: ResultsCache,
-  project: string,
+/**
+ * What a worker's first file loaded natively (absolute paths, D132), as its record keeps it:
+ * relative to the root, with each package's version; `undefined` for none.
+ */
+export function loadedExternalsRecord(
   rootDir: string,
   paths: readonly string[],
   memo: Map<string, string>,
-): void {
-  cache.recordLoadedExternals(project, versioned(rootDir, paths, memo))
+): Readonly<Record<string, string>> | undefined {
+  return paths.length === 0 ? undefined : Object.fromEntries(versioned(rootDir, paths, memo))
 }
 
 /** Each path relative to `rootDir`, with its package's version. */

@@ -223,12 +223,6 @@ export interface SerializedLoaderConfig {
    * the worker inlines them from its first file. Absent means none.
    */
   readonly reevaluate?: readonly string[]
-  /**
-   * The node_modules files an earlier run's workers loaded natively (`Loader.takeLoadedExternals`,
-   * D132), as absolute paths, from the results cache: the worker knows them before `reevaluate`
-   * joins, so what one of them imports stays shared. Absent means none.
-   */
-  readonly loadedExternals?: readonly string[]
 }
 
 /**

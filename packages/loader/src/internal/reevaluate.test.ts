@@ -214,6 +214,45 @@ test('settlePerFile: a cold worker, and a warm one told what an earlier run load
   ])
 })
 
+test('settlePerFile: a warm worker knows only what its first file loaded natively; a list given once the seeds joined is ignored', () => {
+  // `plugin` writes into `reg`; `widget`, which another worker or an earlier run loaded, imports it
+  // too. This worker never loads `widget`.
+  const graph: Edges = [
+    [nm('plugin'), [nm('reg')]],
+    [nm('widget'), [nm('reg')]],
+  ]
+  // Cold: the worker never loaded `widget`, so `reg` joins and the plugin writes into its own copy.
+  const cold = createReevaluateState()
+  index(cold, [[nm('plugin'), [nm('reg')]]])
+  settle(cold, [nm('plugin')])
+  assert.deepEqual(names(cold.perFile.members), ['plugin/index.js', 'reg/index.js'])
+  // Warm, told its first file's own native loads (no `widget`): the cold worker's set.
+  const warm = createReevaluateState()
+  activate(warm, [nm('plugin')])
+  noteLoaded(warm, [nm('plugin')])
+  settlePerFile(warm, SOURCES, indexer(warm, graph), nm('plugin'))
+  assert.deepEqual(names(warm.perFile.members), ['plugin/index.js', 'reg/index.js'])
+  // A later file's list arrives once the seeds have joined: ignored, so `widget` stays unknown and
+  // the next seed joins with the same knowledge.
+  noteLoaded(warm, [nm('widget')])
+  assert.deepEqual(warm.loadedBefore, [])
+  activate(warm, [nm('other')])
+  settlePerFile(warm, SOURCES, indexer(warm, graph), nm('other'))
+  assert.equal(warm.perFile.edges.has(nm('widget')), false, 'never indexed')
+  assert.deepEqual(names(warm.perFile.members), [
+    'other/index.js',
+    'plugin/index.js',
+    'reg/index.js',
+  ])
+  // Told `widget` before the join (its first file did load it): `reg` is shared, as in a cold
+  // worker whose first file loaded `widget` (D132's limit, a DIVERGENCES row).
+  const told = createReevaluateState()
+  activate(told, [nm('plugin')])
+  noteLoaded(told, [nm('widget')])
+  settlePerFile(told, SOURCES, indexer(told, graph), nm('plugin'))
+  assert.deepEqual(names(told.perFile.members), ['plugin/index.js'])
+})
+
 test('takeLoaded: each native load once, in order, in the graph and not evaluated per file', () => {
   const state = createReevaluateState()
   const loaded = new Map<string, unknown>([

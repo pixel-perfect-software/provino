@@ -345,6 +345,20 @@ const badTier: FileHistory = { ...plainHistory, tier: 'jail' }
 const undefinedHash: FileHistory = { ...plainHistory, inputsHash: undefined }
 // @ts-expect-error a coverage entry lists function ids as text
 const badCoverage: FileHistory = { ...plainHistory, coverage: { t: [1] } }
+// D132: what the file loaded natively as a worker's first file, with each package's version, and
+// the same paths, absolute and without versions, on the job of a worker's first file.
+expectTypeOf<FileHistory['loadedExternals']>().toEqualTypeOf<
+  Readonly<Record<string, string>> | undefined
+>()
+expectTypeOf<FileJob['loadedExternals']>().toEqualTypeOf<readonly string[] | undefined>()
+const loadedHistory: FileHistory = {
+  ...plainHistory,
+  loadedExternals: { 'node_modules/widget/index.js': '1.0.0' },
+}
+// @ts-expect-error the record keeps each path with its package's version, not a list
+const listedHistory: FileHistory = { ...plainHistory, loadedExternals: ['node_modules/a.js'] }
+// @ts-expect-error exactOptionalPropertyTypes: a job with no list leaves the key out
+const jobUndefinedLoaded: FileJob = { ...jobWithChecks, loadedExternals: undefined }
 // @ts-expect-error a worker key needs its isolation tier
 const keyWithoutTier: WorkerKey = {
   project: 'p',
@@ -371,9 +385,12 @@ export {
   fileDoneVersions,
   fileDoneWithout,
   fullHistory,
+  jobUndefinedLoaded,
   jobWithChecks,
   jobWithoutChecks,
   keyWithoutTier,
+  listedHistory,
+  loadedHistory,
   noFrames,
   noLimit,
   textLimit,
