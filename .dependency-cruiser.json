@@ -21,8 +21,9 @@
           "^packages/core/",
           "^packages/lazy/",
           "^packages/config/",
-          "^packages/reporters/(?!(?:src/live|test)/)",
+          "^packages/reporters/(?!(?:src/live|src/html|test)/)",
           "^packages/reporters/src/live/",
+          "^packages/reporters/src/html/",
           "^packages/orchestrator/(?!(?:src/worker|test)/)",
           "^packages/orchestrator/src/worker/",
           "^packages/snapshot/test/",
@@ -535,12 +536,12 @@
       "comment": "@provino/reporters (layer 4, runs in coordinator) may import only: @provino/types.",
       "severity": "error",
       "from": {
-        "path": "^packages/reporters/(?!(?:src/live|test)/)"
+        "path": "^packages/reporters/(?!(?:src/live|src/html|test)/)"
       },
       "to": {
         "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
         "pathNot": [
-          "^packages/reporters/(?!(?:src/live|test)/)",
+          "^packages/reporters/(?!(?:src/live|src/html|test)/)",
           "^packages/types/",
           "^@provino/types$"
         ]
@@ -559,7 +560,25 @@
           "^packages/reporters/src/live/",
           "^packages/types/",
           "^@provino/types$",
-          "^packages/reporters/(?!(?:src/live|test)/)",
+          "^packages/reporters/(?!(?:src/live|src/html|test)/)",
+          "^@provino/reporters$"
+        ]
+      }
+    },
+    {
+      "name": "boundary-reporters-html",
+      "comment": "@provino/reporters/html (layer 4, runs in coordinator) may import only: @provino/reporters, @provino/types.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/reporters/src/html/"
+      },
+      "to": {
+        "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
+        "pathNot": [
+          "^packages/reporters/src/html/",
+          "^packages/types/",
+          "^@provino/types$",
+          "^packages/reporters/(?!(?:src/live|src/html|test)/)",
           "^@provino/reporters$"
         ]
       }
@@ -583,7 +602,7 @@
           "^@provino/rpc$",
           "^packages/config/",
           "^@provino/config$",
-          "^packages/reporters/(?!(?:src/live|test)/)",
+          "^packages/reporters/(?!(?:src/live|src/html|test)/)",
           "^@provino/reporters$",
           "^packages/resolver/",
           "^@provino/resolver$",
@@ -894,7 +913,7 @@
     },
     {
       "name": "boundary-provino",
-      "comment": "provino (layer 6, runs in both) may import only: @provino/codemod-lazy, @provino/config, @provino/core, @provino/coverage, @provino/coverage/node, @provino/coverage/runtime, @provino/coverage/test, @provino/dialect-jest, @provino/dialect-jest/affected, @provino/dialect-jest/global-setup, @provino/dialect-jest/inline-snapshots, @provino/dialect-jest/node, @provino/dialect-jest/results, @provino/dialect-jest/runtime, @provino/dialect-jest/test, @provino/dialect-node-test, @provino/dialect-node-test/runtime, @provino/dialect-node-test/test, @provino/dialect-vitest, @provino/dialect-vitest/node, @provino/dialect-vitest/runtime, @provino/dialect-vitest/test, @provino/env-happy-dom, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/eslint-plugin, @provino/expect, @provino/lazy, @provino/loader, @provino/loader/graph, @provino/loader/test, @provino/mock, @provino/native, @provino/native-*, @provino/orchestrator, @provino/orchestrator/test, @provino/orchestrator/worker, @provino/policy, @provino/reporters, @provino/reporters/live, @provino/reporters/test, @provino/resolver, @provino/rpc, @provino/snapshot, @provino/snapshot/node, @provino/snapshot/runtime, @provino/snapshot/test, @provino/timers, @provino/transform, @provino/transform/test, @provino/transform/v8cache, @provino/types.",
+      "comment": "provino (layer 6, runs in both) may import only: @provino/codemod-lazy, @provino/config, @provino/core, @provino/coverage, @provino/coverage/node, @provino/coverage/runtime, @provino/coverage/test, @provino/dialect-jest, @provino/dialect-jest/affected, @provino/dialect-jest/global-setup, @provino/dialect-jest/inline-snapshots, @provino/dialect-jest/node, @provino/dialect-jest/results, @provino/dialect-jest/runtime, @provino/dialect-jest/test, @provino/dialect-node-test, @provino/dialect-node-test/runtime, @provino/dialect-node-test/test, @provino/dialect-vitest, @provino/dialect-vitest/node, @provino/dialect-vitest/runtime, @provino/dialect-vitest/test, @provino/env-happy-dom, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/eslint-plugin, @provino/expect, @provino/lazy, @provino/loader, @provino/loader/graph, @provino/loader/test, @provino/mock, @provino/native, @provino/native-*, @provino/orchestrator, @provino/orchestrator/test, @provino/orchestrator/worker, @provino/policy, @provino/reporters, @provino/reporters/html, @provino/reporters/live, @provino/reporters/test, @provino/resolver, @provino/rpc, @provino/snapshot, @provino/snapshot/node, @provino/snapshot/runtime, @provino/snapshot/test, @provino/timers, @provino/transform, @provino/transform/test, @provino/transform/v8cache, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/provino/"
@@ -959,10 +978,12 @@
           "^@provino/lazy$",
           "^packages/config/",
           "^@provino/config$",
-          "^packages/reporters/(?!(?:src/live|test)/)",
+          "^packages/reporters/(?!(?:src/live|src/html|test)/)",
           "^@provino/reporters$",
           "^packages/reporters/src/live/",
           "^@provino/reporters/live$",
+          "^packages/reporters/src/html/",
+          "^@provino/reporters/html$",
           "^packages/orchestrator/(?!(?:src/worker|test)/)",
           "^@provino/orchestrator$",
           "^packages/orchestrator/src/worker/",
@@ -1056,7 +1077,7 @@
     },
     {
       "name": "boundary-harness",
-      "comment": "@provino/harness (dev, runs in dev) may import only: @provino/codemod-lazy, @provino/config, @provino/core, @provino/coverage, @provino/coverage/node, @provino/coverage/runtime, @provino/coverage/test, @provino/dialect-jest, @provino/dialect-jest/affected, @provino/dialect-jest/global-setup, @provino/dialect-jest/inline-snapshots, @provino/dialect-jest/node, @provino/dialect-jest/results, @provino/dialect-jest/runtime, @provino/dialect-jest/test, @provino/dialect-node-test, @provino/dialect-node-test/runtime, @provino/dialect-node-test/test, @provino/dialect-vitest, @provino/dialect-vitest/node, @provino/dialect-vitest/runtime, @provino/dialect-vitest/test, @provino/env-happy-dom, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/eslint-plugin, @provino/expect, @provino/jest-globals, @provino/lazy, @provino/loader, @provino/loader/graph, @provino/loader/test, @provino/mock, @provino/native, @provino/native-*, @provino/orchestrator, @provino/orchestrator/test, @provino/orchestrator/worker, @provino/policy, @provino/reporters, @provino/reporters/live, @provino/reporters/test, @provino/resolver, @provino/rpc, @provino/snapshot, @provino/snapshot/node, @provino/snapshot/runtime, @provino/snapshot/test, @provino/timers, @provino/transform, @provino/transform/test, @provino/transform/v8cache, @provino/types, @provino/vitest-compat, provino.",
+      "comment": "@provino/harness (dev, runs in dev) may import only: @provino/codemod-lazy, @provino/config, @provino/core, @provino/coverage, @provino/coverage/node, @provino/coverage/runtime, @provino/coverage/test, @provino/dialect-jest, @provino/dialect-jest/affected, @provino/dialect-jest/global-setup, @provino/dialect-jest/inline-snapshots, @provino/dialect-jest/node, @provino/dialect-jest/results, @provino/dialect-jest/runtime, @provino/dialect-jest/test, @provino/dialect-node-test, @provino/dialect-node-test/runtime, @provino/dialect-node-test/test, @provino/dialect-vitest, @provino/dialect-vitest/node, @provino/dialect-vitest/runtime, @provino/dialect-vitest/test, @provino/env-happy-dom, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/eslint-plugin, @provino/expect, @provino/jest-globals, @provino/lazy, @provino/loader, @provino/loader/graph, @provino/loader/test, @provino/mock, @provino/native, @provino/native-*, @provino/orchestrator, @provino/orchestrator/test, @provino/orchestrator/worker, @provino/policy, @provino/reporters, @provino/reporters/html, @provino/reporters/live, @provino/reporters/test, @provino/resolver, @provino/rpc, @provino/snapshot, @provino/snapshot/node, @provino/snapshot/runtime, @provino/snapshot/test, @provino/timers, @provino/transform, @provino/transform/test, @provino/transform/v8cache, @provino/types, @provino/vitest-compat, provino.",
       "severity": "error",
       "from": {
         "path": "^packages/harness/"
@@ -1121,10 +1142,12 @@
           "^@provino/lazy$",
           "^packages/config/",
           "^@provino/config$",
-          "^packages/reporters/(?!(?:src/live|test)/)",
+          "^packages/reporters/(?!(?:src/live|src/html|test)/)",
           "^@provino/reporters$",
           "^packages/reporters/src/live/",
           "^@provino/reporters/live$",
+          "^packages/reporters/src/html/",
+          "^@provino/reporters/html$",
           "^packages/orchestrator/(?!(?:src/worker|test)/)",
           "^@provino/orchestrator$",
           "^packages/orchestrator/src/worker/",
@@ -1182,7 +1205,7 @@
     },
     {
       "name": "boundary-bench",
-      "comment": "@provino/bench (dev, runs in dev) may import only: @provino/codemod-lazy, @provino/config, @provino/core, @provino/coverage, @provino/coverage/node, @provino/coverage/runtime, @provino/coverage/test, @provino/dialect-jest, @provino/dialect-jest/affected, @provino/dialect-jest/global-setup, @provino/dialect-jest/inline-snapshots, @provino/dialect-jest/node, @provino/dialect-jest/results, @provino/dialect-jest/runtime, @provino/dialect-jest/test, @provino/dialect-node-test, @provino/dialect-node-test/runtime, @provino/dialect-node-test/test, @provino/dialect-vitest, @provino/dialect-vitest/node, @provino/dialect-vitest/runtime, @provino/dialect-vitest/test, @provino/env-happy-dom, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/eslint-plugin, @provino/expect, @provino/harness, @provino/jest-globals, @provino/lazy, @provino/loader, @provino/loader/graph, @provino/loader/test, @provino/mock, @provino/native, @provino/native-*, @provino/orchestrator, @provino/orchestrator/test, @provino/orchestrator/worker, @provino/policy, @provino/reporters, @provino/reporters/live, @provino/reporters/test, @provino/resolver, @provino/rpc, @provino/snapshot, @provino/snapshot/node, @provino/snapshot/runtime, @provino/snapshot/test, @provino/timers, @provino/transform, @provino/transform/test, @provino/transform/v8cache, @provino/types, @provino/vitest-compat, provino.",
+      "comment": "@provino/bench (dev, runs in dev) may import only: @provino/codemod-lazy, @provino/config, @provino/core, @provino/coverage, @provino/coverage/node, @provino/coverage/runtime, @provino/coverage/test, @provino/dialect-jest, @provino/dialect-jest/affected, @provino/dialect-jest/global-setup, @provino/dialect-jest/inline-snapshots, @provino/dialect-jest/node, @provino/dialect-jest/results, @provino/dialect-jest/runtime, @provino/dialect-jest/test, @provino/dialect-node-test, @provino/dialect-node-test/runtime, @provino/dialect-node-test/test, @provino/dialect-vitest, @provino/dialect-vitest/node, @provino/dialect-vitest/runtime, @provino/dialect-vitest/test, @provino/env-happy-dom, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/eslint-plugin, @provino/expect, @provino/harness, @provino/jest-globals, @provino/lazy, @provino/loader, @provino/loader/graph, @provino/loader/test, @provino/mock, @provino/native, @provino/native-*, @provino/orchestrator, @provino/orchestrator/test, @provino/orchestrator/worker, @provino/policy, @provino/reporters, @provino/reporters/html, @provino/reporters/live, @provino/reporters/test, @provino/resolver, @provino/rpc, @provino/snapshot, @provino/snapshot/node, @provino/snapshot/runtime, @provino/snapshot/test, @provino/timers, @provino/transform, @provino/transform/test, @provino/transform/v8cache, @provino/types, @provino/vitest-compat, provino.",
       "severity": "error",
       "from": {
         "path": "^packages/bench/"
@@ -1247,10 +1270,12 @@
           "^@provino/lazy$",
           "^packages/config/",
           "^@provino/config$",
-          "^packages/reporters/(?!(?:src/live|test)/)",
+          "^packages/reporters/(?!(?:src/live|src/html|test)/)",
           "^@provino/reporters$",
           "^packages/reporters/src/live/",
           "^@provino/reporters/live$",
+          "^packages/reporters/src/html/",
+          "^@provino/reporters/html$",
           "^packages/orchestrator/(?!(?:src/worker|test)/)",
           "^@provino/orchestrator$",
           "^packages/orchestrator/src/worker/",
@@ -1438,7 +1463,7 @@
     },
     {
       "name": "boundary-reporters-test",
-      "comment": "@provino/reporters/test (layer 4, runs in dev) may import only: @provino/reporters, @provino/reporters/live, @provino/types.",
+      "comment": "@provino/reporters/test (layer 4, runs in dev) may import only: @provino/reporters, @provino/reporters/html, @provino/reporters/live, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/reporters/test/"
@@ -1447,10 +1472,12 @@
         "path": "^(?:packages|tooling)/|^@provino/|^provino(?:-|/|$)",
         "pathNot": [
           "^packages/reporters/test/",
-          "^packages/reporters/(?!(?:src/live|test)/)",
+          "^packages/reporters/(?!(?:src/live|src/html|test)/)",
           "^@provino/reporters$",
           "^packages/reporters/src/live/",
           "^@provino/reporters/live$",
+          "^packages/reporters/src/html/",
+          "^@provino/reporters/html$",
           "^packages/types/",
           "^@provino/types$"
         ]
@@ -1479,7 +1506,7 @@
           "^@provino/rpc$",
           "^packages/config/",
           "^@provino/config$",
-          "^packages/reporters/(?!(?:src/live|test)/)",
+          "^packages/reporters/(?!(?:src/live|src/html|test)/)",
           "^@provino/reporters$",
           "^packages/resolver/",
           "^@provino/resolver$",

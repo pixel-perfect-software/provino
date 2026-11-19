@@ -24,7 +24,9 @@ Options of provino run:
                                     provino on an interactive terminal, else default: agent under
                                     an AI agent (CLAUDECODE, AI_AGENT, ...), and github-actions is
                                     added on GitHub Actions
-      --outputFile <path>           Write the json or junit reporter's document here (one of them)
+      --outputFile <path>           Write the json or junit reporter's document here (one of them);
+                                    with html alone, the page's path (else html writes
+                                    provino-report.html in the project root, never to stdout)
   -t, --testNamePattern <pattern>   Run only the tests whose full name matches
   -u, --updateSnapshot              Rewrite the snapshots that differ (default: write new ones)
       --ci                          Treat this as a CI run (default: from the CI variable)
@@ -57,8 +59,8 @@ Options of provino run:
   -h, --help                        Print this text
       --version                     Print the version of provino
 
-Reporters: ${BUILT_IN_REPORTERS.join(', ')} (normalized-json is the same as json; html is not
-built yet).
+Reporters: ${BUILT_IN_REPORTERS.join(', ')} (normalized-json is the same as json; html is a
+static, self-contained page with the files, the status map, time by folder and a timeline).
 
 Colour follows the terminal, FORCE_COLOR and NO_COLOR. On a terminal that is not CI, not an agent's
 and not dumb, a run that names no reporter gets provino, Provino's own live output; anywhere else it

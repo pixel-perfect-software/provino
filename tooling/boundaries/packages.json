@@ -303,6 +303,14 @@
       "slices": ["report"],
       "neutral": true
     },
+    "@provino/reporters/html": {
+      "dir": "packages/reporters/src/html",
+      "layer": 4,
+      "runsIn": "coordinator",
+      "deps": ["@provino/types", "@provino/reporters"],
+      "slices": ["report"],
+      "neutral": true
+    },
     "@provino/orchestrator": {
       "dir": "packages/orchestrator",
       "layer": 5,

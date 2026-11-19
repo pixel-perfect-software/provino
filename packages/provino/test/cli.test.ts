@@ -208,7 +208,7 @@ describe('usage errors: the message and the usage text on stderr, exit 2', () =>
     [
       '--outputFile without a document reporter',
       ['run', '--config', 'x.mjs', '--outputFile', 'out.json'],
-      /--outputFile needs --reporter json, normalized-json or junit/,
+      /--outputFile needs --reporter json, normalized-json, junit or html/,
     ],
   ]
   for (const [name, args, message] of cases) {

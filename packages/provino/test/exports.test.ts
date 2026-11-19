@@ -3,6 +3,7 @@
 // (`dist/`, with no `provino-source` condition), so `pnpm test` builds it first (turbo.json).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import {
   accessSync,
   constants,
@@ -18,6 +19,7 @@ import { tmpdir } from 'node:os'
 import { join, posix } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { runInNewContext } from 'node:vm'
 import { childEnv, runBuilt, trackedProjects } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
@@ -502,9 +504,19 @@ describe('the coordinator without coverage (T1.10, T7.12)', () => {
  * import's facade).
  */
 function liveFiles(sources: ReadonlyMap<string, string>): Set<string> {
+  return chunkFiles(sources, /\bfunction provinoReporter\(/)
+}
+
+/** The HTML report's built files (B26 Phase 5): the file that defines `htmlReporter`, and its facade. */
+function htmlFiles(sources: ReadonlyMap<string, string>): Set<string> {
+  return chunkFiles(sources, /\bfunction htmlReporter\(/)
+}
+
+/** The files that define something `defines` finds, then any file that imports only files already in the set. */
+function chunkFiles(sources: ReadonlyMap<string, string>, defines: RegExp): Set<string> {
   const found = new Set<string>()
   for (const [path, source] of sources) {
-    if (/\bfunction provinoReporter\(/.test(source)) found.add(path)
+    if (defines.test(source)) found.add(path)
   }
   for (let grew = true; grew; ) {
     grew = false
@@ -519,10 +531,12 @@ function liveFiles(sources: ReadonlyMap<string, string>): Set<string> {
   return found
 }
 
-/** The `provino` reporter's files and the HTML report's (none until B26 Phase 5) among `loaded` URLs. */
+/** The `provino` reporter's files and the HTML report's among `loaded` URLs. */
 function reporterChunksIn(loaded: readonly string[]): { live: string[]; html: string[] } {
   const dist = `${join(PACKAGE, 'dist')}/`
-  const live = liveFiles(builtSources())
+  const sources = builtSources()
+  const live = liveFiles(sources)
+  const html = htmlFiles(sources)
   const paths = loaded
     .filter((url) => url.startsWith('file://'))
     .map((url) => fileURLToPath(url))
@@ -530,7 +544,7 @@ function reporterChunksIn(loaded: readonly string[]): { live: string[]; html: st
     .map((path) => path.slice(dist.length))
   return {
     live: paths.filter((path) => live.has(path)),
-    html: paths.filter((path) => /(?:^|\/)html\d*\.js$/.test(path)),
+    html: paths.filter((path) => html.has(path)),
   }
 }
 
@@ -553,15 +567,16 @@ describe('the provino reporter is its own chunk (B26)', () => {
     assert.deepEqual(reaching, ['coordinator.js'])
   })
 
-  test('--reporter agent loads neither chunk anywhere; --reporter provino loads live in the coordinator only, never html', async () => {
+  test('--reporter agent loads neither chunk anywhere; provino loads live and html loads html, in the coordinator only, never the other', async () => {
     const dir = await builtProject()
     writeFileSync(
       join(dir, 'provino.config.mjs'),
       "export default { dialect: 'jest', testMatch: ['**/*.test.js'] }\n",
     )
-    for (const [reporter, wantLive] of [
-      ['agent', false],
-      ['provino', true],
+    for (const [reporter, wantLive, wantHtml] of [
+      ['agent', false, false],
+      ['provino', true, false],
+      ['html', false, true],
     ] as const) {
       const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
       after(() => rm(logs, { recursive: true, force: true }))
@@ -572,18 +587,118 @@ describe('the provino reporter is its own chunk (B26)', () => {
       assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
       let workers = 0
       let coordinatorLive = 0
+      let coordinatorHtml = 0
       for (const file of readdirSync(logs)) {
         const lines = readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean)
         const found = reporterChunksIn(lines.map((line) => line.split('\t')[1] ?? ''))
-        assert.deepEqual(found.html, [], 'no html chunk is ever loaded')
         if (lines[0]?.split('\t')[0]?.endsWith('worker/bootstrap.js')) {
           workers++
           assert.deepEqual(found.live, [], `a worker loaded ${found.live.join(', ')}`)
-        } else coordinatorLive += found.live.length
+          assert.deepEqual(found.html, [], `a worker loaded ${found.html.join(', ')}`)
+        } else {
+          coordinatorLive += found.live.length
+          coordinatorHtml += found.html.length
+        }
       }
       assert.ok(workers >= 1, 'no worker process was recorded')
       if (wantLive) assert.ok(coordinatorLive >= 1, 'the coordinator loaded no live chunk')
-      else assert.equal(coordinatorLive, 0, '--reporter agent loaded the live chunk')
+      else assert.equal(coordinatorLive, 0, `--reporter ${reporter} loaded the live chunk`)
+      if (wantHtml) assert.ok(coordinatorHtml >= 1, 'the coordinator loaded no html chunk')
+      else assert.equal(coordinatorHtml, 0, `--reporter ${reporter} loaded the html chunk`)
     }
+  })
+})
+
+describe('the html reporter is its own chunk, and its page runs from the build (B26 Phase 5)', () => {
+  test('no file outside it imports one of its files statically; one dynamic import reaches it', () => {
+    const sources = builtSources()
+    const html = htmlFiles(sources)
+    const live = liveFiles(sources)
+    assert.ok(html.size >= 1 && html.size <= 2, [...html].join(', '))
+    assert.ok(![...html].some((file) => file.startsWith('worker/')), [...html].join(', '))
+    assert.deepEqual(
+      [...html].filter((file) => live.has(file)),
+      [],
+      'html and live are separate chunks',
+    )
+    const reaching: string[] = []
+    for (const [path, source] of sources) {
+      if (html.has(path)) continue
+      assert.deepEqual(
+        staticImports(path, source).filter((file) => html.has(file)),
+        [],
+        path,
+      )
+      if (dynamicImports(path, source).some((file) => html.has(file))) reaching.push(path)
+    }
+    assert.deepEqual(reaching, ['coordinator.js'])
+  })
+
+  test('the page the built bin writes is one file whose script closes over nothing', async () => {
+    const dir = await builtProject()
+    writeFileSync(
+      join(dir, 'provino.config.mjs'),
+      "export default { dialect: 'jest', testMatch: ['**/*.test.js'] }\n",
+    )
+    writeFileSync(
+      join(dir, 'd.test.js'),
+      "test('a failure', () => { expect(1).toBe(2) })\ntest.skip('skipped', () => {})\n",
+    )
+    const out = join(dir, 'report', 'index.html')
+    const run = runBuilt(
+      [
+        'run',
+        '--config',
+        'provino.config.mjs',
+        '--reporter',
+        'html',
+        '--outputFile',
+        out,
+        '--no-cache',
+      ],
+      { cwd: dir },
+    )
+    assert.equal(run.status, 1, `${run.stdout}\n${run.stderr}`)
+    assert.equal(run.stdout, '')
+    const page = readFileSync(out, 'utf8')
+    const script = /<script>([\s\S]*?)<\/script>/.exec(page)?.[1]
+    const json = /<script type="application\/json" id="provino-data">([\s\S]*?)<\/script>/.exec(
+      page,
+    )?.[1]
+    assert.ok(script !== undefined && json !== undefined)
+    // One file that makes no request: the document, apart from the run's own text (a failure's
+    // message may hold a `//` or a URL).
+    const markup = page.replace(json, '')
+    assert.doesNotMatch(markup, /https?:/i)
+    assert.equal(markup.includes('//'), false)
+    assert.doesNotMatch(markup, /<(?:link|img|iframe|object|embed|base)\b|\s(?:src|href)\s*=/i)
+    const hash = createHash('sha256').update(script).digest('base64')
+    assert.ok(page.includes(`script-src 'sha256-${hash}'`), 'the CSP names the script it holds')
+    // The script runs where nothing but its own parameter exists: a DOM that answers every call
+    // with itself, and the listeners it is given called once each (the tabs' clicks build the
+    // other three views). A name it closed over in the source, which the build may have moved or
+    // renamed, would be a ReferenceError here.
+    const listeners: ((event: unknown) => void)[] = []
+    const dom: unknown = new Proxy(() => {}, {
+      get(_target, key) {
+        if (key === Symbol.toPrimitive) return () => ''
+        if (key === Symbol.iterator) return function* () {}
+        if (key === 'addEventListener') {
+          return (_type: string, listener: (event: unknown) => void) => listeners.push(listener)
+        }
+        return dom
+      },
+      apply: () => dom,
+      construct: () => dom as object,
+      set: () => true,
+    })
+    const document = {
+      getElementById: (id: string) => (id === 'provino-data' ? { textContent: json } : dom),
+      createElement: () => dom,
+      createElementNS: () => dom,
+    }
+    runInNewContext(script, { document, window: dom, setTimeout: () => 0, clearTimeout: () => {} })
+    assert.ok(listeners.length >= 4, `the page registered ${listeners.length} listeners`)
+    for (const listener of listeners) listener(dom)
   })
 })

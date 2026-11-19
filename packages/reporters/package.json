@@ -1,7 +1,7 @@
 {
   "name": "@provino/reporters",
   "version": "0.1.0-rc.6",
-  "description": "Provino's reporters: the reporter bus, and the default, verbose, dot, agent, json, junit and github-actions reporters.",
+  "description": "Provino's reporters: the reporter bus, and the default, verbose, dot, agent, json, junit, github-actions and html reporters.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {
     "url": "https://github.com/pixel-perfect-software/provino/issues"
@@ -24,6 +24,11 @@
       "provino-source": "./src/live/index.ts",
       "types": "./dist/live/index.d.ts",
       "import": "./dist/live/index.js"
+    },
+    "./html": {
+      "provino-source": "./src/html/index.ts",
+      "types": "./dist/html/index.d.ts",
+      "import": "./dist/html/index.js"
     }
   },
   "files": [
@@ -36,12 +41,15 @@
   "scripts": {
     "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\"",
-    "width-table": "node scripts/width-table.ts"
+    "width-table": "node scripts/width-table.ts",
+    "html-sample": "node src/html/sample-cli.ts"
   },
   "dependencies": {
     "@provino/types": "workspace:*"
   },
   "devDependencies": {
+    "@types/jsdom": "catalog:",
+    "jsdom": "catalog:",
     "xmllint-wasm": "catalog:"
   }
 }

@@ -13,11 +13,16 @@
 // [--runs n]` (Phase 3) runs only when named: each suite (default app-500) under the built bin on a
 // pty, `--reporter provino` against `--reporter agent`, 1 discarded plus `--runs` (default 7) of
 // each, interleaved: the wall ratio with its bootstrap CI and the coordinator CPU the reporter
-// adds, with the bars `--max-wall-ratio 1.02 --max-cpu-overhead 0.02`. `html` is Phase 5's. Exit 0
-// when nothing missed, 1 on a miss, 2 on bad usage.
+// adds, with the bars `--max-wall-ratio 1.02 --max-cpu-overhead 0.02`. `html [--files n]
+// [--html-rounds n]` (Phase 5) runs only when named: `run:end` of the HTML report (the page's build
+// and write) against a reporter that writes nothing, interleaved, median of `--html-rounds` (15),
+// and the page's size, for `--files` (500) files of 25 tests, all passing and with the stream's 1%
+// failures, with the bars `--max-html-ms 50 --max-html-kb 400 --max-html-failures-kb 1024`
+// (`--files 2000` is a signal). Exit 0 when nothing missed, 1 on a miss, 2 on bad usage.
 import { exitOnSignals } from '@provino/harness'
 import { exitCodeFor, parseOrExitUsage } from '../internal/limits.ts'
 import { runE2eLeg } from './e2e.ts'
+import { runHtmlLeg } from './html.ts'
 import {
   runFirstFrameLeg,
   runFramesLeg,
@@ -31,6 +36,7 @@ import {
   type FramesResult,
   type HandlersResult,
   type HeapResult,
+  type HtmlResult,
   legLine,
   parseReporterFlags,
   type ReporterLeg,
@@ -49,6 +55,7 @@ const results: {
   slowSink?: SlowSinkResult
   firstFrame?: FirstFrameResult
   e2e?: E2eResult[]
+  html?: HtmlResult
 } = {}
 const node = process.version
 const out: string[] = []
@@ -59,7 +66,9 @@ const say = (leg: ReporterLeg, text: string, fields: object): void => {
 const fixed = (value: number, digits = 3): string => value.toFixed(digits)
 
 out.push(
-  `reporter bench (local, Node ${node}, ${process.platform} ${process.arch}; stream: 16 workers, ${flags.tests} tests of 25 a file)`,
+  `reporter bench (local, Node ${node}, ${process.platform} ${process.arch}; stream: 16 workers, ${
+    flags.legs.every((leg) => leg === 'html') ? `${flags.files} files` : `${flags.tests} tests`
+  } of 25 a file)`,
 )
 for (const leg of flags.legs) {
   switch (leg) {
@@ -118,6 +127,21 @@ for (const leg of flags.legs) {
           result,
         )
       }
+      break
+    }
+    case 'html': {
+      const result = await runHtmlLeg(flags.files, flags.htmlRounds)
+      results.html = result
+      say(
+        leg,
+        `html: the page at run:end for ${result.files} files of 25 tests, ${result.rounds} interleaved rounds against a reporter that writes nothing\n${result.variants
+          .map(
+            (v) =>
+              `  ${v.name.padEnd(9)} ${String(v.tests).padStart(6)} tests, ${String(v.failures).padStart(4)} failed: run:end ${fixed(v.htmlMs, 2)} ms (build and write; ${fixed(v.noopMs, 3)} ms for the silent reporter, ${fixed(v.buildMs, 2)} ms added), ${fixed(v.kb, 1)} KB`,
+          )
+          .join('\n')}`,
+        result,
+      )
       break
     }
     case 'first-frame': {

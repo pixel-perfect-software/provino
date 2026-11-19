@@ -1,0 +1,756 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-11-19T16:29:48.655Z",
+  "title": "Design System: Provino HTML test report",
+  "extensions": {
+    "colorMeta": {
+      "bg": {
+        "role": "neutral",
+        "displayName": "Paper",
+        "canonical": "var(--bg)",
+        "tonalRamp": [
+          "oklch(15% 0.000 89.9)",
+          "oklch(26% 0.000 89.9)",
+          "oklch(37% 0.000 89.9)",
+          "oklch(48% 0.000 89.9)",
+          "oklch(60% 0.000 89.9)",
+          "oklch(71% 0.000 89.9)",
+          "oklch(83% 0.000 89.9)",
+          "oklch(95% 0.000 89.9)"
+        ]
+      },
+      "bg-dark": {
+        "role": "neutral",
+        "displayName": "Paper (dark)",
+        "canonical": "var(--bg) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.007 258.4)",
+          "oklch(26% 0.007 258.4)",
+          "oklch(37% 0.007 258.4)",
+          "oklch(48% 0.007 258.4)",
+          "oklch(60% 0.007 258.4)",
+          "oklch(71% 0.007 258.4)",
+          "oklch(83% 0.007 258.4)",
+          "oklch(95% 0.007 258.4)"
+        ]
+      },
+      "panel": {
+        "role": "neutral",
+        "displayName": "Panel Grey",
+        "canonical": "var(--panel)",
+        "tonalRamp": [
+          "oklch(15% 0.003 247.9)",
+          "oklch(26% 0.003 247.9)",
+          "oklch(37% 0.003 247.9)",
+          "oklch(48% 0.003 247.9)",
+          "oklch(60% 0.003 247.9)",
+          "oklch(71% 0.003 247.9)",
+          "oklch(83% 0.003 247.9)",
+          "oklch(95% 0.003 247.9)"
+        ]
+      },
+      "panel-dark": {
+        "role": "neutral",
+        "displayName": "Panel Grey (dark)",
+        "canonical": "var(--panel) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.009 255.6)",
+          "oklch(26% 0.009 255.6)",
+          "oklch(37% 0.009 255.6)",
+          "oklch(48% 0.009 255.6)",
+          "oklch(60% 0.009 255.6)",
+          "oklch(71% 0.009 255.6)",
+          "oklch(83% 0.009 255.6)",
+          "oklch(95% 0.009 255.6)"
+        ]
+      },
+      "line": {
+        "role": "neutral",
+        "displayName": "Hairline",
+        "canonical": "var(--line)",
+        "tonalRamp": [
+          "oklch(15% 0.010 252.8)",
+          "oklch(26% 0.010 252.8)",
+          "oklch(37% 0.010 252.8)",
+          "oklch(48% 0.010 252.8)",
+          "oklch(60% 0.010 252.8)",
+          "oklch(71% 0.010 252.8)",
+          "oklch(83% 0.010 252.8)",
+          "oklch(95% 0.010 252.8)"
+        ]
+      },
+      "line-dark": {
+        "role": "neutral",
+        "displayName": "Hairline (dark)",
+        "canonical": "var(--line) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.013 253.0)",
+          "oklch(26% 0.013 253.0)",
+          "oklch(37% 0.013 253.0)",
+          "oklch(48% 0.013 253.0)",
+          "oklch(60% 0.013 253.0)",
+          "oklch(71% 0.013 253.0)",
+          "oklch(83% 0.013 253.0)",
+          "oklch(95% 0.013 253.0)"
+        ]
+      },
+      "line-strong": {
+        "role": "neutral",
+        "displayName": "Strong Hairline",
+        "canonical": "var(--line-strong)",
+        "tonalRamp": [
+          "oklch(15% 0.014 251.6)",
+          "oklch(26% 0.014 251.6)",
+          "oklch(37% 0.014 251.6)",
+          "oklch(48% 0.014 251.6)",
+          "oklch(60% 0.014 251.6)",
+          "oklch(71% 0.014 251.6)",
+          "oklch(83% 0.014 251.6)",
+          "oklch(95% 0.014 251.6)"
+        ]
+      },
+      "line-strong-dark": {
+        "role": "neutral",
+        "displayName": "Strong Hairline (dark)",
+        "canonical": "var(--line-strong) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.016 251.7)",
+          "oklch(26% 0.016 251.7)",
+          "oklch(37% 0.016 251.7)",
+          "oklch(48% 0.016 251.7)",
+          "oklch(60% 0.016 251.7)",
+          "oklch(71% 0.016 251.7)",
+          "oklch(83% 0.016 251.7)",
+          "oklch(95% 0.016 251.7)"
+        ]
+      },
+      "ink": {
+        "role": "neutral",
+        "displayName": "Ink",
+        "canonical": "var(--ink)",
+        "tonalRamp": [
+          "oklch(15% 0.009 255.6)",
+          "oklch(26% 0.009 255.6)",
+          "oklch(37% 0.009 255.6)",
+          "oklch(48% 0.009 255.6)",
+          "oklch(60% 0.009 255.6)",
+          "oklch(71% 0.009 255.6)",
+          "oklch(83% 0.009 255.6)",
+          "oklch(95% 0.009 255.6)"
+        ]
+      },
+      "ink-dark": {
+        "role": "neutral",
+        "displayName": "Ink (dark)",
+        "canonical": "var(--ink) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.005 258.3)",
+          "oklch(26% 0.005 258.3)",
+          "oklch(37% 0.005 258.3)",
+          "oklch(48% 0.005 258.3)",
+          "oklch(60% 0.005 258.3)",
+          "oklch(71% 0.005 258.3)",
+          "oklch(83% 0.005 258.3)",
+          "oklch(95% 0.005 258.3)"
+        ]
+      },
+      "ink-2": {
+        "role": "neutral",
+        "displayName": "Ink 2",
+        "canonical": "var(--ink-2)",
+        "tonalRamp": [
+          "oklch(15% 0.023 253.1)",
+          "oklch(26% 0.023 253.1)",
+          "oklch(37% 0.023 253.1)",
+          "oklch(48% 0.023 253.1)",
+          "oklch(60% 0.023 253.1)",
+          "oklch(71% 0.023 253.1)",
+          "oklch(83% 0.023 253.1)",
+          "oklch(95% 0.023 253.1)"
+        ]
+      },
+      "ink-2-dark": {
+        "role": "neutral",
+        "displayName": "Ink 2 (dark)",
+        "canonical": "var(--ink-2) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.018 250.9)",
+          "oklch(26% 0.018 250.9)",
+          "oklch(37% 0.018 250.9)",
+          "oklch(48% 0.018 250.9)",
+          "oklch(60% 0.018 250.9)",
+          "oklch(71% 0.018 250.9)",
+          "oklch(83% 0.018 250.9)",
+          "oklch(95% 0.018 250.9)"
+        ]
+      },
+      "ink-3": {
+        "role": "neutral",
+        "displayName": "Ink 3",
+        "canonical": "var(--ink-3)",
+        "tonalRamp": [
+          "oklch(15% 0.022 253.0)",
+          "oklch(26% 0.022 253.0)",
+          "oklch(37% 0.022 253.0)",
+          "oklch(48% 0.022 253.0)",
+          "oklch(60% 0.022 253.0)",
+          "oklch(71% 0.022 253.0)",
+          "oklch(83% 0.022 253.0)",
+          "oklch(95% 0.022 253.0)"
+        ]
+      },
+      "ink-3-dark": {
+        "role": "neutral",
+        "displayName": "Ink 3 (dark)",
+        "canonical": "var(--ink-3) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.020 250.7)",
+          "oklch(26% 0.020 250.7)",
+          "oklch(37% 0.020 250.7)",
+          "oklch(48% 0.020 250.7)",
+          "oklch(60% 0.020 250.7)",
+          "oklch(71% 0.020 250.7)",
+          "oklch(83% 0.020 250.7)",
+          "oklch(95% 0.020 250.7)"
+        ]
+      },
+      "accent": {
+        "role": "primary",
+        "displayName": "Selection Blue",
+        "canonical": "var(--accent)",
+        "tonalRamp": [
+          "oklch(15% 0.191 258.9)",
+          "oklch(26% 0.191 258.9)",
+          "oklch(37% 0.191 258.9)",
+          "oklch(48% 0.191 258.9)",
+          "oklch(60% 0.191 258.9)",
+          "oklch(71% 0.191 258.9)",
+          "oklch(83% 0.191 258.9)",
+          "oklch(95% 0.191 258.9)"
+        ]
+      },
+      "accent-dark": {
+        "role": "primary",
+        "displayName": "Selection Blue (dark)",
+        "canonical": "var(--accent) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.152 256.2)",
+          "oklch(26% 0.152 256.2)",
+          "oklch(37% 0.152 256.2)",
+          "oklch(48% 0.152 256.2)",
+          "oklch(60% 0.152 256.2)",
+          "oklch(71% 0.152 256.2)",
+          "oklch(83% 0.152 256.2)",
+          "oklch(95% 0.152 256.2)"
+        ]
+      },
+      "accent-wash": {
+        "role": "primary",
+        "displayName": "Selection Wash",
+        "canonical": "var(--accent-wash)",
+        "tonalRamp": [
+          "oklch(15% 0.022 254.4)",
+          "oklch(26% 0.022 254.4)",
+          "oklch(37% 0.022 254.4)",
+          "oklch(48% 0.022 254.4)",
+          "oklch(60% 0.022 254.4)",
+          "oklch(71% 0.022 254.4)",
+          "oklch(83% 0.022 254.4)",
+          "oklch(95% 0.022 254.4)"
+        ]
+      },
+      "accent-wash-dark": {
+        "role": "primary",
+        "displayName": "Selection Wash (dark)",
+        "canonical": "var(--accent-wash) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.053 257.6)",
+          "oklch(26% 0.053 257.6)",
+          "oklch(37% 0.053 257.6)",
+          "oklch(48% 0.053 257.6)",
+          "oklch(60% 0.053 257.6)",
+          "oklch(71% 0.053 257.6)",
+          "oklch(83% 0.053 257.6)",
+          "oklch(95% 0.053 257.6)"
+        ]
+      },
+      "pass": {
+        "role": "tertiary",
+        "displayName": "Pass Green",
+        "canonical": "var(--pass)",
+        "tonalRamp": [
+          "oklch(15% 0.120 151.1)",
+          "oklch(26% 0.120 151.1)",
+          "oklch(37% 0.120 151.1)",
+          "oklch(48% 0.120 151.1)",
+          "oklch(60% 0.120 151.1)",
+          "oklch(71% 0.120 151.1)",
+          "oklch(83% 0.120 151.1)",
+          "oklch(95% 0.120 151.1)"
+        ]
+      },
+      "pass-dark": {
+        "role": "tertiary",
+        "displayName": "Pass Green (dark)",
+        "canonical": "var(--pass) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.141 153.8)",
+          "oklch(26% 0.141 153.8)",
+          "oklch(37% 0.141 153.8)",
+          "oklch(48% 0.141 153.8)",
+          "oklch(60% 0.141 153.8)",
+          "oklch(71% 0.141 153.8)",
+          "oklch(83% 0.141 153.8)",
+          "oklch(95% 0.141 153.8)"
+        ]
+      },
+      "pass-fill": {
+        "role": "neutral",
+        "displayName": "Slate",
+        "canonical": "var(--pass-fill)",
+        "tonalRamp": [
+          "oklch(15% 0.028 250.1)",
+          "oklch(26% 0.028 250.1)",
+          "oklch(37% 0.028 250.1)",
+          "oklch(48% 0.028 250.1)",
+          "oklch(60% 0.028 250.1)",
+          "oklch(71% 0.028 250.1)",
+          "oklch(83% 0.028 250.1)",
+          "oklch(95% 0.028 250.1)"
+        ]
+      },
+      "pass-fill-dark": {
+        "role": "neutral",
+        "displayName": "Slate (dark)",
+        "canonical": "var(--pass-fill) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.024 246.1)",
+          "oklch(26% 0.024 246.1)",
+          "oklch(37% 0.024 246.1)",
+          "oklch(48% 0.024 246.1)",
+          "oklch(60% 0.024 246.1)",
+          "oklch(71% 0.024 246.1)",
+          "oklch(83% 0.024 246.1)",
+          "oklch(95% 0.024 246.1)"
+        ]
+      },
+      "fail": {
+        "role": "secondary",
+        "displayName": "Signal Red",
+        "canonical": "var(--fail)",
+        "tonalRamp": [
+          "oklch(15% 0.194 24.2)",
+          "oklch(26% 0.194 24.2)",
+          "oklch(37% 0.194 24.2)",
+          "oklch(48% 0.194 24.2)",
+          "oklch(60% 0.194 24.2)",
+          "oklch(71% 0.194 24.2)",
+          "oklch(83% 0.194 24.2)",
+          "oklch(95% 0.194 24.2)"
+        ]
+      },
+      "fail-dark": {
+        "role": "secondary",
+        "displayName": "Signal Red (dark)",
+        "canonical": "var(--fail) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.164 24.9)",
+          "oklch(26% 0.164 24.9)",
+          "oklch(37% 0.164 24.9)",
+          "oklch(48% 0.164 24.9)",
+          "oklch(60% 0.164 24.9)",
+          "oklch(71% 0.164 24.9)",
+          "oklch(83% 0.164 24.9)",
+          "oklch(95% 0.164 24.9)"
+        ]
+      },
+      "fail-fill": {
+        "role": "secondary",
+        "displayName": "Failure Fill",
+        "canonical": "var(--fail-fill)",
+        "tonalRamp": [
+          "oklch(15% 0.179 19.5)",
+          "oklch(26% 0.179 19.5)",
+          "oklch(37% 0.179 19.5)",
+          "oklch(48% 0.179 19.5)",
+          "oklch(60% 0.179 19.5)",
+          "oklch(71% 0.179 19.5)",
+          "oklch(83% 0.179 19.5)",
+          "oklch(95% 0.179 19.5)"
+        ]
+      },
+      "fail-fill-dark": {
+        "role": "secondary",
+        "displayName": "Failure Fill (dark)",
+        "canonical": "var(--fail-fill) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.186 21.2)",
+          "oklch(26% 0.186 21.2)",
+          "oklch(37% 0.186 21.2)",
+          "oklch(48% 0.186 21.2)",
+          "oklch(60% 0.186 21.2)",
+          "oklch(71% 0.186 21.2)",
+          "oklch(83% 0.186 21.2)",
+          "oklch(95% 0.186 21.2)"
+        ]
+      },
+      "skip": {
+        "role": "tertiary",
+        "displayName": "Skip Amber",
+        "canonical": "var(--skip)",
+        "tonalRamp": [
+          "oklch(15% 0.102 74.4)",
+          "oklch(26% 0.102 74.4)",
+          "oklch(37% 0.102 74.4)",
+          "oklch(48% 0.102 74.4)",
+          "oklch(60% 0.102 74.4)",
+          "oklch(71% 0.102 74.4)",
+          "oklch(83% 0.102 74.4)",
+          "oklch(95% 0.102 74.4)"
+        ]
+      },
+      "skip-dark": {
+        "role": "tertiary",
+        "displayName": "Skip Amber (dark)",
+        "canonical": "var(--skip) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.122 84.7)",
+          "oklch(26% 0.122 84.7)",
+          "oklch(37% 0.122 84.7)",
+          "oklch(48% 0.122 84.7)",
+          "oklch(60% 0.122 84.7)",
+          "oklch(71% 0.122 84.7)",
+          "oklch(83% 0.122 84.7)",
+          "oklch(95% 0.122 84.7)"
+        ]
+      },
+      "skip-fill": {
+        "role": "tertiary",
+        "displayName": "Skip Amber Fill",
+        "canonical": "var(--skip-fill)",
+        "tonalRamp": [
+          "oklch(15% 0.111 83.3)",
+          "oklch(26% 0.111 83.3)",
+          "oklch(37% 0.111 83.3)",
+          "oklch(48% 0.111 83.3)",
+          "oklch(60% 0.111 83.3)",
+          "oklch(71% 0.111 83.3)",
+          "oklch(83% 0.111 83.3)",
+          "oklch(95% 0.111 83.3)"
+        ]
+      },
+      "skip-fill-dark": {
+        "role": "tertiary",
+        "displayName": "Skip Amber Fill (dark)",
+        "canonical": "var(--skip-fill) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.094 83.0)",
+          "oklch(26% 0.094 83.0)",
+          "oklch(37% 0.094 83.0)",
+          "oklch(48% 0.094 83.0)",
+          "oklch(60% 0.094 83.0)",
+          "oklch(71% 0.094 83.0)",
+          "oklch(83% 0.094 83.0)",
+          "oklch(95% 0.094 83.0)"
+        ]
+      },
+      "todo": {
+        "role": "tertiary",
+        "displayName": "Todo Violet",
+        "canonical": "var(--todo)",
+        "tonalRamp": [
+          "oklch(15% 0.165 292.6)",
+          "oklch(26% 0.165 292.6)",
+          "oklch(37% 0.165 292.6)",
+          "oklch(48% 0.165 292.6)",
+          "oklch(60% 0.165 292.6)",
+          "oklch(71% 0.165 292.6)",
+          "oklch(83% 0.165 292.6)",
+          "oklch(95% 0.165 292.6)"
+        ]
+      },
+      "todo-dark": {
+        "role": "tertiary",
+        "displayName": "Todo Violet (dark)",
+        "canonical": "var(--todo) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.132 293.4)",
+          "oklch(26% 0.132 293.4)",
+          "oklch(37% 0.132 293.4)",
+          "oklch(48% 0.132 293.4)",
+          "oklch(60% 0.132 293.4)",
+          "oklch(71% 0.132 293.4)",
+          "oklch(83% 0.132 293.4)",
+          "oklch(95% 0.132 293.4)"
+        ]
+      },
+      "idle": {
+        "role": "neutral",
+        "displayName": "Idle",
+        "canonical": "var(--idle)",
+        "tonalRamp": [
+          "oklch(15% 0.005 247.9)",
+          "oklch(26% 0.005 247.9)",
+          "oklch(37% 0.005 247.9)",
+          "oklch(48% 0.005 247.9)",
+          "oklch(60% 0.005 247.9)",
+          "oklch(71% 0.005 247.9)",
+          "oklch(83% 0.005 247.9)",
+          "oklch(95% 0.005 247.9)"
+        ]
+      },
+      "idle-dark": {
+        "role": "neutral",
+        "displayName": "Idle (dark)",
+        "canonical": "var(--idle) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.011 254.0)",
+          "oklch(26% 0.011 254.0)",
+          "oklch(37% 0.011 254.0)",
+          "oklch(48% 0.011 254.0)",
+          "oklch(60% 0.011 254.0)",
+          "oklch(71% 0.011 254.0)",
+          "oklch(83% 0.011 254.0)",
+          "oklch(95% 0.011 254.0)"
+        ]
+      },
+      "code-bg": {
+        "role": "neutral",
+        "displayName": "Code Paper",
+        "canonical": "var(--code-bg)",
+        "tonalRamp": [
+          "oklch(15% 0.003 264.5)",
+          "oklch(26% 0.003 264.5)",
+          "oklch(37% 0.003 264.5)",
+          "oklch(48% 0.003 264.5)",
+          "oklch(60% 0.003 264.5)",
+          "oklch(71% 0.003 264.5)",
+          "oklch(83% 0.003 264.5)",
+          "oklch(95% 0.003 264.5)"
+        ]
+      },
+      "code-bg-dark": {
+        "role": "neutral",
+        "displayName": "Code Paper (dark)",
+        "canonical": "var(--code-bg) under prefers-color-scheme: dark",
+        "tonalRamp": [
+          "oklch(15% 0.009 255.6)",
+          "oklch(26% 0.009 255.6)",
+          "oklch(37% 0.009 255.6)",
+          "oklch(48% 0.009 255.6)",
+          "oklch(60% 0.009 255.6)",
+          "oklch(71% 0.009 255.6)",
+          "oklch(83% 0.009 255.6)",
+          "oklch(95% 0.009 255.6)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Display",
+        "purpose": "The verdict headline only (--t-xl)."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "The empty state heading (--t-lg)."
+      },
+      "title": {
+        "displayName": "Title",
+        "purpose": "Failure title paths and verdict field values (--t-md, 600)."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Tabs, tree rows, table cells, prose (--t-md)."
+      },
+      "meta": {
+        "displayName": "Meta",
+        "purpose": "Counts, times, chips, notes, legends, lane labels (--t-sm)."
+      },
+      "label": {
+        "displayName": "Label",
+        "purpose": "Uppercase field names, column headers and the run overview heading (--t-xs)."
+      },
+      "data": {
+        "displayName": "Data",
+        "purpose": "Code frames, error text, file and folder paths (--mono, --t-sm)."
+      }
+    },
+    "shadows": [],
+    "motion": [
+      {
+        "name": "ease",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "The tree twisty rotation on expand, 120 ms. The only transition; off under prefers-reduced-motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "narrow",
+        "value": "640px"
+      }
+    ],
+    "patterns": [
+      {
+        "name": "failed",
+        "value": "hatched: --fail-fill under 135deg lines",
+        "purpose": "Failed slices, cells and folder bars."
+      },
+      {
+        "name": "crashed",
+        "value": "cross-hatched: --fail under 45deg and 135deg lines",
+        "purpose": "Crashed slices and cells."
+      },
+      {
+        "name": "skipped",
+        "value": "dotted: --skip-fill under a 4px dot grid",
+        "purpose": "Skipped slices and cells."
+      },
+      {
+        "name": "todo",
+        "value": "outlined: no fill, 1.5px --todo ring",
+        "purpose": "Todo slices and cells."
+      },
+      {
+        "name": "folder-hue",
+        "value": "hsl(var(--h) var(--slice-s) var(--slice-l)); --h in 85..320; --slice-s 18%/17%, --slice-l 42%/56% (light/dark)",
+        "purpose": "Passing slices and folder bars."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Verdict bar",
+      "kind": "custom",
+      "refersTo": "verdict-bar",
+      "description": "The run in one line: glyph and headline, then fixed fields.",
+      "html": "<header class=\"ds-verdict is-fail\"><h1><span class=\"glyph\" aria-hidden=\"true\">💥</span>3 tests failed in 3 files</h1><dl class=\"ds-fields\"><div><dt>Failed</dt><dd class=\"n-fail\">3</dd></div><div><dt>Passed</dt><dd>3,960</dd></div><div><dt>Time</dt><dd>24.7 s</dd></div><div><dt>Workers</dt><dd>9</dd></div></dl></header>",
+      "css": ".ds-verdict{display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--s-2) var(--s-6);padding:var(--s-3) var(--s-5);background:var(--panel);border-bottom:1px solid var(--line);font:400 var(--t-md)/1.45 var(--font);font-variant-numeric:tabular-nums;color:var(--ink)} .ds-verdict h1{margin:0;font-size:var(--t-xl);font-weight:650;letter-spacing:-0.01em;display:flex;gap:var(--s-3);align-items:baseline} .ds-verdict h1 .glyph{font-size:var(--t-lg)} .ds-verdict.is-fail h1{color:var(--fail)} .ds-fields{display:flex;flex-wrap:wrap;gap:var(--s-2) var(--s-5);margin:0} .ds-fields div{display:flex;align-items:baseline;gap:var(--s-2)} .ds-fields dt{color:var(--ink-3);font-size:var(--t-xs);text-transform:uppercase;letter-spacing:0.04em} .ds-fields dd{margin:0;font-weight:600} .ds-fields .n-fail{color:var(--fail)}"
+    },
+    {
+      "name": "Tab bar",
+      "kind": "nav",
+      "refersTo": "tab",
+      "description": "Five lenses on the run, with counts; the selected tab has a blue underline.",
+      "html": "<div class=\"ds-tabbar\" role=\"tablist\"><button class=\"ds-tab\" role=\"tab\" aria-selected=\"true\">Failures <span class=\"count n-fail\">4</span></button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\">Tests <span class=\"count\">4,030</span></button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\">Map <span class=\"count\">500</span></button></div>",
+      "css": ".ds-tabbar{display:flex;gap:var(--s-1);padding:0 var(--s-4);background:var(--panel);border-bottom:1px solid var(--line);font:400 var(--t-md)/1.45 var(--font)} .ds-tab{position:relative;display:flex;gap:var(--s-2);padding:var(--s-3) var(--s-4);color:var(--ink-2);font:inherit;background:none;border:0;cursor:pointer} .ds-tab:hover{color:var(--ink)} .ds-tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px} .ds-tab[aria-selected=\"true\"]{color:var(--ink)} .ds-tab[aria-selected=\"true\"]::after{content:\"\";position:absolute;left:var(--s-3);right:var(--s-3);bottom:-1px;height:2px;background:var(--accent)} .ds-tab .count{color:var(--ink-3);font-weight:400} .ds-tab .count.n-fail{color:var(--fail);font-weight:600}"
+    },
+    {
+      "name": "Status chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "A toggle filter or small action; pressed is the selection wash.",
+      "html": "<button class=\"ds-chip\" aria-pressed=\"true\">Failed 3</button> <button class=\"ds-chip\" aria-pressed=\"false\">Skipped 49</button>",
+      "css": ".ds-chip{display:inline-flex;align-items:center;gap:var(--s-2);height:24px;padding:0 var(--s-3);border:1px solid var(--ink-3);border-radius:999px;color:var(--ink-2);background:none;font:400 var(--t-sm)/1 var(--font);cursor:pointer} .ds-chip:hover{border-color:var(--ink);color:var(--ink)} .ds-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px} .ds-chip[aria-pressed=\"true\"]{background:var(--accent-wash);border-color:var(--accent);color:var(--ink)}"
+    },
+    {
+      "name": "Search",
+      "kind": "input",
+      "refersTo": "search",
+      "description": "Filters the tree by path or test name.",
+      "html": "<input class=\"ds-search\" type=\"search\" placeholder=\"Filter by file path or test name\" aria-label=\"Filter tests\">",
+      "css": ".ds-search{width:320px;height:28px;padding:0 var(--s-3);font:400 var(--t-md) var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--ink-3);border-radius:4px} .ds-search::placeholder{color:var(--ink-3)} .ds-search:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+    },
+    {
+      "name": "Failure row with code frame",
+      "kind": "custom",
+      "refersTo": "code-frame",
+      "description": "An expanded failure: path, title path, and the error as a code frame.",
+      "html": "<div class=\"ds-failure\"><div class=\"ds-failure-file\">src/cart/total.test.ts</div><div class=\"ds-failure-title\">cart <span class=\"sep\">›</span> rounds totals</div><pre class=\"ds-frame\"><span class=\"hl\">Error: expect(received).toEqual(expected)</span>\n<span class=\"add\">- Expected  - 1</span>\n<span class=\"del\">+ Received  + 1</span>\n\n<span class=\"dim\">    at Object.&lt;anonymous&gt; (src/cart/total.test.ts:31:50)</span></pre></div>",
+      "css": ".ds-failure{padding:var(--s-3) var(--s-2);border-bottom:1px solid var(--line);font:400 var(--t-md)/1.45 var(--font);color:var(--ink)} .ds-failure-file{font:var(--t-sm) var(--mono);color:var(--ink-2)} .ds-failure-title{font-weight:600;margin-bottom:var(--s-3)} .ds-failure-title .sep{color:var(--ink-3);font-weight:400;padding:0 var(--s-1)} .ds-frame{margin:0;padding:var(--s-3) var(--s-4);background:var(--code-bg);border:1px solid var(--line);border-radius:4px;font:var(--t-sm)/1.5 var(--mono);overflow-x:auto} .ds-frame .hl{color:var(--fail);font-weight:600} .ds-frame .add{color:var(--pass)} .ds-frame .del{color:var(--fail)} .ds-frame .dim{color:var(--ink-3)}"
+    },
+    {
+      "name": "Map cells",
+      "kind": "custom",
+      "refersTo": "map-cell",
+      "description": "One square per file; each status has its own pattern.",
+      "html": "<div class=\"ds-cells\"><span class=\"ds-cell\"></span><span class=\"ds-cell\"></span><span class=\"ds-cell s-fail\"></span><span class=\"ds-cell s-crash\"></span><span class=\"ds-cell s-skip\"></span><span class=\"ds-cell s-todo\"></span><span class=\"ds-cell\"></span></div>",
+      "css": ".ds-cells{display:flex;flex-wrap:wrap;gap:2px} .ds-cell{width:11px;height:11px;border-radius:2px;background:var(--pass-fill)} .ds-cell.s-fail{background-color:var(--fail-fill);background-image:repeating-linear-gradient(135deg,transparent 0 2px,rgba(255,255,255,.55) 2px 3px)} .ds-cell.s-crash{background-color:var(--fail);background-image:repeating-linear-gradient(45deg,transparent 0 2px,rgba(255,255,255,.6) 2px 3px),repeating-linear-gradient(135deg,transparent 0 2px,rgba(255,255,255,.6) 2px 3px)} .ds-cell.s-skip{background-color:var(--skip-fill);background-image:radial-gradient(circle,rgba(255,255,255,.75) 1px,transparent 1.4px);background-size:4px 4px} .ds-cell.s-todo{background:transparent;box-shadow:inset 0 0 0 1.5px var(--todo)}"
+    },
+    {
+      "name": "Tree row",
+      "kind": "custom",
+      "refersTo": "tree-node",
+      "description": "A 26px row of the test tree: twisty, glyph, label, right-aligned meta.",
+      "html": "<div class=\"ds-node\"><span class=\"tw\">›</span><span class=\"label\">src/cart/total.test.ts</span><span class=\"meta\"><span class=\"n-fail\">1 failed</span><span>12 tests</span><span>412 ms</span></span></div><div class=\"ds-node is-active\"><span class=\"tw\">›</span><span class=\"label\">src/cart/tax.test.ts</span><span class=\"meta\"><span>8 tests</span><span>96 ms</span></span></div>",
+      "css": ".ds-node{display:grid;grid-template-columns:14px minmax(0,1fr) auto;align-items:center;gap:0 var(--s-2);min-height:26px;padding:0 var(--s-2);border-bottom:1px solid var(--line);font:400 var(--t-md) var(--font);color:var(--ink)} .ds-node:hover{background:var(--panel)} .ds-node.is-active{background:var(--accent-wash)} .ds-node .tw{color:var(--ink-3);transition:transform 120ms var(--ease, cubic-bezier(0.16,1,0.3,1))} .ds-node .label{font:var(--t-sm) var(--mono);overflow:hidden;text-overflow:ellipsis;white-space:nowrap} .ds-node .meta{display:flex;gap:var(--s-3);color:var(--ink-3);font-size:var(--t-sm);white-space:nowrap;font-variant-numeric:tabular-nums} .ds-node .n-fail{color:var(--fail);font-weight:600}"
+    },
+    {
+      "name": "Folder bar",
+      "kind": "custom",
+      "refersTo": "folder-bar",
+      "description": "A folder share of time in its folder hue; hatched red when it holds a failure.",
+      "html": "<div class=\"ds-bars\"><div class=\"ds-bar\" style=\"width:100%;--h:140\"></div><div class=\"ds-bar has-fail\" style=\"width:62%\"></div><div class=\"ds-bar\" style=\"width:35%;--h:260\"></div></div>",
+      "css": ".ds-bars{display:grid;gap:var(--s-3);width:240px} .ds-bar{height:8px;border-radius:1px;background:hsl(var(--h,210) var(--slice-s,18%) var(--slice-l,42%))} .ds-bar.has-fail{background-color:var(--fail-fill);background-image:repeating-linear-gradient(135deg,transparent 0 2px,rgba(255,255,255,.5) 2px 3px)}"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Profiler Panel",
+    "overview": "The report is a recorded profile of a run. Results and time are one instrument: a run overview of every worker along one time axis sits under the verdict, and every tab (Failures, Tests, Map, Folders, Timeline) is a lens on that recording. Brushing a range on the overview filters every view; a slice, a cell or a failure link jumps to the file in Tests or on its worker.\n\nThe material is panel grey and hairlines. Surfaces are flat white and panel grey, divided by 1 px lines, with no cards and no shadows. Text is dense system sans at 12 and 13 px with tabular numerals, and monospace is kept for data: code frames, error text, file and folder paths. The page is a tool for reading a run in seconds, so density is high and decoration is absent.\n\nStatus is never colour alone. Every status has an authored SVG glyph and a word or count, and every drawn mark adds a pattern. Passing work recedes in muted folder hues or slate; failure is the one red; selection and focus are the one blue. Dark is a true panel dark with its own values, not an inversion.",
+    "keyCharacteristics": [
+      "Flat panel greys, 1 px dividers, no cards, no shadows.",
+      "System sans at 11 to 18 px with tabular numerals; monospace only for data.",
+      "Status as glyph plus word or count, plus a pattern on drawn marks.",
+      "Red only for failure, blue only for selection and focus.",
+      "One time axis shared by the overview, the timeline and every filter."
+    ],
+    "rules": [
+      {
+        "name": "The One Red Rule",
+        "body": "Red means a failure or a crash and nothing else. No passing hue may come near it: folder hues stay inside 85° to 320°.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Blue Rule",
+        "body": "Blue means selection or focus: the selected tab, a pressed chip, the active row, the brush, the focus ring, links. It never marks a status.",
+        "section": "colors"
+      },
+      {
+        "name": "The Muted Pass Rule",
+        "body": "Passing work recedes. It is drawn in folder hue or slate at low saturation, so the eye lands on what failed.",
+        "section": "colors"
+      },
+      {
+        "name": "The Data Is Mono Rule",
+        "body": "Monospace is for what the run produced: code, error text, file and folder paths. Interface words are never mono.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Rule",
+        "body": "Numerals are tabular everywhere, so counts and times line up across rows.",
+        "section": "typography"
+      },
+      {
+        "name": "The Hairline Rule",
+        "body": "Separate with a 1 px `--line` divider or a change from Paper to Panel Grey. No cards, no shadows, no floating surfaces.",
+        "section": "elevation"
+      },
+      {
+        "name": "The Pattern Rule",
+        "body": "Every drawn status mark carries a pattern as well as a colour: hatched failed, cross-hatched crashed, dotted skipped, outlined todo, flat for passed. Every status in text is a glyph plus a word or count.",
+        "section": "components"
+      },
+      {
+        "name": "The Expand-Only Motion Rule",
+        "body": "Motion is the 120 ms twisty on expand and nothing else, and none under reduced motion.",
+        "section": "components"
+      }
+    ],
+    "dos": [
+      "**Do** put the verdict first and the first failure, expanded with its code frame, directly under the run overview and tab bar on a failing run.",
+      "**Do** take every size and gap from `--t-xs`…`--t-xl` and `--s-1`…`--s-6`.",
+      "**Do** give every status mark a pattern and every status in text a glyph and a word or count.",
+      "**Do** draw passing work in folder hue (`--h` in 85° to 320°) or Slate, and failure in `--fail` or `--fail-fill`.",
+      "**Do** set code, error text and paths in `--mono`, and everything else in `--font` with tabular numerals.",
+      "**Do** separate regions with 1 px `--line` hairlines and the Paper to Panel Grey step.",
+      "**Do** define every colour in both schemes under the same custom property name."
+    ],
+    "donts": [
+      "**Don't** use red for anything but failure or blue for anything but selection and focus.",
+      "**Don't** add cards, shadows or floating surfaces.",
+      "**Don't** convey a status by colour alone.",
+      "**Don't** set interface words in monospace, or data in the sans.",
+      "**Don't** animate anything but the expand twisty, and nothing under reduced motion.",
+      "**Don't** use the uppercase Label style above another heading; it is for field names, column headers and the run overview's heading."
+    ]
+  }
+}

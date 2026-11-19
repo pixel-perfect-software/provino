@@ -34,12 +34,14 @@ export interface JUnitChoiceOptions {
 export type ProvinoChoiceOptions = ProvinoViews
 
 /**
- * The options the `html` reporter takes through `run()` (B26 Phase 5 builds it; until then the
- * name is a usage error).
+ * The options the `html` reporter takes through `run()`.
  * @public
  */
 export interface HtmlChoiceOptions {
-  /** Where the page goes, relative to `cwd`. */
+  /**
+   * Where the page goes, relative to `cwd`; its directory is created. Default:
+   * `provino-report.html` in the project root. The page is never written to stdout.
+   */
   readonly outputFile?: string
 }
 
@@ -53,7 +55,9 @@ export interface HtmlChoiceOptions {
  * - `github-actions`: error annotations on `stderr`.
  * - `summary`: the totals alone, on `stderr`.
  * - `provino`: Provino's own output on `stderr`, live on a terminal (the default there).
- * - `html`: a static HTML report (not built yet: a usage error).
+ * - `html`: a static, self-contained HTML report (a test tree, a status map, time by folder and a
+ *   per-worker timeline), written at the end of the run to `outputFile` or `provino-report.html`
+ *   in the project root, never to `stdout`.
  * @public
  */
 export type ReporterChoice =

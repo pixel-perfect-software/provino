@@ -8,16 +8,21 @@ import { median, quantile } from '../stats.ts'
 
 /**
  * The legs that run with no leg named (or `all`): the renderer's own, in this process or on a pty.
- * `e2e` (Phase 3) runs whole suites, minutes of them, so it runs only when named; `html` is Phase 5's.
+ * `e2e` (Phase 3) runs whole suites, minutes of them, and `html` (Phase 5) writes files, so both run
+ * only when named.
  */
 export const REPORTER_LEGS = ['handlers', 'frames', 'heap', 'slow-sink', 'first-frame'] as const
 /** Every leg a command line may name. */
-export const NAMED_LEGS = ['handlers', 'frames', 'heap', 'slow-sink', 'first-frame', 'e2e'] as const
+export const NAMED_LEGS = [
+  'handlers',
+  'frames',
+  'heap',
+  'slow-sink',
+  'first-frame',
+  'e2e',
+  'html',
+] as const
 export type ReporterLeg = (typeof NAMED_LEGS)[number]
-
-const LATER_LEGS: Readonly<Record<string, string>> = {
-  html: 'Phase 5 (the HTML report)',
-}
 
 /**
  * The parsed command line.
@@ -47,6 +52,14 @@ export interface ReporterFlags {
   readonly runs: number
   readonly maxWallRatio: number | undefined
   readonly maxCpuOverhead: number | undefined
+  /** The `html` leg's files (`--files`, 25 tests each); default 500. */
+  readonly files: number
+  /** The `html` leg's measured rounds of each side, after one discarded (`--html-rounds`); default 15. */
+  readonly htmlRounds: number
+  /** The `html` leg's bars: the build at `run:end` in ms, and the file's size in KB (1,024 bytes), passing and with failures. */
+  readonly maxHtmlMs: number | undefined
+  readonly maxHtmlKb: number | undefined
+  readonly maxHtmlFailuresKb: number | undefined
 }
 
 function whole(flag: string, text: string | undefined, fallback: number): number {
@@ -85,6 +98,11 @@ export function parseReporterFlags(argv: readonly string[]): ReporterFlags {
         runs: { type: 'string' },
         'max-wall-ratio': { type: 'string' },
         'max-cpu-overhead': { type: 'string' },
+        files: { type: 'string' },
+        'html-rounds': { type: 'string' },
+        'max-html-ms': { type: 'string' },
+        'max-html-kb': { type: 'string' },
+        'max-html-failures-kb': { type: 'string' },
       },
     })
   }
@@ -99,8 +117,6 @@ export function parseReporterFlags(argv: readonly string[]): ReporterFlags {
       legs.push(...REPORTER_LEGS)
     } else if ((NAMED_LEGS as readonly string[]).includes(name)) {
       legs.push(name as ReporterLeg)
-    } else if (LATER_LEGS[name] !== undefined) {
-      throw new BenchError('BENCH_USAGE', `the ${name} leg is built in ${LATER_LEGS[name]}`)
     } else {
       throw new BenchError(
         'BENCH_USAGE',
@@ -126,6 +142,11 @@ export function parseReporterFlags(argv: readonly string[]): ReporterFlags {
     runs: whole('runs', values.runs, 7),
     maxWallRatio: parseLimit('max-wall-ratio', values['max-wall-ratio']),
     maxCpuOverhead: parseLimit('max-cpu-overhead', values['max-cpu-overhead']),
+    files: whole('files', values.files, 500),
+    htmlRounds: whole('html-rounds', values['html-rounds'], 15),
+    maxHtmlMs: parseLimit('max-html-ms', values['max-html-ms']),
+    maxHtmlKb: parseLimit('max-html-kb', values['max-html-kb']),
+    maxHtmlFailuresKb: parseLimit('max-html-failures-kb', values['max-html-failures-kb']),
   }
 }
 
@@ -214,6 +235,33 @@ export interface E2eResult {
   readonly cpuOverhead: number
 }
 
+/**
+ * One run of the HTML report's leg: the stream is played through the reporter's handlers, and
+ * `run:end` (the build of the page and its write) is timed, against a reporter that writes nothing,
+ * interleaved.
+ */
+export interface HtmlVariant {
+  /** `passing`: every test passed; `failures`: the stream's own failure rate. */
+  readonly name: 'passing' | 'failures'
+  readonly tests: number
+  readonly failures: number
+  /** `run:end` of the reporter that writes nothing, median ms. */
+  readonly noopMs: number
+  /** `run:end` of the HTML reporter (build and write), median ms. */
+  readonly htmlMs: number
+  /** What the report adds: `htmlMs - noopMs`. */
+  readonly buildMs: number
+  /** The file's size in KB (1,024 bytes). */
+  readonly kb: number
+}
+
+/** `html`: both variants of the stream at `files` files. */
+export interface HtmlResult {
+  readonly files: number
+  readonly rounds: number
+  readonly variants: readonly HtmlVariant[]
+}
+
 /** Rule 1's exceptions: handlers that do a run's work once. */
 const ONCE_PER_RUN: ReadonlySet<string> = new Set(['run:start', 'run:end'])
 
@@ -238,11 +286,26 @@ export function reporterFailures(
     readonly slowSink?: SlowSinkResult
     readonly firstFrame?: FirstFrameResult
     readonly e2e?: readonly E2eResult[]
+    readonly html?: HtmlResult
   },
   flags: ReporterFlags,
 ): string[] {
   const missed: string[] = []
   const { handlers, frames, heap, slowSink, firstFrame } = results
+  for (const variant of results.html?.variants ?? []) {
+    // The time bar reads every variant: the page with failures builds in the same time.
+    if (flags.maxHtmlMs !== undefined && overBar(variant.buildMs, flags.maxHtmlMs)) {
+      missed.push(
+        `html (${variant.name}) build ${pastLimit(variant.buildMs, flags.maxHtmlMs, 2)} ms at ${results.html?.files} files is over ${flags.maxHtmlMs} ms`,
+      )
+    }
+    const maxKb = variant.name === 'passing' ? flags.maxHtmlKb : flags.maxHtmlFailuresKb
+    if (maxKb !== undefined && overBar(variant.kb, maxKb)) {
+      missed.push(
+        `html (${variant.name}) size ${pastLimit(variant.kb, maxKb, 1)} KB at ${results.html?.files} files is over ${maxKb} KB`,
+      )
+    }
+  }
   for (const suite of results.e2e ?? []) {
     if (flags.maxWallRatio !== undefined && !(suite.ratio <= flags.maxWallRatio)) {
       missed.push(

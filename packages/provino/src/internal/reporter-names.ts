@@ -41,17 +41,23 @@ export type HostReporterName = (typeof HOST_REPORTERS)[number]
 export type BuiltInReporterName = (typeof BUILT_IN_REPORTERS)[number]
 
 /**
- * The reporters that write a document, to a file or to stdout: they go last, so each sees every
- * other reporter's failure before it writes.
+ * The reporters that write a document, each with where it writes when no `outputFile` says:
+ * `null` is stdout, and a name is a file in the project's root (`html`, D146: its page is never
+ * written to stdout). They go last, so each sees every other reporter's failure before it writes.
  * @internal
  */
-export const DOCUMENT_REPORTERS = ['json', 'normalized-json', 'junit', 'html'] as const
+export const DOCUMENT_REPORTERS = {
+  json: null,
+  'normalized-json': null,
+  junit: null,
+  html: 'provino-report.html',
+} as const
 
 /**
  * The name of a reporter that writes a document.
  * @internal
  */
-export type DocumentReporterName = (typeof DOCUMENT_REPORTERS)[number]
+export type DocumentReporterName = keyof typeof DOCUMENT_REPORTERS
 
 /**
  * Whether `name` is a built-in reporter.
@@ -74,5 +80,5 @@ export function isHostReporter(name: string): name is HostReporterName {
  * @internal
  */
 export function isDocumentReporter(name: string): name is DocumentReporterName {
-  return DOCUMENT_REPORTERS.some((known) => known === name)
+  return Object.hasOwn(DOCUMENT_REPORTERS, name)
 }
