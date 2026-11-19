@@ -992,13 +992,73 @@ test('reevaluateHookingExternals: an external that reads a per-file global as it
     assert.notEqual(second.hooks.dep.token, first.hooks.dep.token, 'and so is its closure')
     assert.notEqual(second.expect.token, first.expect.token)
     assert.notEqual(second.dom.token, first.dom.token)
+    // The first file evaluated each through its registry, as a warm run's first file does.
+    assert.notEqual(second.plain.token, first.plain.token, 'the first file had its own copy')
+    const third = await load('b.test.js')
     assert.equal(
+      third.plain.token,
       second.plain.token,
-      first.plain.token,
-      'an external that reads nothing stays shared',
+      'an external that reads nothing is shared from the next file on',
     )
-    assert.equal(watched.length, 4, 'nothing is watched once every external has loaded')
+    assert.equal(watched.length, 4, 'nothing is watched again once every external has a verdict')
   })
+})
+
+test('reevaluateHookingExternals: the file that learns an external has the instance a seeded worker’s first file has, evaluated through its registry', async () => {
+  const source = "module.exports = require('dom-probe')\n"
+  const root = writeTree({
+    ...pkg(
+      'dom-probe',
+      "module.exports = { document: document, native: typeof module.require === 'function' }\n",
+    ),
+    'a.test.js': source,
+  })
+  type Probed = { document: object; native: boolean }
+  const policy = { reevaluateHookingExternals: true, interopDefault: 'babel' } as const
+  const loadIn = (loader: Loader): Probed =>
+    loader
+      .createFileRegistry(join(root, 'a.test.js'), { tier: 'registry' })
+      .require<Probed>(join(root, 'a.test.js'))
+  await withFileGlobals(async (globals) => {
+    const seeded = loaderFor(root, policy)
+    seeded.watchExternalLoads(probe([]))
+    seeded.reevaluateExternals([join(root, 'node_modules/dom-probe/index.js')])
+    assert.equal(loadIn(seeded).native, false, 'a seeded worker evaluates it through the registry')
+    const cold = loaderFor(root, policy)
+    cold.watchExternalLoads(probe([]))
+    const learning = loadIn(cold)
+    assert.equal(learning.native, false, 'and so does the file that learns it, not Node')
+    assert.equal(learning.document, globals.document)
+    assert.deepEqual(
+      cold.takeLearnedExternals().map((path) => path.slice(root.length + 1)),
+      ['node_modules/dom-probe/index.js'],
+      'learned from that evaluation',
+    )
+  })
+})
+
+test('reevaluateHookingExternals: a "shared" verdict is kept for the next run, which loads the external natively from its first file', () => {
+  const root = writeTree({
+    ...pkg('plain', "module.exports = { native: typeof module.require === 'function' }\n"),
+    'a.test.js': "module.exports = require('plain')\n",
+  })
+  const run = (): { native: boolean } => {
+    const loader = createLoader({
+      ...loaderOptionsFor(root, {
+        policy: { reevaluateHookingExternals: true, interopDefault: 'babel' },
+      }),
+      graphCache: join(root, 'cache'),
+      lockfileHash: 'lockfile',
+    })
+    loader.watchExternalLoads(probe([]))
+    const value = loader
+      .createFileRegistry(join(root, 'a.test.js'), { tier: 'registry' })
+      .require<{ native: boolean }>(join(root, 'a.test.js'))
+    loader[Symbol.dispose]()
+    return value
+  }
+  assert.equal(run().native, false, 'the first run evaluates it through the registry for a verdict')
+  assert.equal(run().native, true, 'the next run loads it natively from its first file')
 })
 
 test('reevaluateHookingExternals: a learned set given to a new loader inlines from its first file', async () => {

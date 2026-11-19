@@ -1,5 +1,6 @@
-// D127 / P42: the worker's watcher for a shared external's first native load (the loader's
-// `watchExternalLoads`, under `ModulePolicy.reevaluateHookingExternals`). It answers whether the
+// D127 / P42: the worker's watcher for an external's first load (the loader's
+// `watchExternalLoads`, under `ModulePolicy.reevaluateHookingExternals`): its evaluation through
+// the file's registry while it has no verdict, else its first native load. It answers whether the
 // load read a per-file global: one the running file's setup put on the global, which is what a
 // package captures to be the file's own (a test hook, `jest`, `expect`, the environment's
 // `document` and `window`).

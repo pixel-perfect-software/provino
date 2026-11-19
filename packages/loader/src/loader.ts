@@ -29,6 +29,7 @@ import { activate, promoteLearned, takeLearned } from './internal/reevaluate.ts'
 import { type FileContext, NO_FILE, Registry } from './internal/registry.ts'
 import { blankHashbang } from './internal/source.ts'
 import { isEvaluableExternal } from './internal/third-party.ts'
+import { writeSharedVerdicts } from './internal/verdicts.ts'
 import { reevaluatesExternals } from './reevaluation.ts'
 import { tierFor } from './tier.ts'
 
@@ -235,8 +236,9 @@ export const createLoader: CreateLoader = (options) => {
       )
     },
     [Symbol.dispose]: () => {
-      // Once per worker, with everything its files scanned.
+      // Once per worker, with everything its files scanned, and the verdicts they found.
       saveGraph(state.inline)
+      writeSharedVerdicts(state.reevaluate, options)
       // What no file end wrote: the last files' few scripts, a worker's only file.
       state.codeCache?.write()
       state.codeCache?.close()

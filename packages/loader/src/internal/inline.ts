@@ -681,6 +681,33 @@ export function noteInlined(
 }
 
 /**
+ * Walks `path`'s static closure among `node_modules` files, `path` first, node by node through the
+ * graph, going below a file only when `enter` returns `true` for it (`share` in `reevaluate.ts`
+ * stops at a file with a verdict, so each file is entered once per worker).
+ */
+export function walkBelow(
+  state: InlineState,
+  options: LoaderOptions,
+  path: string,
+  enter: (file: string) => boolean,
+): void {
+  const graph = graphOf(state, options)
+  const seen = new Set<string>()
+  const stack = [path]
+  while (stack.length > 0) {
+    const current = stack.pop()
+    if (current === undefined || seen.has(current)) continue
+    seen.add(current)
+    if (!enter(current)) continue
+    const node = graph.visitNode(current)
+    if (node === undefined) continue
+    for (const { target } of node.edges) {
+      if (isFileTarget(target) && inGraph(target) && !seen.has(target)) stack.push(target)
+    }
+  }
+}
+
+/**
  * The files of `path`'s own package that its static closure reaches (`path` among them). An
  * external evaluated per file takes them along (D127): Node's module cache shows what a CommonJS
  * load evaluated, but not the ES modules a `require(esm)` evaluated, and a package split between a

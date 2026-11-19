@@ -30,6 +30,7 @@ import {
   noteInlined,
   packageClosure,
   servedReach,
+  walkBelow,
 } from './inline.ts'
 import { actualView, cjsNamespace, createInteropCache, esmExports } from './interop.ts'
 import { withNodeLoader } from './node-loader.ts'
@@ -52,8 +53,17 @@ import {
   targetOfId,
   toModuleId,
 } from './records.ts'
-import { watchedLoad } from './reevaluate.ts'
+import {
+  hasVerdict,
+  inNodeCache,
+  learnUnwatched,
+  share,
+  type WalkBelow,
+  watchedEvaluation,
+  watchedLoad,
+} from './reevaluate.ts'
 import { requireEsmError } from './require-esm.ts'
+import { readSharedVerdicts } from './verdicts.ts'
 
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
 type Style = 'esm' | 'cjs'
@@ -648,7 +658,16 @@ export class Registry {
     const served = state.options.moduleScope?.modules ?? NO_MODULES
     const mocks = runner || !policy.mocksReachShared ? null : this.context.mocks
     const diverging = state.diverging
-    if (!seeded && served.length === 0 && claims === null && mocks === null && diverging === null) {
+    // Anyone watches: an external with no verdict yet is evaluated through the registry to find one.
+    const probes = this.#reevaluates && state.reevaluate.watchers.size > 0
+    if (
+      !seeded &&
+      !probes &&
+      served.length === 0 &&
+      claims === null &&
+      mocks === null &&
+      diverging === null
+    ) {
       return false
     }
     const map = this.#instances
@@ -692,10 +711,56 @@ export class Registry {
             noteInlined(state.inline, state.options, this.#ledger, toModuleId(path), mockedId)
           }
         }
+        if (probes && inlined !== 'kept' && this.#unverdicted(path)) {
+          // Evaluated here, watched, as a warm run evaluates it (`watchedEvaluation`).
+          state.reevaluate.probing.add(path)
+          if (inlined === false) inlined = 'kept'
+        }
       }
       memory.set(path, inlined)
     }
     return inlined !== false
+  }
+
+  /**
+   * Whether the external at `path` has no verdict yet, so this file evaluates it through its
+   * registry and watches that evaluation: not per file (seeded or learned), not shared, not loaded
+   * natively already. One Node holds already (a native load outside the loader made it, such as an
+   * environment's) is shared at once, with its static closure, since every native importer has
+   * Node's copy.
+   */
+  #unverdicted(path: string): boolean {
+    const state = this.#state
+    const reevaluate = state.reevaluate
+    readSharedVerdicts(reevaluate, state.options)
+    if (hasVerdict(reevaluate, path) || state.required.has(path) || !state.evaluable(path)) {
+      return false
+    }
+    if (inNodeCache(path)) {
+      share(reevaluate, [path], state.evaluable, this.#walkBelow, false)
+      return false
+    }
+    return true
+  }
+
+  /** `share`'s walk over a file's static closure. */
+  readonly #walkBelow: WalkBelow = (path, enter) => {
+    walkBelow(this.#state.inline, this.#state.options, path, enter)
+  }
+
+  /** The files of a learned external's own package that its static closure reaches. */
+  readonly #ownPackage = (file: string): readonly string[] =>
+    packageClosure(this.#state.inline, this.#state.options, file)
+
+  /** Whether this evaluation of `record` is the one that finds its external's verdict. */
+  #probing(record: ModuleRecord): boolean {
+    const reevaluate = this.#state.reevaluate
+    return (
+      this.#reevaluates &&
+      reevaluate.probing.size > 0 &&
+      reevaluate.probing.has(record.path) &&
+      !hasVerdict(reevaluate, record.path)
+    )
   }
 
   /** The record of a module an edge inlined, linked now: nothing linked it ahead. */
@@ -897,7 +962,7 @@ export class Registry {
       return existing
     }
     const instance = this.#newInstance(record)
-    try {
+    const run = (): void => {
       if (record.format === 'json') {
         Object.defineProperty(instance.exports, 'default', {
           enumerable: true,
@@ -926,6 +991,22 @@ export class Registry {
           (specifier: string) => this.#lateImportSync(record, specifier),
         )
       }
+    }
+    const probed = this.#probing(record)
+    try {
+      if (probed) {
+        const state = this.#state
+        watchedEvaluation(
+          state.reevaluate,
+          record.path,
+          run,
+          state.evaluable,
+          this.#ownPackage,
+          this.#walkBelow,
+        )
+      } else {
+        run()
+      }
       instance.status = 'done'
       return instance
     } catch (error) {
@@ -936,8 +1017,32 @@ export class Registry {
       if (record.format === 'cjs' && instances.get(record.id) === instance) {
         instances.delete(record.id)
       }
+      if (probed) return this.#nativeFallback(record)
       throw error
     }
+  }
+
+  /**
+   * An external whose evaluation for its verdict threw: Node's copy, as the file would have had
+   * before it evaluated anything itself, and shared from then on (unless the window learned it).
+   * So a package that loads natively but not through the registry (one that reads a member of the
+   * `module` object the registry's lacks) breaks nothing; if Node's load throws too, its error
+   * stands.
+   */
+  #nativeFallback(record: ModuleRecord): Instance {
+    const state = this.#state
+    share(state.reevaluate, [record.path], state.evaluable, this.#walkBelow, false)
+    const value = this.#requireExternal({ kind: 'external', path: record.path })
+    const instance: Instance = {
+      status: 'done',
+      exports: null,
+      module: { exports: value },
+      promise: null,
+      error: undefined,
+      view: null,
+    }
+    this.#instances.set(record.id, instance)
+    return instance
   }
 
   /** `import()` as `record`'s code makes it: the registry's `importFrom`, from the record's own path. */
@@ -954,6 +1059,8 @@ export class Registry {
     }
     const instance = this.#newInstance(record)
     const exports = instance.exports ?? {}
+    // An evaluation that awaits can't be watched (other loads run inside it): per file, as in Jest.
+    if (this.#probing(record)) learnUnwatched(this.#state.reevaluate, record.path)
     const run = async (): Promise<object> => {
       try {
         await this.#wrapper(record, 'async')(

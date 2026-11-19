@@ -34,6 +34,27 @@ export interface ReevaluateState {
   readonly perFile: PerFileGraph
   /** Whether a watched load is running: a load inside it is part of it, never a window of its own. */
   watching: boolean
+  /**
+   * Externals with the verdict "shared": evaluated once through a file's registry under a window
+   * that saw no per-file read or write (`watchedEvaluation`), a file such a one's static closure
+   * reaches, one Node held already, or one an earlier run found so (`seedShared`). Loaded natively
+   * from then on, unless the per-file set takes them. An external with no verdict at all (in no
+   * set here) is evaluated through the registry, as a warm run and Jest evaluate it.
+   */
+  readonly shared: Set<string>
+  /**
+   * The shared externals this worker evaluated under a window that saw nothing: their native load
+   * is not watched again. (A file only a closure walk or an earlier run made shared is.)
+   */
+  readonly quiet: Set<string>
+  /** Whether `shared` grew since it was last written (`verdicts.ts`). */
+  sharedGrew: boolean
+  /** The externals the running file evaluates through its registry for their verdict. */
+  readonly probing: Set<string>
+  /** The probed files the open window evaluated, which take its verdict with it; `null` outside one. */
+  windowFiles: string[] | null
+  /** Whether an earlier run's verdicts were read (`verdicts.ts`, once per worker). */
+  verdictsRead: boolean
 }
 
 /**
@@ -468,6 +489,12 @@ export function createReevaluateState(): ReevaluateState {
     watchers: new Set(),
     perFile: createPerFileGraph(),
     watching: false,
+    shared: new Set(),
+    quiet: new Set(),
+    sharedGrew: false,
+    probing: new Set(),
+    windowFiles: null,
+    verdictsRead: false,
   }
 }
 
@@ -493,6 +520,47 @@ export function takeLearned(state: ReevaluateState): readonly string[] {
 /** Node's own module cache: what a native `require` adds an entry to, in load order. */
 const nativeCache: NodeJS.Require['cache'] = createRequire(import.meta.url).cache
 
+/** Whether Node's own cache holds `path`: a native load (the loader's, or one outside it) made it. */
+export function inNodeCache(path: string): boolean {
+  return nativeCache[path] !== undefined
+}
+
+/** Whether the external at `path` has a verdict: per file (seeded or learned), or shared. */
+export function hasVerdict(state: ReevaluateState, path: string): boolean {
+  return state.active.has(path) || state.pending.has(path) || state.shared.has(path)
+}
+
+/**
+ * Walks a file's static closure among node_modules files, the file first, going below a file only
+ * when `enter` returns `true` for it (`inline.ts`'s `walkBelow`).
+ */
+export type WalkBelow = (path: string, enter: (file: string) => boolean) => void
+
+/**
+ * Gives `files`, and every file of their static closures with no verdict, the verdict "shared". A
+ * walk stops at a file with a verdict (a shared one's closure is shared already). So a file a shared
+ * package requires only later (inside a function a test calls) loads natively, as that package's
+ * own `require` of it does, and never through a registry beside it. `evaluated`: `files` were
+ * evaluated under a window that saw nothing (`quiet`).
+ */
+export function share(
+  state: ReevaluateState,
+  files: readonly string[],
+  keep: (file: string) => boolean,
+  below: WalkBelow,
+  evaluated: boolean,
+): void {
+  for (const file of files) {
+    if (evaluated && keep(file) && !hasVerdict(state, file)) state.quiet.add(file)
+    below(file, (reached) => {
+      if (!keep(reached) || hasVerdict(state, reached)) return false
+      state.shared.add(reached)
+      state.sharedGrew = true
+      return true
+    })
+  }
+}
+
 /**
  * Runs `load`, the first native load of the external at `path`, as a watched window when anyone
  * watches and no window is open. When a watcher says a per-file global was read, `path`, the files
@@ -513,12 +581,63 @@ export function watchedLoad<T>(
   keep: (file: string) => boolean,
   ownPackage: (file: string) => readonly string[],
 ): T {
+  // Evaluated already under a window that saw nothing: its native load would see the same.
+  if (state.quiet.has(path)) return load()
+  return openWindow(state, path, load, keep, ownPackage, null)
+}
+
+/**
+ * Runs `evaluate`, the first evaluation of the external at `path` through a file's registry while
+ * it has no verdict (`ReevaluateState.probing`), as a watched window: the load a warm run makes of
+ * it, with the environment's conditions and the file's mocks, rather than a native one. When a
+ * watcher says a per-file global was read or written, `path` and every probed file the window
+ * evaluated are learned as a native load's window learns (and so are its package's files and what
+ * it loaded natively); when none was, they and their static closures are shared from the next
+ * file on (`share`). Inside an open window it is part of that window. A window that saw nothing
+ * because no watcher watched, or whose evaluation threw, gives no verdict: the next file asks
+ * again.
+ */
+export function watchedEvaluation<T>(
+  state: ReevaluateState,
+  path: string,
+  evaluate: () => T,
+  keep: (file: string) => boolean,
+  ownPackage: (file: string) => readonly string[],
+  below: WalkBelow,
+): T {
+  if (state.watching) {
+    state.windowFiles?.push(path)
+    return evaluate()
+  }
+  return openWindow(state, path, evaluate, keep, ownPackage, below)
+}
+
+/**
+ * An evaluation through a registry that no window can watch (an ES module that awaits: other loads
+ * would run inside it): learned, so it is evaluated per file, as under Jest.
+ */
+export function learnUnwatched(state: ReevaluateState, path: string): void {
+  if (state.shared.has(path)) return
+  learn(state, path)
+}
+
+function openWindow<T>(
+  state: ReevaluateState,
+  path: string,
+  load: () => T,
+  keep: (file: string) => boolean,
+  ownPackage: (file: string) => readonly string[],
+  below: WalkBelow | null,
+): T {
   if (state.watching || state.watchers.size === 0 || state.active.has(path)) return load()
   const ends: (() => boolean)[] = []
   /** Node's cache before the load: read only once a window is open, as only then can it learn. */
   let before: readonly string[] | undefined
   let loadFailed = false
+  /** An evaluation window's probed files, `path` first. */
+  const evaluated: string[] = [path]
   state.watching = true
+  if (below !== null) state.windowFiles = evaluated
   try {
     for (const watcher of state.watchers) {
       const end = watcher(path)
@@ -533,6 +652,7 @@ export function watchedLoad<T>(
     }
   } finally {
     state.watching = false
+    state.windowFiles = null
     let perFile = false
     let failure: { readonly error: unknown } | undefined
     for (const end of ends) {
@@ -544,11 +664,13 @@ export function watchedLoad<T>(
     }
     if (perFile && before !== undefined) {
       const known = new Set(before)
-      learn(state, path)
+      for (const file of evaluated) learn(state, file)
       for (const file of ownPackage(path)) if (keep(file)) learn(state, file)
       for (const file of Object.keys(nativeCache)) {
         if (!known.has(file) && keep(file)) learn(state, file)
       }
+    } else if (below !== null && ends.length > 0 && failure === undefined && !loadFailed) {
+      share(state, evaluated, keep, below, true)
     }
     // biome-ignore lint/correctness/noUnsafeFinally: an end that threw must not pass silently.
     if (failure !== undefined && !loadFailed) throw failure.error
@@ -561,6 +683,8 @@ export function watchedLoad<T>(
  */
 export function promoteLearned(state: ReevaluateState): void {
   promotePerFile(state.perFile)
+  // What the last file evaluated for its verdict has one now: no file asks again.
+  state.probing.clear()
   if (state.pending.size === 0) return
   activate(state, state.pending)
   state.pending.clear()

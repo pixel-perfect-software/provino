@@ -1440,7 +1440,8 @@ describe('a shared external that reads a per-file global as it loads (D127, P42)
         jobs: [runtimeJob(config, p.path('a.test.js')), runtimeJob(config, p.path('b.test.js'))],
       })
       const read = await readFile(join(p.dir, 'node_modules/reader/loads.txt'), 'utf8')
-      assert.equal(read.length, 1, 'evaluated once for the worker')
+      // The first file evaluates it through its registry for its verdict; then the worker shares it.
+      assert.equal(read.length, 2, 'evaluated once for its verdict and once for the worker')
       assert.deepEqual(
         done.map((entry) => entry.reevaluated),
         [undefined, undefined],
@@ -1500,7 +1501,11 @@ describe('a shared external that reads a per-file global as it loads (D127, P42)
     const read = async (): Promise<string> =>
       readFile(join(p.dir, 'node_modules/hooker/loads.txt'), 'utf8')
     await once()
-    assert.equal(await read(), 'nini', 'each project’s worker learns it on its first file')
+    assert.equal(
+      await read(),
+      'iiii',
+      'each project’s worker learns it on its first file, through that file’s registry',
+    )
     await once()
     assert.equal((await read()).slice(4), 'iiii', 'the second run inlines it from each first file')
   })
