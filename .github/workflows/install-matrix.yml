@@ -1,0 +1,572 @@
+name: Install matrix
+
+# Does `provino`, packed as `pnpm pack` makes it, install and run on every OS, package manager
+# and Node we support? Each cell installs the tarball into an empty directory with one package
+# manager, then runs `provino --version` and the three-file suite `SMOKE_FILES` holds
+# (tooling/packaging/src/smoke.ts: the injected globals, `import … from 'provino'`, a TypeScript
+# test). `provino` inlines every `@provino/*` package, so it is the only tarball an install needs.
+#
+# It runs when Tyler starts it (`gh workflow run install-matrix.yml`) and on a pull request that
+# changes this file or the smoke script, so the change that edits the matrix proves the matrix
+# (DECISIONS D168: no `push`, no `schedule`, no other trigger). It is not a merge gate.
+#
+# npm, npx, yarn and bun appear in this file and nowhere else in the repository (DECISIONS D75):
+# they are the things under test. The release is pnpm only.
+#
+# Where the runner has Docker (Linux), a cell installs from a Verdaccio registry the job starts
+# with the `provino` tarball published into it and npmjs as the uplink for third-party packages,
+# so the install goes through a registry's metadata and tarball URLs, as a user's does. macOS and
+# Windows runners have no Docker, so their cells install the tarball by path.
+#
+# The `inputs` artifact holds the tarballs and `support/`: the three smoke files, written from
+# `SMOKE_FILES` itself so they can't drift from it, and `support.sh`, the shell every job
+# shares. The `pack` job writes that script from this file, so the workflow holds it once.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - .github/workflows/install-matrix.yml
+      - tooling/packaging/src/smoke.ts
+
+permissions:
+  contents: read
+
+concurrency:
+  group: install-matrix-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NO_COLOR: "1"
+  TURBO_TELEMETRY_DISABLED: "1"
+
+jobs:
+  pack:
+    name: Pack provino and write the support files
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          cache: true
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .tool-versions
+      - run: pnpm install --frozen-lockfile
+      # Builds every package, then `pnpm pack` each public one (the root script's own `pnpm build`).
+      - run: pnpm pack:all --out inputs/tarballs
+      - name: Write the smoke files from SMOKE_FILES
+        run: |
+          mkdir -p inputs/support/smoke-files
+          node --input-type=module -e '
+            import { mkdirSync, writeFileSync } from "node:fs"
+            import { SMOKE_FILES } from "./tooling/packaging/src/smoke.ts"
+            mkdirSync("inputs/support/smoke-files", { recursive: true })
+            for (const [name, text] of Object.entries(SMOKE_FILES)) {
+              writeFileSync(`inputs/support/smoke-files/${name}`, text)
+            }
+          '
+          ls inputs/support/smoke-files
+      - name: Write support.sh
+        run: |
+          cat > inputs/support/support.sh <<'SUPPORT'
+          # The shell the jobs of install-matrix.yml share. A job sources it from its workspace, under
+          # bash (Linux, macOS, Git Bash on Windows) or Alpine's ash, so it stays POSIX. `ci/` holds
+          # the downloaded inputs and `app/` is the empty project a job installs into: no repository
+          # is anywhere near it. Every function runs from the workspace.
+
+          CI_DIR=ci
+          OUT_FILE=out.txt
+          : "${REGISTRY=}"
+
+          fail() {
+            echo "::error::$*"
+            exit 1
+          }
+
+          # pm_setup <id>: PM (npm, pnpm, yarn or bun) and LINKER (yarn's) for a cell's package manager.
+          pm_setup() {
+            case "$1" in
+              npm-11 | npm-12) PM=npm ;;
+              pnpm-12) PM=pnpm ;;
+              yarn-4-nm) PM=yarn; LINKER=node-modules ;;
+              yarn-4-pnp) PM=yarn; LINKER=pnp ;;
+              bun) PM=bun ;;
+              *) fail "unknown package manager $1" ;;
+            esac
+          }
+
+          # install_pm <id>: puts that package manager on PATH, from npm, and checks its major version.
+          install_pm() {
+            case "$1" in
+              npm-11) npm install -g npm@11; cmd=npm; want=11 ;;
+              npm-12) npm install -g npm@12; cmd=npm; want=12 ;;
+              pnpm-12) npm install -g pnpm@12; cmd=pnpm; want=12 ;;
+              yarn-4-nm | yarn-4-pnp) npm install -g --force @yarnpkg/cli-dist@4; cmd=yarn; want=4 ;;
+              bun) npm install -g bun@1; cmd=bun; want=1 ;;
+              *) fail "unknown package manager $1" ;;
+            esac
+            got=$($cmd --version | tr -d '\r')
+            case "$got" in
+              "$want".*) echo "$cmd $got" ;;
+              *) fail "$cmd is $got, not $want.x" ;;
+            esac
+          }
+
+          # provino_tarball: PROVINO_TGZ and PROVINO_VERSION from the one provino tarball (the other
+          # packages' names have a word after `provino-`, not a version).
+          provino_tarball() {
+            set -- "$CI_DIR"/tarballs/provino-[0-9]*.tgz
+            [ -f "$1" ] || fail "no provino tarball in $CI_DIR/tarballs"
+            PROVINO_TGZ=$(basename "$1")
+            PROVINO_VERSION=${PROVINO_TGZ#provino-}
+            PROVINO_VERSION=${PROVINO_VERSION%.tgz}
+          }
+
+          # new_app: an empty app/ with the smoke files and the package manager's settings (the registry
+          # when REGISTRY is set).
+          new_app() {
+            rm -rf app
+            mkdir app
+            cp "$CI_DIR"/support/smoke-files/* app/
+            printf '{\n  "name": "provino-install-smoke",\n  "private": true,\n  "type": "module"\n}\n' > app/package.json
+            case "$PM" in
+              yarn)
+                : > app/yarn.lock
+                printf 'nodeLinker: %s\nenableTelemetry: false\n' "$LINKER" > app/.yarnrc.yml
+                # A tarball is published a minute before it is installed, which is inside Yarn's one-day
+                # minimal age gate (`npmMinimalAgeGate`, 1440 minutes): provino alone is preapproved.
+                if [ -n "$REGISTRY" ]; then
+                  printf 'npmRegistryServer: "%s"\nunsafeHttpWhitelist:\n  - 127.0.0.1\nnpmPreapprovedPackages:\n  - provino\n' "$REGISTRY" >> app/.yarnrc.yml
+                fi
+                ;;
+              bun)
+                if [ -n "$REGISTRY" ]; then printf '[install]\nregistry = "%s"\n' "$REGISTRY" > app/bunfig.toml; fi
+                ;;
+              *)
+                if [ -n "$REGISTRY" ]; then printf 'registry=%s\n' "$REGISTRY" > app/.npmrc; fi
+                ;;
+            esac
+          }
+
+          # pm_add <args>: add a dependency with $PM. Runs from app/.
+          pm_add() {
+            case "$PM" in
+              npm) npm install --no-audit --no-fund "$@" ;;
+              pnpm) pnpm add "$@" ;;
+              yarn) yarn add "$@" ;;
+              bun) bun add "$@" ;;
+            esac
+          }
+
+          # pm_exec <args>: run the installed `provino` bin through $PM. Runs from app/.
+          pm_exec() {
+            case "$PM" in
+              npm) npm exec --no -- provino "$@" ;;
+              pnpm) pnpm exec provino "$@" ;;
+              yarn) yarn run provino "$@" ;;
+              bun) bun run provino "$@" ;;
+            esac
+          }
+
+          # install_provino [flags]: from the registry when REGISTRY is set, else from the tarball by path
+          # (relative: a Windows path in `file:` is not something every package manager reads).
+          install_provino() {
+            provino_tarball
+            ref="provino@$PROVINO_VERSION"
+            if [ -z "$REGISTRY" ]; then
+              ref="../$CI_DIR/tarballs/$PROVINO_TGZ"
+              if [ "$PM" = yarn ]; then ref="provino@file:$ref"; fi
+            fi
+            echo "::group::$PM add $ref"
+            ( cd app && pm_add "$@" "$ref" ) || fail "$PM could not install provino"
+            echo "::endgroup::"
+          }
+
+          # capture <command>: runs it from app/; its output, carriage returns removed, is in $OUT_FILE
+          # (and printed) and its exit status in STATUS. Files, not pipes: a `grep -q` on a pipe can
+          # end the writer with SIGPIPE, and bash's pipefail then fails the step.
+          capture() {
+            ( cd app && "$@" ) > "$OUT_FILE.raw" 2>&1 && STATUS=0 || STATUS=$?
+            tr -d '\r' < "$OUT_FILE.raw" > "$OUT_FILE"
+            cat "$OUT_FILE"
+          }
+
+          expect_version() {
+            provino_tarball
+            capture pm_exec --version
+            last=$(tail -n 1 "$OUT_FILE")
+            [ "$STATUS" = 0 ] && [ "$last" = "$PROVINO_VERSION" ] || fail "provino --version printed '$last' (exit $STATUS), not $PROVINO_VERSION"
+            echo "provino --version: $last"
+          }
+
+          expect_suite_passes() {
+            capture pm_exec jest --ci
+            [ "$STATUS" = 0 ] && grep -Eq 'Tests:[[:space:]]+3 passed, 3 total' "$OUT_FILE" || fail "the three-file suite did not pass (exit $STATUS)"
+            echo "the three-file suite passed"
+          }
+
+          # expect_suite_or_binding_message: T10.3. An install that lacks this platform's Oxc binding
+          # packages must run the suite anyway, or end as Provino's one message that names them: exit
+          # 1, one `Provino: the native Oxc binding` line, a `Missing:` line of binding packages, and
+          # no stack frame or loader error.
+          expect_suite_or_binding_message() {
+            capture pm_exec jest --ci
+            if [ "$STATUS" = 0 ]; then
+              grep -Eq 'Tests:[[:space:]]+3 passed, 3 total' "$OUT_FILE" || fail "provino jest exited 0 without running the three files"
+              echo "outcome: the suite ran"
+              return 0
+            fi
+            [ "$STATUS" = 1 ] || fail "provino jest exited $STATUS, not 1"
+            found=$(grep -c '^Provino: the native Oxc binding' "$OUT_FILE" || true)
+            [ "$found" = 1 ] || fail "expected one Provino message about the Oxc binding, found $found"
+            grep -Eq '^ +Missing: @oxc-(parser|transform|resolver)/binding-' "$OUT_FILE" || fail "the message names no missing binding package"
+            if grep -Eq '^[[:space:]]+at |Cannot find native binding' "$OUT_FILE"; then
+              fail "a stack frame or the native loader's own error reached the output"
+            fi
+            echo "outcome: provino jest ended with Provino's one message, exit 1, no stack"
+          }
+
+          # registry_start: Verdaccio 7 on 127.0.0.1:4873 (Docker, so Linux), proxying npmjs for every
+          # package but `provino` and `@provino/*`, which only the local registry answers for.
+          registry_start() {
+            mkdir -p verdaccio
+            printf '%s\n' \
+              'storage: /verdaccio/storage/data' \
+              'auth:' \
+              '  htpasswd:' \
+              '    file: /verdaccio/storage/htpasswd' \
+              '    max_users: 100' \
+              'uplinks:' \
+              '  npmjs:' \
+              '    url: https://registry.npmjs.org/' \
+              '    max_fails: 20' \
+              '    fail_timeout: 10s' \
+              '    timeout: 60s' \
+              'packages:' \
+              '  "provino":' \
+              '    access: $all' \
+              '    publish: $authenticated' \
+              '  "@provino/*":' \
+              '    access: $all' \
+              '    publish: $authenticated' \
+              '  "**":' \
+              '    access: $all' \
+              '    publish: $authenticated' \
+              '    proxy: npmjs' \
+              'log:' \
+              '  type: stdout' \
+              '  format: pretty' \
+              '  level: warn' \
+              > verdaccio/config.yaml
+            chmod -R a+rX verdaccio
+            docker run -d --name verdaccio -p 127.0.0.1:4873:4873 \
+              -v "$PWD/verdaccio/config.yaml:/verdaccio/conf/config.yaml:ro" \
+              verdaccio/verdaccio:7 > /dev/null
+            n=0
+            until curl -fsS http://127.0.0.1:4873/-/ping > /dev/null 2>&1; do
+              n=$((n + 1))
+              if [ "$n" -ge 60 ]; then
+                docker logs verdaccio
+                fail "Verdaccio did not answer within a minute"
+              fi
+              sleep 1
+            done
+            echo "Verdaccio is up"
+          }
+
+          # registry_publish: a user, then the provino tarball, as it is, with npm (a prerelease needs a tag).
+          registry_publish() {
+            provino_tarball
+            token=$(curl -fsS -X PUT -H 'Content-Type: application/json' \
+              -d '{"name":"ci","password":"ci-password-1","email":"ci@example.invalid"}' \
+              'http://127.0.0.1:4873/-/user/org.couchdb.user:ci' | sed -n 's/.*"token": *"\([^"]*\)".*/\1/p')
+            [ -n "$token" ] || fail "Verdaccio gave no token"
+            printf 'registry=http://127.0.0.1:4873/\n//127.0.0.1:4873/:_authToken=%s\n' "$token" > verdaccio/publish.npmrc
+            npm publish "./$CI_DIR/tarballs/$PROVINO_TGZ" --userconfig verdaccio/publish.npmrc --tag ci
+          }
+
+          # make_linux_lockfile: T10.3 case 1, the Linux half. A package-lock.json for provino made on
+          # linux-x64, then with every Oxc binding but that platform's removed, as the lockfile of
+          # npm/cli#4828 is: the packages' entries, and the names in the optionalDependencies of
+          # oxc-parser, oxc-transform and oxc-resolver, so the lockfile is still in sync (with only the
+          # entries removed, `npm ci` refuses it itself: "Missing: … from lock file"). Leaves lockfile/
+          # holding it and the package.json it belongs to.
+          make_linux_lockfile() {
+            PM=npm
+            REGISTRY=
+            new_app
+            provino_tarball
+            cp "$CI_DIR/tarballs/$PROVINO_TGZ" app/
+            ( cd app && npm install --package-lock-only --no-audit --no-fund "./$PROVINO_TGZ" ) || fail "npm could not write the lockfile"
+            node -e '
+              const fs = require("node:fs")
+              const file = process.argv[1]
+              const lock = JSON.parse(fs.readFileSync(file, "utf8"))
+              const binding = /node_modules\/@oxc-(parser|transform|resolver)\/binding-/
+              const keys = Object.keys(lock.packages)
+              const removed = keys.filter((key) => binding.test(key) && !key.endsWith("binding-linux-x64-gnu"))
+              for (const key of removed) delete lock.packages[key]
+              for (const entry of Object.values(lock.packages)) {
+                const optional = entry.optionalDependencies
+                if (optional === undefined) continue
+                for (const name of Object.keys(optional)) {
+                  if (/^@oxc-(parser|transform|resolver)\/binding-/.test(name) && !name.endsWith("binding-linux-x64-gnu")) {
+                    delete optional[name]
+                  }
+                }
+              }
+              fs.writeFileSync(file, JSON.stringify(lock, null, 2) + "\n")
+              const kept = keys.filter((key) => binding.test(key) && !removed.includes(key))
+              console.log("removed " + removed.length + " Oxc binding entries, kept " + kept.join(", "))
+              if (removed.length === 0 || kept.length === 0) process.exit(1)
+            ' app/package-lock.json || fail "the lockfile had no Oxc binding entries to remove"
+            mkdir lockfile
+            cp app/package.json app/package-lock.json lockfile/
+          }
+
+          # npm_ci_from_linux_lockfile: T10.3 case 1, the install half, on any platform.
+          npm_ci_from_linux_lockfile() {
+            PM=npm
+            REGISTRY=
+            new_app
+            provino_tarball
+            cp "$CI_DIR/tarballs/$PROVINO_TGZ" app/
+            cp "$CI_DIR/linux-lockfile/package.json" "$CI_DIR/linux-lockfile/package-lock.json" app/
+            ( cd app && npm ci --no-audit --no-fund ) || fail "npm ci failed"
+          }
+          SUPPORT
+          bash -n inputs/support/support.sh
+          sh -n inputs/support/support.sh
+      - name: Collect the artifact
+        run: |
+          ls -l inputs/tarballs
+          find inputs -type f | sort
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: inputs
+          path: inputs
+          if-no-files-found: error
+          retention-days: 3
+
+  cell:
+    name: ${{ matrix.os }}, ${{ matrix.pm }}, Node ${{ matrix.node }}
+    needs: pack
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
+        pm: [npm-11, npm-12, pnpm-12, yarn-4-nm, yarn-4-pnp, bun]
+        node: ["24"]
+    env:
+      PM_ID: ${{ matrix.pm }}
+      # Linux cells install from the Verdaccio the job starts; the others install the tarball by path.
+      REGISTRY: ${{ startsWith(matrix.os, 'ubuntu') && 'http://127.0.0.1:4873/' || '' }}
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: inputs
+          path: ci
+      - name: Install ${{ matrix.pm }}
+        run: |
+          . ci/support/support.sh
+          install_pm "$PM_ID"
+      - name: Start Verdaccio and publish provino to it
+        if: ${{ startsWith(matrix.os, 'ubuntu') }}
+        run: |
+          . ci/support/support.sh
+          registry_start
+          registry_publish
+      - name: Install provino
+        run: |
+          . ci/support/support.sh
+          pm_setup "$PM_ID"
+          new_app
+          install_provino
+      - name: provino --version
+        run: |
+          . ci/support/support.sh
+          pm_setup "$PM_ID"
+          expect_version
+      - name: The three-file suite
+        run: |
+          . ci/support/support.sh
+          pm_setup "$PM_ID"
+          expect_suite_passes
+      - name: Verdaccio's log
+        if: ${{ failure() && startsWith(matrix.os, 'ubuntu') }}
+        run: docker logs verdaccio 2>&1 | tail -n 60
+
+  alpine:
+    # musl: npm picks the `-musl` Oxc bindings here. The container is `docker run` from the host
+    # (not `container:`), so the actions run on the host and nothing needs Node's glibc build.
+    name: node:24-alpine, npm
+    needs: pack
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: inputs
+          path: ci
+      - name: Start Verdaccio and publish provino to it
+        run: |
+          . ci/support/support.sh
+          registry_start
+          registry_publish
+      - name: Install provino and run the suite in node:24-alpine
+        run: |
+          docker run --rm --network host \
+            -e PM_ID=npm-11 -e REGISTRY=http://127.0.0.1:4873/ -e NO_COLOR=1 \
+            -v "$PWD:/work" -w /work node:24-alpine sh -ec '
+              node --version
+              npm --version
+              . ci/support/support.sh
+              pm_setup "$PM_ID"
+              new_app
+              install_provino
+              expect_version
+              expect_suite_passes'
+      - name: Verdaccio's log
+        if: ${{ failure() }}
+        run: docker logs verdaccio 2>&1 | tail -n 60
+
+  # T10.3: an install that is missing this platform's Oxc binding packages. Each case must run the
+  # suite or end as Provino's one message naming them (exit 1, no stack); `provino --version` must
+  # answer either way.
+
+  lockfile-linux:
+    name: Case 1, lockfile from linux-x64
+    needs: pack
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: inputs
+          path: ci
+      - run: |
+          . ci/support/support.sh
+          make_linux_lockfile
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-lockfile
+          path: lockfile
+          if-no-files-found: error
+          retention-days: 3
+
+  lockfile-npm-ci:
+    name: Case 1, npm ci from that lockfile on ${{ matrix.os }}
+    needs: [pack, lockfile-linux]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, windows-2025]
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: inputs
+          path: ci
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: linux-lockfile
+          path: ci/linux-lockfile
+      - run: |
+          . ci/support/support.sh
+          npm_ci_from_linux_lockfile
+          ls app/node_modules/@oxc-parser || true
+          expect_version
+          expect_suite_or_binding_message
+
+  omit-optional:
+    name: Case 2, npm install --omit=optional on ${{ matrix.os }}
+    needs: pack
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-2025]
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: inputs
+          path: ci
+      - run: |
+          . ci/support/support.sh
+          PM=npm
+          new_app
+          install_provino --omit=optional
+          ls app/node_modules/@oxc-parser || true
+          expect_version
+          expect_suite_or_binding_message
+
+  other-os:
+    name: Case 3, pnpm for ${{ matrix.other-os }} on ${{ matrix.os }}
+    needs: pack
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-24.04
+            other-os: darwin
+          - os: macos-15
+            other-os: linux
+          - os: windows-2025
+            other-os: linux
+    env:
+      OTHER_OS: ${{ matrix.other-os }}
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: inputs
+          path: ci
+      - run: |
+          . ci/support/support.sh
+          install_pm pnpm-12
+          pm_setup pnpm-12
+          new_app
+          printf 'supportedArchitectures:\n  os:\n    - %s\n  cpu:\n    - x64\n    - arm64\n  libc:\n    - glibc\n' "$OTHER_OS" > app/pnpm-workspace.yaml
+          install_provino
+          ls app/node_modules/.pnpm | grep '^@oxc-parser' || true
+          expect_version
+          expect_suite_or_binding_message
