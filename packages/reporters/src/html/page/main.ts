@@ -381,20 +381,24 @@ export function renderReport(data: ReportData): void {
     verdict.append(where)
     shell.append(
       el(
-        'section',
-        { class: 'empty' },
-        el('h2', null, 'No test files ran'),
+        'main',
+        null,
         el(
-          'p',
-          null,
-          "Provino found no test files for this run, so there is nothing to show. Check the project's test match patterns and roots, or the path pattern passed on the command line.",
-        ),
-        el(
-          'p',
-          null,
-          'A run that finds no files fails unless it is given ',
-          el('code', null, '--passWithNoTests'),
-          '.',
+          'section',
+          { class: 'empty' },
+          el('h2', null, 'No test files ran'),
+          el(
+            'p',
+            null,
+            "Provino found no test files for this run, so there is nothing to show. Check the project's test match patterns and roots, or the path pattern passed on the command line.",
+          ),
+          el(
+            'p',
+            null,
+            'A run that finds no files fails unless it is given ',
+            el('code', null, '--passWithNoTests'),
+            '.',
+          ),
         ),
       ),
     )
@@ -403,7 +407,9 @@ export function renderReport(data: ReportData): void {
   }
 
   // ---- The run overview: every worker as a lane on one axis; a brush or a range filters the views
-  const rangeText = el('span', { 'aria-live': 'polite' })
+  const rangeText = el('span', { role: 'status', 'aria-live': 'polite' })
+  const rangeNote = el('span', { class: 'sr-only', role: 'status' })
+  let ranged = false
   const clear = el('button', { type: 'button', hidden: true }, 'Clear range')
   clear.addEventListener('click', () => setRange(null))
   const pick = el(
@@ -440,7 +446,37 @@ export function renderReport(data: ReportData): void {
     el('button', { type: 'submit', class: 'chip' }, 'Apply'),
     el('button', { type: 'button', class: 'chip', 'data-cancel': '' }, 'Cancel'),
   )
+  const rangeErrorText = el('span', null)
+  const rangeError = el(
+    'p',
+    { class: 'field-error', id: 'range-error', hidden: true },
+    icon('fail'),
+    rangeErrorText,
+  )
+  rangeForm.append(rangeError)
+  const clearRangeError = (): void => {
+    for (const input of [fromInput, toInput]) {
+      input.setCustomValidity('')
+      input.removeAttribute('aria-invalid')
+      input.removeAttribute('aria-describedby')
+    }
+    rangeErrorText.textContent = ''
+    rangeError.hidden = true
+  }
+  const rejectRange = (input: HTMLInputElement, message: string): void => {
+    input.setCustomValidity(message)
+    input.setAttribute('aria-invalid', 'true')
+    input.setAttribute('aria-describedby', 'range-error')
+    rangeErrorText.textContent = message
+    rangeError.hidden = false
+    input.reportValidity()
+  }
+  for (const input of [fromInput, toInput]) {
+    input.addEventListener('input', clearRangeError)
+    input.addEventListener('change', clearRangeError)
+  }
   const closeForm = (): void => {
+    clearRangeError()
     rangeForm.hidden = true
     pick.setAttribute('aria-expanded', 'false')
   }
@@ -452,14 +488,21 @@ export function renderReport(data: ReportData): void {
   })
   rangeForm.addEventListener('submit', (event) => {
     event.preventDefault()
+    clearRangeError()
     const from = Number(fromInput.value) * 1000
     const to = Number(toInput.value) * 1000
-    if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) {
-      toInput.setCustomValidity('The end must be after the start.')
-      toInput.reportValidity()
+    if (fromInput.value === '' || !Number.isFinite(from)) {
+      rejectRange(fromInput, 'Enter the start in seconds.')
       return
     }
-    toInput.setCustomValidity('')
+    if (toInput.value === '' || !Number.isFinite(to)) {
+      rejectRange(toInput, 'Enter the end in seconds.')
+      return
+    }
+    if (to <= from) {
+      rejectRange(toInput, 'The end must be after the start.')
+      return
+    }
     closeForm()
     setRange([Math.max(0, from), Math.min(duration, to)])
     pick.focus()
@@ -481,7 +524,7 @@ export function renderReport(data: ReportData): void {
         { class: 'ov-desc' },
         `${plural(workerIds.length, 'worker')} along ${ms(duration)}. Drag across it, or select a range, to filter every view.`,
       ),
-      el('span', { class: 'range' }, rangeText, clear, pick),
+      el('span', { class: 'range' }, rangeText, rangeNote, clear, pick),
     ),
     rangeForm,
   )
@@ -579,8 +622,14 @@ export function renderReport(data: ReportData): void {
     clear.hidden = range === null
     if (range === null) {
       rangeText.textContent = ''
+      rangeNote.textContent = ranged
+        ? `Range cleared. All ${plural(files.length, 'file')} shown.`
+        : ''
+      ranged = false
       brush.setAttribute('visibility', 'hidden')
     } else {
+      ranged = true
+      rangeNote.textContent = ''
       rangeText.textContent = `${ms(range[0])} – ${ms(range[1])} · ${plural(files.filter(inRange).length, 'file')}`
       brush.setAttribute('visibility', 'visible')
       brush.setAttribute('x', String((range[0] / duration) * 1000))
@@ -660,6 +709,9 @@ export function renderReport(data: ReportData): void {
       renderers[index]?.(panel)
     }
   }
+  const heading = (panel: HTMLElement, index: number): void => {
+    panel.append(el('h2', { class: 'sr-only' }, tabNames[index] ?? ''))
+  }
   const rerenderOnRange = (index: number): void => {
     listeners.push(() => {
       const panel = panels[index]
@@ -671,7 +723,8 @@ export function renderReport(data: ReportData): void {
 
   // ---- An error as a code frame: the first line and the `>` lines are red, the diff is coloured
   const failureText = (text: string): HTMLElement => {
-    const pre = el('pre', null)
+    const pre = el('pre', { role: 'group', 'aria-label': 'Failure output' })
+    const code = el('code', null)
     text.split('\n').forEach((line, index) => {
       const trimmed = line.trimStart()
       let cls = ''
@@ -679,8 +732,9 @@ export function renderReport(data: ReportData): void {
       else if (/^- /.test(trimmed)) cls = 'add'
       else if (/^\+ /.test(trimmed)) cls = 'del'
       else if (trimmed.startsWith('at ')) cls = 'dim-line'
-      pre.append(cls === '' ? line : el('span', { class: cls }, line), '\n')
+      code.append(cls === '' ? line : el('span', { class: cls }, line), '\n')
     })
+    pre.append(code)
     return pre
   }
 
@@ -701,6 +755,7 @@ export function renderReport(data: ReportData): void {
       )
       return
     }
+    heading(panel, 0)
     const shown = entries.filter((entry) => entry.file === null || inRange(entry.file))
     if (data.omitted > 0) {
       panel.append(
@@ -793,6 +848,7 @@ export function renderReport(data: ReportData): void {
   let folderItems = new Map<string, HTMLElement>()
   const statusFilter = new Set<number>()
   let query = ''
+  let filtered = false
   const setOpen = (item: HTMLElement, open: boolean): void => {
     if (item.getAttribute('aria-expanded') === null) return
     if (open) {
@@ -866,9 +922,11 @@ export function renderReport(data: ReportData): void {
   const errorBox = (item: HTMLElement, text: string): void => {
     const box = failureText(text)
     box.className = 'inline-error'
-    box.id = `eb-${++nodeSeq}`
+    const textId = `eb-${++nodeSeq}`
+    const code = box.firstElementChild
+    if (code !== null) code.id = textId
     item.append(box)
-    item.setAttribute('aria-describedby', box.id)
+    item.setAttribute('aria-describedby', textId)
   }
   const testItem = (test: TestModel, level: number): HTMLElement => {
     const item = makeItem({
@@ -1021,12 +1079,19 @@ export function renderReport(data: ReportData): void {
       : Array.from(treeRoot.querySelectorAll<HTMLElement>('[role="treeitem"]')).filter(
           (item) => item.parentElement?.closest('[hidden]') == null,
         )
-  const focusItem = (item: HTMLElement | null | undefined): void => {
+  const focusItem = (
+    item: HTMLElement | null | undefined,
+    block: ScrollLogicalPosition = 'nearest',
+  ): void => {
     if (item === null || item === undefined) return
     if (treeFocus !== null && treeFocus !== item) treeFocus.tabIndex = -1
     item.tabIndex = 0
     treeFocus = item
-    item.focus()
+    // The item holds its children: scrolling it whole can leave its own row off screen or under
+    // the sticky tab bar, so the row is the one that is scrolled to.
+    item.focus({ preventScroll: true })
+    const row = item.querySelector<HTMLElement>(':scope > .node')
+    if (row !== null && typeof row.scrollIntoView === 'function') row.scrollIntoView({ block })
   }
   const searchNote = el('p', { class: 'note', role: 'status' })
   const buildTree = (container: HTMLElement): void => {
@@ -1042,7 +1107,7 @@ export function renderReport(data: ReportData): void {
     treeRoot = tree
     const searching = query !== '' || statusFilter.size > 0
     if (!searching) {
-      searchNote.textContent = ''
+      searchNote.textContent = filtered ? 'All tests shown.' : ''
       for (const folder of folders) {
         const shown = folder.files.filter(inRange)
         if (shown.length > 0) tree.append(folderItem(folder, shown))
@@ -1111,6 +1176,7 @@ export function renderReport(data: ReportData): void {
           ? 'No tests match.'
           : `${plural(matches, 'test')} shown in ${plural(shownFiles, 'file')}${over > 0 ? `; ${num(over)} more match, so refine the filter` : ''}.`
     }
+    filtered = searching
     container.append(tree)
     const first = visibleItems()[0]
     if (first !== undefined) {
@@ -1178,6 +1244,7 @@ export function renderReport(data: ReportData): void {
     buildTree(treeHost)
   }
   renderers[1] = (panel) => {
+    heading(panel, 1)
     const input = el('input', {
       class: 'search',
       id: 'search',
@@ -1191,9 +1258,18 @@ export function renderReport(data: ReportData): void {
     input.addEventListener('input', () => {
       clearTimeout(timer)
       timer = setTimeout(() => {
+        if (input.value.trim() === query) return
         query = input.value.trim()
         rebuildTree()
       }, 140)
+    })
+    input.addEventListener('keydown', (event) => {
+      if (event.key !== 'Escape' || input.value === '') return
+      event.preventDefault()
+      clearTimeout(timer)
+      input.value = ''
+      query = ''
+      rebuildTree()
     })
     const chip = (label: string, status: number, n: number): HTMLElement => {
       const button = el(
@@ -1245,12 +1321,12 @@ export function renderReport(data: ReportData): void {
     if (activeRow !== null) activeRow.classList.remove('is-active')
     activeRow = node.firstElementChild as HTMLElement | null
     if (activeRow !== null) activeRow.classList.add('is-active')
-    focusItem(node)
-    if (typeof node.scrollIntoView === 'function') node.scrollIntoView({ block: 'center' })
+    focusItem(node, 'center')
   }
 
   // ---- Map: a square for each file, by folder, in the patterned vocabulary
   renderers[2] = (panel) => {
+    heading(panel, 2)
     const legend = el('ul', { class: 'legend' })
     const key = (kind: string, label: string): void => {
       legend.append(
@@ -1380,6 +1456,7 @@ export function renderReport(data: ReportData): void {
 
   // ---- Folders: time by folder, slowest first
   renderers[3] = (panel) => {
+    heading(panel, 3)
     const rows = folders
       .map((folder) => {
         const shown = folder.files.filter(inRange)
@@ -1462,14 +1539,17 @@ export function renderReport(data: ReportData): void {
   // ---- Timeline: a lane for each worker, sized to its container
   let timelineWidth: number | null = null
   renderers[4] = (panel) => {
+    heading(panel, 4)
     const LANE = 22
     const width = timelineWidth ?? Math.max(480, panel.clientWidth - 200)
     const scale = (t: number): number => (t / duration) * width
     const labels = el('div', { class: 'lanes-labels', 'aria-hidden': 'true' }, el('div', null, ''))
     const chart = svg('svg', {
-      width,
+      width: '100%',
       height: (workerIds.length + 1) * LANE,
-      role: 'img',
+      viewBox: `0 0 ${width} ${(workerIds.length + 1) * LANE}`,
+      preserveAspectRatio: 'none',
+      role: 'group',
       'aria-label': `Per-worker timeline of ${plural(placed.length, 'file')}. The table below has the same data.`,
     })
     const step =
@@ -1527,8 +1607,13 @@ export function renderReport(data: ReportData): void {
         'data-f': file.i,
       })
       paint(rect, file)
+      const description = `${file.path} · ${FILE_WORD[file.status]} · ${ms(file.ms)} · worker ${file.worker} · ${ms(file.start)}–${ms(file.end)}`
+      if (broken(file)) {
+        rect.setAttribute('role', 'button')
+        rect.setAttribute('aria-label', description)
+      }
       const title = svg('title', {})
-      title.textContent = `${file.path} · ${FILE_WORD[file.status]} · ${ms(file.ms)} · worker ${file.worker} · ${ms(file.start)}–${ms(file.end)}`
+      title.textContent = description
       rect.append(title)
       chart.append(rect)
     }
@@ -1537,9 +1622,11 @@ export function renderReport(data: ReportData): void {
       if (index !== null) reveal(Number(index))
     })
     chart.addEventListener('keydown', (event) => {
-      if (event.key !== 'Enter') return
+      if (event.key !== 'Enter' && event.key !== ' ') return
       const index = (event.target as Element).getAttribute('data-f')
-      if (index !== null) reveal(Number(index))
+      if (index === null) return
+      event.preventDefault()
+      reveal(Number(index))
     })
     const scroller = el('div', { class: 'lanes-scroll' }, chart)
     panel.append(
@@ -1586,7 +1673,7 @@ export function renderReport(data: ReportData): void {
               el('td', null, ms(file.start)),
               el('td', null, ms(file.end)),
               el('td', null, ms(file.ms)),
-              el('td', null, FILE_WORD[file.status] ?? ''),
+              el('td', null, icon(FILE_KIND[file.status] ?? 'pass'), FILE_WORD[file.status] ?? ''),
               el('td', null, file.expected < 0 ? '–' : ms(file.expected)),
             ),
           )
@@ -1627,7 +1714,9 @@ export function renderReport(data: ReportData): void {
       } else rendered[4] = false
     }, 150)
   })
-  shell.append(overview, el('div', { class: 'tabbar' }, tabList, where), ...panels)
+  shell.append(
+    el('main', null, overview, el('div', { class: 'tabbar' }, tabList, where), ...panels),
+  )
   mount.replaceChildren(shell)
   select(failing ? 0 : 1)
 }

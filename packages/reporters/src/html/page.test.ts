@@ -198,9 +198,10 @@ describe('the report page, on the fixture run', async () => {
       Snapshots: '1 failed',
     })
     assert.ok(one(page, '.fields .n-fail'))
-    // Where and when, in the tab bar, with no label for a run that is real.
-    assert.equal(text(one(page, '.tabbar .where code')), '/project')
-    assert.equal(text(one(page, '.tabbar .where')), '/project · 2026-11-19 12:00 UTC')
+    // Where and when, in the tab bar, with no label for a run that is real. Where is the root's
+    // directory name: the run's path is not in the report.
+    assert.equal(text(one(page, '.tabbar .where code')), 'project')
+    assert.equal(text(one(page, '.tabbar .where')), 'project · 2026-11-19 12:00 UTC')
     assert.equal(all(page, '.synthetic').length, 0)
   })
 
@@ -211,8 +212,17 @@ describe('the report page, on the fixture run', async () => {
       [...shell.children].map(
         (child) => (child.getAttribute('class') ?? '').split(' ')[0] || child.tagName.toLowerCase(),
       ),
-      ['sprite', 'verdict', 'overview', 'tabbar', 'panel', 'panel', 'panel', 'panel', 'panel'],
+      ['sprite', 'verdict', 'main'],
     )
+    // Everything after the banner is the page's one main landmark.
+    assert.equal(one(page, '.verdict').tagName, 'HEADER')
+    assert.deepEqual(
+      [...one(page, '#report > div > main').children].map(
+        (child) => (child.getAttribute('class') ?? '').split(' ')[0],
+      ),
+      ['overview', 'tabbar', 'panel', 'panel', 'panel', 'panel', 'panel'],
+    )
+    assert.equal(all(page, 'main').length, 1)
     assert.deepEqual(
       all(page, '[role="tab"]').map((tab) => tab.firstChild?.textContent),
       ['Failures', 'Tests', 'Map', 'Folders', 'Timeline'],
@@ -437,7 +447,13 @@ describe('the report page, on the fixture run', async () => {
     const test = fails.querySelector('.k-test.node') as HTMLElement
     const described = test.closest('.treeitem')?.getAttribute('aria-describedby')
     assert.ok(described !== undefined && described !== null)
-    assert.ok(page.document.getElementById(described)?.classList.contains('inline-error'))
+    // What describes the test is the error's own text, which sits in a named group.
+    const describing = page.document.getElementById(described)
+    assert.ok(describing?.closest('.inline-error') !== null)
+    assert.match(describing?.textContent ?? '', /toBe\(expected\)/)
+    const frame = describing?.closest('.inline-error') ?? null
+    assert.equal(frame?.getAttribute('role'), 'group')
+    assert.equal(frame?.getAttribute('aria-label'), 'Failure output')
     // A glyph is never the only word for its status.
     for (const glyph of all(page, '.node > svg.icon, .failure-head > svg.icon')) {
       assert.equal(glyph.getAttribute('aria-hidden'), 'true')
@@ -651,7 +667,23 @@ describe('the report page, on the fixture run', async () => {
     // Failed and crashed slices are in the tab order; the others are not.
     assert.equal(slices.filter((slice) => slice.getAttribute('tabindex') === '0').length, 3)
     assert.equal(slices.filter((slice) => slice.classList.contains('s-fail')).length, 3)
-    assert.equal(one(page, '.lanes-scroll svg').getAttribute('role'), 'img')
+    // The chart is a named group (its focusable slices are buttons, which an image would hide), and
+    // it follows its container: a viewBox and 100%, not a width of its own.
+    const chart = one(page, '.lanes-scroll svg')
+    assert.equal(chart.getAttribute('role'), 'group')
+    assert.match(chart.getAttribute('aria-label') ?? '', /^Per-worker timeline of 8 files/)
+    assert.equal(chart.getAttribute('width'), '100%')
+    assert.match(chart.getAttribute('viewBox') ?? '', /^0 0 \d+ 88$/)
+    assert.equal(chart.getAttribute('preserveAspectRatio'), 'none')
+    for (const slice of slices.filter((item) => item.getAttribute('tabindex') === '0')) {
+      assert.equal(slice.getAttribute('role'), 'button')
+      assert.equal(slice.getAttribute('aria-label'), text(slice.querySelector('title')))
+    }
+    assert.ok(
+      slices
+        .filter((item) => item.getAttribute('tabindex') === '-1')
+        .every((item) => !item.hasAttribute('role')),
+    )
     // The table is built when it is first asked for, and is the same eight files.
     assert.equal(one(page, '#tl-table').hidden, true)
     const toggle = one(page, '[aria-controls="tl-table"]')
@@ -741,7 +773,8 @@ describe('the report page, on other runs', () => {
     assert.equal(all(page, '[role="tablist"]').length, 0)
     assert.equal(all(page, '.overview').length, 0)
     // The run's place is in the bar, and a sample says it is one.
-    assert.match(text(one(page, '.verdict .where')), /^\/project · 2026-11-19/)
+    assert.match(text(one(page, '.verdict .where')), /^project · 2026-11-19/)
+    assert.equal(one(page, '#report > div > main > .empty').tagName, 'SECTION')
     assert.equal(text(one(page, '.synthetic')), 'sample data')
   })
 
@@ -852,5 +885,331 @@ describe('the report page, on other runs', () => {
     open(page, 'Timeline')
     assert.ok(all(page, '.t-slice').length >= 2000)
     assertClean(page)
+  })
+})
+
+/** The levels of the document's headings, in order. */
+function headingLevels(page: Page): number[] {
+  return all(page, 'h1, h2, h3, h4, h5, h6').map((heading) => Number(heading.tagName.slice(1)))
+}
+
+/** No heading skips a level on the way down: an `h3` has an `h2` above it. */
+function assertNoSkippedLevel(page: Page): void {
+  const levels = headingLevels(page)
+  assert.equal(levels[0], 1)
+  levels.forEach((level, index) => {
+    if (index > 0) {
+      assert.ok(level <= (levels[index - 1] ?? 0) + 1, `h${level} after h${levels[index - 1]}`)
+    }
+  })
+}
+
+/** The `block` of the options a stubbed `scrollIntoView` got (the page's objects are another realm's). */
+function blockOf(call: { readonly options: unknown } | undefined): string {
+  const options = call?.options as { block?: string } | undefined
+  return options?.block ?? ''
+}
+
+/** Types into a field of the range form, as a keystroke does: the value, then `input`. */
+function typeInto(page: Page, selector: string, value: string): HTMLInputElement {
+  const input = one(page, selector) as unknown as HTMLInputElement
+  input.value = value
+  input.dispatchEvent(new page.window.Event('input', { bubbles: true }))
+  return input
+}
+
+/** Submits the range form as a browser's button does: the field constraints are checked first. */
+function submit(page: Page): void {
+  ;(one(page, '#range-form') as unknown as HTMLFormElement).requestSubmit()
+}
+
+describe('the report page, the range form and the status messages', async () => {
+  // A run long enough for the form's own bounds (whole tenths of a second) to hold a range.
+  const long = await sampleHtml('failures')
+
+  it('applies a corrected range after an invalid one: the error is cleared as the value is corrected', () => {
+    const page = load(long)
+    const pick = one(page, '.range button[aria-controls="range-form"]')
+    click(page, pick)
+    const to = one(page, '#range-to') as unknown as HTMLInputElement
+    const error = one(page, '#range-error')
+    assert.equal(error.hidden, true)
+    // From 8 s to 2 s: refused, with the reason in text, on the field and for a screen reader.
+    typeInto(page, '#range-from', '8')
+    typeInto(page, '#range-to', '2')
+    submit(page)
+    assert.equal(one(page, '#range-form').hidden, false)
+    assert.equal(to.validity.customError, true)
+    assert.equal(to.getAttribute('aria-invalid'), 'true')
+    assert.equal(to.getAttribute('aria-describedby'), 'range-error')
+    assert.equal(error.hidden, false)
+    assert.equal(text(error), 'The end must be after the start.')
+    assert.equal(error.querySelector('svg.icon')?.getAttribute('aria-hidden'), 'true')
+    assert.equal(one(page, '#range-from').hasAttribute('aria-invalid'), false)
+    assert.equal(text(one(page, '.range [aria-live]')), '')
+    // Corrected to 1 s to 3 s: the error goes with the typing, and the range applies.
+    typeInto(page, '#range-from', '1')
+    assert.equal(to.validity.customError, false)
+    assert.equal(to.hasAttribute('aria-invalid'), false)
+    assert.equal(to.hasAttribute('aria-describedby'), false)
+    assert.equal(error.hidden, true)
+    assert.equal(text(error), '')
+    typeInto(page, '#range-to', '3')
+    submit(page)
+    assert.equal(one(page, '#range-form').hidden, true)
+    assert.equal(page.document.activeElement, pick)
+    // The new range is in a status region, so it is announced.
+    const status = one(page, '.range [aria-live]')
+    assert.equal(status.getAttribute('role'), 'status')
+    assert.match(text(status), /^1\.00 s – 3\.00 s · [\d,]+ files$/)
+    assertClean(page)
+  })
+
+  it('names the field that is empty or not a number, and refuses nothing the field allows', () => {
+    const page = load(long)
+    click(page, one(page, '.range button[aria-controls="range-form"]'))
+    const from = typeInto(page, '#range-from', '')
+    submit(page)
+    assert.equal(from.getAttribute('aria-invalid'), 'true')
+    assert.equal(text(one(page, '#range-error')), 'Enter the start in seconds.')
+    assert.equal(from.validity.customError, true)
+    typeInto(page, '#range-from', '1')
+    typeInto(page, '#range-to', '')
+    submit(page)
+    assert.equal(one(page, '#range-to').getAttribute('aria-invalid'), 'true')
+    assert.equal(text(one(page, '#range-error')), 'Enter the end in seconds.')
+    assert.equal(from.hasAttribute('aria-invalid'), false)
+  })
+
+  it('opens clean after Cancel: an invalid range left in the form is gone with it', () => {
+    const page = load(long)
+    const pick = one(page, '.range button[aria-controls="range-form"]')
+    click(page, pick)
+    const to = typeInto(page, '#range-to', '0.1')
+    typeInto(page, '#range-from', '2')
+    submit(page)
+    assert.equal(to.validity.customError, true)
+    click(page, one(page, '#range-form [data-cancel]'))
+    assert.equal(one(page, '#range-form').hidden, true)
+    assert.equal(page.document.activeElement, pick)
+    assert.equal(to.validity.customError, false)
+    assert.equal(to.hasAttribute('aria-invalid'), false)
+    assert.equal(one(page, '#range-error').hidden, true)
+    // Reopened, a valid range goes through at once.
+    click(page, pick)
+    typeInto(page, '#range-from', '0')
+    typeInto(page, '#range-to', '2')
+    submit(page)
+    assert.equal(one(page, '#range-form').hidden, true)
+    assert.match(text(one(page, '.range [aria-live]')), /^0 ms – 2\.00 s · /)
+  })
+
+  it('says when a range is cleared, in a status region, and says nothing when there was none', () => {
+    const page = load(long)
+    const note = one(page, '.range .sr-only[role="status"]')
+    const overview = one(page, '.overview svg[role="img"]')
+    // Escape with no range changes nothing worth announcing.
+    press(page, overview, 'Escape')
+    assert.equal(text(note), '')
+    click(page, one(page, '.range button[aria-controls="range-form"]'))
+    typeInto(page, '#range-from', '1')
+    typeInto(page, '#range-to', '3')
+    submit(page)
+    assert.equal(text(note), '')
+    click(page, one(page, '.range button:not([aria-controls])'))
+    assert.match(text(note), /^Range cleared\. All [\d,]+ files shown\.$/)
+    assert.equal(text(one(page, '.range [aria-live]')), '')
+  })
+})
+
+describe('the report page, focus and names', async () => {
+  const { html } = await reportFor()
+
+  it('scrolls the row of the focused tree item, nearest, never the item with its children', () => {
+    const page = load(html)
+    const scrolled: { target: Element; options: unknown }[] = []
+    const focused: unknown[] = []
+    const proto = page.window.HTMLElement.prototype
+    const focus = proto.focus
+    Reflect.set(
+      page.window.Element.prototype,
+      'scrollIntoView',
+      function (this: Element, options?: unknown) {
+        scrolled.push({ target: this, options })
+      },
+    )
+    proto.focus = function (this: HTMLElement, options?: FocusOptions) {
+      focused.push(options)
+      focus.call(this, options)
+    }
+    open(page, 'Tests')
+    const math = fileItem(page, 'math.test.ts')
+    math.focus()
+    press(page, math, 'ArrowRight')
+    press(page, math, 'ArrowRight')
+    const child = page.document.activeElement as HTMLElement
+    assert.equal(child.closest('.treeitem'), child)
+    scrolled.length = 0
+    focused.length = 0
+    // Left to the ancestor, which holds its open children: its own row is scrolled to.
+    press(page, child, 'ArrowLeft')
+    assert.equal(page.document.activeElement, math)
+    assert.equal(scrolled.length, 1)
+    assert.equal(scrolled[0]?.target, math.querySelector(':scope > .node'))
+    // (The page's objects are another realm's: compare what is in them.)
+    assert.equal(blockOf(scrolled[0]), 'nearest')
+    assert.deepEqual(
+      focused.map((options) => (options as { preventScroll: boolean }).preventScroll),
+      [true],
+    )
+    // Home goes to the first row of the tree, and Up and Down to their neighbours', the same way.
+    scrolled.length = 0
+    press(page, math, 'Home')
+    const first = one(page, '.treeitem')
+    assert.equal(page.document.activeElement, first)
+    assert.equal(scrolled[0]?.target, first.querySelector(':scope > .node'))
+    press(page, first, 'ArrowDown')
+    const second = page.document.activeElement as HTMLElement
+    assert.equal(scrolled.at(-1)?.target, second.querySelector(':scope > .node'))
+    press(page, second, 'ArrowUp')
+    assert.equal(scrolled.at(-1)?.target, first.querySelector(':scope > .node'))
+    assert.ok(scrolled.every((call) => blockOf(call) === 'nearest'))
+    // Opening a file from the map centres its row.
+    open(page, 'Map')
+    click(page, all(page, '.map-grid button.cell')[0] as Element)
+    const last = scrolled.at(-1)
+    assert.ok(last !== undefined)
+    assert.ok(last.target.classList.contains('node'))
+    assert.equal(blockOf(last), 'center')
+    assertClean(page)
+  })
+
+  it('gives each tab panel a heading, so the map’s folders sit under an h2', () => {
+    const page = load(html)
+    for (const name of ['Failures', 'Tests', 'Map', 'Folders', 'Timeline']) {
+      const panel = open(page, name)
+      const heading = panel.querySelector('h2')
+      assert.equal(text(heading), name)
+      assert.ok(
+        heading?.classList.contains('sr-only'),
+        `${name}'s heading is for assistive technology`,
+      )
+      assertNoSkippedLevel(page)
+    }
+    // The map's folder headings are the h3s under the Map's h2.
+    const map = open(page, 'Map')
+    assert.ok(map.querySelectorAll('h3').length > 0)
+    assertNoSkippedLevel(page)
+    // A range re-draws a panel and its heading with it.
+    applyRange(page, '0', '0.0')
+    assert.equal(text(open(page, 'Map').querySelector('h2')), 'Map')
+  })
+
+  it('gives every failure’s code frame a role and a name, and the tree item is described by its text', () => {
+    const page = load(html)
+    open(page, 'Tests')
+    const frames = all(page, 'pre')
+    assert.ok(frames.length >= 3)
+    for (const frame of frames) {
+      assert.equal(frame.getAttribute('role'), 'group')
+      assert.equal(frame.getAttribute('aria-label'), 'Failure output')
+    }
+    open(page, 'Failures')
+    assert.ok(
+      all(page, '.failure-body pre').every((frame) => frame.getAttribute('role') === 'group'),
+    )
+  })
+
+  it('opens a failed file of the timeline with Enter or Space, as the button it is, and Space does not scroll', () => {
+    const page = load(html)
+    open(page, 'Timeline')
+    const slice = all(page, '.t-slice').find((item) => item.getAttribute('role') === 'button')
+    assert.ok(slice !== undefined)
+    for (const key of ['Enter', ' ']) {
+      open(page, 'Timeline')
+      const event = new page.window.KeyboardEvent('keydown', {
+        key,
+        bubbles: true,
+        cancelable: true,
+      })
+      all(page, '.t-slice[role="button"]')[0]?.dispatchEvent(event)
+      assert.equal(event.defaultPrevented, true)
+      assert.equal(one(page, '#tab-1').getAttribute('aria-selected'), 'true')
+    }
+    // The other keys are left alone.
+    open(page, 'Timeline')
+    const other = new page.window.KeyboardEvent('keydown', {
+      key: 'a',
+      bubbles: true,
+      cancelable: true,
+    })
+    all(page, '.t-slice[role="button"]')[0]?.dispatchEvent(other)
+    assert.equal(other.defaultPrevented, false)
+    assert.equal(one(page, '#tab-4').getAttribute('aria-selected'), 'true')
+  })
+
+  it('puts a glyph beside the status word in the timeline’s table', () => {
+    const page = load(html)
+    open(page, 'Timeline')
+    click(page, one(page, '[aria-controls="tl-table"]'))
+    for (const row of all(page, '#tl-table tbody tr')) {
+      const cell = row.querySelectorAll('td')[5] as HTMLElement
+      assert.equal(cell.querySelector('svg.icon')?.getAttribute('aria-hidden'), 'true')
+      assert.match(text(cell), /^(passed|failed|skipped|todo|crashed)$/)
+    }
+  })
+
+  it('says the tests are all shown when a search or a chip is cleared, and shows nothing before one is set', () => {
+    const page = load(html)
+    open(page, 'Tests')
+    const note = one(page, '.note[role="status"]')
+    assert.equal(text(note), '')
+    // Emptying the box.
+    search(page, 'math')
+    assert.equal(text(note), '3 tests shown in 1 file.')
+    search(page, '')
+    assert.equal(text(note), 'All tests shown.')
+    assert.equal(all(page, '.node.k-file').length, 8)
+    // Escape in the box clears it at once.
+    search(page, 'math')
+    const input = one(page, '#search') as unknown as HTMLInputElement
+    const escapeKey = new page.window.KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    })
+    input.dispatchEvent(escapeKey)
+    assert.equal(escapeKey.defaultPrevented, true)
+    assert.equal(input.value, '')
+    assert.equal(text(note), 'All tests shown.')
+    assert.equal(all(page, '.node.k-file').length, 8)
+    // A native clear that then fires `input` changes nothing more.
+    input.dispatchEvent(new page.window.Event('input', { bubbles: true }))
+    page.flush()
+    assert.equal(text(note), 'All tests shown.')
+    // Escape in an empty box does nothing.
+    const again = new page.window.KeyboardEvent('keydown', {
+      key: 'Escape',
+      bubbles: true,
+      cancelable: true,
+    })
+    input.dispatchEvent(again)
+    assert.equal(again.defaultPrevented, false)
+    // A chip that is turned off again restores the whole tree the same way.
+    const chip = all(page, '.toolbar .chip')[0] as Element
+    click(page, chip)
+    assert.equal(text(note), '2 tests shown in 3 files.')
+    click(page, chip)
+    assert.equal(text(note), 'All tests shown.')
+    assertClean(page)
+  })
+
+  it('has no heading that skips a level on a run with nothing to show, or one that passed', async () => {
+    for (const state of ['empty', 'all-passed'] as const) {
+      const page = load(await sampleHtml(state))
+      assertNoSkippedLevel(page)
+      assert.equal(all(page, 'main').length, 1)
+      assertClean(page)
+    }
   })
 })
