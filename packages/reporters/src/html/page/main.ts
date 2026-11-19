@@ -1238,7 +1238,7 @@ export function renderReport(data: ReportData): void {
     }
     filtered = searching
     container.append(tree)
-    const first = edgeItem(tree, false)
+    const first = tree.querySelector<HTMLElement>('[role="treeitem"]')
     if (first !== null) {
       first.tabIndex = 0
       treeFocus = first
