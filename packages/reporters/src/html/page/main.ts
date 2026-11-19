@@ -12,7 +12,7 @@
 // and again when the range changes: Failures, Tests (the `role="tree"`, built a level at a time as
 // it opens), Map, Folders and Timeline. The class names are the styling's hooks (`styles.ts`).
 
-import type { ReportData } from './model.ts'
+import type { FileStatus, ReportData, TestStatus } from './model.ts'
 
 /**
  * Draws `data` into `#report`.
@@ -26,8 +26,15 @@ export function renderReport(data: ReportData): void {
   const str = (id: number): string => strings[id] ?? ''
   const FILE_KIND = ['pass', 'fail', 'skip', 'todo', 'crash'] as const
   const TEST_KIND = ['pass', 'fail', 'skip', 'todo', 'notrun'] as const
-  const FILE_WORD = ['passed', 'failed', 'skipped', 'todo', 'crashed'] as const
-  const TEST_WORD = ['passed', 'failed', 'skipped', 'todo', 'not run'] as const
+  // The word for a status, read by its kind: a file's, a test's, a row's.
+  const WORD = {
+    pass: 'passed',
+    fail: 'failed',
+    skip: 'skipped',
+    todo: 'todo',
+    crash: 'crashed',
+    notrun: 'not run',
+  } as const
   const MAX_RESULTS = 500
 
   type Child = Node | string | null | undefined | false
@@ -79,6 +86,10 @@ export function renderReport(data: ReportData): void {
     return `${Math.floor(value / 60_000)}m ${((value % 60_000) / 1000).toFixed(1)} s`
   }
   const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+  // The parts that are there, joined by a middle dot.
+  const dot = (...parts: (string | false)[]): string =>
+    parts.filter((part): part is string => typeof part === 'string').join(' · ')
+  const nFail = (text: string): HTMLElement => el('span', { class: 'n-fail' }, text)
   const at = <T>(list: readonly T[], index: number): T => list[index] as T
   const firstLine = (text: string): string =>
     (text.split('\n').find((line) => line.trim() !== '') ?? '').trim()
@@ -90,7 +101,7 @@ export function renderReport(data: ReportData): void {
     name: string
     project: string
     dir: string
-    status: number
+    status: FileStatus
     ms: number
     worker: number
     start: number
@@ -98,8 +109,6 @@ export function renderReport(data: ReportData): void {
     expected: number
     tests: number[]
     failed: number
-    skipped: number
-    todo: number
     error: string | null
     placed: boolean
   }
@@ -107,7 +116,7 @@ export function renderReport(data: ReportData): void {
     i: number
     file: number
     titles: string[]
-    status: number
+    status: TestStatus
     ms: number
     error: string | null
   }
@@ -128,8 +137,6 @@ export function renderReport(data: ReportData): void {
       expected: row[6],
       tests: [],
       failed: 0,
-      skipped: 0,
-      todo: 0,
       error: null,
       placed: row[3] >= 0 && row[4] >= 0 && row[5] >= 0,
     }
@@ -142,16 +149,16 @@ export function renderReport(data: ReportData): void {
     ms: row[3],
     error: null,
   }))
-  const count = [0, 0, 0, 0, 0]
+  const count: [number, number, number, number, number] = [0, 0, 0, 0, 0]
   for (const test of tests) {
-    count[test.status] = (count[test.status] ?? 0) + 1
+    count[test.status]++
     const file = files[test.file]
     if (file === undefined) continue
     file.tests.push(test.i)
     if (test.status === 1) file.failed++
-    else if (test.status === 2 || test.status === 4) file.skipped++
-    else if (test.status === 3) file.todo++
   }
+  // Skipped counts the tests that never ended with the skipped ones.
+  const skippedTests = count[2] + count[4]
   for (const row of data.failures) {
     const test = tests[row[0]]
     if (test !== undefined) test.error = row[1]
@@ -162,7 +169,7 @@ export function renderReport(data: ReportData): void {
   }
   const broken = (file: FileModel): boolean => file.status === 1 || file.status === 4
   const crashed = files.filter((file) => file.status === 4)
-  const failedTests = count[1] ?? 0
+  const failedTests = count[1]
   const filesWithFailures = files.filter((file) => file.failed > 0).length
   const failedToRun = files.filter((file) => file.status === 1 && file.failed === 0).length
   let latest = 0
@@ -176,9 +183,6 @@ export function renderReport(data: ReportData): void {
     label: string
     hue: number
     files: FileModel[]
-    ms: number
-    tests: number
-    failed: number
   }
   const folderMap = new Map<string, Folder>()
   for (const file of files) {
@@ -191,16 +195,10 @@ export function renderReport(data: ReportData): void {
         label: file.project === '' ? dir : `${file.project} ${dir}`,
         hue: 0,
         files: [],
-        ms: 0,
-        tests: 0,
-        failed: 0,
       }
       folderMap.set(key, folder)
     }
     folder.files.push(file)
-    folder.ms += file.ms
-    folder.tests += file.tests.length
-    if (broken(file)) folder.failed++
   }
   const folders = Array.from(folderMap.values()).sort((a, b) => compare(a.key, b.key))
   folders.forEach((folder, index) => {
@@ -210,7 +208,7 @@ export function renderReport(data: ReportData): void {
   const folderOf = new Map<number, Folder>()
   for (const folder of folders) for (const file of folder.files) folderOf.set(file.i, folder)
   const paint = (node: SVGElement, file: FileModel): void => {
-    const kind = FILE_KIND[file.status] ?? 'pass'
+    const kind = FILE_KIND[file.status]
     node.classList.add('slice', `s-${kind}`)
     if (kind === 'pass') node.style.setProperty('--h', String(folderOf.get(file.i)?.hue ?? 210))
   }
@@ -306,22 +304,22 @@ export function renderReport(data: ReportData): void {
     terminated: 'Run terminated',
     hangup: 'Terminal closed',
   }
-  const parts = [
+  const what = dot(
     data.reason === 'passed' || data.reason === 'failed' ? false : stop[data.reason],
     failedTests > 0 &&
       `${plural(failedTests, 'test')} failed in ${plural(filesWithFailures, 'file')}`,
     failedToRun > 0 && `${plural(failedToRun, 'file')} failed to run`,
     crashed.length > 0 && `${plural(crashed.length, 'file')} crashed`,
     data.runErrors.length > 0 && `${plural(data.runErrors.length, 'error')} outside the tests`,
-  ].filter((part): part is string => typeof part === 'string')
+  )
   const headline =
     files.length === 0
       ? 'No tests ran'
       : failing
-        ? parts.length > 0
-          ? parts.join(' · ')
-          : 'The run failed'
-        : `All ${plural(count[0] ?? 0, 'test')} passed`
+        ? what === ''
+          ? 'The run failed'
+          : what
+        : `All ${plural(count[0], 'test')} passed`
   const verdictMain = el('div', { class: 'verdict-main' })
   verdict.append(verdictMain)
   verdictMain.append(
@@ -337,30 +335,30 @@ export function renderReport(data: ReportData): void {
   const field = (label: string, value: string, cls = ''): HTMLElement =>
     el('div', null, el('dt', null, label), el('dd', cls === '' ? null : { class: cls }, value))
   const snaps = data.snapshots
-  const snapParts =
+  const snapshotText =
     snaps === undefined
-      ? []
-      : [
+      ? ''
+      : dot(
           snaps.matched > 0 && `${num(snaps.matched)} passed`,
           snaps.unmatched > 0 && `${num(snaps.unmatched)} failed`,
           snaps.added > 0 && `${num(snaps.added)} written`,
           snaps.updated > 0 && `${num(snaps.updated)} updated`,
           snaps.unchecked > 0 && `${num(snaps.unchecked)} obsolete`,
-        ].filter((part): part is string => typeof part === 'string')
+        )
   verdictMain.append(
     el(
       'dl',
       { class: 'fields' },
       ...(failing
-        ? [field('Failed', num(failedTests), 'n-fail'), field('Passed', num(count[0] ?? 0))]
-        : [field('Passed', num(count[0] ?? 0)), field('Failed', num(failedTests))]),
-      field('Skipped', num((count[2] ?? 0) + (count[4] ?? 0))),
-      field('Todo', num(count[3] ?? 0)),
+        ? [field('Failed', num(failedTests), 'n-fail'), field('Passed', num(count[0]))]
+        : [field('Passed', num(count[0])), field('Failed', num(failedTests))]),
+      field('Skipped', num(skippedTests)),
+      field('Todo', num(count[3])),
       field('Files', num(files.length)),
       field('Time', ms(data.durationMs)),
       field('Workers', num(workerIds.length)),
       data.seed !== undefined && field('Seed', String(data.seed)),
-      snapParts.length > 0 && field('Snapshots', snapParts.join(' · ')),
+      snapshotText !== '' && field('Snapshots', snapshotText),
     ),
   )
   const started = new Date(data.startedAt)
@@ -418,24 +416,18 @@ export function renderReport(data: ReportData): void {
     'Select range…',
   )
   const seconds = (duration / 1000).toFixed(1)
-  const fromInput = el('input', {
-    type: 'number',
-    min: 0,
-    max: seconds,
-    step: 0.1,
-    value: 0,
-    id: 'range-from',
-    inputmode: 'decimal',
-  }) as HTMLInputElement
-  const toInput = el('input', {
-    type: 'number',
-    min: 0,
-    max: seconds,
-    step: 0.1,
-    value: seconds,
-    id: 'range-to',
-    inputmode: 'decimal',
-  }) as HTMLInputElement
+  const rangeInput = (id: string, value: string | number): HTMLInputElement =>
+    el('input', {
+      type: 'number',
+      min: 0,
+      max: seconds,
+      step: 0.1,
+      value,
+      id,
+      inputmode: 'decimal',
+    }) as HTMLInputElement
+  const fromInput = rangeInput('range-from', 0)
+  const toInput = rangeInput('range-to', seconds)
   const rangeForm = el(
     'form',
     { class: 'range-form', id: 'range-form', hidden: true },
@@ -530,6 +522,7 @@ export function renderReport(data: ReportData): void {
   )
   const laneH = 56 / Math.max(1, workerIds.length)
   const ov = svg('svg', {
+    class: 'ov-chart',
     viewBox: '0 0 1000 56',
     preserveAspectRatio: 'none',
     role: 'img',
@@ -571,6 +564,11 @@ export function renderReport(data: ReportData): void {
     visibility: 'hidden',
   })
   ov.append(brush)
+  const showBrush = (from: number, to: number): void => {
+    brush.setAttribute('visibility', 'visible')
+    brush.setAttribute('x', String((from / duration) * 1000))
+    brush.setAttribute('width', String(((to - from) / duration) * 1000))
+  }
   overview.append(
     ov,
     el(
@@ -598,9 +596,7 @@ export function renderReport(data: ReportData): void {
   ov.addEventListener('pointermove', (event) => {
     if (dragFrom === null) return
     const now = timeAt(event.clientX)
-    brush.setAttribute('visibility', 'visible')
-    brush.setAttribute('x', String((Math.min(dragFrom, now) / duration) * 1000))
-    brush.setAttribute('width', String((Math.abs(now - dragFrom) / duration) * 1000))
+    showBrush(Math.min(dragFrom, now), Math.max(dragFrom, now))
   })
   ov.addEventListener('pointerup', (event) => {
     if (dragFrom === null) return
@@ -608,8 +604,7 @@ export function renderReport(data: ReportData): void {
     const from = dragFrom
     dragFrom = null
     if (Math.abs(now - from) < duration / 400) {
-      const index = downOn?.getAttribute('data-f') ?? null
-      if (index !== null) reveal(Number(index))
+      revealOf(downOn)
       brush.setAttribute('visibility', range === null ? 'hidden' : 'visible')
       return
     }
@@ -631,9 +626,7 @@ export function renderReport(data: ReportData): void {
       ranged = true
       rangeNote.textContent = ''
       rangeText.textContent = `${ms(range[0])} – ${ms(range[1])} · ${plural(files.filter(inRange).length, 'file')}`
-      brush.setAttribute('visibility', 'visible')
-      brush.setAttribute('x', String((range[0] / duration) * 1000))
-      brush.setAttribute('width', String(((range[1] - range[0]) / duration) * 1000))
+      showBrush(range[0], range[1])
     }
     for (const file of placed) ovSlices.get(file.i)?.classList.toggle('dim', !inRange(file))
   })
@@ -775,8 +768,7 @@ export function renderReport(data: ReportData): void {
       const open = index === 0
       const bodyId = `fb-${index}`
       const { file, test } = entry
-      const kind =
-        file === null ? 'fail' : test === null ? (FILE_KIND[file.status] ?? 'fail') : 'fail'
+      const kind = file === null ? 'fail' : test === null ? FILE_KIND[file.status] : 'fail'
       const title =
         test !== null
           ? test.titles.flatMap((part, i) =>
@@ -796,12 +788,12 @@ export function renderReport(data: ReportData): void {
         el(
           'span',
           { class: 'failure-ms' },
-          test !== null ? ms(test.ms) : file === null ? '' : (FILE_WORD[file.status] ?? ''),
+          test !== null ? ms(test.ms) : file === null ? '' : WORD[FILE_KIND[file.status]],
         ),
         el(
           'span',
           { class: 'failure-title' },
-          el('span', { class: 'sr-only' }, `${kind === 'crash' ? 'crashed' : 'failed'}: `),
+          el('span', { class: 'sr-only' }, `${WORD[kind]}: `),
           ...title,
         ),
         el('span', { class: 'failure-first' }, firstLine(entry.text)),
@@ -865,8 +857,7 @@ export function renderReport(data: ReportData): void {
   interface RowSpec {
     kind: string
     level: number
-    tone: string
-    word: string
+    tone: keyof typeof WORD
     label: string
     title: string
     meta: Child[]
@@ -902,7 +893,7 @@ export function renderReport(data: ReportData): void {
       el(
         'span',
         { class: 'label', title: spec.title === '' ? false : spec.title },
-        el('span', { class: 'sr-only' }, `${spec.word} `),
+        el('span', { class: 'sr-only' }, `${WORD[spec.tone]} `),
         spec.label,
       ),
       meta,
@@ -919,9 +910,15 @@ export function renderReport(data: ReportData): void {
     }
     return item
   }
-  const errorBox = (item: HTMLElement, text: string): void => {
+  // An error's frame inside the tree, indented to `level` when it is not a test's own.
+  const inlineError = (text: string, level?: number): HTMLElement => {
     const box = failureText(text)
     box.className = 'inline-error'
+    if (level !== undefined) box.style.setProperty('--level', String(level))
+    return box
+  }
+  const errorBox = (item: HTMLElement, text: string): void => {
+    const box = inlineError(text)
     const textId = `eb-${++nodeSeq}`
     const code = box.firstElementChild
     if (code !== null) code.id = textId
@@ -932,11 +929,10 @@ export function renderReport(data: ReportData): void {
     const item = makeItem({
       kind: 'test',
       level,
-      tone: TEST_KIND[test.status] ?? 'pass',
-      word: TEST_WORD[test.status] ?? '',
+      tone: TEST_KIND[test.status],
       label: test.titles[test.titles.length - 1] ?? '',
       title: test.titles.join(' › '),
-      meta: [test.status === 0 || test.status === 1 ? ms(test.ms) : (TEST_WORD[test.status] ?? '')],
+      meta: [test.status === 0 || test.status === 1 ? ms(test.ms) : WORD[TEST_KIND[test.status]]],
       fill: null,
       open: false,
     })
@@ -987,11 +983,10 @@ export function renderReport(data: ReportData): void {
           kind: 'suite',
           level,
           tone: kid.failed > 0 ? 'fail' : 'pass',
-          word: kid.failed > 0 ? 'failed' : 'passed',
           label: kid.title,
           title: '',
           meta: [
-            kid.failed > 0 && el('span', { class: 'n-fail' }, `${num(kid.failed)} failed`),
+            kid.failed > 0 && nFail(`${num(kid.failed)} failed`),
             el('span', null, plural(kid.tests, 'test')),
           ],
           fill: (inner) => addKids(inner, kid, level + 1, forceOpen),
@@ -1011,14 +1006,13 @@ export function renderReport(data: ReportData): void {
     const item = makeItem({
       kind: 'file',
       level,
-      tone: FILE_KIND[file.status] ?? 'pass',
-      word: FILE_WORD[file.status] ?? '',
+      tone: FILE_KIND[file.status],
       label,
       title: file.path,
       meta: [
         file.status === 4
-          ? el('span', { class: 'n-fail' }, 'crashed')
-          : file.failed > 0 && el('span', { class: 'n-fail' }, `${num(file.failed)} failed`),
+          ? nFail('crashed')
+          : file.failed > 0 && nFail(`${num(file.failed)} failed`),
         el(
           'span',
           null,
@@ -1037,12 +1031,7 @@ export function renderReport(data: ReportData): void {
       fill:
         file.tests.length > 0 || file.error !== null
           ? (group) => {
-              if (file.error !== null) {
-                const box = failureText(file.error)
-                box.className = 'inline-error'
-                box.style.setProperty('--level', String(level))
-                group.append(box)
-              }
+              if (file.error !== null) group.append(inlineError(file.error, level))
               addKids(group, suiteOf(only ?? file.tests), level + 1, forceOpen)
             }
           : null,
@@ -1057,11 +1046,10 @@ export function renderReport(data: ReportData): void {
       kind: 'folder',
       level: 1,
       tone: failed > 0 ? 'fail' : 'pass',
-      word: failed > 0 ? 'failed' : 'passed',
       label: folder.label,
       title: '',
       meta: [
-        failed > 0 && el('span', { class: 'n-fail' }, `${num(failed)} failed`),
+        failed > 0 && nFail(`${num(failed)} failed`),
         el('span', null, plural(shown.length, 'file')),
         el('span', null, ms(shown.reduce((sum, file) => sum + file.ms, 0))),
       ],
@@ -1117,17 +1105,11 @@ export function renderReport(data: ReportData): void {
           kind: 'file',
           level: 1,
           tone: 'fail',
-          word: 'failed',
           label: 'Errors outside any test file',
           title: '',
-          meta: [el('span', { class: 'n-fail' }, plural(data.runErrors.length, 'error'))],
+          meta: [nFail(plural(data.runErrors.length, 'error'))],
           fill: (group) => {
-            for (const text of data.runErrors) {
-              const box = failureText(text)
-              box.className = 'inline-error'
-              box.style.setProperty('--level', '1')
-              group.append(box)
-            }
+            for (const text of data.runErrors) group.append(inlineError(text, 1))
           },
           open: true,
         })
@@ -1271,11 +1253,11 @@ export function renderReport(data: ReportData): void {
       query = ''
       rebuildTree()
     })
-    const chip = (label: string, status: number, n: number): HTMLElement => {
+    const chip = (label: string, status: TestStatus, n: number): HTMLElement => {
       const button = el(
         'button',
         { type: 'button', class: 'chip', 'aria-pressed': String(statusFilter.has(status)) },
-        icon(TEST_KIND[status] ?? 'pass'),
+        icon(TEST_KIND[status]),
         `${label} ${num(n)}`,
       )
       button.addEventListener('click', () => {
@@ -1286,15 +1268,14 @@ export function renderReport(data: ReportData): void {
       })
       return button
     }
-    const skipped = (count[2] ?? 0) + (count[4] ?? 0)
     panel.append(
       el(
         'div',
         { class: 'toolbar' },
         input,
         failedTests > 0 && chip('Failed', 1, failedTests),
-        skipped > 0 && chip('Skipped', 2, skipped),
-        (count[3] ?? 0) > 0 && chip('Todo', 3, count[3] ?? 0),
+        skippedTests > 0 && chip('Skipped', 2, skippedTests),
+        count[3] > 0 && chip('Todo', 3, count[3]),
       ),
       searchNote,
     )
@@ -1303,6 +1284,13 @@ export function renderReport(data: ReportData): void {
     buildTree(treeHost)
   }
   rerenderOnRange(1)
+  // Reveals the file an element stands for (its `data-f`), and says whether it stood for one.
+  function revealOf(node: Element | null | undefined): boolean {
+    const index = node?.getAttribute('data-f') ?? null
+    if (index === null) return false
+    reveal(Number(index))
+    return true
+  }
   function reveal(fileIndex: number): void {
     const file = files[fileIndex]
     if (file === undefined) return
@@ -1394,16 +1382,12 @@ export function renderReport(data: ReportData): void {
       else if (keyName === 'End') move(current, cells[cells.length - 1])
       else if (keyName === 'ArrowDown' || keyName === 'ArrowUp')
         move(current, rowAbove(current, keyName === 'ArrowDown'))
-      else if (keyName === 'Enter') {
-        const index = current.getAttribute('data-f')
-        if (index !== null) reveal(Number(index))
-      } else return
+      else if (keyName === 'Enter') revealOf(current)
+      else return
       event.preventDefault()
     })
     grid.addEventListener('click', (event) => {
-      const cell = (event.target as Element).closest('button.cell')
-      const index = cell?.getAttribute('data-f') ?? null
-      if (index !== null) reveal(Number(index))
+      revealOf((event.target as Element).closest('button.cell'))
     })
     for (const folder of folders) {
       const row = el('div', { class: 'cells', role: 'group', 'aria-label': folder.label })
@@ -1412,8 +1396,8 @@ export function renderReport(data: ReportData): void {
       for (const file of folder.files) {
         if (file.status === 1) failed++
         if (file.status === 4) crashedHere++
-        const kind = FILE_KIND[file.status] ?? 'pass'
-        const word = FILE_WORD[file.status] ?? ''
+        const kind = FILE_KIND[file.status]
+        const word = WORD[kind]
         const cell = el('button', {
           type: 'button',
           class: `cell s-${kind}${inRange(file) ? '' : ' dim'}`,
@@ -1425,12 +1409,10 @@ export function renderReport(data: ReportData): void {
         cells.push(cell)
         row.append(cell)
       }
-      const summary = [
+      const summary = dot(
         failed > 0 && `${num(failed)} failed`,
         crashedHere > 0 && `${num(crashedHere)} crashed`,
-      ]
-        .filter((part): part is string => typeof part === 'string')
-        .join(' · ')
+      )
       grid.append(
         el(
           'div',
@@ -1607,7 +1589,7 @@ export function renderReport(data: ReportData): void {
         'data-f': file.i,
       })
       paint(rect, file)
-      const description = `${file.path} · ${FILE_WORD[file.status]} · ${ms(file.ms)} · worker ${file.worker} · ${ms(file.start)}–${ms(file.end)}`
+      const description = `${file.path} · ${WORD[FILE_KIND[file.status]]} · ${ms(file.ms)} · worker ${file.worker} · ${ms(file.start)}–${ms(file.end)}`
       if (broken(file)) {
         rect.setAttribute('role', 'button')
         rect.setAttribute('aria-label', description)
@@ -1618,15 +1600,11 @@ export function renderReport(data: ReportData): void {
       chart.append(rect)
     }
     chart.addEventListener('click', (event) => {
-      const index = (event.target as Element).getAttribute('data-f')
-      if (index !== null) reveal(Number(index))
+      revealOf(event.target as Element)
     })
     chart.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' && event.key !== ' ') return
-      const index = (event.target as Element).getAttribute('data-f')
-      if (index === null) return
-      event.preventDefault()
-      reveal(Number(index))
+      if (revealOf(event.target as Element)) event.preventDefault()
     })
     const scroller = el('div', { class: 'lanes-scroll' }, chart)
     panel.append(
@@ -1673,7 +1651,7 @@ export function renderReport(data: ReportData): void {
               el('td', null, ms(file.start)),
               el('td', null, ms(file.end)),
               el('td', null, ms(file.ms)),
-              el('td', null, icon(FILE_KIND[file.status] ?? 'pass'), FILE_WORD[file.status] ?? ''),
+              el('td', null, icon(FILE_KIND[file.status]), WORD[FILE_KIND[file.status]]),
               el('td', null, file.expected < 0 ? '–' : ms(file.expected)),
             ),
           )
