@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs'
 import { basename, resolve } from 'node:path'
 import type { FileResult, Reporter, TaskId, WorkerExit } from '@provino/types'
 import { createCollector, outcomeOf, suiteErrorsOf } from '../internal/collect.ts'
@@ -85,11 +86,29 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
   let omitted = 0
   let workers = 0
   let origin = 0
+  /** The root as the run named it and its real path, for the paths in failure text; made at the first failure. */
+  let roots: string[] | null = null
+  function rootsOf(): readonly string[] {
+    if (roots !== null) return roots
+    const named = record.root
+    let real = named
+    try {
+      real = realpathSync(named)
+    } catch {
+      // A root that can't be resolved is left as it was named.
+    }
+    roots = real === named ? [named] : [named, real]
+    return roots
+  }
   /** Files that started and have not ended: where and when. */
   let running = new Map<TaskId, { readonly startMs: number; readonly workerId: number }>()
   let compacted = new Set<TaskId>()
 
-  /** The file as rows, once: its tests, its own error text and its place on the timeline. `endMs` is -1 when no `file:end` told it. */
+  /**
+   * The file as rows, once: its tests, its own error text and its place on the timeline. `endMs` is
+   * when the file ended: its `file:end`'s time, or for a file that started and never ended (a killed
+   * worker, an interrupted run) the run's end, so no row ends before it starts.
+   */
   function compact(result: FileResult, endMs: number): void {
     const { file } = result
     if (compacted.has(file.fileId)) return
@@ -124,7 +143,7 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
         ])
         if (status !== 1) continue
         if (failures.length < MAX_FAILURES) {
-          failures.push([tests.length - 1, failureText(outcome.errors, record.root)])
+          failures.push([tests.length - 1, failureText(outcome.errors, rootsOf())])
         } else {
           omitted++
         }
@@ -135,7 +154,7 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
         ? result.errors
         : [...result.errors, ...suiteErrorsOf(entry), ...entry.unhandled]
     const crashed = result.workerExit !== undefined
-    let ownText = own.length === 0 ? '' : failureText(own, record.root)
+    let ownText = own.length === 0 ? '' : failureText(own, rootsOf())
     if (crashed && ownText === '' && result.workerExit !== undefined) {
       ownText = `The worker ${describeExit(result.workerExit)} while it ran this file.`
     }
@@ -151,7 +170,7 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
       roundMs(result.durationMs),
       timing?.workerId ?? -1,
       timing?.startMs ?? -1,
-      timing === undefined ? -1 : endMs,
+      timing === undefined ? -1 : Math.max(timing.startMs, endMs),
       file.expectedMs === undefined ? -1 : Math.round(file.expectedMs),
       table.intern(file.project),
     ])
@@ -173,6 +192,7 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
       workers = info.workers ?? 0
       running = new Map()
       compacted = new Set()
+      roots = null
       origin = now()
     },
 
@@ -197,13 +217,18 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
     },
 
     async 'run:end'(summary) {
-      // A file the bus never ended (the summary has it all the same) still gets its row.
-      for (const result of summary.files) compact(result, -1)
+      // A file the bus never ended (the summary has it all the same) still gets its row; one that
+      // started is cut off at the run's end, and the clock is read only when there is one.
+      const cutOff = summary.files.some(
+        (result) => running.has(result.file.fileId) && !compacted.has(result.file.fileId),
+      )
+      const runEnd = cutOff ? Math.round(now() - origin) : -1
+      for (const result of summary.files) compact(result, runEnd)
       const counters = summary.snapshots?.counters
       const data: ReportData = {
         version: 1,
+        // The directory's name only: the run's path stays out of the page (a shared report must not name a CI checkout).
         title: basename(record.root) || record.root,
-        root: record.root,
         startedAt: record.startedAt,
         durationMs: Math.round(summary.durationMs),
         reason: summary.reason,
@@ -213,7 +238,7 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
         tests,
         failures,
         fileErrors,
-        runErrors: record.runErrors.map(({ error }) => failureText([error], record.root)),
+        runErrors: record.runErrors.map(({ error }) => failureText([error], rootsOf())),
         omitted,
         ...(options.seed === undefined ? {} : { seed: options.seed }),
         ...(options.sample === true ? { sample: true as const } : {}),

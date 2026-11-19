@@ -2,12 +2,12 @@ import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { describe, it } from 'node:test'
 import type { ReportData } from './data.ts'
+import { renderReport } from './page/main.ts'
 import { contentSecurityPolicy, DATA_ID, escapeHtml, pageScript, renderDocument } from './render.ts'
 
 const DATA: ReportData = {
   version: 1,
   title: 'project',
-  root: '/project',
   startedAt: '2026-11-19T12:00:00.000Z',
   durationMs: 10,
   reason: 'passed',
@@ -81,5 +81,115 @@ describe('the report document', () => {
     const doc = renderDocument({ ...DATA, title: '<b>"x" & y</b>' })
     assert.match(doc, /<title>Provino report: &lt;b&gt;&quot;x&quot; &amp; y&lt;\/b&gt;<\/title>/)
     assert.equal(escapeHtml(`<>&"`), '&lt;&gt;&amp;&quot;')
+  })
+})
+
+/**
+ * The template literals in `source` whose own text (not the code in a `${…}`) spans lines. A small
+ * scanner: it skips strings, comments and regular expression literals, and follows `${…}`. A `/`
+ * after a word, a number or a closing bracket is division; after anything else it opens a regular
+ * expression.
+ */
+function multiLineTemplates(source: string): string[] {
+  const found: string[] = []
+  // What is open: a template (with the text it has so far) or a `${` (with the braces opened in it).
+  const stack: (
+    | { kind: 'template'; from: number; text: string }
+    | { kind: 'code'; depth: number }
+  )[] = []
+  let previous = ''
+  let at = 0
+  const closeTemplate = (): void => {
+    const top = stack.pop()
+    if (top?.kind === 'template' && top.text.includes('\n')) {
+      found.push(source.slice(top.from, at + 1))
+    }
+  }
+  while (at < source.length) {
+    const char = source[at] as string
+    const top = stack.at(-1)
+    if (top?.kind === 'template') {
+      if (char === '\\') {
+        top.text += source.slice(at, at + 2)
+        at += 2
+        continue
+      }
+      if (char === '`') {
+        closeTemplate()
+        previous = '`'
+      } else if (char === '$' && source[at + 1] === '{') {
+        stack.push({ kind: 'code', depth: 0 })
+        at += 1
+      } else {
+        top.text += char
+      }
+      at += 1
+      continue
+    }
+    if (char === '"' || char === "'") {
+      at += 1
+      while (at < source.length && source[at] !== char) at += source[at] === '\\' ? 2 : 1
+      previous = char
+    } else if (char === '`') {
+      stack.push({ kind: 'template', from: at, text: '' })
+    } else if (char === '/' && source[at + 1] === '/') {
+      while (at < source.length && source[at] !== '\n') at += 1
+      continue
+    } else if (char === '/' && source[at + 1] === '*') {
+      at = source.indexOf('*/', at + 2) + 1
+      if (at === 0) break
+    } else if (char === '/' && !/[\w)\]]/.test(previous)) {
+      // A regular expression literal: to the next `/` outside a class.
+      let inClass = false
+      at += 1
+      while (at < source.length && (inClass || source[at] !== '/')) {
+        if (source[at] === '\\') at += 1
+        else if (source[at] === '[') inClass = true
+        else if (source[at] === ']') inClass = false
+        at += 1
+      }
+      previous = '/'
+    } else if (char === '{' && top?.kind === 'code') {
+      top.depth += 1
+      previous = char
+    } else if (char === '}' && top?.kind === 'code') {
+      if (top.depth === 0) stack.pop()
+      else top.depth -= 1
+      previous = char
+    } else if (!/\s/.test(char)) {
+      previous = char
+    }
+    at += 1
+  }
+  return found
+}
+
+/** The start of an interpolation, kept apart so no string of the test holds it. */
+const OPEN = ['$', '{'].join('')
+
+/** Source text from its parts. */
+const source = (...parts: string[]): string => parts.join('')
+
+describe('the page script’s source', () => {
+  it('has no template literal that spans lines, which `pageScript` would rewrite', () => {
+    // The scanner first: it sees a literal across lines, wherever it sits, and only that.
+    assert.deepEqual(multiLineTemplates(source('const a = `one line ', OPEN, '1 + 1}`')), [])
+    assert.equal(multiLineTemplates('const a = `two\nlines`').length, 1)
+    assert.equal(multiLineTemplates(source('f(`', OPEN, 'g(`inner\ntext`)}`)')).length, 1)
+    assert.equal(
+      multiLineTemplates(source('const a = `', OPEN, '\n  b\n}`')).length,
+      0,
+      'code in an interpolation may span lines',
+    )
+    assert.deepEqual(
+      multiLineTemplates('const a = \'`\'\nconst b = "`"\n// `\nconst c = /[`]/'),
+      [],
+    )
+    assert.deepEqual(multiLineTemplates('const r = /\\//.test(x) // `a\nb`\nconst q = a / b'), [])
+    // Then the script: its source holds none, so the whitespace `pageScript` drops is code's.
+    const script = renderReport.toString()
+    assert.deepEqual(multiLineTemplates(script), [])
+    // And it was in step to the end of it: a literal added after the whole source is found.
+    assert.equal(multiLineTemplates(`${script}\nconst added = \`a\nb\``).length, 1)
   })
 })

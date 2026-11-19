@@ -632,7 +632,7 @@
       "refersTo": "tab",
       "description": "Five lenses on the run, with counts; the selected tab has a blue underline.",
       "html": "<div class=\"ds-tabbar\" role=\"tablist\"><button class=\"ds-tab\" role=\"tab\" aria-selected=\"true\">Failures <span class=\"count n-fail\">4</span></button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\">Tests <span class=\"count\">4,030</span></button><button class=\"ds-tab\" role=\"tab\" aria-selected=\"false\">Map <span class=\"count\">500</span></button></div>",
-      "css": ".ds-tabbar{display:flex;gap:var(--s-1);padding:0 var(--s-4);background:var(--panel);border-bottom:1px solid var(--line);font:400 var(--t-md)/1.45 var(--font)} .ds-tab{position:relative;display:flex;gap:var(--s-2);padding:var(--s-3) var(--s-4);color:var(--ink-2);font:inherit;font-weight:500;background:none;border:0;cursor:pointer} .ds-tab:hover{color:var(--ink)} .ds-tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px} .ds-tab[aria-selected=\"true\"]{color:var(--ink)} .ds-tab[aria-selected=\"true\"]::after{content:\"\";position:absolute;left:var(--s-3);right:var(--s-3);bottom:-1px;height:2px;background:var(--accent)} .ds-tab .count{color:var(--ink-3);font-weight:400} .ds-tab .count.n-fail{color:var(--fail);font-weight:600}"
+      "css": ".ds-tabbar{display:flex;gap:var(--s-1);padding:0 var(--s-4);background:var(--panel);border-bottom:1px solid var(--line);font:400 var(--t-md)/1.45 var(--font)} .ds-tab{position:relative;display:flex;gap:var(--s-2);padding:var(--s-3) var(--s-4);color:var(--ink-2);font:inherit;background:none;border:0;cursor:pointer} .ds-tab:hover{color:var(--ink)} .ds-tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:2px} .ds-tab[aria-selected=\"true\"]{color:var(--ink)} .ds-tab[aria-selected=\"true\"]::after{content:\"\";position:absolute;left:var(--s-3);right:var(--s-3);bottom:-1px;height:2px;background:var(--accent)} .ds-tab .count{color:var(--ink-3);font-weight:400} .ds-tab .count.n-fail{color:var(--fail);font-weight:600}"
     },
     {
       "name": "Status chip",
@@ -640,7 +640,7 @@
       "refersTo": "chip",
       "description": "A toggle filter or small action; pressed is the selection wash.",
       "html": "<button class=\"ds-chip\" aria-pressed=\"true\">Failed 3</button> <button class=\"ds-chip\" aria-pressed=\"false\">Skipped 49</button>",
-      "css": ".ds-chip{display:inline-flex;align-items:center;gap:var(--s-2);height:24px;padding:0 var(--s-3);border:1px solid var(--line);border-radius:999px;color:var(--ink-2);background:none;font:400 var(--t-sm)/1 var(--font);cursor:pointer} .ds-chip:hover{border-color:var(--line-strong);color:var(--ink)} .ds-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px} .ds-chip[aria-pressed=\"true\"]{background:var(--accent-wash);border-color:var(--accent);color:var(--ink)}"
+      "css": ".ds-chip{display:inline-flex;align-items:center;gap:var(--s-2);height:24px;padding:0 var(--s-3);border:1px solid var(--ink-3);border-radius:999px;color:var(--ink-2);background:none;font:400 var(--t-sm)/1 var(--font);cursor:pointer} .ds-chip:hover{border-color:var(--ink);color:var(--ink)} .ds-chip:focus-visible{outline:2px solid var(--accent);outline-offset:2px} .ds-chip[aria-pressed=\"true\"]{background:var(--accent-wash);border-color:var(--accent);color:var(--ink)}"
     },
     {
       "name": "Search",
@@ -648,7 +648,7 @@
       "refersTo": "search",
       "description": "Filters the tree by path or test name.",
       "html": "<input class=\"ds-search\" type=\"search\" placeholder=\"Filter by file path or test name\" aria-label=\"Filter tests\">",
-      "css": ".ds-search{width:320px;height:28px;padding:0 var(--s-3);font:400 var(--t-md) var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--line-strong);border-radius:4px} .ds-search::placeholder{color:var(--ink-3)} .ds-search:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
+      "css": ".ds-search{width:320px;height:28px;padding:0 var(--s-3);font:400 var(--t-md) var(--font);color:var(--ink);background:var(--bg);border:1px solid var(--ink-3);border-radius:4px} .ds-search::placeholder{color:var(--ink-3)} .ds-search:focus-visible{outline:2px solid var(--accent);outline-offset:2px}"
     },
     {
       "name": "Failure row with code frame",

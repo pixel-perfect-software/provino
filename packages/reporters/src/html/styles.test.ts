@@ -82,6 +82,121 @@ describe('the stylesheet', () => {
     )
   })
 
+  /** The declarations of the first rule whose selector is `selector`, as written. */
+  function rule(selector: string, css: string = STYLES): string {
+    const start = css.indexOf(`\n${selector} {`)
+    assert.ok(start !== -1, `no rule for ${selector}`)
+    return css.slice(start, css.indexOf('}', start))
+  }
+
+  /** The rules inside the `@media (forced-colors: active)` block, by selector. */
+  function forcedColours(): Map<string, string> {
+    const start = STYLES.indexOf('@media (forced-colors: active) {')
+    assert.ok(start !== -1, 'no forced-colours block')
+    const block = STYLES.slice(start, STYLES.indexOf('\n}\n', start))
+    return new Map(
+      [...block.matchAll(/^\s+([^{}\n]+)\{([^}]*)\}/gm)].map((m) => [
+        (m[1] as string).trim(),
+        (m[2] as string).trim(),
+      ]),
+    )
+  }
+
+  describe('the stylesheet, against DESIGN.md', () => {
+    it('leaves the root at the browser’s size: the rem tokens mean what the design says, and the text font is the body’s', () => {
+      // A font on `html` would make 1rem 13px and every `--t-*` 13/16 of its size.
+      assert.doesNotMatch(rule('html'), /[\s;]font(?:-size)?\s*:/)
+      assert.match(rule('body'), /font: 400 var\(--t-md\)\/1\.45 var\(--font\)/)
+      assert.match(rule('html'), /scrollbar-gutter: stable/)
+    })
+
+    it('has the verdict fields and the tabs as DESIGN.md has them', () => {
+      assert.match(rule('.fields'), /gap: var\(--s-2\) var\(--s-6\)/)
+      assert.match(rule('.fields dt'), /font-weight: 600/)
+      assert.doesNotMatch(rule('.tab'), /font-weight/)
+      assert.match(rule('.tabbar'), /padding: 0 var\(--s-5\) 0 var\(--s-2\)/)
+      assert.match(rule('.table-wrap'), /border-radius: var\(--r-field\)/)
+      // "sample data" is not a status, so it is not Skip Amber.
+      assert.match(rule('.synthetic'), /color: var\(--ink-3\)/)
+    })
+
+    it('draws a chip’s border at 3:1, as the search field’s, and a small action as a 24 px target', () => {
+      assert.match(rule('.chip'), /border: 1px solid var\(--ink-3\)/)
+      assert.match(rule('.search'), /border: 1px solid var\(--ink-3\)/)
+      assert.match(rule('.range button, .links button'), /min-height: var\(--chip-h\)/)
+      // Its `display` must not undo `hidden`: "Clear range" is hidden until there is a range.
+      assert.match(STYLES, /\n\.range button\[hidden\] \{ display: none; \}/)
+    })
+
+    it('draws the range form’s error as text with a mark, in the fail colour, and the field in a thicker border', () => {
+      assert.match(rule('.field-error'), /color: var\(--fail\)/)
+      // The overview's chart is its own child: a rule for every `svg` in it would size the error's glyph.
+      assert.match(STYLES, /\n\.overview > svg \{/)
+      assert.doesNotMatch(STYLES, /\.overview svg/)
+      assert.match(
+        rule('.range-form input[aria-invalid="true"]'),
+        /border: var\(--ring\) solid var\(--fail\)/,
+      )
+    })
+
+    it('has the timeline follow its container, scrolling only under a minimum', () => {
+      assert.match(rule('.lanes-scroll svg'), /min-width: var\(--chart-min\)/)
+      assert.match(STYLES, /--chart-min: 480px/)
+    })
+  })
+
+  describe('the stylesheet under forced colours', () => {
+    const rules = forcedColours()
+    const declarations = (selector: string): string => {
+      const found = rules.get(selector)
+      assert.ok(found !== undefined, `no forced-colours rule for ${selector}`)
+      return found
+    }
+
+    it('tells the statuses of a map cell and a legend swatch apart without a background image', () => {
+      // Background images (the hatches and the dots) are dropped in forced colours, so each status
+      // has its own border: solid fill, a double ring, a thick ring, a dotted ring, a thin ring.
+      const looks = [
+        declarations('.cell'),
+        declarations('.cell.s-fail'),
+        declarations('.cell.s-crash'),
+        declarations('.cell.s-skip'),
+        declarations('.cell.s-todo'),
+      ].map((text) => /border: ([^;]+);/.exec(text)?.[1] ?? '')
+      assert.equal(new Set(looks).size, 5, looks.join(' | '))
+      assert.match(looks[1] ?? '', /double/)
+      assert.match(looks[3] ?? '', /dotted/)
+      // The legend's swatches are `.cell`s too, so the same rules draw them, in system colours.
+      assert.match(declarations('.cell, .bar, .slice, .t-slice'), /forced-color-adjust: none/)
+      for (const selector of [
+        '.cell',
+        '.cell.s-fail',
+        '.cell.s-crash',
+        '.cell.s-skip',
+        '.cell.s-todo',
+      ]) {
+        assert.doesNotMatch(declarations(selector), /gradient|url\(/)
+      }
+    })
+
+    it('names every status for the overview’s slices and the timeline’s bars, in system colours and strokes', () => {
+      for (const status of ['fail', 'crash', 'skip', 'todo']) {
+        const found = declarations(`.slice.s-${status}, .t-slice.s-${status}`)
+        assert.match(found, /fill: (?:Canvas|Highlight)/)
+        assert.match(found, /stroke: (?:CanvasText|GrayText)/)
+      }
+      // Failed and crashed are heavier than the rest, and a crash is dashed as a skip is.
+      assert.match(declarations('.slice.s-fail, .t-slice.s-fail'), /stroke-width: var\(--ring\)/)
+      assert.match(declarations('.slice.s-crash, .t-slice.s-crash'), /stroke-dasharray/)
+      assert.match(declarations('.slice.s-skip, .t-slice.s-skip'), /stroke-dasharray/)
+      assert.match(declarations('.slice, .t-slice'), /fill: GrayText/)
+      // Only system colours: none of the report's own tokens paints a fill, stroke or background.
+      const block = [...rules.values()].join('\n')
+      assert.doesNotMatch(block, /(?:fill|stroke|background|outline-color):\s*var\(--/)
+      assert.match(declarations('.bar.has-fail'), /background: Highlight/)
+    })
+  })
+
   for (const [scheme, tokens] of SCHEMES) {
     const get = (name: string): string => {
       const value = tokens.get(name)
