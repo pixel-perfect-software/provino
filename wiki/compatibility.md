@@ -101,6 +101,7 @@ These are the gaps the code itself names. Any other difference from Jest is a bu
 | `instanceof Object` on a jsdom node | False: test code runs in the worker's realm, and a jsdom node's prototype chain ends in the window's own `Object.prototype`. Jest runs the test inside the window, so it is true there | Planned |
 | `provino vitest` | Refused | Next |
 | RSpec-style lazy variables | A Provino extra, not a Jest feature: `import { lazy } from 'provino'` in a test file. It is never a global, and works with `injectGlobals: false` ([lazy variables](lazy-variables.md)) | Built |
+| Yarn Plug'n'Play (`nodeLinker: pnp`) | Not supported. Provino installs and `provino --version` answers, but every test file fails with "The worker finished <file> without reporting its result". Use Yarn's `nodeLinker: node-modules`, or npm, pnpm or bun | Planned |
 
 ## Checking discovery against Jest's
 
