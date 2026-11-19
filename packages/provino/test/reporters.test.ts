@@ -4,7 +4,7 @@
 // colour, and the reporters `provino run` names.
 import assert from 'node:assert/strict'
 import { readFile, rm, writeFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { basename, join } from 'node:path'
 import type { Writable } from 'node:stream'
 import { describe, it } from 'node:test'
 import { run } from 'provino/node'
@@ -648,7 +648,7 @@ function pageData(html: string): {
   readonly files: readonly (readonly number[])[]
   readonly tests: readonly unknown[]
   readonly failures: readonly unknown[]
-  readonly root: string
+  readonly title: string
   readonly seed?: number
   readonly sample?: true
 } {
@@ -679,8 +679,10 @@ describe('the html reporter (B26 Phase 5, D146)', () => {
     ])
     assert.equal(data.tests.length, 2)
     assert.equal(data.failures.length, 1)
-    // The run's root, and no seed or sample label on a real run.
-    assert.equal(data.root, project.dir)
+    // The root's directory name stands for the run's root, which is written nowhere in the page, and
+    // there is no seed or sample label on a real run.
+    assert.equal(data.title, basename(project.dir))
+    assert.equal(html.includes(project.dir), false, 'the run’s path is in the page')
     assert.equal(data.seed, undefined)
     assert.equal(data.sample, undefined)
   })
@@ -731,6 +733,38 @@ describe('the html reporter (B26 Phase 5, D146)', () => {
     )
     assert.equal(viaConfig.code, 1, viaConfig.stderr)
     assert.equal(pageData(await readFile(configured, 'utf8')).tests.length, 2)
+  })
+
+  it('under provino jest, html beside the default reporter adds the page to Jest’s text, and alone prints no test result', async () => {
+    const project = await makeProject(mixed)
+    // Beside `default`: Jest's own text on stderr, and the page.
+    const both = join(project.dir, 'both.html')
+    const beside = await spawnCli(
+      [
+        'jest',
+        `--config=${jestConfigJson(project.dir, { reporters: ['default', ['html', { outputFile: both }]] })}`,
+      ],
+      { cwd: project.dir },
+    )
+    assert.equal(beside.code, 1, beside.stderr)
+    assert.match(beside.stderr, /FAIL .*tests\/bad\.test\.js/)
+    assert.match(beside.stderr, /PASS .*tests\/ok\.test\.js/)
+    assert.match(beside.stderr, /Tests: +1 failed, 1 passed, 2 total/)
+    assert.equal(beside.stdout, '')
+    assert.equal(pageData(await readFile(both, 'utf8')).tests.length, 2)
+    // Alone: the page is the only output of the run, which still fails it (html is not a terminal reporter).
+    const only = join(project.dir, 'only.html')
+    const alone = await spawnCli(
+      [
+        'jest',
+        `--config=${jestConfigJson(project.dir, { reporters: [['html', { outputFile: only }]] })}`,
+      ],
+      { cwd: project.dir },
+    )
+    assert.equal(alone.code, 1, alone.stderr)
+    assert.doesNotMatch(alone.stderr, /PASS|FAIL|Tests:|Test Suites:|Snapshots:|Time:/)
+    assert.equal(alone.stdout, '')
+    assert.equal(pageData(await readFile(only, 'utf8')).tests.length, 2)
   })
 
   it('beside json, --outputFile is json’s and html writes provino-report.html', async () => {
