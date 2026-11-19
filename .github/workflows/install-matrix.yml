@@ -103,7 +103,17 @@ jobs:
           install_pm() {
             case "$1" in
               npm-11) npm install -g npm@11; cmd=npm; want=11 ;;
-              npm-12) npm install -g npm@12; cmd=npm; want=12 ;;
+              npm-12)
+                # npm 12 declares `node: ^22.22.2 || ^24.15.0 || >=26`, so on Node 22.15 npm refuses
+                # itself (EBADENGINE). The cell is still the pairing the matrix names: force it past the
+                # engine check, with a warning, and see what Provino does under it.
+                npm install -g npm@12 || {
+                  echo "::warning::npm 12 does not support Node $(node --version); forcing it"
+                  npm install -g --force npm@12
+                }
+                cmd=npm
+                want=12
+                ;;
               pnpm-12) npm install -g pnpm@12; cmd=pnpm; want=12 ;;
               yarn-4-nm | yarn-4-pnp) npm install -g --force @yarnpkg/cli-dist@4; cmd=yarn; want=4 ;;
               bun) npm install -g bun@1; cmd=bun; want=1 ;;
