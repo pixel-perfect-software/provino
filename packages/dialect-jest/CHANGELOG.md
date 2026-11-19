@@ -1,5 +1,19 @@
 # @provino/dialect-jest
 
+## 0.1.0-rc.6
+
+### Patch Changes
+
+- Updated dependencies [984aef2]
+  - @provino/types@0.1.0-rc.6
+  - @provino/core@0.1.0-rc.6
+  - @provino/env-shared@0.1.0-rc.6
+  - @provino/expect@0.1.0-rc.6
+  - @provino/mock@0.1.0-rc.6
+  - @provino/policy@0.1.0-rc.6
+  - @provino/resolver@0.1.0-rc.6
+  - @provino/timers@0.1.0-rc.6
+
 ## 0.1.0-rc.5
 
 ### Patch Changes
