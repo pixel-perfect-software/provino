@@ -30,7 +30,7 @@ Status: **pre-alpha, built in phases** from the research in `docs/research/`. No
 
 ## Stack
 
-Node 24 for dev, with CI on 22.15+, 24 and 26 · **pnpm 12.18.x** workspaces with catalogs (D9) · **Turborepo 2.11.x** for per-package tasks; `tsc -b`, Biome and type tests stay root scripts (D12) · TypeScript 7.0.2 (`tsc -b`), plus a type-test job on 5.9.3 · tsdown 0.23 (Oxc d.ts) · ESM only · **Biome** for lint and format (D11) · dependency-cruiser 18.7 · Oxc (transform, resolver, parser) · valibot and Standard Schema. Our own tests use `node:test` (S1).
+Node 24 for dev, with CI on 22.15+, 24 and 26 · **pnpm 12.21.x** workspaces with catalogs (D9) · **Turborepo 2.11.x** for per-package tasks; `tsc -b`, Biome and type tests stay root scripts (D12) · TypeScript 7.0.2 (`tsc -b`), plus a type-test job on 5.9.3 · tsdown 0.23 (Oxc d.ts) · ESM only · **Biome** for lint and format (D11) · dependency-cruiser 18.7 · Oxc (transform, resolver, parser) · valibot and Standard Schema. Our own tests use `node:test` (S1).
 
 Track 1 §How we start → Toolchain gives version **ranges** (checked 2026-10-30). The bundle that first installs a tool pins the exact patch version, respecting `minimumReleaseAge`. **Install tools only when their bundle needs them:** knip, publint, attw, API Extractor and changesets arrived with T1.6 (B21e, 2026-11-12): knip 6.44.1, publint 0.3.25, attw 0.18.5, API Extractor 7.60.1 (it brings its own TypeScript 6.0.3) and changesets 3.0.3, all in the catalog.
 
