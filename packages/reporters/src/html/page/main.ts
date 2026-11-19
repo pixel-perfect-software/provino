@@ -95,8 +95,16 @@ export function renderReport(data: ReportData): void {
     parts.filter((part): part is string => typeof part === 'string').join(' · ')
   const nFail = (text: string): HTMLElement => el('span', { class: 'n-fail' }, text)
   const at = <T>(list: readonly T[], index: number): T => list[index] as T
-  const firstLine = (text: string): string =>
-    (text.split('\n').find((line) => line.trim() !== '') ?? '').trim()
+  // The first line with something on it, trimmed: found by scanning, not by splitting the text.
+  const firstLine = (text: string): string => {
+    for (let start = 0; ; ) {
+      const found = text.indexOf('\n', start)
+      const end = found === -1 ? text.length : found
+      const line = text.slice(start, end).trim()
+      if (line !== '' || found === -1) return line
+      start = end + 1
+    }
+  }
 
   // ---- The rows, read once
   interface FileModel {
@@ -221,16 +229,19 @@ export function renderReport(data: ReportData): void {
   // replacement.
   const placed = files.filter((file) => file.placed)
   const workerIds = Array.from(new Set(placed.map((file) => file.worker))).sort((a, b) => a - b)
+  const firstStart = new Map<number, number>()
+  const busyMs = new Map<number, number>()
+  for (const file of placed) {
+    firstStart.set(file.worker, Math.min(firstStart.get(file.worker) ?? file.start, file.start))
+    busyMs.set(file.worker, (busyMs.get(file.worker) ?? 0) + file.ms)
+  }
   const replaces = new Map<number, number>()
   for (const dead of crashed) {
     if (!dead.placed) continue
-    const later = workerIds.filter(
+    const next = workerIds.find(
       (id) =>
-        id !== dead.worker &&
-        !replaces.has(id) &&
-        placed.filter((file) => file.worker === id).every((file) => file.start >= dead.end),
+        id !== dead.worker && !replaces.has(id) && (firstStart.get(id) ?? Infinity) >= dead.end,
     )
-    const next = later[0]
     if (next !== undefined) replaces.set(next, dead.worker)
   }
 
@@ -731,15 +742,24 @@ export function renderReport(data: ReportData): void {
   const failureText = (text: string): HTMLElement => {
     const pre = el('pre', { role: 'group', 'aria-label': 'Failure output' })
     const code = el('code', null)
+    // Lines with no colour of their own are one text node between the coloured ones.
+    let plain = ''
     text.split('\n').forEach((line, index) => {
       const trimmed = line.trimStart()
       let cls = ''
       if (index === 0 || trimmed.startsWith('> ')) cls = 'hl'
-      else if (/^- /.test(trimmed)) cls = 'add'
-      else if (/^\+ /.test(trimmed)) cls = 'del'
+      else if (trimmed.startsWith('- ')) cls = 'add'
+      else if (trimmed.startsWith('+ ')) cls = 'del'
       else if (trimmed.startsWith('at ')) cls = 'dim-line'
-      code.append(cls === '' ? line : el('span', { class: cls }, line), '\n')
+      if (cls === '') {
+        plain += `${line}\n`
+        return
+      }
+      if (plain !== '') code.append(plain)
+      code.append(el('span', { class: cls }, line))
+      plain = '\n'
     })
+    if (plain !== '') code.append(plain)
     pre.append(code)
     return pre
   }
@@ -777,6 +797,30 @@ export function renderReport(data: ReportData): void {
       return
     }
     const list = el('ul', { class: 'failures' })
+    // A body is built when its row is first opened: a run with a thousand failures is a thousand
+    // rows, and each code frame is up to 16 KB of text.
+    const unbuilt = new WeakMap<Element, Entry>()
+    const fillBody = (body: Element): void => {
+      const entry = unbuilt.get(body)
+      if (entry === undefined) return
+      unbuilt.delete(body)
+      body.append(failureText(entry.text))
+      const { file } = entry
+      if (file === null) return
+      const links = el('div', { class: 'links' })
+      const showTest = el('button', { type: 'button' }, 'Show in Tests')
+      showTest.addEventListener('click', () => reveal(file.i))
+      links.append(showTest)
+      if (file.placed) {
+        const showTime = el('button', { type: 'button' }, `Show on worker ${file.worker}`)
+        showTime.addEventListener('click', () => {
+          select(4)
+          doc.getElementById(`t-f-${file.i}`)?.focus()
+        })
+        links.append(showTime)
+      }
+      body.append(links)
+    }
     shown.forEach((entry, index) => {
       const open = index === 0
       const bodyId = `fb-${index}`
@@ -811,32 +855,19 @@ export function renderReport(data: ReportData): void {
         ),
         el('span', { class: 'failure-first' }, firstLine(entry.text)),
       )
-      const links = el('div', { class: 'links' })
-      if (file !== null) {
-        const showTest = el('button', { type: 'button' }, 'Show in Tests')
-        showTest.addEventListener('click', () => reveal(file.i))
-        links.append(showTest)
-        if (file.placed) {
-          const showTime = el('button', { type: 'button' }, `Show on worker ${file.worker}`)
-          showTime.addEventListener('click', () => {
-            select(4)
-            doc.getElementById(`t-f-${file.i}`)?.focus()
-          })
-          links.append(showTime)
-        }
-      }
-      const body = el(
-        'div',
-        { class: 'failure-body', id: bodyId, hidden: !open },
-        failureText(entry.text),
-        links,
-      )
-      head.addEventListener('click', () => {
-        const next = head.getAttribute('aria-expanded') !== 'true'
-        head.setAttribute('aria-expanded', String(next))
-        body.hidden = !next
-      })
+      const body = el('div', { class: 'failure-body', id: bodyId, hidden: !open })
+      unbuilt.set(body, entry)
+      if (open) fillBody(body)
       list.append(el('li', { class: 'failure' }, head, body))
+    })
+    list.addEventListener('click', (event) => {
+      const head = (event.target as Element).closest('.failure-head')
+      const body = head?.nextElementSibling as HTMLElement | null | undefined
+      if (head === null || head === undefined || body === null || body === undefined) return
+      const next = head.getAttribute('aria-expanded') !== 'true'
+      head.setAttribute('aria-expanded', String(next))
+      if (next) fillBody(body)
+      body.hidden = !next
     })
     panel.append(list)
   }
@@ -1342,9 +1373,13 @@ export function renderReport(data: ReportData): void {
     query = ''
     statusFilter.clear()
     if (range !== null && !inRange(file)) setRange(null)
+    // A tree that is built now is built with the filters cleared; one that was there is built again.
+    const fresh = rendered[1] !== true
     select(1)
-    if (searchInput !== null) searchInput.value = ''
-    rebuildTree()
+    if (!fresh) {
+      if (searchInput !== null) searchInput.value = ''
+      rebuildTree()
+    }
     const folder = folderOf.get(file.i)
     const folderNode = folder === undefined ? undefined : folderItems.get(folder.key)
     if (folderNode !== undefined) setOpen(folderNode, true)
@@ -1562,13 +1597,37 @@ export function renderReport(data: ReportData): void {
   }
 
   // ---- Timeline: a lane for each worker, sized to its container
-  let timelineWidth: number | null = null
   renderers[4] = (panel) => {
     heading(panel, 4)
     const LANE = 22
-    const width = timelineWidth ?? Math.max(480, panel.clientWidth - 200)
-    const scale = (t: number): number => (t / duration) * width
     const labels = el('div', { class: 'lanes-labels', 'aria-hidden': 'true' }, el('div', null, ''))
+    for (const id of workerIds) {
+      const replaced = replaces.get(id)
+      labels.append(
+        el(
+          'div',
+          { class: replaced === undefined ? '' : 'replaced' },
+          replaced === undefined ? `worker ${id}` : `worker ${id} (took over from ${replaced})`,
+          el(
+            'span',
+            { class: 'busy' },
+            `${Math.round(((busyMs.get(id) ?? 0) / duration) * 100)}% busy`,
+          ),
+        ),
+      )
+    }
+    // The shell goes in first, so the chart is drawn at the room the labels leave it: measured once.
+    const scroller = el('div', { class: 'lanes-scroll' })
+    panel.append(
+      el(
+        'p',
+        { class: 'note' },
+        "Each bar is a file on the worker that ran it; gaps are idle time, and each worker's busy share is beside its name. Failed and crashed files can be reached with Tab.",
+      ),
+      el('div', { class: 'timeline' }, labels, scroller),
+    )
+    const width = Math.max(480, scroller.clientWidth)
+    const scale = (t: number): number => (t / duration) * width
     const chart = svg('svg', {
       width: '100%',
       height: (workerIds.length + 1) * LANE,
@@ -1594,20 +1653,8 @@ export function renderReport(data: ReportData): void {
       text.textContent = ms(t)
       chart.append(text)
     }
-    workerIds.forEach((id, lane) => {
+    workerIds.forEach((_id, lane) => {
       const y = (lane + 1) * LANE
-      const replaced = replaces.get(id)
-      const busy = placed
-        .filter((file) => file.worker === id)
-        .reduce((sum, file) => sum + file.ms, 0)
-      labels.append(
-        el(
-          'div',
-          { class: replaced === undefined ? '' : 'replaced' },
-          replaced === undefined ? `worker ${id}` : `worker ${id} (took over from ${replaced})`,
-          el('span', { class: 'busy' }, `${Math.round((busy / duration) * 100)}% busy`),
-        ),
-      )
       chart.append(svg('rect', { class: 'lane-track', x: 0, y: y + 2, width, height: LANE - 4 }))
       chart.append(
         svg('line', {
@@ -1649,26 +1696,7 @@ export function renderReport(data: ReportData): void {
       if (event.key !== 'Enter' && event.key !== ' ') return
       if (revealOf(event.target as Element)) event.preventDefault()
     })
-    const scroller = el('div', { class: 'lanes-scroll' }, chart)
-    panel.append(
-      el(
-        'p',
-        { class: 'note' },
-        "Each bar is a file on the worker that ran it; gaps are idle time, and each worker's busy share is beside its name. Failed and crashed files can be reached with Tab.",
-      ),
-      el('div', { class: 'timeline' }, labels, scroller),
-    )
-    if (
-      timelineWidth === null &&
-      scroller.clientWidth >= 480 &&
-      Math.abs(scroller.clientWidth - width) > 2
-    ) {
-      timelineWidth = scroller.clientWidth
-      panel.replaceChildren()
-      renderers[4]?.(panel)
-      timelineWidth = null
-      return
-    }
+    scroller.append(chart)
     const toggle = el(
       'button',
       { type: 'button', class: 'chip', 'aria-expanded': 'false', 'aria-controls': 'tl-table' },
