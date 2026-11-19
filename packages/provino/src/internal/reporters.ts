@@ -30,6 +30,7 @@ import { pinnedSink, pinnedStream } from './live-terminal.ts'
 import {
   BUILT_IN_REPORTERS,
   type BuiltInReporterName,
+  DOCUMENT_REPORTERS,
   type DocumentReporterName,
   isBuiltInReporter,
   isDocumentReporter,
@@ -119,6 +120,14 @@ export interface ReporterContext {
    * single-file rule, `selectsProvino`).
    */
   readonly fileCount?: () => Promise<number>
+}
+
+/** Makes the `html` reporter: `htmlReporter` of `@provino/reporters/html`, which `reportersFor` loads when it is chosen. */
+type MakeHtml = (options: HtmlReporterOptions) => Reporter
+
+/** What a reporter is built from: the run's context, and the `html` factory when `html` is chosen. */
+interface BuildContext extends ReporterContext {
+  readonly makeHtml?: MakeHtml
 }
 
 /**
@@ -251,19 +260,6 @@ function documentPath(
   return path
 }
 
-/**
- * The names of the reporters that write a document `documentReporter` builds: every document
- * reporter but `html`, which `htmlFor` builds (its code is loaded only when it is chosen).
- */
-type BuiltDocumentName = Exclude<DocumentReporterName, 'html'>
-
-/**
- * Where the `html` reporter writes when no `outputFile` says (D146: never stdout): in the run's
- * root.
- * @internal
- */
-export const DEFAULT_HTML_FILE = 'provino-report.html'
-
 /** The names `builtIn` builds: every built-in that is neither a document nor Provino's own. */
 type TextReporterName = Exclude<BuiltInReporterName, DocumentReporterName | 'provino'>
 
@@ -274,8 +270,7 @@ type TextReporterName = Exclude<BuiltInReporterName, DocumentReporterName | 'pro
  */
 export type ParsedChoice =
   | { readonly kind: 'text'; readonly name: TextReporterName }
-  | { readonly kind: 'document'; readonly name: BuiltDocumentName; readonly options: unknown }
-  | { readonly kind: 'html'; readonly options: Readonly<Record<string, unknown>> }
+  | { readonly kind: 'document'; readonly name: DocumentReporterName; readonly options: unknown }
   | { readonly kind: 'provino'; readonly options: ProvinoChoiceOptions }
   | { readonly kind: 'object'; readonly reporter: Reporter }
 
@@ -300,10 +295,6 @@ function provinoOptions(options: unknown): ProvinoChoiceOptions {
   return viewsOf(tree, map)
 }
 
-function isDocumentName(name: string): name is BuiltDocumentName {
-  return name !== 'html' && isDocumentReporter(name)
-}
-
 /**
  * The options of an `html` reporter choice, checked: `outputFile` (a string) and nothing else.
  */
@@ -326,21 +317,19 @@ function htmlOptions(options: unknown): Readonly<Record<string, unknown>> {
  */
 export function parseReporterChoice(choice: unknown): ParsedChoice {
   if (typeof choice === 'string' && isBuiltInReporter(choice)) {
-    if (choice === 'html') return { kind: 'html', options: {} }
     if (choice === 'provino') return { kind: 'provino', options: {} }
-    if (isDocumentName(choice)) return { kind: 'document', name: choice, options: undefined }
+    if (isDocumentReporter(choice)) return { kind: 'document', name: choice, options: undefined }
     // What is left of the built-in names after the three cases above.
     const name: TextReporterName = choice
     return { kind: 'text', name }
   }
   if (Array.isArray(choice)) {
     const [name, options, ...rest]: unknown[] = choice
-    if (rest.length === 0 && name === 'html') return { kind: 'html', options: htmlOptions(options) }
     if (rest.length === 0 && name === 'provino') {
       return { kind: 'provino', options: provinoOptions(options) }
     }
-    if (rest.length === 0 && typeof name === 'string' && isDocumentName(name)) {
-      return { kind: 'document', name, options }
+    if (rest.length === 0 && typeof name === 'string' && isDocumentReporter(name)) {
+      return { kind: 'document', name, options: name === 'html' ? htmlOptions(options) : options }
     }
   } else if (isReporter(choice)) {
     return { kind: 'object', reporter: choice }
@@ -363,7 +352,7 @@ export function hostReporterChoice(
   if (parsed.kind === 'provino') {
     return Object.keys(parsed.options).length === 0 ? 'provino' : ['provino', parsed.options]
   }
-  if (parsed.kind === 'html') {
+  if (parsed.kind === 'document' && parsed.name === 'html') {
     // Checked by `htmlOptions`: `outputFile` (a string) is all it can hold.
     const given = parsed.options as HtmlChoiceOptions
     return Object.keys(given).length === 0 ? 'html' : ['html', given]
@@ -371,15 +360,27 @@ export function hostReporterChoice(
   throw new UsageError(`unknown host reporter "${name}"`)
 }
 
-/** The reporter `name` names, writing its document where `options` say: `{ outputFile }`, or stdout without one. */
+/** The reporter `name` names, writing its document where `options` say: `{ outputFile }`, or where it writes without one. */
 function documentReporter(
-  name: BuiltDocumentName,
-  context: ReporterContext,
+  name: DocumentReporterName,
+  context: BuildContext,
   options: unknown,
 ): Built {
   const given = recordOptions(name, options)
   const path = documentPath(name, context, given)
   const { project } = context
+  if (name === 'html') {
+    const { makeHtml } = context
+    if (makeHtml === undefined) throw new Error('the html reporter is loaded by reportersFor')
+    const seed = context.text?.seed
+    return {
+      reporter: makeHtml({
+        outputFile: path ?? resolve(project.rootDir, DOCUMENT_REPORTERS.html),
+        ...(seed === undefined ? {} : { seed }),
+      }),
+      writes: 'file',
+    }
+  }
   // The stdout's own `write`, taken now: while a live footer routes the process's other stdout
   // writes above it, the document still goes where it was asked to.
   const target = path === undefined ? { stream: pinnedSink(context.stdout) } : { outputFile: path }
@@ -484,43 +485,13 @@ function builtIn(name: TextReporterName, context: ReporterContext, target: TextT
   }
 }
 
-/** Makes the `html` reporter: `htmlReporter` of `@provino/reporters/html`, which `reportersFor` loads when it is chosen. */
-type MakeHtml = (options: HtmlReporterOptions) => Reporter
-
-/**
- * The `html` reporter (B26 Phase 5): a page written to `outputFile` (relative to `cwd`), else
- * `provino-report.html` in the run's root, and never to stdout (D146). It is a document reporter,
- * so it goes last with the others.
- */
-function htmlFor(
-  context: ReporterContext,
-  options: Readonly<Record<string, unknown>>,
-  make: MakeHtml,
-): Built {
-  const outputFile =
-    documentPath('html', context, options) ?? resolve(context.project.rootDir, DEFAULT_HTML_FILE)
-  const seed = context.text?.seed
-  return {
-    reporter: make({ outputFile, ...(seed === undefined ? {} : { seed }) }),
-    writes: 'file',
-  }
-}
-
 /** Builds a checked choice; `provino` is built by `reportersFor` itself. */
-function reporterFor(
-  choice: ParsedChoice,
-  context: ReporterContext,
-  target: TextTarget,
-  makeHtml: MakeHtml | undefined,
-): Built {
+function reporterFor(choice: ParsedChoice, context: BuildContext, target: TextTarget): Built {
   switch (choice.kind) {
     case 'text':
       return builtIn(choice.name, context, target)
     case 'document':
       return documentReporter(choice.name, context, choice.options)
-    case 'html':
-      if (makeHtml === undefined) throw new Error('the html reporter is loaded by reportersFor')
-      return htmlFor(context, choice.options, makeHtml)
     case 'object':
       return text(choice.reporter)
     case 'provino':
@@ -692,17 +663,16 @@ export async function reportersFor(
       : undefined
   try {
     // The page's code is loaded by dynamic import only when `html` is chosen, as `provino`'s is.
-    const makeHtml = parsed.some((choice) => choice.kind === 'html')
+    const makeHtml = parsed.some((choice) => choice.kind === 'document' && choice.name === 'html')
       ? (await import('@provino/reporters/html')).htmlReporter
       : undefined
+    const building: BuildContext = { ...context, ...(makeHtml === undefined ? {} : { makeHtml }) }
     const drawing = provino !== undefined && output.live
     const target: TextTarget = drawing
       ? { stream: provino.terminal.passthrough, output: { ...output, live: false } }
       : { stream: context.stderr, output }
     const built = parsed.map((choice, index) =>
-      index === at && provino !== undefined
-        ? text(provino)
-        : reporterFor(choice, context, target, makeHtml),
+      index === at && provino !== undefined ? text(provino) : reporterFor(choice, building, target),
     )
     if (built.filter((entry) => entry.writes === 'stdout').length > 1) {
       throw new UsageError(
