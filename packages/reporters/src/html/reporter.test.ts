@@ -85,6 +85,10 @@ describe('htmlReporter', () => {
     assert.equal(data.durationMs, 40)
     assert.equal(data.workers, 4)
     assert.equal(data.startedAt, '2026-11-19T12:00:00.000Z')
+    // The run's root as the run named it; a real run carries no seed and no sample label.
+    assert.equal(data.root, '/project')
+    assert.equal(data.seed, undefined)
+    assert.equal(data.sample, undefined)
     const paths = data.files.map((row) => data.strings[row[0]])
     // The order they ended in, not the order they started in.
     assert.deepEqual(paths, [
@@ -152,6 +156,13 @@ describe('htmlReporter', () => {
       updated: 0,
       unchecked: 0,
     })
+  })
+
+  it('carries the seed and the sample mark it is given, and only then', async () => {
+    const { html } = await reportFor(TIMED_FIXTURE, { seed: 1827364, sample: true })
+    const data = dataOf(html)
+    assert.equal(data.seed, 1827364)
+    assert.equal(data.sample, true)
   })
 
   it('stamps the clock once at run:start and once at each file’s start and end, and nowhere else', async () => {

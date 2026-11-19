@@ -497,7 +497,11 @@ function htmlFor(context: ReporterContext, options: unknown, make: MakeHtml): Bu
   const given = isRecord(options) ? options : {}
   const root = context.project.rootDir
   const outputFile = documentPath('html', context, given) ?? resolve(root, DEFAULT_HTML_FILE)
-  return { reporter: make({ outputFile, root }), writes: 'file' }
+  const seed = context.text?.seed
+  return {
+    reporter: make({ outputFile, root, ...(seed === undefined ? {} : { seed }) }),
+    writes: 'file',
+  }
 }
 
 /** Builds a checked choice; `provino` is built by `reportersFor` itself. */

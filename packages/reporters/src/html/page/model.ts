@@ -55,8 +55,10 @@ export type EndReason = 'passed' | 'failed' | 'interrupted' | 'terminated' | 'ha
 /** Everything the page shows. */
 export interface ReportData {
   readonly version: 1
-  /** The page's heading: the project's directory name. */
+  /** The document's title: the project's directory name. */
   readonly title: string
+  /** The run's root, as the run named it: the page shows it beside the start time. */
+  readonly root: string
   /** The wall clock at the start of the run, ISO 8601. */
   readonly startedAt: string
   readonly durationMs: number
@@ -73,5 +75,9 @@ export interface ReportData {
   readonly runErrors: readonly string[]
   /** Failed tests whose text was not kept (the report keeps the first `MAX_FAILURES`). */
   readonly omitted: number
+  /** The seed of a randomized run, when the run shows one. */
+  readonly seed?: number
   readonly snapshots?: SnapshotTotals
+  /** Set when the run is a made-up sample, so the page says so. */
+  readonly sample?: true
 }

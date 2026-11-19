@@ -697,7 +697,7 @@ describe('the html reporter is its own chunk, and its page runs from the build (
       createElement: () => dom,
       createElementNS: () => dom,
     }
-    runInNewContext(script, { document, setTimeout: () => 0, clearTimeout: () => {} })
+    runInNewContext(script, { document, window: dom, setTimeout: () => 0, clearTimeout: () => {} })
     assert.ok(listeners.length >= 4, `the page registered ${listeners.length} listeners`)
     for (const listener of listeners) listener(dom)
   })

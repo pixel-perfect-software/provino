@@ -23,7 +23,8 @@ export function escapeHtml(text: string): string {
 /**
  * The page script's text: `renderReport` as `Function.prototype.toString()` has it (types already
  * erased, whether by Node's type stripping or by the build), called on the parsed data. Comment
- * lines go, lines lose their trailing spaces (where a stripped type was) and blank lines go;
+ * lines go, lines lose their indentation and their trailing spaces (where a stripped type was)
+ * and blank lines go;
  * `renderReport` has no multi-line template literal and no comment after code, which this would
  * change. Throws if the text could end its own `<script>` element.
  * @internal
@@ -33,6 +34,7 @@ export function pageScript(): string {
     .toString()
     .replaceAll('\r', '')
     .replace(/^[ \t]*\/\/.*$/gm, '')
+    .replace(/^[ \t]+/gm, '')
     .replace(/[ \t]+$/gm, '')
     .replace(/\n{2,}/g, '\n')
   const script = `(${body})(JSON.parse(document.getElementById(${JSON.stringify(DATA_ID)}).textContent))`

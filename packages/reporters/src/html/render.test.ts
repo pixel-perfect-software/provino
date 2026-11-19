@@ -7,6 +7,7 @@ import { contentSecurityPolicy, DATA_ID, escapeHtml, pageScript, renderDocument 
 const DATA: ReportData = {
   version: 1,
   title: 'project',
+  root: '/project',
   startedAt: '2026-11-19T12:00:00.000Z',
   durationMs: 10,
   reason: 'passed',

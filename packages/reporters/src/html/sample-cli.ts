@@ -40,6 +40,8 @@ for (const state of states) {
       root: '/project',
       now: clock.now,
       wallClock: () => Date.UTC(2026, 10, 19, 12, 0, 0),
+      seed: 1827364,
+      sample: true,
     }),
   ])
   await playSample(bus, state, clock)

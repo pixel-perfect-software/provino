@@ -648,6 +648,9 @@ function pageData(html: string): {
   readonly files: readonly (readonly number[])[]
   readonly tests: readonly unknown[]
   readonly failures: readonly unknown[]
+  readonly root: string
+  readonly seed?: number
+  readonly sample?: true
 } {
   const found = /<script type="application\/json" id="provino-data">([\s\S]*?)<\/script>/.exec(html)
   assert.ok(found?.[1] !== undefined, 'the page has no data script')
@@ -676,6 +679,28 @@ describe('the html reporter (B26 Phase 5, D146)', () => {
     ])
     assert.equal(data.tests.length, 2)
     assert.equal(data.failures.length, 1)
+    // The run's root, and no seed or sample label on a real run.
+    assert.equal(data.root, project.dir)
+    assert.equal(data.seed, undefined)
+    assert.equal(data.sample, undefined)
+  })
+
+  it('carries the seed of a run that shows one (--showSeed) into the page', async () => {
+    const project = await makeProject(mixed)
+    const ran = await spawnCli(
+      [
+        'jest',
+        `--config=${jestConfigJson(project.dir)}`,
+        '--reporters',
+        'html',
+        '--showSeed',
+        '--seed=7',
+      ],
+      { cwd: project.dir },
+    )
+    assert.equal(ran.code, 1, ran.stderr)
+    const data = pageData(await readFile(join(project.dir, 'provino-report.html'), 'utf8'))
+    assert.equal(data.seed, 7)
   })
 
   it('writes provino-report.html in the project root when it has no file, never to stdout', async () => {

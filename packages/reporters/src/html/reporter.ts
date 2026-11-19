@@ -37,6 +37,10 @@ export interface HtmlReporterOptions {
   readonly now?: () => number
   /** The wall clock in epoch milliseconds, for the run's start time. Default: `Date.now`. */
   readonly wallClock?: () => number
+  /** The seed of a randomized run (`--showSeed`, `--randomize`); the page shows it when there is one. */
+  readonly seed?: number
+  /** `true` for a made-up sample run (`sample-cli.ts`): the page says so. */
+  readonly sample?: true
 }
 
 /** How a worker's end reads in a crashed file's text when the file's own errors say nothing. */
@@ -199,6 +203,7 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
       const data: ReportData = {
         version: 1,
         title: basename(record.root) || record.root,
+        root: record.root,
         startedAt: record.startedAt,
         durationMs: Math.round(summary.durationMs),
         reason: summary.reason,
@@ -210,6 +215,8 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
         fileErrors,
         runErrors: record.runErrors.map(({ error }) => failureText([error], record.root)),
         omitted,
+        ...(options.seed === undefined ? {} : { seed: options.seed }),
+        ...(options.sample === true ? { sample: true as const } : {}),
         ...(counters === undefined || counters.total === 0
           ? {}
           : {
