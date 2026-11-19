@@ -38,7 +38,7 @@ Versions: `.changeset/config.json` has one `fixed` group of the 22 public packag
 
 ## The install matrix (B21h, T10.2, T10.3)
 
-`.github/workflows/install-matrix.yml` runs on `workflow_dispatch` (`gh workflow run install-matrix.yml`) and on a `pull_request` whose paths are that file or `src/smoke.ts`, and on nothing else (D168: no push, no schedule; it is not a merge gate). It is the one file where npm, npx, yarn and bun may appear (D75): they are what it tests. No lint reads it (`release-lint.ts` reads `release.yml` alone).
+`.github/workflows/install-matrix.yml` runs only on `workflow_dispatch` (`gh workflow run install-matrix.yml`), started by hand (D168: no pull request, no push, no schedule; it is not a merge gate). It is the one file where npm, npx, yarn and bun may appear (D75): they are what it tests. No lint reads it (`release-lint.ts` reads `release.yml` alone).
 
 - **`pack`** (ubuntu-24.04): a frozen install, `pnpm pack:all --out inputs/tarballs`, then `inputs/support/`: the three smoke files, written from `SMOKE_FILES` by importing `src/smoke.ts` (so they can't drift from it), and `support.sh`, a POSIX shell file the job writes from a heredoc in the workflow, so the shell every other job shares exists once. `inputs` is one artifact; `provino` is the only tarball an install uses, since it inlines every `@provino/*` package.
 - **`cell`**: {ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025} × {npm 11, npm 12, pnpm 12, yarn 4 with the node-modules linker, yarn 4 PnP, bun} × Node {22.15.0, 24, 26} (`matrix.node`), `fail-fast: false`, 20 minutes (72 cells; the slowest took about a minute). Each cell puts its package manager on PATH from npm (`install_pm`, which checks the major version), installs `provino` into an empty `app/`, and asserts `provino --version` prints the packed version and `provino jest --ci` ends with `Tests: 3 passed, 3 total`. A Linux cell installs from a Verdaccio 7 (`docker run`, config written by `registry_start`: `provino` and `@provino/*` have no uplink, everything else proxies npmjs) with the tarball published into it as it is; macOS and Windows have no Docker, so they install the tarball by relative path (`file:` for yarn).
@@ -77,4 +77,4 @@ Every check has a case that must fail, and a real-repo case that must pass.
 
 ## Not built (B21h, D73)
 
-The other B21h workflows (the instruction-count PR job, the nightly fuzz, `site-data`) are not built. The `pnpm hygiene` job is in `ci.yml`, `release.yml` and `install-matrix.yml` are built (above).
+The instruction-count PR job is dropped (D168: no CI job runs a measurement on its own); the nightly fuzz and `site-data` are not built. The `pnpm hygiene` job is in `ci.yml`, `release.yml` and `install-matrix.yml` are built (above).
