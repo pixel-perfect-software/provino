@@ -8,7 +8,6 @@
 // run is written every time (a fixed clock, a seeded stream), so a page can be compared before and
 // after a change to its styles or script.
 
-import { mkdir } from 'node:fs/promises'
 import { join, resolve } from 'node:path'
 import { createReporterBus } from '../bus.ts'
 import { htmlReporter } from './index.ts'
@@ -31,13 +30,11 @@ const states: readonly SampleState[] =
 
 for (const state of states) {
   const folder = resolve(dir, state)
-  await mkdir(folder, { recursive: true })
   const outputFile = join(folder, 'index.html')
   const clock = sampleClock()
   const bus = createReporterBus([
     htmlReporter({
       outputFile,
-      root: '/project',
       now: clock.now,
       wallClock: () => Date.UTC(2026, 10, 19, 12, 0, 0),
       seed: 1827364,

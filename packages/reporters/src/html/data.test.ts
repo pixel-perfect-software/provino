@@ -1,15 +1,15 @@
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
+import { cleanText } from '../internal/clean-text.ts'
 import {
   createStringTable,
   failureText,
   MAX_FAILURE_TEXT,
-  plainText,
-  type ReportData,
   roundMs,
   serializeData,
   TRUNCATED,
 } from './data.ts'
+import type { ReportData } from './page/model.ts'
 
 const EMPTY: ReportData = {
   version: 1,
@@ -17,7 +17,6 @@ const EMPTY: ReportData = {
   startedAt: '2026-11-19T12:00:00.000Z',
   durationMs: 10,
   reason: 'passed',
-  workers: 0,
   strings: [],
   files: [],
   tests: [],
@@ -89,13 +88,13 @@ describe('the text of a failure', () => {
 
   it('is the message and the user’s frames, with the run’s root left out of every path', () => {
     assert.equal(
-      failureText([error], '/project'),
+      failureText([error], ['/project']),
       'expect(received).toBe(expected)\n  at Object.<anonymous> (src/a.test.ts:3:15)',
     )
-    assert.equal(failureText([error], '/project/'), failureText([error], '/project'))
+    assert.equal(failureText([error], ['/project/']), failureText([error], ['/project']))
     // Another directory that ends the same way is not the root.
     assert.match(
-      failureText([{ ...error, message: 'see /other/project/src/b.ts' }], '/project'),
+      failureText([{ ...error, message: 'see /other/project/src/b.ts' }], ['/project']),
       /^see \/other\/project\/src\/b\.ts/,
     )
   })
@@ -117,38 +116,41 @@ describe('the text of a failure', () => {
       'boom\n  at a (src/a.test.ts:1:1)\n  at b (src/b.test.ts:2:2)',
     )
     // With the root alone the real path stays: that was the leak.
-    assert.match(failureText([frames], roots[0] as string), /\/private\/var\/folders\/x\/proj\/src/)
+    assert.match(
+      failureText([frames], [roots[0] as string]),
+      /\/private\/var\/folders\/x\/proj\/src/,
+    )
   })
 
   it('drops colour codes and control characters, and keeps tabs and newlines', () => {
     assert.equal(
-      plainText('\u001b[31mred\u001b[0m\tand\r\nmore\u0000\u0007\u001b]8;;x\u0007'),
+      cleanText('\u001b[31mred\u001b[0m\tand\r\nmore\u0000\u0007\u001b]8;;x\u0007', false),
       'red\tand\nmore',
     )
     assert.equal(
-      failureText([{ name: 'Error', message: '\u001b[32m+ ok\u001b[39m' }], '/project'),
+      failureText([{ name: 'Error', message: '\u001b[32m+ ok\u001b[39m' }], ['/project']),
       '+ ok',
     )
   })
 
   it('is cut at 16 KB, marked, and never splits a surrogate pair', () => {
-    const long = failureText([{ name: 'Error', message: 'x'.repeat(MAX_FAILURE_TEXT * 2) }], '/')
+    const long = failureText([{ name: 'Error', message: 'x'.repeat(MAX_FAILURE_TEXT * 2) }], [])
     assert.equal(long.length, MAX_FAILURE_TEXT)
     assert.ok(long.endsWith(TRUNCATED))
     // A pair that straddles the cut is dropped whole.
     const message = `${'x'.repeat(MAX_FAILURE_TEXT - TRUNCATED.length - 1)}😀${'y'.repeat(100)}`
-    const cut = failureText([{ name: 'Error', message }], '/')
+    const cut = failureText([{ name: 'Error', message }], [])
     assert.ok(cut.length <= MAX_FAILURE_TEXT)
     assert.doesNotMatch(cut, /[\ud800-\udbff](?![\udc00-\udfff])/)
     // Text at the limit is kept whole.
     const exact = 'z'.repeat(MAX_FAILURE_TEXT)
-    assert.equal(failureText([{ name: 'Error', message: exact }], '/'), exact)
+    assert.equal(failureText([{ name: 'Error', message: exact }], []), exact)
   })
 
   it('names the cause and each of several errors', () => {
     const text = failureText(
       [{ name: 'Error', message: 'outer', cause: { name: 'TypeError', message: 'inner' } }],
-      '/project',
+      ['/project'],
     )
     assert.equal(text, 'outer\n\nCaused by:\n  TypeError: inner')
   })

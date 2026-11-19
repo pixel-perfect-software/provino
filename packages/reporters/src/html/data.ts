@@ -2,29 +2,18 @@
 // one way the data is written into the page. Pure: no clock, no file.
 
 import type { SerializedError } from '@provino/types'
+import { CUT_NOTE, cleanText, MAX_ERROR_TEXT } from '../internal/clean-text.ts'
 import { formatErrors } from '../text/format.ts'
 import type { ReportData } from './page/model.ts'
 
-export type {
-  EndReason,
-  FailureRow,
-  FileErrorRow,
-  FileRow,
-  FileStatus,
-  ReportData,
-  SnapshotTotals,
-  TestRow,
-  TestStatus,
-} from './page/model.ts'
-
 /** The longest text one failure keeps, in characters. */
-export const MAX_FAILURE_TEXT: number = 16 * 1024
+export const MAX_FAILURE_TEXT: number = MAX_ERROR_TEXT
 
-/** The failed tests whose text a report keeps; the rest are counted (`ReportData.omitted`). */
+/** The failures of each kind (failed tests, a file's own errors, errors outside the files) whose text a report keeps; the rest are counted (`ReportData.omitted`). */
 export const MAX_FAILURES: number = 1000
 
 /** The marker that ends a failure's text when it was cut. */
-export const TRUNCATED = '\n… (cut at 16 KB)'
+export const TRUNCATED: string = CUT_NOTE
 
 /**
  * Every path, title and project name once: rows hold the ids.
@@ -62,21 +51,6 @@ export function roundMs(ms: number): number {
   return Math.round(ms * 10) / 10
 }
 
-// The patterns are assembled from named parts so no control character is typed in a literal.
-/** C0 but tab and newline, DEL and C1. */
-const CONTROLS = String.raw`\u0000-\u0008\u000b-\u001f\u007f-\u009f`
-const ESCAPE = String.raw`\u001b(?:\[[0-?]*[ -/]*[@-~]|\][^\u0007\u001b]*(?:\u0007|\u001b\\)?|[@-Z\\-_])`
-const DROP = new RegExp(`${ESCAPE}|[${CONTROLS}]`, 'g')
-
-/**
- * `text` with its escape sequences and control characters dropped (a failure's colours are the
- * terminal's: the page has its own), `\r\n` made `\n`.
- * @internal
- */
-export function plainText(text: string): string {
-  return text.replaceAll('\r\n', '\n').replace(DROP, '')
-}
-
 /** `text` cut to `MAX_FAILURE_TEXT` characters, without splitting a surrogate pair. */
 function capped(text: string): string {
   if (text.length <= MAX_FAILURE_TEXT) return text
@@ -89,16 +63,13 @@ function capped(text: string): string {
 /**
  * The text of a failure: the errors as the text reporters print them (message, the user's frames,
  * then the cause), with the run's root left out of every path, colours dropped, and at most
- * `MAX_FAILURE_TEXT` characters. `roots` is the root as the run named it and, when it differs, its
- * real path (a frame holds the real path of a symlinked root, as `/private/var/…` for `/var/…`).
+ * `MAX_FAILURE_TEXT` characters. `roots` is the root as the run named it and its real path (a
+ * frame holds the real path of a symlinked root, as `/private/var/…` for `/var/…`).
  * @internal
  */
-export function failureText(
-  errors: readonly SerializedError[],
-  roots: string | readonly string[],
-): string {
-  let text = plainText(formatErrors(errors))
-  for (const root of typeof roots === 'string' ? [roots] : roots) {
+export function failureText(errors: readonly SerializedError[], roots: readonly string[]): string {
+  let text = cleanText(formatErrors(errors), false)
+  for (const root of roots) {
     for (const prefix of rootPrefixes(root)) text = text.replace(rootPattern(prefix), '$1')
   }
   return capped(text)
@@ -114,7 +85,7 @@ function rootPattern(prefix: string): RegExp {
 function rootPrefixes(root: string): readonly string[] {
   if (root === '' || root === '/') return []
   const trimmed = root.replace(/[\\/]+$/, '')
-  return [...new Set([`${trimmed}/`, `${trimmed}\\`, `file://${trimmed}/`])]
+  return [`${trimmed}/`, `${trimmed}\\`, `file://${trimmed}/`]
 }
 
 /**

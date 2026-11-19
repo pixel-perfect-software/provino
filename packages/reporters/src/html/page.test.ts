@@ -740,7 +740,7 @@ function fileIndexOf(page: Page, path: string): string {
 }
 
 /** Plays a sample state through the reporter and reads the page it wrote. */
-async function sampleHtml(state: SampleState, options: { root?: string } = {}): Promise<string> {
+async function sampleHtml(state: SampleState): Promise<string> {
   const clock = sampleClock()
   const dir = await mkdtemp(join(tmpdir(), `provino-html-${state}-`))
   try {
@@ -748,7 +748,6 @@ async function sampleHtml(state: SampleState, options: { root?: string } = {}): 
     const bus = createReporterBus([
       htmlReporter({
         outputFile,
-        root: options.root ?? '/project',
         now: clock.now,
         seed: 1827364,
         sample: true,
@@ -822,6 +821,9 @@ describe('the report page, on other runs', () => {
     // The crash has a row with its text and its worker's link; the run's own error has a row of its own.
     const crash = all(page, '.failure').find((row) => text(row).includes('native-addon'))
     assert.ok(crash !== undefined)
+    // A row's body is built when it is opened.
+    assert.equal(crash.querySelector('pre'), null)
+    click(page, crash.querySelector('.failure-head') as Element)
     assert.match(text(crash.querySelector('pre')), /SIGSEGV/)
     assert.match(text(crash.querySelector('.failure-title')), /^crashed: /)
     assert.match(text(crash.querySelector('.links')), /Show on worker \d+/)
@@ -1211,5 +1213,271 @@ describe('the report page, focus and names', async () => {
       assert.equal(all(page, 'main').length, 1)
       assertClean(page)
     }
+  })
+})
+
+describe('the report page, redrawing and the tree’s keys', async () => {
+  const { html } = await reportFor()
+
+  it('draws one timeline after a resize on another tab: the stale one is cleared, not added to', () => {
+    const page = load(html)
+    open(page, 'Timeline')
+    assert.equal(all(page, '.timeline').length, 1)
+    open(page, 'Map')
+    page.window.dispatchEvent(new page.window.Event('resize'))
+    page.flush()
+    // Not on screen, so nothing is built for it until it is.
+    assert.equal(one(page, '#panel-4').childElementCount, 0)
+    open(page, 'Timeline')
+    assert.equal(all(page, '.timeline').length, 1)
+    assert.equal(all(page, '#tl-table').length, 1)
+    assert.equal(all(page, '[id^="t-f-"]').length, 8)
+    // A resize on the Timeline itself draws it again in place.
+    page.window.dispatchEvent(new page.window.Event('resize'))
+    page.flush()
+    assert.equal(all(page, '.timeline').length, 1)
+    assert.equal(all(page, '#tl-table').length, 1)
+    assertClean(page)
+  })
+
+  it('draws only the tab on screen when the range changes, and the others when they are next shown', () => {
+    const page = load(html)
+    open(page, 'Tests')
+    open(page, 'Folders')
+    open(page, 'Map')
+    applyRange(page, '0', '0.015')
+    // Map is on screen and drawn for the range; Tests and Folders were drawn and are cleared.
+    assert.equal(all(page, '#panel-2 .cell.dim').length, 3)
+    assert.equal(one(page, '#panel-1').childElementCount, 0)
+    assert.equal(one(page, '#panel-3').childElementCount, 0)
+    // Shown again, each is drawn for the range.
+    open(page, 'Tests')
+    assert.equal(all(page, '.node.k-file').length, 5)
+    open(page, 'Folders')
+    assert.equal(text(all(page, '.folders tbody td')[2]), '26 ms')
+    click(page, one(page, '.range button:not([aria-controls])'))
+    open(page, 'Tests')
+    assert.equal(all(page, '.node.k-file').length, 8)
+    assertClean(page)
+  })
+
+  it('leaves the tree a tab stop after a range is set on another tab', () => {
+    const page = load(html)
+    open(page, 'Tests')
+    open(page, 'Map')
+    applyRange(page, '0', '0.015')
+    open(page, 'Tests')
+    const stops = all(page, '[role="treeitem"]').filter((item) => item.tabIndex === 0)
+    assert.equal(stops.length, 1)
+    assert.equal(stops[0], one(page, '.treeitem'))
+    // And a key moves from it.
+    stops[0]?.focus()
+    press(page, stops[0] as Element, 'ArrowDown')
+    assert.notEqual(page.document.activeElement, stops[0])
+    assert.equal(page.document.activeElement?.getAttribute('role'), 'treeitem')
+    assertClean(page)
+  })
+
+  it('walks the tree in document order with Down and back with Up, through open and closed groups', () => {
+    const page = load(html)
+    open(page, 'Tests')
+    // Open a few more levels, so the walk goes in and out of groups.
+    for (const path of ['math.test.ts', 'skipped.test.ts']) {
+      const item = fileItem(page, path)
+      item.focus()
+      press(page, item, 'ArrowRight')
+    }
+    const shown = (): HTMLElement[] =>
+      all(page, '[role="treeitem"]').filter(
+        (item) => item.parentElement?.closest('[hidden]') == null,
+      )
+    const order = shown()
+    assert.ok(order.length > 10, `only ${order.length} items shown`)
+    const first = order[0] as HTMLElement
+    first.focus()
+    const down: Element[] = [first]
+    for (let step = 1; step < order.length; step++) {
+      press(page, page.document.activeElement as Element, 'ArrowDown')
+      down.push(page.document.activeElement as Element)
+    }
+    assert.deepEqual(down, order)
+    // Down on the last item stays on it, and End goes to it from anywhere.
+    const last = order[order.length - 1] as HTMLElement
+    press(page, last, 'ArrowDown')
+    assert.equal(page.document.activeElement, last)
+    first.focus()
+    press(page, first, 'End')
+    assert.equal(page.document.activeElement, last)
+    const up: Element[] = [last]
+    for (let step = 1; step < order.length; step++) {
+      press(page, page.document.activeElement as Element, 'ArrowUp')
+      up.push(page.document.activeElement as Element)
+    }
+    assert.deepEqual(up, [...order].reverse())
+    // Up on the first stays on it, and Home returns to it.
+    press(page, first, 'ArrowUp')
+    assert.equal(page.document.activeElement, first)
+    last.focus()
+    press(page, last, 'Home')
+    assert.equal(page.document.activeElement, first)
+    assertClean(page)
+  })
+})
+
+describe('the report page, with more failures than the report keeps the text of', () => {
+  it('lists every failed file, the ones past the cap without text, and says how many', async () => {
+    const files: TimedFile[] = Array.from({ length: 2000 }, (_, n) => ({
+      spec: {
+        path: `broken-${n}.test.ts`,
+        state: 'fail' as const,
+        errors: [{ name: 'Error', message: 'y'.repeat(100) }],
+      },
+      workerId: 0,
+      startMs: n,
+      endMs: n + 1,
+    }))
+    const { html } = await reportFor(files)
+    const page = load(html)
+    assertClean(page)
+    assert.equal(all(page, '.failure').length, 2000)
+    assert.match(
+      text(one(page, '.note')),
+      /^1,000 more failures are listed without text: the report keeps the text of 1,000 of 2,000\.$/,
+    )
+    // The ones past the cap say so where their text would be.
+    const heads = all(page, '.failure-first').map(text)
+    assert.equal(
+      heads.filter((line) => line.startsWith('Failed (the report keeps no text')).length,
+      1000,
+    )
+    assert.equal(headline(page), '2,000 files failed to run')
+  })
+})
+
+describe('the report page, building only what is shown', async () => {
+  const { html } = await reportFor()
+
+  it('builds a failure’s body when its row is first opened, and not again', () => {
+    const page = load(html)
+    const rows = all(page, '.failure')
+    assert.equal(rows.length, 3)
+    const bodies = all(page, '.failure-body')
+    // Every head still controls a body that is in the document; only the open first row has content.
+    for (const row of rows) {
+      const head = row.querySelector('.failure-head') as Element
+      assert.equal(row.querySelector('.failure-body')?.id, head.getAttribute('aria-controls'))
+    }
+    assert.deepEqual(
+      bodies.map((body) => body.childElementCount),
+      [2, 0, 0],
+    )
+    assert.deepEqual(
+      bodies.map((body) => body.hidden),
+      [false, true, true],
+    )
+    // Opening the second builds its frame and its links; closing and opening again adds nothing.
+    const head = rows[1]?.querySelector('.failure-head') as Element
+    click(page, head)
+    assert.equal(head.getAttribute('aria-expanded'), 'true')
+    assert.equal(bodies[1]?.hidden, false)
+    assert.equal(bodies[1]?.querySelectorAll('pre').length, 1)
+    assert.match(text(bodies[1]?.querySelector('.links')), /^Show in Tests/)
+    click(page, head)
+    assert.equal(bodies[1]?.hidden, true)
+    assert.equal(head.getAttribute('aria-expanded'), 'false')
+    click(page, head)
+    assert.equal(bodies[1]?.querySelectorAll('pre').length, 1)
+    assert.equal(bodies[1]?.querySelectorAll('.links').length, 1)
+    // A click in the body is not a click on the row.
+    click(page, bodies[1]?.querySelector('pre') as Element)
+    assert.equal(head.getAttribute('aria-expanded'), 'true')
+    assert.equal(bodies[1]?.hidden, false)
+    // A link in the body works as it did: it takes the failure to its file.
+    click(page, bodies[1]?.querySelector('.links button') as Element)
+    assert.equal(one(page, '#tab-1').getAttribute('aria-selected'), 'true')
+    assertClean(page)
+  })
+
+  it('writes a code frame as a few text nodes between its coloured lines, with the same text', () => {
+    const page = load(html)
+    const frame = one(page, '.failure-body pre code')
+    const nodes = [...frame.childNodes]
+    // No two text nodes side by side: each run of plain lines is one.
+    nodes.forEach((node, index) => {
+      if (index > 0) assert.ok(node.nodeType === 1 || nodes[index - 1]?.nodeType === 1)
+    })
+    assert.ok(frame.querySelector('.hl'))
+    assert.equal(frame.textContent?.endsWith('\n'), true)
+    // The row's first line is the first line with something on it.
+    const first = one(page, '.failure-first')
+    assert.equal(
+      text(first),
+      (frame.textContent ?? '')
+        .split('\n')
+        .find((line) => line.trim() !== '')
+        ?.trim(),
+    )
+  })
+
+  it('builds the tree once when a file is revealed: fresh from another tab, or again when it was there', () => {
+    const page = load(html)
+    const proto = page.window.Element.prototype
+    const append = proto.append
+    let builds = 0
+    proto.append = function (this: Element, ...nodes: (Node | string)[]) {
+      if (
+        nodes.some(
+          (node) => typeof node !== 'string' && (node as Element).classList?.contains('tree'),
+        )
+      ) {
+        builds++
+      }
+      return append.apply(this, nodes)
+    }
+    // Tests has never been shown: opening a file from the Map builds it once.
+    open(page, 'Map')
+    click(page, all(page, '.map-grid button.cell')[0] as Element)
+    assert.equal(builds, 1)
+    assert.equal(one(page, '#tab-1').getAttribute('aria-selected'), 'true')
+    assert.ok(all(page, '.node.is-active').length === 1)
+    // Tests is there: it is built again for the file, once.
+    builds = 0
+    open(page, 'Map')
+    click(page, all(page, '.map-grid button.cell')[3] as Element)
+    assert.equal(builds, 1)
+    assert.ok(all(page, '.node.is-active').length === 1)
+    assertClean(page)
+  })
+
+  it('draws the timeline once, at the width the room measures', () => {
+    const page = load(html)
+    Object.defineProperty(page.window.HTMLElement.prototype, 'clientWidth', {
+      configurable: true,
+      get(this: HTMLElement) {
+        return this.classList.contains('lanes-scroll') ? 1000 : 0
+      },
+    })
+    const proto = page.window.Element.prototype
+    const append = proto.append
+    let charts = 0
+    proto.append = function (this: Element, ...nodes: (Node | string)[]) {
+      if (
+        nodes.some(
+          (node) =>
+            typeof node !== 'string' &&
+            (node as Element).getAttribute?.('role') === 'group' &&
+            (node as Element).localName === 'svg',
+        )
+      ) {
+        charts++
+      }
+      return append.apply(this, nodes)
+    }
+    open(page, 'Timeline')
+    assert.equal(charts, 1)
+    assert.equal(all(page, '.timeline').length, 1)
+    assert.equal(one(page, '.lanes-scroll svg').getAttribute('viewBox'), '0 0 1000 88')
+    assert.equal(all(page, '.t-slice').length, 8)
+    assertClean(page)
   })
 })

@@ -8,7 +8,7 @@
 // 1 px hairline and a percentage. The markup's class names are the hooks:
 //   status:   icon, s-pass s-fail s-skip s-todo s-crash s-notrun, sr-only, sprite
 //   verdict:  verdict (is-fail), verdict-main, glyph, fields, n-fail, where, synthetic
-//   overview: overview, overview-head, ov-desc, range, range-form, lane-track, slice (s-<status>), brush, dim, axis
+//   overview: overview, overview-head, ov-desc, ov-chart, range, range-form, lane-track, slice (s-<status>), brush, dim, axis
 //   tabs:     tabbar, tabs, tab, count, panel, toolbar, spaced, search, chip, note
 //   failures: failures, failure, failure-head, failure-file, failure-title, sep, failure-first,
 //             failure-ms, failure-body, links, hl, add, del, dim-line
@@ -132,6 +132,7 @@ html { scroll-padding-top: var(--tabbar-h); scrollbar-gutter: stable; background
 body { margin: 0; min-width: 0; font: 400 var(--t-md)/1.45 var(--font); font-variant-numeric: tabular-nums; }
 ::selection { background: var(--accent-wash); color: var(--ink); }
 :focus-visible { outline: var(--ring) solid var(--accent); outline-offset: var(--s-1); border-radius: var(--r-cell); }
+[hidden] { display: none !important; }
 button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 a { color: var(--accent); text-underline-offset: var(--s-1); }
 code, pre, .mono { font-family: var(--mono); font-size: var(--t-sm); }
@@ -169,14 +170,11 @@ h1, h2, h3, p, ul, dl, dd { margin: 0; }
 .overview-head h2 { font-size: var(--t-xs); font-weight: 600; text-transform: uppercase; letter-spacing: var(--tracking); color: var(--ink-2); }
 .range { margin-left: auto; display: flex; gap: var(--s-3); align-items: baseline; color: var(--ink-2); }
 .range button, .links button { display: inline-flex; align-items: center; min-height: var(--chip-h); margin-block: calc(var(--s-2) * -1); color: var(--accent); text-decoration: underline; text-underline-offset: var(--s-1); }
-.range button[hidden] { display: none; }
 .range-form { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-2) var(--s-3); margin: 0 0 var(--s-3); font-size: var(--t-sm); color: var(--ink-2); }
-.range-form[hidden] { display: none; }
 .range-form input { width: var(--input-w); height: var(--chip-h); padding: 0 var(--s-2); font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--ink-3); border-radius: var(--r-field); }
 .range-form input[aria-invalid="true"] { border: var(--ring) solid var(--fail); }
 .field-error { display: flex; align-items: center; gap: var(--s-2); flex: 0 0 100%; color: var(--fail); font-weight: 600; }
-.field-error[hidden] { display: none; }
-.overview > svg { display: block; width: 100%; height: var(--ov-h); cursor: crosshair; touch-action: none; }
+.ov-chart { display: block; width: 100%; height: var(--ov-h); cursor: crosshair; touch-action: none; }
 .lane-track { fill: var(--idle); }
 .slice { fill: hsl(var(--h, 210) var(--slice-s) var(--slice-l)); stroke: var(--bg); stroke-width: 1px; vector-effect: non-scaling-stroke; }
 .slice.s-fail { fill: url(#p-fail); }
@@ -196,7 +194,6 @@ h1, h2, h3, p, ul, dl, dd { margin: 0; }
 .tab .count { color: var(--ink-3); font-weight: 400; }
 .tab .count.n-fail { color: var(--fail); font-weight: 600; }
 .panel { padding: var(--s-4) var(--s-5) var(--s-6); }
-.panel[hidden] { display: none; }
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-3); margin-bottom: var(--s-3); }
 .toolbar.spaced { margin-top: var(--s-4); }
 .search { flex: 1 1 var(--search-min); max-width: var(--search-max); height: var(--search-h); padding: 0 var(--s-3); font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--ink-3); border-radius: var(--r-field); }

@@ -2,21 +2,18 @@ import { realpathSync } from 'node:fs'
 import { basename, resolve } from 'node:path'
 import type { FileResult, Reporter, TaskId, WorkerExit } from '@provino/types'
 import { createCollector, outcomeOf, suiteErrorsOf } from '../internal/collect.ts'
-import { fileKind } from '../internal/views/folders.ts'
+import { type FileKind, fileKind } from '../internal/views/folders.ts'
 import { writeAtomically } from '../internal/write-file.ts'
-import {
-  createStringTable,
-  type FailureRow,
-  type FileErrorRow,
-  type FileRow,
-  type FileStatus,
-  failureText,
-  MAX_FAILURES,
-  type ReportData,
-  roundMs,
-  type TestRow,
-  type TestStatus,
-} from './data.ts'
+import { createStringTable, failureText, MAX_FAILURES, roundMs } from './data.ts'
+import type {
+  FailureRow,
+  FileErrorRow,
+  FileRow,
+  FileStatus,
+  ReportData,
+  TestRow,
+  TestStatus,
+} from './page/model.ts'
 import { renderDocument } from './render.ts'
 
 /**
@@ -26,11 +23,6 @@ import { renderDocument } from './render.ts'
 export interface HtmlReporterOptions {
   /** Where the page is written, atomically; its directory is created. The page is never written to a stream. */
   readonly outputFile: string
-  /**
-   * The project root that stack frames in failure text are shown relative to, until `run:start`
-   * names the run's. Default: `process.cwd()`.
-   */
-  readonly root?: string
   /**
    * A monotonic clock in milliseconds, read when a file starts and when it ends, for the timeline
    * (D139). Default: `performance.now`.
@@ -58,6 +50,57 @@ function describeExit(exit: WorkerExit): string {
   }
 }
 
+/** A test that ended in a state other than a pass, as the data writes it (4: it never ended). */
+const TEST_STATUS: Readonly<Record<string, TestStatus>> = {
+  queued: 4,
+  running: 4,
+  skip: 2,
+  todo: 3,
+}
+
+/** A file's kind as the data writes it. */
+const FILE_STATUS: Readonly<Record<FileKind, FileStatus>> = { pass: 0, fail: 1, skip: 2, todo: 3 }
+
+/** The root as the run named it and, when it differs, its real path (a symlinked root's frames hold that). */
+function rootsOf(named: string): readonly string[] {
+  let real = named
+  try {
+    real = realpathSync(named)
+  } catch {
+    // A root that can't be resolved is left as it was named.
+  }
+  return real === named ? [named] : [named, real]
+}
+
+/** What one run keeps: compact rows over one string table, and where each started file is. */
+function newRun(): {
+  table: ReturnType<typeof createStringTable>
+  files: FileRow[]
+  tests: TestRow[]
+  failures: FailureRow[]
+  fileErrors: FileErrorRow[]
+  omitted: number
+  /** File errors whose text is kept: at most `MAX_FAILURES`, as the failed tests' are. */
+  fileTexts: number
+  /** Files that started and have not ended: where and when. */
+  running: Map<TaskId, { readonly startMs: number; readonly workerId: number }>
+  compacted: Set<TaskId>
+  roots: readonly string[]
+} {
+  return {
+    table: createStringTable(),
+    files: [],
+    tests: [],
+    failures: [],
+    fileErrors: [],
+    omitted: 0,
+    fileTexts: 0,
+    running: new Map(),
+    compacted: new Set(),
+    roots: [],
+  }
+}
+
 /**
  * The HTML reporter: one self-contained page at `run:end`, written to `outputFile`, with a summary,
  * a searchable test tree, a status map, time by folder and a per-worker timeline. It makes no
@@ -74,35 +117,11 @@ function describeExit(exit: WorkerExit): string {
 export function htmlReporter(options: HtmlReporterOptions): Reporter {
   const now = options.now ?? ((): number => performance.now())
   const { record, handlers, release, isReleased } = createCollector({
-    ...(options.root === undefined ? {} : { cwd: options.root }),
     ...(options.wallClock === undefined ? {} : { now: options.wallClock }),
     console: false,
   })
-  let table = createStringTable()
-  let files: FileRow[] = []
-  let tests: TestRow[] = []
-  let failures: FailureRow[] = []
-  let fileErrors: FileErrorRow[] = []
-  let omitted = 0
-  let workers = 0
+  let run = newRun()
   let origin = 0
-  /** The root as the run named it and its real path, for the paths in failure text; made at the first failure. */
-  let roots: string[] | null = null
-  function rootsOf(): readonly string[] {
-    if (roots !== null) return roots
-    const named = record.root
-    let real = named
-    try {
-      real = realpathSync(named)
-    } catch {
-      // A root that can't be resolved is left as it was named.
-    }
-    roots = real === named ? [named] : [named, real]
-    return roots
-  }
-  /** Files that started and have not ended: where and when. */
-  let running = new Map<TaskId, { readonly startMs: number; readonly workerId: number }>()
-  let compacted = new Set<TaskId>()
 
   /**
    * The file as rows, once: its tests, its own error text and its place on the timeline. `endMs` is
@@ -111,6 +130,7 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
    */
   function compact(result: FileResult, endMs: number): void {
     const { file } = result
+    const { table, files, tests, failures, fileErrors, running, compacted, roots } = run
     if (compacted.has(file.fileId)) return
     compacted.add(file.fileId)
     const entry = record.files.get(file.fileId)
@@ -128,9 +148,8 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
         const state = outcome.result?.state
         let status: TestStatus = 0
         if (outcome.failed) status = 1
-        else if (state === undefined || state === 'queued' || state === 'running') status = 4
-        else if (state === 'skip') status = 2
-        else if (state === 'todo') status = 3
+        else if (state === undefined) status = 4
+        else status = TEST_STATUS[state] ?? 0
         if (status !== 4) ended++
         if (status === 1) failed++
         if (status === 2 || status === 3) skipped++
@@ -143,9 +162,9 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
         ])
         if (status !== 1) continue
         if (failures.length < MAX_FAILURES) {
-          failures.push([tests.length - 1, failureText(outcome.errors, rootsOf())])
+          failures.push([tests.length - 1, failureText(outcome.errors, roots)])
         } else {
-          omitted++
+          run.omitted++
         }
       }
     }
@@ -153,20 +172,26 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
       entry === undefined
         ? result.errors
         : [...result.errors, ...suiteErrorsOf(entry), ...entry.unhandled]
-    const crashed = result.workerExit !== undefined
-    let ownText = own.length === 0 ? '' : failureText(own, rootsOf())
-    if (crashed && ownText === '' && result.workerExit !== undefined) {
-      ownText = `The worker ${describeExit(result.workerExit)} while it ran this file.`
+    if (own.length > 0 || result.workerExit !== undefined) {
+      if (run.fileTexts < MAX_FAILURES) {
+        let ownText = own.length === 0 ? '' : failureText(own, roots)
+        if (ownText === '' && result.workerExit !== undefined) {
+          ownText = `The worker ${describeExit(result.workerExit)} while it ran this file.`
+        }
+        if (ownText !== '') {
+          fileErrors.push([fileIndex, ownText])
+          run.fileTexts++
+        }
+      } else {
+        // Past the budget the file still has its error, and the page says its text is not kept.
+        fileErrors.push([fileIndex, ''])
+        run.omitted++
+      }
     }
-    if (ownText !== '') fileErrors.push([fileIndex, ownText])
-    let status: FileStatus = 4
-    if (!crashed) {
-      const kind = failed > 0 ? 'fail' : fileKind(result.state, ended, skipped, todo)
-      status = kind === 'pass' ? 0 : kind === 'fail' ? 1 : kind === 'skip' ? 2 : 3
-    }
+    const kind = failed > 0 ? 'fail' : fileKind(result.state, ended, skipped, todo)
     files.push([
       table.intern(file.runPath ?? file.path),
-      status,
+      result.workerExit === undefined ? FILE_STATUS[kind] : 4,
       roundMs(result.durationMs),
       timing?.workerId ?? -1,
       timing?.startMs ?? -1,
@@ -183,21 +208,13 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
 
     'run:start'(info, list) {
       handlers['run:start'](info, list)
-      table = createStringTable()
-      files = []
-      tests = []
-      failures = []
-      fileErrors = []
-      omitted = 0
-      workers = info.workers ?? 0
-      running = new Map()
-      compacted = new Set()
-      roots = null
+      run = newRun()
+      run.roots = rootsOf(record.root)
       origin = now()
     },
 
     'file:start'(file, workerId) {
-      running.set(file.fileId, { startMs: Math.round(now() - origin), workerId })
+      run.running.set(file.fileId, { startMs: Math.round(now() - origin), workerId })
     },
 
     // The file is over (an event for it after this is dropped): its rows, and its record goes.
@@ -218,13 +235,20 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
 
     async 'run:end'(summary) {
       // A file the bus never ended (the summary has it all the same) still gets its row; one that
-      // started is cut off at the run's end, and the clock is read only when there is one.
-      const cutOff = summary.files.some(
-        (result) => running.has(result.file.fileId) && !compacted.has(result.file.fileId),
-      )
-      const runEnd = cutOff ? Math.round(now() - origin) : -1
+      // started is cut off at the run's end.
+      const runEnd = Math.round(now() - origin)
       for (const result of summary.files) compact(result, runEnd)
       const counters = summary.snapshots?.counters
+      // The errors outside the files have a budget of their own, as the file errors have.
+      let runTexts = 0
+      const runErrors = record.runErrors.map(({ error }) => {
+        if (runTexts >= MAX_FAILURES) {
+          run.omitted++
+          return ''
+        }
+        runTexts++
+        return failureText([error], run.roots)
+      })
       const data: ReportData = {
         version: 1,
         // The directory's name only: the run's path stays out of the page (a shared report must not name a CI checkout).
@@ -232,14 +256,13 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
         startedAt: record.startedAt,
         durationMs: Math.round(summary.durationMs),
         reason: summary.reason,
-        workers,
-        strings: table.strings,
-        files,
-        tests,
-        failures,
-        fileErrors,
-        runErrors: record.runErrors.map(({ error }) => failureText([error], rootsOf())),
-        omitted,
+        strings: run.table.strings,
+        files: run.files,
+        tests: run.tests,
+        failures: run.failures,
+        fileErrors: run.fileErrors,
+        runErrors,
+        omitted: run.omitted,
         ...(options.seed === undefined ? {} : { seed: options.seed }),
         ...(options.sample === true ? { sample: true as const } : {}),
         ...(counters === undefined || counters.total === 0
@@ -256,6 +279,8 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
             }),
       }
       await writeAtomically(resolve(options.outputFile), renderDocument(data))
+      // The rows are written: the run's memory goes with them.
+      run = newRun()
     },
   }
 }

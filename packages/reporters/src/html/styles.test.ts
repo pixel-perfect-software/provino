@@ -124,15 +124,18 @@ describe('the stylesheet', () => {
       assert.match(rule('.chip'), /border: 1px solid var\(--ink-3\)/)
       assert.match(rule('.search'), /border: 1px solid var\(--ink-3\)/)
       assert.match(rule('.range button, .links button'), /min-height: var\(--chip-h\)/)
-      // Its `display` must not undo `hidden`: "Clear range" is hidden until there is a range.
-      assert.match(STYLES, /\n\.range button\[hidden\] \{ display: none; \}/)
+      // Its `display` must not undo `hidden`: "Clear range" is hidden until there is a range. One
+      // rule for every element, so no component rule can.
+      assert.match(STYLES, /\n\[hidden\] \{ display: none !important; \}/)
+      assert.doesNotMatch(STYLES, /\S\[hidden\] \{/)
     })
 
     it('draws the range form’s error as text with a mark, in the fail colour, and the field in a thicker border', () => {
       assert.match(rule('.field-error'), /color: var\(--fail\)/)
-      // The overview's chart is its own child: a rule for every `svg` in it would size the error's glyph.
-      assert.match(STYLES, /\n\.overview > svg \{/)
-      assert.doesNotMatch(STYLES, /\.overview svg/)
+      // The overview's chart has a class of its own: a rule for every `svg` in the overview would
+      // size the error's glyph.
+      assert.match(STYLES, /\n\.ov-chart \{/)
+      assert.doesNotMatch(STYLES, /\.overview (?:> )?svg/)
       assert.match(
         rule('.range-form input[aria-invalid="true"]'),
         /border: var\(--ring\) solid var\(--fail\)/,

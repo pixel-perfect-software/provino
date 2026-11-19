@@ -12,7 +12,7 @@
 // and again when the range changes: Failures, Tests (the `role="tree"`, built a level at a time as
 // it opens), Map, Folders and Timeline. The class names are the styling's hooks (`styles.ts`).
 
-import type { ReportData } from './model.ts'
+import type { FileStatus, ReportData, TestStatus } from './model.ts'
 
 /**
  * Draws `data` into `#report`.
@@ -26,9 +26,20 @@ export function renderReport(data: ReportData): void {
   const str = (id: number): string => strings[id] ?? ''
   const FILE_KIND = ['pass', 'fail', 'skip', 'todo', 'crash'] as const
   const TEST_KIND = ['pass', 'fail', 'skip', 'todo', 'notrun'] as const
-  const FILE_WORD = ['passed', 'failed', 'skipped', 'todo', 'crashed'] as const
-  const TEST_WORD = ['passed', 'failed', 'skipped', 'todo', 'not run'] as const
+  // The word for a status, read by its kind: a file's, a test's, a row's.
+  const WORD = {
+    pass: 'passed',
+    fail: 'failed',
+    skip: 'skipped',
+    todo: 'todo',
+    crash: 'crashed',
+    notrun: 'not run',
+  } as const
   const MAX_RESULTS = 500
+  // What a failure shows when the report did not keep its text.
+  const NO_TEXT = 'Failed (the report keeps no text for this failure).'
+  const textOrNone = (text: string): string => (text === '' ? NO_TEXT : text)
+  const runErrors = data.runErrors.map(textOrNone)
 
   type Child = Node | string | null | undefined | false
   const el = (
@@ -79,9 +90,21 @@ export function renderReport(data: ReportData): void {
     return `${Math.floor(value / 60_000)}m ${((value % 60_000) / 1000).toFixed(1)} s`
   }
   const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
+  // The parts that are there, joined by a middle dot.
+  const dot = (...parts: (string | false)[]): string =>
+    parts.filter((part): part is string => typeof part === 'string').join(' · ')
+  const nFail = (text: string): HTMLElement => el('span', { class: 'n-fail' }, text)
   const at = <T>(list: readonly T[], index: number): T => list[index] as T
-  const firstLine = (text: string): string =>
-    (text.split('\n').find((line) => line.trim() !== '') ?? '').trim()
+  // The first line with something on it, trimmed: found by scanning, not by splitting the text.
+  const firstLine = (text: string): string => {
+    for (let start = 0; ; ) {
+      const found = text.indexOf('\n', start)
+      const end = found === -1 ? text.length : found
+      const line = text.slice(start, end).trim()
+      if (line !== '' || found === -1) return line
+      start = end + 1
+    }
+  }
 
   // ---- The rows, read once
   interface FileModel {
@@ -90,7 +113,7 @@ export function renderReport(data: ReportData): void {
     name: string
     project: string
     dir: string
-    status: number
+    status: FileStatus
     ms: number
     worker: number
     start: number
@@ -98,8 +121,6 @@ export function renderReport(data: ReportData): void {
     expected: number
     tests: number[]
     failed: number
-    skipped: number
-    todo: number
     error: string | null
     placed: boolean
   }
@@ -107,7 +128,7 @@ export function renderReport(data: ReportData): void {
     i: number
     file: number
     titles: string[]
-    status: number
+    status: TestStatus
     ms: number
     error: string | null
   }
@@ -128,8 +149,6 @@ export function renderReport(data: ReportData): void {
       expected: row[6],
       tests: [],
       failed: 0,
-      skipped: 0,
-      todo: 0,
       error: null,
       placed: row[3] >= 0 && row[4] >= 0 && row[5] >= 0,
     }
@@ -142,27 +161,27 @@ export function renderReport(data: ReportData): void {
     ms: row[3],
     error: null,
   }))
-  const count = [0, 0, 0, 0, 0]
+  const count: [number, number, number, number, number] = [0, 0, 0, 0, 0]
   for (const test of tests) {
-    count[test.status] = (count[test.status] ?? 0) + 1
+    count[test.status]++
     const file = files[test.file]
     if (file === undefined) continue
     file.tests.push(test.i)
     if (test.status === 1) file.failed++
-    else if (test.status === 2 || test.status === 4) file.skipped++
-    else if (test.status === 3) file.todo++
   }
+  // Skipped counts the tests that never ended with the skipped ones.
+  const skippedTests = count[2] + count[4]
   for (const row of data.failures) {
     const test = tests[row[0]]
     if (test !== undefined) test.error = row[1]
   }
   for (const row of data.fileErrors) {
     const file = files[row[0]]
-    if (file !== undefined) file.error = row[1]
+    if (file !== undefined) file.error = textOrNone(row[1])
   }
   const broken = (file: FileModel): boolean => file.status === 1 || file.status === 4
   const crashed = files.filter((file) => file.status === 4)
-  const failedTests = count[1] ?? 0
+  const failedTests = count[1]
   const filesWithFailures = files.filter((file) => file.failed > 0).length
   const failedToRun = files.filter((file) => file.status === 1 && file.failed === 0).length
   let latest = 0
@@ -176,9 +195,6 @@ export function renderReport(data: ReportData): void {
     label: string
     hue: number
     files: FileModel[]
-    ms: number
-    tests: number
-    failed: number
   }
   const folderMap = new Map<string, Folder>()
   for (const file of files) {
@@ -191,16 +207,10 @@ export function renderReport(data: ReportData): void {
         label: file.project === '' ? dir : `${file.project} ${dir}`,
         hue: 0,
         files: [],
-        ms: 0,
-        tests: 0,
-        failed: 0,
       }
       folderMap.set(key, folder)
     }
     folder.files.push(file)
-    folder.ms += file.ms
-    folder.tests += file.tests.length
-    if (broken(file)) folder.failed++
   }
   const folders = Array.from(folderMap.values()).sort((a, b) => compare(a.key, b.key))
   folders.forEach((folder, index) => {
@@ -210,7 +220,7 @@ export function renderReport(data: ReportData): void {
   const folderOf = new Map<number, Folder>()
   for (const folder of folders) for (const file of folder.files) folderOf.set(file.i, folder)
   const paint = (node: SVGElement, file: FileModel): void => {
-    const kind = FILE_KIND[file.status] ?? 'pass'
+    const kind = FILE_KIND[file.status]
     node.classList.add('slice', `s-${kind}`)
     if (kind === 'pass') node.style.setProperty('--h', String(folderOf.get(file.i)?.hue ?? 210))
   }
@@ -219,16 +229,19 @@ export function renderReport(data: ReportData): void {
   // replacement.
   const placed = files.filter((file) => file.placed)
   const workerIds = Array.from(new Set(placed.map((file) => file.worker))).sort((a, b) => a - b)
+  const firstStart = new Map<number, number>()
+  const busyMs = new Map<number, number>()
+  for (const file of placed) {
+    firstStart.set(file.worker, Math.min(firstStart.get(file.worker) ?? file.start, file.start))
+    busyMs.set(file.worker, (busyMs.get(file.worker) ?? 0) + file.ms)
+  }
   const replaces = new Map<number, number>()
   for (const dead of crashed) {
     if (!dead.placed) continue
-    const later = workerIds.filter(
+    const next = workerIds.find(
       (id) =>
-        id !== dead.worker &&
-        !replaces.has(id) &&
-        placed.filter((file) => file.worker === id).every((file) => file.start >= dead.end),
+        id !== dead.worker && !replaces.has(id) && (firstStart.get(id) ?? Infinity) >= dead.end,
     )
-    const next = later[0]
     if (next !== undefined) replaces.set(next, dead.worker)
   }
 
@@ -250,13 +263,13 @@ export function renderReport(data: ReportData): void {
           entries.push({
             file,
             test,
-            text: test.error ?? 'Failed (the report keeps no text for this failure).',
+            text: test.error ?? NO_TEXT,
           })
         }
       }
     }
   }
-  for (const text of data.runErrors) entries.push({ file: null, test: null, text })
+  for (const text of runErrors) entries.push({ file: null, test: null, text })
   const failing = entries.length > 0 || data.reason !== 'passed'
 
   // ---- State
@@ -306,22 +319,22 @@ export function renderReport(data: ReportData): void {
     terminated: 'Run terminated',
     hangup: 'Terminal closed',
   }
-  const parts = [
+  const what = dot(
     data.reason === 'passed' || data.reason === 'failed' ? false : stop[data.reason],
     failedTests > 0 &&
       `${plural(failedTests, 'test')} failed in ${plural(filesWithFailures, 'file')}`,
     failedToRun > 0 && `${plural(failedToRun, 'file')} failed to run`,
     crashed.length > 0 && `${plural(crashed.length, 'file')} crashed`,
-    data.runErrors.length > 0 && `${plural(data.runErrors.length, 'error')} outside the tests`,
-  ].filter((part): part is string => typeof part === 'string')
+    runErrors.length > 0 && `${plural(runErrors.length, 'error')} outside the tests`,
+  )
   const headline =
     files.length === 0
       ? 'No tests ran'
       : failing
-        ? parts.length > 0
-          ? parts.join(' · ')
-          : 'The run failed'
-        : `All ${plural(count[0] ?? 0, 'test')} passed`
+        ? what === ''
+          ? 'The run failed'
+          : what
+        : `All ${plural(count[0], 'test')} passed`
   const verdictMain = el('div', { class: 'verdict-main' })
   verdict.append(verdictMain)
   verdictMain.append(
@@ -337,30 +350,30 @@ export function renderReport(data: ReportData): void {
   const field = (label: string, value: string, cls = ''): HTMLElement =>
     el('div', null, el('dt', null, label), el('dd', cls === '' ? null : { class: cls }, value))
   const snaps = data.snapshots
-  const snapParts =
+  const snapshotText =
     snaps === undefined
-      ? []
-      : [
+      ? ''
+      : dot(
           snaps.matched > 0 && `${num(snaps.matched)} passed`,
           snaps.unmatched > 0 && `${num(snaps.unmatched)} failed`,
           snaps.added > 0 && `${num(snaps.added)} written`,
           snaps.updated > 0 && `${num(snaps.updated)} updated`,
           snaps.unchecked > 0 && `${num(snaps.unchecked)} obsolete`,
-        ].filter((part): part is string => typeof part === 'string')
+        )
   verdictMain.append(
     el(
       'dl',
       { class: 'fields' },
       ...(failing
-        ? [field('Failed', num(failedTests), 'n-fail'), field('Passed', num(count[0] ?? 0))]
-        : [field('Passed', num(count[0] ?? 0)), field('Failed', num(failedTests))]),
-      field('Skipped', num((count[2] ?? 0) + (count[4] ?? 0))),
-      field('Todo', num(count[3] ?? 0)),
+        ? [field('Failed', num(failedTests), 'n-fail'), field('Passed', num(count[0]))]
+        : [field('Passed', num(count[0])), field('Failed', num(failedTests))]),
+      field('Skipped', num(skippedTests)),
+      field('Todo', num(count[3])),
       field('Files', num(files.length)),
       field('Time', ms(data.durationMs)),
       field('Workers', num(workerIds.length)),
       data.seed !== undefined && field('Seed', String(data.seed)),
-      snapParts.length > 0 && field('Snapshots', snapParts.join(' · ')),
+      snapshotText !== '' && field('Snapshots', snapshotText),
     ),
   )
   const started = new Date(data.startedAt)
@@ -418,24 +431,18 @@ export function renderReport(data: ReportData): void {
     'Select range…',
   )
   const seconds = (duration / 1000).toFixed(1)
-  const fromInput = el('input', {
-    type: 'number',
-    min: 0,
-    max: seconds,
-    step: 0.1,
-    value: 0,
-    id: 'range-from',
-    inputmode: 'decimal',
-  }) as HTMLInputElement
-  const toInput = el('input', {
-    type: 'number',
-    min: 0,
-    max: seconds,
-    step: 0.1,
-    value: seconds,
-    id: 'range-to',
-    inputmode: 'decimal',
-  }) as HTMLInputElement
+  const rangeInput = (id: string, value: string | number): HTMLInputElement =>
+    el('input', {
+      type: 'number',
+      min: 0,
+      max: seconds,
+      step: 0.1,
+      value,
+      id,
+      inputmode: 'decimal',
+    }) as HTMLInputElement
+  const fromInput = rangeInput('range-from', 0)
+  const toInput = rangeInput('range-to', seconds)
   const rangeForm = el(
     'form',
     { class: 'range-form', id: 'range-form', hidden: true },
@@ -530,6 +537,7 @@ export function renderReport(data: ReportData): void {
   )
   const laneH = 56 / Math.max(1, workerIds.length)
   const ov = svg('svg', {
+    class: 'ov-chart',
     viewBox: '0 0 1000 56',
     preserveAspectRatio: 'none',
     role: 'img',
@@ -571,6 +579,11 @@ export function renderReport(data: ReportData): void {
     visibility: 'hidden',
   })
   ov.append(brush)
+  const showBrush = (from: number, to: number): void => {
+    brush.setAttribute('visibility', 'visible')
+    brush.setAttribute('x', String((from / duration) * 1000))
+    brush.setAttribute('width', String(((to - from) / duration) * 1000))
+  }
   overview.append(
     ov,
     el(
@@ -598,9 +611,7 @@ export function renderReport(data: ReportData): void {
   ov.addEventListener('pointermove', (event) => {
     if (dragFrom === null) return
     const now = timeAt(event.clientX)
-    brush.setAttribute('visibility', 'visible')
-    brush.setAttribute('x', String((Math.min(dragFrom, now) / duration) * 1000))
-    brush.setAttribute('width', String((Math.abs(now - dragFrom) / duration) * 1000))
+    showBrush(Math.min(dragFrom, now), Math.max(dragFrom, now))
   })
   ov.addEventListener('pointerup', (event) => {
     if (dragFrom === null) return
@@ -608,8 +619,7 @@ export function renderReport(data: ReportData): void {
     const from = dragFrom
     dragFrom = null
     if (Math.abs(now - from) < duration / 400) {
-      const index = downOn?.getAttribute('data-f') ?? null
-      if (index !== null) reveal(Number(index))
+      revealOf(downOn)
       brush.setAttribute('visibility', range === null ? 'hidden' : 'visible')
       return
     }
@@ -631,9 +641,7 @@ export function renderReport(data: ReportData): void {
       ranged = true
       rangeNote.textContent = ''
       rangeText.textContent = `${ms(range[0])} – ${ms(range[1])} · ${plural(files.filter(inRange).length, 'file')}`
-      brush.setAttribute('visibility', 'visible')
-      brush.setAttribute('x', String((range[0] / duration) * 1000))
-      brush.setAttribute('width', String(((range[1] - range[0]) / duration) * 1000))
+      showBrush(range[0], range[1])
     }
     for (const file of placed) ovSlices.get(file.i)?.classList.toggle('dim', !inRange(file))
   })
@@ -703,37 +711,55 @@ export function renderReport(data: ReportData): void {
     panels.forEach((panel, i) => {
       panel.hidden = i !== index
     })
-    const panel = panels[index]
-    if (panel !== undefined && rendered[index] !== true) {
-      rendered[index] = true
-      renderers[index]?.(panel)
-    }
+    if (rendered[index] !== true) build(index)
   }
   const heading = (panel: HTMLElement, index: number): void => {
     panel.append(el('h2', { class: 'sr-only' }, tabNames[index] ?? ''))
   }
-  const rerenderOnRange = (index: number): void => {
-    listeners.push(() => {
-      const panel = panels[index]
-      if (panel === undefined || rendered[index] !== true) return
-      panel.replaceChildren()
-      renderers[index]?.(panel)
-    })
+  // A panel's view, built afresh.
+  const build = (index: number): void => {
+    const panel = panels[index]
+    if (panel === undefined) return
+    panel.replaceChildren()
+    rendered[index] = true
+    renderers[index]?.(panel)
   }
+  // What a panel shows changed (the range, the window's size): the one on screen is built again,
+  // any other is cleared and built when it is next shown.
+  const redraw = (index: number): void => {
+    if (index === selected) {
+      build(index)
+      return
+    }
+    panels[index]?.replaceChildren()
+    rendered[index] = false
+  }
+  listeners.push(() => {
+    for (let index = 0; index < panels.length; index++) redraw(index)
+  })
 
   // ---- An error as a code frame: the first line and the `>` lines are red, the diff is coloured
   const failureText = (text: string): HTMLElement => {
     const pre = el('pre', { role: 'group', 'aria-label': 'Failure output' })
     const code = el('code', null)
+    // Lines with no colour of their own are one text node between the coloured ones.
+    let plain = ''
     text.split('\n').forEach((line, index) => {
       const trimmed = line.trimStart()
       let cls = ''
       if (index === 0 || trimmed.startsWith('> ')) cls = 'hl'
-      else if (/^- /.test(trimmed)) cls = 'add'
-      else if (/^\+ /.test(trimmed)) cls = 'del'
+      else if (trimmed.startsWith('- ')) cls = 'add'
+      else if (trimmed.startsWith('+ ')) cls = 'del'
       else if (trimmed.startsWith('at ')) cls = 'dim-line'
-      code.append(cls === '' ? line : el('span', { class: cls }, line), '\n')
+      if (cls === '') {
+        plain += `${line}\n`
+        return
+      }
+      if (plain !== '') code.append(plain)
+      code.append(el('span', { class: cls }, line))
+      plain = '\n'
     })
+    if (plain !== '') code.append(plain)
     pre.append(code)
     return pre
   }
@@ -762,7 +788,7 @@ export function renderReport(data: ReportData): void {
         el(
           'p',
           { class: 'note' },
-          `${plural(data.omitted, 'more failed test')} ${data.omitted === 1 ? 'is' : 'are'} listed without text: the report keeps the text of the first ${num(failedTests - data.omitted)}.`,
+          `${plural(data.omitted, 'more failure')} ${data.omitted === 1 ? 'is' : 'are'} listed without text: the report keeps the text of ${num(entries.length - data.omitted)} of ${num(entries.length)}.`,
         ),
       )
     }
@@ -771,12 +797,35 @@ export function renderReport(data: ReportData): void {
       return
     }
     const list = el('ul', { class: 'failures' })
+    // A body is built when its row is first opened: a run with a thousand failures is a thousand
+    // rows, and each code frame is up to 16 KB of text.
+    const unbuilt = new WeakMap<Element, Entry>()
+    const fillBody = (body: Element): void => {
+      const entry = unbuilt.get(body)
+      if (entry === undefined) return
+      unbuilt.delete(body)
+      body.append(failureText(entry.text))
+      const { file } = entry
+      if (file === null) return
+      const links = el('div', { class: 'links' })
+      const showTest = el('button', { type: 'button' }, 'Show in Tests')
+      showTest.addEventListener('click', () => reveal(file.i))
+      links.append(showTest)
+      if (file.placed) {
+        const showTime = el('button', { type: 'button' }, `Show on worker ${file.worker}`)
+        showTime.addEventListener('click', () => {
+          select(4)
+          doc.getElementById(`t-f-${file.i}`)?.focus()
+        })
+        links.append(showTime)
+      }
+      body.append(links)
+    }
     shown.forEach((entry, index) => {
       const open = index === 0
       const bodyId = `fb-${index}`
       const { file, test } = entry
-      const kind =
-        file === null ? 'fail' : test === null ? (FILE_KIND[file.status] ?? 'fail') : 'fail'
+      const kind = file === null ? 'fail' : test === null ? FILE_KIND[file.status] : 'fail'
       const title =
         test !== null
           ? test.titles.flatMap((part, i) =>
@@ -796,52 +845,37 @@ export function renderReport(data: ReportData): void {
         el(
           'span',
           { class: 'failure-ms' },
-          test !== null ? ms(test.ms) : file === null ? '' : (FILE_WORD[file.status] ?? ''),
+          test !== null ? ms(test.ms) : file === null ? '' : WORD[FILE_KIND[file.status]],
         ),
         el(
           'span',
           { class: 'failure-title' },
-          el('span', { class: 'sr-only' }, `${kind === 'crash' ? 'crashed' : 'failed'}: `),
+          el('span', { class: 'sr-only' }, `${WORD[kind]}: `),
           ...title,
         ),
         el('span', { class: 'failure-first' }, firstLine(entry.text)),
       )
-      const links = el('div', { class: 'links' })
-      if (file !== null) {
-        const showTest = el('button', { type: 'button' }, 'Show in Tests')
-        showTest.addEventListener('click', () => reveal(file.i))
-        links.append(showTest)
-        if (file.placed) {
-          const showTime = el('button', { type: 'button' }, `Show on worker ${file.worker}`)
-          showTime.addEventListener('click', () => {
-            select(4)
-            doc.getElementById(`t-f-${file.i}`)?.focus()
-          })
-          links.append(showTime)
-        }
-      }
-      const body = el(
-        'div',
-        { class: 'failure-body', id: bodyId, hidden: !open },
-        failureText(entry.text),
-        links,
-      )
-      head.addEventListener('click', () => {
-        const next = head.getAttribute('aria-expanded') !== 'true'
-        head.setAttribute('aria-expanded', String(next))
-        body.hidden = !next
-      })
+      const body = el('div', { class: 'failure-body', id: bodyId, hidden: !open })
+      unbuilt.set(body, entry)
+      if (open) fillBody(body)
       list.append(el('li', { class: 'failure' }, head, body))
+    })
+    list.addEventListener('click', (event) => {
+      const head = (event.target as Element).closest('.failure-head')
+      const body = head?.nextElementSibling as HTMLElement | null | undefined
+      if (head === null || head === undefined || body === null || body === undefined) return
+      const next = head.getAttribute('aria-expanded') !== 'true'
+      head.setAttribute('aria-expanded', String(next))
+      if (next) fillBody(body)
+      body.hidden = !next
     })
     panel.append(list)
   }
-  rerenderOnRange(0)
 
   // ---- Tests: the tree. A node builds what is under it the first time it opens.
   let nodeSeq = 0
   const builders = new WeakMap<HTMLElement, () => void>()
   const groups = new WeakMap<HTMLElement, HTMLElement>()
-  let treeRoot: HTMLElement | null = null
   let treeFocus: HTMLElement | null = null
   let activeRow: HTMLElement | null = null
   let fileItems = new Map<number, HTMLElement>()
@@ -865,8 +899,7 @@ export function renderReport(data: ReportData): void {
   interface RowSpec {
     kind: string
     level: number
-    tone: string
-    word: string
+    tone: keyof typeof WORD
     label: string
     title: string
     meta: Child[]
@@ -902,7 +935,7 @@ export function renderReport(data: ReportData): void {
       el(
         'span',
         { class: 'label', title: spec.title === '' ? false : spec.title },
-        el('span', { class: 'sr-only' }, `${spec.word} `),
+        el('span', { class: 'sr-only' }, `${WORD[spec.tone]} `),
         spec.label,
       ),
       meta,
@@ -919,9 +952,15 @@ export function renderReport(data: ReportData): void {
     }
     return item
   }
-  const errorBox = (item: HTMLElement, text: string): void => {
+  // An error's frame inside the tree, indented to `level` when it is not a test's own.
+  const inlineError = (text: string, level?: number): HTMLElement => {
     const box = failureText(text)
     box.className = 'inline-error'
+    if (level !== undefined) box.style.setProperty('--level', String(level))
+    return box
+  }
+  const errorBox = (item: HTMLElement, text: string): void => {
+    const box = inlineError(text)
     const textId = `eb-${++nodeSeq}`
     const code = box.firstElementChild
     if (code !== null) code.id = textId
@@ -932,17 +971,15 @@ export function renderReport(data: ReportData): void {
     const item = makeItem({
       kind: 'test',
       level,
-      tone: TEST_KIND[test.status] ?? 'pass',
-      word: TEST_WORD[test.status] ?? '',
+      tone: TEST_KIND[test.status],
       label: test.titles[test.titles.length - 1] ?? '',
       title: test.titles.join(' › '),
-      meta: [test.status === 0 || test.status === 1 ? ms(test.ms) : (TEST_WORD[test.status] ?? '')],
+      meta: [test.status === 0 || test.status === 1 ? ms(test.ms) : WORD[TEST_KIND[test.status]]],
       fill: null,
       open: false,
     })
     if (test.error !== null) errorBox(item, test.error)
-    else if (test.status === 1)
-      errorBox(item, 'Failed (the report keeps no text for this failure).')
+    else if (test.status === 1) errorBox(item, NO_TEXT)
     return item
   }
   interface Suite {
@@ -987,11 +1024,10 @@ export function renderReport(data: ReportData): void {
           kind: 'suite',
           level,
           tone: kid.failed > 0 ? 'fail' : 'pass',
-          word: kid.failed > 0 ? 'failed' : 'passed',
           label: kid.title,
           title: '',
           meta: [
-            kid.failed > 0 && el('span', { class: 'n-fail' }, `${num(kid.failed)} failed`),
+            kid.failed > 0 && nFail(`${num(kid.failed)} failed`),
             el('span', null, plural(kid.tests, 'test')),
           ],
           fill: (inner) => addKids(inner, kid, level + 1, forceOpen),
@@ -1011,14 +1047,13 @@ export function renderReport(data: ReportData): void {
     const item = makeItem({
       kind: 'file',
       level,
-      tone: FILE_KIND[file.status] ?? 'pass',
-      word: FILE_WORD[file.status] ?? '',
+      tone: FILE_KIND[file.status],
       label,
       title: file.path,
       meta: [
         file.status === 4
-          ? el('span', { class: 'n-fail' }, 'crashed')
-          : file.failed > 0 && el('span', { class: 'n-fail' }, `${num(file.failed)} failed`),
+          ? nFail('crashed')
+          : file.failed > 0 && nFail(`${num(file.failed)} failed`),
         el(
           'span',
           null,
@@ -1037,12 +1072,7 @@ export function renderReport(data: ReportData): void {
       fill:
         file.tests.length > 0 || file.error !== null
           ? (group) => {
-              if (file.error !== null) {
-                const box = failureText(file.error)
-                box.className = 'inline-error'
-                box.style.setProperty('--level', String(level))
-                group.append(box)
-              }
+              if (file.error !== null) group.append(inlineError(file.error, level))
               addKids(group, suiteOf(only ?? file.tests), level + 1, forceOpen)
             }
           : null,
@@ -1057,11 +1087,10 @@ export function renderReport(data: ReportData): void {
       kind: 'folder',
       level: 1,
       tone: failed > 0 ? 'fail' : 'pass',
-      word: failed > 0 ? 'failed' : 'passed',
       label: folder.label,
       title: '',
       meta: [
-        failed > 0 && el('span', { class: 'n-fail' }, `${num(failed)} failed`),
+        failed > 0 && nFail(`${num(failed)} failed`),
         el('span', null, plural(shown.length, 'file')),
         el('span', null, ms(shown.reduce((sum, file) => sum + file.ms, 0))),
       ],
@@ -1073,12 +1102,50 @@ export function renderReport(data: ReportData): void {
     folderItems.set(folder.key, item)
     return item
   }
-  const visibleItems = (): HTMLElement[] =>
-    treeRoot === null
-      ? []
-      : Array.from(treeRoot.querySelectorAll<HTMLElement>('[role="treeitem"]')).filter(
-          (item) => item.parentElement?.closest('[hidden]') == null,
-        )
+  // The tree's items in the order the arrow keys walk them: an item, then its children when it is
+  // open, then its next sibling, and so on up. Each step is along the DOM from the item, and an
+  // item is open or closed by its own state, not by whether the panel it is in is on screen.
+  const isItem = (node: Element | null): node is HTMLElement =>
+    node !== null && node.getAttribute('role') === 'treeitem'
+  const sibling = (item: Element, before: boolean): HTMLElement | null => {
+    let node = before ? item.previousElementSibling : item.nextElementSibling
+    while (node !== null && !isItem(node)) {
+      node = before ? node.previousElementSibling : node.nextElementSibling
+    }
+    return node
+  }
+  const edgeItem = (parent: Element | undefined, last: boolean): HTMLElement | null => {
+    let node = last ? (parent?.lastElementChild ?? null) : (parent?.firstElementChild ?? null)
+    while (node !== null && !isItem(node)) {
+      node = last ? node.previousElementSibling : node.nextElementSibling
+    }
+    return node
+  }
+  const childrenOf = (item: HTMLElement): HTMLElement | undefined =>
+    item.getAttribute('aria-expanded') === 'true' ? groups.get(item) : undefined
+  const parentItem = (item: HTMLElement): HTMLElement | null =>
+    item.parentElement?.closest<HTMLElement>('[role="treeitem"]') ?? null
+  const lastShown = (item: HTMLElement): HTMLElement => {
+    let node = item
+    for (let inner = edgeItem(childrenOf(node), true); inner !== null; ) {
+      node = inner
+      inner = edgeItem(childrenOf(node), true)
+    }
+    return node
+  }
+  const itemAfter = (item: HTMLElement): HTMLElement | null => {
+    const inside = edgeItem(childrenOf(item), false)
+    if (inside !== null) return inside
+    for (let node: HTMLElement | null = item; node !== null; node = parentItem(node)) {
+      const next = sibling(node, false)
+      if (next !== null) return next
+    }
+    return null
+  }
+  const itemBefore = (item: HTMLElement): HTMLElement | null => {
+    const before = sibling(item, true)
+    return before === null ? parentItem(item) : lastShown(before)
+  }
   const focusItem = (
     item: HTMLElement | null | undefined,
     block: ScrollLogicalPosition = 'nearest',
@@ -1104,7 +1171,6 @@ export function renderReport(data: ReportData): void {
       role: 'tree',
       'aria-label': 'Tests by folder and file',
     })
-    treeRoot = tree
     const searching = query !== '' || statusFilter.size > 0
     if (!searching) {
       searchNote.textContent = filtered ? 'All tests shown.' : ''
@@ -1112,22 +1178,16 @@ export function renderReport(data: ReportData): void {
         const shown = folder.files.filter(inRange)
         if (shown.length > 0) tree.append(folderItem(folder, shown))
       }
-      if (data.runErrors.length > 0 && range === null) {
+      if (runErrors.length > 0 && range === null) {
         const item = makeItem({
           kind: 'file',
           level: 1,
           tone: 'fail',
-          word: 'failed',
           label: 'Errors outside any test file',
           title: '',
-          meta: [el('span', { class: 'n-fail' }, plural(data.runErrors.length, 'error'))],
+          meta: [nFail(plural(runErrors.length, 'error'))],
           fill: (group) => {
-            for (const text of data.runErrors) {
-              const box = failureText(text)
-              box.className = 'inline-error'
-              box.style.setProperty('--level', '1')
-              group.append(box)
-            }
+            for (const text of runErrors) group.append(inlineError(text, 1))
           },
           open: true,
         })
@@ -1178,8 +1238,8 @@ export function renderReport(data: ReportData): void {
     }
     filtered = searching
     container.append(tree)
-    const first = visibleItems()[0]
-    if (first !== undefined) {
+    const first = tree.querySelector<HTMLElement>('[role="treeitem"]')
+    if (first !== null) {
       first.tabIndex = 0
       treeFocus = first
     }
@@ -1200,23 +1260,22 @@ export function renderReport(data: ReportData): void {
         event.metaKey
       )
         return
-      const items = visibleItems()
-      const position = items.indexOf(current)
-      if (position < 0) return
       const state = current.getAttribute('aria-expanded')
       switch (event.key) {
         case 'ArrowDown':
-          focusItem(items[position + 1])
+          focusItem(itemAfter(current))
           break
         case 'ArrowUp':
-          focusItem(items[position - 1])
+          focusItem(itemBefore(current))
           break
         case 'Home':
-          focusItem(items[0])
+          focusItem(edgeItem(tree, false))
           break
-        case 'End':
-          focusItem(items[items.length - 1])
+        case 'End': {
+          const last = edgeItem(tree, true)
+          focusItem(last === null ? null : lastShown(last))
           break
+        }
         case 'ArrowRight':
           if (state === 'false') setOpen(current, true)
           else if (state === 'true')
@@ -1271,11 +1330,11 @@ export function renderReport(data: ReportData): void {
       query = ''
       rebuildTree()
     })
-    const chip = (label: string, status: number, n: number): HTMLElement => {
+    const chip = (label: string, status: TestStatus, n: number): HTMLElement => {
       const button = el(
         'button',
         { type: 'button', class: 'chip', 'aria-pressed': String(statusFilter.has(status)) },
-        icon(TEST_KIND[status] ?? 'pass'),
+        icon(TEST_KIND[status]),
         `${label} ${num(n)}`,
       )
       button.addEventListener('click', () => {
@@ -1286,15 +1345,14 @@ export function renderReport(data: ReportData): void {
       })
       return button
     }
-    const skipped = (count[2] ?? 0) + (count[4] ?? 0)
     panel.append(
       el(
         'div',
         { class: 'toolbar' },
         input,
         failedTests > 0 && chip('Failed', 1, failedTests),
-        skipped > 0 && chip('Skipped', 2, skipped),
-        (count[3] ?? 0) > 0 && chip('Todo', 3, count[3] ?? 0),
+        skippedTests > 0 && chip('Skipped', 2, skippedTests),
+        count[3] > 0 && chip('Todo', 3, count[3]),
       ),
       searchNote,
     )
@@ -1302,16 +1360,26 @@ export function renderReport(data: ReportData): void {
     panel.append(treeHost)
     buildTree(treeHost)
   }
-  rerenderOnRange(1)
+  // Reveals the file an element stands for (its `data-f`), and says whether it stood for one.
+  function revealOf(node: Element | null | undefined): boolean {
+    const index = node?.getAttribute('data-f') ?? null
+    if (index === null) return false
+    reveal(Number(index))
+    return true
+  }
   function reveal(fileIndex: number): void {
     const file = files[fileIndex]
     if (file === undefined) return
     query = ''
     statusFilter.clear()
     if (range !== null && !inRange(file)) setRange(null)
+    // A tree that is built now is built with the filters cleared; one that was there is built again.
+    const fresh = rendered[1] !== true
     select(1)
-    if (searchInput !== null) searchInput.value = ''
-    rebuildTree()
+    if (!fresh) {
+      if (searchInput !== null) searchInput.value = ''
+      rebuildTree()
+    }
     const folder = folderOf.get(file.i)
     const folderNode = folder === undefined ? undefined : folderItems.get(folder.key)
     if (folderNode !== undefined) setOpen(folderNode, true)
@@ -1394,16 +1462,12 @@ export function renderReport(data: ReportData): void {
       else if (keyName === 'End') move(current, cells[cells.length - 1])
       else if (keyName === 'ArrowDown' || keyName === 'ArrowUp')
         move(current, rowAbove(current, keyName === 'ArrowDown'))
-      else if (keyName === 'Enter') {
-        const index = current.getAttribute('data-f')
-        if (index !== null) reveal(Number(index))
-      } else return
+      else if (keyName === 'Enter') revealOf(current)
+      else return
       event.preventDefault()
     })
     grid.addEventListener('click', (event) => {
-      const cell = (event.target as Element).closest('button.cell')
-      const index = cell?.getAttribute('data-f') ?? null
-      if (index !== null) reveal(Number(index))
+      revealOf((event.target as Element).closest('button.cell'))
     })
     for (const folder of folders) {
       const row = el('div', { class: 'cells', role: 'group', 'aria-label': folder.label })
@@ -1412,8 +1476,8 @@ export function renderReport(data: ReportData): void {
       for (const file of folder.files) {
         if (file.status === 1) failed++
         if (file.status === 4) crashedHere++
-        const kind = FILE_KIND[file.status] ?? 'pass'
-        const word = FILE_WORD[file.status] ?? ''
+        const kind = FILE_KIND[file.status]
+        const word = WORD[kind]
         const cell = el('button', {
           type: 'button',
           class: `cell s-${kind}${inRange(file) ? '' : ' dim'}`,
@@ -1425,12 +1489,10 @@ export function renderReport(data: ReportData): void {
         cells.push(cell)
         row.append(cell)
       }
-      const summary = [
+      const summary = dot(
         failed > 0 && `${num(failed)} failed`,
         crashedHere > 0 && `${num(crashedHere)} crashed`,
-      ]
-        .filter((part): part is string => typeof part === 'string')
-        .join(' · ')
+      )
       grid.append(
         el(
           'div',
@@ -1452,7 +1514,6 @@ export function renderReport(data: ReportData): void {
       )
     }
   }
-  rerenderOnRange(2)
 
   // ---- Folders: time by folder, slowest first
   renderers[3] = (panel) => {
@@ -1534,16 +1595,39 @@ export function renderReport(data: ReportData): void {
       table,
     )
   }
-  rerenderOnRange(3)
 
   // ---- Timeline: a lane for each worker, sized to its container
-  let timelineWidth: number | null = null
   renderers[4] = (panel) => {
     heading(panel, 4)
     const LANE = 22
-    const width = timelineWidth ?? Math.max(480, panel.clientWidth - 200)
-    const scale = (t: number): number => (t / duration) * width
     const labels = el('div', { class: 'lanes-labels', 'aria-hidden': 'true' }, el('div', null, ''))
+    for (const id of workerIds) {
+      const replaced = replaces.get(id)
+      labels.append(
+        el(
+          'div',
+          { class: replaced === undefined ? '' : 'replaced' },
+          replaced === undefined ? `worker ${id}` : `worker ${id} (took over from ${replaced})`,
+          el(
+            'span',
+            { class: 'busy' },
+            `${Math.round(((busyMs.get(id) ?? 0) / duration) * 100)}% busy`,
+          ),
+        ),
+      )
+    }
+    // The shell goes in first, so the chart is drawn at the room the labels leave it: measured once.
+    const scroller = el('div', { class: 'lanes-scroll' })
+    panel.append(
+      el(
+        'p',
+        { class: 'note' },
+        "Each bar is a file on the worker that ran it; gaps are idle time, and each worker's busy share is beside its name. Failed and crashed files can be reached with Tab.",
+      ),
+      el('div', { class: 'timeline' }, labels, scroller),
+    )
+    const width = Math.max(480, scroller.clientWidth)
+    const scale = (t: number): number => (t / duration) * width
     const chart = svg('svg', {
       width: '100%',
       height: (workerIds.length + 1) * LANE,
@@ -1569,20 +1653,8 @@ export function renderReport(data: ReportData): void {
       text.textContent = ms(t)
       chart.append(text)
     }
-    workerIds.forEach((id, lane) => {
+    workerIds.forEach((_id, lane) => {
       const y = (lane + 1) * LANE
-      const replaced = replaces.get(id)
-      const busy = placed
-        .filter((file) => file.worker === id)
-        .reduce((sum, file) => sum + file.ms, 0)
-      labels.append(
-        el(
-          'div',
-          { class: replaced === undefined ? '' : 'replaced' },
-          replaced === undefined ? `worker ${id}` : `worker ${id} (took over from ${replaced})`,
-          el('span', { class: 'busy' }, `${Math.round((busy / duration) * 100)}% busy`),
-        ),
-      )
       chart.append(svg('rect', { class: 'lane-track', x: 0, y: y + 2, width, height: LANE - 4 }))
       chart.append(
         svg('line', {
@@ -1607,7 +1679,7 @@ export function renderReport(data: ReportData): void {
         'data-f': file.i,
       })
       paint(rect, file)
-      const description = `${file.path} · ${FILE_WORD[file.status]} · ${ms(file.ms)} · worker ${file.worker} · ${ms(file.start)}–${ms(file.end)}`
+      const description = `${file.path} · ${WORD[FILE_KIND[file.status]]} · ${ms(file.ms)} · worker ${file.worker} · ${ms(file.start)}–${ms(file.end)}`
       if (broken(file)) {
         rect.setAttribute('role', 'button')
         rect.setAttribute('aria-label', description)
@@ -1618,36 +1690,13 @@ export function renderReport(data: ReportData): void {
       chart.append(rect)
     }
     chart.addEventListener('click', (event) => {
-      const index = (event.target as Element).getAttribute('data-f')
-      if (index !== null) reveal(Number(index))
+      revealOf(event.target as Element)
     })
     chart.addEventListener('keydown', (event) => {
       if (event.key !== 'Enter' && event.key !== ' ') return
-      const index = (event.target as Element).getAttribute('data-f')
-      if (index === null) return
-      event.preventDefault()
-      reveal(Number(index))
+      if (revealOf(event.target as Element)) event.preventDefault()
     })
-    const scroller = el('div', { class: 'lanes-scroll' }, chart)
-    panel.append(
-      el(
-        'p',
-        { class: 'note' },
-        "Each bar is a file on the worker that ran it; gaps are idle time, and each worker's busy share is beside its name. Failed and crashed files can be reached with Tab.",
-      ),
-      el('div', { class: 'timeline' }, labels, scroller),
-    )
-    if (
-      timelineWidth === null &&
-      scroller.clientWidth >= 480 &&
-      Math.abs(scroller.clientWidth - width) > 2
-    ) {
-      timelineWidth = scroller.clientWidth
-      panel.replaceChildren()
-      renderers[4]?.(panel)
-      timelineWidth = null
-      return
-    }
+    scroller.append(chart)
     const toggle = el(
       'button',
       { type: 'button', class: 'chip', 'aria-expanded': 'false', 'aria-controls': 'tl-table' },
@@ -1673,7 +1722,7 @@ export function renderReport(data: ReportData): void {
               el('td', null, ms(file.start)),
               el('td', null, ms(file.end)),
               el('td', null, ms(file.ms)),
-              el('td', null, icon(FILE_KIND[file.status] ?? 'pass'), FILE_WORD[file.status] ?? ''),
+              el('td', null, icon(FILE_KIND[file.status]), WORD[FILE_KIND[file.status]]),
               el('td', null, file.expected < 0 ? '–' : ms(file.expected)),
             ),
           )
@@ -1701,18 +1750,11 @@ export function renderReport(data: ReportData): void {
     })
     panel.append(el('div', { class: 'toolbar spaced' }, toggle), wrap)
   }
-  rerenderOnRange(4)
 
   let resizeTimer: ReturnType<typeof setTimeout> | undefined
   window.addEventListener('resize', () => {
     clearTimeout(resizeTimer)
-    resizeTimer = setTimeout(() => {
-      const panel = panels[4]
-      if (panel !== undefined && rendered[4] === true && selected === 4) {
-        panel.replaceChildren()
-        renderers[4]?.(panel)
-      } else rendered[4] = false
-    }, 150)
+    resizeTimer = setTimeout(() => redraw(4), 150)
   })
   shell.append(
     el('main', null, overview, el('div', { class: 'tabbar' }, tabList, where), ...panels),

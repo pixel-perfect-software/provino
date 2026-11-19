@@ -8,6 +8,7 @@ import { open } from 'node:fs/promises'
 import { isAbsolute, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import type { SerializedError, SourceLocation } from '@provino/types'
+import { CUT_NOTE, MAX_ERROR_TEXT } from '../../internal/clean-text.ts'
 import { posixRelative } from '../../internal/posix-relative.ts'
 import { frameLocation } from '../../internal/views/location.ts'
 import type { Style } from '../../style.ts'
@@ -25,8 +26,8 @@ export const MAX_CODE_FRAMES: number = 20
 export const MAX_SOURCE_BYTES: number = 1024 * 1024
 /** How long a failure block waits for its source before it prints without. */
 export const CODE_FRAME_WAIT_MS: number = 200
-/** The longest error text one block shows, in characters. */
-export const MAX_ERROR_TEXT: number = 16 * 1024
+/** The longest error text one block shows, in characters (the HTML report's cap too). */
+export { MAX_ERROR_TEXT }
 /** The user frames shown under a code frame; the rest are counted. */
 export const MAX_STACK_FRAMES: number = 5
 /** The separator of a test's title path. The reporter's own: it reads no policy. */
@@ -136,7 +137,7 @@ function indented(text: string, spaces: number): string[] {
 /** Error text without its stack (the location says where), cleaned, capped. */
 function errorsText(errors: readonly SerializedError[], colour: boolean): string {
   let text = errors.map((error) => formatError(error, false)).join('\n\n')
-  if (text.length > MAX_ERROR_TEXT) text = `${text.slice(0, MAX_ERROR_TEXT)}\n… (cut at 16 KB)`
+  if (text.length > MAX_ERROR_TEXT) text = `${text.slice(0, MAX_ERROR_TEXT)}${CUT_NOTE}`
   return cleanText(text, colour)
 }
 

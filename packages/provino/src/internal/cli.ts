@@ -10,6 +10,7 @@ import { quickAnswer } from './quick.ts'
 import {
   BUILT_IN_REPORTERS,
   type BuiltInReporterName,
+  DOCUMENT_REPORTERS,
   isBuiltInReporter,
   isDocumentReporter,
 } from './reporter-names.ts'
@@ -147,18 +148,20 @@ function parseReporters(
     known.push(name)
   }
   // The document reporters that take `--outputFile` before `html` does.
-  const writers = known.filter((name) => isDocumentReporter(name) && name !== 'html')
+  const writers = known.filter(isDocumentReporter)
+  const toStdout = writers.filter((name) => DOCUMENT_REPORTERS[name] === null)
+  // `--outputFile` is the first document reporter's that would write to stdout, else the first one's.
+  const owner = toStdout[0] ?? writers[0]
   if (outputFile !== undefined) {
-    if (writers.length === 0 && !known.includes('html')) {
+    if (owner === undefined) {
       throw new UsageError('--outputFile needs --reporter json, normalized-json, junit or html')
     }
-    if (writers.length > 1) {
+    if (toStdout.length > 1) {
       throw new UsageError(
-        `--outputFile is one path, and ${writers.join(' and ')} each write a document: name one of them, or give each its outputFile in a script`,
+        `--outputFile is one path, and ${toStdout.join(' and ')} each write a document: name one of them, or give each its outputFile in a script`,
       )
     }
   }
-  const owner = writers[0] ?? (known.includes('html') ? 'html' : undefined)
   return known.map((name) => choiceFor(name, owner, outputFile))
 }
 

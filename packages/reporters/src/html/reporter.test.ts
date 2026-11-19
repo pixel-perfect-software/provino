@@ -18,7 +18,14 @@ import { createReporterBus } from '../bus.ts'
 import { emitFile, error, fileInfo } from '../internal/test-support.ts'
 import { MAX_FAILURE_TEXT, MAX_FAILURES } from './data.ts'
 import { htmlReporter } from './reporter.ts'
-import { clock, dataOf, playTimed, reportFor, TIMED_FIXTURE } from './test-support.ts'
+import {
+  clock,
+  dataOf,
+  playTimed,
+  reportFor,
+  TIMED_FIXTURE,
+  type TimedFile,
+} from './test-support.ts'
 
 /** A scratch directory that is removed when `body` is done. */
 async function inScratch<T>(body: (dir: string) => Promise<T>): Promise<T> {
@@ -52,10 +59,7 @@ describe('htmlReporter', () => {
           ).map((event) => [event, () => void seen.push(existsSync(outputFile))]),
         ),
       }
-      const bus = createReporterBus([
-        probe,
-        htmlReporter({ outputFile, root: '/project', now: time.now }),
-      ])
+      const bus = createReporterBus([probe, htmlReporter({ outputFile, now: time.now })])
       await playTimed(bus, TIMED_FIXTURE, time)
       assert.deepEqual(bus.failures(), [])
       assert.ok(seen.length > 20)
@@ -71,7 +75,7 @@ describe('htmlReporter', () => {
       const outputFile = join(dir, 'report.html')
       await writeFile(outputFile, 'old')
       const time = clock()
-      const bus = createReporterBus([htmlReporter({ outputFile, root: '/project', now: time.now })])
+      const bus = createReporterBus([htmlReporter({ outputFile, now: time.now })])
       await playTimed(bus, TIMED_FIXTURE, time)
       assert.match(await readFile(outputFile, 'utf8'), /^<!doctype html>/)
       // A directory where the file should go: the rename fails, and the bus has the error.
@@ -92,7 +96,6 @@ describe('htmlReporter', () => {
     assert.equal(data.title, 'project')
     assert.equal(data.reason, 'failed')
     assert.equal(data.durationMs, 40)
-    assert.equal(data.workers, 4)
     assert.equal(data.startedAt, '2026-11-19T12:00:00.000Z')
     // The project's directory name stands for the root: the run's path is not in the data.
     assert.equal('root' in data, false)
@@ -175,7 +178,7 @@ describe('htmlReporter', () => {
     assert.equal(data.sample, true)
   })
 
-  it('stamps the clock once at run:start and once at each file’s start and end, and nowhere else', async () => {
+  it('reads the clock once at run:start, once at each file’s start and end, and once at run:end, and nowhere else', async () => {
     const time = clock()
     let reads = 0
     const counting = {
@@ -187,11 +190,11 @@ describe('htmlReporter', () => {
     }
     await inScratch(async (dir) => {
       const bus = createReporterBus([
-        htmlReporter({ outputFile: join(dir, 'r.html'), root: '/project', now: counting.now }),
+        htmlReporter({ outputFile: join(dir, 'r.html'), now: counting.now }),
       ])
       await playTimed(bus, TIMED_FIXTURE, counting)
     })
-    assert.equal(reads, 1 + 2 * TIMED_FIXTURE.length)
+    assert.equal(reads, 1 + 2 * TIMED_FIXTURE.length + 1)
   })
 
   it('counts a replaced worker as one of its own, and the gap shows in the times', async () => {
@@ -226,11 +229,59 @@ describe('htmlReporter', () => {
     assert.deepEqual(data.failures.at(-1)?.[0], MAX_FAILURES - 1)
   })
 
+  it('keeps the text of at most 1,000 file errors and 1,000 run errors, and counts the rest', async () => {
+    const files: TimedFile[] = Array.from({ length: 2 * MAX_FAILURES }, (_, n) => ({
+      spec: {
+        path: `broken-${n}.test.ts`,
+        state: 'fail' as const,
+        errors: [error('y'.repeat(MAX_FAILURE_TEXT * 2))],
+      },
+      workerId: 0,
+      startMs: n,
+      endMs: n + 1,
+    }))
+    const { html } = await reportFor(files)
+    const data = dataOf(html)
+    // Every file is still a failed file with its row; the text is kept for the first 1,000.
+    assert.equal(data.files.length, 2 * MAX_FAILURES)
+    assert.ok(data.files.every((row) => row[1] === 1))
+    assert.equal(data.fileErrors.length, 2 * MAX_FAILURES)
+    assert.equal(data.fileErrors.filter((row) => row[1] !== '').length, MAX_FAILURES)
+    assert.ok(data.fileErrors.every((row) => row[1].length <= MAX_FAILURE_TEXT))
+    // The first ones are the ones kept, and the page lists the others without text.
+    assert.ok((data.fileErrors[MAX_FAILURES - 1]?.[1] ?? '') !== '')
+    assert.equal(data.fileErrors[MAX_FAILURES]?.[1], '')
+    assert.equal(data.omitted, MAX_FAILURES)
+    assert.ok(html.length < MAX_FAILURES * 1024 * 20, `${html.length} bytes`)
+  })
+
+  it('keeps the text of at most 1,000 errors outside the files, and counts the rest', async () => {
+    await inScratch(async (dir) => {
+      const outputFile = join(dir, 'report.html')
+      const time = clock()
+      const bus = createReporterBus([htmlReporter({ outputFile, now: time.now })])
+      await bus.emit(
+        'run:start',
+        { root: '/project', projects: [''], startTime: 0, watch: false },
+        [],
+      )
+      for (let n = 0; n < MAX_FAILURES + 3; n++)
+        await bus.emit('error', error(`late ${n}`), 'coordinator')
+      await bus.emit('run:end', { reason: 'failed', files: [], unhandled: [], durationMs: 1 })
+      const data = dataOf(await readFile(outputFile, 'utf8'))
+      assert.equal(data.runErrors.length, MAX_FAILURES + 3)
+      assert.equal(data.runErrors.filter((text) => text !== '').length, MAX_FAILURES)
+      assert.equal(data.runErrors[0], 'late 0')
+      assert.equal(data.runErrors.at(-1), '')
+      assert.equal(data.omitted, 3)
+    })
+  })
+
   it('makes a file the bus never ended from the summary, and a late error one of the run’s', async () => {
     await inScratch(async (dir) => {
       const outputFile = join(dir, 'report.html')
       const time = clock()
-      const reporter = htmlReporter({ outputFile, root: '/project', now: time.now })
+      const reporter = htmlReporter({ outputFile, now: time.now })
       const bus = createReporterBus([reporter])
       await bus.emit(
         'run:start',
@@ -274,7 +325,7 @@ describe('htmlReporter', () => {
     await inScratch(async (dir) => {
       const outputFile = join(dir, 'report.html')
       const time = clock()
-      const bus = createReporterBus([htmlReporter({ outputFile, root: '/project', now: time.now })])
+      const bus = createReporterBus([htmlReporter({ outputFile, now: time.now })])
       time.set(100)
       await bus.emit(
         'run:start',
@@ -302,32 +353,6 @@ describe('htmlReporter', () => {
         if (item[3] >= 0)
           assert.ok(item[5] >= item[4], `${data.strings[item[0]]} ends before it starts`)
       }
-    })
-  })
-
-  it('reads the clock at run:end only for a file it cut off', async () => {
-    const time = clock()
-    let reads = 0
-    await inScratch(async (dir) => {
-      const bus = createReporterBus([
-        htmlReporter({
-          outputFile: join(dir, 'r.html'),
-          root: '/project',
-          now: () => {
-            reads += 1
-            return time.now()
-          },
-        }),
-      ])
-      await bus.emit(
-        'run:start',
-        { root: '/project', projects: [''], startTime: 0, watch: false },
-        [],
-      )
-      const done = await emitFile(bus, { path: 'done.test.ts', tests: [{ path: ['a'] }] })
-      const before = reads
-      await bus.emit('run:end', { reason: 'passed', files: [done], unhandled: [], durationMs: 1 })
-      assert.equal(reads, before)
     })
   })
 
