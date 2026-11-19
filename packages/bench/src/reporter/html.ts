@@ -11,8 +11,8 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { htmlReporter } from '@provino/reporters/html'
 import { median } from '../stats.ts'
-import type { HtmlResult, HtmlVariant } from './report.ts'
 import { deliver, noopReporter } from './legs.ts'
+import type { HtmlResult, HtmlVariant } from './report.ts'
 import { buildStream, DEFAULT_SPEC, type StreamEvent } from './stream.ts'
 
 function collect(): void {
