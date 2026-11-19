@@ -365,7 +365,7 @@ jobs:
       matrix:
         os: [ubuntu-24.04, ubuntu-24.04-arm, macos-15, windows-2025]
         pm: [npm-11, npm-12, pnpm-12, yarn-4-nm, yarn-4-pnp, bun]
-        node: ["24"]
+        node: ["22.15.0", "24", "26"]
     env:
       PM_ID: ${{ matrix.pm }}
       # Linux cells install from the Verdaccio the job starts; the others install the tarball by path.
