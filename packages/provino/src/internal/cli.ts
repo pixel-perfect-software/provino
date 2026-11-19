@@ -148,8 +148,9 @@ function parseReporters(
   }
   // The document reporters that take `--outputFile` before `html` does.
   const writers = known.filter((name) => isDocumentReporter(name) && name !== 'html')
+  const owner = writers[0] ?? (known.includes('html') ? 'html' : undefined)
   if (outputFile !== undefined) {
-    if (writers.length === 0 && !known.includes('html')) {
+    if (owner === undefined) {
       throw new UsageError('--outputFile needs --reporter json, normalized-json, junit or html')
     }
     if (writers.length > 1) {
@@ -158,7 +159,6 @@ function parseReporters(
       )
     }
   }
-  const owner = writers[0] ?? (known.includes('html') ? 'html' : undefined)
   return known.map((name) => choiceFor(name, owner, outputFile))
 }
 

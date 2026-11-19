@@ -10,22 +10,10 @@ import { mkdtemp, rm, stat } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { htmlReporter } from '@provino/reporters/html'
-import type { Reporter, ReporterEvents, ReporterHandlers } from '@provino/types'
 import { median } from '../stats.ts'
 import type { HtmlResult, HtmlVariant } from './report.ts'
+import { deliver, noopReporter } from './legs.ts'
 import { buildStream, DEFAULT_SPEC, type StreamEvent } from './stream.ts'
-
-type AnyHandler = (...args: readonly unknown[]) => unknown
-
-function handlerOf(reporter: Reporter, name: keyof ReporterEvents): AnyHandler | undefined {
-  const handlers: ReporterHandlers = reporter
-  return handlers[name] as unknown as AnyHandler | undefined
-}
-
-/** A reporter that has nothing to do at `run:end`: the baseline the build is read against. */
-function silentReporter(): Reporter {
-  return { name: 'silent', 'run:end': () => {} }
-}
 
 function collect(): void {
   ;(globalThis as { gc?: () => void }).gc?.()
@@ -52,12 +40,12 @@ async function measure(
       let tick = 0
       const reporter =
         subject === 'html'
-          ? htmlReporter({ outputFile, root: '/project', now: () => ++tick, wallClock: () => 0 })
-          : silentReporter()
-      for (const event of body) handlerOf(reporter, event.name)?.apply(reporter, event.args)
+          ? htmlReporter({ outputFile, now: () => ++tick, wallClock: () => 0 })
+          : noopReporter()
+      for (const event of body) deliver(reporter, event)
       collect()
       const start = performance.now()
-      await handlerOf(reporter, end.name)?.apply(reporter, end.args)
+      await deliver(reporter, end)
       const ms = performance.now() - start
       if (round > 0) times[subject].push(ms) // round 0 warms the code
       if (subject === 'html') bytes = (await stat(outputFile)).size

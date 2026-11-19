@@ -52,10 +52,7 @@ describe('htmlReporter', () => {
           ).map((event) => [event, () => void seen.push(existsSync(outputFile))]),
         ),
       }
-      const bus = createReporterBus([
-        probe,
-        htmlReporter({ outputFile, root: '/project', now: time.now }),
-      ])
+      const bus = createReporterBus([probe, htmlReporter({ outputFile, now: time.now })])
       await playTimed(bus, TIMED_FIXTURE, time)
       assert.deepEqual(bus.failures(), [])
       assert.ok(seen.length > 20)
@@ -71,7 +68,7 @@ describe('htmlReporter', () => {
       const outputFile = join(dir, 'report.html')
       await writeFile(outputFile, 'old')
       const time = clock()
-      const bus = createReporterBus([htmlReporter({ outputFile, root: '/project', now: time.now })])
+      const bus = createReporterBus([htmlReporter({ outputFile, now: time.now })])
       await playTimed(bus, TIMED_FIXTURE, time)
       assert.match(await readFile(outputFile, 'utf8'), /^<!doctype html>/)
       // A directory where the file should go: the rename fails, and the bus has the error.
@@ -92,7 +89,6 @@ describe('htmlReporter', () => {
     assert.equal(data.title, 'project')
     assert.equal(data.reason, 'failed')
     assert.equal(data.durationMs, 40)
-    assert.equal(data.workers, 4)
     assert.equal(data.startedAt, '2026-11-19T12:00:00.000Z')
     // The project's directory name stands for the root: the run's path is not in the data.
     assert.equal('root' in data, false)
@@ -175,7 +171,7 @@ describe('htmlReporter', () => {
     assert.equal(data.sample, true)
   })
 
-  it('stamps the clock once at run:start and once at each file’s start and end, and nowhere else', async () => {
+  it('reads the clock once at run:start, once at each file’s start and end, and once at run:end, and nowhere else', async () => {
     const time = clock()
     let reads = 0
     const counting = {
@@ -187,11 +183,11 @@ describe('htmlReporter', () => {
     }
     await inScratch(async (dir) => {
       const bus = createReporterBus([
-        htmlReporter({ outputFile: join(dir, 'r.html'), root: '/project', now: counting.now }),
+        htmlReporter({ outputFile: join(dir, 'r.html'), now: counting.now }),
       ])
       await playTimed(bus, TIMED_FIXTURE, counting)
     })
-    assert.equal(reads, 1 + 2 * TIMED_FIXTURE.length)
+    assert.equal(reads, 1 + 2 * TIMED_FIXTURE.length + 1)
   })
 
   it('counts a replaced worker as one of its own, and the gap shows in the times', async () => {
@@ -230,7 +226,7 @@ describe('htmlReporter', () => {
     await inScratch(async (dir) => {
       const outputFile = join(dir, 'report.html')
       const time = clock()
-      const reporter = htmlReporter({ outputFile, root: '/project', now: time.now })
+      const reporter = htmlReporter({ outputFile, now: time.now })
       const bus = createReporterBus([reporter])
       await bus.emit(
         'run:start',
@@ -274,7 +270,7 @@ describe('htmlReporter', () => {
     await inScratch(async (dir) => {
       const outputFile = join(dir, 'report.html')
       const time = clock()
-      const bus = createReporterBus([htmlReporter({ outputFile, root: '/project', now: time.now })])
+      const bus = createReporterBus([htmlReporter({ outputFile, now: time.now })])
       time.set(100)
       await bus.emit(
         'run:start',
@@ -302,32 +298,6 @@ describe('htmlReporter', () => {
         if (item[3] >= 0)
           assert.ok(item[5] >= item[4], `${data.strings[item[0]]} ends before it starts`)
       }
-    })
-  })
-
-  it('reads the clock at run:end only for a file it cut off', async () => {
-    const time = clock()
-    let reads = 0
-    await inScratch(async (dir) => {
-      const bus = createReporterBus([
-        htmlReporter({
-          outputFile: join(dir, 'r.html'),
-          root: '/project',
-          now: () => {
-            reads += 1
-            return time.now()
-          },
-        }),
-      ])
-      await bus.emit(
-        'run:start',
-        { root: '/project', projects: [''], startTime: 0, watch: false },
-        [],
-      )
-      const done = await emitFile(bus, { path: 'done.test.ts', tests: [{ path: ['a'] }] })
-      const before = reads
-      await bus.emit('run:end', { reason: 'passed', files: [done], unhandled: [], durationMs: 1 })
-      assert.equal(reads, before)
     })
   })
 

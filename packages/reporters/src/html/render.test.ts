@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { describe, it } from 'node:test'
-import type { ReportData } from './data.ts'
+import type { ReportData } from './page/model.ts'
 import { renderReport } from './page/main.ts'
 import { contentSecurityPolicy, DATA_ID, escapeHtml, pageScript, renderDocument } from './render.ts'
 
@@ -11,7 +11,6 @@ const DATA: ReportData = {
   startedAt: '2026-11-19T12:00:00.000Z',
   durationMs: 10,
   reason: 'passed',
-  workers: 1,
   strings: ['a.test.ts', 'adds', ''],
   files: [[0, 0, 1, 0, 0, 1, -1, 2]],
   tests: [[0, [1], 0, 1]],

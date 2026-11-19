@@ -64,8 +64,6 @@ export interface ReportData {
   readonly startedAt: string
   readonly durationMs: number
   readonly reason: EndReason
-  /** The pool's worker cap; `0` when the run didn't say. */
-  readonly workers: number
   /** Every path, title and project name, once. */
   readonly strings: readonly string[]
   readonly files: readonly FileRow[]

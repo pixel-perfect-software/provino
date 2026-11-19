@@ -17,7 +17,7 @@ import {
   taskResult,
   testEndEvent,
 } from '../internal/test-support.ts'
-import type { ReportData } from './data.ts'
+import type { ReportData } from './page/model.ts'
 import { type HtmlReporterOptions, htmlReporter } from './reporter.ts'
 
 /** The data a page carries: its `<script type="application/json">`, parsed. */
@@ -150,7 +150,6 @@ export async function reportFor(
     const bus = createReporterBus([
       htmlReporter({
         outputFile,
-        root: '/project',
         now: time.now,
         wallClock: () => Date.UTC(2026, 10, 19, 12, 0, 0),
         ...options,

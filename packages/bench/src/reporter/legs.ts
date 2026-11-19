@@ -73,11 +73,21 @@ function benchScheduler(start = 0): BenchScheduler {
   }
 }
 
-type AnyHandler = (...args: readonly unknown[]) => unknown
+export type AnyHandler = (...args: readonly unknown[]) => unknown
 
-function handlerOf(reporter: Reporter, name: keyof ReporterEvents): AnyHandler | undefined {
+export function handlerOf(reporter: Reporter, name: keyof ReporterEvents): AnyHandler | undefined {
   const handlers: ReporterHandlers = reporter
   return handlers[name] as unknown as AnyHandler | undefined
+}
+
+/** `event` delivered to `reporter`'s handler for it, if it has one. */
+export function deliver(reporter: Reporter, event: StreamEvent): unknown {
+  return handlerOf(reporter, event.name)?.apply(reporter, event.args)
+}
+
+/** A reporter that has nothing to do: the baseline a reporter's cost is read against. */
+export function noopReporter(): Reporter {
+  return { name: 'noop' }
 }
 
 function newReporter(stream: TerminalStream, scheduler: FrameScheduler): Reporter {
@@ -141,8 +151,7 @@ export function runFramesLeg(tests: number): FramesResult {
   const scheduler = benchScheduler()
   const reporter = newReporter(sink, scheduler)
   for (let i = 0; i < cut; i++) {
-    const event = stream.events[i] as StreamEvent
-    handlerOf(reporter, event.name)?.apply(reporter, event.args)
+    deliver(reporter, stream.events[i] as StreamEvent)
   }
   const pool = stream.events.slice(waveStart, cut).filter((event) => event.name === 'task:end')
   const taskEnd = handlerOf(reporter, 'task:end') as AnyHandler
@@ -193,7 +202,7 @@ function retainedBytes(
   const reporter = make()
   let n = 0
   for (const event of streamEvents(spec)) {
-    handlerOf(reporter, event.name)?.apply(reporter, event.args)
+    deliver(reporter, event)
     if (frames !== undefined && ++n % 500 === 0) {
       frames.advance(100)
       frames.runFrame()
@@ -221,7 +230,7 @@ export function runHeapLeg(tests: number, rounds: number): HeapResult {
       ['large', large],
     ] as const) {
       const measure = (subject: 'provino' | 'noop'): number => {
-        if (subject === 'noop') return retainedBytes(spec, () => ({ name: 'noop' }), undefined)
+        if (subject === 'noop') return retainedBytes(spec, noopReporter, undefined)
         const scheduler = benchScheduler()
         return retainedBytes(spec, () => newReporter(countingSink(), scheduler), scheduler)
       }

@@ -25,7 +25,7 @@ import {
 import type { HtmlReporterOptions } from '@provino/reporters/html'
 import type { LiveTerminal, ProvinoReporter } from '@provino/reporters/live'
 import type { FileInfo, FileResult, Reporter, RunSummary, TextStyle } from '@provino/types'
-import type { ProvinoChoiceOptions, ReporterChoice } from '../types.ts'
+import type { HtmlChoiceOptions, ProvinoChoiceOptions, ReporterChoice } from '../types.ts'
 import { pinnedSink, pinnedStream } from './live-terminal.ts'
 import {
   BUILT_IN_REPORTERS,
@@ -138,6 +138,15 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
 
 function isReporter(value: unknown): value is Reporter {
   return isRecord(value) && typeof value.name === 'string'
+}
+
+/** The options of the `name` reporter: an object, or none (an empty one). */
+function recordOptions(name: string, options: unknown): Readonly<Record<string, unknown>> {
+  if (options === undefined) return {}
+  if (!isRecord(options)) {
+    throw new UsageError(`the options of the ${name} reporter must be an object`)
+  }
+  return options
 }
 
 function describeChoice(choice: unknown): string {
@@ -266,7 +275,7 @@ type TextReporterName = Exclude<BuiltInReporterName, DocumentReporterName | 'pro
 export type ParsedChoice =
   | { readonly kind: 'text'; readonly name: TextReporterName }
   | { readonly kind: 'document'; readonly name: BuiltDocumentName; readonly options: unknown }
-  | { readonly kind: 'html'; readonly options: unknown }
+  | { readonly kind: 'html'; readonly options: Readonly<Record<string, unknown>> }
   | { readonly kind: 'provino'; readonly options: ProvinoChoiceOptions }
   | { readonly kind: 'object'; readonly reporter: Reporter }
 
@@ -275,13 +284,9 @@ export type ParsedChoice =
  * left out), nothing else.
  */
 function provinoOptions(options: unknown): ProvinoChoiceOptions {
-  if (options === undefined) return {}
-  if (!isRecord(options)) {
-    throw new UsageError('the options of the provino reporter must be an object')
-  }
   let tree = false
   let map = false
-  for (const [key, value] of Object.entries(options)) {
+  for (const [key, value] of Object.entries(recordOptions('provino', options))) {
     if (key !== 'tree' && key !== 'map') {
       throw new UsageError(`the provino reporter has no "${key}" option (it takes tree and map)`)
     }
@@ -303,16 +308,14 @@ function isDocumentName(name: string): name is BuiltDocumentName {
  * The options of an `html` reporter choice, checked: `outputFile` (a string) and nothing else.
  */
 function htmlOptions(options: unknown): Readonly<Record<string, unknown>> {
-  if (options === undefined) return {}
-  if (!isRecord(options)) {
-    throw new UsageError('the options of the html reporter must be an object')
-  }
-  for (const key of Object.keys(options)) {
+  const given = recordOptions('html', options)
+  for (const key of Object.keys(given)) {
     if (key !== 'outputFile') {
       throw new UsageError(`the html reporter has no "${key}" option (it takes outputFile)`)
     }
   }
-  return options
+  optionalString('html', given, 'outputFile')
+  return given
 }
 
 /**
@@ -357,16 +360,15 @@ export function hostReporterChoice(
   options: Readonly<Record<string, unknown>>,
 ): ReporterChoice {
   const parsed = parseReporterChoice([name, options])
-  if (parsed.kind === 'html') {
-    const outputFile = options.outputFile
-    if (outputFile === undefined) return 'html'
-    if (typeof outputFile !== 'string') {
-      throw new UsageError('the "outputFile" option of the html reporter must be a string')
-    }
-    return ['html', { outputFile }]
+  if (parsed.kind === 'provino') {
+    return Object.keys(parsed.options).length === 0 ? 'provino' : ['provino', parsed.options]
   }
-  if (parsed.kind !== 'provino') throw new UsageError(`unknown host reporter "${name}"`)
-  return Object.keys(parsed.options).length === 0 ? 'provino' : ['provino', parsed.options]
+  if (parsed.kind === 'html') {
+    // Checked by `htmlOptions`: `outputFile` (a string) is all it can hold.
+    const given = parsed.options as HtmlChoiceOptions
+    return Object.keys(given).length === 0 ? 'html' : ['html', given]
+  }
+  throw new UsageError(`unknown host reporter "${name}"`)
 }
 
 /** The reporter `name` names, writing its document where `options` say: `{ outputFile }`, or stdout without one. */
@@ -375,10 +377,7 @@ function documentReporter(
   context: ReporterContext,
   options: unknown,
 ): Built {
-  if (options !== undefined && !isRecord(options)) {
-    throw new UsageError(`the options of the ${name} reporter must be an object`)
-  }
-  const given = options ?? {}
+  const given = recordOptions(name, options)
   const path = documentPath(name, context, given)
   const { project } = context
   // The stdout's own `write`, taken now: while a live footer routes the process's other stdout
@@ -493,13 +492,16 @@ type MakeHtml = (options: HtmlReporterOptions) => Reporter
  * `provino-report.html` in the run's root, and never to stdout (D146). It is a document reporter,
  * so it goes last with the others.
  */
-function htmlFor(context: ReporterContext, options: unknown, make: MakeHtml): Built {
-  const given = isRecord(options) ? options : {}
-  const root = context.project.rootDir
-  const outputFile = documentPath('html', context, given) ?? resolve(root, DEFAULT_HTML_FILE)
+function htmlFor(
+  context: ReporterContext,
+  options: Readonly<Record<string, unknown>>,
+  make: MakeHtml,
+): Built {
+  const outputFile =
+    documentPath('html', context, options) ?? resolve(context.project.rootDir, DEFAULT_HTML_FILE)
   const seed = context.text?.seed
   return {
-    reporter: make({ outputFile, root, ...(seed === undefined ? {} : { seed }) }),
+    reporter: make({ outputFile, ...(seed === undefined ? {} : { seed }) }),
     writes: 'file',
   }
 }

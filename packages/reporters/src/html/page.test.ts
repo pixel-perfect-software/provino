@@ -740,7 +740,7 @@ function fileIndexOf(page: Page, path: string): string {
 }
 
 /** Plays a sample state through the reporter and reads the page it wrote. */
-async function sampleHtml(state: SampleState, options: { root?: string } = {}): Promise<string> {
+async function sampleHtml(state: SampleState): Promise<string> {
   const clock = sampleClock()
   const dir = await mkdtemp(join(tmpdir(), `provino-html-${state}-`))
   try {
@@ -748,7 +748,6 @@ async function sampleHtml(state: SampleState, options: { root?: string } = {}): 
     const bus = createReporterBus([
       htmlReporter({
         outputFile,
-        root: options.root ?? '/project',
         now: clock.now,
         seed: 1827364,
         sample: true,
