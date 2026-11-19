@@ -32,3 +32,8 @@ packages/provino/.work/
 # the Jest config oracle's preset projects, written at run time (pnpm bench:jest-config presets)
 packages/dialect-jest/oracle/presets/.work/
 .refs-istanbuljs/
+
+# tool output from design and browser review sessions: screenshots, and the design session's question log
+# (the rest of a package's .impeccable/ is tracked: design.json and surfaces/)
+.playwright-mcp/
+**/.impeccable/questions/
