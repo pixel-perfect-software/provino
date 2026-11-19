@@ -4,10 +4,9 @@
 
 ### Patch Changes
 
-- Updated dependencies [984aef2]
-  - @provino/types@0.1.0-rc.6
-  - @provino/policy@0.1.0-rc.6
+- @provino/policy@0.1.0-rc.6
   - @provino/transform@0.1.0-rc.6
+  - @provino/types@0.1.0-rc.6
 
 ## 0.1.0-rc.5
 
