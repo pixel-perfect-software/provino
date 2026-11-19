@@ -92,7 +92,7 @@ failed:
   ❌ broken.test.ts
 ```
 
-**The end card.** The footer is erased and the run ends with a verdict (🎉 when the run passed, 💥 when it did not), the counts, the files and the time, the three slowest files, the snapshot totals, the command that updates them when a snapshot failed or is obsolete, the seed when the run shows one (`--showSeed`, `--randomize`) and every failure again, one line each, with its location.
+**The end card.** The footer is erased and the run ends with a verdict mark and headline (green when the run passed, red when it did not), the counts, the files and the time, the three slowest files, the snapshot totals, the command that updates them when a snapshot failed or is obsolete, the seed when the run shows one (`--showSeed`, `--randomize`) and every failure again, one line each, with its location.
 
 <!-- capture: the end card of a real passing run and of a failing run with snapshots -->
 A passing run, and a failing one with snapshots and a seed:
