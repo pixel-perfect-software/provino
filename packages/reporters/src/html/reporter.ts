@@ -80,6 +80,8 @@ function newRun(): {
   failures: FailureRow[]
   fileErrors: FileErrorRow[]
   omitted: number
+  /** File errors whose text is kept: at most `MAX_FAILURES`, as the failed tests' are. */
+  fileTexts: number
   /** Files that started and have not ended: where and when. */
   running: Map<TaskId, { readonly startMs: number; readonly workerId: number }>
   compacted: Set<TaskId>
@@ -92,6 +94,7 @@ function newRun(): {
     failures: [],
     fileErrors: [],
     omitted: 0,
+    fileTexts: 0,
     running: new Map(),
     compacted: new Set(),
     roots: [],
@@ -169,11 +172,22 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
       entry === undefined
         ? result.errors
         : [...result.errors, ...suiteErrorsOf(entry), ...entry.unhandled]
-    let ownText = own.length === 0 ? '' : failureText(own, roots)
-    if (ownText === '' && result.workerExit !== undefined) {
-      ownText = `The worker ${describeExit(result.workerExit)} while it ran this file.`
+    if (own.length > 0 || result.workerExit !== undefined) {
+      if (run.fileTexts < MAX_FAILURES) {
+        let ownText = own.length === 0 ? '' : failureText(own, roots)
+        if (ownText === '' && result.workerExit !== undefined) {
+          ownText = `The worker ${describeExit(result.workerExit)} while it ran this file.`
+        }
+        if (ownText !== '') {
+          fileErrors.push([fileIndex, ownText])
+          run.fileTexts++
+        }
+      } else {
+        // Past the budget the file still has its error, and the page says its text is not kept.
+        fileErrors.push([fileIndex, ''])
+        run.omitted++
+      }
     }
-    if (ownText !== '') fileErrors.push([fileIndex, ownText])
     const kind = failed > 0 ? 'fail' : fileKind(result.state, ended, skipped, todo)
     files.push([
       table.intern(file.runPath ?? file.path),
@@ -225,6 +239,16 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
       const runEnd = Math.round(now() - origin)
       for (const result of summary.files) compact(result, runEnd)
       const counters = summary.snapshots?.counters
+      // The errors outside the files have a budget of their own, as the file errors have.
+      let runTexts = 0
+      const runErrors = record.runErrors.map(({ error }) => {
+        if (runTexts >= MAX_FAILURES) {
+          run.omitted++
+          return ''
+        }
+        runTexts++
+        return failureText([error], run.roots)
+      })
       const data: ReportData = {
         version: 1,
         // The directory's name only: the run's path stays out of the page (a shared report must not name a CI checkout).
@@ -237,7 +261,7 @@ export function htmlReporter(options: HtmlReporterOptions): Reporter {
         tests: run.tests,
         failures: run.failures,
         fileErrors: run.fileErrors,
-        runErrors: record.runErrors.map(({ error }) => failureText([error], run.roots)),
+        runErrors,
         omitted: run.omitted,
         ...(options.seed === undefined ? {} : { seed: options.seed }),
         ...(options.sample === true ? { sample: true as const } : {}),

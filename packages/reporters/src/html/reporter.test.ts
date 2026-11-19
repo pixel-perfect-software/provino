@@ -18,7 +18,14 @@ import { createReporterBus } from '../bus.ts'
 import { emitFile, error, fileInfo } from '../internal/test-support.ts'
 import { MAX_FAILURE_TEXT, MAX_FAILURES } from './data.ts'
 import { htmlReporter } from './reporter.ts'
-import { clock, dataOf, playTimed, reportFor, TIMED_FIXTURE } from './test-support.ts'
+import {
+  clock,
+  dataOf,
+  playTimed,
+  reportFor,
+  TIMED_FIXTURE,
+  type TimedFile,
+} from './test-support.ts'
 
 /** A scratch directory that is removed when `body` is done. */
 async function inScratch<T>(body: (dir: string) => Promise<T>): Promise<T> {
@@ -220,6 +227,54 @@ describe('htmlReporter', () => {
     // The rows are in order, so the first failures are the ones kept.
     assert.deepEqual(data.failures[0]?.[0], 0)
     assert.deepEqual(data.failures.at(-1)?.[0], MAX_FAILURES - 1)
+  })
+
+  it('keeps the text of at most 1,000 file errors and 1,000 run errors, and counts the rest', async () => {
+    const files: TimedFile[] = Array.from({ length: 2 * MAX_FAILURES }, (_, n) => ({
+      spec: {
+        path: `broken-${n}.test.ts`,
+        state: 'fail' as const,
+        errors: [error('y'.repeat(MAX_FAILURE_TEXT * 2))],
+      },
+      workerId: 0,
+      startMs: n,
+      endMs: n + 1,
+    }))
+    const { html } = await reportFor(files)
+    const data = dataOf(html)
+    // Every file is still a failed file with its row; the text is kept for the first 1,000.
+    assert.equal(data.files.length, 2 * MAX_FAILURES)
+    assert.ok(data.files.every((row) => row[1] === 1))
+    assert.equal(data.fileErrors.length, 2 * MAX_FAILURES)
+    assert.equal(data.fileErrors.filter((row) => row[1] !== '').length, MAX_FAILURES)
+    assert.ok(data.fileErrors.every((row) => row[1].length <= MAX_FAILURE_TEXT))
+    // The first ones are the ones kept, and the page lists the others without text.
+    assert.ok((data.fileErrors[MAX_FAILURES - 1]?.[1] ?? '') !== '')
+    assert.equal(data.fileErrors[MAX_FAILURES]?.[1], '')
+    assert.equal(data.omitted, MAX_FAILURES)
+    assert.ok(html.length < MAX_FAILURES * 1024 * 20, `${html.length} bytes`)
+  })
+
+  it('keeps the text of at most 1,000 errors outside the files, and counts the rest', async () => {
+    await inScratch(async (dir) => {
+      const outputFile = join(dir, 'report.html')
+      const time = clock()
+      const bus = createReporterBus([htmlReporter({ outputFile, now: time.now })])
+      await bus.emit(
+        'run:start',
+        { root: '/project', projects: [''], startTime: 0, watch: false },
+        [],
+      )
+      for (let n = 0; n < MAX_FAILURES + 3; n++)
+        await bus.emit('error', error(`late ${n}`), 'coordinator')
+      await bus.emit('run:end', { reason: 'failed', files: [], unhandled: [], durationMs: 1 })
+      const data = dataOf(await readFile(outputFile, 'utf8'))
+      assert.equal(data.runErrors.length, MAX_FAILURES + 3)
+      assert.equal(data.runErrors.filter((text) => text !== '').length, MAX_FAILURES)
+      assert.equal(data.runErrors[0], 'late 0')
+      assert.equal(data.runErrors.at(-1), '')
+      assert.equal(data.omitted, 3)
+    })
   })
 
   it('makes a file the bus never ended from the summary, and a late error one of the run’s', async () => {

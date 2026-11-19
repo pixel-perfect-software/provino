@@ -9,7 +9,7 @@ import type { ReportData } from './page/model.ts'
 /** The longest text one failure keeps, in characters. */
 export const MAX_FAILURE_TEXT: number = MAX_ERROR_TEXT
 
-/** The failed tests whose text a report keeps; the rest are counted (`ReportData.omitted`). */
+/** The failures of each kind (failed tests, a file's own errors, errors outside the files) whose text a report keeps; the rest are counted (`ReportData.omitted`). */
 export const MAX_FAILURES: number = 1000
 
 /** The marker that ends a failure's text when it was cut. */

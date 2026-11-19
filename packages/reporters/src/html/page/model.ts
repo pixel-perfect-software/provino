@@ -36,7 +36,10 @@ export type TestRow = readonly [
 /** A failed test's error text: the test's index and the text (at most 16 KB). */
 export type FailureRow = readonly [testIndex: number, text: string]
 
-/** A file's own error text (a collection error, a dead worker, a failing `afterAll`). */
+/**
+ * A file's own error text (a collection error, a dead worker, a failing `afterAll`); `''` when the
+ * report did not keep it.
+ */
 export type FileErrorRow = readonly [fileIndex: number, text: string]
 
 /** The run's snapshot totals; the report has it only when a file checked or wrote snapshots. */
@@ -70,9 +73,12 @@ export interface ReportData {
   readonly tests: readonly TestRow[]
   readonly failures: readonly FailureRow[]
   readonly fileErrors: readonly FileErrorRow[]
-  /** Errors that belong to no file. */
+  /** Errors that belong to no file; `''` for one whose text was not kept. */
   readonly runErrors: readonly string[]
-  /** Failed tests whose text was not kept (the report keeps the first `MAX_FAILURES`). */
+  /**
+   * Failures whose text was not kept: failed tests, a file's own errors and errors outside the
+   * files each keep the text of their first `MAX_FAILURES`, and the rest are counted here.
+   */
   readonly omitted: number
   /** The seed of a randomized run, when the run shows one. */
   readonly seed?: number

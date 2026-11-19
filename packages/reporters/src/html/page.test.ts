@@ -1320,3 +1320,33 @@ describe('the report page, redrawing and the tree’s keys', async () => {
     assertClean(page)
   })
 })
+
+describe('the report page, with more failures than the report keeps the text of', () => {
+  it('lists every failed file, the ones past the cap without text, and says how many', async () => {
+    const files: TimedFile[] = Array.from({ length: 2000 }, (_, n) => ({
+      spec: {
+        path: `broken-${n}.test.ts`,
+        state: 'fail' as const,
+        errors: [{ name: 'Error', message: 'y'.repeat(100) }],
+      },
+      workerId: 0,
+      startMs: n,
+      endMs: n + 1,
+    }))
+    const { html } = await reportFor(files)
+    const page = load(html)
+    assertClean(page)
+    assert.equal(all(page, '.failure').length, 2000)
+    assert.match(
+      text(one(page, '.note')),
+      /^1,000 more failures are listed without text: the report keeps the text of 1,000 of 2,000\.$/,
+    )
+    // The ones past the cap say so where their text would be.
+    const heads = all(page, '.failure-first').map(text)
+    assert.equal(
+      heads.filter((line) => line.startsWith('Failed (the report keeps no text')).length,
+      1000,
+    )
+    assert.equal(headline(page), '2,000 files failed to run')
+  })
+})

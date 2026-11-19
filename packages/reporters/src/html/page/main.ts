@@ -36,6 +36,10 @@ export function renderReport(data: ReportData): void {
     notrun: 'not run',
   } as const
   const MAX_RESULTS = 500
+  // What a failure shows when the report did not keep its text.
+  const NO_TEXT = 'Failed (the report keeps no text for this failure).'
+  const textOrNone = (text: string): string => (text === '' ? NO_TEXT : text)
+  const runErrors = data.runErrors.map(textOrNone)
 
   type Child = Node | string | null | undefined | false
   const el = (
@@ -165,7 +169,7 @@ export function renderReport(data: ReportData): void {
   }
   for (const row of data.fileErrors) {
     const file = files[row[0]]
-    if (file !== undefined) file.error = row[1]
+    if (file !== undefined) file.error = textOrNone(row[1])
   }
   const broken = (file: FileModel): boolean => file.status === 1 || file.status === 4
   const crashed = files.filter((file) => file.status === 4)
@@ -248,13 +252,13 @@ export function renderReport(data: ReportData): void {
           entries.push({
             file,
             test,
-            text: test.error ?? 'Failed (the report keeps no text for this failure).',
+            text: test.error ?? NO_TEXT,
           })
         }
       }
     }
   }
-  for (const text of data.runErrors) entries.push({ file: null, test: null, text })
+  for (const text of runErrors) entries.push({ file: null, test: null, text })
   const failing = entries.length > 0 || data.reason !== 'passed'
 
   // ---- State
@@ -310,7 +314,7 @@ export function renderReport(data: ReportData): void {
       `${plural(failedTests, 'test')} failed in ${plural(filesWithFailures, 'file')}`,
     failedToRun > 0 && `${plural(failedToRun, 'file')} failed to run`,
     crashed.length > 0 && `${plural(crashed.length, 'file')} crashed`,
-    data.runErrors.length > 0 && `${plural(data.runErrors.length, 'error')} outside the tests`,
+    runErrors.length > 0 && `${plural(runErrors.length, 'error')} outside the tests`,
   )
   const headline =
     files.length === 0
@@ -764,7 +768,7 @@ export function renderReport(data: ReportData): void {
         el(
           'p',
           { class: 'note' },
-          `${plural(data.omitted, 'more failed test')} ${data.omitted === 1 ? 'is' : 'are'} listed without text: the report keeps the text of the first ${num(failedTests - data.omitted)}.`,
+          `${plural(data.omitted, 'more failure')} ${data.omitted === 1 ? 'is' : 'are'} listed without text: the report keeps the text of ${num(entries.length - data.omitted)} of ${num(entries.length)}.`,
         ),
       )
     }
@@ -944,8 +948,7 @@ export function renderReport(data: ReportData): void {
       open: false,
     })
     if (test.error !== null) errorBox(item, test.error)
-    else if (test.status === 1)
-      errorBox(item, 'Failed (the report keeps no text for this failure).')
+    else if (test.status === 1) errorBox(item, NO_TEXT)
     return item
   }
   interface Suite {
@@ -1144,16 +1147,16 @@ export function renderReport(data: ReportData): void {
         const shown = folder.files.filter(inRange)
         if (shown.length > 0) tree.append(folderItem(folder, shown))
       }
-      if (data.runErrors.length > 0 && range === null) {
+      if (runErrors.length > 0 && range === null) {
         const item = makeItem({
           kind: 'file',
           level: 1,
           tone: 'fail',
           label: 'Errors outside any test file',
           title: '',
-          meta: [nFail(plural(data.runErrors.length, 'error'))],
+          meta: [nFail(plural(runErrors.length, 'error'))],
           fill: (group) => {
-            for (const text of data.runErrors) group.append(inlineError(text, 1))
+            for (const text of runErrors) group.append(inlineError(text, 1))
           },
           open: true,
         })
