@@ -28,6 +28,7 @@ pnpm exec provino jest path/to/a.test.ts  # one file first
 pnpm exec provino jest                    # the whole suite
 ```
 
+<!-- capture: a real `provino jest` run on a terminal, the final screen once the live footer is gone -->
 ```console
 $ pnpm exec provino jest
 ✅ src/cart.test.ts · 3 tests · 6ms
@@ -38,7 +39,7 @@ $ pnpm exec provino jest
 snapshots: 1 passed
 ```
 
-On a terminal, Provino draws its own live view while the run goes. A pipe, CI, an editor, an AI agent, `--verbose` and `--watch` get Jest's text, byte for byte.
+On a terminal, Provino draws its own live view while the run goes. A pipe, CI, an editor, an AI agent, `--verbose` and `--watch` get Jest's text, byte for byte. [The output, its flags and the HTML report →](https://github.com/pixel-perfect-software/provino/blob/main/wiki/output.md)
 
 A flag Provino can't run yet is refused by name. `provino vitest` comes next. Watch mode (`--watch`, `--watchAll`) works, except that `--coverage`, `--collectTests` and `--detectOpenHandles` are refused by name with it, and coverage from saved reports (`--merge-reports`) is planned. [Jest compatibility](https://github.com/pixel-perfect-software/provino/blob/main/wiki/compatibility.md) has the full list. If a test passes under Jest and fails under Provino, please [open an issue](https://github.com/pixel-perfect-software/provino/issues).
 
