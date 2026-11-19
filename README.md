@@ -18,6 +18,7 @@
 
 `provino jest` runs a Jest project as it is: the same `jest.config` and Jest's flags, matchers and mocks. It writes snapshot files byte for byte as Jest does, and exits with Jest's exit codes. There's nothing to migrate: you change the command. Underneath, it's built not to redo work for every test file. [Why Provino →](wiki/why-provino.md)
 
+<!-- capture: a real `provino jest` run on a terminal, the final screen once the live footer is gone -->
 ```console
 $ pnpm exec provino jest
 ✅ src/cart.test.ts · 3 tests · 6ms
@@ -28,7 +29,7 @@ $ pnpm exec provino jest
 snapshots: 1 passed
 ```
 
-On a terminal, Provino draws its own live view while the run goes. A pipe, CI, an editor, an AI agent, `--verbose` and `--watch` get Jest's text, byte for byte.
+On a terminal, Provino draws its own live view while the run goes. A pipe, CI, an editor, an AI agent, `--verbose` and `--watch` get Jest's text, byte for byte. [The output, its flags and the HTML report →](wiki/output.md)
 
 | Your project has                                   | Under `provino jest`                                                    |
 | -------------------------------------------------- | ----------------------------------------------------------------------- |
@@ -48,7 +49,7 @@ On a terminal, Provino draws its own live view while the run goes. A pipe, CI, a
 - 🦥 **Lazy variables,** RSpec style: `import { lazy } from 'provino'` for values that are built on first read, memoized per test and overridden in a nested `describe`. [Lazy variables →](wiki/lazy-variables.md)
 - 📊 **Coverage** with `--coverage`: Istanbul or V8, Jest's reports and thresholds.
 - 🧵 **Sharding that balances:** Jest's split, or by recorded time.
-- 🤖 **Output for people, CI and agents:** Provino's own live view in a terminal (`--tree` and `--map` add a folder tree and a status map), Jest's text byte for byte wherever a machine reads it, annotations on GitHub Actions, and a compact report under an AI agent.
+- 🤖 **Output for people, CI and agents:** Provino's own live view in a terminal (`--tree` and `--map` add a folder tree and a status map), Jest's text byte for byte wherever a machine reads it, annotations on GitHub Actions, and a compact report under an AI agent, and a single-file HTML report.
 
 ## 📋 Requirements
 
@@ -107,6 +108,7 @@ pnpm exec provino jest                    # the whole suite
 
 - [Why Provino](wiki/why-provino.md): the problem, the goal, and the go/no-go bar.
 - [Jest compatibility](wiki/compatibility.md): what works, and every gap.
+- [Output](wiki/output.md): the terminal view, its flags, and the HTML report.
 - [Lazy variables](wiki/lazy-variables.md): `lazy`, scopes, shared examples.
 - [How it works](wiki/how-it-works.md)
 - [Troubleshooting](wiki/troubleshooting.md)
