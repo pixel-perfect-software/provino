@@ -29,15 +29,6 @@ export interface ReevaluateState {
   readonly pending: Set<string>
   /** What was learned since `takeLearned` last said so, in the order it was (never a seeded one). */
   readonly learned: string[]
-  /**
-   * What the worker's first file loaded natively when it last ran first (`noteLoaded`), not
-   * indexed yet: the first settle where the seeds grow indexes it before they join, as it indexes
-   * what this worker loaded (D132), so a worker that starts with its seeds knows what one that
-   * learned them in that file would.
-   */
-  readonly loadedBefore: string[]
-  /** How many of the worker's native loads `takeLoaded` has looked at. */
-  loadedTaken: number
   readonly watchers: Set<ExternalLoadWatcher>
   /** Which externals are evaluated per file, from the seeds and the known graph (D132). */
   readonly perFile: PerFileGraph
@@ -86,6 +77,12 @@ export interface PerFileGraph {
   readonly probes: Set<string>
   /** Whether the running file has asked about an external yet: what joins after that is pending. */
   answered: boolean
+  /**
+   * Which of the worker's files is running: 1 for its first (`promotePerFile` counts them as
+   * their registries are created), 0 before any. No region join is decided during the first
+   * (`settlePerFile`).
+   */
+  file: number
   /** How many of `active`, and of the claims' user modules, are in the set as seeds. */
   primedActive: number
   primedClaimed: number
@@ -110,6 +107,7 @@ function createPerFileGraph(): PerFileGraph {
     dynamic: new Map(),
     probes: new Set(),
     answered: false,
+    file: 0,
     primedActive: 0,
     primedClaimed: 0,
   }
@@ -371,12 +369,20 @@ function joinProbed(
 
 /**
  * Settles the set before `evaluatedPerFile` answers for `path`: when the seeds grew, indexes what
- * the worker loaded natively and what its first file loaded when it last ran first
- * (`loadedBefore`), so a shared importer an earlier file loaded counts, then the new seeds, and
- * puts them in the set;
- * indexes `path`; then decides what the changes probed (`joinProbed`). `index` indexes a file's
- * closure (`indexClosure` in `inline.ts`). Returns the joins a dynamic file refused, for the
- * caller to report.
+ * the worker loaded natively (so a shared importer an earlier file loaded counts) and the new
+ * seeds, and puts them in the set; indexes `path`; then decides what the changes probed
+ * (`joinProbed`). `index` indexes a file's closure (`indexClosure` in `inline.ts`). Returns the
+ * joins a dynamic file refused, for the caller to report.
+ *
+ * During the worker's first file nothing of the region is decided: its probes wait for the next
+ * file's first settle, which decides them knowing every external the first file asked about. A
+ * worker seeded from the results cache has its seeds from its first question, before any file has
+ * loaded a shared importer of their dependencies, so a join decided then would see no importer
+ * and take each seed's whole closure; a cold worker learns the same seeds in its first file and
+ * joins them at its second, knowing what that file loaded. So a seed is per file from the first
+ * file on (and what reaches it, by the reach rule), and its dependencies are shared in the first
+ * file, as everything is in a cold worker's, and join from the second when no shared importer is
+ * known.
  */
 export function settlePerFile(
   state: ReevaluateState,
@@ -389,9 +395,6 @@ export function settlePerFile(
   const { claimed, keep } = sources
   if (graph.primedActive !== active.size || graph.primedClaimed !== claimed.length) {
     for (const loaded of sources.loaded.keys()) if (inGraph(loaded)) index(loaded)
-    // A worker given its seeds joins them before its first file has loaded their shared
-    // importers: what that file loaded when it last ran first stands in for them.
-    for (const loaded of state.loadedBefore.splice(0)) index(loaded)
     let at = 0
     for (const seed of active) {
       if (at++ < graph.primedActive) continue
@@ -408,7 +411,7 @@ export function settlePerFile(
     graph.primedClaimed = claimed.length
   }
   index(path)
-  if (graph.probes.size === 0) return NO_REFUSALS
+  if (graph.probes.size === 0 || graph.file === 1) return NO_REFUSALS
   const refusals: DynamicRefusal[] = []
   joinProbed(graph, keep, refusals)
   return refusals.length === 0 ? NO_REFUSALS : refusals
@@ -417,6 +420,7 @@ export function settlePerFile(
 /** Makes what joined while the last file ran a member: called as a file's registry is created. */
 function promotePerFile(graph: PerFileGraph): void {
   graph.answered = false
+  graph.file++
   if (graph.pending.size === 0) return
   for (const path of graph.pending) graph.members.add(path)
   graph.pending.clear()
@@ -427,8 +431,6 @@ export function createReevaluateState(): ReevaluateState {
     active: new Set(),
     pending: new Set(),
     learned: [],
-    loadedBefore: [],
-    loadedTaken: 0,
     watchers: new Set(),
     perFile: createPerFileGraph(),
     watching: false,
@@ -452,43 +454,6 @@ const NOTHING_LEARNED: readonly string[] = []
 /** What was learned since the last call (each file once, not a seeded one); no allocation for none. */
 export function takeLearned(state: ReevaluateState): readonly string[] {
   return state.learned.length === 0 ? NOTHING_LEARNED : state.learned.splice(0)
-}
-
-/**
- * Notes what the worker's first file loaded natively when it last ran first, indexed at the first
- * settle where the seeds grow, before they join (`loadedBefore`). Ignored once some seed has
- * joined: a worker that learned its seeds knew only what it had loaded by then, so a later file's
- * list would make it know more, and keep shared a registry no importer it loaded shares.
- */
-export function noteLoaded(state: ReevaluateState, paths: Iterable<string>): void {
-  const graph = state.perFile
-  if (graph.primedActive > 0 || graph.primedClaimed > 0) return
-  for (const path of paths) state.loadedBefore.push(path)
-}
-
-/** Whether `path` is evaluated per file in this worker: learned, a seed, or in the set. */
-function evaluatedHere(state: ReevaluateState, path: string): boolean {
-  return state.active.has(path) || state.pending.has(path) || inSet(state.perFile, path)
-}
-
-/**
- * What of `loaded` (the externals the worker loaded natively, in load order) is new since the last
- * call and in the graph, each once, leaving out what is evaluated per file here: such a file is no
- * shared importer, so it keeps nothing shared. No allocation when nothing is new.
- */
-export function takeLoaded(
-  state: ReevaluateState,
-  loaded: ReadonlyMap<string, unknown>,
-): readonly string[] {
-  const from = state.loadedTaken
-  if (loaded.size <= from) return NOTHING_LEARNED
-  state.loadedTaken = loaded.size
-  const taken: string[] = []
-  let at = 0
-  for (const path of loaded.keys()) {
-    if (at++ >= from && inGraph(path) && !evaluatedHere(state, path)) taken.push(path)
-  }
-  return taken.length === 0 ? NOTHING_LEARNED : taken
 }
 
 /** Node's own module cache: what a native `require` adds an entry to, in load order. */

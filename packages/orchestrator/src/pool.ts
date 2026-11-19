@@ -115,12 +115,6 @@ export interface FileRequest {
    * the worker drops its records of them before the file starts. Omitted, or an empty list: none.
    */
   readonly staleModules?: (workerId: number) => readonly string[]
-  /**
-   * What the file loaded natively the last time it was a worker's first file (D132), asked for
-   * only when the worker that took it has run no file yet, just before the job is sent: a
-   * non-empty list goes as `FileJob.loadedExternals`. Omitted, or an empty list: none.
-   */
-  readonly loadedExternals?: () => readonly string[]
 }
 
 /**
@@ -685,11 +679,10 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
         deadline = setTimeout(() => kill(slot, 'deadline'), fileTimeoutMs)
       }
       const stale = request.staleModules?.(slot.id)
-      // Only a worker's first file: a worker that has run one has its seeds' join behind it.
-      const loaded = slot.files === 0 ? request.loadedExternals?.() : undefined
-      let job = request.job
-      if (stale !== undefined && stale.length > 0) job = { ...job, staleModules: stale }
-      if (loaded !== undefined && loaded.length > 0) job = { ...job, loadedExternals: loaded }
+      const job =
+        stale === undefined || stale.length === 0
+          ? request.job
+          : { ...request.job, staleModules: stale }
       const running = slot.connection.run(job)
       if (!sharesProcess || deps.forceSignal === undefined) return await running
       const done = await Promise.race([running, forced.promise])

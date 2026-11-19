@@ -1401,12 +1401,6 @@ describe('a shared external that reads a per-file global as it loads (D127, P42)
     assert.equal(await loads(p.dir), 2, 'once natively for a.test.js, once inlined for b.test.js')
     assert.deepEqual(done[0]?.reevaluated, [p.path('node_modules/hooker/index.js')])
     assert.equal(done[1]?.reevaluated, undefined, 'nothing new to tell')
-    assert.deepEqual(
-      done[0]?.loadedExternals,
-      [p.path('node_modules/plain/index.js')],
-      'what it loaded natively (D132), less what it learned',
-    )
-    assert.equal(done[1]?.loadedExternals, undefined, 'nothing new to tell')
   })
 
   it('under the neutral value, is evaluated once per worker and nothing is reported', async () => {
@@ -1420,11 +1414,6 @@ describe('a shared external that reads a per-file global as it loads (D127, P42)
     assert.deepEqual(
       done.map((entry) => entry.reevaluated),
       [undefined, undefined],
-    )
-    assert.deepEqual(
-      done.map((entry) => entry.loadedExternals),
-      [undefined, undefined],
-      'nor what it loaded natively',
     )
   })
 
@@ -1477,13 +1466,6 @@ describe('a shared external that reads a per-file global as it loads (D127, P42)
       [['node_modules/hooker/index.js', '']],
       'with its package’s version (none here)',
     )
-    assert.deepEqual(
-      ['a.test.js', 'b.test.js'].map(
-        (file) => reread.get(projectCacheKey(target), file)?.loadedExternals,
-      ),
-      [{ 'node_modules/plain/index.js': '' }, undefined],
-      'and on the worker’s first file’s record, what that file loaded natively (D132)',
-    )
 
     // A new run, a new worker: its first file evaluates `hooker` through its registry. (An inline
     // worker shares this process, so a native load would find Node's cached copy and add none.)
@@ -1491,10 +1473,11 @@ describe('a shared external that reads a per-file global as it loads (D127, P42)
     assert.equal(await loads(p.dir), 4, 'both files of the second run evaluated it')
   })
 
-  it('carries what the worker loaded natively too, so a warm run keeps shared what the cold one did (D132)', async () => {
+  it('keeps shared in a warm run what the cold one did: a learned package’s dependency that a shared package imports (D132)', async () => {
     // `plugin` is learned (it registers an `afterEach`); `core-lib`, which it imports, is imported
-    // by `widget` too, which the first file loaded natively before `plugin`. A file asks about
-    // `first` before `widget`, so the seed has joined before the file names `widget`.
+    // by `widget` too, which each file loads natively before `plugin`. A file asks about `first`
+    // before `widget`, so a warm worker's seed is a member before the file names `widget`: only
+    // its first file's end decides whether `core-lib` joins.
     const p = await project({
       'node_modules/first/package.json': JSON.stringify({ name: 'first', main: 'index.js' }),
       'node_modules/first/index.js': 'module.exports = {}',
@@ -1529,20 +1512,11 @@ describe('a shared external that reads a per-file global as it loads (D127, P42)
     assert.equal(await coreLoads(), 1, 'cold: core-lib is evaluated once per worker')
     const written = createResultsCache(defaultCacheDir(p.dir))
     assert.deepEqual([...written.externals(key).keys()], ['node_modules/plugin/index.js'])
-    const first = written.get(key, 'a.test.js')
-    assert.deepEqual(Object.keys(first?.loadedExternals ?? {}).toSorted(), [
-      'node_modules/first/index.js',
-      'node_modules/widget/index.js',
-    ])
-    assert.equal(written.get(key, 'b.test.js')?.loadedExternals, undefined, 'not a first file')
-    // The warm worker starts with `a.test.js` again: its record says it took longest.
-    if (first !== undefined) written.record(key, 'a.test.js', { ...first, durationMs: 60_000 })
-    await written.write()
     await once()
     assert.equal(await coreLoads(), 2, 'warm: once per worker again')
   })
 
-  it('tells a worker only what its own first file loaded natively, so a registry stays per file where no file of that worker loads its shared importer (D132)', async () => {
+  it('evaluates a registry per file from the second file in a worker that never loads its shared importer, warm as cold, so no file registers twice (D132)', async () => {
     // `plugin` (learned: it registers an `afterEach`) registers into `reg`, which throws on an id
     // it holds already; `widget`, a shared package, imports `reg` too. Two workers: the one that
     // takes `w.test.js` loads `widget` and waits until both `p*.test.js` have run, so the other

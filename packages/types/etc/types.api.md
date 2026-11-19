@@ -1044,7 +1044,6 @@ export interface FileHistory {
     // (undocumented)
     readonly failed: boolean;
     readonly inputsHash?: string;
-    readonly loadedExternals?: Readonly<Record<string, string>>;
     // (undocumented)
     readonly tests: number;
     readonly tier?: IsolationTier;
@@ -1070,7 +1069,6 @@ export interface FileJob {
     readonly file: string;
     // (undocumented)
     readonly fileId: TaskId;
-    readonly loadedExternals?: readonly string[];
     readonly logHeapUsage?: true;
     readonly staleModules?: readonly string[];
     readonly testIds?: readonly TaskId[];
@@ -1738,9 +1736,8 @@ export interface Loader extends Disposable {
     // (undocumented)
     getSourceMap(id: ModuleId): SourceMapV3 | null;
     onModuleCompiled(listener: (event: CompiledModuleEvent) => void): () => void;
-    reevaluateExternals(paths: readonly string[], loaded?: readonly string[]): void;
+    reevaluateExternals(paths: readonly string[]): void;
     takeLearnedExternals(): readonly string[];
-    takeLoadedExternals(): readonly string[];
     tierFor(testFile: string, sources: TierSources): TierChoice;
     watchExternalLoads(watcher: ExternalLoadWatcher): () => void;
 }
@@ -3940,7 +3937,6 @@ export type WorkerToCoordinator = {
     readonly leaks?: true;
     readonly heapUsedBytes?: number;
     readonly reevaluated?: readonly string[];
-    readonly loadedExternals?: readonly string[];
 } | {
     readonly t: "stopped";
 } | RpcCall<CoordinatorMethods> | RpcReply<WorkerMethods>;

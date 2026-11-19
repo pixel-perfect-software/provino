@@ -343,17 +343,13 @@ describe('createResultsCache', () => {
     assert.equal(cache.get('q', 'x'), undefined)
   })
 
-  it('keeps a record’s inputs hash, learned tier, coverage map and loaded externals through a round trip', async () => {
+  it('keeps a record’s inputs hash, learned tier and coverage map through a round trip', async () => {
     const dir = await scratch()
     const full: FileHistory = {
       ...history(7),
       inputsHash: 'f'.repeat(40),
       tier: 'realm',
       coverage: { 'suite > test': ['fn#1', 'fn#2'] },
-      loadedExternals: {
-        'node_modules/widget/index.js': '1.0.0',
-        'node_modules/bare/index.js': '',
-      },
     }
     const cache = createResultsCache(dir)
     cache.record('p', 'a.test.ts', full)
@@ -374,15 +370,13 @@ describe('createResultsCache', () => {
             'hash.test.ts': { ...history(3), inputsHash: 7 },
             'coverage.test.ts': { ...history(4), coverage: { t: [1] } },
             'coverage-shape.test.ts': { ...history(5), coverage: ['t'] },
-            'loaded.test.ts': { ...history(6), loadedExternals: { 'node_modules/a/index.js': 1 } },
-            'loaded-shape.test.ts': { ...history(7), loadedExternals: ['node_modules/a/index.js'] },
           },
         },
       }),
     )
     const cache = createResultsCache(dir)
     assert.deepEqual(cache.get('p', 'ok.test.ts'), history(1))
-    for (const name of ['tier', 'hash', 'coverage', 'coverage-shape', 'loaded', 'loaded-shape']) {
+    for (const name of ['tier', 'hash', 'coverage', 'coverage-shape']) {
       assert.equal(cache.get('p', `${name}.test.ts`), undefined, name)
     }
   })

@@ -1350,71 +1350,65 @@ test('reevaluateHookingExternals (D132): a dependency a shared package imports t
   })
 })
 
-test('reevaluateHookingExternals (D132): a worker seeded with what a cold one learned and what its first file loaded natively has its instances; seeded with the learned set alone, the whole closure', async () => {
+test('reevaluateHookingExternals (D132): a worker seeded with what a cold one learned holds its instances from the second file, and shares the seeds’ dependencies in the first', async () => {
   const policy = { reevaluateHookingExternals: true, interopDefault: 'babel' } as const
-  /** What a run on a fresh copy of the tree (Node's own cache is the process's) did, by file. */
+  /** What a run on a fresh copy of the tree (Node's own cache is the process's) did. */
   interface Run {
     readonly root: string
     readonly results: readonly ClosureLoaded[]
     readonly learned: readonly string[]
-    readonly loaded: readonly string[]
-    readonly coreLoads: readonly string[]
+    readonly evals: readonly string[]
   }
   /**
    * Runs two files on a new loader over a new copy of the tree, seeded with `from`'s learned set
-   * (and its first file's native loads, with `loaded`) carried over as the results cache carries
-   * them, relative to the root. What the loader learned is taken after each file, and what it
-   * loaded natively after the first, as the worker does.
+   * carried over as the results cache carries it, relative to the root.
    */
-  const run = (from?: Run, loaded = false): Run => {
+  const run = (from?: Run): Run => {
     const root = writeTree(CLOSURE)
-    const moved = (paths: readonly string[]) =>
-      paths.map((path) => join(root, path.slice((from?.root.length ?? 0) + 1)))
     const loader = loaderFor(root, policy)
     loader.watchExternalLoads(probe([]))
     if (from !== undefined) {
-      loader.reevaluateExternals(moved(from.learned), loaded ? moved(from.loaded) : undefined)
+      loader.reevaluateExternals(
+        from.learned.map((path) => join(root, path.slice(from.root.length + 1))),
+      )
     }
-    const learnedNow: string[] = []
-    const loadedNow: string[] = []
+    const learned: string[] = []
     closureEvals(root)
-    const results = ['a.test.js', 'b.test.js'].map((name, at) => {
+    const results = ['a.test.js', 'b.test.js'].map((name) => {
       const result = loader
         .createFileRegistry(join(root, name), { tier: 'registry' })
         .require<ClosureLoaded>(join(root, name))
-      learnedNow.push(...loader.takeLearnedExternals())
-      if (at === 0) loadedNow.push(...loader.takeLoadedExternals())
+      learned.push(...loader.takeLearnedExternals())
       return result
     })
-    const coreLoads = closureEvals(root).filter((name) => name === 'core-lib')
+    const evals = closureEvals(root)
     loader[Symbol.dispose]()
-    return { root, results, learned: learnedNow, loaded: loadedNow, coreLoads }
+    return { root, results, learned, evals }
   }
   await withFileGlobals(async () => {
     const cold = run()
     assert.deepEqual(
-      cold.loaded.map((path) => path.slice(cold.root.length + 1)).toSorted(),
-      ['node_modules/registry/index.js', 'node_modules/widget/index.js'],
-      'what the first file required natively, less the plugin it learned',
+      cold.evals,
+      ['registry', 'core-lib', 'registry'],
+      'cold: both shared in file 1, the registry per file in file 2, core-lib once per worker',
     )
-    assert.deepEqual(cold.coreLoads, ['core-lib'], 'cold: core-lib is evaluated once per worker')
-
-    const warm = run(cold, true)
-    assert.deepEqual(warm.coreLoads, ['core-lib'], 'warm: so it is here')
+    const warm = run(cold)
+    assert.deepEqual(warm.evals, cold.evals, 'warm: the same evaluations')
+    assert.deepEqual(warm.learned, [], 'nothing new is learned')
     const [first, second] = warm.results
     assert.ok(first !== undefined && second !== undefined)
-    assert.equal(second.widget.core, first.widget.core, 'widget stays shared')
-    assert.equal(second.plugin.core, second.widget.core, 'the per-file plugin sees the shared one')
+    assert.equal(
+      first.plugin.registry,
+      first.registry,
+      'file 1: the per-file plugin writes into the shared registry',
+    )
+    assert.equal(first.plugin.core, first.widget.core)
+    assert.notEqual(second.registry, first.registry, 'file 2: the registry is the file’s own')
+    assert.equal(second.plugin.registry, second.registry)
+    assert.equal(second.registry.lookup('plugin'), second.plugin.entry, 'registered once')
+    assert.equal(second.widget.core, first.widget.core, 'widget and core-lib stay shared')
+    assert.equal(second.plugin.core, second.widget.core)
     assert.notEqual(second.plugin.entry, first.plugin.entry, 'the plugin is per file')
-    assert.notEqual(second.registry, first.registry, 'and so is the registry it writes into')
-    assert.deepEqual(warm.learned, [], 'nothing new is learned')
-
-    // A results cache written before the list was kept: the seeds join before any file loaded
-    // `widget`, so core-lib joins with them and `widget` follows by reach.
-    const bare = run(cold)
-    assert.deepEqual(bare.coreLoads, ['core-lib', 'core-lib'], 'core-lib is evaluated in each file')
-    const [bareFirst, bareSecond] = bare.results
-    assert.notEqual(bareSecond?.widget.core, bareFirst?.widget.core, 'widget is per file too')
   })
 })
 

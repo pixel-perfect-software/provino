@@ -20,9 +20,7 @@ const FILE_NAME = 'results.json'
  * may hold an inputs hash, a learned tier and a coverage map (T9.6; nothing writes them yet), so an
  * older reader would drop them. Still 3 with `externals` (D127) beside `projects`: a reader that
  * doesn't know it keeps every file's history and drops only that, which a worker learns again. A
- * project's `externals` is `{ [path]: version }`, any other shape is none. Still 3 with a record's
- * `loadedExternals` (D132), in the same shape: an older reader keeps it on a record it does not
- * rewrite and drops it from one it does, and the file's next first run records it again.
+ * project's `externals` is `{ [path]: version }`, any other shape is none.
  */
 const VERSION = 3
 
@@ -138,11 +136,6 @@ function isCoverageMap(value: unknown): boolean {
   )
 }
 
-/** `{ [path]: version }`, all text: a project's `externals`, or a record's `loadedExternals`. */
-function isVersions(value: unknown): value is Readonly<Record<string, string>> {
-  return isRecord(value) && Object.values(value).every((version) => typeof version === 'string')
-}
-
 /** A record the cache can use: the four numbers and flags, and each optional field right when present. */
 function isHistory(value: unknown): value is FileHistory {
   return (
@@ -154,8 +147,7 @@ function isHistory(value: unknown): value is FileHistory {
     typeof value.at === 'number' &&
     (value.inputsHash === undefined || typeof value.inputsHash === 'string') &&
     (value.tier === undefined || (typeof value.tier === 'string' && isIsolationTier(value.tier))) &&
-    (value.coverage === undefined || isCoverageMap(value.coverage)) &&
-    (value.loadedExternals === undefined || isVersions(value.loadedExternals))
+    (value.coverage === undefined || isCoverageMap(value.coverage))
   )
 }
 
@@ -168,7 +160,11 @@ function parseExternals(value: unknown): Externals {
   const externals: Externals = new Map()
   if (!isRecord(value)) return externals
   for (const [project, paths] of Object.entries(value)) {
-    if (isVersions(paths)) externals.set(project, new Map(Object.entries(paths)))
+    if (!isRecord(paths)) continue
+    const entries = Object.entries(paths)
+    if (entries.every(([, version]) => typeof version === 'string')) {
+      externals.set(project, new Map(entries as [string, string][]))
+    }
   }
   return externals
 }

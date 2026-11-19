@@ -93,11 +93,6 @@ export interface FileOutcome {
    * `fileDone.reevaluated`.
    */
   readonly reevaluated?: readonly string[]
-  /**
-   * The node_modules files the loader loaded natively while the worker's first file ran (D132),
-   * empty when none: `fileDone.loadedExternals`. Absent for every later file.
-   */
-  readonly loadedExternals?: readonly string[]
 }
 
 /**
@@ -287,7 +282,6 @@ export function startWorker(
     let snapshot: SnapshotFileReport | null = null
     let heapUsedBytes: number | undefined
     let reevaluated: readonly string[] | undefined
-    let loadedExternals: readonly string[] | undefined
     let isLeaking: ((signal: AbortSignal) => Promise<boolean>) | undefined
     try {
       if (startFailure !== undefined) throw startFailure.error
@@ -300,7 +294,6 @@ export function startWorker(
       snapshot = outcome?.snapshot ?? null
       heapUsedBytes = outcome?.heapUsedBytes
       reevaluated = outcome?.reevaluated
-      loadedExternals = outcome?.loadedExternals
       isLeaking = outcome?.isLeaking
       if (outcome?.deps !== undefined) {
         // Each path crosses the link once per worker; after that it is its id.
@@ -348,7 +341,6 @@ export function startWorker(
         ...(leaks ? { leaks: true as const } : {}),
         ...(heapUsedBytes === undefined ? {} : { heapUsedBytes }),
         ...(reevaluated === undefined ? {} : { reevaluated }),
-        ...(loadedExternals === undefined ? {} : { loadedExternals }),
       }),
     )
   }

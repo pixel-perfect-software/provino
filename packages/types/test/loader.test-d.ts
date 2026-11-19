@@ -180,18 +180,6 @@ void noExtensions
 const numericExtensions: NeutralResolution = { esmExtensions: [1] }
 void numericExtensions
 
-// D132: what a worker's first file loaded natively goes back to the worker that starts with it.
-expectTypeOf(loader.takeLoadedExternals).returns.toEqualTypeOf<readonly string[]>()
-expectTypeOf(loader.takeLearnedExternals).returns.toEqualTypeOf<readonly string[]>()
-loader.reevaluateExternals(['/r/node_modules/plugin/index.js'])
-loader.reevaluateExternals(['/r/node_modules/plugin/index.js'], loader.takeLoadedExternals())
-// @ts-expect-error the loaded externals are paths, not paths with their versions
-loader.reevaluateExternals([], new Map<string, string>())
-// @ts-expect-error what was loaded is a list of its own, not more paths in the first one
-loader.reevaluateExternals([], '/r/node_modules/widget/index.js')
-// @ts-expect-error the list goes with a file's job, not with the worker's config
-expectTypeOf<SerializedLoaderConfig['loadedExternals']>()
-
 // T2.11: `tierFor` takes the sources of a tier and says which one won.
 expectTypeOf(loader.tierFor).parameters.toEqualTypeOf<[string, TierSources]>()
 expectTypeOf(loader.tierFor).returns.toEqualTypeOf<TierChoice>()

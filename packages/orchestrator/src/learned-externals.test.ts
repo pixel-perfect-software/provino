@@ -4,13 +4,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, it } from 'node:test'
 import { createResultsCache } from './cache.ts'
-import {
-  learnExternals,
-  loadedExternalsRecord,
-  packageVersionOf,
-  readLearnedExternals,
-  readLoadedExternals,
-} from './learned-externals.ts'
+import { learnExternals, packageVersionOf, readLearnedExternals } from './learned-externals.ts'
 
 const roots: string[] = []
 after(() => {
@@ -75,46 +69,5 @@ describe('the learned externals in the results cache (D127)', () => {
       [['node_modules/kept/index.js', '1.0.0']],
       'the stale entries are gone from the file too',
     )
-  })
-
-  it('keeps what a first file loaded natively (D132) on its record, and leaves out what went stale', async () => {
-    const root = tree({ kept: '1.0.0', upgraded: '1.0.0', removed: '1.0.0', bare: null })
-    const dir = join(root, 'cache')
-    const path = (name: string) => join(root, 'node_modules', name, 'index.js')
-    const loaded = loadedExternalsRecord(
-      root,
-      ['kept', 'upgraded', 'removed', 'bare'].map(path),
-      new Map(),
-    )
-    assert.deepEqual(loaded, {
-      'node_modules/kept/index.js': '1.0.0',
-      'node_modules/upgraded/index.js': '1.0.0',
-      'node_modules/removed/index.js': '1.0.0',
-      'node_modules/bare/index.js': '',
-    })
-    assert.equal(loadedExternalsRecord(root, [], new Map()), undefined, 'none is no field')
-    const writing = createResultsCache(dir)
-    writing.record('p', 'a.test.js', {
-      durationMs: 1,
-      failed: false,
-      tests: 1,
-      at: 1,
-      ...(loaded === undefined ? {} : { loadedExternals: loaded }),
-    })
-    await writing.write()
-
-    // A reinstall: one package upgraded in place, one removed.
-    writeFileSync(
-      join(root, 'node_modules/upgraded/package.json'),
-      JSON.stringify({ name: 'upgraded', version: '2.0.0' }),
-    )
-    rmSync(join(root, 'node_modules/removed'), { recursive: true })
-
-    const reading = createResultsCache(dir)
-    assert.deepEqual(readLoadedExternals(reading.get('p', 'a.test.js'), root, new Map()), [
-      path('kept'),
-      path('bare'),
-    ])
-    assert.deepEqual(readLoadedExternals(reading.get('p', 'b.test.js'), root, new Map()), [])
   })
 })

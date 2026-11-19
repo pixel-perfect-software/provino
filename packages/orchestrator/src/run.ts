@@ -50,12 +50,7 @@ import { type GlobalSetupRun, type RunGlobalHooks, runGlobalSetup } from './glob
 import { shouldRunInBand } from './in-band.ts'
 import { createInlineSnapshotWrites, withInlineSnapshots } from './inline-snapshots.ts'
 import { configHash, hashOf, type WorkerKeyInput, workerKeyOf } from './key.ts'
-import {
-  learnExternals,
-  loadedExternalsRecord,
-  readLearnedExternals,
-  readLoadedExternals,
-} from './learned-externals.ts'
+import { learnExternals, readLearnedExternals } from './learned-externals.ts'
 import { prepareObsoleteSnapshotCleanup } from './obsolete-snapshots.ts'
 import { collectOpenHandles, type OpenHandleTracker } from './open-handles.ts'
 import {
@@ -1048,18 +1043,6 @@ export async function runProjectsOn(
         },
         onEvents: dispatch.handle,
         ...(host === undefined ? {} : { staleModules: host.staleModules }),
-        // A worker that starts with a learned set joins it in its first file: it is told what that
-        // file loaded natively when it last ran first, as a worker that learned the set there knew.
-        ...(member.cache === undefined || member.project.config.loader.reevaluate === undefined
-          ? {}
-          : {
-              loadedExternals: () =>
-                readLoadedExternals(
-                  member.cache?.get(member.cacheProject, entry.info.path),
-                  member.project.rootDir,
-                  packageVersions,
-                ),
-            }),
         // Jest's rule counts a file's failed tests when the file ends: before its worker takes
         // another file, or `--bail` would start one it is about to give up.
         // A file the worker found leaking is failed whole and its tests are discarded (Jest's
@@ -1126,22 +1109,11 @@ export async function runProjectsOn(
         outcome.type !== 'aborted' &&
         result.state !== 'skip'
       ) {
-        // What the file loaded natively as a worker's first file (D132): replaced when it ran
-        // first again, else kept.
-        const loaded =
-          outcome.type === 'done' && outcome.done.loadedExternals !== undefined
-            ? loadedExternalsRecord(
-                member.project.rootDir,
-                outcome.done.loadedExternals,
-                packageVersions,
-              )
-            : member.cache?.get(member.cacheProject, entry.info.path)?.loadedExternals
         member.cache?.record(member.cacheProject, entry.info.path, {
           durationMs: result.durationMs,
           failed: result.state === 'fail',
           tests: dispatch.tests,
           at: Date.now(),
-          ...(loaded === undefined ? {} : { loadedExternals: loaded }),
         })
       }
       // What the worker learned to evaluate per file (D127), for the next run's workers.

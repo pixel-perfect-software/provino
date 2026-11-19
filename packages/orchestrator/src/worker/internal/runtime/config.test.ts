@@ -77,20 +77,6 @@ describe('parseProjectConfig', () => {
     assert.equal(parseProjectConfig(with_('loader.tsconfig', '/t.json')).loader.tsconfig, '/t.json')
   })
 
-  it('carries the learned externals (D127) as absolute paths', () => {
-    const learned = ['/root/node_modules/plugin/index.js']
-    const parsed = parseProjectConfig(with_('loader', { ...valid.loader, reevaluate: learned }))
-    assert.deepEqual(parsed.loader.reevaluate, learned)
-    assert.equal('reevaluate' in parseProjectConfig(valid).loader, false, 'absent is none')
-    assert.throws(
-      () => parseProjectConfig(with_('loader.reevaluate', ['node_modules/plugin/index.js'])),
-      (error: unknown) =>
-        error instanceof WorkerError &&
-        error.code === 'ORCH_BAD_CONFIG' &&
-        error.message.includes('loader.reevaluate'),
-    )
-  })
-
   it('throws ORCH_BAD_CONFIG naming the key, for each piece that is missing or the wrong kind', () => {
     const cases: ReadonlyArray<readonly [string, unknown]> = [
       ['name', 3],

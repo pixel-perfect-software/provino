@@ -582,8 +582,6 @@ export function createRuntimeRunner(): WorkerRunner {
   let globalBaseline: GlobalBaseline | undefined
   /** Whether the policy evaluates externals per file (either reevaluate key). */
   let reevaluates = false
-  /** Whether this worker has run a file yet: its first file's native loads are reported (D132). */
-  let ranFile = false
   /**
    * Opens the file's snapshots when its collection starts (`importFile`), for a project with its
    * own snapshot resolver: loading and checking that is part of the file's run, so a resolver
@@ -1030,11 +1028,6 @@ export function createRuntimeRunner(): WorkerRunner {
       if (job.staleModules !== undefined && job.staleModules.length > 0) {
         worker.loader.dropRecords(job.staleModules)
       }
-      // What this file loaded natively when it last ran first (D132): known before the seeds join.
-      if (job.loadedExternals !== undefined)
-        worker.loader.reevaluateExternals([], job.loadedExternals)
-      const firstFile = !ranFile
-      ranFile = true
 
       // The worker owns the mock registry, not core: a new one per file, or (isolation `none`, where
       // everything is kept) the worker's own, made for the first file and disposed in `stop`.
@@ -1210,14 +1203,9 @@ export function createRuntimeRunner(): WorkerRunner {
       if (learnedNow.length > 0) worker.loader.reevaluateExternals(learnedNow)
       // What the loader learned while this file ran (D127), for the coordinator's results cache.
       const reevaluated = withLearned(worker.loader.takeLearnedExternals(), learnedNow)
-      // What the worker's first file loaded natively (D132), empty included: a worker that starts
-      // with this file next time is told it, and knows what this one knew when its seeds joined.
-      const loadedExternals =
-        firstFile && reevaluates ? worker.loader.takeLoadedExternals() : undefined
       return {
         deps,
         ...(reevaluated.length === 0 ? {} : { reevaluated }),
-        ...(loadedExternals === undefined ? {} : { loadedExternals }),
         ...(heap === undefined ? {} : { heapUsedBytes: heap }),
         ...(isLeaking === undefined ? {} : { isLeaking }),
         ...(leaked.length > 0 ? { leakedGlobals: leaked } : {}),
