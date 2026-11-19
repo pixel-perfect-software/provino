@@ -370,7 +370,7 @@ export function renderReport(data: ReportData): void {
   const where = el(
     'p',
     { class: 'where' },
-    el('code', null, data.root),
+    el('code', null, data.title),
     ` · ${when}`,
     data.sample === true
       ? el('span', null, ' · ', el('span', { class: 'synthetic' }, 'sample data'))

@@ -89,12 +89,18 @@ function capped(text: string): string {
 /**
  * The text of a failure: the errors as the text reporters print them (message, the user's frames,
  * then the cause), with the run's root left out of every path, colours dropped, and at most
- * `MAX_FAILURE_TEXT` characters.
+ * `MAX_FAILURE_TEXT` characters. `roots` is the root as the run named it and, when it differs, its
+ * real path (a frame holds the real path of a symlinked root, as `/private/var/…` for `/var/…`).
  * @internal
  */
-export function failureText(errors: readonly SerializedError[], root: string): string {
+export function failureText(
+  errors: readonly SerializedError[],
+  roots: string | readonly string[],
+): string {
   let text = plainText(formatErrors(errors))
-  for (const prefix of rootPrefixes(root)) text = text.replace(rootPattern(prefix), '$1')
+  for (const root of typeof roots === 'string' ? [roots] : roots) {
+    for (const prefix of rootPrefixes(root)) text = text.replace(rootPattern(prefix), '$1')
+  }
   return capped(text)
 }
 

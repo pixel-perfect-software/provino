@@ -55,10 +55,11 @@ export type EndReason = 'passed' | 'failed' | 'interrupted' | 'terminated' | 'ha
 /** Everything the page shows. */
 export interface ReportData {
   readonly version: 1
-  /** The document's title: the project's directory name. */
+  /**
+   * The project's directory name, which the page shows beside the start time and in the document's
+   * title. It is the run's root without its path, which stays out of the page.
+   */
   readonly title: string
-  /** The run's root, as the run named it: the page shows it beside the start time. */
-  readonly root: string
   /** The wall clock at the start of the run, ISO 8601. */
   readonly startedAt: string
   readonly durationMs: number

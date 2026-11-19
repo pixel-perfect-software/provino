@@ -1,6 +1,15 @@
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
+import {
+  mkdir,
+  mkdtemp,
+  readdir,
+  readFile,
+  realpath,
+  rm,
+  symlink,
+  writeFile,
+} from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
@@ -85,8 +94,9 @@ describe('htmlReporter', () => {
     assert.equal(data.durationMs, 40)
     assert.equal(data.workers, 4)
     assert.equal(data.startedAt, '2026-11-19T12:00:00.000Z')
-    // The run's root as the run named it; a real run carries no seed and no sample label.
-    assert.equal(data.root, '/project')
+    // The project's directory name stands for the root: the run's path is not in the data.
+    assert.equal('root' in data, false)
+    // A real run carries no seed and no sample label.
     assert.equal(data.seed, undefined)
     assert.equal(data.sample, undefined)
     const paths = data.files.map((row) => data.strings[row[0]])
@@ -257,6 +267,129 @@ describe('htmlReporter', () => {
         data.runErrors.map((text) => text.split('\n')[0]),
         ['too late', 'the coordinator said so'],
       )
+    })
+  })
+
+  it('ends a file that started and never ended at the run’s end, so no row ends before it starts', async () => {
+    await inScratch(async (dir) => {
+      const outputFile = join(dir, 'report.html')
+      const time = clock()
+      const bus = createReporterBus([htmlReporter({ outputFile, root: '/project', now: time.now })])
+      time.set(100)
+      await bus.emit(
+        'run:start',
+        { root: '/project', projects: [''], startTime: 0, watch: false, workers: 2 },
+        [],
+      )
+      const done = await emitFile(bus, { path: 'done.test.ts', tests: [{ path: ['a'] }] })
+      time.set(130)
+      // A worker was killed while it ran this file: `file:start`, never `file:end`.
+      const cut = fileInfo('killed.test.ts')
+      await bus.emit('file:start', cut, 1)
+      time.set(175)
+      await bus.emit('run:end', {
+        reason: 'interrupted',
+        files: [done, { file: cut, state: 'fail', durationMs: 20, errors: [] }],
+        unhandled: [],
+        durationMs: 75,
+      })
+      assert.deepEqual(bus.failures(), [])
+      const data = dataOf(await readFile(outputFile, 'utf8'))
+      const row = data.files.find((item) => data.strings[item[0]] === 'killed.test.ts')
+      // Its worker, its start (30 ms in) and the run's end (75 ms in); every row has start <= end.
+      assert.deepEqual(row?.slice(3, 6), [1, 30, 75])
+      for (const item of data.files) {
+        if (item[3] >= 0)
+          assert.ok(item[5] >= item[4], `${data.strings[item[0]]} ends before it starts`)
+      }
+    })
+  })
+
+  it('reads the clock at run:end only for a file it cut off', async () => {
+    const time = clock()
+    let reads = 0
+    await inScratch(async (dir) => {
+      const bus = createReporterBus([
+        htmlReporter({
+          outputFile: join(dir, 'r.html'),
+          root: '/project',
+          now: () => {
+            reads += 1
+            return time.now()
+          },
+        }),
+      ])
+      await bus.emit(
+        'run:start',
+        { root: '/project', projects: [''], startTime: 0, watch: false },
+        [],
+      )
+      const done = await emitFile(bus, { path: 'done.test.ts', tests: [{ path: ['a'] }] })
+      const before = reads
+      await bus.emit('run:end', { reason: 'passed', files: [done], unhandled: [], durationMs: 1 })
+      assert.equal(reads, before)
+    })
+  })
+
+  it('leaves out the real path of a root that is a symlink, as the frames of a failure print it', async () => {
+    await inScratch(async (dir) => {
+      const real = await realpath(await mkdtemp(join(dir, 'real-')))
+      const link = join(dir, 'link')
+      await symlink(real, link)
+      const outputFile = join(dir, 'report.html')
+      const time = clock()
+      const bus = createReporterBus([htmlReporter({ outputFile, now: time.now })])
+      await bus.emit('run:start', { root: link, projects: [''], startTime: 0, watch: false }, [])
+      const result = await emitFile(bus, {
+        path: 'a.test.ts',
+        tests: [
+          {
+            path: ['fails'],
+            state: 'fail',
+            errors: [
+              error('boom', { stack: `Error: boom\n    at run (${real}/src/a.test.ts:3:5)` }),
+            ],
+          },
+        ],
+      })
+      await bus.emit('run:end', { reason: 'failed', files: [result], unhandled: [], durationMs: 1 })
+      assert.deepEqual(bus.failures(), [])
+      const html = await readFile(outputFile, 'utf8')
+      assert.deepEqual(
+        dataOf(html).failures.map((row) => row[1]),
+        ['boom\n  at run (src/a.test.ts:3:5)'],
+      )
+      assert.equal(html.includes(real), false, 'the real path of the root is in the page')
+      assert.equal(html.includes(link), false, 'the root is in the page')
+    })
+  })
+
+  it('writes the root’s directory name and no other part of its path anywhere in the document', async () => {
+    await inScratch(async (dir) => {
+      const outputFile = join(dir, 'report.html')
+      const time = clock()
+      const root = '/home/ci/work/project'
+      const bus = createReporterBus([htmlReporter({ outputFile, now: time.now })])
+      await bus.emit('run:start', { root, projects: [''], startTime: 0, watch: false }, [])
+      const result = await emitFile(bus, {
+        path: 'a.test.ts',
+        tests: [
+          {
+            path: ['fails'],
+            state: 'fail',
+            errors: [
+              error('boom', { stack: `Error: boom\n    at run (${root}/src/a.test.ts:3:5)` }),
+            ],
+          },
+        ],
+      })
+      await bus.emit('run:end', { reason: 'failed', files: [result], unhandled: [], durationMs: 1 })
+      const html = await readFile(outputFile, 'utf8')
+      assert.equal(html.includes('/home/ci/work'), false)
+      assert.equal(html.includes(root), false)
+      const data = dataOf(html)
+      assert.equal(data.title, 'project')
+      assert.match(html, /<title>Provino report: project<\/title>/)
     })
   })
 

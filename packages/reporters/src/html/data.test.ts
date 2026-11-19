@@ -14,7 +14,6 @@ import {
 const EMPTY: ReportData = {
   version: 1,
   title: 'project',
-  root: '/project',
   startedAt: '2026-11-19T12:00:00.000Z',
   durationMs: 10,
   reason: 'passed',
@@ -99,6 +98,26 @@ describe('the text of a failure', () => {
       failureText([{ ...error, message: 'see /other/project/src/b.ts' }], '/project'),
       /^see \/other\/project\/src\/b\.ts/,
     )
+  })
+
+  it('leaves out the real path of a root that is a symlink too, as frames print it', () => {
+    // macOS: the run's root is `/var/folders/…`, a frame holds `/private/var/folders/…`.
+    const frames = {
+      name: 'Error',
+      message: 'boom',
+      stack: [
+        'Error: boom',
+        '    at a (/private/var/folders/x/proj/src/a.test.ts:1:1)',
+        '    at b (/var/folders/x/proj/src/b.test.ts:2:2)',
+      ].join('\n'),
+    }
+    const roots = ['/var/folders/x/proj', '/private/var/folders/x/proj']
+    assert.equal(
+      failureText([frames], roots),
+      'boom\n  at a (src/a.test.ts:1:1)\n  at b (src/b.test.ts:2:2)',
+    )
+    // With the root alone the real path stays: that was the leak.
+    assert.match(failureText([frames], roots[0] as string), /\/private\/var\/folders\/x\/proj\/src/)
   })
 
   it('drops colour codes and control characters, and keeps tabs and newlines', () => {
