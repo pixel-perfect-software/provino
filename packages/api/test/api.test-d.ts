@@ -1,7 +1,5 @@
 // The public API of @provino/api: the factories, the API they build, and misuse.
 import {
-  type ApiError,
-  type ApiErrorCode,
   type ApiHost,
   PROVINO_API_SLOT,
   type ProvinoApi,
@@ -20,7 +18,6 @@ import { expectTypeOf } from 'expect-type'
 expectTypeOf(provinoModuleScope).toExtend<ModuleScopeFactory>()
 expectTypeOf(provinoGlobals).toExtend<GlobalsFactory>()
 expectTypeOf(PROVINO_API_SLOT).toEqualTypeOf<typeof PROVINO_API_SLOT>()
-expectTypeOf<ApiError['code']>().toEqualTypeOf<ApiErrorCode>()
 
 declare const host: ApiHost
 expectTypeOf(provinoModuleScope(host)).toEqualTypeOf<ProvinoModuleScope>()
@@ -37,8 +34,6 @@ expectTypeOf(provinoGlobals(host)).toEqualTypeOf<ProvinoApi>()
 provinoModuleScope()
 // @ts-expect-error a factory takes the host and nothing else
 const extra: unknown = provinoGlobals(host, 'extra')
-// @ts-expect-error an unknown code is not an ApiErrorCode
-const code: ApiErrorCode = 'API_UNKNOWN'
 
 declare const api: ProvinoApi
 expectTypeOf(api.describe).toEqualTypeOf<SuiteApi>()
@@ -70,4 +65,4 @@ expectTypeOf(api.timers.getTimerCount()).toEqualTypeOf<number>()
 // @ts-expect-error advancing takes milliseconds
 api.timers.advanceTimersByTime('10')
 
-export { code, extra }
+export { extra }

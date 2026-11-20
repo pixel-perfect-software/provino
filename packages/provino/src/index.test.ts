@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, test } from 'node:test'
-import { PROVINO_API_SLOT } from '@provino/api'
+import { type ApiHost, PROVINO_API_SLOT, provinoModuleScope } from '@provino/api'
 import * as api from './index.ts'
 
 const NAMES = [
@@ -281,5 +281,42 @@ describe("a native-only name in a dialect's worker (B27b review)", () => {
       (error: unknown) =>
         error instanceof api.ProvinoWorkerApiError && error.code === 'PROVINO_NO_WORKER_API',
     )
+  })
+})
+
+describe('the served namespace and the entry agree (B27b review)', () => {
+  test("the served provino module's keys are the entry's runtime exports, but the entry's error", () => {
+    const names = [
+      'describe',
+      'suite',
+      'it',
+      'test',
+      'beforeAll',
+      'afterAll',
+      'beforeEach',
+      'afterEach',
+      'aroundEach',
+      'aroundAll',
+      'onTestFinished',
+      'onTestFailed',
+    ]
+    // Only what the factory reads as it runs; the rest is read when a member is called.
+    const host = {
+      api: Object.fromEntries(names.map((name) => [name, (): void => {}])),
+      expect: (): void => {},
+      timersPolicy: { facadeReturns: 'all' },
+    } as unknown as ApiHost
+    const scope = provinoModuleScope(host)
+    try {
+      const served = scope('/project/a.test.ts').provino as object
+      assert.deepEqual(
+        Object.keys(served).sort(),
+        Object.keys(api)
+          .filter((name) => name !== 'ProvinoWorkerApiError')
+          .sort(),
+      )
+    } finally {
+      scope[Symbol.dispose]()
+    }
   })
 })
