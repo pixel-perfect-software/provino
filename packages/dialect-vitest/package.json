@@ -49,9 +49,13 @@
   },
   "dependencies": {
     "@provino/config": "workspace:*",
+    "@provino/core": "workspace:*",
+    "@provino/env-shared": "workspace:*",
     "@provino/expect": "workspace:*",
+    "@provino/mock": "workspace:*",
     "@provino/policy": "workspace:*",
     "@provino/resolver": "workspace:*",
+    "@provino/timers": "workspace:*",
     "@provino/types": "workspace:*",
     "chai": "catalog:",
     "oxc-parser": "catalog:",

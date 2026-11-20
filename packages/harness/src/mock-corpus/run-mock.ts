@@ -7,17 +7,8 @@
 import { pathToFileURL } from 'node:url'
 import { createRuntime } from '@provino/core'
 import { jestGlobals } from '@provino/dialect-jest/runtime'
-import {
-  createMockFn,
-  createMockRegistry,
-  createStubs,
-  isMockFunction,
-  type Mock,
-  type MockRegistry,
-  type Stubs,
-  spyOn,
-  type UnknownFunction,
-} from '@provino/mock'
+import { vitestGlobals } from '@provino/dialect-vitest/runtime'
+import { createMockRegistry } from '@provino/mock'
 import { createBehaviourLoader } from '@provino/policy'
 import type { CorePolicy, MockPolicy, RuntimeEvent } from '@provino/types'
 import type { MockCleanup } from '../fixture.ts'
@@ -28,59 +19,6 @@ import { type CoreRun, summarizeRun } from '../runtime-corpus/run-core.ts'
 
 /** Which test-object name the file under test sees. */
 export type MockFacade = 'jest' | 'vi'
-
-type Loose = (...args: never[]) => unknown
-
-/**
- * The part of the `vi` object the corpus uses, built over one registry. It stays here until
- * `@provino/dialect-vitest` ships its own (T1.8, B14a). The corpus files pass arbitrary values, so
- * the methods are loosely typed; the engine's own types are covered by `@provino/mock`'s type
- * tests.
- */
-export function createViFacade(
-  policy: MockPolicy,
-  registry: MockRegistry,
-  stubs: Stubs,
-): Record<string, unknown> {
-  const object: Record<string, unknown> = {
-    fn: (impl?: UnknownFunction): Mock =>
-      impl === undefined
-        ? createMockFn(policy, registry)
-        : createMockFn(policy, registry, { impl }),
-    spyOn: (target: object, key: string, access?: 'get' | 'set'): unknown =>
-      spyOn(policy, registry, target as Record<string, Loose>, key, access as never),
-    isMockFunction: (value: unknown): boolean => isMockFunction(policy, value),
-    clearAllMocks: (): unknown => {
-      registry.clearAll()
-      return object
-    },
-    resetAllMocks: (): unknown => {
-      registry.resetAll()
-      return object
-    },
-    restoreAllMocks: (): unknown => {
-      registry.restoreAll()
-      return object
-    },
-    stubEnv: (name: string, value: string | undefined): unknown => {
-      stubs.stubEnv(name, value)
-      return object
-    },
-    stubGlobal: (name: string, value: unknown): unknown => {
-      stubs.stubGlobal(name, value)
-      return object
-    },
-    unstubAllEnvs: (): unknown => {
-      stubs.unstubAllEnvs()
-      return object
-    },
-    unstubAllGlobals: (): unknown => {
-      stubs.unstubAllGlobals()
-      return object
-    },
-  }
-  return object
-}
 
 let imports = 0
 
@@ -102,7 +40,6 @@ export async function runMockFile(
   const lines: string[] = []
   const events: RuntimeEvent[] = []
   const registry = createMockRegistry()
-  const stubs = createStubs(registry, process.env, globalThis)
   const runtime = await createRuntime({
     policy: corePolicy,
     behaviours: createBehaviourLoader(),
@@ -123,7 +60,9 @@ export async function runMockFile(
       unusedJestHost(runtime.api, registry, mockPolicy, 'the mocking corpus'),
     ).jest
   } else {
-    object = createViFacade(mockPolicy, registry, stubs)
+    object = vitestGlobals(
+      unusedJestHost(runtime.api, registry, mockPolicy, 'the mocking corpus'),
+    ).vi
   }
   const restore = installGlobals({
     trace: (step: string): void => {

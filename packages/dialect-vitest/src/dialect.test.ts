@@ -10,7 +10,6 @@ import {
   resolvePolicy,
   serializePolicy,
 } from '@provino/policy'
-import type { GlobalsFactory, GlobalsHost } from '@provino/types'
 import { vitestDialect, vitestPolicy } from './dialect.ts'
 import { vitestHoistPolicy } from './hoist-policy.ts'
 import { vitestMockPolicy, vitestModulePolicy } from './mock-policy.ts'
@@ -127,16 +126,17 @@ test('the resolved policy serializes, and every ref in it is absolute (D21)', ()
   assert.ok(refs > 0)
 })
 
-test('the globals factory is an absolute ref to a stub that throws VITEST_DIALECT_NOT_BUILT', async () => {
+test('the globals factory and the module scope are absolute refs that load', async () => {
   const globals = vitestDialect.globals
-  assert.ok(globals !== undefined)
+  const scope = vitestDialect.moduleScope
+  assert.ok(globals !== undefined && scope !== undefined)
   assert.ok(isAbsolute(fileURLToPath(globals.factory.module)))
-  const factory: GlobalsFactory = await createBehaviourLoader().load(globals.factory)
-  assert.throws(
-    () => factory({} as GlobalsHost),
-    (error: unknown) =>
-      error instanceof Error && (error as { code?: unknown }).code === 'VITEST_DIALECT_NOT_BUILT',
-  )
+  assert.ok(isAbsolute(fileURLToPath(scope.factory.module)))
+  const loader = createBehaviourLoader()
+  assert.equal(typeof (await loader.load(globals.factory)), 'function')
+  assert.equal(typeof (await loader.load(scope.factory)), 'function')
+  assert.deepEqual(scope.names, ['vi'])
+  assert.deepEqual(scope.modules, ['vitest', '@vitest/expect', '@vitest/spy', 'vitest/runtime'])
   assert.equal(globals.names.length, 19)
   assert.deepEqual(globals.names, [...globals.names].sort())
 })

@@ -4,12 +4,31 @@
 
 ```ts
 
+import { createExpect } from '@provino/expect';
 import { EnvironmentConditions } from '@provino/types';
 import { ExpectTable } from '@provino/types';
+import { FakeClock } from '@provino/timers';
+import { FakeTimersConfig } from '@provino/timers';
 import { FormatDefinitionError } from '@provino/types';
 import { FormatEachTitle } from '@provino/types';
 import { GlobalsHost } from '@provino/types';
+import { Mock } from '@provino/mock';
+import { MockFactory } from '@provino/types';
+import { MockRegistry } from '@provino/mock';
+import { MockTarget } from '@provino/mock';
+import { RuntimeApi } from '@provino/core';
 import { SnapshotPrinter } from '@provino/types';
+import { SpiedGetter } from '@provino/mock';
+import { SpiedMethod } from '@provino/mock';
+import { SpiedSetter } from '@provino/mock';
+import { SpyableKeys } from '@provino/mock';
+import { SuiteApi } from '@provino/core';
+import { TestApi } from '@provino/core';
+import { TimersPolicy } from '@provino/types';
+import { UnknownFunction } from '@provino/mock';
+
+// @public
+export function expectTypeOf(_value?: unknown): Record<string, unknown>;
 
 // @public
 export const formatEachTitle: FormatEachTitle;
@@ -33,16 +52,191 @@ export const vitestEnvironmentConditions: EnvironmentConditions;
 export function vitestExpectTable(): ExpectTable;
 
 // @public
+export type VitestFakeTimersConfig = Pick<FakeTimersConfig, "now" | "toFake" | "toNotFake" | "shouldAdvanceTime" | "advanceTimeDelta" | "loopLimit" | "shouldClearNativeTimers">;
+
+// @public
 export const vitestFixtureMessages: FormatDefinitionError;
 
 // @public
-export function vitestGlobals(_host: GlobalsHost): Readonly<Record<string, unknown>>;
+export type VitestGlobals = {
+    readonly afterAll: RuntimeApi["afterAll"];
+    readonly afterEach: RuntimeApi["afterEach"];
+    readonly aroundAll: RuntimeApi["aroundAll"];
+    readonly aroundEach: RuntimeApi["aroundEach"];
+    readonly assert: (...args: readonly unknown[]) => void;
+    readonly assertType: (value: unknown) => void;
+    readonly beforeAll: RuntimeApi["beforeAll"];
+    readonly beforeEach: RuntimeApi["beforeEach"];
+    readonly chai: object;
+    readonly describe: SuiteApi;
+    readonly expect: ReturnType<typeof createExpect>;
+    readonly expectTypeOf: typeof expectTypeOf;
+    readonly it: TestApi;
+    readonly onTestFailed: RuntimeApi["onTestFailed"];
+    readonly onTestFinished: RuntimeApi["onTestFinished"];
+    readonly suite: SuiteApi;
+    readonly test: TestApi;
+    readonly vi: VitestObject;
+    readonly vitest: VitestObject;
+};
+
+// @public
+export function vitestGlobals(host: VitestGlobalsHost): VitestGlobals;
+
+// @public
+export interface VitestGlobalsHost extends GlobalsHost {
+    readonly api: RuntimeApi;
+    readonly expect: ReturnType<typeof createExpect>;
+    mocks(): MockRegistry;
+    timers(): FakeClock;
+    readonly timersPolicy: TimersPolicy;
+}
+
+// @public
+export interface VitestMockOptions {
+    // (undocumented)
+    readonly spy?: boolean;
+}
+
+// @public
+export function vitestModuleScope(host: VitestGlobalsHost): (from: string) => Readonly<Record<string, unknown>>;
+
+// @public
+export interface VitestObject {
+    // (undocumented)
+    advanceTimersByTime(ms: number): VitestObject;
+    // (undocumented)
+    advanceTimersByTimeAsync(ms: number): Promise<VitestObject>;
+    // (undocumented)
+    advanceTimersToNextFrame(): VitestObject;
+    // (undocumented)
+    advanceTimersToNextTimer(): VitestObject;
+    // (undocumented)
+    advanceTimersToNextTimerAsync(): Promise<VitestObject>;
+    // (undocumented)
+    clearAllMocks(): VitestObject;
+    // (undocumented)
+    clearAllTimers(): VitestObject;
+    defineHelper<F extends (...args: never[]) => unknown>(fn: F): F;
+    doMock(path: string, factory?: MockFactory | VitestMockOptions): object;
+    doUnmock(path: string): void;
+    dynamicImportSettled(): Promise<void>;
+    fn<T extends MockTarget = UnknownFunction>(impl?: T): Mock<T>;
+    // (undocumented)
+    getMockedSystemTime(): Date | null;
+    // (undocumented)
+    getRealSystemTime(): number;
+    // (undocumented)
+    getTimerCount(): number;
+    hoisted<T>(factory: () => T): T;
+    importActual<T = unknown>(path: string): Promise<T>;
+    importMock<T = unknown>(path: string): Promise<T>;
+    // (undocumented)
+    isFakeTimers(): boolean;
+    isMockFunction(value: unknown): value is Mock<UnknownFunction>;
+    isWhenChain(value: object): boolean;
+    mock(path: string, factory?: MockFactory | VitestMockOptions): void;
+    mocked<T>(item: T, options?: object): T;
+    mockObject<T>(value: T, options?: VitestMockOptions): T;
+    // (undocumented)
+    resetAllMocks(): VitestObject;
+    // (undocumented)
+    resetConfig(): void;
+    resetModules(): VitestObject;
+    // (undocumented)
+    restoreAllMocks(): VitestObject;
+    // (undocumented)
+    runAllTicks(): VitestObject;
+    // (undocumented)
+    runAllTimers(): VitestObject;
+    // (undocumented)
+    runAllTimersAsync(): Promise<VitestObject>;
+    // (undocumented)
+    runOnlyPendingTimers(): VitestObject;
+    // (undocumented)
+    runOnlyPendingTimersAsync(): Promise<VitestObject>;
+    // (undocumented)
+    setConfig(config: VitestRuntimeOptions): void;
+    // (undocumented)
+    setSystemTime(time: number | string | Date): VitestObject;
+    // (undocumented)
+    setTimerTickMode(mode: "manual" | "nextTimerAsync" | "interval", interval?: number): VitestObject;
+    spyOn<T extends object, K extends SpyableKeys<T>>(object: T, key: K): SpiedMethod<Required<T>[K]>;
+    spyOn<T extends object, K extends keyof T>(object: T, key: K, access: "get"): SpiedGetter<T[K]>;
+    spyOn<T extends object, K extends keyof T>(object: T, key: K, access: "set"): SpiedSetter<T[K]>;
+    stubEnv(name: string, value: string | boolean | undefined): VitestObject;
+    stubGlobal(name: string | symbol | number, value: unknown): VitestObject;
+    unmock(path: string): void;
+    // (undocumented)
+    unstubAllEnvs(): VitestObject;
+    // (undocumented)
+    unstubAllGlobals(): VitestObject;
+    // (undocumented)
+    useFakeTimers(config?: VitestFakeTimersConfig): VitestObject;
+    // (undocumented)
+    useRealTimers(): VitestObject;
+    waitFor<T>(callback: () => T | Promise<T>, options?: VitestWaitOptions): Promise<T>;
+    waitUntil<T>(callback: () => T | Promise<T>, options?: VitestWaitOptions): Promise<T>;
+    when(spy: Mock<UnknownFunction>, options?: {
+        readonly onUnmatched?: unknown;
+    }): VitestWhen;
+}
+
+// @public
+export interface VitestRuntimeOptions {
+    // (undocumented)
+    readonly [key: string]: unknown;
+    // (undocumented)
+    readonly fakeTimers?: VitestFakeTimersConfig;
+    // (undocumented)
+    readonly testTimeout?: number;
+}
 
 // @public
 export function vitestShapeTestError(error: unknown): unknown;
 
 // @public
 export function vitestSnapshotPrinter(): SnapshotPrinter;
+
+// @public
+export type VitestWaitOptions = number | {
+    readonly interval?: number;
+    readonly timeout?: number;
+};
+
+// @public
+export interface VitestWhen {
+    // (undocumented)
+    calledWith(...args: readonly unknown[]): VitestWhenCalledWith;
+}
+
+// @public
+export interface VitestWhenCalledWith extends VitestWhen {
+    // (undocumented)
+    thenReject(value: unknown, options?: {
+        readonly times?: number;
+    }): VitestWhenCalledWith;
+    // (undocumented)
+    thenRejectOnce(value: unknown): VitestWhenCalledWith;
+    // (undocumented)
+    thenResolve(value: unknown, options?: {
+        readonly times?: number;
+    }): VitestWhenCalledWith;
+    // (undocumented)
+    thenResolveOnce(value: unknown): VitestWhenCalledWith;
+    // (undocumented)
+    thenReturn(value: unknown, options?: {
+        readonly times?: number;
+    }): VitestWhenCalledWith;
+    // (undocumented)
+    thenReturnOnce(value: unknown): VitestWhenCalledWith;
+    // (undocumented)
+    thenThrow(value: unknown, options?: {
+        readonly times?: number;
+    }): VitestWhenCalledWith;
+    // (undocumented)
+    thenThrowOnce(value: unknown): VitestWhenCalledWith;
+}
 
 // (No @packageDocumentation comment for this package)
 
