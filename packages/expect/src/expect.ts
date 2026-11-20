@@ -101,6 +101,11 @@ interface Target {
   readonly promise: PromiseVoice
   /** Made when `.resolves`/`.rejects` is read: the error a wrong settlement throws. */
   readonly outer: MatcherResultError | undefined
+  /**
+   * Under `errorShape: 'assertion-error'`, made when `.resolves`/`.rejects` is read: the stack a
+   * settled failure and an unawaited assertion report.
+   */
+  readonly read?: MatcherResultError
   /** `expect.soft`: a failure is recorded in the state and the test goes on. */
   readonly soft: boolean
   /** `expect(actual, message)`, where the table takes one (`ExpectTable.messageArgument`). */
@@ -264,7 +269,7 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
   const makeSettledMatcher = (
     matcherName: string,
     matcher: Matcher,
-    { actual, isNot, promise, outer, soft, message }: Target,
+    { actual, isNot, promise, outer, soft, message, read }: Target,
   ) =>
     function settledMatcher(...args: unknown[]): PromiseLike<unknown> {
       const call: MatcherCall = { matcherName, isNot, promise }
@@ -275,8 +280,7 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
         throw anchor(new MatcherResultError(messages.notAPromise(call, actual)), settledMatcher)
       }
       // An `AssertionError` runner reports a failure at the `.resolves`/`.rejects` it was read through.
-      const error =
-        assertionError !== undefined && outer !== undefined ? outer : capturedError(settledMatcher)
+      const error = read ?? capturedError(settledMatcher)
       const outerErr = outer ?? new MatcherResultError()
       const wrong = (message: string): never => {
         outerErr.message = message
@@ -317,7 +321,8 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
       const pending: PendingAssertion = {
         kind: 'settled',
         call,
-        error: capturedError(settledMatcher),
+        // Under `assertion-error`, the `.resolves`/`.rejects` read, as Vitest records it there.
+        error: read === undefined ? capturedError(settledMatcher) : withFramesOf(read),
       }
       state.pendingAsync.add(pending)
       Promise.resolve(outcome).catch(() => undefined)
@@ -346,8 +351,16 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
     if (typeof key !== 'string') return undefined
     if (key === 'not') {
       if (target.isNot) return undefined
-      const { actual, promise, outer, soft, message } = target
-      return assertion({ actual, isNot: true, promise, outer, soft, message })
+      const { actual, promise, outer, soft, message, read } = target
+      return assertion({
+        actual,
+        isNot: true,
+        promise,
+        outer,
+        soft,
+        message,
+        ...(read === undefined ? {} : { read }),
+      })
     }
     if (key === 'resolves' || key === 'rejects') {
       if (target.isNot || target.promise !== '') return undefined
@@ -355,6 +368,7 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
         // Checked as it is read, where a `.rejects` of a function calls it, and the call's stack is
         // the read's.
         const outer = capturedError(get)
+        const read = capturedError(get)
         const value =
           key === 'rejects' && typeof target.actual === 'function' ? target.actual() : target.actual
         if (!isPromise(value)) {
@@ -366,6 +380,7 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
           isNot: false,
           promise: key,
           outer,
+          read,
           soft: target.soft,
           message: target.message,
         })
@@ -383,8 +398,24 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
       })
     }
     const matcher = registry.matchers[key]
-    // Anything else reads as on Jest's plain object: `Object.prototype`'s members, or undefined.
-    if (matcher === undefined) return Reflect.get(Object.prototype, key, receiver)
+    if (matcher === undefined) {
+      // Anything else reads as on Jest's plain object: `Object.prototype`'s members, or undefined;
+      // or, where the table has chains (Chai's `to`, `be`, …), as the table's chain of that name. A
+      // thenable check (`then`) is never a chain, so it loads nothing.
+      if (table.chain === undefined || key === 'then' || key in Object.prototype) {
+        return Reflect.get(Object.prototype, key, receiver)
+      }
+      const { actual, isNot, promise, message } = target
+      // An `AssertionError` runner counts an assertion when `expect()` is called; a chain is
+      // counted once, here, since none of its calls reach the engine.
+      getState().assertionCalls++
+      return table.chain(actual, key, {
+        matcherName: key,
+        isNot,
+        promise,
+        ...(message === undefined ? {} : { message }),
+      })
+    }
     if (target.promise === '') {
       return makeThrowingMatcher(
         key,
@@ -669,17 +700,37 @@ function capturedError(above: Caller): MatcherResultError {
   return error
 }
 
+/** The frames of `captured`'s stack, from the newline that ends its header. */
+function framesOf(captured: Error): string {
+  const stack = captured.stack ?? ''
+  const head = captured.message === '' ? captured.name : `${captured.name}: ${captured.message}`
+  return stack.startsWith(head) ? stack.slice(head.length) : stack.slice(stack.indexOf('\n'))
+}
+
+/**
+ * A new error with `captured`'s frames, whose header reads its own message when the stack is read:
+ * a message set later (the end-of-test check words an unawaited assertion) still shows.
+ */
+function withFramesOf(captured: Error): MatcherResultError {
+  const error = new MatcherResultError()
+  const frames = framesOf(captured)
+  let set: string | undefined
+  Object.defineProperty(error, 'stack', {
+    configurable: true,
+    get: () => set ?? `${error.name}${error.message === '' ? '' : `: ${error.message}`}${frames}`,
+    set: (value: string) => {
+      set = value
+    },
+  })
+  return error
+}
+
 /**
  * Gives `error` the frames of `captured` (made where the user called), under a header of its own
  * message: the stack an `AssertionError` runner reports for an async assertion.
  */
 function restack<E extends Error>(error: E, captured: Error): E {
-  const stack = captured.stack ?? ''
-  const head = captured.message === '' ? captured.name : `${captured.name}: ${captured.message}`
-  const frames = stack.startsWith(head)
-    ? stack.slice(head.length)
-    : stack.slice(stack.indexOf('\n'))
-  error.stack = `${captured.name}: ${error.message}${frames}`
+  error.stack = `${captured.name}: ${error.message}${framesOf(captured)}`
   return error
 }
 

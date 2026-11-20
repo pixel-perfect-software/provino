@@ -96,13 +96,15 @@ function raceWith<T>(promise: Promise<T>, timedOut: Promise<void>): Promise<Race
 }
 
 /**
- * Gives `error` the stack of `site` (where the user called the matcher), under its own header,
- * as Vitest's `copyStackTrace` does. Anything that isn't an `Error` is returned as it is.
+ * Gives `error` the stack of `site` (where the user called the matcher), under the site's header
+ * with the error's message, as Vitest's `copyStackTrace` does (`source.stack.replace(source.message,
+ * target.message)`: an `AssertionError` reads `Error: …`, `soft-and-poll`). Anything that isn't an
+ * `Error` is returned as it is.
  */
 function restack(error: unknown, site: Error): unknown {
   if (!(error instanceof Error) || typeof site.stack !== 'string') return error
   const frames = site.stack.split('\n').filter((line) => /^\s+at /.test(line))
-  error.stack = `${error.name}: ${error.message}\n${frames.join('\n')}`
+  error.stack = `${site.name}: ${error.message}\n${frames.join('\n')}`
   return error
 }
 

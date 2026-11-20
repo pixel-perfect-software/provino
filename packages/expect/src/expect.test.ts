@@ -5,10 +5,10 @@ import { ExpectError } from './errors.ts'
 import { createExpect, MatcherResultError } from './expect.ts'
 import {
   lastContext,
+  type TestEngine,
   testEngine,
   testPolicy,
   testTable,
-  type TestEngine,
   testTask,
 } from './internal/test-support.ts'
 import { createStateSource } from './state.ts'
@@ -617,5 +617,26 @@ describe("errorShape: 'assertion-error' (T7.6)", () => {
     assert.equal(state.suppressedErrors.length, 1)
     assert.ok(state.suppressedErrors[0] instanceof TableAssertionError)
     current.enter(null)
+  })
+})
+
+describe('a table with chains (ExpectTable.chain, D170)', () => {
+  test('an unknown name reads the chain, counted once; then and Object.prototype names do not', () => {
+    const calls: [unknown, string, MatcherCall][] = []
+    const table: ExpectTable = {
+      ...testTable(),
+      chain: (actual, name, call) => {
+        calls.push([actual, name, call])
+        return 'chained'
+      },
+    }
+    const { expect, source } = testEngine({ table })
+    const loose = member(expect(1).not)
+    assert.equal(loose.to, 'chained')
+    assert.deepEqual(calls, [[1, 'to', { matcherName: 'to', isNot: true, promise: '' }]])
+    assert.equal(source.current().assertionCalls, 1)
+    assert.equal(member(expect(1)).then, undefined)
+    assert.equal(member(expect(1)).hasOwnProperty, Object.prototype.hasOwnProperty)
+    assert.equal(calls.length, 1)
   })
 })

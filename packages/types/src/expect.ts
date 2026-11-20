@@ -236,6 +236,12 @@ export interface ExpectTable {
    * with. Absent: a second argument is `messages.tooManyArguments`.
    */
   readonly messageArgument?: boolean
+  /**
+   * What `expect(actual)[name]` is for a name that is no matcher and not on `Object.prototype`:
+   * the dialect's own chain (Chai's `to`, `be`, `deep`, …, which do their own asserting). Absent:
+   * such a name reads `undefined`. `call.matcherName` is the name.
+   */
+  readonly chain?: (actual: unknown, name: string, call: MatcherCall) => unknown
 }
 
 /**
