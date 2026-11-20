@@ -75,5 +75,13 @@ describe('selectFiles', () => {
     // An absolute filter keeps the files below it; a relative one is also read from `cwd`.
     assert.deepEqual(keep([substring('/project/lib')]), ['lib/gamma.test.ts'])
     assert.deepEqual(keep([substring('gamma.test.ts')], '/project/lib'), ['lib/gamma.test.ts'])
+    // A trailing slash stays: `src/` is the directory, not every path that starts with `src`.
+    const withSibling = [...files, file('srcx/b.test.ts')]
+    const kept = (value: string): string[] =>
+      selectFiles(withSibling, [substring(value)], { rootDir, cwd: rootDir }).map(
+        (entry) => entry.relativePath,
+      )
+    assert.deepEqual(kept('src/'), ['src/Alpha.test.ts', 'src/beta.test.ts'])
+    assert.deepEqual(kept('src'), ['src/Alpha.test.ts', 'src/beta.test.ts', 'srcx/b.test.ts'])
   })
 })

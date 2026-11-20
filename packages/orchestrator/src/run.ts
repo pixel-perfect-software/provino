@@ -608,9 +608,9 @@ export function poolSettings(
     ...(options.stderr === undefined ? {} : { stderr: options.stderr }),
     ...(execArgv === undefined ? {} : { execArgv }),
     ...(options.pool?.startupEnv === undefined ? {} : { startupEnv: options.pool.startupEnv }),
-    ...(options.pool?.workerEnv === undefined
-      ? {}
-      : { env: { ...process.env, ...options.pool.workerEnv } }),
+    // Merged over the live `process.env` when each worker spawns, not copied here: a global setup
+    // runs after the pool is made, and what it sets must reach the workers.
+    ...(options.pool?.workerEnv === undefined ? {} : { workerEnv: options.pool.workerEnv }),
     ...(options.pool?.heapLimitMb === undefined ? {} : { memoryLimitMb: options.pool.heapLimitMb }),
   })
   // The transport can cap the workers, whatever is asked for: an inline pool runs one.

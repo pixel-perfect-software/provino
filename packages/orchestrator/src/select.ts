@@ -92,7 +92,11 @@ function substringMatcher(
   const fold =
     filter.ignoreCase === true ? (text: string) => text.toLowerCase() : (text: string) => text
   const own = fold(filter.value)
-  const fromCwd = fold(relative(options.rootDir, resolve(options.cwd, filter.value)))
+  // `relative` drops a trailing slash; a filter that ends in one keeps it, so `src/` is not `srcx/`.
+  const fromCwdPath = relative(options.rootDir, resolve(options.cwd, filter.value))
+  const fromCwd = fold(
+    fromCwdPath !== '' && filter.value.endsWith('/') ? `${fromCwdPath}/` : fromCwdPath,
+  )
   const absolute = isAbsolute(filter.value)
   return (path, relativePath) => {
     if (absolute && path.startsWith(filter.value)) return true
