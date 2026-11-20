@@ -1,0 +1,12 @@
+{
+  "description": "T3.3 (B25c): resolve.alias entries with a string find under Vite in Vitest 5.0.5: the specifier equal to the find, a path under it, a longer name that only starts with it, a find and replacement that both end in a slash, and a bare package name. The title names what each import gave.",
+  "runners": ["vitest"],
+  "vitestProjects": true,
+  "config": {
+    "vitest": {
+      "test": {
+        "projects": ["proj"]
+      }
+    }
+  }
+}

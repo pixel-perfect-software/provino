@@ -899,6 +899,9 @@ importers:
 
   packages/dialect-vitest:
     dependencies:
+      '@provino/config':
+        specifier: workspace:*
+        version: link:../config
       '@provino/core':
         specifier: workspace:*
         version: link:../core
@@ -914,6 +917,9 @@ importers:
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
+      '@provino/resolver':
+        specifier: workspace:*
+        version: link:../resolver
       '@provino/timers':
         specifier: workspace:*
         version: link:../timers
@@ -923,7 +929,22 @@ importers:
       chai:
         specifier: 'catalog:'
         version: 6.3.0
+      oxc-parser:
+        specifier: 'catalog:'
+        version: 0.157.0
+      oxc-transform:
+        specifier: 'catalog:'
+        version: 0.157.0
+      picomatch:
+        specifier: 'catalog:'
+        version: 4.0.7
+      tinyglobby:
+        specifier: 'catalog:'
+        version: 0.2.17
     devDependencies:
+      '@types/picomatch':
+        specifier: 'catalog:'
+        version: 4.0.3
       vitest:
         specifier: 'catalog:'
         version: 5.0.5(@edge-runtime/vm@5.0.0)(@types/node@22.20.5)(happy-dom@21.0.4)(jsdom@30.1.3)(msw@3.0.4(@types/node@22.20.5)(supports-color@8.1.1)(typescript@7.0.2)(vite@8.3.5(@types/node@22.20.5)(jiti@2.7.0)(yaml@2.9.1)))(vite@8.3.5(@types/node@22.20.5)(jiti@2.7.0)(yaml@2.9.1))

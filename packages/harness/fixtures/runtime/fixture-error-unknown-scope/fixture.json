@@ -1,0 +1,7 @@
+{
+  "description": "Vitest 5.0.5's registration error: A fixture with a scope Vitest does not know. test.extend throws as the file collects, so the file crashes with the error's text.",
+  "runners": ["vitest"],
+  "expectCrash": {
+    "vitest": "has unknown scope \"suite\""
+  }
+}

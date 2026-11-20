@@ -1,7 +1,7 @@
-// The definition table (interim, until B25's T5.9 moves it into core): each suite's entries live
-// in its `slots` under `TABLE`, one per key. Registration validates what it can at once; what needs
+// The lazy half of the definition table: core owns each suite's table (`LazyHost.definitions`,
+// D106, T5.9) and this package registers its entries there, one per key, and reads them back. Registration validates what it can at once; what needs
 // the whole file (an override's target) is validated when the file is collected.
-import type { FileHandle, Scope, SuiteHandle } from '@provino/types'
+import type { FileHandle, LazyHost, Scope, SuiteHandle } from '@provino/types'
 import { LazyError } from '../errors.ts'
 import type { LetOptions, ReservedKey } from '../types.ts'
 import { captureSite, formatSite } from './site.ts'
@@ -12,8 +12,6 @@ import {
   FILE_STATE,
   LazyEntry,
   RESOLVED,
-  type SuiteTable,
-  TABLE,
 } from './state.ts'
 
 const RESERVED_LIST = [
@@ -50,18 +48,15 @@ interface FileState {
   readonly overrides: LazyEntry[]
 }
 
-function tableOf(suite: SuiteHandle): SuiteTable {
-  let table = suite.slots.get(TABLE) as SuiteTable | undefined
-  if (table === undefined) {
-    table = new Map()
-    suite.slots.set(TABLE, table)
-  }
-  return table
+/** The lazy entry for `key` in `suite`'s own table, if it has one. */
+function ownEntry(host: LazyHost, suite: SuiteHandle, key: string): LazyEntry | undefined {
+  const found = host.definitions(suite).get(key)
+  return found instanceof LazyEntry ? found : undefined
 }
 
-function ancestorEntry(suite: SuiteHandle, key: string): LazyEntry | undefined {
+function ancestorEntry(host: LazyHost, suite: SuiteHandle, key: string): LazyEntry | undefined {
   for (let s = suite.parent; s !== undefined; s = s.parent) {
-    const found = (s.slots.get(TABLE) as SuiteTable | undefined)?.get(key)
+    const found = ownEntry(host, s, key)
     if (found !== undefined) return found
   }
   return undefined
@@ -71,11 +66,11 @@ function ancestorEntry(suite: SuiteHandle, key: string): LazyEntry | undefined {
  * The scope of the eager definition an override at `entry` inherits, or `undefined` when the key is
  * not eager there (a `let` of it, or no definition yet around the override).
  */
-export function inheritedEagerScope(entry: LazyEntry): Scope | undefined {
-  for (let e = ancestorEntry(entry.suite, entry.key); e !== undefined; ) {
+export function inheritedEagerScope(host: LazyHost, entry: LazyEntry): Scope | undefined {
+  for (let e = ancestorEntry(host, entry.suite, entry.key); e !== undefined; ) {
     if (e.kindOf === 'eager') return e.declared
     if (e.kindOf === 'let') return undefined
-    e = ancestorEntry(e.suite, e.key)
+    e = ancestorEntry(host, e.suite, e.key)
   }
   return undefined
 }
@@ -89,7 +84,7 @@ function fileState(engine: Engine, file: FileHandle): FileState {
     file.slots.set(FILE_STATE, created)
     engine.host.onCollected(() => {
       for (const entry of created.overrides) {
-        if (ancestorEntry(entry.suite, entry.key) === undefined) {
+        if (ancestorEntry(engine.host, entry.suite, entry.key) === undefined) {
           throw new LazyError(
             'LAZY_INVALID',
             `\`${entry.key}\` is overridden at ${formatSite(entry.site)}, but no suite around it defines it. Define it with lazy.let('${entry.key}', …) in an outer describe or at the top of the file.`,
@@ -103,10 +98,10 @@ function fileState(engine: Engine, file: FileHandle): FileState {
 }
 
 /** Fixes what depends on the whole table: the parent entry, scope, eagerness and the memo key. */
-export function settle(entry: LazyEntry): LazyEntry {
+export function settle(host: LazyHost, entry: LazyEntry): LazyEntry {
   if (entry.settled) return entry
-  const parent = ancestorEntry(entry.suite, entry.key)
-  if (parent !== undefined) settle(parent)
+  const parent = ancestorEntry(host, entry.suite, entry.key)
+  if (parent !== undefined) settle(host, parent)
   entry.parentEntry = parent ?? null
   if (entry.override) {
     entry.scope = parent?.scope ?? 'test'
@@ -122,27 +117,28 @@ export function settle(entry: LazyEntry): LazyEntry {
 }
 
 /** The entry that answers `key` for `suite`: its own, else the nearest outer suite's. */
-export function resolveEntry(suite: SuiteHandle, key: string): LazyEntry {
+export function resolveEntry(host: LazyHost, suite: SuiteHandle, key: string): LazyEntry {
   // The cached hit is the read path's: kept small for V8 to inline; the walk is `resolveCold`.
   const cache = suite.slots.get(RESOLVED) as Map<string, LazyEntry> | undefined
   if (cache !== undefined) {
     const hit = cache.get(key)
     if (hit !== undefined) return hit
   }
-  return resolveCold(suite, key, cache)
+  return resolveCold(host, suite, key, cache)
 }
 
 /** The first resolution of `key` for `suite`: walks outward, settles the entry and caches it. */
 function resolveCold(
+  host: LazyHost,
   suite: SuiteHandle,
   key: string,
   known: Map<string, LazyEntry> | undefined,
 ): LazyEntry {
   let cache = known
   for (let s: SuiteHandle | undefined = suite; s !== undefined; s = s.parent) {
-    const found = (s.slots.get(TABLE) as SuiteTable | undefined)?.get(key)
+    const found = ownEntry(host, s, key)
     if (found !== undefined) {
-      settle(found)
+      settle(host, found)
       if (cache === undefined) {
         cache = new Map()
         suite.slots.set(RESOLVED, cache)
@@ -158,11 +154,10 @@ function resolveCold(
 }
 
 /** Every key a definition in `suite` can read: the keys of the suite and of all around it. */
-export function visibleKeys(suite: SuiteHandle): string[] {
+export function visibleKeys(host: LazyHost, suite: SuiteHandle): string[] {
   const keys = new Set<string>()
   for (let s: SuiteHandle | undefined = suite; s !== undefined; s = s.parent) {
-    const table = s.slots.get(TABLE) as SuiteTable | undefined
-    if (table !== undefined) for (const key of table.keys()) keys.add(key)
+    for (const [key, entry] of host.definitions(s)) if (entry instanceof LazyEntry) keys.add(key)
   }
   return [...keys]
 }
@@ -216,8 +211,8 @@ export function register(
       { site },
     )
   }
-  const table = tableOf(suite)
-  const existing = table.get(key)
+  const table = engine.host.definitions(suite)
+  const existing = ownEntry(engine.host, suite, key)
   if (existing !== undefined) {
     throw new LazyError(
       'LAZY_DUPLICATE',

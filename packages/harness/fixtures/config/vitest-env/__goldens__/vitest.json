@@ -1,0 +1,136 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "config/vitest-env",
+  "files": [
+    {
+      "file": "env.vitest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "env.vitest.test.ts",
+            "path": [
+              "MODE=\"test\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "env.vitest.test.ts",
+            "path": [
+              "DEV=true"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "env.vitest.test.ts",
+            "path": [
+              "PROD=false"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "env.vitest.test.ts",
+            "path": [
+              "SSR=true"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "env.vitest.test.ts",
+            "path": [
+              "BASE_URL=\"/\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "env.vitest.test.ts",
+            "path": [
+              "VITE_FROM_PROCESS=\"p\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "env.vitest.test.ts",
+            "path": [
+              "NOT_PREFIXED=\"n\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

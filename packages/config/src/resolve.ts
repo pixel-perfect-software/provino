@@ -21,6 +21,7 @@ import type {
   ProvinoConfigInput,
   SerializedCoverageConfig,
   SerializedLoaderConfig,
+  SerializedModuleMapper,
   SerializedProjectConfig,
   SerializedTransformConfig,
   TransformClaims,
@@ -339,6 +340,7 @@ export async function resolveNeutralProject(
       globalSetup: globalSetupOf(neutral),
       affected: affectedOf(neutral),
       aliases: neutral.aliases,
+      mappers: neutral.mappers,
       globalValues: neutral.globalValues,
       fakeTimers: neutral.fakeTimers,
       snapshotResolver: neutral.snapshotResolver,
@@ -416,6 +418,7 @@ interface ProjectInput {
    * package's `.js` resolve as ES modules (Jest's `extensionsToTreatAsEsm` has no Provino key).
    */
   readonly aliases?: readonly NeutralAlias[] | undefined
+  readonly mappers?: readonly SerializedModuleMapper[] | undefined
   readonly resolution?: NeutralResolution | undefined
   readonly globalValues?: Readonly<Record<string, JsonValue>> | undefined
   readonly fakeTimers?: Readonly<Record<string, JsonValue>> | undefined
@@ -437,6 +440,9 @@ function resolverKeys(input: ProjectInput): Partial<SerializedLoaderConfig> {
   const { aliases, resolution } = input
   return {
     ...(aliases === undefined || aliases.length === 0 ? {} : { aliases }),
+    ...(input.mappers === undefined || input.mappers.length === 0
+      ? {}
+      : { mappers: input.mappers }),
     ...(resolution?.moduleDirectories === undefined
       ? {}
       : { moduleDirectories: resolution.moduleDirectories }),

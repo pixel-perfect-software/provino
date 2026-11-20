@@ -1,0 +1,4 @@
+{
+  "description": "test.extend in its object form: a static value, function fixtures with use(), a fixture that reads another, a fresh value for every test, a test that names none, and the base test with no fixtures.",
+  "runners": ["vitest"]
+}

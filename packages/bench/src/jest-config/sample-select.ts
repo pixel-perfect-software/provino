@@ -80,28 +80,59 @@ export function hasJestObject(text: string): boolean {
   }
 }
 
+/** Counts per kind (a format, for Jest) so far. */
+export type KindTally<K extends string> = Record<K, number>
+
+/** An empty tally for the kinds `quotas` names. */
+export function emptyTallyFor<K extends string>(quotas: Readonly<Record<K, number>>): KindTally<K> {
+  return Object.fromEntries(Object.keys(quotas).map((kind) => [kind, 0])) as KindTally<K>
+}
+
+/** Whether every quota is full. */
+export function quotasFullFor<K extends string>(
+  tally: KindTally<K>,
+  quotas: Readonly<Record<K, number>>,
+): boolean {
+  return (Object.keys(quotas) as K[]).every((kind) => tally[kind] >= quotas[kind])
+}
+
+/**
+ * The configs one repository contributes, in order: its candidates (sorted), each taken while its
+ * kind's quota has room, up to the cap. `needsText` names the kind whose configs count only when
+ * `isConfig` says so (a `package.json` with a `jest` object, a `vite.config.*` with `test`).
+ * Updates `tally`.
+ */
+export function takeConfigsBy<K extends string>(
+  candidates: readonly string[],
+  classify: (path: string) => K | undefined,
+  needsText: K,
+  isConfig: (path: string) => boolean,
+  tally: KindTally<K>,
+  quotas: Readonly<Record<K, number>>,
+): { readonly path: string; readonly kind: K }[] {
+  const taken: { path: string; kind: K }[] = []
+  for (const path of [...candidates].sort(byDepthThenPath)) {
+    if (taken.length >= PER_REPO_CAP) break
+    const kind = classify(path)
+    if (kind === undefined || tally[kind] >= quotas[kind]) continue
+    if (kind === needsText && !isConfig(path)) continue
+    taken.push({ path, kind })
+    tally[kind]++
+  }
+  return taken
+}
+
 /** Counts per format so far. */
-export type Tally = Record<SampleFormat, number>
+export type Tally = KindTally<SampleFormat>
 
 /** An empty tally. */
 export function emptyTally(): Tally {
-  return {
-    '.js': 0,
-    '.ts': 0,
-    '.mjs': 0,
-    '.mts': 0,
-    '.cjs': 0,
-    '.cts': 0,
-    '.json': 0,
-    'package.json': 0,
-  }
+  return emptyTallyFor(SAMPLE_QUOTAS)
 }
 
 /** Whether every quota is full. */
 export function quotasFull(tally: Tally): boolean {
-  return (Object.keys(SAMPLE_QUOTAS) as SampleFormat[]).every(
-    (format) => tally[format] >= SAMPLE_QUOTAS[format],
-  )
+  return quotasFullFor(tally, SAMPLE_QUOTAS)
 }
 
 /**
@@ -114,14 +145,12 @@ export function takeConfigs(
   isConfig: (path: string) => boolean,
   tally: Tally,
 ): { readonly path: string; readonly format: SampleFormat }[] {
-  const taken: { path: string; format: SampleFormat }[] = []
-  for (const path of [...candidates].sort(byDepthThenPath)) {
-    if (taken.length >= PER_REPO_CAP) break
-    const format = candidateFormat(path)
-    if (format === undefined || tally[format] >= SAMPLE_QUOTAS[format]) continue
-    if (format === 'package.json' && !isConfig(path)) continue
-    taken.push({ path, format })
-    tally[format]++
-  }
-  return taken
+  return takeConfigsBy(
+    candidates,
+    candidateFormat,
+    'package.json',
+    isConfig,
+    tally,
+    SAMPLE_QUOTAS,
+  ).map(({ path, kind }) => ({ path, format: kind }))
 }

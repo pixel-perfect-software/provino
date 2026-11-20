@@ -9,7 +9,7 @@ import { type ChildProcess, spawn } from 'node:child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { SampleManifest } from './sample-manifest.ts'
-import { MANIFEST_PATH, repoDir, SAMPLE_DIR } from './sample-paths.ts'
+import type { SamplePaths } from './sample-paths.ts'
 
 /**
  * The shared `node_modules`: the presets and transformers Track 11 F4 names (ts-jest, React
@@ -173,10 +173,19 @@ function run(command: string, args: readonly string[], cwd: string): Promise<num
   })
 }
 
-/** The step. */
-export async function fetchSample(options: {
+/** What differs between the Jest sample's fetch and the Vitest sample's. */
+export interface FetchOptions {
   readonly log: (line: string) => void
-}): Promise<number> {
+  /** `jest` or `vitest`: the sample's name in the files it writes. */
+  readonly name: 'jest' | 'vitest'
+  readonly paths: SamplePaths
+  /** The shared `node_modules`' packages. */
+  readonly sharedPackages: Readonly<Record<string, string>>
+}
+
+/** The step. */
+export async function fetchSample(options: FetchOptions): Promise<number> {
+  const { MANIFEST_PATH, SAMPLE_DIR, repoDir } = options.paths
   const manifest = JSON.parse(readFileSync(MANIFEST_PATH, 'utf8')) as SampleManifest
   mkdirSync(join(SAMPLE_DIR, 'repos'), { recursive: true })
   let failed = 0
@@ -213,12 +222,12 @@ export async function fetchSample(options: {
   await Promise.all(workers)
   writeFileSync(
     join(SAMPLE_DIR, 'package.json'),
-    `${JSON.stringify({ name: 'provino-jest-config-sample', private: true, dependencies: SHARED_PACKAGES }, null, 2)}\n`,
+    `${JSON.stringify({ name: `provino-${options.name}-config-sample`, private: true, dependencies: options.sharedPackages }, null, 2)}\n`,
   )
   writeFileSync(
     join(SAMPLE_DIR, 'pnpm-workspace.yaml'),
     [
-      '# The shared node_modules of the Jest config sample (written by `bench:jest-config sample --fetch`).',
+      `# The shared node_modules of the ${options.name === 'jest' ? 'Jest' : 'Vitest'} config sample (written by \`bench:${options.name}-config sample --fetch\`).`,
       'packages: []',
       'minimumReleaseAge: 10080',
       'nodeLinker: hoisted',

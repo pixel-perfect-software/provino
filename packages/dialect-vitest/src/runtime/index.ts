@@ -5,6 +5,7 @@ export { vitestEnvironmentConditions } from './environment-conditions.ts'
 export { VitestDialectError, type VitestDialectErrorCode } from './errors.ts'
 export { vitestExpectTable, vitestShapeTestError } from './expect-table.ts'
 export { expectTypeOf } from './expect-type-of.ts'
+export { vitestFixtureMessages } from './fixture-messages.ts'
 export {
   type VitestGlobals,
   vitestGlobals,

@@ -1,0 +1,4 @@
+{
+  "description": "test.extend in its builder form: a value returned, a builder that reads earlier keys, onCleanup, and a file-scoped builder value built once.",
+  "runners": ["vitest"]
+}

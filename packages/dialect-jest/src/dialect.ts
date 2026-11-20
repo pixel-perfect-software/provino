@@ -158,7 +158,8 @@ export const jestPolicy: PolicyOverrides = {
     },
     // Jest 30.5 has no `test.extend`: a Jest file that runs here runs under Jest too (B25 open
     // question 10).
-    definitions: { extendApi: 'absent', messages: null },
+    // A plain suite hook gets the suite, as core always passes it.
+    definitions: { extendApi: 'absent', messages: null, plainSuiteHook: 'pass-suite' },
     // Jest passes `done`, not a context: nothing to call (runtime corpus `done-callback` agrees).
     doneDeprecatedMessage: null,
     // research: track-01 L191 (`none`)

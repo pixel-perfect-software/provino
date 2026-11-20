@@ -1,0 +1,2600 @@
+{
+  "$comment": [
+    "B25c's Vitest config sample, rebuilt (D28's terms; T11.15). Written by `pnpm bench:vitest-config sample --build-manifest`; never hand-edited.",
+    "Track 11 F4 rules: the most-starred TypeScript and JavaScript repositories on GitHub (search by stars, forks left out), configs in fixtures, templates, e2e and node_modules left out, at most 6 per repository, until each kind has F4's count.",
+    "A config is vitest.config.<ext> or vite.config.<ext> whose text declares a `test` property; shallowest first within a repository. Legacy vitest.workspace files are left out: Vitest 5 reads none.",
+    "Only repository, commit and path are committed; the tarballs go to .refs/vitest-config-sample/ (`sample --fetch`)."
+  ],
+  "generated": "2026-11-20",
+  "quotas": {
+    "vitest.config": 351,
+    "vite.config": 68
+  },
+  "perRepoCap": 6,
+  "scanned": {
+    "repos": 320,
+    "truncatedTrees": 3,
+    "errors": 0
+  },
+  "repos": [
+    {
+      "repo": "morluto/rea",
+      "sha": "847c2d5253c216a87fb09d170371e11b9504722b",
+      "stars": 470217,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "freeCodeCamp/freeCodeCamp",
+      "sha": "cb6130cf8d3e3aab7a61d559a62826f6a746bdff",
+      "stars": 459359,
+      "configs": [
+        {
+          "path": "client/vitest.config.js",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "curriculum/vitest.config.mjs",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "curriculum/src/test/vitest.config.mjs",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "openclaw/openclaw",
+      "sha": "d7d546f292779a618e6749a4550f3752bab13850",
+      "stars": 394845,
+      "configs": [
+        {
+          "path": "scripts/control-ui-parity/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "scripts/control-ui-retention/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "test/vitest/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "deepseek-ai/deepseek-harness",
+      "sha": "2e39e70496aa02986ca6a820c5d497e816b69d7e",
+      "stars": 284294,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "vuejs/vue",
+      "sha": "9e88707940088cb1f4cd7dd210c9168a50dc347c",
+      "stars": 212516,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "n8n-io/n8n",
+      "sha": "4188465675ec1f2bd43e5280479dfe1ec7ea1f11",
+      "stars": 211449,
+      "configs": [
+        {
+          "path": "packages/cli/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/node-dev/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/workflow/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/@n8n/ai-node-sdk/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/@n8n/ai-workflow-builder.ee/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/@n8n/backend-services/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "firecrawl/firecrawl",
+      "sha": "484be117975ac7b8be085c25f1fbd54d005f17ff",
+      "stars": 204376,
+      "configs": [
+        {
+          "path": "apps/api/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/js-sdk/firecrawl/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "microsoft/vscode",
+      "sha": "f26893c248aa2b2ef1f3dba2134d9d1806559186",
+      "stars": 195674,
+      "configs": [
+        {
+          "path": "extensions/copilot/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "extensions/copilot/chat-lib/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "twbs/bootstrap",
+      "sha": "01ad418c949a7dc341d8675b557000616bb70e01",
+      "stars": 175090,
+      "configs": [
+        {
+          "path": "js/tests/vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "vercel/next.js",
+      "sha": "59164d1b22472a01efdc6c2ee26b5284023dc2f0",
+      "stars": 143609,
+      "configs": [
+        {
+          "path": "examples/with-vitest/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "yangshun/tech-interview-handbook",
+      "sha": "e1d28e8886c0b6ff3e50da991ce0e895134ddc59",
+      "stars": 143359,
+      "configs": [
+        {
+          "path": "vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "excalidraw/excalidraw",
+      "sha": "2c3dcc06ec807e81ab9437eceb1a8f7a3c590743",
+      "stars": 135986,
+      "configs": [
+        {
+          "path": "vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "stablyai/orca",
+      "sha": "03241e3d68b1876afb3aa76c52eb94039430320a",
+      "stars": 130024,
+      "configs": [
+        {
+          "path": "config/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "mobile/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "cloud/apps/push/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "cloud/apps/relay-edge/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "cloud/apps/relay/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "src/packages/process-host/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "shadcn-ui/ui",
+      "sha": "f50887ae68d0fdcbfbe86b57be08af94a4c88a68",
+      "stars": 128596,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/helpers/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/react/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/registry/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/shadcn/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/tests/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "earendil-works/pi",
+      "sha": "edfe6b2ef32283d31efc9e26db86fe48be19d3b2",
+      "stars": 122949,
+      "configs": [
+        {
+          "path": "packages/agent/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/ai/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/chord/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/codemode/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/coding-agent/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/durable/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "immich-app/immich",
+      "sha": "33da8766c2e4bba0fb285522ee9fb23d5c2c0dcd",
+      "stars": 119681,
+      "configs": [
+        {
+          "path": "web/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/cli/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/scripts/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "server/test/vitest.config.mjs",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "thedotmack/claude-mem",
+      "sha": "c0f37d60b2e4860851575e3cbb003f23fc340d4e",
+      "stars": 118479,
+      "configs": [
+        {
+          "path": "services/sync-hub/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "paperclipai/paperclip",
+      "sha": "25b5cad7f9b001789d1147ca429416115578f57f",
+      "stars": 115245,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "cli/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "server/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "ui/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "ui/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/db/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "supabase/supabase",
+      "sha": "df6eafef7c9cbebf48b613f3f1a5b1964f02e2ac",
+      "stars": 115178,
+      "configs": [
+        {
+          "path": "apps/docs/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/studio/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/ui-library/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/www/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/ai-commands/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/dev-tools/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "axios/axios",
+      "sha": "9f0f4ddfe72b4c06afafe1a658e6ee53d35b5760",
+      "stars": 109387,
+      "configs": [
+        {
+          "path": "vitest.config.js",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "tests/module/esm/vitest.config.js",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "tests/smoke/esm/vitest.config.js",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "google-gemini/gemini-cli",
+      "sha": "d4cb1713fd7fc30f1c03f9ca7cbfed341c97dffd",
+      "stars": 108945,
+      "configs": [
+        {
+          "path": "evals/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "integration-tests/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "memory-tests/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "perf-tests/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/a2a-server/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/cli/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "nexu-io/open-design",
+      "sha": "07258801b9e4ae80553816bb1606af7aa9a63dff",
+      "stars": 108551,
+      "configs": [
+        {
+          "path": "apps/daemon/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/desktop/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/packaged/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/web/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/components/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/diagnostics/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "ant-design/ant-design",
+      "sha": "8ca4ecfa1dcdb391682e468613047e7eaebdde83",
+      "stars": 100306,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "mui/material-ui",
+      "sha": "f1e47a37ccd90a5be87018badf420bed924bea9d",
+      "stars": 99369,
+      "configs": [
+        {
+          "path": "vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "docs/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages-internal/api-docs-builder-core/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages-internal/api-docs-builder/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages-internal/core-docs/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages-internal/markdown/vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "tailwindlabs/tailwindcss",
+      "sha": "d49dd3ea67605b1a77f85b506b2b0f6cbe7f685d",
+      "stars": 98693,
+      "configs": [
+        {
+          "path": "vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "integrations/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/@tailwindcss-browser/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/tailwindcss/vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "Stirling-Tools/Stirling-PDF",
+      "sha": "e4053a8d0cb0264a40d9f742a9c02d5c9db266d1",
+      "stars": 97050,
+      "configs": [
+        {
+          "path": "frontend/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "frontend/.storybook/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "OpenHands/OpenHands",
+      "sha": "428b3dc2a0e8d3d0f689a909e2607e33d973da76",
+      "stars": 93863,
+      "configs": [
+        {
+          "path": "vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "Egonex-AI/Understand-Anything",
+      "sha": "bb70fdb0489f8839ce55bf99dae0125ea067f712",
+      "stars": 93334,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "understand-anything-plugin/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "understand-anything-plugin/packages/core/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "understand-anything-plugin/packages/dashboard/vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "modelcontextprotocol/servers",
+      "sha": "c799c8552b0f27b7a33a7b9233773da144dddcf5",
+      "stars": 92116,
+      "configs": [
+        {
+          "path": "src/everything/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "src/filesystem/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "src/memory/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "src/sequentialthinking/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "storybookjs/storybook",
+      "sha": "eebe6352750ac0dcad1a5a8080944723114e4af5",
+      "stars": 91655,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "agent-eval/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "code/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "ecosystem-qa/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "scripts/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "code/core/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "mermaid-js/mermaid",
+      "sha": "7a027f757cbecf87d93cb7da591506b66f6f134d",
+      "stars": 91167,
+      "configs": [
+        {
+          "path": "vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "koala73/worldmonitor",
+      "sha": "c90b3314b69a25d0faa0052749423cd2abaa3974",
+      "stars": 90961,
+      "configs": [
+        {
+          "path": "vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "consumer-prices-core/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "sveltejs/svelte",
+      "sha": "a0823d965a7894b621e0e30ad845ddd5a05d9d39",
+      "stars": 89804,
+      "configs": [
+        {
+          "path": "vitest.config.js",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "cheaper-inference/OmniRoute",
+      "sha": "575c3d49c15b2ff444e39c83a6ee648f19a2923e",
+      "stars": 88969,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "heygen-com/hyperframes",
+      "sha": "cf28a00053074df2afeb20da225400bd0dc7add0",
+      "stars": 87088,
+      "configs": [
+        {
+          "path": "packages/cli/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/core/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/engine/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/lint/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/parsers/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/player/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "lobehub/lobehub",
+      "sha": "1ce7bdcefb2816508d8ef085ee6b37dc8472fe4a",
+      "stars": 85879,
+      "configs": [
+        {
+          "path": "vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/cli/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/desktop/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/achaos/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/agent-address-linq/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/agent-address-mail/vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "vitejs/vite",
+      "sha": "c7326770e1121733435e0527af972f387d64d344",
+      "stars": 83989,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "playground/chunk-importmap/vite.config.js",
+          "kind": "vite.config"
+        },
+        {
+          "path": "playground/css-codesplit/vite.config.js",
+          "kind": "vite.config"
+        },
+        {
+          "path": "playground/js-sourcemap/vite.config.js",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "ruvnet/ruflo",
+      "sha": "6c6293dab6eea3b6f623411a25c146ce9e2db058",
+      "stars": 82122,
+      "configs": [
+        {
+          "path": "v3/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "plugins/ruflo-arena/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "plugins/ruflo-graph-intelligence/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "ruflo/src/ruvocal/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "v3/@claude-flow/aidefence/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "v3/@claude-flow/browser/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "hoppscotch/hoppscotch",
+      "sha": "55908a76a1d0555c9bbb5d74244c14173df95b06",
+      "stars": 80853,
+      "configs": [
+        {
+          "path": "packages/hoppscotch-cli/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/hoppscotch-common/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/hoppscotch-desktop/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/hoppscotch-js-sandbox/vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "colbymchenry/codegraph",
+      "sha": "69bbb389780410f43de7b514b90b2f7ba6b12584",
+      "stars": 78151,
+      "configs": [
+        {
+          "path": "vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "grafana/grafana",
+      "sha": "0c953be3a9a1455a862b2d364f1007f1d423916b",
+      "stars": 78006,
+      "configs": [
+        {
+          "path": "scripts/release/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "scripts/rspack/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "nestjs/nest",
+      "sha": "9aaa3e1b596982286091c184cd8a8f42f260dc2e",
+      "stars": 77115,
+      "configs": [
+        {
+          "path": "vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "sample/01-cats-app/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "sample/02-gateways/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "sample/03-microservices/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "sample/04-grpc/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "sample/05-sql-typeorm/vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "Fission-AI/OpenSpec",
+      "sha": "0c737dc1b543249b38b0f4716816fcf493d894dd",
+      "stars": 75289,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "toeverything/AFFiNE",
+      "sha": "dc2b2212441602452f3cf0ea50a4eaedaf03bcc2",
+      "stars": 75252,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "blocksuite/integration-test/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "blocksuite/affine/all/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "blocksuite/affine/data-view/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "blocksuite/affine/ext-loader/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "blocksuite/affine/shared/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "remotion-dev/remotion",
+      "sha": "d6cac5559dcf6ff52c7aa7a288f5d9394fa3c54e",
+      "stars": 74390,
+      "configs": [
+        {
+          "path": "packages/effects/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/eslint-plugin/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/layout-utils/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/media/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/react18-tests/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/web-renderer/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "strapi/strapi",
+      "sha": "2db7f2eefa10c9a229082b07e2a7609ebfb8a222",
+      "stars": 73522,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "tests-next/api/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "tests-next/cli/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "tests/utils/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/cli/cloud/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/cli/create-strapi-app/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "hakimel/reveal.js",
+      "sha": "e240e175232fa2de660a02bc0d7bf5f655b159bb",
+      "stars": 72607,
+      "configs": [
+        {
+          "path": "react/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "cline/cline",
+      "sha": "20b042723a14412f6c1e84230b008708534d6e8c",
+      "stars": 71782,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/cli/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/cline-hub/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/vscode/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/examples/desktop-app/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/examples/menubar/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "code-yeongyu/oh-my-openagent",
+      "sha": "b036a83c622e637bb483c423733449af8f7f3923",
+      "stars": 71013,
+      "configs": [
+        {
+          "path": "packages/lsp-daemon/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/lsp-tools-mcp/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/omo-computer-carriers/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/omo-computer-engine/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/omo-computer-hand/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/omo-computer-prelude/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "meta/docusaurus",
+      "sha": "809ffffd5c8436e7458b9a2c494ce3fe7f8ef0bc",
+      "stars": 66773,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "pingdotgg/t3code",
+      "sha": "e25a337e5fbf6270f27774759c59f09b8460ccd5",
+      "stars": 66596,
+      "configs": [
+        {
+          "path": "vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": ".repos/effect/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/desktop/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "apps/mobile/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "apps/server/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "apps/web/vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "leonardomso/33-js-concepts",
+      "sha": "16d0d95c02b19df6a8c841f1a0012d7b7367a340",
+      "stars": 66535,
+      "configs": [
+        {
+          "path": "vitest.config.js",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "nocodb/nocodb",
+      "sha": "6d6f85dfbda1d9e7de2914e6a4938b7ee5b2bf57",
+      "stars": 65581,
+      "configs": [
+        {
+          "path": "packages/noco-integrations/core/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "upstash/context7",
+      "sha": "f1872ebb2f3d943b293bb86fdc0c2905988820d9",
+      "stars": 65146,
+      "configs": [
+        {
+          "path": "packages/cli/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/pi/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/sdk/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/tools-ai-sdk/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "marktext/marktext",
+      "sha": "e4ed4cf4a3deafb81817987e9b3653f57031f6c8",
+      "stars": 64197,
+      "configs": [
+        {
+          "path": "packages/desktop/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/muya/vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "gsd-build/get-shit-done",
+      "sha": "bdcaab2c752d9a33a1a1ca9acf3a3c81fb991815",
+      "stars": 64130,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "sdk/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "withastro/astro",
+      "sha": "d2b3c9656279d451b5cd831fdb1ca08fff171d72",
+      "stars": 64077,
+      "configs": [
+        {
+          "path": "benchmark/vitest.config.js",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "examples/container-with-vitest/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "examples/with-vitest/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "makeplane/plane",
+      "sha": "18bdefae3379c6b9eea084045c2d134310ab19fb",
+      "stars": 62824,
+      "configs": [
+        {
+          "path": "apps/live/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/blocks/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/codemods/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/editor/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "reduxjs/redux",
+      "sha": "67a2f96073a21ce0366b673ff0372daf6ee409c3",
+      "stars": 61439,
+      "configs": [
+        {
+          "path": "vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "twentyhq/twenty",
+      "sha": "63733f37e71a15b56aba8b91f415999e5201911c",
+      "stars": 61226,
+      "configs": [
+        {
+          "path": "packages/twenty-cli/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/twenty-client-sdk/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/twenty-docs/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/twenty-front-component-renderer/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/twenty-front/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/twenty-oxlint-rules/vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "nuxt/nuxt",
+      "sha": "949dcf74475a3637d5b42ede1587bf191d5062f9",
+      "stars": 61089,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "pmndrs/zustand",
+      "sha": "9fed2eb2f3af672da9f7bf694b996df3831fc207",
+      "stars": 58959,
+      "configs": [
+        {
+          "path": "vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "agalwood/Motrix",
+      "sha": "07fa834aa3fe879ba4db067230ad23b6468a2a2f",
+      "stars": 58546,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "TryGhost/Ghost",
+      "sha": "7e67118ae37acc2eabf09330cdd1f1ac26022abc",
+      "stars": 55865,
+      "configs": [
+        {
+          "path": "vitest.config.mjs",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "ghost/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/activitypub/vite.config.mjs",
+          "kind": "vite.config"
+        },
+        {
+          "path": "apps/admin-toolbar/vitest.config.mjs",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/admin-x-framework/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "apps/admin-x-framework/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "tashfeenahmed/freellmapi",
+      "sha": "dd0fb71351746ed7bfcbe061a7aa7c6bdb291e1d",
+      "stars": 55280,
+      "configs": [
+        {
+          "path": "client/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "server/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "vuejs/core",
+      "sha": "942d307f64660bc3438dfede3c17ae0fb31c3655",
+      "stars": 55052,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "mozilla/pdf.js",
+      "sha": "81b2255fe0a0b79854c26ec6193eb5ce6681b4dc",
+      "stars": 54161,
+      "configs": [
+        {
+          "path": "test/benchmarks/vitest.config.mjs",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "CherryHQ/cherry-studio",
+      "sha": "3110175b8025598bb4460d832b3d1221bb611726",
+      "stars": 53668,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "native/system-speech/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/agent-behavior/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/agent-runtime-pi-durable/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/agent-runtime-pi/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/agent-runtime/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "ionic-team/ionic-framework",
+      "sha": "6e1610174f86cf3fa82bae9ae8781c24b98b3fed",
+      "stars": 52771,
+      "configs": [
+        {
+          "path": "packages/vue/test/base/vite.config.js",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/react/test/apps/react18/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/react/test/apps/react19/vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "moeru-ai/airi",
+      "sha": "e277bdbb1e9c91d340a06b36f8f20941f0a38ccb",
+      "stars": 51584,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/stage-tamagotchi-kirie/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/stage-tamagotchi/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/stage-web/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/ui-server-auth/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "evals/tts-speech-formula/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "tldraw/tldraw",
+      "sha": "e242d25a658942d32396cfaa2256f2352cffb937",
+      "stars": 51498,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/analytics-worker/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/analytics/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/bemo-worker/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/docs/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/mcp-app/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "cypress-io/cypress",
+      "sha": "88e446ce414c240fddbcb956b092d67619e4403d",
+      "stars": 51038,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "cli/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "npm/cypress-schematic/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "npm/grep/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "npm/puppeteer/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "npm/vite-dev-server/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "TanStack/query",
+      "sha": "f6689e04be493e2e83f9c93d7e478f92c3e5d328",
+      "stars": 50592,
+      "configs": [
+        {
+          "path": "packages/angular-query-devtools/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/angular-query-persist-client/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/angular-query/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/eslint-plugin-query/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/lit-query/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/preact-query-devtools/vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "calcom/cal.diy",
+      "sha": "ae027bb70e694e2d2c44569f398d6cbcee0389b1",
+      "stars": 50238,
+      "configs": [
+        {
+          "path": "vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "slidevjs/slidev",
+      "sha": "437f139ccd4c8482a193b217922e7800a5b3baec",
+      "stars": 49574,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "abhigyanpatwari/GitNexus",
+      "sha": "9d7a5eddb3c4e4b7dac92d7ecd3ec427a7b67e85",
+      "stars": 48672,
+      "configs": [
+        {
+          "path": "gitnexus-web/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "gitnexus/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "eval/workflow_bench/oracles/vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "prisma/orm",
+      "sha": "be62041792964a19d44eb81f788dfa84a600a2d9",
+      "stars": 47693,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/telemetry-backend/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "examples/bundle-size/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "examples/mongo-blog-leaderboard/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "examples/mongo-demo/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "examples/multi-extension-monorepo/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "slab/quill",
+      "sha": "539cbffd0a13b18e9c65eb84dd35e6596e403158",
+      "stars": 47376,
+      "configs": [
+        {
+          "path": "packages/quill/test/fuzz/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/quill/test/unit/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "LibreChat-AI/LibreChat",
+      "sha": "4700c44eb77c142b4f9f8b87476924f22890eb39",
+      "stars": 47355,
+      "configs": [
+        {
+          "path": "client/vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "DIYgod/RSSHub",
+      "sha": "ae5c5dec96376ec6948bfae91db29ce030d03541",
+      "stars": 47119,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "RocketChat/Rocket.Chat",
+      "sha": "737d929d12e05785eeefe4eac8763c24cdfd0d91",
+      "stars": 46508,
+      "configs": [
+        {
+          "path": "apps/meteor/vite/vite.config.mts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "mifi/lossless-cut",
+      "sha": "4c7ab1cb0c9acaefabb48e997bc909562dc3624d",
+      "stars": 46214,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "Leaflet/Leaflet",
+      "sha": "fe183c8cad5192f410df4d090e0870ae05eb6cfd",
+      "stars": 45956,
+      "configs": [
+        {
+          "path": "vitest.config.js",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "payloadcms/payload",
+      "sha": "577d34328ef2eec454cdff9d1e72a38811c3513b",
+      "stars": 45926,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/codemod/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/create-payload-app/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/payload-cloud/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": ".github/actions/ai-reviewer/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": ".github/actions/audit-dependencies/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "reactive-resume/reactive-resume",
+      "sha": "897bcf8e740a4ee918ac27d0dc17e1edd105446a",
+      "stars": 45924,
+      "configs": [
+        {
+          "path": "tooling/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/server/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/web/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "apps/web/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/ai/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/api/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "colinhacks/zod",
+      "sha": "e32e08836e451e26f53f5ff6efe4fb92b07a47ad",
+      "stars": 44360,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/docs/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/mini/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/resolution/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/zod/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "HeyPuter/puter",
+      "sha": "743c1a772df6886dd812fa0bc532a0f56ed1c0f6",
+      "stars": 44213,
+      "configs": [
+        {
+          "path": "src/backend/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "src/cli/vitest.config.js",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "src/gui/vitest.config.js",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "src/puter-js/tests/api/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "yangshun/front-end-interview-handbook",
+      "sha": "75ee62afc63bb9b48be160b0710bfcba6ab01a75",
+      "stars": 43999,
+      "configs": [
+        {
+          "path": "vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "THU-MAIC/OpenMAIC",
+      "sha": "a985fc4d04e8a030c10d2d33831573c34fbdece2",
+      "stars": 43971,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "render-service/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/@openmaic/dsl/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/@openmaic/editor/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/@openmaic/generation/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/@openmaic/geometry/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "FuelLabs/fuels-ts",
+      "sha": "cf60741cd11ca56a46c131bed17f0afd9dee2094",
+      "stars": 42882,
+      "configs": [
+        {
+          "path": "apps/create-fuels-counter-guide/vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "chatboxai/chatbox",
+      "sha": "446bcf43e7a89a0411218821de54d87d7f3cfe11",
+      "stars": 42441,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "lfnovo/open-notebook",
+      "sha": "0c1e7abbd77411057d8feef02fc4588ec9a556d6",
+      "stars": 42091,
+      "configs": [
+        {
+          "path": "frontend/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "linshenkx/prompt-optimizer",
+      "sha": "62b49a1f646af499b6c472c16984b19ab7a358cb",
+      "stars": 41978,
+      "configs": [
+        {
+          "path": "packages/core/vitest.config.js",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/ui/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/web/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "outline/outline",
+      "sha": "dbc1e84ec95b6472b76bafa46bf750afff0ada39",
+      "stars": 41320,
+      "configs": [
+        {
+          "path": "vite.config.mts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "vuetifyjs/vuetify",
+      "sha": "e1816d6fc3cd4c7d79222700be82278188c944a3",
+      "stars": 41043,
+      "configs": [
+        {
+          "path": "packages/vuetify/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "Yeachan-Heo/oh-my-claudecode",
+      "sha": "dec7e4188c0e3de6b92fb3d734ee5c95326021ed",
+      "stars": 40961,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "benchmarks/harsh-critic/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "trpc/trpc",
+      "sha": "596d03d93295f8b4876909cfce86f94a1e6afe51",
+      "stars": 40835,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "www/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "examples/next-prisma-starter/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/client/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/next/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/openapi/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "chakra-ui/chakra-ui",
+      "sha": "4fca0889be532fced536b77e1dff982001ebc672",
+      "stars": 40745,
+      "configs": [
+        {
+          "path": "vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/cli/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/codemod/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "phaserjs/phaser",
+      "sha": "02d8931b626d9764c133cbb3fbf99966c03c757c",
+      "stars": 40744,
+      "configs": [
+        {
+          "path": "vitest.config.js",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "novuhq/novu",
+      "sha": "e6eba6796f7a8c8cb81639b80568f0b58354985f",
+      "stars": 40385,
+      "configs": [
+        {
+          "path": "apps/human-dashboard/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "libs/agent-evals/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "libs/application-generic/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "libs/maily-render/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/add-inbox/vitest.config.js",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/agent-event-protocol/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "umami-software/umami",
+      "sha": "aad2c4cedd5c0b3bc4d361843830a0bb47cf79c4",
+      "stars": 40248,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/api-client/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/mcp/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "videojs/video.js",
+      "sha": "1949bf26dcfc44d6bf7fa8ab5ebc0a362171af62",
+      "stars": 40226,
+      "configs": [
+        {
+          "path": "vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "site/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "apps/sandbox/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/cdn/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/cli/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/core/vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "Kong/insomnia",
+      "sha": "911271895758e20ba4eb95ddbb00436510057c8f",
+      "stars": 40172,
+      "configs": [
+        {
+          "path": "packages/insomnia-analytics/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/insomnia-api/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/insomnia-data/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/insomnia-inso/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/insomnia-scripting-environment/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/insomnia-vcs/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "vercel-labs/skills",
+      "sha": "57217cf86ba38148a57af9e90d14a4c049558330",
+      "stars": 40115,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "siddharthvaddem/openscreen",
+      "sha": "ca8104c279da0d4b4481ec992ff103949e22c772",
+      "stars": 40026,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "bytedance/UI-TARS-desktop",
+      "sha": "3ac2cb8d946d78d5ff92ad17b318eaafa18c178c",
+      "stars": 39604,
+      "configs": [
+        {
+          "path": "vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "multimodal/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/ui-tars/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "infra/pdk/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "multimodal/agent-tars/cli/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "multimodal/agent-tars/core/vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "RSSNext/Folo",
+      "sha": "292d15d94f9e7680899e1e2567c1c0d48a423f48",
+      "stars": 39319,
+      "configs": [
+        {
+          "path": "apps/cli/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/landing/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/mobile/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/ssr/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/internal/store/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/internal/utils/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "xyflow/xyflow",
+      "sha": "29ab9e001c2ba320c9d84b00c729c745132d9145",
+      "stars": 39090,
+      "configs": [
+        {
+          "path": "packages/system/vitest.config.js",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "ueberdosis/tiptap",
+      "sha": "99212a8feb8fd2924c1612d6a8e0b3719163ed54",
+      "stars": 39089,
+      "configs": [
+        {
+          "path": "vite.config.mts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "TriliumNext/Trilium",
+      "sha": "569ee31273e6d3bfeb2050f3803d0f6c8a7b2444",
+      "stars": 39020,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "scripts/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/client/vite.config.mts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "apps/db-compare/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/desktop/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "apps/edit-docs/vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "preactjs/preact",
+      "sha": "cdff5f7568259d334b9009bb457a40096fd26d50",
+      "stars": 39011,
+      "configs": [
+        {
+          "path": "vitest.config.mjs",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "ant-design/ant-design-pro",
+      "sha": "42f2cb1d303380909ea04c73b5e60679d09c321a",
+      "stars": 38974,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "portainer/portainer",
+      "sha": "34394737750a8abd99d5d45e7f73ed730ae38742",
+      "stars": 38868,
+      "configs": [
+        {
+          "path": "vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "CopilotKit/CopilotKit",
+      "sha": "0083b4547337f30a7ea77dc16dbd4c1ba1011d08",
+      "stars": 38831,
+      "configs": [
+        {
+          "path": "examples/slack/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "examples/teams/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/a2ui-renderer/vitest.config.mjs",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/agentcore-runner/vitest.config.mjs",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/angular/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/channels-core/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "Dokploy/dokploy",
+      "sha": "c0240edb83e8e9b6b59902062dbc0aabb072f8b6",
+      "stars": 38619,
+      "configs": [
+        {
+          "path": "apps/dokploy/__test__/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "directus/directus",
+      "sha": "af4ec9f4ac233cc7dee5f7f555d79463386fae7a",
+      "stars": 38601,
+      "configs": [
+        {
+          "path": "api/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "app/vite.config.js",
+          "kind": "vite.config"
+        },
+        {
+          "path": "sdk/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/composables/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/create-directus-extension/vitest.config.js",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/memory/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "AdguardTeam/AdGuardHome",
+      "sha": "bf5fea8251c1dc7dcc019e754ad9a2fb13abb68a",
+      "stars": 38600,
+      "configs": [
+        {
+          "path": "client/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "client_v2/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "NervJS/taro",
+      "sha": "a48d43e3954cc4ffe2aa867784c912ebfba752f1",
+      "stars": 37757,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/babel-plugin-transform-react-jsx-to-rn-stylesheet/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/babel-plugin-transform-taroapi/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/babel-preset-taro/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/css-to-react-native/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/shared/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "langfuse/langfuse",
+      "sha": "41c0fe3e485aaf3f6c6f107042ca09fff5242268",
+      "stars": 37644,
+      "configs": [
+        {
+          "path": "web/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "worker/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/eslint-plugin/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/in-app-agent-sandbox-runtime/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/shared/vitest.config.ts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "medusajs/medusa",
+      "sha": "f9ae213adfa74e833a47ddc8eb81f6cb0bc7bfca",
+      "stars": 37337,
+      "configs": [
+        {
+          "path": "www/vitest.config.mts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/admin/admin-bundler/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/admin/admin-vite-plugin/vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "packages/design-system/icons/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/design-system/ui/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "www/apps/api-reference/vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "webadderallorg/Recordly",
+      "sha": "f2694a022c55f1d5f46f2ff5ba46485dbfc8f29b",
+      "stars": 37107,
+      "configs": [
+        {
+          "path": "vitest.config.ts",
+          "kind": "vitest.config"
+        },
+        {
+          "path": "services/recordly-share/worker/vitest.config.mjs",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "DayuanJiang/next-ai-draw-io",
+      "sha": "9534a668e3bd53f9c08aa5b8d2d77f409ccd09d4",
+      "stars": 37082,
+      "configs": [
+        {
+          "path": "vitest.config.mts",
+          "kind": "vitest.config"
+        }
+      ]
+    },
+    {
+      "repo": "solidjs/solid",
+      "sha": "c74567ab1ff2a9f4b6db03549cf14a55d0c68140",
+      "stars": 36831,
+      "configs": [
+        {
+          "path": "packages/babel-plugin/vite.config.mjs",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/compiler/vite.config.mjs",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/diagnostics/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/element/vite.config.mjs",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/h/vite.config.mjs",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/html/vite.config.mjs",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "continuedev/continue",
+      "sha": "5522c6f44ca0ac3528b37244818fbfa39b5af470",
+      "stars": 36521,
+      "configs": [
+        {
+          "path": "gui/vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "alan2207/bulletproof-react",
+      "sha": "9506629ed003a561c6627735480cce4994244bb4",
+      "stars": 36080,
+      "configs": [
+        {
+          "path": "apps/react-vite/vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "NginxProxyManager/nginx-proxy-manager",
+      "sha": "147e6d19350345cacc5539504e0222c1c7ba0bf1",
+      "stars": 34816,
+      "configs": [
+        {
+          "path": "frontend/vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "honojs/hono",
+      "sha": "75ff8e3ea18485589816881c6278bc9783e56602",
+      "stars": 32996,
+      "configs": [
+        {
+          "path": "adapters/aws-lambda/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "adapters/cloudflare-workers/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "adapters/deno/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "adapters/lambda-edge/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "adapters/netlify/vite.config.ts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "adapters/service-worker/vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "floating-ui/floating-ui",
+      "sha": "c3042f1f37d96dfadff1d8894daa31e120d89ed4",
+      "stars": 32816,
+      "configs": [
+        {
+          "path": "packages/dom/vite.config.mts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/react-dom/vite.config.mts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/react/vite.config.mts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/utils/vite.config.mts",
+          "kind": "vite.config"
+        },
+        {
+          "path": "packages/vue/vite.config.mts",
+          "kind": "vite.config"
+        }
+      ]
+    },
+    {
+      "repo": "refined-github/refined-github",
+      "sha": "1509465122790ab86f2109fbb61835f1537e040f",
+      "stars": 32519,
+      "configs": [
+        {
+          "path": "vite.config.ts",
+          "kind": "vite.config"
+        }
+      ]
+    }
+  ]
+}

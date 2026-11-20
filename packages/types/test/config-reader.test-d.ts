@@ -10,6 +10,7 @@ import type {
   GlobalSetupFailure,
   NeutralProject,
   OrchestratorPolicy,
+  SerializedModuleMapper,
   SerializedProjectConfig,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
@@ -71,6 +72,14 @@ expectTypeOf<NeutralProject['cacheDirectory']>().toEqualTypeOf<string | undefine
 // @ts-expect-error a pattern is a source, never a RegExp
 const pattern: RegExp = project.aliases[0]?.pattern ?? /x/
 void pattern
+
+// A project's module mappers are optional, and a factory's ref with its JSON options (B25c).
+expectTypeOf<NeutralProject['mappers']>().toEqualTypeOf<
+  readonly SerializedModuleMapper[] | undefined
+>()
+// @ts-expect-error a mapper is a ref and its options, never a function (it can't cross a thread)
+const closureMapper: NonNullable<NeutralProject['mappers']>[number] = { factory: () => null }
+void closureMapper
 
 // What a global setup or teardown is called with (T9.15): the two configs the reader built. A hook
 // runs in the coordinator, so they never cross to a worker: objects, not JSON. Absent when the

@@ -16,6 +16,8 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'core.hookOrder.afterEach': ['declaration', 'reverse', 'parallel'],
   'core.hookOrder.afterAll': ['declaration', 'reverse', 'parallel'],
   'core.firstArg': ['done-if-arity', 'context'],
+  'core.definitions.extendApi': ['expose', 'absent'],
+  'core.definitions.plainSuiteHook': ['pass-suite', 'refuse-fixtures'],
   'core.timeouts.zero': ['default', 'none'],
   'core.missingTestFn': ['throw', 'todo'],
   'core.asyncDescribe': ['throw', 'await'],
@@ -128,6 +130,8 @@ const REF_FLIPS: Readonly<Record<string, readonly unknown[]>> = {
   'core.timeouts.message': [neutralPolicy.core.timeouts.message],
   // `--randomize --seed` on 30 tests: no shuffle keeps the declared order, which the recording isn't.
   'core.shuffle': [neutralPolicy.core.shuffle],
+  // Core's own words for a fixture error: `runtime/fixture-parse-error` holds Vitest's.
+  'core.definitions.messages': [neutralPolicy.core.definitions.messages],
   // The four `cli/global-setup-throws*` recordings word a failing hook as Jest's behaviour does; the
   // neutral wording must fail them (the claim calls the ref it is given).
   'orchestrator.globalSetup.failure': [neutralPolicy.orchestrator.globalSetup.failure],

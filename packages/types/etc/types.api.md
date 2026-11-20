@@ -390,6 +390,7 @@ export interface CorePolicy {
     readonly definitions: {
         readonly extendApi: "expose" | "absent";
         readonly messages: Behaviour<FormatDefinitionError> | null;
+        readonly plainSuiteHook: "pass-suite" | "refuse-fixtures";
     };
     readonly doneDeprecatedMessage: string | null;
     readonly eachHooksForConcurrent: boolean;
@@ -1581,6 +1582,7 @@ export interface LazyHost {
     addWorkerTeardown(fn: () => unknown): void;
     collecting(): SuiteHandle | undefined;
     current(): LazyFrame | undefined;
+    definitions(suite: SuiteHandle): Map<string, Pick<Definition, "key" | "kind">>;
     onCollected(fn: (file: FileHandle) => void): void;
     runOf(ctx: object): TestRunHandle | undefined;
     // (undocumented)
@@ -2294,6 +2296,7 @@ export interface NeutralProject {
     readonly globalTeardown: readonly string[];
     readonly globalValues?: Readonly<Record<string, JsonValue>>;
     readonly importMetaEnv?: Readonly<Record<string, string | boolean>>;
+    readonly mappers?: readonly SerializedModuleMapper[];
     readonly name: string;
     readonly policy: PolicyOverrides;
     readonly randomize?: true;

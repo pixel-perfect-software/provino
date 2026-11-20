@@ -55,7 +55,7 @@ export function createHandles(engine: Engine): (keys: readonly string[]) => AnyL
 
   /** A cache miss: resolves, remembers, and makes sure the file's end forgets it. */
   function resolveMiss(cache: ResolveCache, frame: LazyFrame, key: string): LazyEntry {
-    const entry = resolveEntry(frame.suite, key)
+    const entry = resolveEntry(engine.host, frame.suite, key)
     const file = frame.file
     if (!file.slots.has(dropsCaches)) {
       file.slots.set(dropsCaches, true)
@@ -138,7 +138,7 @@ export function createHandles(engine: Engine): (keys: readonly string[]) => AnyL
         const entry = register(engine, 'override', key, fn, undefined, via ?? overrideMethod)
         // An override of a file or worker eager value is evaluated where it is declared: the
         // outer hook resolves from the outer suite and never sees it.
-        const scope = inheritedEagerScope(entry)
+        const scope = inheritedEagerScope(engine.host, entry)
         if (scope !== undefined && scope !== 'test') {
           engine.host.addHook(entry.suite, 'beforeAll', eagerHook(engine, entry))
         }

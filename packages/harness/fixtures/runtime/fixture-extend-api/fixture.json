@@ -1,0 +1,4 @@
+{
+  "description": "Whether the runner's test API has extend and override: Jest 30.5's has neither, Vitest 5.0.5's has both.",
+  "runners": ["jest", "vitest"]
+}

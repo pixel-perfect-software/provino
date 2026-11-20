@@ -696,7 +696,6 @@ test('config refuses a bad shape, an unlisted runner and a key someone else sets
   // Projects bring configs the recorder doesn't write, and a `test` that isn't an object hides keys.
   bad({ config: { jest: { projects: ['a'] } } })
   bad({ config: { vitest: { projects: ['a'] } } })
-  bad({ config: { vitest: { test: { projects: ['a'] } } } })
   bad({ config: { vitest: { test: 'x' } } })
   bad({ config: { vitest: { test: ['x'] } } })
   // A key `mockCleanup` or `jestConfig` sets.
@@ -705,6 +704,20 @@ test('config refuses a bad shape, an unlisted runner and a key someone else sets
   bad({ runners: ['jest'], jestConfig: { roots: ['a'] }, config: { jest: { roots: ['b'] } } })
   // The `vitest-list` profile's own key.
   bad({ runners: ['vitest-list'], config: { vitest: { test: { sequence: { hooks: 'stack' } } } } })
+  // Vitest's `test.projects` is a key only a fixture that brings project directories may set (B25c).
+  bad({ config: { vitest: { test: { projects: ['a'] } } } })
+  const withProjects = {
+    runners: ['vitest'],
+    vitestProjects: true,
+    config: { vitest: { test: { projects: ['a'] } } },
+  }
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, ...withProjects })).config, {
+    vitest: { test: { projects: ['a'] } },
+  })
+  // The flag and the key are one decision, and the flag needs a Vitest runner.
+  bad({ ...withProjects, config: { vitest: { test: { globals: true } } } })
+  bad({ runners: ['jest'], vitestProjects: true, config: { jest: { clearMocks: true } } })
+  bad({ ...withProjects, vitestProjects: false })
   // Without the other source, the same key is the fixture's.
   assert.deepEqual(
     parseFixtureManifest(JSON.stringify({ ...VALID, config: { jest: { clearMocks: true } } }))

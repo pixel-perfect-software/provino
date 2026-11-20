@@ -9,6 +9,7 @@ import { EnvironmentConditions } from '@provino/types';
 import { ExpectTable } from '@provino/types';
 import { FakeClock } from '@provino/timers';
 import { FakeTimersConfig } from '@provino/timers';
+import { FormatDefinitionError } from '@provino/types';
 import { FormatEachTitle } from '@provino/types';
 import { GlobalsHost } from '@provino/types';
 import { Mock } from '@provino/mock';
@@ -52,6 +53,9 @@ export function vitestExpectTable(): ExpectTable;
 
 // @public
 export type VitestFakeTimersConfig = Pick<FakeTimersConfig, "now" | "toFake" | "toNotFake" | "shouldAdvanceTime" | "advanceTimeDelta" | "loopLimit" | "shouldClearNativeTimers">;
+
+// @public
+export const vitestFixtureMessages: FormatDefinitionError;
 
 // @public
 export type VitestGlobals = {
