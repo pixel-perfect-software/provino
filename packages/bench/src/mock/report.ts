@@ -6,11 +6,17 @@ import { errorMessage } from '../internal/guards.ts'
 import { overBar, parseLimit, pastLimit } from '../internal/limits.ts'
 
 /** The engines, in the order they print. The first two are Provino under each dialect's policy. */
-export const ENGINES = ['provino-jest', 'provino-vitest', 'vitest-spy', 'jest-mock'] as const
+export const ENGINES = [
+  'provino-jest',
+  'provino-vitest',
+  'provino-vi',
+  'vitest-spy',
+  'jest-mock',
+] as const
 export type Engine = (typeof ENGINES)[number]
 
 /** The engines T4.3's bars apply to. */
-export const BARRED_ENGINES = ['provino-jest', 'provino-vitest'] as const
+export const BARRED_ENGINES = ['provino-jest', 'provino-vitest', 'provino-vi'] as const
 
 /** The creation cells, as keys of a sample and as printed. */
 export const CREATE_CELLS = ['create', 'createArrow', 'createFunction'] as const

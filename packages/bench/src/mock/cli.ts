@@ -40,6 +40,7 @@ const entry = fileURLToPath(new URL('entry.ts', import.meta.url))
 const samples: Record<Engine, Sample[]> = {
   'provino-jest': [],
   'provino-vitest': [],
+  'provino-vi': [],
   'vitest-spy': [],
   'jest-mock': [],
 }
@@ -74,8 +75,8 @@ const lines = [
       `  ${engine.padEnd(width)}${CREATE_CELLS.map((cell) => ns(medians[engine][cell]).padStart(14)).join('')}${ns(medians[engine].createArrowUse).padStart(14)}${ns(medians[engine].call).padStart(14)}`,
   ),
   `  creation excludes first-use cost (a mock's state is allocated on its first call or .mock read); ${USE_LABEL} shows it and has no bar`,
-  `  call ratio to @vitest/spy: provino-jest ${callRatio(medians['provino-jest'], medians['vitest-spy']).toFixed(2)}×, provino-vitest ${callRatio(medians['provino-vitest'], medians['vitest-spy']).toFixed(2)}×`,
-  `  call ratio to jest-mock:   provino-jest ${callRatio(medians['provino-jest'], medians['jest-mock']).toFixed(2)}×, provino-vitest ${callRatio(medians['provino-vitest'], medians['jest-mock']).toFixed(2)}×`,
+  `  call ratio to @vitest/spy: provino-jest ${callRatio(medians['provino-jest'], medians['vitest-spy']).toFixed(2)}×, provino-vitest ${callRatio(medians['provino-vitest'], medians['vitest-spy']).toFixed(2)}×, provino-vi ${callRatio(medians['provino-vi'], medians['vitest-spy']).toFixed(2)}×`,
+  `  call ratio to jest-mock:   provino-jest ${callRatio(medians['provino-jest'], medians['jest-mock']).toFixed(2)}×, provino-vitest ${callRatio(medians['provino-vitest'], medians['jest-mock']).toFixed(2)}×, provino-vi ${callRatio(medians['provino-vi'], medians['jest-mock']).toFixed(2)}×`,
 ]
 const missed = failures(medians, bars)
 lines.push(...missed)

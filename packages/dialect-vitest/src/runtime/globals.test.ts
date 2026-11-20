@@ -257,7 +257,7 @@ test('vi.when, isWhenChain, waitFor and waitUntil give what Vitest 5.0.5 recorde
   }
   const cases: Record<string, () => unknown> = {
     'when returns per argument and falls back for others': () => {
-      const f = vi.fn((x: number) => `impl ${x}`)
+      const f = vi.fn((x: unknown) => `impl ${String(x)}`)
       const chain = vi.when(f).calledWith(1).thenReturn('one')
       return { first: f(1), other: f(2), isChain: vi.isWhenChain(chain), plain: vi.isWhenChain({}) }
     },
