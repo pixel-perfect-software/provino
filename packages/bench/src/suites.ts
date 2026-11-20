@@ -246,7 +246,13 @@ export const RUNNERS: readonly RunnerName[] = ['jest', 'vitest', 'provino', 'pro
  * `provino vitest` is measured (B25 times nothing, D160).
  * @public
  */
-export const TIMED_RUNNERS: readonly RunnerName[] = ['jest', 'vitest', 'provino']
+export type TimedRunnerName = Exclude<RunnerName, 'provino-vitest'>
+
+/**
+ * The timed runners, in the order a bench lists them.
+ * @public
+ */
+export const TIMED_RUNNERS: readonly TimedRunnerName[] = ['jest', 'vitest', 'provino']
 
 /**
  * How each runner is started: the tree under the suite it runs in, the Node arguments before its

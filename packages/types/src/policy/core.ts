@@ -434,13 +434,14 @@ export interface CorePolicy {
      * Whether the test API carries `test.extend` and `test.override`. `expose`: it does, as
      * Vitest's `test` does. `absent`: it doesn't, so a Jest file that runs under Provino still runs
      * under Jest (B25 open question 10). Jest: `absent` (Jest 30.5 has no `test.extend`). Vitest
-     * and neutral: `expose`. Provino's own key; B25e records both runners' values.
+     * and neutral: `expose`. Provino's own key.
      */
     readonly extendApi: 'expose' | 'absent'
     /**
      * How a definition error is worded. `null`: core's own words, on a `CoreError`. Vitest: a ref
-     * to its `FixtureParseError`, `FixtureDependencyError` and `FixtureAccessError` texts (B25e).
-     * Jest and neutral: `null`. Provino's own key.
+     * to its `FixtureParseError`, `FixtureDependencyError` and `FixtureAccessError` texts.
+     * Jest and neutral: `null`. Provino's own key. The ref is loaded on the first definition error,
+     * never at worker boot, through the policy's behaviour loader, which caches it per worker.
      */
     readonly messages: Behaviour<FormatDefinitionError> | null
   }

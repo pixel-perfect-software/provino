@@ -41,6 +41,8 @@ export interface WorkerKeyInput {
   readonly execArgv: readonly string[]
   /** The environment variables set for the worker on top of the coordinator's. Default none. */
   readonly env?: { readonly [name: string]: string }
+  /** The dialect whose runtime the worker boots, compared for equality only. Default none. */
+  readonly dialect?: string
 }
 
 /**
@@ -58,6 +60,7 @@ export function workerKeyOf(input: WorkerKeyInput): WorkerKey {
     environmentOptionsHash: hashOf(input.environmentOptions),
     execArgvHash: hashOf([...input.execArgv]),
     envHash: hashOf(input.env ?? {}),
+    ...(input.dialect === undefined ? {} : { dialect: input.dialect }),
   }
 }
 
@@ -73,13 +76,14 @@ export function sameWorkerKey(a: WorkerKey, b: WorkerKey): boolean {
     a.environment === b.environment &&
     a.environmentOptionsHash === b.environmentOptionsHash &&
     a.execArgvHash === b.execArgvHash &&
-    a.envHash === b.envHash
+    a.envHash === b.envHash &&
+    a.dialect === b.dialect
   )
 }
 
 /** A string equal for exactly the keys `sameWorkerKey` calls the same, for a `Map`. */
 export function workerKeyId(key: WorkerKey): string {
-  return `${key.project}\0${key.pool}\0${key.isolation}\0${key.environment}\0${key.environmentOptionsHash}\0${key.execArgvHash}\0${key.envHash}`
+  return `${key.project}\0${key.pool}\0${key.isolation}\0${key.environment}\0${key.environmentOptionsHash}\0${key.execArgvHash}\0${key.envHash}\0${key.dialect ?? ''}`
 }
 
 /** `value` as JSON-like data: regular expressions as their text, sets as sorted lists, functions dropped. */
