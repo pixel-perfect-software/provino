@@ -10,22 +10,15 @@
 //    which is `context-expect`'s golden (Vitest's per-test `expect`). Neither runner gets it right
 //    with the global `expect`; this is our documented improvement.
 // 3. The Vitest goldens' counting outcomes under Vitest's policy: status, and whether the test has
-//    an error. The Vitest dialect's runtime is a stub, so its `expect` is built from its
-//    `ExpectPolicy` over the Jest matcher table; the text of Vitest's messages is T7.6's.
+//    an error, with `expect` built from the Vitest dialect's own slice and matcher table (T7.6).
 //
 // A difference is allowed only as an explicit pin in `expect-policy-corpus/declared.ts`.
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { describe, test } from 'node:test'
-import { jestExpectPolicy } from '@provino/dialect-jest'
-import { vitestPolicy } from '@provino/dialect-vitest'
-import { createExpect } from '@provino/expect'
-import { resolvePolicy } from '@provino/policy'
-import type { ExpectPolicy } from '@provino/types'
 import { differences, problems, unseen } from './expect-policy-corpus/compare.ts'
 import { JEST_DECLARED, VITEST_DECLARED } from './expect-policy-corpus/declared.ts'
 import { type ObservedTests, observed, recorded } from './expect-policy-corpus/observe.ts'
-import { SUBSTITUTED } from './expect-policy-corpus/profiles.ts'
 import { defaultFixturesRoot, type Fixture, findFixtures, readFixture } from './fixture.ts'
 
 const root = path.join(defaultFixturesRoot(), 'expect', 'policies')
@@ -49,25 +42,6 @@ test('the policy corpus is there', () => {
     'soft-and-poll',
     'unawaited-async',
   ])
-})
-
-test('the substituted Vitest policy values are exactly the ones createExpect still refuses', () => {
-  const vitest = resolvePolicy(vitestPolicy).expect
-  const refused: string[] = []
-  for (const key of Object.keys(SUBSTITUTED) as (keyof typeof SUBSTITUTED)[]) {
-    assert.notDeepEqual(SUBSTITUTED[key], vitest[key], `${key} is Vitest's own, no stand-in needed`)
-    try {
-      createExpect({
-        policy: { ...jestExpectPolicy, [key]: vitest[key] } as ExpectPolicy,
-        table: undefined as never,
-        source: undefined as never,
-      })
-    } catch (error) {
-      if ((error as { code?: string }).code !== 'EXPECT_NOT_IMPLEMENTED') throw error
-      refused.push(key)
-    }
-  }
-  assert.deepEqual(refused.sort(), ['errorShape'])
 })
 
 describe('the Jest goldens', () => {
@@ -126,7 +100,7 @@ describe('the Vitest goldens, as counting outcomes', () => {
       const found = differences(
         await recorded(fixture, 'vitest'),
         await observed(fixture, 'vitest'),
-        'outcome',
+        'messages',
       )
       assert.deepEqual(problems(`${name} (vitest)`, found, VITEST_DECLARED, seen), [])
     })
