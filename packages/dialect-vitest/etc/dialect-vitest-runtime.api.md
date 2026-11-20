@@ -35,6 +35,9 @@ export function vitestExpectTable(): ExpectTable;
 export function vitestGlobals(_host: GlobalsHost): Readonly<Record<string, unknown>>;
 
 // @public
+export function vitestShapeTestError(error: unknown): unknown;
+
+// @public
 export function vitestSnapshotPrinter(): SnapshotPrinter;
 
 // (No @packageDocumentation comment for this package)

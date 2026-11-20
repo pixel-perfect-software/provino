@@ -1849,6 +1849,7 @@ export interface MatcherCall {
     readonly message?: string;
     // (undocumented)
     readonly promise: PromiseVoice;
+    readonly settlement?: "resolved" | "rejected";
 }
 
 // @public
@@ -2333,6 +2334,7 @@ export interface NeutralTransform {
 
 // @public
 export interface NormalizedError {
+    readonly diff?: string;
     readonly matcher?: string;
     readonly message: string;
     readonly name?: string;
@@ -3091,10 +3093,7 @@ export interface SerializedError {
     // (undocumented)
     readonly code?: string;
     readonly details?: JsonValue;
-    readonly diff?: {
-        readonly expected: string;
-        readonly actual: string;
-    };
+    readonly diff?: string;
     readonly enumerableFields?: readonly ("name" | "message" | "stack")[];
     // (undocumented)
     readonly errors?: readonly SerializedError[];

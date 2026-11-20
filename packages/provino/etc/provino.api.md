@@ -15,10 +15,7 @@ export interface $ {
     // (undocumented)
     readonly code?: string;
     readonly details?: P;
-    readonly diff?: {
-        readonly expected: string;
-        readonly actual: string;
-    };
+    readonly diff?: string;
     readonly enumerableFields?: readonly ("name" | "message" | "stack")[];
     // (undocumented)
     readonly errors?: readonly $[];
