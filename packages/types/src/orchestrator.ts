@@ -29,6 +29,12 @@ export interface WorkerKey {
   readonly environmentOptionsHash: string
   readonly execArgvHash: string
   readonly envHash: string
+  /**
+   * The dialect whose runtime the worker boots, as an opaque name compared for equality only: a
+   * worker never serves files of two dialects (B25 open question 8). Absent: the project's one
+   * dialect, which every file runs under.
+   */
+  readonly dialect?: string
 }
 
 /**

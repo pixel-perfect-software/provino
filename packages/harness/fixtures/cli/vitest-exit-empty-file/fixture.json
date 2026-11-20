@@ -1,0 +1,7 @@
+{
+  "description": "A Vitest 5.0.5 test file that declares no test fails the run beside a passing file: exit code 1 (orchestrator.noTestsFile). A black-box run; held by provino vitest in B25g.",
+  "runners": ["vitest"],
+  "run": {
+    "capture": ["exitCode"]
+  }
+}

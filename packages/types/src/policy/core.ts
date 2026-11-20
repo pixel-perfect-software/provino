@@ -77,6 +77,43 @@ export type FormatTimeout = (timeout: {
 }) => string
 
 /**
+ * Which of core's definition checks an error comes from (`CorePolicy.definitions.messages`):
+ * `parse`, a fixture function whose dependencies can't be read from its first parameter; `dependency`,
+ * a definition that can't be built from the ones it reads (a cycle, a narrower scope, an unknown
+ * scope); `access`, a value read where its scope has no value. Vitest 5.0.5 names the three
+ * `FixtureParseError`, `FixtureDependencyError` and `FixtureAccessError`
+ * (`packages/vitest/src/runtime/runner/errors.ts`).
+ * @public
+ */
+export type DefinitionErrorKind = 'parse' | 'dependency' | 'access'
+
+/**
+ * One definition error as core finds it, before it is worded.
+ * @public
+ */
+export interface DefinitionErrorInfo {
+  readonly kind: DefinitionErrorKind
+  /** Which check failed: a stable code core names it by. */
+  readonly code: string
+  /** The definition the error is about. */
+  readonly key: string
+  /** Core's own words for it, which a behaviour may keep. */
+  readonly message: string
+  /** The values the words are built from (another key, a scope), by name. */
+  readonly params: Readonly<Record<string, string>>
+}
+
+/**
+ * Words a definition error (`CorePolicy.definitions.messages`): the name and message of the
+ * `Error` core throws for it.
+ * @public
+ */
+export type FormatDefinitionError = (error: DefinitionErrorInfo) => {
+  readonly name: string
+  readonly message: string
+}
+
+/**
  * The `core` slice, read by `@provino/core` (Track 5): collection, hooks, timeouts, naming,
  * retries and focus.
  *
@@ -391,6 +428,23 @@ export interface CorePolicy {
    * Vitest: `0` (not recorded yet). Provino's own key.
    */
   readonly boundaryTurns: BoundaryTurns
+  /** The definition table behind fixtures and lazy variables (T5.9, D106). */
+  readonly definitions: {
+    /**
+     * Whether the test API carries `test.extend` and `test.override`. `expose`: it does, as
+     * Vitest's `test` does. `absent`: it doesn't, so a Jest file that runs under Provino still runs
+     * under Jest (B25 open question 10). Jest: `absent` (Jest 30.5 has no `test.extend`). Vitest
+     * and neutral: `expose`. Provino's own key.
+     */
+    readonly extendApi: 'expose' | 'absent'
+    /**
+     * How a definition error is worded. `null`: core's own words, on a `CoreError`. Vitest: a ref
+     * to its `FixtureParseError`, `FixtureDependencyError` and `FixtureAccessError` texts.
+     * Jest and neutral: `null`. Provino's own key. The ref is loaded on the first definition error,
+     * never at worker boot, through the policy's behaviour loader, which caches it per worker.
+     */
+    readonly messages: Behaviour<FormatDefinitionError> | null
+  }
 }
 
 /**

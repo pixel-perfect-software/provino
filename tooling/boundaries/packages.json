@@ -92,6 +92,14 @@
       "deps": ["@provino/types", "@provino/resolver", "@provino/transform/v8cache"],
       "slices": []
     },
+    "@provino/transform/vite": {
+      "dir": "packages/transform/src/vite",
+      "layer": 2,
+      "runsIn": "worker",
+      "deps": ["@provino/types", "@provino/resolver", "@provino/transform"],
+      "slices": [],
+      "note": "B25 Phase 4 (T3.9, D171): a project's Vite plugins' resolveId, load and transform hooks and their virtual ids, in the worker. Loaded only when the project has plugins, so a run without them never imports Vite's plugin host."
+    },
     "@provino/transform/v8cache": {
       "dir": "packages/transform/src/v8cache",
       "layer": 2,
@@ -439,9 +447,27 @@
         "@provino/config",
         "@provino/resolver",
         "@provino/transform",
-        "@provino/dialect-vitest"
+        "@provino/dialect-vitest",
+        "@provino/dialect-vitest/results",
+        "@provino/dialect-vitest/vite-bridge"
       ],
       "slices": "all"
+    },
+    "@provino/dialect-vitest/results": {
+      "dir": "packages/dialect-vitest/src/results",
+      "layer": 5,
+      "runsIn": "coordinator",
+      "deps": ["@provino/types"],
+      "slices": "all",
+      "note": "B25 Phase 7 (T11.16, D171): Vitest 5.0.5's JSON and JUnit results, built from the run's events. Loaded only for --reporter=json or junit, never by a worker (D103's twin)."
+    },
+    "@provino/dialect-vitest/vite-bridge": {
+      "dir": "packages/dialect-vitest/src/vite-bridge",
+      "layer": 5,
+      "runsIn": "coordinator",
+      "deps": ["@provino/types", "@provino/dialect-vitest"],
+      "slices": "all",
+      "note": "B25 Phase 4 (T11.15's bridge, D169, D171): the project's own Vite resolveConfig and its plugins' config hooks. Loaded only when the config has plugins; Vite is the project's, never Provino's dependency (D172)."
     },
     "@provino/dialect-vitest/runtime": {
       "dir": "packages/dialect-vitest/src/runtime",
@@ -455,6 +481,7 @@
         "@provino/expect",
         "@provino/mock",
         "@provino/timers",
+        "@provino/env-shared",
         "@provino/dialect-vitest"
       ],
       "slices": "all"

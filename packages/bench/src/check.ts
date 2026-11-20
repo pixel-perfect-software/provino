@@ -89,18 +89,21 @@ function reportOfRun(run: NormalizedRun): Report {
   }
 }
 
+type ReporterSetup = {
+  readonly args: (outputFile: string) => readonly string[]
+  readonly parse: (text: string, source: string) => Parsed
+}
+
+// `provino vitest` is asked as Vitest is, and its report is held to Vitest's shape (T11.16).
+const VITEST_REPORTER: ReporterSetup = {
+  args: (outputFile) => ['--reporter=json', `--outputFile=${outputFile}`],
+  parse: (text, source) => ({ report: parseVitestJson(text, source), parsed: {} }),
+}
+
 // How each runner is asked for a report and how the report is parsed. Provino is asked for both
 // reporters (the console one is what a person reads, the JSON one is what the check judges) and
 // for no results cache, so a check always runs every file, in the order it computes, from scratch.
-const REPORTERS: Readonly<
-  Record<
-    RunnerName,
-    {
-      readonly args: (outputFile: string) => readonly string[]
-      readonly parse: (text: string, source: string) => Parsed
-    }
-  >
-> = {
+const REPORTERS: Readonly<Record<RunnerName, ReporterSetup>> = {
   jest: {
     args: (outputFile) => ['--json', `--outputFile=${outputFile}`],
     parse: (text, source) => {
@@ -108,10 +111,8 @@ const REPORTERS: Readonly<
       return { report: jest, parsed: { jest } }
     },
   },
-  vitest: {
-    args: (outputFile) => ['--reporter=json', `--outputFile=${outputFile}`],
-    parse: (text, source) => ({ report: parseVitestJson(text, source), parsed: {} }),
-  },
+  vitest: VITEST_REPORTER,
+  'provino-vitest': VITEST_REPORTER,
   provino: {
     args: (outputFile) => [
       '--reporter',

@@ -422,6 +422,35 @@ test('the runner plans carry the commands, caches and compile-cache env from the
   assert.ok(vitest.env.NODE_COMPILE_CACHE?.endsWith('/.cache/node-vitest'))
 })
 
+test('the provino-vitest plan runs provino vitest run from source on the Vitest tree', () => {
+  const plan = planRunner(suite('app-5'), 'provino-vitest', { extraArgs: ['--reporter=json'] })
+  assert.equal(plan.argv[0], process.execPath)
+  assert.equal(plan.argv[1], '--conditions=provino-source')
+  assert.ok(plan.argv[2]?.endsWith('/packages/provino/src/cli.ts'), plan.argv[2])
+  assert.deepEqual(plan.argv.slice(3), [
+    'vitest',
+    'run',
+    '--config',
+    'vitest.config.ts',
+    '--reporter=json',
+  ])
+  assert.ok(plan.cwd.endsWith('/.suites/app-5/vitest'))
+  assert.equal(plan.configPath, 'packages/bench/.suites/app-5/vitest/vitest.config.ts')
+  assert.equal(plan.isolation, 'runner-default')
+  assert.deepEqual(
+    plan.caches.map((cache) => [cache.kind, cache.path.split('.suites/app-5/')[1]]),
+    [
+      ['provino', 'vitest/node_modules/.cache/provino'],
+      ['node-compile', '.cache/node-provino-vitest'],
+    ],
+  )
+  assert.equal(
+    plan.command,
+    'cd packages/bench/.suites/app-5/vitest && NODE_COMPILE_CACHE=../.cache/node-provino-vitest node --conditions=provino-source ../../../node_modules/provino/src/cli.ts vitest run --config vitest.config.ts --reporter=json',
+  )
+  assert.equal(toSubjectSpec(plan).subject.runner, 'provino:vitest')
+})
+
 test('the provino plan runs the bin from source on the Jest tree, with its results cache under it', () => {
   const plan = planRunner(suite('app-5'), 'provino', {
     extraArgs: ['--reporter', 'normalized-json', '--no-cache'],

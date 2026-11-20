@@ -7,7 +7,14 @@ import { DEFAULT_WORK_DIR, type InstructionsCommand, parseLegs } from './instruc
 import { errorMessage } from './internal/guards.ts'
 import { parseLabel, runsProblem } from './report.ts'
 import { DEFAULT_COLD_RUNS, DEFAULT_WARM_RUNS } from './run-bench.ts'
-import { parseSuiteName, RUNNERS, type RunnerName, type SuiteSpec } from './suites.ts'
+import {
+  parseSuiteName,
+  RUNNERS,
+  type RunnerName,
+  type SuiteSpec,
+  TIMED_RUNNERS,
+  type TimedRunnerName,
+} from './suites.ts'
 
 /**
  * A parsed command line.
@@ -27,7 +34,7 @@ export type CliCommand =
   | {
       readonly command: 'run'
       readonly suite: SuiteSpec
-      readonly runners: readonly RunnerName[]
+      readonly runners: readonly TimedRunnerName[]
       readonly warm: number
       readonly cold: number
       readonly label: BenchLabel
@@ -56,7 +63,7 @@ export const USAGE: string = `provino-bench: Provino's benchmark protocol (Track
 
 Usage:
   provino-bench generate <suite>
-  provino-bench check <suite> --runner jest [--runner vitest] [--runner provino] [--timeout ${DEFAULT_RUN_TIMEOUT_MS / 60_000}]
+  provino-bench check <suite> --runner jest [--runner vitest] [--runner provino] [--runner provino-vitest] [--timeout ${DEFAULT_RUN_TIMEOUT_MS / 60_000}]
   provino-bench run <suite> --runner jest|vitest|provino [--runner ...]
                     [--warm ${DEFAULT_WARM_RUNS}] [--cold ${DEFAULT_COLD_RUNS}] [--label local|desktop|pinned]
                     [--timeout ${DEFAULT_RUN_TIMEOUT_MS / 60_000}] [--out <file>] [--machine-id <id>]
@@ -70,6 +77,8 @@ Usage:
 Suites: app-N, mock-heavy-N (N from 1 to 9999), isolate-heavy.
 Runners: jest, vitest, and provino, which runs the provino bin on the suite's jest/ tree (all cores
   but one, the default) at isolation registry, with its results cache kept (it only orders files).
+  provino-vitest (check only) runs \`provino vitest run\` on the suite's vitest/ tree, judged on
+  Vitest's JSON report; nothing times it yet.
   \`check\` requires every test to pass; with --runner jest in the same check it also requires
   Provino's per-test statuses to equal Jest's.
 list-tests: U2. Jest's --listTests --json and \`provino jest --listTests --json\` in a project directory
@@ -202,12 +211,15 @@ function onlyOptions(
   }
 }
 
-function runners(values: readonly string[] | undefined): readonly RunnerName[] {
+function runners<Allowed extends RunnerName>(
+  values: readonly string[] | undefined,
+  allowed: readonly Allowed[],
+): readonly Allowed[] {
   if (values === undefined || values.length === 0) throw usage('pass at least one --runner')
-  const parsed: RunnerName[] = []
+  const parsed: Allowed[] = []
   for (const value of values) {
-    const runner = RUNNERS.find((candidate) => candidate === value)
-    if (runner === undefined) throw usage(`--runner must be ${RUNNERS.join(' or ')}; got ${value}`)
+    const runner = allowed.find((candidate) => candidate === value)
+    if (runner === undefined) throw usage(`--runner must be ${allowed.join(' or ')}; got ${value}`)
     if (!parsed.includes(runner)) parsed.push(runner)
   }
   return parsed
@@ -302,7 +314,7 @@ export function parseCli(argv: readonly string[]): CliCommand {
       return {
         command,
         suite,
-        runners: runners(values.runner),
+        runners: runners(values.runner, RUNNERS),
         timeoutMs: timeoutMs(values.timeout),
       }
     case 'run': {
@@ -316,7 +328,7 @@ export function parseCli(argv: readonly string[]): CliCommand {
       return {
         command,
         suite,
-        runners: runners(values.runner),
+        runners: runners(values.runner, TIMED_RUNNERS),
         warm,
         cold,
         ...recordOptions(values, label),

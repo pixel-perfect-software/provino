@@ -387,6 +387,10 @@ export interface CorePolicy {
         readonly grouping: "hoist-to-first" | "consecutive";
         readonly limitHooks: boolean;
     };
+    readonly definitions: {
+        readonly extendApi: "expose" | "absent";
+        readonly messages: Behaviour<FormatDefinitionError> | null;
+    };
     readonly doneDeprecatedMessage: string | null;
     readonly eachHooksForConcurrent: boolean;
     readonly eachTitleTruncate: number | null;
@@ -649,6 +653,19 @@ export interface DefinitionBuilder<D extends Defs> {
         readonly parent: () => Promise<D[K]["value"]>;
     }) => D[K]["value"] | Promise<D[K]["value"]>): DefinitionBuilder<D>;
 }
+
+// @public
+export interface DefinitionErrorInfo {
+    readonly code: string;
+    readonly key: string;
+    // (undocumented)
+    readonly kind: DefinitionErrorKind;
+    readonly message: string;
+    readonly params: Readonly<Record<string, string>>;
+}
+
+// @public
+export type DefinitionErrorKind = "parse" | "dependency" | "access";
 
 // @public
 export interface Defs {
@@ -1158,6 +1175,12 @@ export interface FlagSpec {
     // (undocumented)
     readonly takesValue: boolean;
 }
+
+// @public
+export type FormatDefinitionError = (error: DefinitionErrorInfo) => {
+    readonly name: string;
+    readonly message: string;
+};
 
 // @public
 export type FormatEachTitle = (template: string, row: readonly unknown[] | Readonly<Record<string, unknown>>, index: number, kind?: EachTableKind) => string;
@@ -2260,6 +2283,7 @@ export interface NeutralProject {
     // (undocumented)
     readonly globalTeardown: readonly string[];
     readonly globalValues?: Readonly<Record<string, JsonValue>>;
+    readonly importMetaEnv?: Readonly<Record<string, string | boolean>>;
     readonly name: string;
     readonly policy: PolicyOverrides;
     readonly randomize?: true;
@@ -3278,6 +3302,7 @@ export interface SnapshotPolicy {
     };
     readonly key: Behaviour<SnapshotKey>;
     readonly keyJoin: string;
+    readonly mismatch: "end-of-test" | "throw";
     readonly obsolete: {
         readonly failLocal: boolean;
         readonly failCI: boolean;
@@ -3894,6 +3919,7 @@ export interface WorkerInit {
 
 // @public
 export interface WorkerKey {
+    readonly dialect?: string;
     // (undocumented)
     readonly envHash: string;
     // (undocumented)

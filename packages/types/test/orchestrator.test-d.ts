@@ -340,6 +340,12 @@ const keyWithoutTier: WorkerKey = {
   execArgvHash: '',
   envHash: '',
 }
+// A worker key may name its dialect; leaving it out is the project's one dialect.
+expectTypeOf<WorkerKey['dialect']>().toEqualTypeOf<string | undefined>()
+declare const plainKey: WorkerKey
+const vitestWorker: WorkerKey = { ...plainKey, dialect: 'vitest' }
+// @ts-expect-error exactOptionalPropertyTypes: an absent dialect is left out, not `undefined`
+const undefinedDialect: WorkerKey = { ...plainKey, dialect: undefined }
 
 export {
   bad,
@@ -361,7 +367,9 @@ export {
   noFrames,
   noLimit,
   textLimit,
+  undefinedDialect,
   undefinedHash,
   unknownCall,
+  vitestWorker,
   wrongArgs,
 }

@@ -64,7 +64,10 @@ export type {
 export type {
   BoundaryTurns,
   CorePolicy,
+  DefinitionErrorInfo,
+  DefinitionErrorKind,
   EachTableKind,
+  FormatDefinitionError,
   FormatEachTitle,
   FormatTimeout,
   FormatValue,

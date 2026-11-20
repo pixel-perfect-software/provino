@@ -225,6 +225,11 @@ export interface NeutralProject {
    * under `<rootDir>/node_modules/.cache/provino` when it isn't.
    */
   readonly cacheDirectory?: string
+  /**
+   * What `import.meta.env` holds in a test file (Vitest's, from `mode` and the `.env*` files),
+   * as data. Absent: the runner provides none.
+   */
+  readonly importMetaEnv?: Readonly<Record<string, string | boolean>>
   /** The config's keys that map onto the policy, as overrides over the dialect's own. */
   readonly policy: PolicyOverrides
 }

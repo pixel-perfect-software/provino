@@ -132,6 +132,8 @@ export const neutralPolicy: Policy = deepFreeze({
       retryEnd: 0,
       retryExit: 0,
     },
+    // Fixtures are a test API Provino offers whatever the runner; core words its own errors.
+    definitions: { extendApi: 'expose', messages: null },
   },
   lazy: { readInBeforeAll: 'error' },
   mock: {
@@ -229,6 +231,8 @@ export const neutralPolicy: Policy = deepFreeze({
     serializers: [],
     obsolete: { failLocal: false, failCI: true },
     obsoleteFiles: 'ignore',
+    // Every failed snapshot of a test is reported, not only the first.
+    mismatch: 'end-of-test',
     ciUpdate: 'none',
     updateEnvVar: null,
     throwErrorBody: 'message',

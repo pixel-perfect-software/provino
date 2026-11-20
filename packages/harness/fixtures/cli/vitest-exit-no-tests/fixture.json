@@ -1,0 +1,11 @@
+{
+  "description": "A Vitest 5.0.5 run whose filter matches no test file exits with code 1 and says so (orchestrator.exitCodes, passWithNoTests off). A black-box run; held by provino vitest in B25g.",
+  "runners": ["vitest"],
+  "run": {
+    "argv": {
+      "vitest": ["matches-no-file", "--reporter=default"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^No test files found"
+  }
+}
