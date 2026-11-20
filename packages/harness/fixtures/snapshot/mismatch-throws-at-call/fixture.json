@@ -1,0 +1,21 @@
+{
+  "description": "Two stored snapshots in one test that both differ, with a trace after each (D61, snapshot.mismatch). Jest's snapshot matchers hold a mismatch to the end of the test (dontThrow): both traces run and the test fails with both mismatches. Vitest's throws at the call: no trace runs and the test fails with the first mismatch alone. The .snap is left as it was.",
+  "runners": ["jest", "vitest"],
+  "env": {
+    "CI": ""
+  },
+  "files": {
+    "jest": {
+      "__snapshots__/mismatch-throws-at-call.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`two snapshots differ 1`] = `\"old a\"`;\n\nexports[`two snapshots differ 2`] = `\"old b\"`;\n"
+    },
+    "vitest": {
+      "__snapshots__/mismatch-throws-at-call.test.ts.snap": "// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html\n\nexports[`two snapshots differ 1`] = `\"old a\"`;\n\nexports[`two snapshots differ 2`] = `\"old b\"`;\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/mismatch-throws-at-call.test.ts.snap"]
+  }
+}

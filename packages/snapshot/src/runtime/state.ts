@@ -45,7 +45,7 @@ export interface SnapshotStateOptions {
   /** The slice's values the state reads. */
   readonly policy: Pick<
     SnapshotPolicy,
-    'header' | 'keyJoin' | 'hintJoin' | 'format' | 'throwErrorBody'
+    'header' | 'keyJoin' | 'hintJoin' | 'format' | 'throwErrorBody' | 'mismatch'
   >
   /** The key of the n-th snapshot of a test (`SnapshotPolicy.key`, loaded). */
   readonly key: SnapshotKey
@@ -181,6 +181,14 @@ export class SnapshotState implements SnapshotViewSource {
   /** The serializers in the order they are tried: the one added last first. */
   get serializers(): readonly SnapshotPlugin[] {
     return this.plugins
+  }
+
+  /**
+   * When a snapshot that differs fails its test (`SnapshotPolicy.mismatch`, D61): `end-of-test`,
+   * the matcher holds the failure (`dontThrow`) and the test goes on; `throw`, it throws at the call.
+   */
+  get mismatch(): SnapshotPolicy['mismatch'] {
+    return this.options.policy.mismatch
   }
 
   /** How a thrown error is stored by `toThrowErrorMatchingSnapshot` (`SnapshotPolicy.throwErrorBody`). */

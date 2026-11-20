@@ -106,7 +106,6 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'vitest coverage.globThresholdScope': 'B25',
   'vitest coverage.includeUntestedByDefault': 'B25',
   'vitest coverage.thresholdGrouping': 'B25',
-  'vitest expect.matcherTable': 'T7.6',
   'vitest lazy.readInBeforeAll': 'T6.5',
   'vitest core.errors.processListeners': 'T11.16',
   'vitest module.nativeLoadPatches': 'T11.16',
@@ -135,8 +134,6 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'vitest coverage.thresholdMessages.belowMinimum': 'B25',
   'vitest coverage.thresholdMessages.notFound': 'B25',
   // B25 Phase 1's contract keys: each phase that builds the behaviour records both runners' values.
-  'jest snapshot.mismatch': 'B25b',
-  'vitest snapshot.mismatch': 'B25b',
   'jest core.definitions.extendApi': 'B25e',
   'vitest core.definitions.extendApi': 'B25e',
   'jest core.definitions.messages': 'B25e',

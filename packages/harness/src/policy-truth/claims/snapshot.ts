@@ -363,12 +363,19 @@ export const snapshotClaims: Claims = {
       'what Vitest does with a snapshot file no test file has is recorded with its reader',
     ),
   ),
-  // D61: no golden yet tells a mismatch held to the end of the test (Jest's `dontThrow`, DV32) from
-  // one thrown at the call (Vitest's). B25b records `snapshot/mismatch-throws-at-call` under both.
-  'snapshot.mismatch': pending(
-    'B25b',
-    'no golden tells a mismatch held to the end of the test from one thrown at the call; B25b records one',
-  ),
+  // D61: a test with two stored snapshots that both differ and a trace after each. Held to the end
+  // of the test (Jest's `dontThrow`, DV32), both traces run and the test fails with both mismatches;
+  // thrown at the call (Vitest's), no trace runs and the test fails with the first alone.
+  'snapshot.mismatch': golden('snapshot/mismatch-throws-at-call', {
+    read: (g) => {
+      const errors = g.files[0]?.tests[0]?.errors.length
+      const traced = g.trace?.length ?? 0
+      return oneOf(`${errors} errors, ${traced} traces`, [
+        ['end-of-test', errors === 2 && traced === 2],
+        ['throw', errors === 1 && traced === 0],
+      ])
+    },
+  }),
   // Provino's own key (B23e, D128): what a matcher finds as `this.snapshotState`, held to what
   // the `ecosystem/image-snapshot-*` and `ecosystem/custom-snapshot-*` recordings show (each
   // `fixture.json` says what). Each claim builds the matcher's `this.snapshotState` under the value
@@ -546,9 +553,14 @@ export const expectClaims: Claims = {
       { module: import.meta.resolve('@provino/dialect-jest/runtime'), export: 'jestExpectTable' },
       "the dialect's vendored matchers, which the expect corpus holds to every Jest message golden (T7.5)",
     ),
-    pending(
-      'T7.6',
-      "Vitest's matcher table is T7.6's (Phase 2); until then the neutral null stands",
+    own(
+      'packages/dialect-vitest/src/runtime/expect-table.test.ts',
+      'matcherTable',
+      {
+        module: import.meta.resolve('@provino/dialect-vitest/runtime'),
+        export: 'vitestExpectTable',
+      },
+      "the dialect's vendored @vitest/expect matchers, held to the real package case by case there and to every Vitest message golden by the expect corpus (T7.6)",
     ),
   ),
   'expect.errorShape': shape,
