@@ -567,6 +567,19 @@ export const coreClaims: Claims = {
   ),
   // Vitest words a fixture error with its own classes (`runtime/fixture-parse-error`, its texts
   // compared); the neutral `null` (core's words) fails it. Jest has no fixtures to word.
+  // A plain suite hook whose first parameter is an object pattern: Vitest refuses it
+  // (`runtime/fixture-suite-hook-access`: the hook fails and its tests don't run), core passes the
+  // suite there otherwise. Jest's hooks get no context (`firstArg: 'done-if-arity'`), so core never
+  // reads the key under its policy: the neutral value stands.
+  'core.definitions.plainSuiteHook': each(
+    own(
+      'packages/core/src/definitions/definitions.test.ts',
+      'definitions.plainSuiteHook',
+      'pass-suite',
+      "Jest passes a suite hook no context, so the key is not read under Jest's firstArg: the neutral value stands",
+    ),
+    corpus('runtime', 'runtime/fixture-suite-hook-access'),
+  ),
   'core.definitions.messages': each(
     own(
       'packages/core/src/definitions/definitions.test.ts',

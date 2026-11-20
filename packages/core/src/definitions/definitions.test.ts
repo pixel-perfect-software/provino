@@ -200,24 +200,28 @@ describe('test.extend', () => {
   })
 
   test('test.beforeAll gets file fixtures; a plain one that destructures fails', async () => {
-    const run = await runScript((api, step) => {
-      const it = fixtureTest(api).extend<{ shared: string; perTest: string }>({
-        shared: ['s', { scope: 'file' }],
-        perTest: 't',
-      })
-      api.describe('file', () => {
-        it.beforeAll(({ shared }) => step(`beforeAll ${shared}`))
-        it('runs', () => step('ran'))
-      })
-      api.describe('test scoped', () => {
-        it.beforeAll(({ perTest }) => step(`never ${perTest}`))
-        it('skipped', () => step('never'))
-      })
-      api.describe('plain', () => {
-        api.beforeAll((({ shared }: { shared: string }) => step(`never ${shared}`)) as never)
-        it('skipped too', () => step('never'))
-      })
-    })
+    const run = await runScript(
+      (api, step) => {
+        const it = fixtureTest(api).extend<{ shared: string; perTest: string }>({
+          shared: ['s', { scope: 'file' }],
+          perTest: 't',
+        })
+        api.describe('file', () => {
+          it.beforeAll(({ shared }) => step(`beforeAll ${shared}`))
+          it('runs', () => step('ran'))
+        })
+        api.describe('test scoped', () => {
+          it.beforeAll(({ perTest }) => step(`never ${perTest}`))
+          it('skipped', () => step('never'))
+        })
+        api.describe('plain', () => {
+          api.beforeAll((({ shared }: { shared: string }) => step(`never ${shared}`)) as never)
+          it('skipped too', () => step('never'))
+        })
+      },
+      // Vitest's refusal of a plain suite hook that destructures (`definitions.plainSuiteHook`).
+      { definitions: { plainSuiteHook: 'refuse-fixtures' } },
+    )
     assert.deepEqual(run.trace, ['beforeAll s', 'ran'])
     const errors = (path: string) => [
       ...(run.suites[path]?.errors.map((e) => e.message) ?? []),
@@ -335,14 +339,15 @@ describe('Vitest 5.0.5 parity (the review probes against the real runner)', () =
         // biome-ignore lint/correctness/noEmptyPattern: a fixture with no dependencies, as Vitest reads it
         z: async ({}: object, use: Use<string>) => use('z'),
         b: async ({ a }: { a: string }, use: Use<string>) => use(`b:${a}`),
-        a: async ({ z, b, a }: Record<string, string>, use: Use<string>) => use(`${z}${b}${a}`),
+        a: async ({ z, b, a }: { z: string; b: string; a: string }, use: Use<string>) =>
+          use(`${z}${b}${a}`),
       } as never) as FixtureTestApi<{ a: string }>
       swapped('swap', ({ a }) => a)
       const plain = fixtureTest(api).extend({
         // biome-ignore lint/correctness/noEmptyPattern: a fixture with no dependencies, as Vitest reads it
         b: async ({}: object, use: Use<string>) => use('b'),
         c: async ({ a }: { a: string }, use: Use<string>) => use(a),
-        a: async ({ b, c }: Record<string, string>, use: Use<string>) => use(b + c),
+        a: async ({ b, c }: { b: string; c: string }, use: Use<string>) => use(b + c),
       } as never) as FixtureTestApi<{ a: string }>
       plain('plain', ({ a }) => a)
     })
@@ -353,13 +358,13 @@ describe('Vitest 5.0.5 parity (the review probes against the real runner)', () =
   test("a fixture that returns no promise fails with Vitest's TypeError; a throw after use fails the test", async () => {
     const run = await runScript((api) => {
       const sync = fixtureTest(api).extend<{ v: number }>({
-        v: (({ task: _task }: object, use: Use<number>) => {
+        v: (({ task: _task }: { task: unknown }, use: Use<number>) => {
           void use(1)
         }) as never,
       })
       sync('sync', ({ v }) => v)
       const late = fixtureTest(api).extend<{ v: number }>({
-        v: (({ task: _task }: object, use: Use<number>) => {
+        v: (({ task: _task }: { task: unknown }, use: Use<number>) => {
           void use(1)
           throw new Error('late')
         }) as never,
@@ -408,7 +413,7 @@ describe('Vitest 5.0.5 parity (the review probes against the real runner)', () =
     const running = runScript(
       (api) => {
         const it = fixtureTest(api).extend<{ slow: string }>({
-          slow: async ({ task: _task }: object, use: Use<string>) => {
+          slow: async ({ task: _task }: { task: unknown }, use: Use<string>) => {
             started.resolve()
             await gate.promise
             await use('v')
@@ -427,5 +432,21 @@ describe('Vitest 5.0.5 parity (the review probes against the real runner)', () =
     gate.resolve()
     await settle()
     assert.deepEqual(trace, ['cleanup'])
+  })
+})
+
+describe('definitions.plainSuiteHook', () => {
+  test('pass-suite (neutral): a plain beforeAll that destructures gets the suite, in a file with no fixtures', async () => {
+    const names: string[] = []
+    const run = await runScript((api) => {
+      api.describe('block', () => {
+        api.beforeAll((({ name }: { name: string }) => {
+          names.push(name)
+        }) as never)
+        api.test('t', () => undefined)
+      })
+    })
+    assert.deepEqual(names, ['block'])
+    assert.equal(run.states['block > t'], 'pass')
   })
 })

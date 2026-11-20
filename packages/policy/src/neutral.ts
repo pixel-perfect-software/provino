@@ -133,7 +133,7 @@ export const neutralPolicy: Policy = deepFreeze({
       retryExit: 0,
     },
     // Fixtures are a test API Provino offers whatever the runner; core words its own errors.
-    definitions: { extendApi: 'expose', messages: null },
+    definitions: { extendApi: 'expose', messages: null, plainSuiteHook: 'pass-suite' },
   },
   lazy: { readInBeforeAll: 'error' },
   mock: {

@@ -17,6 +17,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'core.hookOrder.afterAll': ['declaration', 'reverse', 'parallel'],
   'core.firstArg': ['done-if-arity', 'context'],
   'core.definitions.extendApi': ['expose', 'absent'],
+  'core.definitions.plainSuiteHook': ['pass-suite', 'refuse-fixtures'],
   'core.timeouts.zero': ['default', 'none'],
   'core.missingTestFn': ['throw', 'todo'],
   'core.asyncDescribe': ['throw', 'await'],

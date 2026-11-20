@@ -115,6 +115,9 @@ export const vitestPolicy: PolicyOverrides = {
         import.meta.resolve('@provino/dialect-vitest/runtime'),
         'vitestFixtureMessages',
       ),
+      // A plain `beforeAll(({ key }) => …)` fails as Vitest's `validateSuiteHook` fails it
+      // (runtime corpus `fixture-suite-hook-access` agrees).
+      plainSuiteHook: 'refuse-fixtures',
     },
   },
   lazy: { readInBeforeAll: 'error' },

@@ -1615,13 +1615,15 @@ export class Executor {
    */
   #suiteHookFixtures(hook: HookNode, index: number): UserFn {
     const fn = hook.fn
-    if (this.#policy.definitions.extendApi !== 'expose' || hook.synthetic) return fn
+    if (hook.synthetic) return fn
     const kind = hook.kind as SuiteHookKind
     const set = hook.definitions
     const words = this.#config.definitionWords ?? NO_WORDS
     if (set === undefined) {
-      // Core hands a plain suite hook its suite first, so only an object pattern there is a
-      // request for fixtures (Vitest 5.0.5 refuses any parameter there: see the divergences).
+      // `definitions.plainSuiteHook`: core hands a plain suite hook its suite there, and under
+      // `refuse-fixtures` only an object pattern is a request for fixtures it fails (Vitest 5.0.5
+      // refuses any parameter there: see the divergences).
+      if (this.#policy.definitions.plainSuiteHook !== 'refuse-fixtures') return fn
       const props = destructuredProps(fn, index)
       if (props.size === 0) return fn
       return function plainSuiteHook(): unknown {
