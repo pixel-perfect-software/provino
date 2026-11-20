@@ -18,6 +18,15 @@ The neutral `expect` engine (Track 7 R1). It owns the front end, the per-test ma
 | `src/end-of-test.ts` | `createEndOfTest({ source, messages, policy, hasAssertionsWhenFailed })`: what an attempt owes when it ends. The worker registers it with core's `onAfterTryTask`. See "The async policies". |
 | `src/internal/slot-read.ts`, `counters.ts`, `awaitable.ts` | Reading the slot without owning it; a state's fresh counters (including `pendingAsync`); the thenable that notices when someone awaits it. |
 
+## `errorShape: 'assertion-error'` and the table's other hooks (B25b, T7.6)
+
+- **`ExpectTable.assertionError(result, message, call)`** makes the error a failed result throws under `assertion-error` (the Vitest table returns the Chai `AssertionError` its matcher made, or Vitest's `JestExtendError` for a custom matcher); no `matcherResult` is set on it. A table without the hook can't run under that shape (`EXPECT_NOT_IMPLEMENTED`). Under `assertion-error` `.resolves`/`.rejects` check the value when read (a `TypeError` there), `.rejects` of a function calls it then, and the error captured at that read (`Target.read`) is the stack a settled failure (`restack`: `Error: <message>` over its frames) and an unawaited assertion (`withFramesOf`, whose header reads the message set later) report, as Vitest's `new Error('resolves')` is. An async result's error is anchored where it is made.
+- **`ExpectTable.messageArgument`**: `expect(actual, message)` takes the message; the matcher reads it as `this.customMessage` and `assertionError` as `call.message`.
+- **`ExpectTable.chain(actual, name, call)`**: a name that is no matcher, not `then` and not on `Object.prototype` reads the dialect's chain (Chai's `to`, `be`, …), counted as one assertion call. Absent: such a name reads `undefined`, as on Jest's plain object.
+- **`policyMessages`** (`src/policy-messages.ts`): the one copy of the words for the engine's own policies (a required assertion, an unawaited assertion, `expect.poll`'s timeout and refusals, outside a test), which are Vitest's; each dialect's table spreads it.
+- **The snapshot matchers hold a mismatch only when `SnapshotState.mismatch` is `end-of-test`** (D61); under `throw` it throws at the call.
+- **`expect.poll`'s timeout error** takes the site's header (`Error: …`), as Vitest's `copyStackTrace` does.
+
 ## Rules that aren't obvious
 
 - **Every error the engine makes or rethrows is anchored with `Error.captureStackTrace` above its own frames.** Our source runs from `packages/*/src`, which the harness reads as user code (only `node_modules/` frames are internal). Without the anchor, `userFrame` would point into the engine. The expect corpus compares `userFrame`, so a missing anchor fails it. Each path has its own anchor:
@@ -67,9 +76,7 @@ Everything here is a policy value or a table message; the engine names no runner
 
 ## Not built yet
 
-- `createExpect` throws `EXPECT_NOT_IMPLEMENTED` for `errorShape: 'assertion-error'` (T7.6).
 - `matcherTable: null` throws `EXPECT_NO_MATCHER_TABLE`: the neutral table has no owner yet.
-- Vitest's own message text for the async policies (`messages.unawaited`, the count errors, `pollTimeout`): T7.6, with its table. The Jest table answers with Vitest's recorded wording for the policies Jest lacks (`dialect-jest/src/runtime/policy-messages.ts`), so the neutral engine runs them today.
 - The augmentable registry and bridges: T7.13. The ban list: T7.12. The per-file slot swap for mixed dialects: T7.17.
 
 ## Testing
