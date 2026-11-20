@@ -36,6 +36,12 @@
       "import": "./dist/globals.js",
       "default": "./dist/globals.js"
     },
+    "./globals/native": {
+      "provino-source": "./src/globals-native/index.ts",
+      "types": "./dist/globals-native.d.ts",
+      "import": "./dist/globals-native.js",
+      "default": "./dist/globals-native.js"
+    },
     "./config": {
       "provino-source": "./src/config.ts",
       "types": "./dist/config.d.ts",

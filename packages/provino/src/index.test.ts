@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, test } from 'node:test'
+import { PROVINO_API_SLOT } from '@provino/api'
 import * as api from './index.ts'
 
 const NAMES = [
@@ -24,8 +25,7 @@ const NAMES = [
   'timers',
 ]
 
-/** The native API's slot (`@provino/api`'s `PROVINO_API_SLOT`). */
-const API_SLOT = Symbol.for('provino.api')
+const API_SLOT = PROVINO_API_SLOT
 
 /** Provino's stateless extras: the lazy-variable forwarders, and the error the entry throws. */
 const EXTRAS = [
@@ -57,7 +57,8 @@ function installSlot(api: object): void {
   restores.push(() => void Reflect.deleteProperty(globalThis, API_SLOT))
 }
 afterEach(() => {
-  for (const restore of restores.splice(0)) restore()
+  // Last installed first, so a name installed twice gets back what it had before both.
+  for (const restore of restores.splice(0).reverse()) restore()
 })
 
 describe('the provino entry binds late to the worker globals (T1.10)', () => {
@@ -245,5 +246,40 @@ describe('the provino entry reads the native slot first (B27b, D185)', () => {
         name,
       )
     }
+  })
+})
+
+describe("a native-only name in a dialect's worker (B27b review)", () => {
+  test('says it is the native API and names the Jest member to use', () => {
+    install('describe', (): void => {})
+    for (const [name, jest] of [
+      ['fn', 'jest.fn'],
+      ['spyOn', 'jest.spyOn'],
+      ['timers', 'jest.useFakeTimers'],
+    ] as const) {
+      assert.throws(
+        () => Reflect.get(Reflect.get(api, name) as object, 'x'),
+        (error: unknown) =>
+          error instanceof api.ProvinoWorkerApiError &&
+          error.code === 'PROVINO_NATIVE_ONLY' &&
+          error.message.includes(`"${name}" is the native API`) &&
+          error.message.includes(jest),
+        name,
+      )
+    }
+    // A name Jest has too still says no worker installed it.
+    assert.throws(
+      () => (api.test as unknown as () => void)(),
+      (error: unknown) =>
+        error instanceof api.ProvinoWorkerApiError && error.code === 'PROVINO_NO_WORKER_API',
+    )
+  })
+
+  test('outside any worker, a native-only name says no worker installed it', () => {
+    assert.throws(
+      () => (api.fn as unknown as () => void)(),
+      (error: unknown) =>
+        error instanceof api.ProvinoWorkerApiError && error.code === 'PROVINO_NO_WORKER_API',
+    )
   })
 })

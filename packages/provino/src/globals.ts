@@ -1,30 +1,18 @@
-// `provino/globals`: ambient declarations for the globals a test file can find: the ones the Jest
-// dialect injects (`describe`, `it`, `test`, the four hooks and `expect`) and the rest of the
-// native API, which a project with no dialect installs under `globals: true` (D185), typed as the
-// `provino` entry types them. Import it for its types only, for a project that wants the globals
-// typed without `@types/jest`: `import 'provino/globals'`, or list it in `compilerOptions.types`.
-// The import has no effect at run time.
-import type { ProvinoApi } from './index.ts'
+// `provino/globals`: ambient declarations for the globals the Jest dialect injects into a test
+// file (`describe`, `it`, `test`, the hooks and `expect`), typed as the Jest dialect builds them
+// (`WorkerApi`). Import it for its types only, for a project that wants the globals typed without
+// `@types/jest`: `import 'provino/globals'`, or list it in `compilerOptions.types`. The import has
+// no effect at run time. A project with no dialect and `globals: true` uses `provino/globals/native`.
+import type { WorkerApi } from './index.ts'
 
 declare global {
   // `var`, not `const`: only a `var` declares a property of `globalThis`.
-  var describe: ProvinoApi['describe']
-  var suite: ProvinoApi['suite']
-  var it: ProvinoApi['it']
-  var test: ProvinoApi['test']
-  var beforeAll: ProvinoApi['beforeAll']
-  var afterAll: ProvinoApi['afterAll']
-  var beforeEach: ProvinoApi['beforeEach']
-  var afterEach: ProvinoApi['afterEach']
-  var aroundEach: ProvinoApi['aroundEach']
-  var aroundAll: ProvinoApi['aroundAll']
-  var onTestFinished: ProvinoApi['onTestFinished']
-  var onTestFailed: ProvinoApi['onTestFailed']
-  var expect: ProvinoApi['expect']
-  var fn: ProvinoApi['fn']
-  var spyOn: ProvinoApi['spyOn']
-  var replaceProperty: ProvinoApi['replaceProperty']
-  var isMockFunction: ProvinoApi['isMockFunction']
-  var mocks: ProvinoApi['mocks']
-  var timers: ProvinoApi['timers']
+  var describe: WorkerApi['describe']
+  var it: WorkerApi['it']
+  var test: WorkerApi['test']
+  var beforeAll: WorkerApi['beforeAll']
+  var afterAll: WorkerApi['afterAll']
+  var beforeEach: WorkerApi['beforeEach']
+  var afterEach: WorkerApi['afterEach']
+  var expect: WorkerApi['expect']
 }

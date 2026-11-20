@@ -12,7 +12,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { run } from '../src/run.ts'
+import { run } from 'provino/node'
 import { BUILT_BIN, Collect, childEnv, QUIET_ENV, spawnCli, viewOfNormalized } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))

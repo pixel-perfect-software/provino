@@ -16,6 +16,7 @@
 // in those, and a test file reaching `provino` must not load a second copy: a copy of `expect`
 // would have its own matchers and its own state, not the test's.
 import type { ProvinoApi } from '@provino/api'
+import type { JestGlobals } from '@provino/dialect-jest/runtime'
 
 export type { ProvinoApi, ProvinoMocks, ProvinoSpyOn, ProvinoTimers } from '@provino/api'
 
@@ -33,25 +34,63 @@ export {
 } from '@provino/lazy'
 
 /**
- * The worker API's old name.
- * @deprecated Use `ProvinoApi`; `WorkerApi` goes in the next rc.
+ * The worker API's old name: the Jest dialect's test-definition globals, as the Jest dialect
+ * builds them.
+ * @deprecated Use `ProvinoApi` in a project with no dialect; `WorkerApi` goes in the next rc.
  * @public
  */
-export type WorkerApi = ProvinoApi
+export type WorkerApi = Pick<
+  JestGlobals,
+  'afterAll' | 'afterEach' | 'beforeAll' | 'beforeEach' | 'describe' | 'expect' | 'it' | 'test'
+>
 
 /**
- * Thrown by every `provino` export used where no worker has installed it: outside a test file
- * Provino is running, or in a dialect's project with `injectGlobals` off.
+ * The codes of `ProvinoWorkerApiError`: no worker installed the API (`PROVINO_NO_WORKER_API`), or
+ * a dialect's worker is running and the name is the native API's alone (`PROVINO_NATIVE_ONLY`).
+ * @public
+ */
+export type ProvinoWorkerApiErrorCode = 'PROVINO_NO_WORKER_API' | 'PROVINO_NATIVE_ONLY'
+
+/**
+ * What a Jest project uses in place of each name only the native API has.
+ */
+const JEST_INSTEAD: Readonly<Record<string, string>> = {
+  fn: 'jest.fn',
+  spyOn: 'jest.spyOn',
+  replaceProperty: 'jest.replaceProperty',
+  isMockFunction: 'jest.isMockFunction',
+  mocks: 'jest.clearAllMocks, jest.resetAllMocks and jest.restoreAllMocks',
+  timers: 'jest.useFakeTimers and the other timer members of jest',
+}
+
+/** The names only the native API has (a Jest project's worker installs none of them). */
+const NATIVE_ONLY: ReadonlySet<string> = new Set([
+  ...Object.keys(JEST_INSTEAD),
+  'suite',
+  'aroundEach',
+  'aroundAll',
+  'onTestFinished',
+  'onTestFailed',
+])
+
+/**
+ * Thrown by every `provino` export used where no worker has installed it (outside a test file
+ * Provino is running, or in a dialect's project with `injectGlobals` off), and by a name only the
+ * native API has, used in a dialect's project.
  * @public
  */
 export class ProvinoWorkerApiError extends Error {
-  readonly code = 'PROVINO_NO_WORKER_API'
+  readonly code: ProvinoWorkerApiErrorCode
 
-  constructor(name: string) {
+  constructor(name: string, code: ProvinoWorkerApiErrorCode = 'PROVINO_NO_WORKER_API') {
+    const instead = JEST_INSTEAD[name]
     super(
-      `provino: "${name}" is only available inside a test file that Provino is running: in a project with no dialect, or with a dialect's globals injected (injectGlobals is on by default).`,
+      code === 'PROVINO_NATIVE_ONLY'
+        ? `provino: "${name}" is the native API, for a project with no dialect; ${instead === undefined ? "the dialect's globals have no such name" : `in a Jest project use ${instead}`}.`
+        : `provino: "${name}" is only available inside a test file that Provino is running: in a project with no dialect, or with a dialect's globals injected (injectGlobals is on by default).`,
     )
     this.name = 'ProvinoWorkerApiError'
+    this.code = code
   }
 }
 
@@ -60,7 +99,8 @@ const API_SLOT: unique symbol = Symbol.for('provino.api')
 
 /**
  * The live value of `name`: the native API's, else the global a dialect installed, else the error
- * that says there is none.
+ * that says there is none. A native-only name in a dialect's worker (its `describe` is a global)
+ * says it is the native API's.
  */
 function live(name: string): object {
   const api: unknown = Reflect.get(globalThis, API_SLOT)
@@ -68,7 +108,12 @@ function live(name: string): object {
     (typeof api === 'object' && api !== null ? Reflect.get(api, name) : undefined) ??
     Reflect.get(globalThis, name)
   if ((typeof value === 'function' || typeof value === 'object') && value !== null) return value
-  throw new ProvinoWorkerApiError(name)
+  const dialectWorker =
+    NATIVE_ONLY.has(name) && typeof Reflect.get(globalThis, 'describe') === 'function'
+  throw new ProvinoWorkerApiError(
+    name,
+    dialectWorker ? 'PROVINO_NATIVE_ONLY' : 'PROVINO_NO_WORKER_API',
+  )
 }
 
 /**

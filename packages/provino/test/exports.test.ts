@@ -85,6 +85,7 @@ const EXPORTED_NAMES: Readonly<Record<string, readonly string[]>> = {
     'timers',
   ],
   'provino/globals': [],
+  'provino/globals/native': [],
   'provino/config': ['ConfigError', 'formatConfigIssue'],
   'provino/node': ['run'],
   'provino/reporters': [

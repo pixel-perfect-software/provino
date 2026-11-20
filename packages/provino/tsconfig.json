@@ -1,8 +1,12 @@
 {
   "extends": "../../tsconfig.base.json",
   "include": ["src"],
+  // `provino/globals/native` declares `test` and `it` as the native API types them, which
+  // `globals.ts` types as the Jest dialect does: one program can't hold both, so it is a project of its own.
+  "exclude": ["src/globals-native"],
   "references": [
     { "path": "../types" },
+    { "path": "./src/globals-native" },
     { "path": "../api" },
     { "path": "../config" },
     { "path": "../reporters" },
