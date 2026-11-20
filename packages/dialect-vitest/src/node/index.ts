@@ -2,8 +2,8 @@
 // reader without Vite: find (`vitest.config.*` then `vite.config.*` in the root), load (native
 // import, `vitest/config` served by a stand-in, a plugins list marks `needsVite` for B25d's bridge),
 // resolve (`test` over Vitest's defaults, the command line over the file, `test.projects`, mode and
-// `.env*`) and the neutral projects. `vitestNodeDialect` is `vitestDialect` plus the reader; the
-// command line comes with B25g.
+// `.env*`) and the neutral projects. `vitestNodeDialect` is `vitestDialect` plus the reader, and
+// B25g's command line (`cli.ts`: `vitestCli`, `vitestFlags`).
 
 import { resolve as resolvePath } from 'node:path'
 import { vitestDialect } from '@provino/dialect-vitest'
@@ -14,6 +14,7 @@ import type {
   Dialect,
   NeutralProject,
 } from '@provino/types'
+import { vitestCli, vitestFlags } from './cli.ts'
 import {
   findViteConfigFile,
   findVitestConfig,
@@ -25,9 +26,27 @@ import {
   resolveVitestProjects,
   type VitestReadOptions,
   type VitestResolvedConfig,
+  type VitestResolvedProject,
 } from './normalize.ts'
 import { vitestProjectToNeutral } from './to-neutral.ts'
 
+export {
+  parseVitestArgv,
+  parseVitestCli,
+  VITEST_CLI_OPTIONS,
+  VITEST_LIST_OPTIONS,
+  type VitestArgv,
+  VitestCliError,
+  type VitestCliErrorCode,
+  type VitestCliOption,
+  type VitestCliSupport,
+  type VitestCliValue,
+  type VitestCommandName,
+  vitestArgvToRunRequest,
+  vitestArgvToTestConfig,
+  vitestCli,
+  vitestFlags,
+} from './cli.ts'
 export { expandDotenv, loadVitestEnv, parseDotenv } from './env.ts'
 export { VitestConfigError, type VitestConfigErrorCode } from './errors.ts'
 export {
@@ -112,6 +131,8 @@ export function createVitestConfigReader(
  * @public
  */
 export async function readVitestConfig(options: VitestReadOptions = {}): Promise<{
+  /** The root config as one project: the run-wide keys (`bail`, `reporters`, `outputFile`, `maxWorkers`) are read from its `test`. */
+  readonly root: VitestResolvedProject
   readonly projects: readonly NeutralProject[]
   readonly diagnostics: readonly Diagnostic[]
   readonly needsVite: boolean
@@ -123,6 +144,7 @@ export async function readVitestConfig(options: VitestReadOptions = {}): Promise
   const resolved = await reader.resolve(raw, source ?? { kind: 'file', path: cwd })
   const neutral = reader.toNeutral(resolved.value)
   return {
+    root: resolved.value.root,
     projects: neutral.value,
     diagnostics: [...resolved.diagnostics, ...neutral.diagnostics],
     needsVite: resolved.value.projects.some((project) => project.needsVite),
@@ -156,4 +178,6 @@ export async function viteConfigDeclaresTests(root: string): Promise<boolean> {
 export const vitestNodeDialect: Dialect<'vitest'> = {
   ...vitestDialect,
   configReader: vitestConfigReader,
+  cli: vitestCli,
+  flags: vitestFlags,
 }

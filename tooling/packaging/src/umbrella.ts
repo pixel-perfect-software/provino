@@ -120,6 +120,9 @@ const COORDINATOR = new RegExp(
     `provino[\\/]src[\\/](?!internal[\\/](?:${BIN_LIGHT_FILES.join('|')})\\.ts)`,
     'policy[\\/]src[\\/]dialect\\.ts',
     'dialect-jest[\\/]src[\\/](?:dialect|expect-policy|hoist-policy|mock-policy)\\.ts',
+    // The Vitest dialect's value: `defineDialect` is the coordinator's, so in `shared` it made every
+    // worker import `coordinator.js`.
+    'dialect-vitest[\\/]src[\\/]dialect\\.ts',
   ]
     .map((alternative) => `[\\/]packages[\\/]${alternative}`)
     .join('|'),
@@ -151,6 +154,14 @@ const LOADING =
  * coverage, so it is a chunk no other code reaches without a dynamic import.
  */
 const COVERAGE = /[\\/]packages[\\/]coverage[\\/]src[\\/]/
+
+/**
+ * The Vitest dialect's coordinator code (B25g): the config reader, the command line (its table of
+ * Vitest's options and the rebuild of cac's parser) and the json results. Only `provino vitest`
+ * imports it (`cli.ts` loads `vitest-command.ts` by a dynamic import), so it is a chunk of its own;
+ * left to `shared`, every command and worker would read it. `exports-vitest.test.ts` checks the bytes.
+ */
+const VITEST_NODE = /[\\/]packages[\\/]dialect-vitest[\\/]src[\\/](?:node|results)[\\/]/
 
 /**
  * Watch mode (B23f): the driver, its interrupt latch, the orchestrator's watch session and file
@@ -328,6 +339,13 @@ export function umbrellaConfig(dir: string): UserConfig[] {
             {
               name: 'watch',
               test: WATCH,
+              priority: 5,
+              includeDependenciesRecursively: false,
+            },
+            // The Vitest dialect's coordinator code: `provino vitest` only.
+            {
+              name: 'vitest-node',
+              test: VITEST_NODE,
               priority: 5,
               includeDependenciesRecursively: false,
             },

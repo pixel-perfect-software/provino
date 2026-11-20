@@ -52,9 +52,36 @@ describe('selectFiles', () => {
 
   it('rejects a pattern that is not a regular expression, and a filter kind not built yet', () => {
     assert.throws(() => keep([regex('(')]), { code: 'ORCH_BAD_PATTERN' })
-    assert.throws(() => keep([{ kind: 'substring', value: 'a' }]), { code: 'ORCH_NOT_IMPLEMENTED' })
     assert.throws(() => keep([{ kind: 'pathLine', value: 'a.ts', line: 3 }]), {
       code: 'ORCH_NOT_IMPLEMENTED',
     })
+  })
+
+  it('keeps the files whose path from the root holds a substring, never the root itself', () => {
+    const substring = (value: string, ignoreCase?: true): FileFilter => ({
+      kind: 'substring',
+      value,
+      ...(ignoreCase === undefined ? {} : { ignoreCase }),
+    })
+    // `/project` is the root's own name: no file is kept for it.
+    assert.deepEqual(keep([substring('project')]), [])
+    assert.deepEqual(keep([substring('src/')]), ['src/Alpha.test.ts', 'src/beta.test.ts'])
+    assert.deepEqual(keep([substring('alpha')]), [])
+    assert.deepEqual(keep([substring('alpha', true)]), ['src/Alpha.test.ts'])
+    assert.deepEqual(keep([substring('BETA', true), regex('gamma')]), [
+      'src/beta.test.ts',
+      'lib/gamma.test.ts',
+    ])
+    // An absolute filter keeps the files below it; a relative one is also read from `cwd`.
+    assert.deepEqual(keep([substring('/project/lib')]), ['lib/gamma.test.ts'])
+    assert.deepEqual(keep([substring('gamma.test.ts')], '/project/lib'), ['lib/gamma.test.ts'])
+    // A trailing slash stays: `src/` is the directory, not every path that starts with `src`.
+    const withSibling = [...files, file('srcx/b.test.ts')]
+    const kept = (value: string): string[] =>
+      selectFiles(withSibling, [substring(value)], { rootDir, cwd: rootDir }).map(
+        (entry) => entry.relativePath,
+      )
+    assert.deepEqual(kept('src/'), ['src/Alpha.test.ts', 'src/beta.test.ts'])
+    assert.deepEqual(kept('src'), ['src/Alpha.test.ts', 'src/beta.test.ts', 'srcx/b.test.ts'])
   })
 })

@@ -1,0 +1,7 @@
+{
+  "description": "The variables Vitest 5.0.5's CLI and pool set for a test (prepareVitest's TEST, VITEST and NODE_ENV; the pool's VITEST_MODE): the test writes what it sees to env.json. Held by provino vitest in B25g (provino's vitest-env.test.ts).",
+  "runners": ["vitest"],
+  "run": {
+    "capture": ["exitCode", "file:env.json"]
+  }
+}

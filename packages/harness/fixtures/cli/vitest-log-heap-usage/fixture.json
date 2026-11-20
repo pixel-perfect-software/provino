@@ -1,0 +1,13 @@
+{
+  "description": "Vitest 5.0.5's --logHeapUsage prints the heap a file used beside each file's line (default reporter, `MB heap used`). Held by provino vitest in B25g: a heap line per file, in Provino's own words (D173).",
+  "runners": ["vitest"],
+  "run": {
+    "argv": {
+      "vitest": ["--logHeapUsage", "--reporter=default"]
+    },
+    "capture": ["exitCode", "stdout"],
+    "keepLines": "heap used",
+    "mask": ["\\d+ms", "\\d+ MB"],
+    "sortStdout": true
+  }
+}

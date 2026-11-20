@@ -1,0 +1,22 @@
+{
+  "description": "Vitest 5.0.5's --exclude adds to the config's excludes (cac.ts L284 cliExclude, resolveConfig.ts L633): the file the config excludes and the one the command line excludes both stay out. Held by provino vitest in B25g.",
+  "runners": ["vitest"],
+  "config": {
+    "vitest": {
+      "test": {
+        "exclude": [
+          "**/node_modules/**",
+          "**/__goldens__/**",
+          "**/*.jest.test.ts",
+          "**/dropped-by-config/**"
+        ]
+      }
+    }
+  },
+  "run": {
+    "argv": {
+      "vitest": ["--exclude", "**/dropped-by-cli/**"]
+    },
+    "capture": ["exitCode"]
+  }
+}

@@ -30,6 +30,11 @@
       "types": "./dist/runtime/index.d.ts",
       "import": "./dist/runtime/index.js"
     },
+    "./results": {
+      "provino-source": "./src/results/index.ts",
+      "types": "./dist/results/index.d.ts",
+      "import": "./dist/results/index.js"
+    },
     "./vite-bridge": {
       "provino-source": "./src/vite-bridge/index.ts",
       "types": "./dist/vite-bridge/index.d.ts",

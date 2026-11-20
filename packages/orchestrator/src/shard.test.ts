@@ -307,6 +307,49 @@ describe('shardFiles', () => {
     )
     assert.deepEqual(all.toSorted(), ['b', 'constructor', 'toString'])
   })
+
+  it("rooted-sha1-slice hashes '/' + the path from the run's root, as Vitest's BaseSequencer.shard does", () => {
+    // Two projects below the run's root, each with a file of the same name: Vitest hashes the
+    // path from the top-level root (`/web/a.test.ts`), not each project's own (`/a.test.ts`).
+    const inProject = (root: string, relativePath: string): DiscoveredFile => ({
+      path: `${root}/${relativePath}`,
+      relativePath,
+      sizeBytes: 1,
+    })
+    const names = ['a.test.ts', 'b.test.ts', 'c.test.ts']
+    const members = ['web', 'api'].map((name) => ({
+      rootDir: `/root/${name}`,
+      files: names.map((each) => inProject(`/root/${name}`, each)),
+    }))
+    const full = members.flatMap((member) => member.files.map((each) => each.path))
+    const byHash = full.toSorted((a, b) => {
+      const ha = hash('sha1', a.slice('/root'.length))
+      const hb = hash('sha1', b.slice('/root'.length))
+      return ha < hb ? -1 : ha > hb ? 1 : 0
+    })
+    for (const index of [1, 2, 3]) {
+      const kept = shardFiles(members, {
+        shard: { index, count: 3 },
+        fallback: 'rooted-sha1-slice',
+        runRoot: '/root',
+      }).flatMap((files) => files.map((each) => each.path))
+      assert.deepEqual(kept.toSorted(), byHash.slice((index - 1) * 2, index * 2).toSorted())
+    }
+  })
+})
+
+describe('shardInputs', () => {
+  it('returns the input objects themselves', () => {
+    const inputs = [file('a'), file('b'), file('c', 5)]
+    for (const fallback of ['sha1-slice', 'rooted-sha1-slice', 'path-slice'] as const) {
+      for (const each of shardInputs(inputs.slice(0, 2), { index: 1, count: 1 }, fallback)) {
+        assert.ok(inputs.includes(each), fallback)
+      }
+    }
+    for (const each of shardInputs(inputs, { index: 1, count: 1 }, 'sha1-slice')) {
+      assert.ok(inputs.includes(each))
+    }
+  })
 })
 
 describe('checkShard', () => {

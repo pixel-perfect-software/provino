@@ -326,6 +326,40 @@ describe('the run’s own hooks and the order of the projects (Jest’s runGloba
     )
   })
 
+  for (const kind of ['forks', 'threads'] as const) {
+    it(`gives a ${kind} worker the variables a global setup set, and the pool's workerEnv over them`, async () => {
+      const p = await makeProject({
+        'setup.ts': [
+          'module.exports = async () => {',
+          "  process.env.PROVINO_GS_SET = 'from setup'",
+          "  process.env.PROVINO_GS_OVER = 'from setup'",
+          '}',
+        ].join('\n'),
+        'a.test.js': [
+          "test('sees them', () => {",
+          "  expect(process.env.PROVINO_GS_SET).toBe('from setup')",
+          "  expect(process.env.PROVINO_GS_OVER).toBe('from pool')",
+          '})',
+        ].join('\n'),
+      })
+      const project = withHooks(runtimeProject(p.dir, { policy: { orchestrator: JEST_HOOKS } }), {
+        setup: [p.path('setup.ts')],
+        teardown: [],
+        args: { globalConfig: {}, projectConfig: {} },
+      })
+      const trace: string[] = []
+      try {
+        await runAll([project], trace, undefined, {
+          pool: { kind, workerEnv: { PROVINO_GS_OVER: 'from pool' } },
+        })
+      } finally {
+        Reflect.deleteProperty(process.env, 'PROVINO_GS_SET')
+        Reflect.deleteProperty(process.env, 'PROVINO_GS_OVER')
+      }
+      assert.ok(trace.includes('run:end passed'), trace.join('\n'))
+    })
+  }
+
   it('does not run the run’s hooks when no project has a file', async () => {
     const p = await makeProject({
       'root.ts': noting('setup root'),

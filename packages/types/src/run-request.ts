@@ -10,6 +10,8 @@ export interface FileFilter {
   readonly kind: 'regex' | 'substring' | 'path' | 'pathLine'
   readonly value: string
   readonly line?: number
+  /** A `substring` filter matches without regard to case (the dialect says). */
+  readonly ignoreCase?: boolean
 }
 
 /**

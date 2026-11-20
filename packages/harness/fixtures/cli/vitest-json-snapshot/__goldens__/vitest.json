@@ -1,0 +1,218 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "cli/vitest-json-snapshot",
+  "files": [
+    {
+      "file": "snapshot.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "snapshot.test.ts",
+            "path": [
+              "group",
+              "changed value"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: Snapshot `group > changed value 1` mismatched",
+              "userFrame": "<root>/snapshot.test.ts:3:25"
+            }
+          ],
+          "location": {
+            "line": 2,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "snapshot.test.ts",
+            "path": [
+              "group",
+              "unchanged value"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "snapshot.test.ts",
+            "path": [
+              "group",
+              "new value"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "snapshot.test.ts",
+            "path": [
+              "outside"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 13,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 1,
+      "matched": 1,
+      "unmatched": 1,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 3,
+      "filesAdded": 1,
+      "filesRemoved": 0,
+      "filesUnmatched": 1,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/snapshot.test.ts.snap",
+        "sha256": "cf4ce549c6f0d0f8dd07943e8156035d28fca17b99bb7888c24401555954bffe"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": false,
+  "observed": {
+    "exitCode": 1,
+    "json": {
+      ".harness-out/vitest.json": {
+        "numTotalTestSuites": 2,
+        "numPassedTestSuites": 0,
+        "numFailedTestSuites": 2,
+        "numPendingTestSuites": 0,
+        "numTotalTests": 4,
+        "numPassedTests": 3,
+        "numFailedTests": 1,
+        "numPendingTests": 0,
+        "numTodoTests": 0,
+        "snapshot": {
+          "added": 1,
+          "failure": false,
+          "filesAdded": 1,
+          "filesRemoved": 0,
+          "filesRemovedList": [],
+          "filesUnmatched": 1,
+          "filesUpdated": 0,
+          "matched": 1,
+          "total": 3,
+          "unchecked": 0,
+          "uncheckedKeysByFile": [],
+          "unmatched": 1,
+          "updated": 0,
+          "didUpdate": false
+        },
+        "startTime": "<time>",
+        "success": false,
+        "testResults": [
+          {
+            "assertionResults": [
+              {
+                "ancestorTitles": [
+                  "group"
+                ],
+                "fullName": "group changed value",
+                "status": "failed",
+                "title": "changed value",
+                "duration": "<time>",
+                "failureMessages": [
+                  "Error: Snapshot `group > changed value 1` mismatched\n<frames>"
+                ],
+                "location": {
+                  "line": 2,
+                  "column": 3
+                },
+                "meta": {},
+                "tags": [],
+                "benchmarks": []
+              },
+              {
+                "ancestorTitles": [
+                  "group"
+                ],
+                "fullName": "group unchanged value",
+                "status": "passed",
+                "title": "unchanged value",
+                "duration": "<time>",
+                "failureMessages": [],
+                "location": {
+                  "line": 5,
+                  "column": 3
+                },
+                "meta": {},
+                "tags": [],
+                "benchmarks": []
+              },
+              {
+                "ancestorTitles": [
+                  "group"
+                ],
+                "fullName": "group new value",
+                "status": "passed",
+                "title": "new value",
+                "duration": "<time>",
+                "failureMessages": [],
+                "location": {
+                  "line": 8,
+                  "column": 3
+                },
+                "meta": {},
+                "tags": [],
+                "benchmarks": []
+              },
+              {
+                "ancestorTitles": [],
+                "fullName": "outside",
+                "status": "passed",
+                "title": "outside",
+                "duration": "<time>",
+                "failureMessages": [],
+                "location": {
+                  "line": 13,
+                  "column": 1
+                },
+                "meta": {},
+                "tags": [],
+                "benchmarks": []
+              }
+            ],
+            "startTime": "<time>",
+            "endTime": "<time>",
+            "status": "failed",
+            "message": "",
+            "name": "<root>/snapshot.test.ts"
+          }
+        ]
+      }
+    }
+  }
+}

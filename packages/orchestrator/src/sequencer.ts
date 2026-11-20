@@ -1,6 +1,6 @@
 // T9.6's order: Jest's `TestSequencer.sort` (jest-test-sequencer), with a total order, and the
 // shard (`shard.ts`).
-import type { Sequencer } from '@provino/types'
+import type { Sequencer, ShardFallback } from '@provino/types'
 import { byPathThenProject, shardInputs } from './shard.ts'
 
 /**
@@ -17,7 +17,7 @@ export interface HistorySequencerOptions {
    * How `shard` splits the files when none has a time (`orchestrator.shard.fallback`). With a time
    * for any file, every dialect cuts contiguous slices of the path-sorted files by predicted time.
    */
-  readonly shardFallback: 'sha1-slice' | 'path-slice'
+  readonly shardFallback: ShardFallback
 }
 
 /**

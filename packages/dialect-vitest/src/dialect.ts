@@ -252,8 +252,9 @@ export const vitestPolicy: PolicyOverrides = {
     pool: { default: 'forks' },
     // Vitest 5.0.5 forked a single file (`policy/orchestrator-run-in-band`).
     inBand: { single: false, fastFileCount: 0, slowMs: 0 },
-    // Vitest 5.0.5's `BaseSequencer.shard` (read from its source, not recorded: T11.16).
-    shard: { fallback: 'sha1-slice' },
+    // Vitest 5.0.5's `BaseSequencer.shard` hashes each path with its leading `/`
+    // (`cli/vitest-shard-1-of-3` to `3-of-3`).
+    shard: { fallback: 'rooted-sha1-slice' },
     sequence: { unknownFirst: true },
     globalSetup: {
       signature: 'project-with-teardown',

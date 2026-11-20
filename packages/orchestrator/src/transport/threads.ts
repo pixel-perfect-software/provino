@@ -28,6 +28,8 @@ export interface ThreadsTransportOptions extends TransportOptions {
   readonly execArgv?: readonly string[]
   /** The thread's `process.env`, a copy. Default: a copy of this process's. */
   readonly env?: NodeJS.ProcessEnv
+  /** Variables added over `env`, which is read when each thread spawns (after a global setup). */
+  readonly workerEnv?: Readonly<Record<string, string>>
   /**
    * The thread's old-generation heap limit; going over it ends the thread with `oom` and this
    * limit. Without one the thread runs under Node's default, and an OOM is `oom` all the same.
@@ -60,7 +62,10 @@ export function threadsTransport(options: ThreadsTransportOptions): TransportFac
       workerData: { entry },
       stdout: true,
       stderr: true,
-      env: options.env ?? process.env,
+      env:
+        options.workerEnv === undefined
+          ? (options.env ?? process.env)
+          : { ...(options.env ?? process.env), ...options.workerEnv },
       ...(options.execArgv === undefined ? {} : { execArgv: [...options.execArgv] }),
       ...(limitMb === undefined ? {} : { resourceLimits: { maxOldGenerationSizeMb: limitMb } }),
     })

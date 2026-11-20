@@ -23,7 +23,7 @@
     },
     "test": {
       "dependsOn": ["transit"],
-      "env": ["PROVINO_NODE"],
+      "env": ["PROVINO_NODE", "PROVINO_TEST_SHARD"],
       "passThroughEnv": ["NODE_OPTIONS", "TMPDIR"],
       "outputs": []
     },

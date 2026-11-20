@@ -241,14 +241,15 @@ test('a vitest.workspace file is not read, and the reader says so', async () => 
 test('a key read and not applied warns and names its phase', async () => {
   const root = writeTree({
     'vitest.config.mjs':
-      'export default { define: { A: 1 }, test: { retry: 2, bail: 1, coverage: { enabled: true } } }\n',
+      'export default { define: { A: 1 }, test: { retry: 2, minWorkers: 1, bail: 1, coverage: { enabled: true } } }\n',
   })
   const { diagnostics } = await readVitestConfig({ cwd: root })
   const keys = diagnostics.map((entry) => entry.key).sort()
-  assert.deepEqual(keys, ['define', 'test.bail', 'test.coverage', 'test.retry'])
+  // `bail` is the run's, which `provino vitest` applies (B25g): no warning.
+  assert.deepEqual(keys, ['define', 'test.coverage', 'test.minWorkers', 'test.retry'])
   for (const entry of diagnostics) {
     assert.equal(entry.code, 'VITEST_CONFIG_NOT_APPLIED')
-    assert.match(entry.message, /B25[a-k]/)
+    assert.match(entry.message, /B25[a-k]|D183/)
   }
 })
 
