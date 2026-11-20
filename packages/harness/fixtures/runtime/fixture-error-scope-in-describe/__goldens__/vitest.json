@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/fixture-error-scope-in-describe",
+  "files": [
+    {
+      "file": "error-scope-in-describe.test.ts",
+      "status": "crashed",
+      "fileError": {
+        "message": "The \"value\" fixture cannot be defined with a file scope inside the describe block. Define it at the top level of the file instead."
+      },
+      "tests": []
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false
+}

@@ -84,7 +84,10 @@ function isRec(value: unknown): value is Rec {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-/** `oxc.jsx` (Vite 8) or `esbuild.jsx*` (earlier) to the pipeline's JSX options. */
+/**
+ * `oxc.jsx` (Vite 8) or `esbuild.jsx*` (earlier) to the pipeline's JSX options.
+ * @public
+ */
 export function viteJsxSettings(viteConfig: Rec): ViteJsxSettings | null {
   const oxc = viteConfig.oxc
   if (isRec(oxc) && isRec(oxc.jsx)) {

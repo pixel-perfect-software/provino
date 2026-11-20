@@ -137,10 +137,6 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   // B25 Phase 1's contract keys: each phase that builds the behaviour records both runners' values.
   'jest snapshot.mismatch': 'B25b',
   'vitest snapshot.mismatch': 'B25b',
-  'jest core.definitions.extendApi': 'B25e',
-  'vitest core.definitions.extendApi': 'B25e',
-  'jest core.definitions.messages': 'B25e',
-  'vitest core.definitions.messages': 'B25e',
   // Core reads it, and no fixture found tells the values apart: a question for Tyler.
   'jest core.concurrency.limitHooks': 'Tyler',
   // No fixture tells the value apart: D47 keeps the research value.

@@ -40,4 +40,12 @@ export const standIn: LazyHost = {
   onCollected: () => undefined,
   addWorkerTeardown: () => undefined,
   workerSlots: new Map<symbol, unknown>(),
+  definitions: () => new Map(),
 }
+
+// The definition table holds entries by key, each saying whether it is a fixture or a lazy value.
+expectTypeOf(host.definitions(suite).get('user')?.kind).toEqualTypeOf<
+  'fixture' | 'lazy' | undefined
+>()
+// @ts-expect-error a table entry needs its kind
+host.definitions(suite).set('user', { key: 'user' })

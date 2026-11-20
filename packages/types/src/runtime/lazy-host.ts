@@ -1,3 +1,5 @@
+import type { Definition } from './definitions.ts'
+
 // Track 6 §Module boundaries: the host interface `@provino/lazy` needs, which `@provino/core`'s
 // executor implements (B07 checks that with a type test, §4 D.23). Worker-only, never cloned.
 //
@@ -95,4 +97,9 @@ export interface LazyHost {
   onCollected(fn: (file: FileHandle) => void): void
   addWorkerTeardown(fn: () => unknown): void
   readonly workerSlots: Map<symbol, unknown>
+  /**
+   * A suite's definition table (T5.9, D106): the runtime owns it, one entry per key, made on
+   * first use; `@provino/lazy` registers its lazy values in it and reads them back from it.
+   */
+  definitions(suite: SuiteHandle): Map<string, Pick<Definition, 'key' | 'kind'>>
 }

@@ -1,0 +1,11 @@
+{
+  "description": "Where Vitest 5.0.5 points a suite hook's fixture error (B25e, T5.9): a plain beforeAll whose first parameter is an object pattern (FixtureAccessError) and one whose first parameter is a name (FixtureParseError) report the hook's registration line, their stack rewritten in the header form; a test.beforeAll that reads a test fixture (FixtureDependencyError) reports it too, message first. Vitest's JSON drops suite errors, so the default reporter's text is kept: each error's first line and the frame in the test file.",
+  "runners": ["vitest"],
+  "run": {
+    "argv": {
+      "vitest": ["--reporter=default"]
+    },
+    "capture": ["stderr"],
+    "keepLines": "^(FixtureAccessError|FixtureParseError|FixtureDependencyError): .*|❯ hooks\\.test\\.ts:\\d+:\\d+"
+  }
+}

@@ -3,6 +3,13 @@
 // passes `ImportFile` (Track 1 §Module boundaries, rule 6).
 export type {
   EachFunction,
+  FixtureBuilder,
+  FixtureEntry,
+  FixtureFunction,
+  Fixtures,
+  FixtureTestApi,
+  FixtureTools,
+  FixtureUse,
   ForFunction,
   HookSuite,
   RuntimeApi,
@@ -10,10 +17,12 @@ export type {
   SuiteBody,
   TestApi,
   TestFunction,
+  WithFixtures,
 } from './collector/api.ts'
 export type { CommonOptions, SuiteOptions, TestOptions } from './collector/collector.ts'
 export type { RetryCondition, RetryOption } from './collector/retry.ts'
 export { type CurrentTestService, currentTest } from './current/current-test.ts'
+export type { FixtureOptions } from './definitions/table.ts'
 export type { ProcessLike } from './errors/process-errors.ts'
 export {
   AroundHookMultipleCallsError,

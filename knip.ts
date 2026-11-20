@@ -118,7 +118,17 @@ const config: KnipConfig = {
     },
     'packages/transform': {
       // Babel plugins and presets the hoist corpus and T3.8's fixture name as strings.
-      ignoreDependencies: ['@babel/plugin-transform-modules-commonjs', '@babel/preset-typescript'],
+      ignoreDependencies: [
+        '@babel/plugin-transform-modules-commonjs',
+        '@babel/preset-typescript',
+        // The Vite plugin fixtures' configs import them (`fixtures/vite/*/vite.config.mjs`).
+        '@sveltejs/vite-plugin-svelte',
+        '@vitejs/plugin-vue',
+        'svelte',
+        'vite-plugin-svgr',
+        'vite-tsconfig-paths',
+        'vue',
+      ],
     },
     'packages/dialect-jest': {
       // Environment packages the adapter tests load by name (T8.5).
