@@ -202,8 +202,12 @@ const LIVE = /[\\/]packages[\\/]reporters[\\/]src[\\/]live[\\/](?!.*\.test\.ts$)
  */
 const HTML = /[\\/]packages[\\/]reporters[\\/]src[\\/]html[\\/](?!.*\.test\.ts$)/
 
-/** The three `@provino/lazy` leaves `provino`'s own `lazy` forwarders import (`import 'provino'`). */
-const LAZY_API = /[\\/]packages[\\/]lazy[\\/]src[\\/](?:errors|slot|runtime[\\/]site)\.ts$/
+/**
+ * `@provino/lazy`'s forwarders (`api.ts`) and the three leaves they import: `import 'provino'` and
+ * the native runtime (`worker/api`, which serves them) both use them, and `index.js` must not reach
+ * `shared.js` for them.
+ */
+const LAZY_API = /[\\/]packages[\\/]lazy[\\/]src[\\/](?:api|errors|slot|runtime[\\/]site)\.ts$/
 
 /** A source file of a workspace package. */
 const SHARED = /[\\/]packages[\\/][^\\/]+[\\/]src[\\/]/
