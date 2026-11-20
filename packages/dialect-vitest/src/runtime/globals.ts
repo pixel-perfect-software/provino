@@ -4,7 +4,7 @@
 import type { RuntimeApi, SuiteApi, TestApi } from '@provino/core'
 import { populateGlobal } from '@provino/env-shared'
 import type { createExpect } from '@provino/expect'
-import { VitestDialectError } from './errors.ts'
+import { VitestDialectError } from '../internal/dialect-error.ts'
 import { chaiWithVitestPlugins } from './expect/assertion.ts'
 import { expectTypeOf } from './expect-type-of.ts'
 import {

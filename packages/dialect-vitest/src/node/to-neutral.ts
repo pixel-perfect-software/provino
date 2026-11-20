@@ -60,6 +60,7 @@ export const VITEST_APPLIED_TEST_KEYS: ReadonlySet<string> = new Set([
   'typecheck',
   'environment',
   'environmentOptions',
+  'dom',
   'alias',
   'globals',
   'isolate',

@@ -33,7 +33,7 @@ test('the dialect is Vitest 5.0, with the policy, hoisting and type entries this
 test('the values that are Provino`s own: the isolation tier, the hoisting id, the formatter', () => {
   assert.deepEqual(resolved.orchestrator.isolationDefault, {
     default: 'registry',
-    byEnvironment: { jsdom: 'realm', 'happy-dom': 'realm' },
+    byEnvironment: { jsdom: 'registry', 'happy-dom': 'registry' },
   })
   assert.equal(vitestHoistPolicy.id, 'vitest-5.0')
   assert.equal(resolved.expect.valueFormatter, 'pretty-format')

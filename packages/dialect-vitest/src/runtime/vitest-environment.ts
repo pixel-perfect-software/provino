@@ -7,7 +7,7 @@
 // a `vitest-environment-<name>` package or a path, run through `vitestEnvironment`, the adapter for
 // Vitest's `{ name, viteEnvironment, setup }` object. Realm `worker` only: `setupVM` needs T2.8.
 import { createRequire } from 'node:module'
-import { join, resolve } from 'node:path'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { type JsdomEnvironmentOptions, jsdomEnvironment } from '@provino/env-jsdom'
 import { leakReport, populateGlobal, snapshotProperties, WINDOW_KEYS } from '@provino/env-shared'
@@ -21,9 +21,11 @@ import type {
   EnvironmentTeardownReport,
   GlobalReadWatch,
   JsonValue,
+  Resolver,
 } from '@provino/types'
+import { VitestDialectError } from '../internal/dialect-error.ts'
 import { environmentOptionsKey } from '../internal/environment-options-key.ts'
-import { VitestDialectError } from './errors.ts'
+import { environmentRefOf } from '../internal/environment-ref.ts'
 import { edgeRuntimeEnvironment } from './vendor/vitest-env/edge-runtime.ts'
 import { happyDomEnvironment } from './vendor/vitest-env/happy-dom.ts'
 import type { SetupDeps } from './vendor/vitest-env/types.ts'
@@ -80,27 +82,6 @@ function resolveFromRoot(rootDir: string, name: string): string | undefined {
   } catch {
     return undefined
   }
-}
-
-/**
- * Where an environment package resolves from the root as an `import` does (`import` and `node`
- * conditions), as Vitest 5.0.5's `loadNativeEnvironment` resolves it with `import.meta.resolve`
- * (`integrations/env/loader.ts` L68): an ES-module-only package is found, and a dual one gives its
- * ES module build. Node's `require` conditions would miss the first and load the second's CommonJS
- * build, whose namespace has the environment one level down.
- */
-function resolveEnvironmentPackage(rootDir: string, name: string): string | undefined {
-  const resolver = createResolver({
-    root: rootDir,
-    mappers: [],
-    extensions: ['.js', '.mjs', '.cjs', '.json'],
-  })
-  const found = resolver.resolve(name, {
-    importer: join(rootDir, '__provino_environment__.js'),
-    kind: 'import',
-    conditions: ['node'],
-  })
-  return found.type === 'file' ? found.path : undefined
 }
 
 /** Imports the project's own copy of an environment's library, once per name (a failed load is tried again). */
@@ -341,19 +322,32 @@ export const vitestJsdomEnvironment: Environment<'jsdom', JsdomAdapterOptions> =
   },
 }
 
-const RUNTIME = import.meta.resolve('@provino/dialect-vitest/runtime')
+/** One resolver per project root: a run asks for the same root once per project or docblock file. */
+const resolvers = new Map<string, Resolver>()
 
-/** The two of Vitest's `isBuiltinEnvironment` names that run a vendored setup (`node` and `jsdom` are refs of their own). */
-function isSetupBuiltin(name: string): name is 'happy-dom' | 'edge-runtime' {
-  return name === 'happy-dom' || name === 'edge-runtime'
-}
-
-/** Vitest's `Environment "<name>" cannot be found`-shaped error for a package that isn't there. */
-function notFound(name: string, rootDir: string): Error {
-  return new VitestDialectError(
-    'VITEST_ENVIRONMENT_NOT_FOUND',
-    `Cannot find package 'vitest-environment-${name}' imported from ${rootDir}: the environment "${name}" is neither built in nor installed.`,
-  )
+/**
+ * Where an environment package resolves from the root as an `import` does (`import` and `node`
+ * conditions), as Vitest 5.0.5's `loadNativeEnvironment` resolves it with `import.meta.resolve`
+ * (`integrations/env/loader.ts` L68): an ES-module-only package is found, and a dual one gives its
+ * ES module build. Node's `require` conditions would miss the first and load the second's CommonJS
+ * build, whose namespace has the environment one level down.
+ */
+function resolveEnvironmentPackage(rootDir: string, name: string): string | undefined {
+  let resolver = resolvers.get(rootDir)
+  if (resolver === undefined) {
+    resolver = createResolver({
+      root: rootDir,
+      mappers: [],
+      extensions: ['.js', '.mjs', '.cjs', '.json'],
+    })
+    resolvers.set(rootDir, resolver)
+  }
+  const found = resolver.resolve(name, {
+    importer: join(rootDir, '__provino_environment__.js'),
+    kind: 'import',
+    conditions: ['node'],
+  })
+  return found.type === 'file' ? found.path : undefined
 }
 
 /**
@@ -365,38 +359,10 @@ function notFound(name: string, rootDir: string): Error {
  */
 export function vitestEnvironmentRef(
   name: string,
-  environmentOptions: JsonObject,
+  environmentOptions: { readonly [key: string]: JsonValue },
   rootDir: string,
 ): EnvironmentRef {
-  if (name === 'node') {
-    return {
-      module: import.meta.resolve('@provino/env-node'),
-      export: 'nodeEnvironment',
-      options: {},
-    }
-  }
-  if (name === 'jsdom') {
-    const own = environmentOptions.jsdom
-    return {
-      module: RUNTIME,
-      export: 'vitestJsdomEnvironment',
-      options: { ...(isRecord(own) ? (own as JsonObject) : {}), rootDir },
-    }
-  }
-  const base = { name, rootDir, environmentOptions }
-  if (isSetupBuiltin(name)) {
-    return {
-      module: RUNTIME,
-      export: 'vitestEnvironment',
-      options: { ...base, builtin: name },
-    }
-  }
-  const module =
-    name[0] === '.' || name[0] === '/'
-      ? resolve(rootDir, name)
-      : resolveEnvironmentPackage(rootDir, `vitest-environment-${name}`)
-  if (module === undefined) throw notFound(name, rootDir)
-  return { module: RUNTIME, export: 'vitestEnvironment', options: { ...base, module } }
+  return environmentRefOf(name, environmentOptions, rootDir, resolveEnvironmentPackage)
 }
 
 /**

@@ -1,4 +1,5 @@
-// The Vitest dialect's runtime errors.
+// The Vitest dialect's errors, shared by the environment refs (`environment-ref.ts`, which the
+// coordinator calls for a project's environment) and the runtime (`runtime/errors.ts`).
 
 /**
  * The code a `VitestDialectError` carries.
