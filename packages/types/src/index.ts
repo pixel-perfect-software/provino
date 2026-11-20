@@ -20,9 +20,13 @@ export type { CloneLeaf, CloneSafe, JsonValue } from './clone-safe.ts'
 export type {
   BaseConfig,
   ConfigEnv,
+  ConfigResolve,
+  ConfigTimeouts,
   DialectKeys,
+  NativeRuntimeRefs,
   PluginKeys,
   ProjectConfig,
+  ProvinoConfig,
   ProvinoConfigInput,
   ReservedConfigKey,
   SerializedLoaderConfig,
