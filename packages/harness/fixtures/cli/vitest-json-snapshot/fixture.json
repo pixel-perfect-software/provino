@@ -1,0 +1,16 @@
+{
+  "description": "Vitest 5.0.5's --reporter=json over a snapshot mismatch, a matched snapshot and a new one written outside CI, with one describe: the json's snapshot summary (failure stays false although a snapshot failed, as @vitest/snapshot's emptySummary leaves it) and numTotalTestSuites (the file and the describe count). Held by @provino/dialect-vitest's results and provino vitest in B25g.",
+  "runners": ["vitest"],
+  "env": {
+    "CI": ""
+  },
+  "files": {
+    "vitest": {
+      "__snapshots__/snapshot.test.ts.snap": "// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html\n\nexports[`group > changed value 1`] = `\"old value\"`;\n\nexports[`group > unchanged value 1`] = `\"same\"`;\n"
+    }
+  },
+  "run": {
+    "capture": ["exitCode", "json:.harness-out/vitest.json"],
+    "timeKeys": ["startTime", "endTime", "duration"]
+  }
+}

@@ -303,7 +303,8 @@ function snapshotSummary(run: RunSummary | undefined): VitestSnapshotSummary {
   const c = snapshots?.counters
   return {
     added: c?.added ?? 0,
-    // unverified: track-07 (Vitest's core sets `failure` from the run; no fixture records it yet)
+    // `@vitest/snapshot` 5.0.5's `emptySummary` sets it and nothing sets it again: false after a
+    // failed snapshot too (`cli/vitest-json-snapshot`).
     failure: false,
     filesAdded: c?.filesAdded ?? 0,
     filesRemoved: c?.filesRemoved ?? 0,

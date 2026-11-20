@@ -1,9 +1,11 @@
 // T11.16: the Vitest JSON collector over a run's events, driven by hand. That the document is Vitest
 // 5.0.5's, byte for byte, is held through `provino vitest` against the recorded `cli/vitest-json-*`.
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import path from 'node:path'
 import { describe, it } from 'node:test'
 import type { FileInfo, FileTask, SuiteTask, TaskId, TaskResult, TestTask } from '@provino/types'
-import { createVitestResults } from './json.ts'
+import { createVitestResults, type VitestJsonResults } from './json.ts'
 
 const id = (text: string): TaskId => text as TaskId
 
@@ -167,6 +169,61 @@ describe('createVitestResults', () => {
       line: 3,
       column: 5,
     })
+  })
+
+  it('writes the snapshot summary and counts a file and a describe as cli/vitest-json-snapshot recorded', async () => {
+    const goldenPath = path.join(
+      import.meta.dirname,
+      '../../../harness/fixtures/cli/vitest-json-snapshot/__goldens__/vitest.json',
+    )
+    const golden = JSON.parse(await readFile(goldenPath, 'utf8')) as {
+      observed: { json: Record<string, VitestJsonResults> }
+    }
+    const recorded = golden.observed.json['.harness-out/vitest.json']
+    assert.ok(recorded)
+    const c = recorded.snapshot
+    const results = createVitestResults({
+      roots: ['/root'],
+      passWithNoTests: false,
+      includeTaskLocation: false,
+    })
+    const r = results.reporter as unknown as Record<string, (...args: unknown[]) => void>
+    r['run:end']?.({
+      reason: 'failed',
+      files: [],
+      unhandled: [],
+      durationMs: 9,
+      snapshots: {
+        counters: {
+          added: c.added,
+          matched: c.matched,
+          unmatched: c.unmatched,
+          updated: c.updated,
+          unchecked: c.unchecked,
+          total: c.total,
+          filesAdded: c.filesAdded,
+          filesRemoved: c.filesRemoved,
+          filesUnmatched: c.filesUnmatched,
+          filesUpdated: c.filesUpdated,
+        },
+        uncheckedKeysByFile: [],
+        update: 'new',
+        files: [],
+      },
+    })
+    // An unmatched snapshot leaves `failure` false, and the keys keep Vitest's order.
+    assert.equal(c.failure, false)
+    assert.deepEqual(JSON.stringify(results.json().snapshot), JSON.stringify(c))
+    // One file with one describe, both failed: the hand-driven run above has the same shape.
+    assert.deepEqual(
+      [
+        recorded.numTotalTestSuites,
+        recorded.numPassedTestSuites,
+        recorded.numFailedTestSuites,
+        recorded.numPendingTestSuites,
+      ],
+      [2, 0, 2, 0],
+    )
   })
 
   it('succeeds with no file only under passWithNoTests', () => {
