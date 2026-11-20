@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { symlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
 import type { ProvinoConfigInput } from '@provino/types'
@@ -26,6 +27,7 @@ describe('resolveProjects', () => {
     await temp.write('packages/node_modules/skip/x.txt', '')
     await temp.write('packages/.hidden/x.txt', '')
     await temp.write('single/provino.config.mjs', 'export default {}\n')
+    await temp.write('inline/x.txt', '')
   })
   after(() => temp.dispose())
 
@@ -55,7 +57,7 @@ describe('resolveProjects', () => {
   test('inline projects, a directory and a glob run in the config’s order', async () => {
     const config = await resolveIn({
       projects: [
-        { name: 'inline', root: 'single', include: ['x/*.js'], timeouts: { test: 5 } },
+        { name: 'inline', root: 'inline', include: ['x/*.js'], timeouts: { test: 5 } },
         './single',
         'packages/*',
       ],
@@ -66,7 +68,7 @@ describe('resolveProjects', () => {
     )
     assert.equal(config.root, temp.dir)
     const [inline, single, a, bee, c] = config.projects
-    assert.equal(inline?.rootDir, join(temp.dir, 'single'))
+    assert.equal(inline?.rootDir, join(temp.dir, 'inline'))
     assert.deepEqual(inline?.include, ['x/*.js'])
     assert.equal(inline?.policy.core.timeouts.test, 5)
     assert.equal(single?.rootDir, join(temp.dir, 'single'))
@@ -79,9 +81,11 @@ describe('resolveProjects', () => {
   })
 
   test('a glob never enters node_modules or a dot directory, and ** goes down', async () => {
-    const names = (await resolveIn({ projects: ['packages/**'] })).projects.map((p) => p.rootDir)
-    assert.ok(names.includes(join(temp.dir, 'packages/a')))
-    assert.ok(!names.some((path) => path.includes('node_modules') || path.includes('.hidden')))
+    const star = (await resolveIn({ projects: ['packages/*'] })).projects.map((p) => p.rootDir)
+    assert.ok(star.includes(join(temp.dir, 'packages/a')))
+    assert.ok(!star.some((path) => path.includes('node_modules') || path.includes('.hidden')))
+    const deep = (await resolveIn({ projects: ['**/src'] })).projects.map((p) => p.rootDir)
+    assert.deepEqual(deep, [join(temp.dir, 'packages/c/src')])
   })
 
   test('a path to a config file is its directory’s project', async () => {
@@ -99,14 +103,22 @@ describe('resolveProjects', () => {
 
   test('duplicate names are CONFIG_INVALID', async () => {
     const error = await rejectsWith(
-      resolveIn({ projects: [{ name: 'p' }, { name: 'p' }] }),
+      resolveIn({
+        projects: [
+          { name: 'p', root: 'single' },
+          { name: 'p', root: 'packages' },
+        ],
+      }),
       'CONFIG_INVALID',
     )
     assert.match(error.message, /"p"/)
   })
 
   test('unnamed inline projects are not duplicates', async () => {
-    assert.equal((await resolveIn({ projects: [{}, {}] })).projects.length, 2)
+    assert.equal(
+      (await resolveIn({ projects: [{ root: 'single' }, { root: 'packages' }] })).projects.length,
+      2,
+    )
   })
 
   test('a glob that matches nothing, and a missing path, are CONFIG_INVALID', async () => {
@@ -186,5 +198,56 @@ describe('config discovery (D196)', () => {
       await findConfigInDirectory(join(temp.dir, 'outer')),
       join(temp.dir, 'outer/provino.config.js'),
     )
+  })
+})
+
+describe('projects globs (D199: tinyglobby)', () => {
+  let temp: TempDir
+  let linked: string
+  before(async () => {
+    temp = await makeTempDir()
+    await temp.write('real/packages/a/x.txt', '')
+    await temp.write('real/packages/b/x.txt', '')
+    await temp.write('real/packages/bee/x.txt', '')
+    await temp.write('real/packages/a/node_modules/dep/x.txt', '')
+    linked = join(temp.dir, 'linked')
+    await symlink(join(temp.dir, 'real'), linked)
+  })
+  after(() => temp.dispose())
+
+  const names = async (projects: readonly string[], base = join(temp.dir, 'real')) => {
+    const config = await resolveProjects(
+      { projects },
+      {
+        configPath: join(base, 'provino.config.mjs'),
+        dialects: [],
+        environments: ENVIRONMENTS,
+        ci: false,
+      },
+    )
+    return config.projects.map((project) => project.name)
+  }
+
+  test('a config reached through a symlinked path still finds its directories', async () => {
+    assert.deepEqual(await names(['packages/*'], linked), ['a', 'b', 'bee'])
+  })
+
+  test('braces and classes match as a glob says', async () => {
+    assert.deepEqual(await names(['packages/{a,bee}']), ['a', 'bee'])
+    assert.deepEqual(await names(['packages/[ab]']), ['a', 'b'])
+  })
+
+  test('an entry starting with ! leaves out what the globs matched', async () => {
+    assert.deepEqual(await names(['packages/*', '!packages/b*']), ['a'])
+  })
+
+  test('a glob never matches the config’s own directory', async () => {
+    const found = await names(['**'])
+    assert.ok(!found.includes('real'), found.join())
+  })
+
+  test('two projects with one root are CONFIG_INVALID', async () => {
+    const error = await rejectsWith(names(['packages/a', 'packages/a']), 'CONFIG_INVALID')
+    assert.match(error.message, /packages\/a/)
   })
 })

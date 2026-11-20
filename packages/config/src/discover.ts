@@ -1,5 +1,5 @@
-import { stat } from 'node:fs/promises'
 import { dirname, join, resolve } from 'node:path'
+import { kindOf } from './internal/kind.ts'
 
 /**
  * The extensions a `provino.config.*` may have, in the order they are looked for.
@@ -10,15 +10,6 @@ export const PROVINO_CONFIG_EXTENSIONS: readonly string[] = ['ts', 'mts', 'cts',
 /** What ends the walk up: a directory holding one of these is the top of a project or workspace. */
 const ROOT_MARKERS: readonly string[] = ['.git', 'pnpm-workspace.yaml']
 
-async function exists(path: string): Promise<boolean> {
-  try {
-    await stat(path)
-    return true
-  } catch {
-    return false
-  }
-}
-
 /**
  * The `provino.config.*` file in `directory` itself, as an absolute path, or `undefined`.
  * @public
@@ -26,11 +17,7 @@ async function exists(path: string): Promise<boolean> {
 export async function findConfigInDirectory(directory: string): Promise<string | undefined> {
   for (const extension of PROVINO_CONFIG_EXTENSIONS) {
     const file = join(directory, `provino.config.${extension}`)
-    try {
-      if ((await stat(file)).isFile()) return file
-    } catch {
-      // Not there: the next extension.
-    }
+    if ((await kindOf(file)) === 'file') return file
   }
   return undefined
 }
@@ -46,7 +33,9 @@ export async function findConfigUpward(from: string): Promise<string | undefined
   for (;;) {
     const found = await findConfigInDirectory(directory)
     if (found !== undefined) return found
-    const markers = await Promise.all(ROOT_MARKERS.map((name) => exists(join(directory, name))))
+    const markers = await Promise.all(
+      ROOT_MARKERS.map(async (name) => (await kindOf(join(directory, name))) !== undefined),
+    )
     if (markers.some(Boolean)) return undefined
     const parent = dirname(directory)
     if (parent === directory) return undefined

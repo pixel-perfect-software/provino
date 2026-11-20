@@ -1,10 +1,10 @@
-import { stat } from 'node:fs/promises'
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import type { ConfigEnv, PoolKind, ProjectConfig, ProvinoConfigInput } from '@provino/types'
 import { findConfigInDirectory } from './discover.ts'
 import { ConfigError } from './errors.ts'
 import { isRecord, parseInput } from './internal/input.ts'
-import { isGlob, matchDirectories } from './internal/project-globs.ts'
+import { kindOf } from './internal/kind.ts'
+import { isDynamicPattern, matchDirectories } from './internal/project-globs.ts'
 import { loadConfigFile } from './load.ts'
 import {
   type ResolvedProject,
@@ -43,21 +43,19 @@ export interface ResolvedConfig {
   readonly maxWorkers?: number
 }
 
-async function statOf(path: string): Promise<'directory' | 'file' | undefined> {
-  try {
-    const stats = await stat(path)
-    return stats.isDirectory() ? 'directory' : stats.isFile() ? 'file' : undefined
-  } catch {
-    return undefined
-  }
-}
-
-/** A `projects` string as the directories (or a config file) it names. */
-async function expandEntry(entry: string, base: string): Promise<readonly string[]> {
-  if (isGlob(entry)) {
-    const directories = await matchDirectories(
-      base,
-      isAbsolute(entry) ? entry : resolve(base, entry),
+/**
+ * A `projects` string as the directories (or a config file) it names. A glob (tinyglobby's
+ * syntax: `*`, `**`, braces, classes) matches directories, never the config's own (`root`), and
+ * leaves out what `ignore` (the `!` entries) matches; a path is itself.
+ */
+async function expandEntry(
+  entry: string,
+  base: string,
+  ignore: readonly string[],
+): Promise<readonly string[]> {
+  if (isDynamicPattern(entry)) {
+    const directories = (await matchDirectories(base, entry, ignore)).filter(
+      (path) => path !== base,
     )
     if (directories.length === 0) {
       throw new ConfigError(
@@ -68,7 +66,7 @@ async function expandEntry(entry: string, base: string): Promise<readonly string
     return directories
   }
   const path = resolve(base, entry)
-  if ((await statOf(path)) === undefined) {
+  if ((await kindOf(path)) === undefined) {
     throw new ConfigError(
       'CONFIG_INVALID',
       `projects entry ${JSON.stringify(entry)} isn't a directory or a config file ("${path}")`,
@@ -86,7 +84,7 @@ async function resolveDirectory(
   path: string,
   options: ResolveProjectsOptions,
 ): Promise<ResolvedProject> {
-  const isFile = (await statOf(path)) === 'file'
+  const isFile = (await kindOf(path)) === 'file'
   const directory = isFile ? dirname(path) : path
   const configPath = isFile ? path : await findConfigInDirectory(directory)
   const loaded: ProjectConfig =
@@ -97,6 +95,31 @@ async function resolveDirectory(
     { ...options, configPath: configPath ?? join(directory, 'provino.config.ts') },
     false,
   )
+}
+
+/** Awaits every promise; the error of the first one in order that failed is thrown, none is left unhandled. */
+async function inOrder<Value>(promises: readonly Promise<Value>[]): Promise<Value[]> {
+  const settled = await Promise.allSettled(promises)
+  const values: Value[] = []
+  for (const result of settled) {
+    if (result.status === 'rejected') throw result.reason
+    values.push(result.value)
+  }
+  return values
+}
+
+/** Two projects with one root would run each of its files twice. */
+function assertUniqueRoots(projects: readonly ResolvedProject[]): void {
+  const seen = new Set<string>()
+  for (const { rootDir } of projects) {
+    if (seen.has(rootDir)) {
+      throw new ConfigError(
+        'CONFIG_INVALID',
+        `two projects have the root "${rootDir}": each file would run in both`,
+      )
+    }
+    seen.add(rootDir)
+  }
 }
 
 /** A project name that two projects share is an error: reporters and filters tell projects apart by it. */
@@ -118,7 +141,7 @@ function assertUniqueNames(projects: readonly ResolvedProject[]): void {
  * Resolves a config into what one run covers. With no `projects` (or an empty list) the config is
  * the one project (`resolveProject`). With `projects`, each entry is a project, in order: an inline
  * object (its `root` is relative to the config file), a directory (its own `provino.config.*`
- * when it has one), a path to a config file, or a glob (`*`, `?`, `**`) of directories. The
+ * when it has one), a path to a config file, or a glob (tinyglobby's, with `!` entries leaving directories out) of directories. The
  * top-level config's other keys are not inherited by them; its `pool` and `maxWorkers` are the
  * run's defaults. A project has no `projects`, `pool` or `maxWorkers` of its own, and two projects
  * may not share a name. Every failure is a `ConfigError`.
@@ -137,16 +160,22 @@ export async function resolveProjects(
   if (entries.length === 0) return { projects: [await resolveProject(input, options)], ...run }
 
   const root = resolve(dirname(options.configPath), parsed.root ?? '.')
-  const projects: ResolvedProject[] = []
+  // An entry starting with "!" leaves out what the globs match (patterns relative to the root).
+  const ignore = entries.flatMap((entry) =>
+    typeof entry === 'string' && entry.startsWith('!') ? [entry.slice(1)] : [],
+  )
+  const pending: Promise<ResolvedProject>[] = []
   for (const entry of entries) {
     if (isRecord(entry)) {
-      projects.push(await resolveProjectInput(entry, options, false))
-    } else if (typeof entry === 'string') {
-      for (const path of await expandEntry(entry, root)) {
-        projects.push(await resolveDirectory(path, options))
+      pending.push(resolveProjectInput(entry, options, false))
+    } else if (typeof entry === 'string' && !entry.startsWith('!')) {
+      for (const path of await expandEntry(entry, root, ignore)) {
+        pending.push(resolveDirectory(path, options))
       }
     }
   }
+  const projects = await inOrder(pending)
+  assertUniqueRoots(projects)
   assertUniqueNames(projects)
   return { projects, root, ...run }
 }
