@@ -53,6 +53,46 @@ describe('provino vitest refuses by name', () => {
   })
 })
 
+describe('provino vitest file filters', () => {
+  let root = ''
+  before(async () => {
+    root = await realpath(await mkdtemp(join(tmpdir(), 'provino-vitest-filter-word-')))
+    await writeFile(join(root, 'package.json'), '{ "type": "module" }\n')
+    await writeFile(join(root, 'vitest.config.ts'), 'export default { test: { globals: true } }\n')
+    await writeFile(join(root, 'Alpha.test.ts'), "it('a', () => {})\n")
+    await writeFile(join(root, 'beta.test.ts'), "it('b', () => {})\n")
+  })
+  after(() => rm(root, { recursive: true, force: true }))
+
+  it('match the path from the root, so a word of the root selects no file (project.ts L413-L423)', async () => {
+    const ended = await runVitest(['run', 'filter-word'], root)
+    assert.equal(ended.code, 1, head(ended.stderr))
+    assert.ok(/No test files found/.test(ended.stderr), head(ended.stderr))
+  })
+
+  it('match without regard to case', async () => {
+    const ended = await runVitest(
+      ['run', 'ALPHA', '--reporter=json', '--outputFile=out.json'],
+      root,
+    )
+    assert.equal(ended.code, 0, head(ended.stderr))
+    const json = JSON.parse(await readFile(join(root, 'out.json'), 'utf8')) as {
+      testResults: { name: string }[]
+    }
+    assert.deepEqual(
+      json.testResults.map((result) => result.name),
+      [join(root, 'Alpha.test.ts')],
+    )
+  })
+
+  it('refuse a file:line filter with a printed error', async () => {
+    const ended = await runVitest(['run', 'Alpha.test.ts:1'], root)
+    assert.equal(ended.code, 1)
+    assert.ok(/Alpha\.test\.ts:1 is not supported/.test(ended.stderr), head(ended.stderr))
+    assert.ok(!/ORCH_NOT_IMPLEMENTED/.test(ended.stderr), head(ended.stderr))
+  })
+})
+
 describe('provino vitest reporter options', () => {
   let root = ''
   before(async () => {

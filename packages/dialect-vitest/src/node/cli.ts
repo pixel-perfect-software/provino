@@ -402,7 +402,7 @@ export function parseVitestCli(args: readonly string[]): {
 function fileFilterOf(raw: unknown): FileFilter {
   const filter = patheNormalize(String(raw))
   const colonIndex = filter.lastIndexOf(':')
-  if (colonIndex === -1) return { kind: 'substring', value: filter }
+  if (colonIndex === -1) return { kind: 'substring', value: filter, ignoreCase: true }
   const filename = filter.substring(0, colonIndex)
   const lineNumber = filter.substring(colonIndex + 1)
   if (/^\d+$/.test(lineNumber))
@@ -414,7 +414,7 @@ function fileFilterOf(raw: unknown): FileFilter {
       `Found "-" in location filter ${filter}.  Note that range location filters are not supported.  Consider specifying the exact line numbers of your tests.`,
     )
   }
-  return { kind: 'substring', value: filter }
+  return { kind: 'substring', value: filter, ignoreCase: true }
 }
 
 /**

@@ -206,11 +206,8 @@ function maxWorkersOf(value: unknown, fileParallelism: unknown): number | undefi
   return undefined
 }
 
-/** A filter Vitest matches as a substring of the file's path; the coordinator takes it as a pattern. */
+/** A `file:line` filter, which the coordinator has no backend for: refused by name. */
 function coordinatorFilter(filter: FileFilter): FileFilter {
-  if (filter.kind === 'substring') {
-    return { kind: 'regex', value: filter.value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') }
-  }
   if (filter.kind === 'pathLine') {
     throw new VitestCommandError(
       `the location filter ${filter.value}:${String(filter.line)} is not supported yet under provino vitest (B25g)`,

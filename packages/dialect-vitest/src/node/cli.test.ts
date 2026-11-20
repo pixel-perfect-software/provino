@@ -472,7 +472,7 @@ describe('Provino on top of the parse', () => {
         mode: 'run',
         json: false,
         fileFilters: [
-          { kind: 'substring', value: 'src/a' },
+          { kind: 'substring', value: 'src/a', ignoreCase: true },
           { kind: 'pathLine', value: 'b.test.ts', line: 12 },
         ],
         namePattern: 'adds',
@@ -501,7 +501,7 @@ describe('Provino on top of the parse', () => {
     assert.equal(request(['list', '--json']).json, true)
     assert.equal(request(['related', 'a.ts']).passWithNoTests, true)
     assert.deepEqual(request(['a/../b/c.test.ts']).fileFilters, [
-      { kind: 'substring', value: 'b/c.test.ts' },
+      { kind: 'substring', value: 'b/c.test.ts', ignoreCase: true },
     ])
     assert.throws(
       () => request(['a.test.ts:1-3']),
