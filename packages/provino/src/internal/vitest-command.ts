@@ -90,17 +90,37 @@ function report(diagnostics: readonly Diagnostic[], stderr: NodeJS.WritableStrea
   return failed
 }
 
-/** A reporter entry of `--reporter` or `test.reporters`: its name and its options. */
-function reporterName(entry: unknown): string {
-  if (typeof entry === 'string') return entry
-  if (Array.isArray(entry) && typeof entry[0] === 'string') return entry[0]
+/** A reporter entry of `--reporter` or `test.reporters`: its name and the keys of its options. */
+function reporterEntry(entry: unknown): { readonly name: string; readonly options: Rec } {
+  if (typeof entry === 'string') return { name: entry, options: {} }
+  if (Array.isArray(entry) && typeof entry[0] === 'string') {
+    const options: unknown = entry[1]
+    return {
+      name: entry[0],
+      options: typeof options === 'object' && options !== null ? (options as Rec) : {},
+    }
+  }
   throw new VitestCommandError('a reporter object or class is not supported under provino vitest')
+}
+
+type Rec = Readonly<Record<string, unknown>>
+
+/** A reporter that takes options Provino doesn't apply: refused by name. */
+function refuseOptions(name: string, options: Rec, allowed: readonly string[]): void {
+  const keys = Object.keys(options).filter((key) => !allowed.includes(key))
+  if (keys.length > 0) {
+    throw new VitestCommandError(
+      `the reporter "${name}" takes no options here (parked (D183)): ${keys.join(', ')}`,
+    )
+  }
 }
 
 interface ReporterPlan {
   /** The text reporters, or `undefined` for Provino's own choice. */
   readonly text: readonly ReporterChoice[] | undefined
   readonly json: boolean
+  /** The json reporter's own `outputFile`, which comes before `test.outputFile` (JsonReporter). */
+  readonly jsonOutputFile?: string
 }
 
 /** `--reporter` over `test.reporters` (the command line replaces the config's list, as in Vitest). */
@@ -120,13 +140,17 @@ function reporterPlan(cli: unknown, config: unknown): ReporterPlan {
   const text: ReporterChoice[] = []
   let implicit = false
   let json = false
+  let jsonOutputFile: string | undefined
   for (const entry of list) {
-    const name = reporterName(entry)
+    const { name, options } = reporterEntry(entry)
     if (name === 'json') {
+      refuseOptions(name, options, ['outputFile'])
       json = true
+      if (typeof options.outputFile === 'string') jsonOutputFile = options.outputFile
       continue
     }
     if (Object.hasOwn(TEXT_REPORTERS, name)) {
+      refuseOptions(name, options, [])
       const choice = TEXT_REPORTERS[name]
       if (choice === null || choice === undefined) implicit = true
       else text.push(choice)
@@ -139,7 +163,11 @@ function reporterPlan(cli: unknown, config: unknown): ReporterPlan {
         : `the reporter "${name}" is ${refused}`,
     )
   }
-  return { text: implicit && text.length === 0 ? undefined : text, json }
+  return {
+    text: implicit && text.length === 0 ? undefined : text,
+    json,
+    ...(jsonOutputFile === undefined ? {} : { jsonOutputFile }),
+  }
 }
 
 /** `outputFile`: a path for every reporter, or one per reporter name (`getOutputFile`). */
@@ -319,7 +347,7 @@ export async function runVitestCommand(
     if (results !== undefined && result.summary !== null) {
       await writeJsonReport(
         JSON.stringify(results.json()),
-        outputFileFor(options.outputFile ?? rootTest.outputFile, 'json'),
+        plan.jsonOutputFile ?? outputFileFor(options.outputFile ?? rootTest.outputFile, 'json'),
         read.root.root,
         stdout,
       )
