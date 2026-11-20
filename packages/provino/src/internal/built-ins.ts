@@ -1,9 +1,11 @@
+import { isAbsolute } from 'node:path'
 import type {
   EnvironmentRef,
   MatcherTableFactory,
   ModuleRef,
   NativeRuntimeRefs,
 } from '@provino/types'
+import { UsageError } from './usage-error.ts'
 
 /** Where a worker finds an environment: an `EnvironmentRef` without the options a project adds. */
 type EnvironmentModule = Omit<EnvironmentRef, 'options'>
@@ -73,9 +75,20 @@ export function nativeRuntime(env: NodeJS.ProcessEnv): NativeRuntimeRefs | undef
   const named = env[NATIVE_TABLE_VARIABLE]
   if (named === undefined || named === '') return undefined
   const at = named.lastIndexOf('#')
-  const matcherTable: ModuleRef<MatcherTableFactory> =
-    at <= 0
-      ? { module: named, export: 'default' }
-      : { module: named.slice(0, at), export: named.slice(at + 1) }
+  const module = at < 0 ? named : named.slice(0, at)
+  const name = at < 0 ? 'default' : named.slice(at + 1)
+  const refuse = (why: string): never => {
+    throw new UsageError(
+      `${NATIVE_TABLE_VARIABLE} must be "<absolute path or file: URL>#<export>"; ${why} (got "${named}")`,
+    )
+  }
+  // D21: a worker imports the ref as it is, so it must not depend on the worker's directory.
+  if (URL.canParse(module)) {
+    if (!module.startsWith('file:')) refuse('the module is a URL that is not file:')
+  } else if (!isAbsolute(module)) {
+    refuse('the module is not an absolute path')
+  }
+  if (name === '') refuse('the export after "#" is empty')
+  const matcherTable: ModuleRef<MatcherTableFactory> = { module, export: name }
   return { ...NATIVE_API, matcherTable }
 }
