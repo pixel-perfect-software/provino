@@ -1,6 +1,8 @@
 // Provino's own matchers (D188). The equality is the vendored `equals` (compat: what `toEqual`
 // means to a user); the printing and the words are Provino's. A wrong argument is an
 // `ExpectError` (`EXPECT_INVALID_ARGUMENT`), not a failed assertion.
+
+import { types } from 'node:util'
 import {
   arrayBufferEquality,
   ExpectError,
@@ -81,19 +83,29 @@ function equality(name: string, strict: boolean) {
   }
 }
 
+/** Whether `value` can be the right-hand side of `instanceof`: a function that constructs. */
+function isConstructor(value: unknown): value is abstract new (...args: never[]) => unknown {
+  if (typeof value !== 'function') return false
+  try {
+    Reflect.construct(Object, [], value)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/** `instanceof`, except that `Error` also takes an error made in another realm. */
+const isInstance = (received: unknown, ctor: abstract new (...args: never[]) => unknown) =>
+  received instanceof ctor || (ctor === Error && types.isNativeError(received))
+
 /** What a thrown value must look like, as `toThrow` takes it. */
 function throwsAs(received: unknown, expected: unknown): boolean {
   if (expected === undefined) return true
-  if (typeof expected === 'string') {
-    return received instanceof Error && received.message.includes(expected)
-  }
-  if (expected instanceof RegExp) {
-    return received instanceof Error && expected.test(received.message)
-  }
-  if (typeof expected === 'function') return received instanceof expected
-  if (expected instanceof Error) {
-    return received instanceof Error && received.message === expected.message
-  }
+  const error = types.isNativeError(received) ? received : undefined
+  if (typeof expected === 'string') return error?.message.includes(expected) === true
+  if (types.isRegExp(expected)) return error !== undefined && expected.test(error.message)
+  if (isConstructor(expected)) return isInstance(received, expected)
+  if (types.isNativeError(expected)) return error?.message === expected.message
   if (typeof expected === 'object' && expected !== null && 'asymmetricMatch' in expected) {
     return (expected as { asymmetricMatch(other: unknown): boolean }).asymmetricMatch(received)
   }
@@ -350,14 +362,14 @@ export const matchers: MatcherSet = {
     return toThrowOn(this, outcome, expected)
   },
   toBeInstanceOf(this: Self, received: unknown, expected: unknown) {
-    if (typeof expected !== 'function') {
+    if (!isConstructor(expected)) {
       throw invalid('toBeInstanceOf', 'the expected value must be a class or function', expected)
     }
     return result(
       this,
       'toBeInstanceOf',
       'expected',
-      received instanceof expected,
+      isInstance(received, expected),
       () =>
         `Expected constructor: ${this.isNot ? 'not ' : ''}${expected.name || show(expected)}\nReceived value: ${show(received)}`,
     )

@@ -1,6 +1,7 @@
 // One case per matcher (D188): it passes, it fails with Provino's message, and `.not` flips both.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
+import { runInNewContext } from 'node:vm'
 import {
   createExpect,
   createMatcherRegistry,
@@ -301,6 +302,37 @@ describe('the matchers of provinoExpectTable', () => {
     expect(boom).toThrow(expect.objectContaining({ message: 'bad input' }))
     expect(boom).not.toThrow(RangeError)
     assert.throws(() => expect(boom).toThrow('other'), /Thrown: TypeError: bad input/)
+  })
+
+  test('errors and patterns from another realm are errors and patterns', () => {
+    const foreign = runInNewContext(
+      '(function () { throw new TypeError("bad input") })',
+    ) as () => void
+    expect(foreign).toThrow()
+    expect(foreign).toThrow('bad input')
+    expect(foreign).toThrow(/input/)
+    expect(foreign).toThrow(Error)
+    expect(foreign).toThrow(runInNewContext('new TypeError("bad input")'))
+    expect(
+      fn(() => {
+        throw new Error('bad input')
+      }),
+    ).toThrow(runInNewContext('/input/'))
+    expect(runInNewContext('new Error("x")')).toBeInstanceOf(Error)
+    expect(foreign).not.toThrow('other')
+  })
+
+  test('an expected value that is no constructor is an invalid argument', () => {
+    const boom = fn(() => {
+      throw new Error('x')
+    })
+    for (const bad of [
+      () => expect(boom).toThrow(() => {}),
+      () => expect(1).toBeInstanceOf(() => {}),
+      () => expect(1).toBeInstanceOf(Math.max),
+    ]) {
+      assert.throws(bad, (error: ExpectError) => error.code === 'EXPECT_INVALID_ARGUMENT')
+    }
   })
 
   test('toThrow reads the rejection under .rejects', async () => {
