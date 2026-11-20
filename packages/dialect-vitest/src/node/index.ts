@@ -14,6 +14,7 @@ import type {
   Dialect,
   NeutralProject,
 } from '@provino/types'
+import { vitestCli } from './cli.ts'
 import {
   findViteConfigFile,
   findVitestConfig,
@@ -28,6 +29,22 @@ import {
 } from './normalize.ts'
 import { vitestProjectToNeutral } from './to-neutral.ts'
 
+export {
+  parseVitestArgv,
+  parseVitestCli,
+  VITEST_CLI_OPTIONS,
+  VITEST_LIST_OPTIONS,
+  type VitestArgv,
+  VitestCliError,
+  type VitestCliErrorCode,
+  type VitestCliOption,
+  type VitestCliSupport,
+  type VitestCliValue,
+  type VitestCommandName,
+  vitestArgvToRunRequest,
+  vitestCli,
+  vitestFlags,
+} from './cli.ts'
 export { expandDotenv, loadVitestEnv, parseDotenv } from './env.ts'
 export { VitestConfigError, type VitestConfigErrorCode } from './errors.ts'
 export {
@@ -156,4 +173,5 @@ export async function viteConfigDeclaresTests(root: string): Promise<boolean> {
 export const vitestNodeDialect: Dialect<'vitest'> = {
   ...vitestDialect,
   configReader: vitestConfigReader,
+  cli: vitestCli,
 }
