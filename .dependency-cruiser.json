@@ -899,7 +899,7 @@
     },
     {
       "name": "boundary-dialect-vitest-runtime",
-      "comment": "@provino/dialect-vitest/runtime (layer 5, runs in worker) may import only: @provino/core, @provino/dialect-vitest, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/expect, @provino/lazy, @provino/mock, @provino/policy, @provino/timers, @provino/types.",
+      "comment": "@provino/dialect-vitest/runtime (layer 5, runs in worker) may import only: @provino/core, @provino/dialect-vitest, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/expect, @provino/lazy, @provino/mock, @provino/policy, @provino/resolver, @provino/timers, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/dialect-vitest/src/runtime/"
@@ -928,6 +928,8 @@
           "^@provino/env-node$",
           "^packages/env-jsdom/",
           "^@provino/env-jsdom$",
+          "^packages/resolver/",
+          "^@provino/resolver$",
           "^packages/dialect-vitest/(?!(?:src/node|src/results|src/vite-bridge|src/runtime|test)/)",
           "^@provino/dialect-vitest$"
         ]

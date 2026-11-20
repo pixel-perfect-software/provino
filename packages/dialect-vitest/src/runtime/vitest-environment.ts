@@ -10,6 +10,7 @@ import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { jsdomEnvironment } from '@provino/env-jsdom'
+import { createResolver } from '@provino/resolver'
 import { leakReport, populateGlobal, snapshotProperties, WINDOW_KEYS } from '@provino/env-shared'
 import type {
   Environment,
@@ -87,6 +88,27 @@ function resolveFromRoot(rootDir: string, name: string): string | undefined {
   } catch {
     return undefined
   }
+}
+
+/**
+ * Where an environment package resolves from the root as an `import` does (`import` and `node`
+ * conditions), as Vitest 5.0.5's `loadNativeEnvironment` resolves it with `import.meta.resolve`
+ * (`integrations/env/loader.ts` L68): an ES-module-only package is found, and a dual one gives its
+ * ES module build. Node's `require` conditions would miss the first and load the second's CommonJS
+ * build, whose namespace has the environment one level down.
+ */
+function resolveEnvironmentPackage(rootDir: string, name: string): string | undefined {
+  const resolver = createResolver({
+    root: rootDir,
+    mappers: [],
+    extensions: ['.js', '.mjs', '.cjs', '.json'],
+  })
+  const found = resolver.resolve(name, {
+    importer: join(rootDir, '__provino_environment__.js'),
+    kind: 'import',
+    conditions: ['node'],
+  })
+  return found.type === 'file' ? found.path : undefined
 }
 
 /** Imports the project's own copy of an environment's library. */
@@ -180,7 +202,14 @@ async function setUpVitest(
   const snapshot = snapshotProperties(globalThis)
   let returned: VitestEnvironmentReturn & { readonly populated?: unknown }
   try {
-    returned = await environment.setup(globalThis, options)
+    const value: unknown = await environment.setup(globalThis, options)
+    if (!isRecord(value) || typeof value.teardown !== 'function') {
+      throw new VitestDialectError(
+        'VITEST_ENVIRONMENT_BAD_SETUP',
+        `The Vitest environment "${environment.name}" setup must return an object with a "teardown" method.`,
+      )
+    }
+    returned = value as unknown as VitestEnvironmentReturn & { readonly populated?: unknown }
   } catch (error) {
     snapshot.restore()
     throw error
@@ -325,7 +354,7 @@ export function vitestEnvironmentRef(
   const module =
     name[0] === '.' || name[0] === '/'
       ? resolve(rootDir, name)
-      : resolveFromRoot(rootDir, `vitest-environment-${name}`)
+      : resolveEnvironmentPackage(rootDir, `vitest-environment-${name}`)
   if (module === undefined) throw notFound(name, rootDir)
   return { module: RUNTIME, export: 'vitestEnvironment', options: { ...base, module } }
 }

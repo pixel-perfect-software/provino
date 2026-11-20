@@ -205,7 +205,70 @@ describe('the Vitest environments against Vitest 5.0.5 (T8.6)', () => {
   })
 })
 
+/** Writes `files` (path to text) under a fresh temporary root. */
+async function tree(files: Record<string, string>): Promise<string> {
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'provino-vitest-env-')))
+  for (const [file, text] of Object.entries(files)) {
+    await mkdir(dirname(join(root, file)), { recursive: true })
+    await writeFile(join(root, file), text)
+  }
+  return root
+}
+
+const ENV_SOURCE = "{ name: 'pkg', setup() { return { teardown() {} } } }"
+
 describe('the refs and the adapter', () => {
+  it('an ES-module-only environment package resolves through its import condition, as Vitest imports it', async () => {
+    const root = await tree({
+      'node_modules/vitest-environment-esm/package.json':
+        '{"name": "vitest-environment-esm", "type": "module", "exports": {".": {"import": "./index.js"}}}',
+      'node_modules/vitest-environment-esm/index.js': `export default ${ENV_SOURCE}\n`,
+    })
+    try {
+      const ref = vitestEnvironmentRef('esm', {}, root)
+      const prepared = (await vitestEnvironment.prepare?.(ref.options as never)) as {
+        setup?: unknown
+      }
+      assert.equal(typeof prepared.setup, 'function')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('a dual environment package loads its ES module build, whose default is the environment', async () => {
+    const root = await tree({
+      'node_modules/vitest-environment-dual/package.json':
+        '{"name": "vitest-environment-dual", "exports": {".": {"import": "./index.mjs", "require": "./index.cjs"}}}',
+      'node_modules/vitest-environment-dual/index.mjs': `export default ${ENV_SOURCE}\n`,
+      'node_modules/vitest-environment-dual/index.cjs': `exports.default = ${ENV_SOURCE}\n`,
+    })
+    try {
+      const ref = vitestEnvironmentRef('dual', {}, root)
+      assert.match(String(ref.options.module), /index\.mjs$/)
+      const prepared = (await vitestEnvironment.prepare?.(ref.options as never)) as {
+        setup?: unknown
+      }
+      assert.equal(typeof prepared.setup, 'function')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  it('a setup that returns nothing puts the global back and names the environment', async () => {
+    const environment = fromVitestEnvironment({
+      name: 'returns-nothing',
+      setup(global) {
+        ;(global as { __leaked?: number }).__leaked = 1
+        return undefined as never
+      },
+    })
+    await assert.rejects(async () => environment.setup({} as never, undefined), {
+      code: 'VITEST_ENVIRONMENT_BAD_SETUP',
+      message: /returns-nothing/,
+    })
+    assert.equal('__leaked' in globalThis, false)
+  })
+
   it('a name that is neither built in nor installed is VITEST_ENVIRONMENT_NOT_FOUND', () => {
     assert.throws(() => vitestEnvironmentRef('nope-not-here', {}, ROOT), {
       code: 'VITEST_ENVIRONMENT_NOT_FOUND',
