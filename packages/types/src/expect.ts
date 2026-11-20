@@ -300,6 +300,18 @@ export interface Matchers<R extends void | Promise<void> = void> {
   toBeNaN(): R
   toBeNull(): R
   toBeTruthy(): R
+  /** Native mode's own matcher: `typeof received` is `expected`. */
+  toBeTypeOf(
+    expected:
+      | 'bigint'
+      | 'boolean'
+      | 'function'
+      | 'number'
+      | 'object'
+      | 'string'
+      | 'symbol'
+      | 'undefined',
+  ): R
   toBeUndefined(): R
   toContain(expected: unknown): R
   toContainEqual(expected: unknown): R
@@ -308,6 +320,8 @@ export interface Matchers<R extends void | Promise<void> = void> {
   toHaveProperty(path: string | readonly (string | number)[], value?: unknown): R
   toMatch(expected: string | RegExp): R
   toMatchObject(expected: object | readonly object[]): R
+  /** Native mode's own matcher: the predicate accepts `received`. */
+  toSatisfy(predicate: (received: never) => unknown): R
   toStrictEqual(expected: unknown): R
   toThrow(expected?: unknown): R
   toHaveBeenCalled(): R

@@ -6,8 +6,8 @@ import { diffLines, show } from './print.ts'
 export type Self = MatcherContext
 
 /** `expect(received).not.toBe(expected)`, the first line of every failure. */
-export const header = (self: Self, name: string, args: string): string =>
-  `expect(received)${self.isNot ? '.not' : ''}.${name}(${args})`
+const header = (self: Self, name: string, args: string): string =>
+  `expect(received)${self.promise === undefined || self.promise === '' ? '' : `.${self.promise}`}${self.isNot ? '.not' : ''}.${name}(${args})`
 
 /** A matcher result whose message is the header, a blank line and `body()`. */
 export function result(

@@ -7,7 +7,7 @@ import {
   createStateSource,
   type ExpectError,
 } from '@provino/expect'
-import type { Assertion, ExpectStatic } from '@provino/types'
+import type { Assertion, ExpectStatic, Matchers } from '@provino/types'
 import { manualCurrentTest, testPolicy, testTask } from '../internal/test-support.ts'
 import { provinoExpectTable } from './index.ts'
 import { createMock } from './test-mock.ts'
@@ -43,7 +43,30 @@ interface Row {
 const fn = (impl: () => void) => impl
 const mockCalled = (...calls: unknown[][]) => createMock(calls)
 
+const ret = (...values: unknown[]) =>
+  createMock(
+    values.map(() => []),
+    values.map((value) => ({ type: 'return', value })),
+  )
+
+const extraRows: readonly Row[] = [
+  {
+    name: 'toHaveReturnedTimes',
+    pass: [ret(1, 2), 2],
+    fail: [ret(1, 2), 3],
+    says: 'Received returns: 2',
+  },
+  { name: 'toHaveLastReturnedWith', pass: [ret(1, 2), 2], fail: [ret(1, 2), 1], says: 'Results:' },
+  {
+    name: 'toHaveNthReturnedWith',
+    pass: [ret(1, 2), 1, 1],
+    fail: [ret(1, 2), 1, 2],
+    says: 'Return 1, expected',
+  },
+]
+
 const rows: readonly Row[] = [
+  ...extraRows,
   { name: 'toBe', pass: [1, 1], fail: [1, 2], says: 'Expected: 2\nReceived: 1' },
   {
     name: 'toEqual',
@@ -152,7 +175,92 @@ const rows: readonly Row[] = [
   },
 ]
 
+// Every matcher of `Matchers` but the snapshot ones (D189) is in the table, and no other: the type
+// check fails when the interface gains a member this list lacks, the test when the table drifts.
+type Snapshotting =
+  | 'toMatchSnapshot'
+  | 'toMatchInlineSnapshot'
+  | 'toThrowErrorMatchingSnapshot'
+  | 'toThrowErrorMatchingInlineSnapshot'
+const tabled = [
+  'toBe',
+  'toBeCloseTo',
+  'toBeDefined',
+  'toBeFalsy',
+  'toBeGreaterThan',
+  'toBeGreaterThanOrEqual',
+  'toBeInstanceOf',
+  'toBeLessThan',
+  'toBeLessThanOrEqual',
+  'toBeNaN',
+  'toBeNull',
+  'toBeTruthy',
+  'toBeTypeOf',
+  'toBeUndefined',
+  'toContain',
+  'toContainEqual',
+  'toEqual',
+  'toHaveLength',
+  'toHaveProperty',
+  'toMatch',
+  'toMatchObject',
+  'toSatisfy',
+  'toStrictEqual',
+  'toThrow',
+  'toHaveBeenCalled',
+  'toHaveBeenCalledTimes',
+  'toHaveBeenCalledWith',
+  'toHaveBeenLastCalledWith',
+  'toHaveBeenNthCalledWith',
+  'toHaveReturned',
+  'toHaveReturnedTimes',
+  'toHaveReturnedWith',
+  'toHaveLastReturnedWith',
+  'toHaveNthReturnedWith',
+] as const satisfies readonly Exclude<keyof Matchers, Snapshotting>[]
+type Missing = Exclude<keyof Matchers, Snapshotting | (typeof tabled)[number]>
+const noneMissing: [Missing] extends [never] ? true : never = true
+
 describe('the matchers of provinoExpectTable', () => {
+  test('the table has exactly the matchers of the Matchers interface, less the snapshot ones', () => {
+    assert.equal(noneMissing, true)
+    assert.deepEqual(Object.keys(provinoExpectTable().matchers).sort(), [...tabled].sort())
+  })
+
+  test('.not messages are pinned, aligned under Expected', () => {
+    assert.throws(() => expect(1).not.toBe(1), {
+      message: 'expect(received).not.toBe(expected)\n\nExpected: not 1\nReceived:     1',
+    })
+    assert.throws(() => expect(3).not.toBeGreaterThan(2), {
+      message:
+        'expect(received).not.toBeGreaterThan(expected)\n\nExpected: not > 2\nReceived:     3',
+    })
+    assert.throws(() => expect('ab').not.toHaveLength(2), {
+      message:
+        "expect(received).not.toHaveLength(expected)\n\nExpected length: not 2\nReceived length:     2\nReceived value: 'ab'",
+    })
+  })
+
+  test('a mock without results is not a mock; ensureNoExpected throws an ExpectError', () => {
+    assert.throws(
+      () => expect({ mock: { calls: [] } }).toHaveReturned(),
+      (error: ExpectError) => error.code === 'EXPECT_INVALID_ARGUMENT',
+    )
+    assert.throws(
+      () => provinoExpectTable().messages.ensureNoExpected(1, 'hasAssertions'),
+      (error: ExpectError) => error.code === 'EXPECT_INVALID_ARGUMENT',
+    )
+  })
+
+  test('the header keeps .resolves and .rejects', async () => {
+    await assert.rejects(async () => expect(Promise.resolve(1)).resolves.toBe(2), {
+      message: /^expect\(received\)\.resolves\.toBe\(expected\)\n/,
+    })
+    await assert.rejects(async () => expect(Promise.reject(1)).rejects.not.toBe(1), {
+      message: /^expect\(received\)\.rejects\.not\.toBe\(expected\)\n/,
+    })
+  })
+
   for (const row of rows) {
     test(row.name, () => {
       run(row.name, row.pass[0], row.pass.slice(1), false)
@@ -209,7 +317,7 @@ describe('the matchers of provinoExpectTable', () => {
       () => expect('a').toBeGreaterThan(1),
       () => expect(1).toHaveLength(1),
       () => expect(1).toHaveBeenCalled(),
-      () => (expect(1) as unknown as Record<string, (v: string) => void>).toBeTypeOf?.('nope'),
+      () => (expect(1) as unknown as { toBeTypeOf(v: string): void }).toBeTypeOf('nope'),
       () => expect(1).toMatch('x'),
     ]) {
       assert.throws(bad, (error: ExpectError) => {

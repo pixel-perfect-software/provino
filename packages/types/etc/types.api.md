@@ -1922,6 +1922,7 @@ export interface Matchers<R extends void | Promise<void> = void> {
     toBeNull(): R;
     // (undocumented)
     toBeTruthy(): R;
+    toBeTypeOf(expected: "bigint" | "boolean" | "function" | "number" | "object" | "string" | "symbol" | "undefined"): R;
     // (undocumented)
     toBeUndefined(): R;
     // (undocumented)
@@ -1960,6 +1961,7 @@ export interface Matchers<R extends void | Promise<void> = void> {
     // (undocumented)
     toMatchObject(expected: object | readonly object[]): R;
     toMatchSnapshot(propertiesOrHint?: object | string, hint?: string): R;
+    toSatisfy(predicate: (received: never) => unknown): R;
     // (undocumented)
     toStrictEqual(expected: unknown): R;
     // (undocumented)

@@ -127,7 +127,7 @@ interface MockLike {
 
 function mockOf(name: string, received: unknown): MockLike['mock'] {
   const mock = (received as Partial<MockLike> | null | undefined)?.mock
-  if (!mock || !Array.isArray(mock.calls)) {
+  if (!mock || !Array.isArray(mock.calls) || !Array.isArray(mock.results)) {
     throw invalid(name, 'the received value must be a mock function', received)
   }
   return mock
@@ -154,6 +154,9 @@ function calledWith(name: string, pick: 'any' | 'last') {
     )
   }
 }
+
+const returned = (results: MockLike['mock']['results']): readonly unknown[] =>
+  results.flatMap((r) => (r.type === 'return' ? [r.value] : []))
 
 /** Provino's matchers. */
 export const matchers: MatcherSet = {
@@ -466,6 +469,59 @@ export const matchers: MatcherSet = {
       'expected',
       pass,
       () => `Expected: ${this.isNot ? 'not ' : ''}${show(expected)}\nResults: ${show(results)}`,
+    )
+  },
+  toHaveReturnedTimes(this: Self, received: unknown, expected: unknown) {
+    const { results } = mockOf('toHaveReturnedTimes', received)
+    if (typeof expected !== 'number' || !Number.isInteger(expected) || expected < 0) {
+      throw invalid(
+        'toHaveReturnedTimes',
+        'the expected count must be a non-negative integer',
+        expected,
+      )
+    }
+    const count = returned(results).length
+    return result(
+      this,
+      'toHaveReturnedTimes',
+      'expected',
+      count === expected,
+      () =>
+        `Expected returns: ${this.isNot ? 'not ' : ''}${expected}\nReceived returns: ${this.isNot ? '    ' : ''}${count}`,
+    )
+  },
+  toHaveLastReturnedWith(this: Self, received: unknown, expected: unknown) {
+    const { results } = mockOf('toHaveLastReturnedWith', received)
+    const last = results.at(-1)
+    const pass =
+      last !== undefined &&
+      last.type === 'return' &&
+      this.equals(last.value, expected, [...this.customTesters, iterableEquality])
+    return result(
+      this,
+      'toHaveLastReturnedWith',
+      'expected',
+      pass,
+      () => `Expected: ${this.isNot ? 'not ' : ''}${show(expected)}\nResults: ${show(results)}`,
+    )
+  },
+  toHaveNthReturnedWith(this: Self, received: unknown, nth: unknown, expected: unknown) {
+    const { results } = mockOf('toHaveNthReturnedWith', received)
+    if (typeof nth !== 'number' || !Number.isInteger(nth) || nth < 1) {
+      throw invalid('toHaveNthReturnedWith', 'the return number must be a positive integer', nth)
+    }
+    const nthResult = results[nth - 1]
+    const pass =
+      nthResult !== undefined &&
+      nthResult.type === 'return' &&
+      this.equals(nthResult.value, expected, [...this.customTesters, iterableEquality])
+    return result(
+      this,
+      'toHaveNthReturnedWith',
+      'n, expected',
+      pass,
+      () =>
+        `Return ${nth}, expected: ${this.isNot ? 'not ' : ''}${show(expected)}\nResults: ${show(results)}`,
     )
   },
 }

@@ -1,4 +1,5 @@
 // Provino's own words for the engine's failures (D188). The five policy messages are the engine's.
+import { ExpectError } from '@provino/expect'
 import type { ExpectTableMessages, MatcherCall } from '@provino/types'
 import { show } from './print.ts'
 
@@ -23,7 +24,10 @@ export const messages: ExpectTableMessages = {
     `expect.addEqualityTesters: the argument must be an array of functions, but it is ${show(value)}`,
   ensureNoExpected: (expected, matcherName) => {
     if (expected !== undefined) {
-      throw new TypeError(`${matcherName}() takes no argument, but it got ${show(expected)}`)
+      throw new ExpectError(
+        'EXPECT_INVALID_ARGUMENT',
+        `${matcherName}() takes no argument, but it got ${show(expected)}`,
+      )
     }
   },
   assertionCount: (expected, actual) =>
