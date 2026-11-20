@@ -12,6 +12,7 @@ import type {
   IsolationTier,
   JsonValue,
   ModuleRef,
+  NativeRuntimeRefs,
   NeutralAlias,
   NeutralDiscovery,
   NeutralProject,
@@ -29,7 +30,7 @@ import type {
 import { ConfigError } from './errors.ts'
 import { dialectPolicy, selectDialect } from './internal/dialect.ts'
 import { describe, isStringArray, messageOf, parseInput } from './internal/input.ts'
-import { assertWorkerConfig } from './internal/refs.ts'
+import { assertNativeRefs, assertWorkerConfig } from './internal/refs.ts'
 import { resolveSetupFiles } from './internal/setup-files.ts'
 import { resolveTransformClaims, resolveTransforms } from './internal/transform.ts'
 
@@ -49,6 +50,12 @@ export interface ResolveProjectOptions {
   >
   /** Whether this is a CI run (`allowOnly: 'not-in-ci'`). */
   readonly ci: boolean
+  /**
+   * The native runtime (D186): the matcher table, served modules and globals a project with no
+   * dialect gets, as absolute refs from the caller (`provino`). Ignored when a dialect is selected;
+   * absent, a project with no dialect has none (the neutral `matcherTable: null`).
+   */
+  readonly native?: NativeRuntimeRefs
 }
 
 /**
@@ -283,6 +290,8 @@ export interface ResolveNeutralProjectOptions {
   /** Each environment by name, as an absolute ref the worker can import. */
   readonly environments: ResolveProjectOptions['environments']
   readonly ci: boolean
+  /** The native runtime, as `ResolveProjectOptions.native`: used only when `dialect` is `null`. */
+  readonly native?: NativeRuntimeRefs
 }
 
 /**
@@ -349,7 +358,11 @@ export async function resolveNeutralProject(
       resolution: neutral.resolution,
       coverage: neutral.coverage,
     },
-    { environments: options.environments, ci: options.ci },
+    {
+      environments: options.environments,
+      ci: options.ci,
+      ...(options.native === undefined ? {} : { native: options.native }),
+    },
   )
 }
 
@@ -459,15 +472,23 @@ function resolverKeys(input: ProjectInput): Partial<SerializedLoaderConfig> {
   }
 }
 
+/** The native runtime's policy layer: its matcher table over the neutral `null`. */
+function nativeLayer(native: NativeRuntimeRefs | undefined): PolicyOverrides | undefined {
+  return native === undefined ? undefined : { expect: { matcherTable: native.matcherTable } }
+}
+
 /** The steps every project shares once its input is read: policy, environment, the worker config. */
 async function finishProject(
   input: ProjectInput,
-  options: Pick<ResolveProjectOptions, 'environments' | 'ci'>,
+  options: Pick<ResolveProjectOptions, 'environments' | 'ci' | 'native'>,
 ): Promise<ResolvedProject> {
   const { dialect, rootDir } = input
+  // The native runtime stands in for a dialect's table, scope and globals only when there is none.
+  const native = dialect === null ? options.native : undefined
+  if (native !== undefined) assertNativeRefs(native)
   let policy: Policy
   try {
-    policy = resolvePolicy(...input.layers)
+    policy = resolvePolicy(nativeLayer(native), ...input.layers)
   } catch (cause) {
     throw new ConfigError('CONFIG_INVALID', `the policy didn't resolve: ${messageOf(cause)}`, {
       cause,
@@ -489,7 +510,10 @@ async function finishProject(
     entry(isolationDefault.byEnvironment, environment) ??
     isolationDefault.default
 
-  const globalsFactory = policy.core.injectGlobals ? (dialect?.globals?.factory ?? null) : null
+  const globalsFactory = policy.core.injectGlobals
+    ? (dialect?.globals?.factory ?? native?.globals ?? null)
+    : null
+  const scopeModules = dialect?.moduleScope?.modules ?? native?.modules
   let serialized: SerializedProjectConfig['policy']
   try {
     serialized = serializePolicy(policy)
@@ -524,7 +548,7 @@ async function finishProject(
     },
     globals: globalsFactory,
     // The factory stays whether or not globals are injected: it also serves the imports (`@jest/globals`).
-    moduleScope: dialect?.moduleScope?.factory ?? null,
+    moduleScope: dialect?.moduleScope?.factory ?? native?.moduleScope ?? null,
     ...(dialect?.environmentResolver === undefined
       ? {}
       : { environmentResolver: dialect.environmentResolver }),
@@ -543,9 +567,7 @@ async function finishProject(
       // wrapper declares none, so a module that names one gets a `ReferenceError` as in jest-runtime
       // (and `typeof jest` is 'undefined').
       moduleScope: policy.core.injectGlobals ? (dialect?.moduleScope?.names ?? []) : [],
-      ...(dialect?.moduleScope?.modules === undefined
-        ? {}
-        : { scopeModules: dialect.moduleScope.modules }),
+      ...(scopeModules === undefined ? {} : { scopeModules }),
       ...(dialect?.moduleScope?.mappable === undefined
         ? {}
         : { scopeMappable: dialect.moduleScope.mappable }),

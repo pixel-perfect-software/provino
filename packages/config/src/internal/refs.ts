@@ -1,7 +1,7 @@
 import { forEachModuleRef, isImportableLocation, isModuleRef } from '@provino/policy'
-import type { SerializedProjectConfig } from '@provino/types'
+import type { NativeRuntimeRefs, SerializedProjectConfig } from '@provino/types'
 import { ConfigError } from '../errors.ts'
-import { describe, isRecord, messageOf } from './input.ts'
+import { describe, isRecord, isStringArray, messageOf } from './input.ts'
 
 /** Whether a value is a plain `{ module: string, export: string }` and nothing else. */
 function isRefShape(value: unknown): value is { readonly module: string; readonly export: string } {
@@ -33,6 +33,24 @@ function checkRef(ref: unknown, path: string): void {
     )
   }
   checkModule(ref.module, path)
+}
+
+/**
+ * Checks the caller's native runtime refs (D186) before they are used, each one whether or not the
+ * project ends up using it (`globals` is used only under `globals: true`), so a bad ref from
+ * `provino` fails every native project alike. Throws `CONFIG_INVALID` naming `native.<key>`.
+ * @internal
+ */
+export function assertNativeRefs(native: NativeRuntimeRefs): void {
+  checkRef(native.matcherTable, 'native.matcherTable')
+  checkRef(native.moduleScope, 'native.moduleScope')
+  checkRef(native.globals, 'native.globals')
+  if (!isStringArray(native.modules)) {
+    throw new ConfigError(
+      'CONFIG_INVALID',
+      `native.modules must be an array of module specifiers (got ${describe(native.modules)})`,
+    )
+  }
 }
 
 /**
