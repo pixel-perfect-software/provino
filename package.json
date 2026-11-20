@@ -34,6 +34,7 @@
     "provino-bench": "node --conditions=provino-source packages/bench/src/cli.ts",
     "provino-harness": "node --conditions=provino-source packages/harness/src/cli.ts",
     "record:runtime": "node --conditions=provino-source packages/harness/src/cli.ts record packages/harness/fixtures/runtime",
+    "drift": "node --conditions=provino-source packages/harness/src/drift/cli.ts",
     "record:expect": "node --conditions=provino-source packages/harness/src/cli.ts record packages/harness/fixtures/expect packages/harness/fixtures/snapshot",
     "record:mocking": "node --conditions=provino-source packages/harness/src/cli.ts record packages/harness/fixtures/mocking",
     "bench:resolve": "node --conditions=provino-source packages/resolver/bench/resolve-corpus.ts",
