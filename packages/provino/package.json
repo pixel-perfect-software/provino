@@ -166,10 +166,14 @@
     "styled-components": "catalog:"
   },
   "peerDependencies": {
-    "jsdom": ">=26 <31"
+    "jsdom": ">=26 <31",
+    "vite": ">=6"
   },
   "peerDependenciesMeta": {
     "jsdom": {
+      "optional": true
+    },
+    "vite": {
       "optional": true
     }
   }
