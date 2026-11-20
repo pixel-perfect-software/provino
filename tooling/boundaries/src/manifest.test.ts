@@ -276,15 +276,11 @@ describe('validateManifest', () => {
     for (const n of neutral) assert.deepEqual(n.bannedPackages, native, n.name)
   })
 
-  test('the only allowed exception is @jest/expect-utils in @provino/expect and /table, until B27c', async () => {
+  test('no node allows an exception: B27c vendored the last one (@jest/expect-utils)', async () => {
     const { nodes } = await loadManifest(MANIFEST_PATH)
-    const allowing = nodes.filter((n) => n.allowedPackages.length > 0)
     assert.deepEqual(
-      allowing.map((n) => [n.name, n.allowedPackages]),
-      [
-        ['@provino/expect', ['@jest/expect-utils']],
-        ['@provino/expect/table', ['@jest/expect-utils']],
-      ],
+      nodes.filter((n) => n.allowedPackages.length > 0).map((n) => n.name),
+      [],
     )
   })
 

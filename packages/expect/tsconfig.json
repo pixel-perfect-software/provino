@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "include": ["src"],
+  "exclude": ["src/vendor"],
   "references": [
     {
       "path": "../types"
@@ -10,6 +11,9 @@
     },
     {
       "path": "../snapshot"
+    },
+    {
+      "path": "src/vendor/expect-utils"
     }
   ]
 }

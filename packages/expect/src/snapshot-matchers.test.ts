@@ -3,7 +3,6 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, test } from 'node:test'
-import { iterableEquality, subsetEquality } from '@jest/expect-utils'
 import { neutralPolicy } from '@provino/policy'
 import { openFileSnapshots, SnapshotError, type SnapshotState } from '@provino/snapshot/runtime'
 import type {
@@ -18,6 +17,7 @@ import { manualCurrentTest, testPolicy, testTable, testTask } from './internal/t
 import { createMatcherRegistry } from './slot.ts'
 import { snapshotMatchers } from './snapshot-matchers.ts'
 import { createStateSource, type StateSource } from './state.ts'
+import { iterableEquality, subsetEquality } from './vendor/expect-utils/index.ts'
 
 const HEADER = '// Test Snapshot v1'
 

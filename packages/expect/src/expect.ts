@@ -10,7 +10,6 @@
 // made or rethrown here is anchored with `Error.captureStackTrace` above our own frames: its top
 // frame is the user's call, as with Jest's frames in `node_modules`.
 import { types } from 'node:util'
-import { equals } from '@jest/expect-utils'
 import type {
   Assertion,
   EqualityTester,
@@ -37,6 +36,7 @@ import { createPoll, type PollTimers } from './poll.ts'
 import { createMatcherRegistry, type MatcherRegistry } from './slot.ts'
 import { addSnapshotSerializer } from './snapshot-matchers.ts'
 import type { StateSource } from './state.ts'
+import { equals } from './vendor/expect-utils/index.ts'
 
 /**
  * The error a failed assertion throws under `errorShape: 'matcher-result'`: an `Error` whose text

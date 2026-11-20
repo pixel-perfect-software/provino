@@ -127,15 +127,12 @@ test('T7.12: a ban list becomes a rule that skips tests and type imports, and ma
     'node_modules/jest-snapshot-serializer/index.js',
     'node_modules/@jest/globals/build/index.js',
     'node_modules/pretty-format/build/index.js',
+    // Vendored into @provino/expect by B27c: no exception is left.
+    'node_modules/@jest/expect-utils/build/index.js',
   ]) {
     assert.ok(caught(banned), banned)
   }
-  for (const fine of [
-    // expect's one exception until B27c (`allowedPackages`).
-    'node_modules/@jest/expect-utils/build/index.js',
-    'node_modules/expect-type/dist/index.js',
-    'packages/expect/src/expect.ts',
-  ]) {
+  for (const fine of ['node_modules/expect-type/dist/index.js', 'packages/expect/src/expect.ts']) {
     assert.ok(!caught(fine), fine)
   }
   assert.deepEqual(rule.to.dependencyTypesNot, ['type-only'])

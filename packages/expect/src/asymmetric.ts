@@ -2,11 +2,12 @@
 // `sample`, an `inverse` flag, and a matcher context built from the realm's slot. Both runners
 // detect asymmetric matchers by duck typing (F3), so a subclass works inside Jest's and Vitest's
 // `expect` as well as ours. The dialects' built-ins (`any`, `objectContaining`, …) extend it.
-import { equals } from '@jest/expect-utils'
+
 import type { AsymmetricMatcherLike, EqualityTester, MatcherState } from '@provino/types'
 import type { MatcherContext } from './context.ts'
 import { freshCounters } from './internal/counters.ts'
 import { readSlot } from './internal/slot-read.ts'
+import { equals } from './vendor/expect-utils/index.ts'
 
 /**
  * The base every asymmetric matcher extends.

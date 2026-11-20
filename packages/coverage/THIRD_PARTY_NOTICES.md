@@ -21,6 +21,8 @@ Smaller copies from Jest v30.5.x that have no vendor directory, each with its so
 - `packages/dialect-jest/src/node/text.ts` holds message texts from jest-config and jest-validate.
 - `packages/dialect-jest/src/node/docblock.ts` and `packages/orchestrator/src/worker/internal/runtime/pragmas.ts` hold the regular expressions of jest-docblock's `extract` and `parse` (`index.ts`).
 
+`packages/expect/src/vendor/expect-utils/` is copied from Jest v30.5.2 (`@jest/expect-utils`'s `jasmineUtils.ts`, `utils.ts`, `immutableUtils.ts`, `types.ts` and `index.ts`; `isPrimitive` from `@jest/get-type` is inlined).
+
 `packages/harness/src/hoist-corpus/vendor/jest.json` holds test inputs copied from Jest v30.5.2, `packages/babel-plugin-jest-hoist/src/__tests__/hoistPlugin.nodejs18.test.ts`. Same MIT license as below. It is not part of any published package.
 
 ```

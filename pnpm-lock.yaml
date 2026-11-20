@@ -1041,9 +1041,6 @@ importers:
 
   packages/expect:
     dependencies:
-      '@jest/expect-utils':
-        specifier: 'catalog:'
-        version: 30.5.2
       '@provino/snapshot':
         specifier: workspace:*
         version: link:../snapshot
@@ -1051,6 +1048,9 @@ importers:
         specifier: workspace:*
         version: link:../types
     devDependencies:
+      '@jest/expect-utils':
+        specifier: 'catalog:'
+        version: 30.5.2
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
