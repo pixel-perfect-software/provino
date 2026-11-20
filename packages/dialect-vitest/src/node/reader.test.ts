@@ -348,3 +348,19 @@ test('a relative vite root resolves once, from the directory; inline plugins tha
   })
   assert.equal((await readVitestConfig({ cwd: real })).needsVite, true)
 })
+
+test("an inline project is rooted at its own test.root or root, from the declaring config's root", async () => {
+  const root = writeTree({
+    'vitest.config.mjs':
+      "export default { test: { projects: [{ test: { name: 'a', root: './sdk' } }, { root: 'lib', test: { name: 'b' } }, { test: { name: 'c' } }] } }\n",
+  })
+  const { projects } = await readVitestConfig({ cwd: root })
+  assert.deepEqual(
+    projects.map((project) => [project.name, project.rootDir]),
+    [
+      ['a', `${root}/sdk`],
+      ['b', `${root}/lib`],
+      ['c', root],
+    ],
+  )
+})

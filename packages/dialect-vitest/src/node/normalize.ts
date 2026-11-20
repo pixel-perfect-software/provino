@@ -252,7 +252,6 @@ async function projectFromInline(
 ): Promise<VitestResolvedProject> {
   const { extends: base, ...own } = entry
   let vite: Rec = own
-  let baseDir = root.dir
   // Since Vitest 5 an inline project extends the config file that declares it unless it says
   // `extends: false` (`resolveProjects.ts` L361-L365, recorded: `config/vitest-projects`).
   if (base === undefined || base === true) {
@@ -261,13 +260,15 @@ async function projectFromInline(
     const path = resolve(root.dir, base)
     const loaded = await loadFile(context, path)
     vite = mergeConfig({ ...loaded.vite, test: loaded.fileTest }, own)
-    baseDir = dirname(path)
   }
+  // The project's own `test.root` (else `root`) from the declaring config's root, not the base's
+  // (`resolveProjects.ts` L368-L374).
+  const customRoot = testOf(own).root ?? own.root
   return build(context, {
     vite: withoutTest(vite),
     fileTest: testOf(vite),
     configFile: null,
-    root: rootOf(context, vite, null, baseDir),
+    root: typeof customRoot === 'string' ? resolve(root.dir, customRoot) : root.dir,
     fallbackName: String(index),
   })
 }

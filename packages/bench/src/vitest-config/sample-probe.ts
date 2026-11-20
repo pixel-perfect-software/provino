@@ -15,12 +15,17 @@ if (
 ) {
   throw new Error('usage: sample-probe.ts vitest|provino|defaults <config|root> <out>')
 }
+// What Vitest derives from the clock and the process is pinned at its source, on both sides (the
+// shuffle seed is `Date.now()`; a localstorage path holds the process id), so nothing is masked.
+Date.now = () => 1_700_000_000_000
+
 const outcome =
   side === 'defaults'
     ? await readWithVitest(null, target)
     : side === 'vitest'
       ? await readWithVitest(target, process.cwd())
       : await readWithProvino(target)
-writeFileSync(out, JSON.stringify(outcome))
+const pid = new RegExp(`(?<!\\d)${process.pid}(?!\\d)`, 'g')
+writeFileSync(out, JSON.stringify(outcome).replace(pid, '<pid>'))
 // A config can leave handles open (a watcher, a timer); the read is done.
 process.exit(0)

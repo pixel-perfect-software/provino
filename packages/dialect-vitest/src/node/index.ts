@@ -45,7 +45,7 @@ export {
   type VitestResolvedProject,
 } from './normalize.ts'
 export { vitestProjectToNeutral } from './to-neutral.ts'
-export { mergeConfig } from './vite-merge.ts'
+export { mergeAlias, mergeConfig, normalizeAlias } from './vite-merge.ts'
 export {
   configDefaults as vitestConfigDefaults,
   coverageConfigDefaults as vitestCoverageConfigDefaults,

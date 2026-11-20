@@ -17,8 +17,9 @@
 //   checked to be there and removed, so the rest must equal the config's own entries;
 // - a key Vitest fills in that the reader has no entry for must equal what Vitest resolves for an
 //   empty directory, or it is a difference ("missing on our side").
-// A value that differs between two reads of the config by Vitest itself is handled in
-// `unstableLeaves`, never by name.
+// Nothing is masked. What Vitest derives from the clock or the process (the shuffle seed, a path
+// made from the process id) is pinned at its source in `oracle.ts` (`Date.now` stubbed, the
+// process id written `<pid>`).
 import { createRequire } from 'node:module'
 import { isAbsolute, join, relative, resolve } from 'node:path'
 import { encode, type KeyDifference } from '../jest-config/compare.ts'
@@ -146,47 +147,65 @@ function inferredHtmlDir(coverage: Rec, root: string): string | undefined {
   return reporters.some(([name]) => name === 'lcov') ? resolve(directory, 'lcov-report') : undefined
 }
 
-/** The strings under every `key` array anywhere in `value` (a project's `include`, its `setupFiles`). */
-function collectLists(value: unknown, key: string, into: string[] = []): string[] {
-  if (Array.isArray(value)) for (const entry of value) collectLists(entry, key, into)
-  else if (isRec(value)) {
-    for (const [name, inner] of Object.entries(value)) {
-      if (name === key && Array.isArray(inner)) {
-        for (const entry of inner) if (typeof entry === 'string') into.push(entry)
-      } else collectLists(inner, key, into)
-    }
-  }
-  return into
+/** One resolved project, as Vitest's `createVitest` holds it. */
+export interface OracleProject {
+  readonly name: string
+  readonly root: string
+  readonly include: readonly string[]
+  readonly setupFiles: readonly string[]
+  /** The project's resolved config file, if it has one. */
+  readonly config?: string | undefined
+  readonly allowExternal: boolean
 }
 
 /**
- * Vitest's `coverage.exclude` is the config's own list followed by what it appends for the root
- * and for every project it resolved (they share the list): setup files, test `include` patterns,
- * config paths, the twelve config file names and three Vite-internal globs (L609-L631). The
- * reader's entries must be its first entries, in order, and every entry after them one of those
- * additions; then the additions are removed, and anything else leaves Vitest's list as it is.
+ * Vitest's `coverage.exclude` is the config's own list followed by what each resolution of a
+ * project appends to the one coverage object they share: the root's block, then (when there are
+ * `test.projects`) one block per project, each as `coverageExcludeTail` builds it (L609-L631).
+ * The projects resolve concurrently, so the blocks come in the order they finished; the list must
+ * be the reader's entries first, then exactly those blocks, each whole, in any order.
  */
-function withoutAdditions(
-  theirs: unknown[],
-  ours: unknown[],
+function matchesExclude(
+  actual: readonly unknown[],
+  ours: readonly unknown[],
   test: Rec,
   root: string,
   configFile: string | undefined,
-): unknown[] {
-  if (theirs.length < ours.length || !ours.every((entry, index) => same(entry, theirs[index]))) {
-    return theirs
+  projects: readonly OracleProject[] | null | undefined,
+): boolean {
+  if (actual.length < ours.length || !ours.every((entry, index) => same(entry, actual[index]))) {
+    return false
   }
-  const fixed = new Set(coverageExcludeTail(test, root, undefined))
-  const includes = new Set(collectLists(test, 'include'))
-  const setups = collectLists(test, 'setupFiles').map((file) => resolve(root, file))
-  const added = (entry: unknown): boolean => {
-    if (typeof entry !== 'string') return false
-    if (fixed.has(entry) || includes.has(entry)) return true
-    if (entry === configFile || /\/(?:vitest|vite)\.config\.[cm]?[jt]s$/.test(entry)) return true
-    const bare = entry.replace(/^\*\*\//, '').replace(/^(?:\.\.\/)+/, '')
-    return setups.some((file) => file.endsWith(`/${bare}`))
+  const wanted = [coverageExcludeTail(test, root, configFile)]
+  if (Array.isArray(test.projects) && test.projects.length > 0 && projects != null) {
+    for (const project of projects) {
+      wanted.push(
+        coverageExcludeTail(
+          {
+            setupFiles: project.setupFiles,
+            include: project.include,
+            coverage: { allowExternal: project.allowExternal },
+          },
+          project.root,
+          project.config,
+        ),
+      )
+    }
   }
-  return theirs.slice(ours.length).every(added) ? ours : theirs
+  // Each block ends with the last of Vitest's own entries.
+  const blocks: unknown[][] = []
+  let block: unknown[] = []
+  for (const entry of actual.slice(ours.length)) {
+    block.push(entry)
+    if (entry === '**/node_modules/**') {
+      blocks.push(block)
+      block = []
+    }
+  }
+  if (block.length > 0) return false
+  const key = (list: readonly unknown[][]): string[] =>
+    list.map((item) => JSON.stringify(item)).sort()
+  return same(key(blocks), key(wanted))
 }
 
 /** Both sides' `key`, normalised as the header says. `theirs` is Vitest's whole `test`. */
@@ -198,6 +217,7 @@ function normalizeValue(
     readonly theirs?: Rec
     readonly ours?: Rec
     readonly configFile?: string | undefined
+    readonly projects?: readonly OracleProject[] | null | undefined
   } = {},
 ): unknown {
   if (PATH_KEYS.has(key)) {
@@ -219,13 +239,15 @@ function normalizeValue(
       // Vitest's side: what it appends is checked and removed.
       const ours = isRec(side.ours?.coverage) ? side.ours.coverage : undefined
       if (Array.isArray(value.exclude) && Array.isArray(ours?.exclude)) {
-        out.exclude = withoutAdditions(
+        const wanted = matchesExclude(
           value.exclude,
           ours.exclude,
           side.theirs,
           root,
           side.configFile,
+          side.projects,
         )
+        if (wanted) out.exclude = ours.exclude
       }
       // The directory of the html report is inferred when the config names none (L527-L553).
       if (typeof value.htmlDir === 'string' && ours?.htmlDir === undefined) {
@@ -236,10 +258,6 @@ function normalizeValue(
       out.include = value.include.map(globbed)
     }
     return out
-  }
-  if (key === 'projects' && Array.isArray(value)) {
-    // A project's Vite config (ssr, optimizeDeps, ...) is Vite's to resolve; what the reader reads is `test`.
-    return value.map((entry) => (isRec(entry) && isRec(entry.test) ? { test: entry.test } : entry))
   }
   if (key === 'name') {
     if (isRec(value) && typeof value.label === 'string') return value.label
@@ -312,90 +330,6 @@ export function firstDifference(
   return same(ours, theirs) ? null : path
 }
 
-/** A leaf where two reads of the config by Vitest itself gave different values. */
-export interface UnstableLeaf {
-  readonly path: string
-  readonly first: unknown
-  readonly second: unknown
-}
-
-/**
- * The leaves where two reads of one config by Vitest, in separate processes, differ: a random
- * seed, a path made from `process.pid`. Only leaves are found, in a structure the two reads
- * share; a list whose length differs between the reads is never masked (the comparison then says
- * what differs).
- */
-export function unstableLeaves(first: unknown, second: unknown, path = ''): UnstableLeaf[] {
-  if (isRec(first) && isRec(second) && !isMarker(first) && !isMarker(second)) {
-    const keys = new Set([...Object.keys(first), ...Object.keys(second)])
-    return [...keys].flatMap((key) => unstableLeaves(first[key], second[key], pathKey(path, key)))
-  }
-  if (Array.isArray(first) && Array.isArray(second) && first.length === second.length) {
-    return first.flatMap((entry, index) =>
-      unstableLeaves(entry, second[index], `${path}[${index}]`),
-    )
-  }
-  return same(first, second) ? [] : [{ path, first, second }]
-}
-
-/** The leaf of `value` at `path` (`a.b[2]`), or `undefined`. */
-function leafAt(value: unknown, path: string): unknown {
-  let current: unknown = value
-  for (const part of path.match(/[^.[\]]+/g) ?? []) {
-    if (Array.isArray(current)) current = current[Number(part)]
-    else if (isRec(current)) current = current[part]
-    else return undefined
-  }
-  return current
-}
-
-/** `value` with the leaf at each of `paths` replaced by a marker. */
-function maskLeaves(value: unknown, paths: ReadonlySet<string>, path = ''): unknown {
-  if (paths.has(path)) return '<unstable>'
-  if (Array.isArray(value))
-    return value.map((entry, index) => maskLeaves(entry, paths, `${path}[${index}]`))
-  if (isRec(value) && !isMarker(value)) {
-    return Object.fromEntries(
-      Object.entries(value).map(([key, inner]) => [
-        key,
-        maskLeaves(inner, paths, pathKey(path, key)),
-      ]),
-    )
-  }
-  return value
-}
-
-/**
- * Whether `value` is a value Vitest's two reads could both have given: a number for numbers, and
- * for strings the text the two share at both ends (`/tmp/vitest-<n>.localstorage`).
- */
-export function matchesUnstable(value: unknown, first: unknown, second: unknown): boolean {
-  if (typeof first === 'number' && typeof second === 'number') return typeof value === 'number'
-  if (typeof first === 'string' && typeof second === 'string' && typeof value === 'string') {
-    // The same text with a number in the same places (`/tmp/vitest-<n>.localstorage`).
-    const shape = (text: string): string => text.replace(/\d+/g, '<n>')
-    return shape(first) === shape(second) && shape(value) === shape(first)
-  }
-  return false
-}
-
-/** An alias value (an object, or a list of `{ find, replacement }`) as `[find, replacement]` pairs. */
-function aliasPairs(value: unknown): [unknown, unknown][] {
-  const trim = (find: unknown, replacement: unknown): [unknown, unknown] =>
-    typeof find === 'string' &&
-    find.endsWith('/') &&
-    typeof replacement === 'string' &&
-    replacement.endsWith('/')
-      ? [find.slice(0, -1), replacement.slice(0, -1)]
-      : [find, replacement]
-  if (Array.isArray(value)) {
-    return value.filter(isRec).map((entry) => trim(entry.find, entry.replacement))
-  }
-  return isRec(value)
-    ? Object.entries(value).map(([find, replacement]) => trim(find, replacement))
-    : []
-}
-
 /** Keys Vitest derives from others (`fileParallelism: false` makes `maxWorkers` 1): never counted as set by value. */
 const DERIVED_KEYS: ReadonlySet<string> = new Set(['maxWorkers'])
 
@@ -404,10 +338,8 @@ export interface TestComparison {
   /** The keys the config sets, and so were compared. */
   readonly compared: readonly string[]
   readonly differences: readonly KeyDifference[]
-  /** Leaves Vitest derives itself that differ between its two reads: masked on both sides. */
-  readonly masked: readonly string[]
-  /** Leaves under a key the config sets that differ between Vitest's reads: ours must match. */
-  readonly verified: readonly string[]
+  /** Keys the config sets that could not be compared, and why. */
+  readonly skipped: readonly string[]
 }
 
 /** What the comparison needs to know about the read of one config. */
@@ -417,26 +349,36 @@ export interface CompareInputs {
   /** Vitest's resolved `test`, and the config path it resolved (for `coverage.exclude`). */
   readonly theirs: Rec
   readonly configFile?: string
-  /** Vitest's resolved `test` from a second read in another process. */
-  readonly again?: Rec
   readonly root: string
   /** What Vitest resolves for an empty directory, and that directory. */
   readonly defaults: Rec
   readonly defaultsRoot: string
   /** The keys the config and the command line name. */
   readonly given: ReadonlySet<string>
-  /** Vitest's `resolve.alias`, where `test.alias` ends up. */
+  /** Vitest's `resolve.alias` for the config, and for the empty directory. */
   readonly theirAlias?: unknown
+  readonly defaultAlias?: unknown
+  /** The reader's `mergeAlias(resolve.alias, test.alias)`, normalised, encoded. */
+  readonly ourAlias?: unknown
+  /** The resolved projects of each side: `null` when Vitest's could not be read. */
+  readonly ourProjects?: readonly { readonly name: string; readonly root: string }[]
+  readonly theirProjects?: readonly OracleProject[] | null
+}
+
+/** An alias entry as `{ find, replacement }`, nothing else. */
+function aliasEntries(value: unknown): unknown[] {
+  return (Array.isArray(value) ? value : []).map((entry) =>
+    isRec(entry) ? { find: entry.find, replacement: entry.replacement } : entry,
+  )
 }
 
 /** Compares the reader's `test` with Vitest's. */
 export function compareTest(inputs: CompareInputs): TestComparison {
-  const { ours, theirs, again, root, defaults, defaultsRoot, given } = inputs
+  const { ours, theirs, root, defaults, defaultsRoot, given } = inputs
   const compared: string[] = []
   const differences: KeyDifference[] = []
-  const masked: string[] = []
-  const verified: string[] = []
-  const side = { theirs, ours, configFile: inputs.configFile }
+  const skipped: string[] = []
+  const side = { theirs, ours, configFile: inputs.configFile, projects: inputs.theirProjects }
   for (const key of TEST_BAR_KEYS) {
     const theirValue = normalizeValue(key, theirs[key], root, side)
     const defaultValue = normalizeValue(key, defaults[key], defaultsRoot, { theirs: defaults })
@@ -448,49 +390,43 @@ export function compareTest(inputs: CompareInputs): TestComparison {
     if (!isSet) continue
     compared.push(key)
     if (key === 'alias') {
-      // Vitest folds test.alias into resolve.alias: every pair of ours must be in it.
-      const there = aliasPairs(inputs.theirAlias)
-      const missing = aliasPairs(ours.alias).filter(
-        ([find, replacement]) => !there.some((pair) => same(pair, [find, replacement])),
+      // Vitest folds test.alias into resolve.alias after its own entries: what it has beyond the
+      // empty directory's entries is the reader's list, in order.
+      const defaultEntries = aliasEntries(inputs.defaultAlias)
+      const there = aliasEntries(inputs.theirAlias).filter(
+        (entry) => !defaultEntries.some((known) => same(known, entry)),
       )
-      if (missing.length > 0) differences.push({ key, ours: missing, theirs: there })
+      const here = aliasEntries(inputs.ourAlias)
+      if (!same(here, there)) differences.push({ key, ours: here, theirs: there })
       continue
     }
-    let ourValue = normalizeValue(key, ours[key], root)
-    let theirNormal = theirValue
-    // Leaves Vitest itself reads differently the second time.
-    if (again !== undefined) {
-      const second = normalizeValue(key, again[key], root, {
-        theirs: again,
-        ours,
-        configFile: inputs.configFile,
-      })
-      const hide = new Set<string>()
-      for (const leaf of unstableLeaves({ [key]: theirNormal }, { [key]: second })) {
-        hide.add(leaf.path)
-        const ours_ = leafAt({ [key]: ourValue }, leaf.path)
-        if (ours_ === undefined) {
-          // Vitest derives it (an unnamed project's name, a seed) and the config doesn't name the
-          // leaf: that one leaf is masked on both sides, and said so.
-          masked.push(leaf.path)
-          continue
-        }
-        // The config names the leaf: its value must be one Vitest could have given.
-        if (matchesUnstable(ours_, leaf.first, leaf.second)) verified.push(leaf.path)
-        else differences.push({ key: leaf.path, ours: ours_, theirs: leaf.first })
+    if (key === 'projects') {
+      if (inputs.theirProjects == null) {
+        skipped.push('projects (Vitest could not list its projects)')
+        continue
       }
-      if (hide.size > 0) {
-        ourValue = (maskLeaves({ [key]: ourValue }, hide) as Rec)[key]
-        theirNormal = (maskLeaves({ [key]: theirNormal }, hide) as Rec)[key]
-      }
+      // Vitest lists the projects its glob finds in the order the file system gives them (and
+      // resolves them concurrently), so both lists are put in the order of name and root.
+      const nameAndRoot = (list: readonly { name: string; root: string }[]) =>
+        list
+          .map((project) => ({
+            name: project.name,
+            root: normalizePath(project.root, root, false),
+          }))
+          .sort((a, b) => (a.name + a.root < b.name + b.root ? -1 : 1))
+      const here = nameAndRoot(inputs.ourProjects ?? [])
+      const there = nameAndRoot(inputs.theirProjects)
+      if (!same(here, there)) differences.push({ key, ours: here, theirs: there })
+      continue
     }
-    const where = firstDifference(ourValue, theirNormal, defaultValue)
+    const ourValue = normalizeValue(key, ours[key], root)
+    const where = firstDifference(ourValue, theirValue, defaultValue)
     if (where !== null)
       differences.push({
         key: where === '' ? key : `${key}${where.startsWith('[') ? '' : '.'}${where}`,
         ours: ourValue,
-        theirs: theirNormal,
+        theirs: theirValue,
       })
   }
-  return { compared, differences, masked, verified }
+  return { compared, differences, skipped }
 }

@@ -1,13 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import {
-  type CompareInputs,
-  compareTest,
-  firstDifference,
-  matchesUnstable,
-  TEST_BAR_KEYS,
-  unstableLeaves,
-} from './compare.ts'
+import { type CompareInputs, compareTest, firstDifference, TEST_BAR_KEYS } from './compare.ts'
 
 const ROOT = '/work/app'
 const DEFAULTS = {
@@ -117,47 +110,6 @@ test('a reader that drops a list entry, a key or an option is a difference', () 
   )
 })
 
-test("coverage.exclude: the config's own entries, then exactly what Vitest appends", () => {
-  const tail = [
-    'tests/**/*.spec.ts',
-    '/work/app/vitest.config.ts',
-    ...['vitest', 'vite'].flatMap((name) =>
-      ['ts', 'mts', 'cts', 'js', 'mjs', 'cjs'].map((ext) => `${name}.config.${ext}`),
-    ),
-    '**/virtual:*',
-    '**/__x00__*',
-    '**/node_modules/**',
-  ]
-  const theirs = (own: string[]) => ({
-    include: ['tests/**/*.spec.ts'],
-    coverage: { ...DEFAULTS.coverage, exclude: [...own, ...tail] },
-  })
-  const inputs = { configFile: '/work/app/vitest.config.ts' }
-  const ok = compare(
-    {
-      include: ['tests/**/*.spec.ts'],
-      coverage: { ...DEFAULTS.coverage, exclude: ['src/gen/**'] },
-    },
-    theirs(['src/gen/**']),
-    inputs,
-  )
-  assert.deepEqual(ok.differences, [])
-  // The config's own entry dropped by the reader.
-  const dropped = compare(
-    { include: ['tests/**/*.spec.ts'], coverage: { ...DEFAULTS.coverage, exclude: [] } },
-    theirs(['src/gen/**']),
-    inputs,
-  )
-  assert.equal(dropped.differences.length, 1)
-  // Something Vitest does not append.
-  const extra = compare(
-    { include: ['tests/**/*.spec.ts'], coverage: { ...DEFAULTS.coverage, exclude: [] } },
-    { ...theirs([]), coverage: { ...DEFAULTS.coverage, exclude: ['surprise', ...tail] } },
-    inputs,
-  )
-  assert.equal(extra.differences.length, 1)
-})
-
 test("coverage.include: a name with no glob is name/** on Vitest's side, nothing else is rewritten", () => {
   const base = { ...DEFAULTS.coverage }
   const ok = compare(
@@ -172,94 +124,8 @@ test("coverage.include: a name with no glob is name/** on Vitest's side, nothing
   assert.equal(wrong.differences.length, 1)
 })
 
-test('what two reads of one config by Vitest differ on: found by value, masked or checked', () => {
-  const first = {
-    execArgv: ['--a', '/tmp/vitest-1.localstorage'],
-    name: 'x',
-    sequence: { seed: 11, hooks: 'stack' },
-  }
-  const second = {
-    execArgv: ['--a', '/tmp/vitest-2.localstorage'],
-    name: 'x',
-    sequence: { seed: 22, hooks: 'stack' },
-  }
-  const leaves = unstableLeaves(first, second)
-  assert.deepEqual(leaves.map((leaf) => leaf.path).sort(), ['execArgv[1]', 'sequence.seed'])
-  assert.equal(
-    matchesUnstable(
-      '/tmp/vitest-99.localstorage',
-      '/tmp/vitest-1.localstorage',
-      '/tmp/vitest-2.localstorage',
-    ),
-    true,
-  )
-  assert.equal(
-    matchesUnstable(
-      '/tmp/other-99.localstorage',
-      '/tmp/vitest-1.localstorage',
-      '/tmp/vitest-2.localstorage',
-    ),
-    false,
-  )
-  assert.equal(matchesUnstable(33, 11, 22), true)
-  assert.equal(matchesUnstable('33', 11, 22), false)
-  // A list whose length differs between the reads is never masked: nothing is found.
-  assert.deepEqual(unstableLeaves({ a: [1] }, { a: [1, 2] }), [
-    { path: 'a', first: [1], second: [1, 2] },
-  ])
-  assert.deepEqual(unstableLeaves({ a: 1 }, { a: 1 }), [])
-})
-
-test('an unstable leaf is checked under a key the config sets, and masked under one it does not', () => {
-  const reads = (seed: number, arg: string, name: string) => ({
-    ...DEFAULTS,
-    root: ROOT,
-    name,
-    sequence: { hooks: 'stack', seed },
-    execArgv: ['--a', arg],
-  })
-  // The config names sequence and execArgv: their unstable leaves are verified, not masked.
-  const first = reads(1, '/tmp/vitest-1.ls', 'unit-1')
-  const second = reads(2, '/tmp/vitest-2.ls', 'unit-2')
-  const named = compare(
-    {
-      sequence: { hooks: 'stack', seed: 999 },
-      execArgv: ['--a', '/tmp/vitest-777.ls'],
-      name: 'unit-3',
-    },
-    first,
-    { again: second },
-  )
-  assert.deepEqual(named.differences, [])
-  assert.deepEqual(named.masked, [])
-  assert.deepEqual([...named.verified].sort(), ['execArgv[1]', 'name', 'sequence.seed'])
-  // A value of another shape than both readings is a difference, never masked.
-  const wrong = compare(
-    {
-      sequence: { hooks: 'stack', seed: 'not a number' },
-      execArgv: ['--a', '/tmp/somewhere-else'],
-      name: 'x',
-    },
-    first,
-    { again: second },
-  )
-  assert.equal(wrong.differences.length, 3)
-  // The config names none of them (Vitest derives the name of an unnamed project): masked, and said so.
-  const derived = compare(
-    {},
-    { name: 'unit-1' },
-    { again: { ...DEFAULTS, root: ROOT, name: 'unit-2' } },
-  )
-  assert.deepEqual(derived.masked, ['name'])
-  assert.deepEqual(derived.differences, [])
-})
-
-test('coverage.exclude: the additions of every project Vitest resolved are removed, others are not', () => {
+test('coverage.exclude: the root block, then one block per project, each as Vitest builds it', () => {
   const own = ['src/gen/**']
-  const base = {
-    include: ['tests/**/*.spec.ts'],
-    projects: [{ test: { include: ['pkg/**/*.test.ts'], setupFiles: ['/work/app/pkg/setup.ts'] } }],
-  }
   const fixed = [
     ...['vitest', 'vite'].flatMap((name) =>
       ['ts', 'mts', 'cts', 'js', 'mjs', 'cjs'].map((ext) => `${name}.config.${ext}`),
@@ -268,28 +134,41 @@ test('coverage.exclude: the additions of every project Vitest resolved are remov
     '**/__x00__*',
     '**/node_modules/**',
   ]
-  const additions = [
+  const project = {
+    name: 'pkg',
+    root: '/work/app/pkg',
+    include: ['pkg/**/*.test.ts'],
+    setupFiles: ['/work/app/pkg/setup.ts'],
+    config: undefined,
+    allowExternal: false,
+  }
+  const base = { include: ['tests/**/*.spec.ts'], projects: [{ test: { name: 'pkg' } }] }
+  const blocks = [
     'tests/**/*.spec.ts',
     '/work/app/vitest.config.ts',
     ...fixed,
+    'setup.ts',
     'pkg/**/*.test.ts',
-    'pkg/setup.ts',
     ...fixed,
   ]
   const theirs = (list: string[]) => ({
     ...base,
     coverage: { ...DEFAULTS.coverage, exclude: list },
   })
-  const ours = { ...base, coverage: { ...DEFAULTS.coverage, exclude: own } }
-  const inputs = { configFile: '/work/app/vitest.config.ts' }
-  assert.deepEqual(compare(ours, theirs([...own, ...additions]), inputs).differences, [])
-  // An entry after the reader's that nothing Vitest does explains is a difference.
+  const ours = { include: base.include, coverage: { ...DEFAULTS.coverage, exclude: own } }
+  const inputs = {
+    configFile: '/work/app/vitest.config.ts',
+    theirProjects: [project],
+    ourProjects: [{ name: 'pkg', root: '/work/app/pkg' }],
+  }
+  assert.deepEqual(compare(ours, theirs([...own, ...blocks]), inputs).differences, [])
+  // An entry Vitest's blocks don't explain, a missing block, or the reader's entries out of place.
+  assert.equal(compare(ours, theirs([...own, ...blocks, 'stray/**']), inputs).differences.length, 1)
   assert.equal(
-    compare(ours, theirs([...own, ...additions, 'stray/**']), inputs).differences.length,
+    compare(ours, theirs([...own, ...blocks.slice(0, 17)]), inputs).differences.length,
     1,
   )
-  // The reader's own entries are not the first entries: a difference.
-  assert.equal(compare(ours, theirs(['other/**', ...additions]), inputs).differences.length, 1)
+  assert.equal(compare(ours, theirs(['other/**', ...blocks]), inputs).differences.length, 1)
 })
 
 test("coverage.htmlDir is Vitest's inference unless the config names it", () => {
@@ -300,25 +179,86 @@ test("coverage.htmlDir is Vitest's inference unless the config names it", () => 
   assert.equal(compare({ coverage }, { coverage: wrong }).differences.length, 1)
 })
 
-test('a project is compared on its test, not on the Vite config around it', () => {
-  const ours = { projects: [{ test: { name: 'a' }, ssr: {} }] }
-  const theirs = {
-    projects: [{ test: { name: 'a' }, ssr: { optimizeDeps: {} }, optimizeDeps: {} }],
-  }
-  assert.deepEqual(compare(ours, theirs).differences, [])
-  const other = { projects: [{ test: { name: 'b' } }] }
-  assert.equal(compare(other, theirs).differences.length, 1)
+test("alias: the reader's ordered pairs equal Vitest's beyond its own entries", () => {
+  const own = { find: 'a', replacement: '/x' }
+  const regex = { find: { $regexp: '^b', flags: '' }, replacement: '/y' }
+  const vitestOwn = { find: '/^vitest/', replacement: '/v' }
+  const inputs = { defaultAlias: [vitestOwn], given: new Set(['alias']) }
+  const ok = compare(
+    { alias: {} },
+    {},
+    {
+      ...inputs,
+      ourAlias: [own, regex],
+      theirAlias: [vitestOwn, { ...own, customResolver: undefined }, regex],
+    },
+  )
+  assert.deepEqual(ok.differences, [])
+  const reordered = compare(
+    { alias: {} },
+    {},
+    {
+      ...inputs,
+      ourAlias: [regex, own],
+      theirAlias: [vitestOwn, own, regex],
+    },
+  )
+  assert.equal(reordered.differences.length, 1)
+  const dropped = compare(
+    { alias: {} },
+    {},
+    {
+      ...inputs,
+      ourAlias: [own],
+      theirAlias: [vitestOwn, own, regex],
+    },
+  )
+  assert.equal(dropped.differences.length, 1)
 })
 
-test('a leaf Vitest derives under a key the config names is masked unless the config names the leaf', () => {
-  const read = (seed: number) => ({ ...DEFAULTS, root: ROOT, sequence: { hooks: 'list', seed } })
-  const masked = compare({ sequence: { hooks: 'list' } }, read(1), { again: read(2) })
-  assert.deepEqual(masked.differences, [])
-  assert.deepEqual(masked.masked, ['sequence.seed'])
-  // Naming the leaf with a value of another shape is a difference.
-  const named = compare({ sequence: { hooks: 'list', seed: 'x' } }, read(1), { again: read(2) })
-  assert.equal(named.differences.length, 1)
-  // A number in a path that differs between the reads is any number.
-  assert.equal(matchesUnstable('/tmp/v-15976.ls', '/tmp/v-15959.ls', '/tmp/v-16001.ls'), true)
-  assert.equal(matchesUnstable('/tmp/other-1.ls', '/tmp/v-15959.ls', '/tmp/v-16001.ls'), false)
+test("projects: the reader's names and roots equal Vitest's resolved projects", () => {
+  const theirs = (name: string) => ({
+    name,
+    root: '/work/app/pkg',
+    include: [],
+    setupFiles: [],
+    allowExternal: false,
+  })
+  const inputs = { given: new Set(['projects']) }
+  const ok = compare(
+    { projects: [] },
+    {},
+    {
+      ...inputs,
+      ourProjects: [{ name: 'a', root: '/work/app/pkg' }],
+      theirProjects: [theirs('a')],
+    },
+  )
+  assert.deepEqual(ok.differences, [])
+  const renamed = compare(
+    { projects: [] },
+    {},
+    {
+      ...inputs,
+      ourProjects: [{ name: 'b', root: '/work/app/pkg' }],
+      theirProjects: [theirs('a')],
+    },
+  )
+  assert.equal(renamed.differences.length, 1)
+  // The same projects in another order are the same projects.
+  const swapped = compare(
+    { projects: [] },
+    {},
+    {
+      ...inputs,
+      ourProjects: [
+        { name: 'b', root: '/work/app/pkg' },
+        { name: 'a', root: '/work/app/pkg' },
+      ],
+      theirProjects: [theirs('a'), theirs('b')],
+    },
+  )
+  assert.deepEqual(swapped.differences, [])
+  const unknown = compare({ projects: [] }, {}, { ...inputs, ourProjects: [], theirProjects: null })
+  assert.equal(unknown.skipped.length, 1)
 })

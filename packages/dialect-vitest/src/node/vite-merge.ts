@@ -30,6 +30,10 @@ function normalizeSingleAlias(entry: Rec): AliasEntry {
   return alias
 }
 
+/**
+ * Vite's `normalizeAlias`: an alias object or list as a list of `{ find, replacement }` entries.
+ * @public
+ */
 export function normalizeAlias(value: unknown): AliasEntry[] {
   if (Array.isArray(value)) return value.map((entry) => normalizeSingleAlias(entry as Rec))
   if (isObject(value)) {

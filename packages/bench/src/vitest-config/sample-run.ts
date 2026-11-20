@@ -31,10 +31,8 @@ export interface SampleResult {
   readonly fetched: boolean
   readonly vitest: ReadOutcome | null
   readonly provino: ProvinoOutcome | null
-  /** Leaves Vitest derives itself that differ between its two reads (masked on both sides). */
-  readonly masked?: readonly string[]
-  /** Leaves under a key the config sets that differ between Vitest's reads (ours must match). */
-  readonly verified?: readonly string[]
+  /** Keys the config sets that could not be compared, and why. */
+  readonly skipped?: readonly string[]
   readonly compared: readonly string[]
   readonly differences: readonly KeyDifference[]
 }
@@ -183,32 +181,23 @@ export async function runSample(options: {
         id,
         options.timeoutMs,
       )
-      // A second read by Vitest in a process of its own: what differs between the two (a path made
-      // from the process id) is found by value in `compareTest`, never by name.
-      const again = await readSide<ReadOutcome>(
-        '.again',
-        sampleDir,
-        'vitest',
-        config,
-        cwd,
-        resultsDir,
-        id,
-        options.timeoutMs,
-      )
       const comparison =
         vitest.ok && provino.ok && !provino.needsVite
           ? compareTest({
               ours: provino.test,
               theirs: vitest.test,
               configFile: config,
-              ...(again.ok ? { again: again.test } : {}),
               root: vitest.root,
               defaults: defaults.test,
               defaultsRoot: defaults.root,
               given: new Set(provino.given),
               theirAlias: vitest.alias,
+              defaultAlias: defaults.alias,
+              ourAlias: provino.alias,
+              ourProjects: provino.ourProjects,
+              theirProjects: vitest.projects ?? null,
             })
-          : { compared: [], differences: [], masked: [], verified: [] }
+          : { compared: [], differences: [], skipped: [] }
       results.push({ id, ...entry, fetched: true, vitest, provino, ...comparison })
     }
   })
@@ -253,30 +242,12 @@ export async function runSample(options: {
     '  per key (configs that set it: equal/compared):',
     ...[...perKey.entries()].map(([key, row]) => `    ${key}: ${row.equal}/${row.compared}`),
   ]
-  const tally = (field: 'masked' | 'verified') => {
-    const counts = new Map<string, number>()
-    for (const result of judged) {
-      for (const path of result[field] ?? []) {
-        const generic = path.replace(/\[\d+\]/g, '[]')
-        counts.set(generic, (counts.get(generic) ?? 0) + 1)
-      }
-    }
-    return [...counts.entries()].sort((a, b) => b[1] - a[1])
+  const skipped = new Map<string, number>()
+  for (const result of judged) {
+    for (const why of result.skipped ?? []) skipped.set(why, (skipped.get(why) ?? 0) + 1)
   }
-  for (const [field, what] of [
-    [
-      'masked',
-      'masked on both sides (Vitest derives it, and it differs between two reads by Vitest)',
-    ],
-    [
-      'verified',
-      'checked to be a value Vitest could have given (the config sets the key, and it differs between two reads by Vitest)',
-    ],
-  ] as const) {
-    const rows = tally(field)
-    lines.push(`  ${field}: ${rows.length} paths, ${what}`)
-    for (const [path, count] of rows) lines.push(`    ${path}: ${count} configs`)
-  }
+  lines.push(`  not compared: ${skipped.size === 0 ? 'nothing' : ''}`)
+  for (const [why, count] of skipped) lines.push(`    ${why}: ${count} configs`)
   for (const result of oursFailed) {
     const error = result.provino?.ok === false ? result.provino.error : 'no result'
     lines.push(

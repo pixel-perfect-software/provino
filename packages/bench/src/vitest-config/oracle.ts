@@ -8,9 +8,11 @@ import { pathToFileURL } from 'node:url'
 import {
   findVitestConfig,
   loadVitestConfig,
+  mergeAlias,
+  normalizeAlias,
   resolveVitestProjects,
 } from '@provino/dialect-vitest/node'
-import { encodeTest } from './compare.ts'
+import { encodeTest, type OracleProject } from './compare.ts'
 import { SAMPLE_DIR } from './sample-paths.ts'
 
 /** One side's outcome. */
@@ -19,8 +21,10 @@ export type ReadOutcome =
       readonly ok: true
       readonly test: Record<string, unknown>
       readonly root: string
-      /** Vitest's `resolve.alias`, where `test.alias` ends up. */
+      /** Vitest's `resolve.alias`, where `test.alias` ends up; ours: the merged, normalised list. */
       readonly alias?: unknown
+      /** Vitest's resolved projects (`null`: it could not list them); ours: name and root. */
+      readonly projects?: readonly OracleProject[] | null
     }
   | {
       readonly ok: false
@@ -43,11 +47,59 @@ export type ProvinoOutcome =
       readonly warnings: readonly string[]
       /** The keys of `test` the config file and command line name. */
       readonly given: readonly string[]
+      readonly ourProjects: readonly { readonly name: string; readonly root: string }[]
     })
   | Extract<ReadOutcome, { ok: false }>
 
+interface VitestProject {
+  readonly name: string
+  readonly config: {
+    readonly root: string
+    readonly include: readonly string[]
+    readonly setupFiles: readonly string[]
+    readonly config?: string
+    readonly coverage?: { readonly allowExternal?: boolean }
+  }
+}
+
 interface ResolveConfigModule {
   resolveConfig(options: object): Promise<{ test: unknown; resolve?: { alias?: unknown } }>
+  createVitest(
+    mode: string,
+    options: object,
+    viteOverrides: object,
+    vitestOptions: object,
+  ): Promise<{ projects: readonly VitestProject[]; close(): Promise<void> }>
+}
+
+/** The projects Vitest resolves for `config`, or `null` when it can't be started to say. */
+async function vitestProjects(
+  vitest: ResolveConfigModule,
+  config: string,
+  root: string,
+): Promise<OracleProject[] | null> {
+  try {
+    const started = await vitest.createVitest(
+      'test',
+      { root, config, watch: false, run: true },
+      {},
+      {},
+    )
+    try {
+      return started.projects.map((project) => ({
+        name: project.name,
+        root: project.config.root,
+        include: [...project.config.include],
+        setupFiles: [...project.config.setupFiles],
+        config: project.config.config,
+        allowExternal: project.config.coverage?.allowExternal === true,
+      }))
+    } finally {
+      await started.close().catch(() => undefined)
+    }
+  } catch {
+    return null
+  }
 }
 
 /** `vitest/node` from the sample's own install (5.0.5), the one the configs' `vitest/config` is. */
@@ -67,8 +119,8 @@ async function sampleVitestNode(): Promise<ResolveConfigModule> {
 /** Real `resolveConfig` for the config at `config` (a path), or for an empty root with none. */
 export async function readWithVitest(config: string | null, root: string): Promise<ReadOutcome> {
   try {
-    const { resolveConfig } = await sampleVitestNode()
-    const resolved = await resolveConfig(
+    const vitest = await sampleVitestNode()
+    const resolved = await vitest.resolveConfig(
       config === null ? { root, config: false } : { root, config },
     )
     return {
@@ -76,6 +128,7 @@ export async function readWithVitest(config: string | null, root: string): Promi
       test: encodeTest(resolved.test),
       root,
       alias: encodeTest({ alias: resolved.resolve?.alias }).alias,
+      projects: config === null ? [] : await vitestProjects(vitest, config, root),
     }
   } catch (error) {
     return failure(error)
@@ -97,6 +150,18 @@ export async function readWithProvino(config: string): Promise<ProvinoOutcome> {
       test: { ...encodeTest(resolved.root.test), root: resolved.root.root },
       given: Object.keys(resolved.root.given),
       root: resolved.root.root,
+      alias: encodeTest({
+        alias: normalizeAlias(
+          mergeAlias(
+            isRecord(resolved.root.vite.resolve) ? resolved.root.vite.resolve.alias : undefined,
+            resolved.root.test.alias,
+          ),
+        ).map(({ find, replacement }) => ({ find, replacement })),
+      }).alias,
+      ourProjects: resolved.projects.map(({ name, root: projectRoot }) => ({
+        name,
+        root: projectRoot,
+      })),
       // A plugin in an inline project can change that project's `test` as much as the root's can.
       needsVite: resolved.root.needsVite || resolved.projects.some((project) => project.needsVite),
       warnings,
@@ -104,4 +169,8 @@ export async function readWithProvino(config: string): Promise<ProvinoOutcome> {
   } catch (error) {
     return failure(error)
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
