@@ -46,7 +46,7 @@ import {
   type SuiteHookKind,
   suiteHookAccess,
 } from '../definitions/resolve.ts'
-import { type DefinitionSet, drain } from '../definitions/table.ts'
+import { CleanupList, type DefinitionSet } from '../definitions/table.ts'
 import { destructuredProps } from '../definitions/used-props.ts'
 import type { ProcessErrors } from '../errors/process-errors.ts'
 import { CoreError, serializeError } from '../errors.ts'
@@ -1585,9 +1585,12 @@ export class Executor {
         attempt: fixtures(),
         index,
       })
-      return ready === undefined
-        ? Reflect.apply(fn, this, args)
-        : ready.then(() => Reflect.apply(fn, this, args))
+      if (ready === undefined) return Reflect.apply(fn, this, args)
+      // A fixture that outlived the attempt's deadline: the attempt has failed and moved on, so
+      // its function is not called late (the fixture's cleanup runs as its scope already ended).
+      return ready.then(() =>
+        attempt.controller.signal.aborted ? undefined : Reflect.apply(fn, this, args),
+      )
     }
   }
 
@@ -1595,10 +1598,10 @@ export class Executor {
   #attemptFixtures(attempt: AttemptState): AttemptFixtures {
     let fixtures = attempt.fixtures
     if (fixtures === undefined) {
-      const made: AttemptFixtures = { made: new Set(), cleanups: [] }
+      const made: AttemptFixtures = { made: new Set(), cleanups: new CleanupList() }
       fixtures = made
       attempt.fixtures = made
-      attempt.run.addTeardown(() => drain(made.cleanups))
+      attempt.run.addTeardown(() => made.cleanups.drain())
     }
     return fixtures
   }

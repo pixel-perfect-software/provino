@@ -7,7 +7,7 @@
 // cleanup, run when its scope ends.
 import type { SuiteNode } from '../internal/model.ts'
 import { type DefinitionWords, definitionError, type ErrorSite } from './errors.ts'
-import type { DefinitionSet, FixtureItem, Registrations, ScopeState } from './table.ts'
+import type { CleanupList, DefinitionSet, FixtureItem, Registrations, ScopeState } from './table.ts'
 import { usedProps } from './used-props.ts'
 
 /** The suite hooks that take file and worker fixtures only. */
@@ -16,7 +16,7 @@ export type SuiteHookKind = 'beforeAll' | 'afterAll' | 'aroundAll'
 /** One attempt's test-scope state: what is set on its context, and the cleanups, last first. */
 export interface AttemptFixtures {
   readonly made: Set<FixtureItem>
-  readonly cleanups: Array<() => unknown>
+  readonly cleanups: CleanupList
 }
 
 /** Where a call's fixtures go. */
@@ -118,7 +118,7 @@ async function resolveAll(pending: readonly FixtureItem[], target: Target): Prom
 function testValue(
   item: FixtureItem,
   context: Record<string, unknown>,
-  cleanups: Array<() => unknown>,
+  cleanups: CleanupList,
   set: DefinitionSet,
 ): unknown {
   if (typeof item.value !== 'function') return item.value
@@ -148,63 +148,63 @@ function scopeValue(item: FixtureItem, target: Target): unknown {
   return promise
 }
 
-/** Calls a `(context, use)` entry and resolves with what it passes to `use`. */
-function run(
+/**
+ * Calls a `(context, use)` entry and resolves with what it passes to `use`, as Vitest 5.0.5's
+ * `resolveFixtureFunction` does (`runner/fixture.ts` L541-L582): `.then` is called on what the
+ * entry returns, so one that returns no promise fails with the `TypeError` Vitest's does, and a
+ * synchronous throw (before or after `use`) fails what asked for the value. Its cleanup awaits that
+ * same chain, so after such a failure the cleanup fails too, as Vitest's does.
+ */
+async function run(
   item: FixtureItem,
   context: unknown,
-  cleanups: Array<() => unknown>,
+  cleanups: CleanupList,
   set: DefinitionSet,
 ): Promise<unknown> {
-  const fn = item.value as (context: unknown, use: (value: unknown) => Promise<void>) => unknown
-  return new Promise<unknown>((resolve, reject) => {
-    let used = false
-    let ended: Promise<void> = Promise.resolve()
-    const use = async (value: unknown): Promise<void> => {
-      used = true
-      resolve(value)
-      // The fixture's tail waits here until its scope ends.
-      const { promise, resolve: release } = Promise.withResolvers<void>()
-      cleanups.push(async () => {
-        release()
-        await ended
-      })
-      await promise
-    }
-    let returned: unknown
-    try {
-      returned = fn(context, use)
-    } catch (error) {
-      reject(error)
-      return
-    }
-    ended = Promise.resolve(returned).then(
-      () => {
-        if (!used) {
-          reject(
-            definitionError(
-              set.env,
-              {
-                kind: 'dependency',
-                code: 'use-not-called',
-                key: item.key,
-                message: `"${item.key}" returned without calling use: call it on every path of the definition.`,
-                params: {},
-              },
-              item.site === undefined ? undefined : { error: item.site, mode: 'message-first' },
-            ),
-          )
-        }
-      },
-      (error: unknown) => {
-        // A failed setup fails what asked for it; a failure after `use` is the cleanup's.
-        if (!used) {
-          reject(error)
-          return
-        }
-        throw error
-      },
-    )
+  // Vitest calls `.then` on the raw return: the type says what the entry should return.
+  const fn = item.value as (
+    context: unknown,
+    use: (value: unknown) => Promise<void>,
+  ) => Promise<unknown>
+  const value = Promise.withResolvers<unknown>()
+  let used = false
+  const fixtureReturn: Promise<void> = fn(context, async (given: unknown) => {
+    used = true
+    value.resolve(given)
+    // The fixture's tail waits here until its scope ends.
+    const { promise, resolve: release } = Promise.withResolvers<void>()
+    cleanups.push(async () => {
+      release()
+      await fixtureReturn
+    })
+    await promise
   })
+    .then(() => {
+      if (!used) {
+        value.reject(
+          definitionError(
+            set.env,
+            {
+              kind: 'dependency',
+              code: 'use-not-called',
+              key: item.key,
+              message: `"${item.key}" returned without calling use: call it on every path of the definition.`,
+              params: {},
+            },
+            item.site === undefined ? undefined : { error: item.site, mode: 'message-first' },
+          ),
+        )
+      }
+    })
+    .catch((error: unknown) => {
+      // A failed setup fails what asked for it; a failure after `use` is the cleanup's.
+      if (!used) {
+        value.reject(error)
+        return
+      }
+      throw error
+    })
+  return value.promise
 }
 
 /**
@@ -221,7 +221,9 @@ function order(
     for (const start of items) {
       let item = start
       if (pending.includes(item)) continue
-      if (typeof item.value !== 'function' || item.deps.size === 0) {
+      // Only a value is placed at once: a function with no dependencies still enters the chain,
+      // so a later key that reads its parent finds it there (Vitest's `resolveDeps`).
+      if (typeof item.value !== 'function') {
         pending.push(item)
         continue
       }

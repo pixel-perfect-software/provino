@@ -39,12 +39,12 @@ export interface DefinitionEnv extends DefinitionWords {
 /** The memo and cleanups of one scope instance (a file, or the worker) of one set. */
 export interface ScopeState {
   readonly values: Record<string, unknown>
-  readonly cleanups: Array<() => unknown>
+  readonly cleanups: CleanupList
   readonly pending: Map<FixtureItem, Promise<unknown>>
 }
 
 const SCOPES: readonly Scope[] = ['test', 'file', 'worker']
-const OPTION_KEYS = ['auto', 'injected', 'scope'] as const
+const OPTION_KEYS: readonly string[] = ['auto', 'injected', 'scope']
 
 /** Keys the test context has of its own: a function may read them without a fixture. */
 export const CONTEXT_KEYS: ReadonlySet<string> = new Set([
@@ -63,7 +63,9 @@ export function isFixtureOptions(value: unknown): value is FixtureOptions {
     typeof value === 'object' &&
     value !== null &&
     !Array.isArray(value) &&
-    OPTION_KEYS.some((key) => key in value)
+    // Own enumerable keys only (Vitest's `Object.keys(obj).some(...)`): a class instance whose
+    // prototype has a `scope` getter is a value.
+    Object.keys(value).some((key) => OPTION_KEYS.includes(key))
   )
 }
 
@@ -124,7 +126,7 @@ export class DefinitionSet {
       const made = newScope()
       state = made
       this.#files.set(file, made)
-      file.handle.teardowns.push(() => drain(made.cleanups))
+      file.handle.teardowns.push(() => made.cleanups.drain())
     }
     return state
   }
@@ -134,7 +136,7 @@ export class DefinitionSet {
     if (this.#worker === undefined) {
       const made = newScope()
       this.#worker = made
-      this.#env.addWorkerTeardown(() => drain(made.cleanups))
+      this.#env.addWorkerTeardown(() => made.cleanups.drain())
     }
     return this.#worker
   }
@@ -185,8 +187,8 @@ export class DefinitionSet {
         injected = false
       }
       if (given !== undefined && injected) {
-        const provided = env.injectValue?.(key)
-        if (provided !== undefined) value = provided
+        // `??`: a provided `null` keeps the default too, as Vitest's `injectValue?.(name) ?? fn[0]`.
+        value = env.injectValue?.(key) ?? value
       }
       if (!SCOPES.includes(scope)) {
         fail(key, 'unknown-scope', `"${key}" has an unknown scope "${String(scope)}".`, {
@@ -258,16 +260,35 @@ type Fn = (...args: never[]) => unknown
 function newScope(): ScopeState {
   return {
     values: Object.create(null) as Record<string, unknown>,
-    cleanups: [],
+    cleanups: new CleanupList(),
     pending: new Map(),
   }
 }
 
-/** Runs cleanups last first, each awaited; the list is emptied. */
-export async function drain(cleanups: Array<() => unknown>): Promise<void> {
-  while (cleanups.length > 0) {
-    const cleanup = cleanups.pop() as () => unknown
-    await cleanup()
+/**
+ * One scope's cleanups, run last first when it ends. Once it has ended, a cleanup added (by a
+ * fixture whose setup outlived its test's deadline) runs at once instead of waiting for a drain
+ * that already happened; what it throws then is an unhandled rejection the runtime charges.
+ */
+export class CleanupList {
+  readonly #fns: Array<() => unknown> = []
+  #ended = false
+
+  push(fn: () => unknown): void {
+    if (this.#ended) {
+      void (async () => fn())()
+      return
+    }
+    this.#fns.push(fn)
+  }
+
+  /** Ends the scope: runs every cleanup, last first, each awaited. */
+  async drain(): Promise<void> {
+    this.#ended = true
+    while (this.#fns.length > 0) {
+      const cleanup = this.#fns.pop() as () => unknown
+      await cleanup()
+    }
   }
 }
 

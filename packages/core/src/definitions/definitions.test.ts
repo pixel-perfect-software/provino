@@ -5,9 +5,10 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import type { DefinitionErrorInfo } from '@provino/types'
+import FakeTimers from '@sinonjs/fake-timers'
 import type { FixtureTestApi } from '../collector/api.ts'
 import { CoreError } from '../errors.ts'
-import { runScript, type Script } from '../internal/test-support.ts'
+import { clockOptions, runScript, type Script, settle } from '../internal/test-support.ts'
 import { definitionError } from './errors.ts'
 import { NO_WORDS } from './resolve.ts'
 import { usedProps } from './used-props.ts'
@@ -320,5 +321,111 @@ describe('test.extend', () => {
       { definitions: { extendApi: 'absent', messages: null } },
     )
     assert.deepEqual(seen, ['undefined', 'undefined'])
+  })
+})
+
+describe('Vitest 5.0.5 parity (the review probes against the real runner)', () => {
+  test('a dependency-free fixture function still joins the chain: the cycle is found through it', async () => {
+    const run = await runScript((api) => {
+      const base = fixtureTest(api).extend<{ a: string }>({
+        // biome-ignore lint/correctness/noEmptyPattern: a fixture with no dependencies, as Vitest reads it
+        a: async ({}, use: Use<string>) => use('a1'),
+      })
+      const swapped = base.extend({
+        // biome-ignore lint/correctness/noEmptyPattern: a fixture with no dependencies, as Vitest reads it
+        z: async ({}: object, use: Use<string>) => use('z'),
+        b: async ({ a }: { a: string }, use: Use<string>) => use(`b:${a}`),
+        a: async ({ z, b, a }: Record<string, string>, use: Use<string>) => use(`${z}${b}${a}`),
+      } as never) as FixtureTestApi<{ a: string }>
+      swapped('swap', ({ a }) => a)
+      const plain = fixtureTest(api).extend({
+        // biome-ignore lint/correctness/noEmptyPattern: a fixture with no dependencies, as Vitest reads it
+        b: async ({}: object, use: Use<string>) => use('b'),
+        c: async ({ a }: { a: string }, use: Use<string>) => use(a),
+        a: async ({ b, c }: Record<string, string>, use: Use<string>) => use(b + c),
+      } as never) as FixtureTestApi<{ a: string }>
+      plain('plain', ({ a }) => a)
+    })
+    assert.match(run.errors.swap?.[0] ?? '', /cycle: b <- a <- b\.$/)
+    assert.match(run.errors.plain?.[0] ?? '', /cycle: c <- a <- c\.$/)
+  })
+
+  test("a fixture that returns no promise fails with Vitest's TypeError; a throw after use fails the test", async () => {
+    const run = await runScript((api) => {
+      const sync = fixtureTest(api).extend<{ v: number }>({
+        v: (({ task: _task }: object, use: Use<number>) => {
+          void use(1)
+        }) as never,
+      })
+      sync('sync', ({ v }) => v)
+      const late = fixtureTest(api).extend<{ v: number }>({
+        v: (({ task: _task }: object, use: Use<number>) => {
+          void use(1)
+          throw new Error('late')
+        }) as never,
+      })
+      late('late', ({ v }) => v)
+    })
+    assert.equal(run.states.sync, 'fail')
+    assert.match(
+      run.errors.sync?.[0] ?? '',
+      /Cannot read properties of undefined \(reading 'then'\)/,
+    )
+    assert.equal(run.states.late, 'fail')
+    assert.equal(run.errors.late?.[0], 'late')
+  })
+
+  test('an injected value of null keeps the default; options are own keys only', async () => {
+    class Options {
+      get scope(): string {
+        return 'file'
+      }
+    }
+    const instance = new Options()
+    const seen: unknown[] = []
+    await runScript(
+      (api) => {
+        const it = fixtureTest(api).extend<{ given: string; pair: unknown[] }>({
+          given: ['default', { injected: true }],
+          pair: [1, instance] as never,
+        })
+        it('t', ({ given, pair }) => {
+          seen.push(given, pair)
+        })
+      },
+      {},
+      { injectValue: () => null },
+    )
+    assert.equal(seen[0], 'default')
+    assert.deepEqual(seen[1], [1, instance], 'an instance with a prototype scope getter is a value')
+  })
+
+  test('a fixture slower than the test timeout: the body is never called late, its cleanup runs', async () => {
+    const clock = FakeTimers.createClock(0)
+    const gate = Promise.withResolvers<void>()
+    const started = Promise.withResolvers<void>()
+    const trace: string[] = []
+    const running = runScript(
+      (api) => {
+        const it = fixtureTest(api).extend<{ slow: string }>({
+          slow: async ({ task: _task }: object, use: Use<string>) => {
+            started.resolve()
+            await gate.promise
+            await use('v')
+            trace.push('cleanup')
+          },
+        })
+        it('t', ({ slow }) => trace.push(`body ${slow}`))
+      },
+      { timeouts: { test: 100 } },
+      clockOptions(clock),
+    )
+    await started.promise
+    await clock.tickAsync(100)
+    const run = await running
+    assert.equal(run.states.t, 'fail')
+    gate.resolve()
+    await settle()
+    assert.deepEqual(trace, ['cleanup'])
   })
 })
