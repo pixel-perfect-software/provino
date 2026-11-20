@@ -89,18 +89,6 @@ const UNSUPPORTED: Readonly<Record<string, string>> = {
   alsoServe: 'T1.4 (a project serving several dialects)',
 }
 
-/**
- * Keys B27a typed and B27d reads. Until then a set one would be ignored, so any value but an
- * empty object is `CONFIG_UNSUPPORTED`.
- */
-const NOT_READ_YET: readonly string[] = [
-  'timeouts',
-  'resolve',
-  'environmentOptions',
-  'pool',
-  'maxWorkers',
-]
-
 /** Whether a value is a non-null object that is not an array. */
 export function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -340,14 +328,6 @@ export function parseInput(
         `config key "${key}" isn't supported yet; ${owner} builds it`,
       )
     }
-  }
-  for (const key of NOT_READ_YET) {
-    const value: unknown = Reflect.get(input, key)
-    if (value === undefined || (isRecord(value) && Object.keys(value).length === 0)) continue
-    throw new ConfigError(
-      'CONFIG_UNSUPPORTED',
-      `config key "${key}" isn't supported yet; B27d (provino.config end to end) builds it`,
-    )
   }
   return {
     name: optional(input, 'name', 'a string', isString),
