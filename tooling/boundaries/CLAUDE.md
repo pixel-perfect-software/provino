@@ -26,7 +26,7 @@ Every check runs, then dependency-cruiser does, so one run reports everything.
 - **New rule:** generate it in `src/generate.ts` (or add a check to `src/workspace.ts`), and add a planted case to `src/planted.test.ts` or `src/workspace.test.ts` that fails without it.
 - **Tests of a subpath entry** go in the package's `test/`: the manifest gives that dir its own `<package>/test` node (`withTestNodes`), which may import every entry.
 
-- **A ban list** (`bannedPackages`, T7.12) is a list of package names (`@scope/*` allowed) that a node's non-test files may not import at run time. It becomes `banned-packages-<node>` in the dependency-cruiser config: `to.path` matches `(^|/)node_modules/<name>/`, so it holds for flat and pnpm layouts, and `dependencyTypesNot: ['type-only']` lets `import type` through. A subpath entry must carry its package's list (`manifest-subpath`). Today: `@provino/expect`, `@provino/snapshot` and its two entries ban `expect`, `@vitest/expect`, `jest-snapshot`, `@vitest/snapshot` and `@babel/*`.
+- **A ban list** (`bannedPackages`, T7.12) is a list of package names (`@scope/*` allowed) that a node's non-test files may not import at run time. It becomes `banned-packages-<node>` in the dependency-cruiser config: `to.path` matches `(^|/)node_modules/<name>/`, so it holds for flat and pnpm layouts, and `dependencyTypesNot: ['type-only']` lets `import type` through. A subpath entry must carry its package's list (`manifest-subpath`). Today (B27a, D184): the native path's nodes (`monorepo-architecture.md`, rule 8) ban `jest-*`, `@jest/*`, `expect`, `pretty-format`, `chai`, `@vitest/*`, `vite` and `@babel/*`; `@provino/expect` and `/table` leave out `@jest/*` until B27c (`@jest/expect-utils`).
 
 ## Gotchas
 

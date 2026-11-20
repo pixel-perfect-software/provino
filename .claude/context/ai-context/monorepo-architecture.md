@@ -23,6 +23,7 @@ Dependencies point **down** the layers only. Same-layer edges are allowed only w
 | 2 | `@provino/mock` | worker | `fn`, `spyOn`, module-mock registry | types, policy |
 | 2 | `@provino/timers` | worker | Fake timers | types, policy |
 | 2 | `@provino/expect` | worker | `expect`, matchers, asymmetric matchers | types, policy, snapshot `/runtime` |
+| 2 | `@provino/expect/table` (subpath entry, its own manifest node; B27, D186) | worker | The neutral matcher table a project with no dialect gets (`NativeRuntimeRefs.matcherTable`, D188) | types, policy, `@provino/expect` (for `AsymmetricMatcher`) |
 | 3 | `@provino/loader` | both | Loader engines, isolation tiers, `registerHooks` glue; coordinator mode (U5, D74) loads a global setup module in the coordinator. The worker supplies the module-mock registry, so the loader never imports `@provino/mock` | types, policy, resolver, transform |
 | 3 | `@provino/core` | worker | Collector, executor, hooks, context, **definition table and `fixtures.compile`** (§6), current-test ALS | types, policy |
 | 3 | `@provino/env-node`, `-jsdom`, `-happy-dom` | worker | `Environment` implementations | types |
@@ -31,8 +32,9 @@ Dependencies point **down** the layers only. Same-layer edges are allowed only w
 | 4 | `@provino/reporters` | coordinator | Reporter bus, built-ins, `normalized-json` (U4) | types |
 | 5 | `@provino/orchestrator` | coordinator | Coordinator, pools, scheduler, watch | types, policy, rpc, config, reporters, resolver, snapshot `/node`, coverage `/node` |
 | 5 | `@provino/orchestrator/worker` (subpath entry, its own manifest node) | worker | Worker entry: wires loader → core via `ImportFile`, environments by `ModuleRef`, runs files (U1) | types, policy, rpc, loader, core, lazy, expect, mock, timers, snapshot `/runtime`, coverage (worker side); never the coordinator entry |
-| 5 | `@provino/dialect-jest`, `@provino/dialect-vitest` | both | `Dialect` value; `/node` (config reader, flags, reporter adapters) and `/runtime` (facades, globals) | types, policy; `/node` also config, resolver, transform; `/runtime` also core, lazy, expect, mock, timers |
-| 6 | `provino` | both | CLI bin, public subpaths (`.`, `/globals`, `/config`, `/node`, `/reporters`, `/environment`, `/plugin`, `/jest`, `/vitest`) | all public packages |
+| 5 | `@provino/api` (private, inlined into `provino`; B27, D185, D186) | worker | The native test API: the served `provino` module (`provinoModuleScope`) and the same values as globals (`provinoGlobals`), reached through `NativeRuntimeRefs` that `provino` hands `@provino/config` | types, policy, core (types only), lazy, expect, mock, timers |
+| 5 | `@provino/dialect-jest`, `@provino/dialect-vitest` | both | `Dialect` value; `/node` (config reader, flags, reporter adapters) and `/runtime` (facades, globals) | types, policy; `/node` also config, resolver, transform; `/runtime` also core, lazy, expect, mock, timers; Vitest's `/runtime` also env-node, env-jsdom and resolver (D198) |
+| 6 | `provino` | both | CLI bin, public subpaths (`.`, `/globals`, `/config`, `/node`, `/reporters`, `/environment`, `/plugin`, `/jest`, `/vitest`) | all public packages, and `@provino/api` and `@provino/expect/table` (the native refs, D186) |
 | dev | `@provino/harness`, `@provino/bench` | dev | Differential harness, golden recorders, benchmarks, kill-check | types and helpers from any `@provino/*`; **run** Provino only via `provino/node` (DECISIONS S4); real Jest/Vitest as subjects |
 
 Added by §6, created only when their phase arrives: `@provino/vitest-compat` and `@provino/jest-globals` (Phase 2 facades), `@provino/eslint-plugin` and `@provino/codemod-lazy` (Phase 4), `@provino/dialect-node-test` (Phase 4, private), the `provino-site` app (T12.18). `@provino/env-shared` only if two environment packages share `populateGlobal`. All are listed in the manifest already (`dir` is `null` for `provino-site` until T12.18 places it).
@@ -52,6 +54,7 @@ Rule names, as CI prints them: dependency-cruiser `boundary-<node>` (a package w
 5. **Coordinator and worker never import each other's packages**, except through `@provino/types` and `ModuleRef` strings. This is why snapshot, coverage and the dialects split into `/node` and `/runtime`.
 6. **Core does not import the loader.** The worker entry injects `ImportFile`, so core also runs with no loader in unit tests.
 7. **No cycles, no hidden globals.** A cycle made only of type-only imports is allowed (contract types refer to each other; DECISIONS D15). State lives in an explicit `WorkerContext` or in core's AsyncLocalStorage.
+8. **Native loads nothing from Jest or Vitest (B27, D184).** These nodes (types, policy, resolver, transform, snapshot, mock, timers, expect and `/table`, env-shared, env-node, loader, core, lazy, config, reporters, orchestrator and `/worker`, api, and their subpath entries) carries `bannedPackages`: `jest-*`, `@jest/*`, `expect`, `pretty-format`, `chai`, `@vitest/*`, `vite`, `@babel/*`. It becomes dependency-cruiser's `banned-packages-<node>`: a run-time import fails, a type import and a test don't. A subpath entry carries its package's list. **Allowed until B27c:** `@provino/expect` (and so `/table`) leaves out `@jest/*`, because the engine still imports `@jest/expect-utils` at run time; B27c vendors its `equals` (D187) and adds `@jest/*` back.
 
 ## Cross-thread contracts
 
