@@ -4,7 +4,7 @@
  * This source code is licensed under the MIT license found in the
  * LICENSE file in the root directory of this source tree.
  */
-import type { CompareKeys } from '../../../../../vendor/pretty-format/index.ts'
+import type { CompareKeys } from '../../pretty-format/index.ts'
 
 export type DiffOptionsColor = (arg: string) => string
 

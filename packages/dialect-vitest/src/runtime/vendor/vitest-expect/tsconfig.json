@@ -19,6 +19,9 @@
   "references": [
     {
       "path": "../../../vendor/pretty-format"
+    },
+    {
+      "path": "../../../vendor/vitest-utils"
     }
   ]
 }

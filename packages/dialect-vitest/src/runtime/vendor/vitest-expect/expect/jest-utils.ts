@@ -25,7 +25,7 @@ WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 import type { StandardSchemaV1 } from '../standard-schema.ts'
 import type { AsymmetricMatcher } from './jest-asymmetric-matchers.ts'
 import type { Tester, TesterContext } from './types.ts'
-import { isObject } from '../utils/helpers.ts'
+import { isObject } from '../../../../vendor/vitest-utils/helpers.ts'
 
 // Extracted out of jasmine 2.5.2
 export function equals(

@@ -11,7 +11,7 @@
   ],
   "references": [
     {
-      "path": "../../runtime/vendor/vitest-expect"
+      "path": "../../vendor/vitest-utils"
     }
   ]
 }

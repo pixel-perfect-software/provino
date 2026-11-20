@@ -8,6 +8,7 @@
 // all here, as Vitest keeps them.
 import { snapshotMatchers } from '@provino/expect'
 import type { ExpectTable, Matcher, MatcherCall, MatcherResult, MatcherSet } from '@provino/types'
+import { printDiffOrStringify } from '../vendor/vitest-utils/diff/index.ts'
 import { chaiChain, loadVitestPlugins, VitestAssertion } from './expect/assertion.ts'
 import { isChaiAssertionError } from './expect/chai.ts'
 import { vitestMessages } from './expect/messages.ts'
@@ -17,7 +18,6 @@ import {
   JestExtendError,
   jestUtils,
 } from './vendor/vitest-expect/expect/jest-extend.ts'
-import { printDiffOrStringify } from './vendor/vitest-expect/utils/diff/index.ts'
 
 /** What a matcher's `this` holds that the wrapper reads. */
 interface CallContext {

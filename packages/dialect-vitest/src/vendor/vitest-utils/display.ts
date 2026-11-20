@@ -1,10 +1,10 @@
 // provino: `@vitest/pretty-format` is the package's vendored copy (`src/vendor/pretty-format`), without its ReactElement plugin
-import type { PrettyFormatOptions } from '../../../../vendor/pretty-format/index.ts'
+import type { PrettyFormatOptions } from '../pretty-format/index.ts'
 import {
   createDOMElementFilter,
   format as prettyFormat,
   plugins as prettyFormatPlugins,
-} from '../../../../vendor/pretty-format/index.ts'
+} from '../pretty-format/index.ts'
 
 // provino: no ReactElement plugin (it needs react-is)
 const {

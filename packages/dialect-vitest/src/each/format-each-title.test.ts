@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
 import type { FormatEachTitle } from '@provino/types'
 import { vitestPolicy } from '../dialect.ts'
-import * as ours from '../runtime/vendor/vitest-expect/utils/display.ts'
+import * as ours from '../vendor/vitest-utils/display.ts'
 import { formatEachTitle } from './format-each-title.ts'
 import { VITEST_EACH_TITLE_TRUNCATE } from './title-truncate.ts'
 

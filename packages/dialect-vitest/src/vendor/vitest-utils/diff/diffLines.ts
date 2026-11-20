@@ -6,7 +6,7 @@
  */
 
 import type { DiffOptions, DiffOptionsNormalized } from './types.ts'
-import diffSequences from '../../diff-sequences.ts'
+import diffSequences from '../diff-sequences.ts'
 import { Diff, DIFF_DELETE, DIFF_EQUAL, DIFF_INSERT } from './cleanupSemantic.ts'
 import { joinAlignedDiffsExpand, joinAlignedDiffsNoExpand } from './joinAlignedDiffs.ts'
 import { normalizeDiffOptions } from './normalizeDiffOptions.ts'

@@ -1,7 +1,7 @@
 import type { Test } from '../runner-types.ts'
 import type { Assertion } from './types.ts'
-import { processError } from '../utils/error.ts'
-import { noop } from '../utils/helpers.ts'
+import { processError } from '../../../../vendor/vitest-utils/error.ts'
+import { noop } from '../../../../vendor/vitest-utils/helpers.ts'
 
 export function createAssertionMessage(
   util: Chai.ChaiUtils,

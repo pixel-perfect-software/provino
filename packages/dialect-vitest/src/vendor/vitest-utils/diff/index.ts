@@ -7,10 +7,10 @@
 
 // This is a fork of Jest's jest-diff package, but it doesn't depend on Node environment (like chalk).
 
-import type { PrettyFormatOptions } from '../../../../../vendor/pretty-format/index.ts'
+import type { PrettyFormatOptions } from '../../pretty-format/index.ts'
 import type { DiffOptions } from './types.ts'
-import { format as prettyFormat, plugins as prettyFormatPlugins } from '../../../../../vendor/pretty-format/index.ts'
-import c from '../../tinyrainbow.ts'
+import { format as prettyFormat, plugins as prettyFormatPlugins } from '../../pretty-format/index.ts'
+import c from '../tinyrainbow.ts'
 import { stringify } from '../display.ts'
 import { deepClone, getOwnProperties, getType as getSimpleType } from '../helpers.ts'
 import { Diff, DIFF_DELETE, DIFF_EQUAL, DIFF_INSERT } from './cleanupSemantic.ts'

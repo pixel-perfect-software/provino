@@ -5,9 +5,9 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-import type { CompareKeys } from '../../../../../vendor/pretty-format/index.ts'
+import type { CompareKeys } from '../../pretty-format/index.ts'
 import type { DiffOptions, DiffOptionsNormalized } from './types.ts'
-import c from '../../tinyrainbow.ts'
+import c from '../tinyrainbow.ts'
 
 const noColor = (string: string): string => string
 

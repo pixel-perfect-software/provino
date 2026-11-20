@@ -1,6 +1,6 @@
 import type { DiffOptions } from './diff/index.ts'
 import type { TestError } from './types.ts'
-import { format as prettyFormat } from '../../../../vendor/pretty-format/index.ts'
+import { format as prettyFormat } from '../pretty-format/index.ts'
 import { getDefaultFormatOptions, printDiffOrStringify } from './diff/index.ts'
 import { serializeValue } from './serialize.ts'
 

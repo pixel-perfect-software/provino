@@ -10,16 +10,19 @@
       "path": "../policy"
     },
     {
-      "path": "src/each/vendor"
+      "path": "../expect"
     },
     {
       "path": "src/vendor/pretty-format"
     },
     {
+      "path": "src/vendor/vitest-utils"
+    },
+    {
       "path": "src/runtime/vendor/vitest-expect"
     },
     {
-      "path": "../expect"
+      "path": "src/each/vendor"
     }
   ]
 }

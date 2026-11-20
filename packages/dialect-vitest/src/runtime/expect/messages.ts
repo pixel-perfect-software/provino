@@ -3,7 +3,7 @@
 // engine's `policyMessages`, which are Vitest's (`@provino/expect`).
 import { policyMessages } from '@provino/expect'
 import type { ExpectMessages, MatcherCall } from '@provino/types'
-import { getType } from '../vendor/vitest-expect/utils/helpers.ts'
+import { getType } from '../../vendor/vitest-utils/helpers.ts'
 import { chai } from './chai.ts'
 
 /**

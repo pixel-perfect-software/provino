@@ -1,12 +1,12 @@
-import type { Formatter } from '../tinyrainbow.ts'
+import type { Formatter } from '../../../../vendor/vitest-utils/tinyrainbow.ts'
 import type { MatcherHintOptions, Tester } from './types.ts'
-import { diff, printDiffOrStringify } from '../utils/diff/index.ts'
-import { stringify } from '../utils/display.ts'
-import { getType } from '../utils/helpers.ts'
-import c from '../tinyrainbow.ts'
+import { diff, printDiffOrStringify } from '../../../../vendor/vitest-utils/diff/index.ts'
+import { stringify } from '../../../../vendor/vitest-utils/display.ts'
+import { getType } from '../../../../vendor/vitest-utils/helpers.ts'
+import c from '../../../../vendor/vitest-utils/tinyrainbow.ts'
 import { JEST_MATCHERS_OBJECT } from './constants.ts'
 
-export { diff } from '../utils/diff/index.ts'
+export { diff } from '../../../../vendor/vitest-utils/diff/index.ts'
 export { stringify }
 
 const EXPECTED_COLOR = c.green
