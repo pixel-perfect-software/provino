@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import type { NeutralProject } from '@provino/types'
 import { ConfigError, type ConfigErrorCode } from '../errors.ts'
 
 /** A temp directory whose files are written as text at test time. */
@@ -42,4 +43,36 @@ export async function rejectsWith(
     return error
   }
   assert.fail(`expected a ConfigError ${code}, but it resolved`)
+}
+
+/**
+ * A project a dialect's config reader could have produced, rooted at `rootDir`: `.test.js` files,
+ * the `node` environment, nothing else set. `overrides` replace whole keys.
+ */
+export function neutralProject(
+  rootDir: string,
+  overrides: Partial<NeutralProject> = {},
+): NeutralProject {
+  return {
+    name: 'p',
+    rootDir,
+    discovery: {
+      roots: [rootDir],
+      extensions: ['js'],
+      includePatterns: { kind: 'glob', patterns: ['**/*.test.js'] },
+      excludePatterns: ['/node_modules/'],
+      crawlIgnorePatterns: [],
+    },
+    setupFiles: [],
+    setupFilesAfterEnv: [],
+    globalSetup: [],
+    globalTeardown: [],
+    environment: { name: 'node', options: {} },
+    aliases: [],
+    transforms: [],
+    transformIgnorePatterns: [],
+    snapshotSerializers: [],
+    policy: {},
+    ...overrides,
+  }
 }

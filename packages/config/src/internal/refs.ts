@@ -43,13 +43,21 @@ function checkRef(ref: unknown, path: string): void {
  * @internal
  */
 export function assertNativeRefs(native: NativeRuntimeRefs): void {
+  // The caller is `provino`, but a library caller passes what it likes: nothing is trusted.
+  const value: unknown = native
+  if (!isRecord(value)) {
+    throw new ConfigError(
+      'CONFIG_INVALID',
+      `native must be an object of refs (got ${describe(value)})`,
+    )
+  }
   checkRef(native.matcherTable, 'native.matcherTable')
   checkRef(native.moduleScope, 'native.moduleScope')
   checkRef(native.globals, 'native.globals')
-  if (!isStringArray(native.modules)) {
+  if (!isStringArray(native.modules) || native.modules.includes('')) {
     throw new ConfigError(
       'CONFIG_INVALID',
-      `native.modules must be an array of module specifiers (got ${describe(native.modules)})`,
+      `native.modules must be an array of non-empty module specifiers (got ${describe(native.modules)})`,
     )
   }
 }

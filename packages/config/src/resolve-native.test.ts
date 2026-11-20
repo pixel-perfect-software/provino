@@ -5,8 +5,8 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
 import { defineDialect, moduleRef } from '@provino/policy'
-import type { NativeRuntimeRefs, NeutralProject } from '@provino/types'
-import { makeTempDir, rejectsWith, type TempDir } from './internal/test-support.ts'
+import type { NativeRuntimeRefs } from '@provino/types'
+import { makeTempDir, neutralProject, rejectsWith, type TempDir } from './internal/test-support.ts'
 import { resolveNeutralProject, resolveProject } from './resolve.ts'
 
 const ENVIRONMENTS = { node: { module: 'file:///env/node.mjs', export: 'nodeEnvironment' } }
@@ -79,7 +79,7 @@ describe('a project with no dialect', () => {
   })
 
   test('a neutral project a reader produced with no dialect gets them too', async () => {
-    const resolved = await resolveNeutralProject(neutral(), {
+    const resolved = await resolveNeutralProject(neutralProject(temp.dir), {
       dialect: null,
       environments: ENVIRONMENTS,
       ci: false,
@@ -102,7 +102,7 @@ describe('a project with a dialect ignores them', () => {
   })
 
   test("a reader's project with a dialect", async () => {
-    const resolved = await resolveNeutralProject(neutral(), {
+    const resolved = await resolveNeutralProject(neutralProject(temp.dir), {
       dialect: scoped,
       environments: ENVIRONMENTS,
       ci: false,
@@ -152,33 +152,25 @@ describe('bad refs are config errors', () => {
     assert.match(error.message, /^native\.moduleScope must be a \{ module, export \} ref/)
   })
 
+  test('an empty specifier in modules is CONFIG_INVALID', async () => {
+    const bad: NativeRuntimeRefs = { ...NATIVE, modules: ['provino', ''] }
+    const error = await rejectsWith(resolveProject({}, options(bad)), 'CONFIG_INVALID')
+    assert.match(error.message, /^native\.modules/)
+  })
+
+  test('refs that are not an object are CONFIG_INVALID, not a TypeError', async () => {
+    for (const native of [null, 'refs', 1]) {
+      const error = await rejectsWith(
+        resolveProject({}, { ...options(null), native: native as unknown as NativeRuntimeRefs }),
+        'CONFIG_INVALID',
+      )
+      assert.match(error.message, /^native must be an object/)
+    }
+  })
+
   test('modules must be an array of specifiers', async () => {
     const bad = { ...NATIVE, modules: 'provino' as unknown as readonly string[] }
     const error = await rejectsWith(resolveProject({}, options(bad)), 'CONFIG_INVALID')
     assert.match(error.message, /^native\.modules must be an array/)
   })
 })
-
-function neutral(): NeutralProject {
-  return {
-    name: 'p',
-    rootDir: temp.dir,
-    discovery: {
-      roots: [temp.dir],
-      extensions: ['js'],
-      includePatterns: { kind: 'glob', patterns: ['**/*.test.js'] },
-      excludePatterns: ['/node_modules/'],
-      crawlIgnorePatterns: [],
-    },
-    setupFiles: [],
-    setupFilesAfterEnv: [],
-    globalSetup: [],
-    globalTeardown: [],
-    environment: { name: 'node', options: {} },
-    aliases: [],
-    transforms: [],
-    transformIgnorePatterns: [],
-    snapshotSerializers: [],
-    policy: {},
-  }
-}
