@@ -365,3 +365,42 @@ test("an inline project is rooted at its own test.root or root, from the declari
     ],
   )
 })
+
+// Vitest 5.0.5 hands a child project only the command line's `PROJECT_CLI_OVERRIDES`
+// (resolveProjects.ts L52-L79), which has neither `environment` nor `dom`; `--dom` reaches
+// `resolveTestConfig` for the root alone (`cli/vitest-dom-projects` records the first case).
+test('--dom and --environment leave a child project on its own environment', async () => {
+  const root = writeTree({
+    'vitest.config.mjs': `export default {
+  test: { projects: [{ test: { name: 'child', environment: 'jsdom' } }, { test: { name: 'bare' } }] },
+}
+`,
+  })
+  for (const cli of [{ dom: true }, { environment: 'node' }, { dom: true, environment: 'node' }]) {
+    const { projects } = await readVitestConfig({ cwd: root, test: cli })
+    assert.deepEqual(
+      projects.map((project) => [project.name, project.environment.name]),
+      [
+        ['child', 'jsdom'],
+        ['bare', 'node'],
+      ],
+      JSON.stringify(cli),
+    )
+  }
+})
+
+test('--dom over a root config that names jsdom is happy-dom', async () => {
+  const root = writeTree({
+    'vitest.config.mjs': "export default { test: { environment: 'jsdom' } }\n",
+  })
+  const { projects } = await readVitestConfig({ cwd: root, test: { dom: true } })
+  assert.deepEqual(
+    projects.map((project) => project.environment.name),
+    ['happy-dom'],
+  )
+  const environment = await readVitestConfig({ cwd: root, test: { environment: 'edge-runtime' } })
+  assert.deepEqual(
+    environment.projects.map((project) => project.environment.name),
+    ['edge-runtime'],
+  )
+})

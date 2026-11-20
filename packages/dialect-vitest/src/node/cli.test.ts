@@ -410,6 +410,7 @@ describe('Provino on top of the parse', () => {
       'fileParallelism',
       'maxWorkers',
       'environment',
+      'dom', // `environment: 'happy-dom'` (normalize.ts)
       'logHeapUsage',
       'allowOnly',
       'sequence',
