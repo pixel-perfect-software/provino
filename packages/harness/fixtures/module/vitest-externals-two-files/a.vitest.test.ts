@@ -18,3 +18,10 @@ test('the patched global is there', () => {
 test('the patching package was evaluated once for this file', () => {
   expect(__patcherLoads).toBe(1)
 })
+
+// What the packages left on the global goes, so the second file sees them only if its own
+// evaluation writes them again (a runner that kept the first evaluation would fail there).
+afterAll(() => {
+  delete (globalThis as { __patched?: unknown }).__patched
+  delete (globalThis as { __patcherLoads?: unknown }).__patcherLoads
+})

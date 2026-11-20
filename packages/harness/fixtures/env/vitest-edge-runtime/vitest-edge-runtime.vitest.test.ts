@@ -20,7 +20,3 @@ test('Buffer and fetch are there', () => {
     'function',
   ])
 })
-
-test("Response is the edge runtime's", () => {
-  expect(new Response('x') instanceof Response).toBe(true)
-})

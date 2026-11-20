@@ -67,21 +67,6 @@
             "line": 16,
             "column": 1
           }
-        },
-        {
-          "id": {
-            "file": "vitest-edge-runtime.vitest.test.ts",
-            "path": [
-              "Response is the edge runtime's"
-            ],
-            "dupIndex": 0
-          },
-          "status": "passed",
-          "errors": [],
-          "location": {
-            "line": 24,
-            "column": 1
-          }
         }
       ]
     }

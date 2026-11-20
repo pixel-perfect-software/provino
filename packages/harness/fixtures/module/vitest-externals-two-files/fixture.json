@@ -1,5 +1,5 @@
 {
-  "description": "D127 and D151, the Vitest values: two files in one worker (`fileParallelism: false`) each load the externalized packages `hooker` (registers a `beforeEach` as it loads) and `patcher` (writes `globalThis.__patched` as it loads). Whether the second file sees its own hook run once and the patched global (each package evaluated again for the file) is what `module.reevaluateHookingExternals` and `module.reevaluatePatchingExternals` claim.",
+  "description": "D127 and D151, the Vitest values: two files (`fileParallelism: false`) each load the externalized packages `hooker` (registers a `beforeEach` as it loads) and `patcher` (writes `globalThis.__patched` and counts its evaluations there as it loads). The first file clears both globals in an `afterAll`. Vitest 5.0.5 gives each file its own worker under isolation (`node/pool.ts` L393, `pools/pool.ts` L339), so the second file sees its own hook run once, the patched global and one evaluation: each package is evaluated again for the file, which `module.reevaluateHookingExternals` and `module.reevaluatePatchingExternals` claim.",
   "runners": ["vitest"],
   "config": {
     "vitest": {

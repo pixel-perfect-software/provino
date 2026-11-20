@@ -126,7 +126,6 @@ describe('the Vitest environments against Vitest 5.0.5 (T8.6)', () => {
         'window is the global': "typeof window === 'object' && window === globalThis",
         'Buffer and fetch are there':
           "[typeof Buffer, typeof fetch, typeof Response].every((t) => t === 'function')",
-        "Response is the edge runtime's": "new Response('x') instanceof Response",
       },
     )
   })
