@@ -98,6 +98,7 @@ const EXPORTED_NAMES: Readonly<Record<string, readonly string[]>> = {
     'nodeEnvironment',
   ],
   'provino/jest': ['jestDialect', 'jestPolicy'],
+  'provino/vitest': ['vitestDialect', 'vitestPolicy'],
 }
 
 /**

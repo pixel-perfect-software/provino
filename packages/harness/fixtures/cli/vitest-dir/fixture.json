@@ -1,0 +1,10 @@
+{
+  "description": "Vitest 5.0.5's --dir <path> is where discovery starts (the config's test.dir): a test file outside it does not run. Held by provino vitest in B25g.",
+  "runners": ["vitest"],
+  "run": {
+    "argv": {
+      "vitest": ["--dir", "inside"]
+    },
+    "capture": ["exitCode"]
+  }
+}

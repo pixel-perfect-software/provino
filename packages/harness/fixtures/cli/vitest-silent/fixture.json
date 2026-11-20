@@ -1,0 +1,12 @@
+{
+  "description": "Vitest 5.0.5's --silent prints none of the tests' console output (the default reporter's stdout keeps no MARKER line). Held by provino vitest in B25g.",
+  "runners": ["vitest"],
+  "run": {
+    "argv": {
+      "vitest": ["--silent", "--reporter=default"]
+    },
+    "capture": ["exitCode", "stdout", "stderr"],
+    "keepLines": "MARKER",
+    "emptyStreams": ["stdout", "stderr"]
+  }
+}

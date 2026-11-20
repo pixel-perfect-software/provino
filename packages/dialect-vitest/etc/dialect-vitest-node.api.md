@@ -4,11 +4,14 @@
 
 ```ts
 
+import { CliDialect } from '@provino/types';
 import { ConfigReader } from '@provino/types';
 import { ConfigSource } from '@provino/types';
 import { Diagnostic } from '@provino/types';
 import { Dialect } from '@provino/types';
+import { FlagSpec } from '@provino/types';
 import { NeutralProject } from '@provino/types';
+import { RunRequest } from '@provino/types';
 
 // @public
 export function createVitestConfigReader(options?: VitestReadOptions): ConfigReader<VitestRawConfig, VitestResolvedConfig>;
@@ -52,7 +55,17 @@ export function normalizeAlias(value: unknown): AliasEntry[];
 export function parseDotenv(text: string): Record<string, string>;
 
 // @public
+export function parseVitestArgv(args: readonly string[]): VitestArgv;
+
+// @public
+export function parseVitestCli(args: readonly string[]): {
+    readonly argv: VitestArgv;
+    readonly diagnostics: Diagnostic[];
+};
+
+// @public
 export function readVitestConfig(options?: VitestReadOptions): Promise<{
+    readonly root: VitestResolvedProject;
     readonly projects: readonly NeutralProject[];
     readonly diagnostics: readonly Diagnostic[];
     readonly needsVite: boolean;
@@ -65,7 +78,63 @@ export function resolveVitestProjects(loaded: VitestLoadedConfig | undefined, op
 export function viteConfigDeclaresTests(root: string): Promise<boolean>;
 
 // @public
+export const VITEST_CLI_OPTIONS: readonly VitestCliOption[];
+
+// @public
 export const VITEST_CONFIG_CANDIDATES: readonly string[];
+
+// @public
+export const VITEST_LIST_OPTIONS: readonly VitestCliOption[];
+
+// @public
+export interface VitestArgv {
+    // (undocumented)
+    readonly command: VitestCommandName;
+    // (undocumented)
+    readonly filters: readonly unknown[];
+    readonly given: readonly (readonly [string, unknown])[];
+    // (undocumented)
+    readonly options: Readonly<Record<string, unknown>>;
+}
+
+// @public
+export function vitestArgvToRunRequest(argv: VitestArgv): RunRequest;
+
+// @public
+export function vitestArgvToTestConfig(argv: VitestArgv): Record<string, unknown>;
+
+// @public
+export const vitestCli: CliDialect<VitestArgv>;
+
+// @public
+export class VitestCliError extends Error {
+    constructor(code: VitestCliErrorCode, message: string, upstreamName?: string);
+    // (undocumented)
+    readonly code: VitestCliErrorCode;
+    // (undocumented)
+    readonly upstreamName: string;
+}
+
+// @public
+export type VitestCliErrorCode = "VITEST_CLI_INVALID" | "VITEST_CLI_UNSUPPORTED" | "VITEST_CLI_UNSUPPORTED_FORM";
+
+// @public
+export type VitestCliOption = (VitestCliOptionBase & {
+    readonly support: "request" | "config";
+    readonly owner?: never;
+}) | (VitestCliOptionBase & {
+    readonly support: "refuse" | "warn";
+    readonly owner: string;
+});
+
+// @public
+export type VitestCliSupport = "request" | "config" | "refuse" | "warn";
+
+// @public
+export type VitestCliValue = "array" | "normalize" | "api" | "silent" | "nested-boolean" | "yes-no" | "watermarks" | "browser" | "browser-trace" | "locators" | "inspect" | "retry-condition" | "expect" | "expect-poll" | "merge-reports" | "import-durations" | "import-durations-print";
+
+// @public
+export type VitestCommandName = "run" | "related" | "watch" | "dev" | "bench" | "init" | "doctor" | "list" | "" | "complete";
 
 // @public
 export const vitestConfigDefaults: Readonly<Rec>;
@@ -90,6 +159,9 @@ export const vitestConfigStandIn: VitestConfigStandIn;
 
 // @public
 export const vitestCoverageConfigDefaults: Readonly<Rec>;
+
+// @public
+export const vitestFlags: readonly FlagSpec[];
 
 // @public
 export interface VitestLoadedConfig {

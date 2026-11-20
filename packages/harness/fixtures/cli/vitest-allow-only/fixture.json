@@ -1,0 +1,10 @@
+{
+  "description": "Vitest 5.0.5's --allowOnly lets a .only test run under CI (allowOnly defaults to !isCI): the focused test passes, the other is skipped, exit 0. Held by provino vitest in B25g.",
+  "runners": ["vitest"],
+  "run": {
+    "argv": {
+      "vitest": ["--allowOnly"]
+    },
+    "capture": ["exitCode"]
+  }
+}

@@ -40,6 +40,11 @@ export interface ForksTransportOptions extends TransportOptions {
   /** The child's environment. Default: this process's. */
   readonly env?: NodeJS.ProcessEnv
   /**
+   * Variables added over `env` (default: this process's, read when each child spawns, so what a
+   * global setup set since is in it).
+   */
+  readonly workerEnv?: Readonly<Record<string, string>>
+  /**
    * Variables for Node's own startup in the child (`NODE_COMPILE_CACHE`, which Node reads before
    * any of our code runs) that no test may see, since Jest sets none: they are added to the
    * child's environment, and the worker's bootstrap removes them from its `process.env` before it
@@ -181,12 +186,13 @@ export function forksTransport(options: ForksTransportOptions): TransportFactory
       stdio: ['ignore', 'pipe', 'pipe', 'ipc'],
       execArgv,
       env:
-        startupNames.length === 0
+        startupNames.length === 0 && options.workerEnv === undefined
           ? (options.env ?? process.env)
           : {
               ...(options.env ?? process.env),
+              ...options.workerEnv,
               ...options.startupEnv,
-              [STARTUP_ENV_NAMES]: startupNames.join(','),
+              ...(startupNames.length === 0 ? {} : { [STARTUP_ENV_NAMES]: startupNames.join(',') }),
             },
     })
     const stderr = forwardStdio(child, options)

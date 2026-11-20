@@ -248,13 +248,15 @@ export interface OrchestratorPolicy {
   }
   /**
    * How `--shard=i/n` splits the files when no file has a time in the timings file. `sha1-slice`:
-   * the files sorted by the sha1 of their path, then contiguous slices by count (Jest's, and
-   * Vitest's by its source). `path-slice`: the files sorted by path, then contiguous slices by
-   * count. With timings, every dialect cuts contiguous slices of the path-sorted files by predicted
-   * time. Jest: `sha1-slice` (recorded: `cli/shard-1-of-3` to `3-of-3`). Vitest: `sha1-slice`
-   * (its source, not recorded). Neutral: `path-slice`. research: track-09 L558
+   * the files sorted by the sha1 of their root-relative path, then contiguous slices by count
+   * (Jest's). `rooted-sha1-slice`: the same over each path with a leading `/` (Vitest's
+   * `BaseSequencer.shard` hashes the absolute path with the root cut off). `path-slice`: the files
+   * sorted by path, then contiguous slices by count. With timings, every dialect cuts contiguous
+   * slices of the path-sorted files by predicted time. Jest: `sha1-slice` (recorded:
+   * `cli/shard-1-of-3` to `3-of-3`). Vitest: `rooted-sha1-slice` (recorded: `cli/vitest-shard-1-of-3`
+   * to `3-of-3`). Neutral: `path-slice`. research: track-09 L558
    */
-  readonly shard: { readonly fallback: 'sha1-slice' | 'path-slice' }
+  readonly shard: { readonly fallback: ShardFallback }
   /** Whether files with no timing history run first. Jest: `true`. Vitest: `true`. research: track-09 L559 */
   readonly sequence: { readonly unknownFirst: boolean }
   /**
@@ -284,3 +286,9 @@ export interface OrchestratorPolicy {
     readonly failure: Behaviour<GlobalSetupFailure>
   }
 }
+
+/**
+ * How a shard splits the files when no timings say otherwise (`orchestrator.shard.fallback`).
+ * @public
+ */
+export type ShardFallback = 'sha1-slice' | 'rooted-sha1-slice' | 'path-slice'

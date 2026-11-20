@@ -1038,6 +1038,7 @@ export interface FactoryReferenceRule {
 
 // @public
 export interface FileFilter {
+    readonly ignoreCase?: boolean;
     // (undocumented)
     readonly kind: "regex" | "substring" | "path" | "pathLine";
     // (undocumented)
@@ -2479,7 +2480,7 @@ export interface OrchestratorPolicy {
         readonly unknownFirst: boolean;
     };
     readonly shard: {
-        readonly fallback: "sha1-slice" | "path-slice";
+        readonly fallback: ShardFallback;
     };
     readonly slowTestThresholdMs: number;
     readonly todoOnlyFile: "pass" | "skip";
@@ -3205,6 +3206,9 @@ export interface SerializedTransformConfig {
 export type ShapeTestError = (error: unknown, options: {
     readonly expand: boolean;
 }) => unknown;
+
+// @public
+export type ShardFallback = "sha1-slice" | "rooted-sha1-slice" | "path-slice";
 
 // @public
 export type ShuffleFactory = (seed: number) => <T>(items: T[]) => T[];

@@ -1,7 +1,9 @@
 // T9.6: which files a shard runs (`--shard=i/n`). Two splits, both pure in (files, shard):
 //
-// - `sha1Shard`: Jest's and Vitest's. Sort by `sha1(path relative to the project root)`, then
-//   take contiguous slices by file count (jest-test-sequencer 30.5.2 `shard`). No timings.
+// - `sha1Shard`: Jest's and Vitest's. Sort by `sha1(path)`, then take contiguous slices by file
+//   count (jest-test-sequencer 30.5.2 `shard`). Jest hashes the path relative to each project's
+//   root (`sha1-slice`); Vitest hashes `/` and the path relative to the top-level root
+//   (`rooted-sha1-slice`, BaseSequencer.ts L18-L26). No timings.
 // - `sliceShard`: path-sorted, contiguous cuts by predicted time (Bun's `--timings` method, Track
 //   9 §Sharding): a file the timings file has no time for counts as the median of the ones it has,
 //   so a new file doesn't move the files around it. With no timings at all every file counts the
@@ -11,7 +13,7 @@
 // (path, then project), and a file's shard is a function of its place in that order.
 import { hash } from 'node:crypto'
 import { join } from 'node:path'
-import type { ScheduleInput, TimingsFile } from '@provino/types'
+import type { ScheduleInput, ShardFallback, TimingsFile } from '@provino/types'
 import type { DiscoveredFile } from './discover.ts'
 import { OrchestratorError } from './errors.ts'
 import { relativePosix } from './file-id.ts'
@@ -75,7 +77,8 @@ function sizeOf(position: number, total: number, count: number): number {
 }
 
 /**
- * Jest's split: the files sorted by the sha1 of their path relative to their project's root, then
+ * Jest's split: the files sorted by the sha1 of their path relative to their project's root (with
+ * `prefix` before it: Vitest's `BaseSequencer.shard` hashes the path with its leading `/`), then
  * the `index`-th contiguous slice, the first `files.length % count` slices one file longer
  * (`TestSequencer.shard`). The hash is of `ScheduleInput.path`, which is that relative path with
  * `/`. Two files with the same path in different projects hash alike: the project breaks the tie
@@ -85,12 +88,12 @@ function sizeOf(position: number, total: number, count: number): number {
 export function sha1Shard(
   files: readonly ScheduleInput[],
   shard: ShardSpec,
+  prefix = '',
 ): readonly ScheduleInput[] {
   checkShard(shard)
   const hashed = files
-    .toSorted(byPathThenProject)
-    .map((file) => ({ file, hash: hash('sha1', file.path) }))
-    .toSorted((a, b) => byText(a.hash, b.hash))
+    .map((file) => ({ file, hash: hash('sha1', `${prefix}${file.path}`) }))
+    .sort((a, b) => byText(a.hash, b.hash) || byPathThenProject(a.file, b.file))
   let start = 0
   for (let position = 0; position < shard.index - 1; position++) {
     start += sizeOf(position, hashed.length, shard.count)
@@ -151,17 +154,18 @@ export function sliceShard(
 /**
  * The shard of `files` a run takes, whatever the dialect: contiguous cuts by predicted time as soon
  * as any file has a time (a timings file), else the dialect's `fallback` (`orchestrator.shard
- * .fallback`): `sha1-slice`, Jest's split, or `path-slice`, slices of the path-sorted files by
- * count.
+ * .fallback`): `sha1-slice`, Jest's split, `rooted-sha1-slice`, the same split over each path with a
+ * leading `/`, or `path-slice`, slices of the path-sorted files by count.
  * @public
  */
 export function shardInputs(
   files: readonly ScheduleInput[],
   shard: ShardSpec,
-  fallback: 'sha1-slice' | 'path-slice',
+  fallback: ShardFallback,
 ): readonly ScheduleInput[] {
   const timed = files.some((file) => timeOf(file) !== undefined)
-  return !timed && fallback === 'sha1-slice' ? sha1Shard(files, shard) : sliceShard(files, shard)
+  if (timed || fallback === 'path-slice') return sliceShard(files, shard)
+  return sha1Shard(files, shard, fallback === 'rooted-sha1-slice' ? '/' : '')
 }
 
 /**
@@ -180,40 +184,48 @@ export interface ShardMember {
  * The files each project runs of shard `shard` of the whole run: Jest shards one list across all
  * its projects, after the file filters, so this does too. Returns each member's kept files, in the
  * members' order and each member's own order. `timings` is the committed file: a file is looked up
- * by its path relative to `runRoot`, with `/`.
+ * by its path relative to `runRoot`, with `/`. Under `rooted-sha1-slice` that path is also what is
+ * hashed (Vitest's `BaseSequencer.shard` hashes from the top-level root, BaseSequencer.ts L18-L26);
+ * `sha1-slice` hashes each project's own relative path, as Jest does.
  * @public
  */
 export function shardFiles(
   members: readonly ShardMember[],
   options: {
     readonly shard: ShardSpec
-    readonly fallback: 'sha1-slice' | 'path-slice'
+    readonly fallback: ShardFallback
     readonly runRoot: string
     readonly timings?: TimingsFile | undefined
   },
 ): DiscoveredFile[][] {
   // Zero-padded, so the tie-break compares as numbers: Jest keeps tied files in project order.
   const keyOf = (index: number): string => String(index).padStart(8, '0')
-  const inputs = members.flatMap((member, index) =>
+  const times = options.timings?.files
+  const rooted = options.fallback === 'rooted-sha1-slice'
+  const byInput = new Map<ScheduleInput, DiscoveredFile>()
+  const perMember = members.map((member, index) =>
     member.files.map((file): ScheduleInput => {
+      const fromRunRoot =
+        times !== undefined || rooted
+          ? relativePosix(options.runRoot, join(member.rootDir, file.relativePath))
+          : undefined
       // Own entries only: `files['constructor']` is a function on an ordinary object.
-      const path = relativePosix(options.runRoot, join(member.rootDir, file.relativePath))
-      const times = options.timings?.files
-      const timingMs = times !== undefined && Object.hasOwn(times, path) ? times[path] : undefined
-      return {
-        path: file.relativePath,
+      const timingMs =
+        times !== undefined && fromRunRoot !== undefined && Object.hasOwn(times, fromRunRoot)
+          ? times[fromRunRoot]
+          : undefined
+      const input: ScheduleInput = {
+        path: rooted && fromRunRoot !== undefined ? fromRunRoot : file.relativePath,
         project: keyOf(index),
         sizeBytes: file.sizeBytes,
         ...(timingMs === undefined ? {} : { timingMs }),
       }
+      byInput.set(input, file)
+      return input
     }),
   )
-  const kept = new Set(
-    shardInputs(inputs, options.shard, options.fallback).map(
-      (input) => `${input.project}\0${input.path}`,
-    ),
-  )
-  return members.map((member, index) =>
-    member.files.filter((file) => kept.has(`${keyOf(index)}\0${file.relativePath}`)),
+  const kept = new Set(shardInputs(perMember.flat(), options.shard, options.fallback))
+  return perMember.map((inputs) =>
+    inputs.filter((input) => kept.has(input)).map((input) => byInput.get(input) as DiscoveredFile),
   )
 }
