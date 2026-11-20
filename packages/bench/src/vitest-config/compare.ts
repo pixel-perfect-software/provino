@@ -130,12 +130,75 @@ function coverageExcludeTail(test: Rec, root: string, configFile: string | undef
   ]
 }
 
+/** Where Vitest puts the html report when the config names no `htmlDir`. */
+function inferredHtmlDir(coverage: Rec, root: string): string | undefined {
+  const directory = resolve(
+    root,
+    typeof coverage.reportsDirectory === 'string' ? coverage.reportsDirectory : './coverage',
+  )
+  const reporters = pairs(coverage.reporter) as [unknown, unknown][]
+  const html = reporters.find(([name]) => name === 'html' || name === 'html-spa')
+  if (html !== undefined) {
+    const options = html[1]
+    const subdir = isRec(options) && typeof options.subdir === 'string' ? options.subdir : '.'
+    return resolve(directory, subdir || '.')
+  }
+  return reporters.some(([name]) => name === 'lcov') ? resolve(directory, 'lcov-report') : undefined
+}
+
+/** The strings under every `key` array anywhere in `value` (a project's `include`, its `setupFiles`). */
+function collectLists(value: unknown, key: string, into: string[] = []): string[] {
+  if (Array.isArray(value)) for (const entry of value) collectLists(entry, key, into)
+  else if (isRec(value)) {
+    for (const [name, inner] of Object.entries(value)) {
+      if (name === key && Array.isArray(inner)) {
+        for (const entry of inner) if (typeof entry === 'string') into.push(entry)
+      } else collectLists(inner, key, into)
+    }
+  }
+  return into
+}
+
+/**
+ * Vitest's `coverage.exclude` is the config's own list followed by what it appends for the root
+ * and for every project it resolved (they share the list): setup files, test `include` patterns,
+ * config paths, the twelve config file names and three Vite-internal globs (L609-L631). The
+ * reader's entries must be its first entries, in order, and every entry after them one of those
+ * additions; then the additions are removed, and anything else leaves Vitest's list as it is.
+ */
+function withoutAdditions(
+  theirs: unknown[],
+  ours: unknown[],
+  test: Rec,
+  root: string,
+  configFile: string | undefined,
+): unknown[] {
+  if (theirs.length < ours.length || !ours.every((entry, index) => same(entry, theirs[index]))) {
+    return theirs
+  }
+  const fixed = new Set(coverageExcludeTail(test, root, undefined))
+  const includes = new Set(collectLists(test, 'include'))
+  const setups = collectLists(test, 'setupFiles').map((file) => resolve(root, file))
+  const added = (entry: unknown): boolean => {
+    if (typeof entry !== 'string') return false
+    if (fixed.has(entry) || includes.has(entry)) return true
+    if (entry === configFile || /\/(?:vitest|vite)\.config\.[cm]?[jt]s$/.test(entry)) return true
+    const bare = entry.replace(/^\*\*\//, '').replace(/^(?:\.\.\/)+/, '')
+    return setups.some((file) => file.endsWith(`/${bare}`))
+  }
+  return theirs.slice(ours.length).every(added) ? ours : theirs
+}
+
 /** Both sides' `key`, normalised as the header says. `theirs` is Vitest's whole `test`. */
 function normalizeValue(
   key: string,
   value: unknown,
   root: string,
-  side: { readonly theirs?: Rec; readonly configFile?: string | undefined } = {},
+  side: {
+    readonly theirs?: Rec
+    readonly ours?: Rec
+    readonly configFile?: string | undefined
+  } = {},
 ): unknown {
   if (PATH_KEYS.has(key)) {
     const isModule = key === 'setupFiles' || key === 'globalSetup'
@@ -153,18 +216,30 @@ function normalizeValue(
     const out: Rec = { ...value }
     if (value.reporter !== undefined) out.reporter = pairs(value.reporter)
     if (side.theirs !== undefined) {
-      // Vitest's side: the appended tail is checked and removed.
-      if (Array.isArray(value.exclude)) {
-        const tail = coverageExcludeTail(side.theirs, root, side.configFile)
-        const head = value.exclude.slice(0, value.exclude.length - tail.length)
-        const rest = value.exclude.slice(head.length)
-        out.exclude = JSON.stringify(rest) === JSON.stringify(tail) ? head : value.exclude
+      // Vitest's side: what it appends is checked and removed.
+      const ours = isRec(side.ours?.coverage) ? side.ours.coverage : undefined
+      if (Array.isArray(value.exclude) && Array.isArray(ours?.exclude)) {
+        out.exclude = withoutAdditions(
+          value.exclude,
+          ours.exclude,
+          side.theirs,
+          root,
+          side.configFile,
+        )
+      }
+      // The directory of the html report is inferred when the config names none (L527-L553).
+      if (typeof value.htmlDir === 'string' && ours?.htmlDir === undefined) {
+        if (value.htmlDir === inferredHtmlDir(value, root)) delete out.htmlDir
       }
     } else if (Array.isArray(value.include)) {
       // The reader's side: Vitest's documented `name` to `name/**`.
       out.include = value.include.map(globbed)
     }
     return out
+  }
+  if (key === 'projects' && Array.isArray(value)) {
+    // A project's Vite config (ssr, optimizeDeps, ...) is Vite's to resolve; what the reader reads is `test`.
+    return value.map((entry) => (isRec(entry) && isRec(entry.test) ? { test: entry.test } : entry))
   }
   if (key === 'name') {
     if (isRec(value) && typeof value.label === 'string') return value.label
@@ -209,6 +284,8 @@ export function firstDifference(
         continue
       }
       if (!(key in ours)) {
+        // A leaf masked because Vitest derives it (a seed) and the config doesn't name it.
+        if (theirs[key] === '<unstable>') continue
         const fallback = isRec(defaults) ? defaults[key] : undefined
         if (!same(theirs[key], fallback)) return `${here} (missing on our side)`
         continue
@@ -295,21 +372,9 @@ function maskLeaves(value: unknown, paths: ReadonlySet<string>, path = ''): unkn
 export function matchesUnstable(value: unknown, first: unknown, second: unknown): boolean {
   if (typeof first === 'number' && typeof second === 'number') return typeof value === 'number'
   if (typeof first === 'string' && typeof second === 'string' && typeof value === 'string') {
-    let start = 0
-    while (start < first.length && start < second.length && first[start] === second[start]) start++
-    let end = 0
-    while (
-      end < first.length - start &&
-      end < second.length - start &&
-      first[first.length - 1 - end] === second[second.length - 1 - end]
-    ) {
-      end++
-    }
-    return (
-      value.length >= start + end &&
-      value.startsWith(first.slice(0, start)) &&
-      value.endsWith(first.slice(first.length - end))
-    )
+    // The same text with a number in the same places (`/tmp/vitest-<n>.localstorage`).
+    const shape = (text: string): string => text.replace(/\d+/g, '<n>')
+    return shape(first) === shape(second) && shape(value) === shape(first)
   }
   return false
 }
@@ -371,7 +436,7 @@ export function compareTest(inputs: CompareInputs): TestComparison {
   const differences: KeyDifference[] = []
   const masked: string[] = []
   const verified: string[] = []
-  const side = { theirs, configFile: inputs.configFile }
+  const side = { theirs, ours, configFile: inputs.configFile }
   for (const key of TEST_BAR_KEYS) {
     const theirValue = normalizeValue(key, theirs[key], root, side)
     const defaultValue = normalizeValue(key, defaults[key], defaultsRoot, { theirs: defaults })
@@ -397,18 +462,20 @@ export function compareTest(inputs: CompareInputs): TestComparison {
     if (again !== undefined) {
       const second = normalizeValue(key, again[key], root, {
         theirs: again,
+        ours,
         configFile: inputs.configFile,
       })
       const hide = new Set<string>()
       for (const leaf of unstableLeaves({ [key]: theirNormal }, { [key]: second })) {
         hide.add(leaf.path)
-        if (!given.has(key)) {
-          // Vitest derives it (an unnamed project's name, a seed): masked on both sides.
+        const ours_ = leafAt({ [key]: ourValue }, leaf.path)
+        if (ours_ === undefined) {
+          // Vitest derives it (an unnamed project's name, a seed) and the config doesn't name the
+          // leaf: that one leaf is masked on both sides, and said so.
           masked.push(leaf.path)
           continue
         }
-        // The config sets this key: its value must be one Vitest could have given.
-        const ours_ = leafAt({ [key]: ourValue }, leaf.path)
+        // The config names the leaf: its value must be one Vitest could have given.
         if (matchesUnstable(ours_, leaf.first, leaf.second)) verified.push(leaf.path)
         else differences.push({ key: leaf.path, ours: ours_, theirs: leaf.first })
       }

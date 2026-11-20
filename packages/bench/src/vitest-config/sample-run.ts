@@ -56,6 +56,8 @@ function childEnvironment(): NodeJS.ProcessEnv {
     if (AGENT_VARIABLE.test(key)) continue
     env[key] = value
   }
+  // Vitest's own start sets it (`process.env.NODE_ENV ??= 'test'`), and a config may spread `process.env`.
+  env.NODE_ENV ??= 'test'
   return env
 }
 
@@ -237,7 +239,9 @@ export async function runSample(options: {
       const row = perKey.get(key)
       if (row === undefined) continue
       row.compared++
-      if (!result.differences.some((difference) => difference.key === key)) row.equal++
+      const under = (name: string): boolean =>
+        name === key || name.startsWith(`${key}.`) || name.startsWith(`${key}[`)
+      if (!result.differences.some((difference) => under(difference.key))) row.equal++
     }
   }
   const lines = [

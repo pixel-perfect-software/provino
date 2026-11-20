@@ -253,3 +253,72 @@ test('an unstable leaf is checked under a key the config sets, and masked under 
   assert.deepEqual(derived.masked, ['name'])
   assert.deepEqual(derived.differences, [])
 })
+
+test('coverage.exclude: the additions of every project Vitest resolved are removed, others are not', () => {
+  const own = ['src/gen/**']
+  const base = {
+    include: ['tests/**/*.spec.ts'],
+    projects: [{ test: { include: ['pkg/**/*.test.ts'], setupFiles: ['/work/app/pkg/setup.ts'] } }],
+  }
+  const fixed = [
+    ...['vitest', 'vite'].flatMap((name) =>
+      ['ts', 'mts', 'cts', 'js', 'mjs', 'cjs'].map((ext) => `${name}.config.${ext}`),
+    ),
+    '**/virtual:*',
+    '**/__x00__*',
+    '**/node_modules/**',
+  ]
+  const additions = [
+    'tests/**/*.spec.ts',
+    '/work/app/vitest.config.ts',
+    ...fixed,
+    'pkg/**/*.test.ts',
+    'pkg/setup.ts',
+    ...fixed,
+  ]
+  const theirs = (list: string[]) => ({
+    ...base,
+    coverage: { ...DEFAULTS.coverage, exclude: list },
+  })
+  const ours = { ...base, coverage: { ...DEFAULTS.coverage, exclude: own } }
+  const inputs = { configFile: '/work/app/vitest.config.ts' }
+  assert.deepEqual(compare(ours, theirs([...own, ...additions]), inputs).differences, [])
+  // An entry after the reader's that nothing Vitest does explains is a difference.
+  assert.equal(
+    compare(ours, theirs([...own, ...additions, 'stray/**']), inputs).differences.length,
+    1,
+  )
+  // The reader's own entries are not the first entries: a difference.
+  assert.equal(compare(ours, theirs(['other/**', ...additions]), inputs).differences.length, 1)
+})
+
+test("coverage.htmlDir is Vitest's inference unless the config names it", () => {
+  const coverage = { ...DEFAULTS.coverage, reporter: ['html'] }
+  const inferred = { ...coverage, htmlDir: '/work/app/coverage' }
+  assert.deepEqual(compare({ coverage }, { coverage: inferred }).differences, [])
+  const wrong = { ...coverage, htmlDir: '/work/app/elsewhere' }
+  assert.equal(compare({ coverage }, { coverage: wrong }).differences.length, 1)
+})
+
+test('a project is compared on its test, not on the Vite config around it', () => {
+  const ours = { projects: [{ test: { name: 'a' }, ssr: {} }] }
+  const theirs = {
+    projects: [{ test: { name: 'a' }, ssr: { optimizeDeps: {} }, optimizeDeps: {} }],
+  }
+  assert.deepEqual(compare(ours, theirs).differences, [])
+  const other = { projects: [{ test: { name: 'b' } }] }
+  assert.equal(compare(other, theirs).differences.length, 1)
+})
+
+test('a leaf Vitest derives under a key the config names is masked unless the config names the leaf', () => {
+  const read = (seed: number) => ({ ...DEFAULTS, root: ROOT, sequence: { hooks: 'list', seed } })
+  const masked = compare({ sequence: { hooks: 'list' } }, read(1), { again: read(2) })
+  assert.deepEqual(masked.differences, [])
+  assert.deepEqual(masked.masked, ['sequence.seed'])
+  // Naming the leaf with a value of another shape is a difference.
+  const named = compare({ sequence: { hooks: 'list', seed: 'x' } }, read(1), { again: read(2) })
+  assert.equal(named.differences.length, 1)
+  // A number in a path that differs between the reads is any number.
+  assert.equal(matchesUnstable('/tmp/v-15976.ls', '/tmp/v-15959.ls', '/tmp/v-16001.ls'), true)
+  assert.equal(matchesUnstable('/tmp/other-1.ls', '/tmp/v-15959.ls', '/tmp/v-16001.ls'), false)
+})
