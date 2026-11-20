@@ -204,6 +204,54 @@ describe('the Vitest environments against Vitest 5.0.5 (T8.6)', () => {
   })
 })
 
+describe("Vitest's jsdom options reach the JSDOM constructor, as Vitest 5.0.5's jsdom.ts reads them", () => {
+  /** Runs every check under one project and asserts each held, then an exact restore. */
+  async function allHold(
+    environmentOptions: { readonly [key: string]: JsonValue },
+    checks: Record<string, string>,
+  ): Promise<void> {
+    const result = await smoke(project('jsdom', environmentOptions), checks)
+    for (const title of Object.keys(checks)) assert.equal(result.results[title], true, title)
+    assert.deepEqual(result.leaked.filter(isOwnLeak), [])
+    assert.deepEqual(result.missing, [])
+  }
+
+  it('runScripts, includeNodeLocations, cookieJar, console and the rest of the keys', async () => {
+    await allHold(
+      {
+        jsdom: {
+          html: '<!DOCTYPE html><html><head><script>window.ran = true</script></head><body></body></html>',
+          runScripts: 'outside-only',
+          includeNodeLocations: true,
+          cookieJar: true,
+          console: true,
+          referrer: 'https://ref.test/',
+        },
+      },
+      {
+        'runScripts: outside-only runs no inline script': "!('ran' in globalThis)",
+        'includeNodeLocations: the body has a location':
+          'jsdom.nodeLocation(document.body) !== null',
+        'cookieJar: a cookie reads back': "(document.cookie = 'a=1', document.cookie === 'a=1')",
+        'a key Vitest spreads into the constructor (referrer)':
+          "document.referrer === 'https://ref.test/'",
+      },
+    )
+  })
+
+  it('contentType parses an XHTML document', async () => {
+    await allHold(
+      {
+        jsdom: {
+          contentType: 'application/xhtml+xml',
+          html: '<html xmlns="http://www.w3.org/1999/xhtml"><body></body></html>',
+        },
+      },
+      { 'the document is XHTML': "document.contentType === 'application/xhtml+xml'" },
+    )
+  })
+})
+
 /** Writes `files` (path to text) under a fresh temporary root. */
 async function tree(files: Record<string, string>): Promise<string> {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'provino-vitest-env-')))

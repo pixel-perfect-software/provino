@@ -9,7 +9,7 @@
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { jsdomEnvironment } from '@provino/env-jsdom'
+import { type JsdomEnvironmentOptions, jsdomEnvironment } from '@provino/env-jsdom'
 import { leakReport, populateGlobal, snapshotProperties, WINDOW_KEYS } from '@provino/env-shared'
 import { createResolver } from '@provino/resolver'
 import type {
@@ -266,8 +266,46 @@ export function fromVitestEnvironment(
   }
 }
 
-/** What `vitestJsdomEnvironment` is given: env-jsdom's options and the project's root. */
+/** What `vitestJsdomEnvironment` is given: Vitest's `environmentOptions.jsdom` and the project's root. */
 type JsdomAdapterOptions = JsonObject & { readonly rootDir?: string }
+
+/**
+ * Vitest's `environmentOptions.jsdom` as env-jsdom's options (compat): Vitest 5.0.5's
+ * `integrations/env/jsdom.ts` reads `html`, `userAgent`, `url` and `pretendToBeVisual` (env-jsdom's
+ * own keys), `contentType`, `includeNodeLocations`, `runScripts`, `resources`, `console` and
+ * `cookieJar`, and spreads the rest into the `JSDOM` constructor, so everything but env-jsdom's
+ * keys goes into its `jsdom` bag, which goes last. `cookieJar: true` is a `CookieJar` of the
+ * project's jsdom (jsdom makes a fresh one of its own without it, so a missing class is the same
+ * jar). `console` is no constructor option: Vitest forwards the virtual console to the console
+ * with it and jsdom's default does so without it, as env-jsdom always does.
+ */
+function jsdomOptionsOf(options: JsdomAdapterOptions, prepared: unknown): JsdomEnvironmentOptions {
+  const {
+    rootDir: _rootDir,
+    html,
+    url,
+    userAgent,
+    pretendToBeVisual,
+    customExportConditions,
+    console: _console,
+    cookieJar,
+    ...rest
+  } = options
+  const CookieJar =
+    isRecord(prepared) && typeof prepared.CookieJar === 'function'
+      ? (prepared.CookieJar as new () => object)
+      : undefined
+  return {
+    ...(typeof html === 'string' ? { html } : {}),
+    ...(typeof url === 'string' ? { url } : {}),
+    ...(typeof userAgent === 'string' ? { userAgent } : {}),
+    ...(typeof pretendToBeVisual === 'boolean' ? { pretendToBeVisual } : {}),
+    ...(Array.isArray(customExportConditions)
+      ? { customExportConditions: customExportConditions.filter((c) => typeof c === 'string') }
+      : {}),
+    jsdom: { ...rest, ...(cookieJar && CookieJar ? { cookieJar: new CookieJar() } : {}) },
+  }
+}
 
 /**
  * `@provino/env-jsdom` over the project's own `jsdom` (D177): `prepare` imports the copy the
@@ -285,15 +323,18 @@ export const vitestJsdomEnvironment: Environment<'jsdom', JsdomAdapterOptions> =
     return {
       JSDOM: jsdom.JSDOM,
       VirtualConsole: jsdom.VirtualConsole,
+      CookieJar: jsdom.CookieJar,
       ...(typeof jsdom.ResourceLoader === 'function'
         ? { ResourceLoader: jsdom.ResourceLoader }
         : {}),
     }
   },
   setup(context, prepared) {
-    const { rootDir: _rootDir, ...jsdomOptions } = context.options
     return jsdomEnvironment.setup(
-      { ...context, options: jsdomOptions } as EnvironmentSetupContext<never>,
+      {
+        ...context,
+        options: jsdomOptionsOf(context.options, prepared),
+      } as EnvironmentSetupContext<never>,
       prepared,
     )
   },
