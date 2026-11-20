@@ -12,6 +12,7 @@ import { defineDialect, moduleRef } from '@provino/policy'
 import type {
   Dialect,
   EnvironmentConditions,
+  FormatDefinitionError,
   FormatEachTitle,
   GlobalsFactory,
   PolicyOverrides,
@@ -106,6 +107,15 @@ export const vitestPolicy: PolicyOverrides = {
     focus: { scope: 'suite', insideSkip: 'skipped' },
     status: { todoUnderSkip: 'todo', expectFail: 'attempt' },
     locationFrame: 'test-file',
+    // Vitest's `test` has `extend` and `override` (`runtime/fixture-extend-api`), and its fixture
+    // errors are worded as Vitest words them (`runtime/fixture-parse-error`, T5.9).
+    definitions: {
+      extendApi: 'expose',
+      messages: moduleRef<FormatDefinitionError>(
+        import.meta.resolve('@provino/dialect-vitest/runtime'),
+        'vitestFixtureMessages',
+      ),
+    },
   },
   lazy: { readInBeforeAll: 'error' },
   mock: vitestMockPolicy,

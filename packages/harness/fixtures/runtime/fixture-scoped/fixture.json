@@ -1,0 +1,4 @@
+{
+  "description": "test.extend with [value, options] entries: a file-scoped fixture shared by the tests of a file and torn down after its afterAll, a file-scoped static value, and a test fixture that reads the file one.",
+  "runners": ["vitest"]
+}

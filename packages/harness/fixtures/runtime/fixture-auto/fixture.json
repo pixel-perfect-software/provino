@@ -1,0 +1,4 @@
+{
+  "description": "Auto fixtures: set up for every test of the extended test, before its beforeEach, without being named; an injected fixture with no provided value takes its default; the base test runs none of them.",
+  "runners": ["vitest"]
+}

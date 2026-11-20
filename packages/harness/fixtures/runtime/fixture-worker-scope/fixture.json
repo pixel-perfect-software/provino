@@ -1,0 +1,4 @@
+{
+  "description": "A worker-scoped fixture read by a file-scoped one and by tests: each set up once for the file.",
+  "runners": ["vitest"]
+}

@@ -557,15 +557,24 @@ export const coreClaims: Claims = {
       ),
     ]),
   ),
-  // B25 Phase 1 adds the keys; Phase 5 (B25e) builds the table's test API and records what each
-  // runner's `test` carries and how Vitest words a fixture error.
-  'core.definitions.extendApi': pending(
-    'B25e',
-    "no golden records whether the runner's `test` has `extend`; B25e's fixtures do",
+  // Whether `test` has `extend` and `override`: Jest 30.5.2's has neither, Vitest 5.0.5's both
+  // (`runtime/fixture-extend-api` traces `typeof test.extend`); the other fixtures fail without them.
+  'core.definitions.extendApi': corpus(
+    'runtime',
+    'runtime/fixture-extend-api',
+    'runtime/fixture-object',
+    'runtime/fixture-override-reads-parent',
   ),
-  'core.definitions.messages': pending(
-    'B25e',
-    "Vitest's fixture errors and Jest's absence of them are recorded with B25e's fixtures",
+  // Vitest words a fixture error with its own classes (`runtime/fixture-parse-error`, its texts
+  // compared); the neutral `null` (core's words) fails it. Jest has no fixtures to word.
+  'core.definitions.messages': each(
+    own(
+      'packages/core/src/definitions/definitions.test.ts',
+      'definitions.messages',
+      null,
+      'Jest has no test.extend (core.definitions.extendApi is absent), so there is no fixture error to word: the neutral null stands',
+    ),
+    corpus('runtime', 'runtime/fixture-parse-error'),
   ),
 }
 

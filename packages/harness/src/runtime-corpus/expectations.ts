@@ -44,6 +44,10 @@ export const MESSAGE_FIXTURES: ReadonlySet<string> = new Set([
   'runtime/done-each',
   'runtime/done-hooks',
   'runtime/context-shape',
+  // Fixture errors (T5.9): Vitest's `FixtureParseError` texts, through the dialect's
+  // `core.definitions.messages`, and the error a fixture's own setup throws.
+  'runtime/fixture-parse-error',
+  'runtime/fixture-cleanup-order',
   // The retry fixtures: the error each failed test ends with, and under `retry.keepEarlierErrors`
   // (Vitest) the earlier attempts' errors too, in order and in number.
   'runtime/retry-before-all-error',

@@ -1,0 +1,4 @@
+{
+  "description": "Fixture errors at run time: two fixtures that read each other fail the test that names one; a fixture that returns without calling use fails its test; the other tests run.",
+  "runners": ["vitest"]
+}

@@ -1,0 +1,4 @@
+{
+  "description": "Fixture parse errors at run time: a test of an extended test whose first parameter is not destructured, and one with a rest element, fail; one that destructures runs; a base test's plain parameter is fine.",
+  "runners": ["vitest"]
+}
