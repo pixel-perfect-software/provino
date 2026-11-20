@@ -1,5 +1,6 @@
 {
-  "description": "Failure messages of the four number comparisons, toBeCloseTo (default and given precision), toBeNaN and bigint operands, with their .not voices and the matcher errors for a non-number received. Each test makes one failing assertion.",
+  "description": "Failure messages of the four number comparisons, toBeCloseTo (default and given precision), toBeNaN and bigint operands, with their .not voices and the matcher errors for a non-number received. Each test makes one failing assertion. Vitest prints toBeCloseTo's expected difference as `10 ** -precision / 2` computes it, which V8 changed between Node majors (0.0000049999999999999996 on 22, 0.000005 on 24 and 26 for precision 5), so Vitest's golden is checked on Node 24 and 26.",
   "runners": ["jest", "vitest"],
+  "nodeMajors": { "vitest": [24, 26] },
   "captureDiff": true
 }
