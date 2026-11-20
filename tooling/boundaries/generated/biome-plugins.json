@@ -4,6 +4,7 @@
       "path": "../grit/neutral-no-dialect-name.grit",
       "resolutionKind": "config",
       "includes": [
+        "packages/api/**",
         "packages/config/**",
         "packages/core/**",
         "packages/coverage/**",
@@ -25,6 +26,16 @@
       "resolutionKind": "config",
       "includes": [
         "packages/core/**",
+        "!**/*.test.ts",
+        "!**/*.test-d.ts",
+        "!**/src/internal/test-support.ts"
+      ]
+    },
+    {
+      "path": "./slice-discipline.core+expect+lazy+mock+module+timers.grit",
+      "resolutionKind": "config",
+      "includes": [
+        "packages/api/**",
         "!**/*.test.ts",
         "!**/*.test-d.ts",
         "!**/src/internal/test-support.ts"

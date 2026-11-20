@@ -1,0 +1,32 @@
+{
+  "name": "@provino/api",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Provino's native test API: the served `provino` module and its globals, for a project with no dialect (D185, D186). Inlined into `provino`.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "provino-source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": "^22.15.0 || >=24"
+  },
+  "scripts": {
+    "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
+    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@provino/types": "workspace:*"
+  },
+  "devDependencies": {
+    "expect-type": "catalog:"
+  }
+}

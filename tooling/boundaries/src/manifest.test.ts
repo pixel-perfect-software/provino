@@ -1,9 +1,12 @@
 import assert from 'node:assert/strict'
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
 import { allowedDeps, loadManifest, type Manifest, validateManifest } from './manifest.ts'
-import { MANIFEST_PATH } from './paths.ts'
+import { MANIFEST_PATH, ROOT } from './paths.ts'
 import { manifestOf } from './test-support.ts'
+import { wildcardSource } from './text.ts'
 
 function manifest(nodes: Readonly<Record<string, Readonly<Record<string, unknown>>>>): Manifest {
   return manifestOf(nodes, { core: 'CorePolicy', mock: 'MockPolicy' })
@@ -57,9 +60,11 @@ describe('the rules the real manifest must keep (CLAUDE.md non-negotiables 1 and
   const reaches = (from: string, to: string): boolean =>
     allowedDeps(real, nodeNamed(from)).some((dep) => dep.name === to || dep.parent === to)
 
-  test('the neutral packages are exactly the eleven in non-negotiable 1', () => {
+  test('the neutral packages are exactly the twelve in non-negotiable 1', () => {
     const neutral = top.filter((n) => n.neutral).map((n) => n.name.replace('@provino/', ''))
+    // B27 (D186): @provino/api joins them; the plan holds it to non-negotiable 1 too.
     assert.deepEqual(neutral.sort(), [
+      'api',
       'config',
       'core',
       'coverage',
@@ -195,21 +200,111 @@ describe('validateManifest', () => {
     )
   })
 
-  test('bannedPackages must be a list of names', () => {
+  test('bannedPackages must be a list of names or a set name', () => {
     assert.throws(
-      () => manifest({ a: node(1, 'both', [], { bannedPackages: 'expect' }) }),
+      () => manifest({ a: node(1, 'both', [], { bannedPackages: 3 }) }),
       /nodes\["a"\]\.bannedPackages must be an array/,
     )
   })
 
+  test('a set name expands to the set, and an unknown one throws, naming it', () => {
+    const sets = { native: ['chai', '@jest/*'] }
+    const parsed = manifestOf({ a: node(1, 'both', [], { bannedPackages: 'native' }) }, {}, sets)
+    assert.deepEqual(parsed.nodes[0]?.bannedPackages, ['chai', '@jest/*'])
+    assert.throws(
+      () => manifestOf({ a: node(1, 'both', [], { bannedPackages: 'nope' }) }, {}, sets),
+      /nodes\["a"\]\.bannedPackages: unknown set "nope" \(bannedPackageSets has "native"\)/,
+    )
+  })
+
+  test("a subpath entry must carry its package's allowed exceptions", () => {
+    const problems = validateManifest(
+      manifest({
+        pkg: node(2, 'both', [], {
+          dir: 'packages/pkg',
+          bannedPackages: ['@jest/*'],
+          allowedPackages: ['@jest/expect-utils'],
+        }),
+        'pkg/runtime': node(2, 'worker', [], {
+          dir: 'packages/pkg/src/runtime',
+          bannedPackages: ['@jest/*'],
+        }),
+      }),
+    )
+    assert.deepEqual(
+      problems.map((p) => p.rule),
+      ['manifest-subpath'],
+    )
+  })
+
+  // T7.12's bans still hold, through B27's patterns (`jest-*` takes `jest-snapshot`, `@vitest/*` the
+  // two Vitest engines): each package must be matched by the node's list, as the rule matches it.
   test('the real manifest bans the engines Provino replaces from expect and snapshot', async () => {
     const { nodes } = await loadManifest(MANIFEST_PATH)
+    const matched = (list: readonly string[], name: string): boolean =>
+      list.some((pattern) => new RegExp(`^${wildcardSource(pattern)}$`).test(name))
     for (const name of ['@provino/expect', '@provino/snapshot', '@provino/snapshot/runtime']) {
-      assert.deepEqual(
-        nodes.find((n) => n.name === name)?.bannedPackages,
-        ['expect', '@vitest/expect', 'jest-snapshot', '@vitest/snapshot', '@babel/*'],
-        name,
-      )
+      const node = nodes.find((n) => n.name === name)
+      assert.ok(node, name)
+      for (const engine of [
+        'expect',
+        '@vitest/expect',
+        'jest-snapshot',
+        '@vitest/snapshot',
+        '@babel/core',
+      ]) {
+        assert.ok(matched(node.bannedPackages, engine), `${name} doesn't ban ${engine}`)
+        assert.ok(!matched(node.allowedPackages, engine), `${name} allows ${engine}`)
+      }
+    }
+  })
+
+  test('every neutral shipped node bans the whole native list (B27, D184)', async () => {
+    const { nodes } = await loadManifest(MANIFEST_PATH)
+    const native = [
+      'jest-*',
+      '@jest/*',
+      'expect',
+      'pretty-format',
+      'chai',
+      '@vitest/*',
+      'vite',
+      '@babel/*',
+    ]
+    const neutral = nodes.filter((n) => n.neutral && n.dir !== null && typeof n.layer === 'number')
+    assert.ok(neutral.some((n) => n.name === '@provino/coverage/runtime'))
+    for (const n of neutral) assert.deepEqual(n.bannedPackages, native, n.name)
+  })
+
+  test('the only allowed exception is @jest/expect-utils in @provino/expect and /table, until B27c', async () => {
+    const { nodes } = await loadManifest(MANIFEST_PATH)
+    const allowing = nodes.filter((n) => n.allowedPackages.length > 0)
+    assert.deepEqual(
+      allowing.map((n) => [n.name, n.allowedPackages]),
+      [
+        ['@provino/expect', ['@jest/expect-utils']],
+        ['@provino/expect/table', ['@jest/expect-utils']],
+      ],
+    )
+  })
+
+  // An exception outlives its reason unless something fails: once the package leaves the node's
+  // run-time dependencies (B27c vendors `equals`), this names the exception to remove.
+  test("every allowed exception is still one of its package's run-time dependencies", async () => {
+    const { nodes } = await loadManifest(MANIFEST_PATH)
+    const byName = new Map(nodes.map((n) => [n.name, n]))
+    for (const n of nodes.filter((n) => n.allowedPackages.length > 0)) {
+      const owner = n.parent === undefined ? n : byName.get(n.parent)
+      assert.ok(owner?.dir, n.name)
+      const pkg = JSON.parse(await readFile(join(ROOT, owner.dir, 'package.json'), 'utf8')) as {
+        dependencies?: Record<string, string>
+      }
+      for (const name of n.allowedPackages) {
+        assert.ok(
+          Object.hasOwn(pkg.dependencies ?? {}, name),
+          `${n.name} allows ${name}, which is no longer in ${owner.dir}/package.json's dependencies: drop it from allowedPackages (and its note)`,
+        )
+      }
     }
   })
 

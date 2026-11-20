@@ -5,6 +5,7 @@ import { test } from 'node:test'
 import { BIOME_PLUGINS, DEPCRUISE_CONFIG, generate } from './generate.ts'
 import { loadManifest } from './manifest.ts'
 import { MANIFEST_PATH, ROOT } from './paths.ts'
+import { manifestOf } from './test-support.ts'
 import { readWorkspace } from './workspace.ts'
 
 const manifest = await loadManifest(MANIFEST_PATH)
@@ -76,6 +77,32 @@ test('the boundary lints skip test files and test-support modules', () => {
   }
 })
 
+test('a literal name in a ban list matches that package only, never one it prefixes', () => {
+  const literal = manifestOf({
+    'p/q': {
+      dir: 'packages/q',
+      layer: 2,
+      runsIn: 'worker',
+      deps: [],
+      slices: [],
+      bannedPackages: ['jest-snapshot', 'expect'],
+    },
+  })
+  const rules = JSON.parse(generate(literal, roots).get(DEPCRUISE_CONFIG) ?? '{}') as {
+    readonly forbidden: readonly {
+      readonly name: string
+      readonly to: { readonly path?: string }
+    }[]
+  }
+  const rule = rules.forbidden.find((r) => r.name === 'banned-packages-p-q')
+  assert.ok(rule?.to.path, 'no banned-packages-p-q rule')
+  const to = new RegExp(rule.to.path)
+  assert.ok(to.test('node_modules/jest-snapshot/build/index.js'))
+  assert.ok(to.test('node_modules/expect/build/index.js'))
+  assert.ok(!to.test('node_modules/jest-snapshot-serializer/index.js'))
+  assert.ok(!to.test('node_modules/expect-type/dist/index.js'))
+})
+
 test('T7.12: a ban list becomes a rule that skips tests and type imports, and matches pnpm and flat paths', () => {
   const rule = config.forbidden.find((r) => r.name === 'banned-packages-expect') as
     | (Rule & {
@@ -86,7 +113,9 @@ test('T7.12: a ban list becomes a rule that skips tests and type imports, and ma
   assert.ok(from('banned-packages-expect').test('packages/expect/src/expect.ts'))
   assert.ok(!new RegExp(String(rule.from.pathNot)).test('packages/expect/src/expect.ts'))
   assert.ok(new RegExp(String(rule.from.pathNot)).test('packages/expect/src/interop.test.ts'))
-  const to = new RegExp(rule.to.path)
+  // A target is caught when `to.path` matches and `to.pathNot` (the node's allowed exceptions) doesn't.
+  const caught = (target: string): boolean =>
+    new RegExp(rule.to.path).test(target) && !allows('banned-packages-expect', target)
   for (const banned of [
     'node_modules/expect/build/index.js',
     'node_modules/.pnpm/expect@30.5.2/node_modules/expect/build/index.js',
@@ -94,16 +123,20 @@ test('T7.12: a ban list becomes a rule that skips tests and type imports, and ma
     'node_modules/jest-snapshot/build/index.js',
     'node_modules/@vitest/snapshot/dist/index.js',
     'node_modules/@babel/core/lib/index.js',
+    // B27's native list: `jest-*` takes every Jest package, so this one is banned now too.
+    'node_modules/jest-snapshot-serializer/index.js',
+    'node_modules/@jest/globals/build/index.js',
+    'node_modules/pretty-format/build/index.js',
   ]) {
-    assert.ok(to.test(banned), banned)
+    assert.ok(caught(banned), banned)
   }
   for (const fine of [
+    // expect's one exception until B27c (`allowedPackages`).
     'node_modules/@jest/expect-utils/build/index.js',
     'node_modules/expect-type/dist/index.js',
-    'node_modules/jest-snapshot-serializer/index.js',
     'packages/expect/src/expect.ts',
   ]) {
-    assert.ok(!to.test(fine), fine)
+    assert.ok(!caught(fine), fine)
   }
   assert.deepEqual(rule.to.dependencyTypesNot, ['type-only'])
   // The package's tests node has none: it would only say again what tests are exempt from.

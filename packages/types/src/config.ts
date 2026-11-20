@@ -16,7 +16,7 @@ import type { PluginRegistry, ProvinoPlugin } from './extensions.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { IsolationTier } from './isolation.ts'
 import type { TransformClaims } from './loader.ts'
-import type { ModuleRef, SerializedPolicy } from './policy/index.ts'
+import type { MatcherTableFactory, ModuleRef, PoolKind, SerializedPolicy } from './policy/index.ts'
 import type { SerializedModuleMapper } from './resolve.ts'
 
 /** The keys `ProjectConfig` adds to `BaseConfig`, apart from dialect and plugin options. */
@@ -31,7 +31,46 @@ interface ProjectKeys {
 
 /** The keys only the top-level config has. */
 interface TopLevelKeys {
+  /**
+   * The run's projects, in one invocation: a glob or a directory (each with an optional
+   * `provino.config.*` of its own), or an inline project. An inline project has no `projects`.
+   */
   readonly projects?: readonly (ProjectConfig | string)[]
+  /** The pool `provino run` uses when the command line names none. */
+  readonly pool?: PoolKind
+  /** The most workers `provino run` starts when the command line names no number. */
+  readonly maxWorkers?: number
+}
+
+/**
+ * A project's default timeouts in ms, layered over the policy's `core.timeouts`. A test or hook
+ * that gives its own keeps it.
+ * @public
+ */
+export interface ConfigTimeouts {
+  readonly test?: number
+  readonly hook?: number
+  readonly teardown?: number
+}
+
+/**
+ * How a project's imports resolve.
+ * @public
+ */
+export interface ConfigResolve {
+  /** Export conditions added after the environment's own (`['provino-source']`). */
+  readonly conditions?: readonly string[]
+  /**
+   * Specifier aliases, as tsconfig `paths` writes them: a specifier, or a prefix ending in `/*`, to
+   * a path relative to the project root (`{ '@/*': './src/*' }`).
+   */
+  readonly aliases?: Readonly<Record<string, string>>
+  /**
+   * The tsconfig whose `paths` become aliases: `auto` (the default) is the nearest
+   * `tsconfig.json`, a path is that file (relative to the project root), `false` is none.
+   */
+  // `string & {}` keeps `'auto'` in the type (and editors' completions): a bare `string` absorbs it.
+  readonly tsconfig?: 'auto' | false | (string & {})
 }
 
 /**
@@ -72,7 +111,15 @@ export interface BaseConfig {
   readonly isolation?: IsolationTier
   /** Inject the API as globals. */
   readonly globals?: boolean
+  /**
+   * Modules imported before each test file: a path relative to the project root, or a package
+   * specifier, resolved from the root.
+   */
   readonly setupFiles?: readonly string[]
+  /** The environment's options (`EnvironmentRef.options`). */
+  readonly environmentOptions?: Readonly<Record<string, JsonValue>>
+  readonly timeouts?: ConfigTimeouts
+  readonly resolve?: ConfigResolve
   /** Dialects to load. Default: the two built-ins. */
   readonly dialects?: readonly Dialect[]
   readonly plugins?: readonly ProvinoPlugin[]
@@ -89,6 +136,32 @@ export interface ProjectConfig extends BaseConfig, ProjectKeys, DialectKeys, Plu
  * @public
  */
 export interface ProvinoConfigInput extends ProjectConfig, TopLevelKeys {}
+
+/**
+ * What `defineConfig` takes and a `provino.config.*` exports by default: the config, or a (maybe
+ * async) function of the `ConfigEnv` that returns it.
+ * @public
+ */
+export type ProvinoConfig =
+  | ProvinoConfigInput
+  | ((env: ConfigEnv) => ProvinoConfigInput | Promise<ProvinoConfigInput>)
+
+/**
+ * The native runtime (D185, D186): what a project with no dialect gets in place of a dialect's
+ * table, scope and globals. `provino` supplies the refs, so `@provino/config` names no package
+ * for them. Each `module` is an absolute path or URL (D21).
+ * @public
+ */
+export interface NativeRuntimeRefs {
+  /** Layered over the neutral policy's `expect.matcherTable: null`. */
+  readonly matcherTable: ModuleRef<MatcherTableFactory>
+  /** Builds the served modules' namespace (`SerializedProjectConfig.moduleScope`). */
+  readonly moduleScope: ModuleRef<ModuleScopeFactory>
+  /** The specifiers `moduleScope` serves before resolution (`['provino']`): `loader.scopeModules`. */
+  readonly modules: readonly string[]
+  /** The same values as globals, used only under `globals: true`. */
+  readonly globals: ModuleRef<GlobalsFactory>
+}
 
 /**
  * What a config function receives.

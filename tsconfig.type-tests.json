@@ -72,6 +72,9 @@
     },
     {
       "path": "packages/provino/test"
+    },
+    {
+      "path": "packages/api/test"
     }
   ]
 }

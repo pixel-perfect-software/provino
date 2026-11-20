@@ -510,6 +510,7 @@ export interface t {
     readonly dialects?: readonly s[];
     // (undocumented)
     readonly environment?: string;
+    readonly environmentOptions?: Readonly<Record<string, F>>;
     // (undocumented)
     readonly exclude?: readonly string[];
     readonly globals?: boolean;
@@ -520,7 +521,10 @@ export interface t {
     // (undocumented)
     readonly plugins?: readonly ProvinoPlugin[];
     // (undocumented)
+    readonly resolve?: ConfigResolve;
     readonly setupFiles?: readonly string[];
+    // (undocumented)
+    readonly timeouts?: ConfigTimeouts;
 }
 
 // @public

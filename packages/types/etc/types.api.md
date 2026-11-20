@@ -65,6 +65,7 @@ export interface BaseConfig {
     readonly dialects?: readonly Dialect[];
     // (undocumented)
     readonly environment?: string;
+    readonly environmentOptions?: Readonly<Record<string, JsonValue>>;
     // (undocumented)
     readonly exclude?: readonly string[];
     readonly globals?: boolean;
@@ -75,7 +76,10 @@ export interface BaseConfig {
     // (undocumented)
     readonly plugins?: readonly ProvinoPlugin[];
     // (undocumented)
+    readonly resolve?: ConfigResolve;
     readonly setupFiles?: readonly string[];
+    // (undocumented)
+    readonly timeouts?: ConfigTimeouts;
 }
 
 // @public
@@ -267,6 +271,13 @@ export interface ConfigReadOutcome<Value> {
 }
 
 // @public
+export interface ConfigResolve {
+    readonly aliases?: Readonly<Record<string, string>>;
+    readonly conditions?: readonly string[];
+    readonly tsconfig?: "auto" | false | (string & {});
+}
+
+// @public
 export type ConfigSource = {
     readonly kind: "file" | "package-json";
     readonly path: string;
@@ -275,6 +286,16 @@ export type ConfigSource = {
     readonly path: string;
     readonly text: string;
 };
+
+// @public
+export interface ConfigTimeouts {
+    // (undocumented)
+    readonly hook?: number;
+    // (undocumented)
+    readonly teardown?: number;
+    // (undocumented)
+    readonly test?: number;
+}
 
 // @public
 export interface ConsoleEntry {
@@ -2214,6 +2235,14 @@ export interface ModuleTransformer {
 }
 
 // @public
+export interface NativeRuntimeRefs {
+    readonly globals: ModuleRef<GlobalsFactory>;
+    readonly matcherTable: ModuleRef<MatcherTableFactory>;
+    readonly modules: readonly string[];
+    readonly moduleScope: ModuleRef<ModuleScopeFactory>;
+}
+
+// @public
 export type NativeStatus = {
     readonly loaded: true;
     readonly triple: NativeTriple;
@@ -2602,6 +2631,9 @@ export type PromiseVoice = "" | "resolves" | "rejects";
 
 // @public
 export interface ProvidedContext {}
+
+// @public
+export type ProvinoConfig = ProvinoConfigInput | ((env: ConfigEnv) => ProvinoConfigInput | Promise<ProvinoConfigInput>);
 
 // @public
 export interface ProvinoConfigInput extends ProjectConfig, TopLevelKeys {}

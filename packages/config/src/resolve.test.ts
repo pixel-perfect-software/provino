@@ -1093,6 +1093,37 @@ describe('resolveProject', () => {
     })
   })
 
+  // B27a types these keys; B27d reads them. Until then a set one would be ignored, so it is refused.
+  describe('keys B27d gives behaviour to', () => {
+    const CASES: readonly (readonly [
+      string,
+      ProvinoConfigInput,
+      ProvinoConfigInput | undefined,
+    ])[] = [
+      ['timeouts', { timeouts: { test: 120_000 } }, { timeouts: {} }],
+      ['resolve', { resolve: { conditions: ['provino-source'] } }, { resolve: {} }],
+      [
+        'environmentOptions',
+        { environmentOptions: { url: 'http://x/' } },
+        { environmentOptions: {} },
+      ],
+      ['pool', { pool: 'threads' }, undefined],
+      ['maxWorkers', { maxWorkers: 2 }, undefined],
+    ]
+    for (const [key, input, empty] of CASES) {
+      test(`a set \`${key}\` is CONFIG_UNSUPPORTED, naming the key and B27d`, async () => {
+        const error = await rejectsWith(resolveWith(input), 'CONFIG_UNSUPPORTED')
+        assert.match(error.message, new RegExp(`"${key}"`))
+        assert.match(error.message, /B27d/)
+      })
+      if (empty !== undefined) {
+        test(`an empty \`${key}\` is fine`, async () => {
+          assert.equal((await resolveWith(empty)).dialect, null)
+        })
+      }
+    }
+  })
+
   describe('a config that is not what its type says', () => {
     const CASES: readonly (readonly [string, unknown])[] = [
       ['name', 3],

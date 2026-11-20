@@ -357,6 +357,36 @@ describe('dependency-cruiser rules', { concurrency: true }, () => {
     }
   })
 
+  test('B27: the native list catches each pattern family at run time, never a type import', async () => {
+    const FAMILIES = ['@jest/globals', 'jest-mock', 'vite', 'chai', 'pretty-format']
+    for (const layout of ['flat', 'pnpm'] as const) {
+      const dir = await workspace({
+        ...Object.fromEntries(
+          FAMILIES.map((name, i) => [`packages/core/src/planted-${i}.ts`, `import '${name}'\n`]),
+        ),
+        'packages/core/src/typed.ts': FAMILIES.map(
+          (name, i) => `import type * as T${i} from '${name}'\nexport type U${i} = typeof T${i}\n`,
+        ).join(''),
+        'packages/api/src/planted.ts': "import 'chai'\n",
+        // expect's one exception is @jest/expect-utils: the rest of the scope is still banned.
+        'packages/expect/src/planted.ts': "import '@jest/globals'\n",
+      })
+      for (const name of FAMILIES) await installModule(dir, name, layout)
+      const { code, output } = await depcruise(dir)
+      assert.notEqual(code, 0, output)
+      FAMILIES.forEach((name, i) => {
+        assert.match(
+          output,
+          new RegExp(`error banned-packages-core: packages/core/src/planted-${i}\\.ts → `),
+          `${layout}: ${name}\n${output}`,
+        )
+      })
+      assert.doesNotMatch(output, /packages\/core\/src\/typed\.ts/, `${layout}: ${output}`)
+      assert.match(output, /error banned-packages-api: packages\/api\/src\/planted\.ts → /)
+      assert.match(output, /error banned-packages-expect: packages\/expect\/src\/planted\.ts → /)
+    }
+  })
+
   test('the ban list spares tests, type imports, allowed packages and other packages', async () => {
     for (const layout of ['flat', 'pnpm'] as const) {
       const dir = await workspace({

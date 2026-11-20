@@ -32,5 +32,11 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["@provino/bench", "@provino/harness", "provino-boundaries", "provino-packaging"]
+  "ignore": [
+    "@provino/api",
+    "@provino/bench",
+    "@provino/harness",
+    "provino-boundaries",
+    "provino-packaging"
+  ]
 }

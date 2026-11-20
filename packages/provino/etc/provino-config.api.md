@@ -12,6 +12,7 @@ export interface BaseConfig {
     readonly dialects?: readonly Dialect[];
     // (undocumented)
     readonly environment?: string;
+    readonly environmentOptions?: Readonly<Record<string, JsonValue>>;
     // (undocumented)
     readonly exclude?: readonly string[];
     readonly globals?: boolean;
@@ -22,7 +23,10 @@ export interface BaseConfig {
     // (undocumented)
     readonly plugins?: readonly ProvinoPlugin[];
     // (undocumented)
+    readonly resolve?: ConfigResolve;
     readonly setupFiles?: readonly string[];
+    // (undocumented)
+    readonly timeouts?: ConfigTimeouts;
 }
 
 // @public

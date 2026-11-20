@@ -173,11 +173,16 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
             .replace(/^@provino\//, '')
             .replaceAll('/', '-')
             .replaceAll('*', 'x')}`,
-          comment: `${node.name} never imports ${node.bannedPackages.join(', ')} at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles.`,
+          comment: `${node.name} never imports ${node.bannedPackages.join(', ')} at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles.${node.allowedPackages.length === 0 ? '' : ` Allowed until its note's owner removes it: ${node.allowedPackages.join(', ')}.`}`,
           severity: 'error',
           from: { path: owned(manifest, node), pathNot: TEST_FILE },
           to: {
             path: `(?:^|/)node_modules/(?:${node.bannedPackages.map(wildcardSource).join('|')})/`,
+            ...(node.allowedPackages.length === 0
+              ? {}
+              : {
+                  pathNot: `(?:^|/)node_modules/(?:${node.allowedPackages.map(wildcardSource).join('|')})/`,
+                }),
             dependencyTypesNot: ['type-only'],
           },
         })),

@@ -29,6 +29,12 @@ export interface ManifestNode {
    * import is allowed. Empty for most nodes.
    */
   readonly bannedPackages: readonly string[]
+  /**
+   * Packages a `bannedPackages` pattern covers that this node may still import at run time, each
+   * a known exception with an owner in the node's `note` (`@jest/expect-utils` in
+   * `@provino/expect` until B27c). Empty for most nodes.
+   */
+  readonly allowedPackages: readonly string[]
   readonly compositionRoot: boolean
   /** The package this node is a subpath entry (or the `test/` dir) of, if any. */
   readonly parent: string | undefined
@@ -79,6 +85,7 @@ const NODE_KEYS: ReadonlySet<string> = new Set([
   'slices',
   'neutral',
   'bannedPackages',
+  'allowedPackages',
   'compositionRoot',
   'phase',
   'note',
@@ -112,6 +119,13 @@ export function parseManifest(json: unknown): Manifest {
   const root = record(json, 'manifest')
   const raw = record(root.nodes, 'nodes')
   const names = new Set(Object.keys(raw))
+  const sets = new Map(
+    Object.entries(
+      root.bannedPackageSets === undefined
+        ? {}
+        : record(root.bannedPackageSets, 'bannedPackageSets'),
+    ).map(([name, list]) => [name, texts(list, `bannedPackageSets.${name}`)]),
+  )
   return {
     slices: Object.fromEntries(
       Object.entries(record(root.slices, 'slices')).map(([name, type]) => [
@@ -121,11 +135,16 @@ export function parseManifest(json: unknown): Manifest {
     ),
     wholePolicyTypes: texts(root.wholePolicyTypes, 'wholePolicyTypes'),
     wholePolicyValues: texts(root.wholePolicyValues, 'wholePolicyValues'),
-    nodes: Object.entries(raw).map(([name, value]) => parseNode(name, value, names)),
+    nodes: Object.entries(raw).map(([name, value]) => parseNode(name, value, names, sets)),
   }
 }
 
-function parseNode(name: string, value: unknown, names: ReadonlySet<string>): ManifestNode {
+function parseNode(
+  name: string,
+  value: unknown,
+  names: ReadonlySet<string>,
+  sets: ReadonlyMap<string, readonly string[]>,
+): ManifestNode {
   const at = `nodes["${name}"]`
   const node = record(value, at)
   for (const key of Object.keys(node)) {
@@ -141,8 +160,11 @@ function parseNode(name: string, value: unknown, names: ReadonlySet<string>): Ma
     deps: texts(node.deps, `${at}.deps`),
     slices: node.slices === 'all' ? 'all' : texts(node.slices, `${at}.slices`),
     neutral: flag(node.neutral, `${at}.neutral`),
-    bannedPackages:
-      node.bannedPackages === undefined ? [] : texts(node.bannedPackages, `${at}.bannedPackages`),
+    bannedPackages: bannedOf(node.bannedPackages, `${at}.bannedPackages`, sets),
+    allowedPackages:
+      node.allowedPackages === undefined
+        ? []
+        : texts(node.allowedPackages, `${at}.allowedPackages`),
     compositionRoot: flag(node.compositionRoot, `${at}.compositionRoot`),
     parent: parentOf(name, names),
   }
@@ -194,12 +216,13 @@ function checkSubpath(node: ManifestNode, parent: ManifestNode): readonly Proble
   if (
     !isDeepStrictEqual(node.slices, parent.slices) ||
     node.neutral !== parent.neutral ||
-    !isDeepStrictEqual(node.bannedPackages, parent.bannedPackages)
+    !isDeepStrictEqual(node.bannedPackages, parent.bannedPackages) ||
+    !isDeepStrictEqual(node.allowedPackages, parent.allowedPackages)
   ) {
     out.push(
       problem(
         'manifest-subpath',
-        `${node.name}: slices, neutral and bannedPackages must match ${parent.name}'s (one lint config per package)`,
+        `${node.name}: slices, neutral, bannedPackages and allowedPackages must match ${parent.name}'s (one lint config per package)`,
       ),
     )
   }
@@ -299,6 +322,22 @@ export function withTestNodes(manifest: Manifest): Manifest {
     ]
   })
   return { ...manifest, nodes: [...manifest.nodes, ...tests] }
+}
+
+/** A ban list: absent (none), the name of a top-level `bannedPackageSets` entry, or a list. */
+function bannedOf(
+  value: unknown,
+  at: string,
+  sets: ReadonlyMap<string, readonly string[]>,
+): readonly string[] {
+  if (value === undefined) return []
+  if (typeof value !== 'string') return texts(value, at)
+  const set = sets.get(value)
+  if (set === undefined) {
+    const known = [...sets.keys()].map((name) => `"${name}"`).join(', ')
+    throw new TypeError(`${at}: unknown set "${value}" (bannedPackageSets has ${known || 'none'})`)
+  }
+  return set
 }
 
 function layerOf(value: unknown, at: string): ManifestNode['layer'] {
