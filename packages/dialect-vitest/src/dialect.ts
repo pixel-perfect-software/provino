@@ -271,10 +271,6 @@ export const vitestPolicy: PolicyOverrides = {
 }
 
 /**
- * The globals Vitest 5.0 injects with `globals: true` (`vitest/src/constants.ts`'s `globalApis`,
- * which `integrations/globals.ts` installs), sorted. `core-globals-at-setup` records them.
- */
-/**
  * The modules the Vitest dialect serves itself (`moduleScope.modules`, U9's Vitest half): Vitest
  * 5.0.5's own `vitest`, `@vitest/expect`, `@vitest/spy` and `vitest/runtime` (`populateGlobal`).
  */
@@ -285,6 +281,10 @@ const VITEST_SERVED_MODULES: readonly string[] = [
   'vitest/runtime',
 ]
 
+/**
+ * The globals Vitest 5.0 injects with `globals: true` (`vitest/src/constants.ts`'s `globalApis`,
+ * which `integrations/globals.ts` installs), sorted. `core-globals-at-setup` records them.
+ */
 const VITEST_GLOBAL_NAMES: readonly string[] = [
   'afterAll',
   'afterEach',

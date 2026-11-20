@@ -199,18 +199,21 @@ export interface VitestObject {
   resetConfig(): void
 }
 
-/** What every `vi` of one host shares, as Vitest's one object keeps it. */
+/**
+ * What every `vi` of one host shares, as Vitest's one object keeps it. Kept per file (by the file's
+ * mock registry), as Vitest's own state is new in each isolated file.
+ */
 export interface ViShared {
   readonly host: VitestGlobalsHost
   /** The stubs of each file's mock registry: its `dispose` and between-test steps reach them. */
   readonly stubs: WeakMap<MockRegistry, Stubs>
-  /** `setConfig`'s values. */
-  config: VitestRuntimeOptions | undefined
+  /** Each file's `setConfig` values. */
+  readonly config: WeakMap<MockRegistry, VitestRuntimeOptions>
 }
 
 /** Makes the state one host's `vi` objects share. @internal */
 export function createViShared(host: VitestGlobalsHost): ViShared {
-  return { host, stubs: new WeakMap(), config: undefined }
+  return { host, stubs: new WeakMap(), config: new WeakMap() }
 }
 
 /**
@@ -315,7 +318,7 @@ export function createVi(shared: ViShared, from: string | null): VitestObject {
   )
   const vi: VitestObject = {
     useFakeTimers(config) {
-      const defaults = shared.config?.fakeTimers
+      const defaults = shared.config.get(host.mocks())?.fakeTimers
       timer.useFakeTimers?.(defaults === undefined ? config : { ...defaults, ...config })
       return vi
     },
@@ -430,7 +433,8 @@ export function createVi(shared: ViShared, from: string | null): VitestObject {
       await new Promise<void>((done) => SAFE_TIMERS.setTimeout(done, 0))
     },
     setConfig(config) {
-      shared.config = { ...shared.config, ...config }
+      const file = host.mocks()
+      shared.config.set(file, { ...shared.config.get(file), ...config })
       for (const key of Object.keys(config)) {
         if (APPLIED_CONFIG_KEYS.has(key) || warnedConfigKeys.has(key)) continue
         warnedConfigKeys.add(key)
@@ -442,8 +446,9 @@ export function createVi(shared: ViShared, from: string | null): VitestObject {
       if (config.testTimeout !== undefined) host.setDefaultTimeout(config.testTimeout)
     },
     resetConfig() {
-      if (shared.config?.testTimeout !== undefined) host.setDefaultTimeout(undefined)
-      shared.config = undefined
+      const file = host.mocks()
+      if (shared.config.get(file)?.testTimeout !== undefined) host.setDefaultTimeout(undefined)
+      shared.config.delete(file)
     },
   }
   return vi

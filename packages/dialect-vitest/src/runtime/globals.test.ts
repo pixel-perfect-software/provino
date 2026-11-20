@@ -205,6 +205,20 @@ test('setConfig applies testTimeout, and resetConfig takes it back', () => {
   assert.deepEqual(timeouts, [50, undefined])
 })
 
+test("one file's setConfig is not the next file's", () => {
+  const { host, timeouts } = makeHost()
+  const first = createMockRegistry()
+  const second = createMockRegistry()
+  let file = first
+  const perFile: VitestGlobalsHost = { ...host, mocks: () => file }
+  const { vi } = vitestGlobals(perFile)
+  vi.setConfig({ testTimeout: 50 })
+  file = second
+  // The next file's resetConfig has nothing of its own to take back.
+  vi.resetConfig()
+  assert.deepEqual(timeouts, [50])
+})
+
 test('vi.when, vi.waitFor and vi.waitUntil, on calls that settle at once', async () => {
   const { host } = makeHost()
   const { vi } = vitestGlobals(host)
