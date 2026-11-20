@@ -92,3 +92,17 @@ const noModules: NativeRuntimeRefs = {
   moduleScope: scopeRef,
   globals: globalsRef,
 }
+
+export {
+  aliasArray,
+  badPool,
+  closureOptions,
+  closureTable,
+  full,
+  nested,
+  noModules,
+  numberTimeouts,
+  oneCondition,
+  projectPool,
+  stringTimeout,
+}
