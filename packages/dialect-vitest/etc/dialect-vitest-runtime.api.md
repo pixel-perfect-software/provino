@@ -5,13 +5,16 @@
 ```ts
 
 import { createExpect } from '@provino/expect';
+import { Environment } from '@provino/types';
 import { EnvironmentConditions } from '@provino/types';
+import { EnvironmentResolver } from '@provino/types';
 import { ExpectTable } from '@provino/types';
 import { FakeClock } from '@provino/timers';
 import { FakeTimersConfig } from '@provino/timers';
 import { FormatDefinitionError } from '@provino/types';
 import { FormatEachTitle } from '@provino/types';
 import { GlobalsHost } from '@provino/types';
+import { JsonValue } from '@provino/types';
 import { Mock } from '@provino/mock';
 import { MockFactory } from '@provino/types';
 import { MockRegistry } from '@provino/mock';
@@ -34,6 +37,9 @@ export function expectTypeOf(_value?: unknown): Record<string, unknown>;
 export const formatEachTitle: FormatEachTitle;
 
 // @public
+export function fromVitestEnvironment(environment: VitestEnvironmentLike, options?: Record<string, unknown>): Environment<"vitest-environment", JsonObject>;
+
+// @public
 export class VitestDialectError extends Error {
     constructor(code: VitestDialectErrorCode, message: string);
     // (undocumented)
@@ -43,10 +49,46 @@ export class VitestDialectError extends Error {
 }
 
 // @public
-export type VitestDialectErrorCode = "VITEST_DIALECT_NOT_BUILT";
+export type VitestDialectErrorCode = "VITEST_DIALECT_NOT_BUILT" | "VITEST_ENVIRONMENT_BAD_SETUP" | "VITEST_ENVIRONMENT_NOT_FOUND" | "VITEST_ENVIRONMENT_NOT_INSTALLED" | "VITEST_ENVIRONMENT_SETUP_VM";
+
+// @public
+export const vitestEnvironment: Environment<"vitest-environment", VitestEnvironmentOptions>;
 
 // @public
 export const vitestEnvironmentConditions: EnvironmentConditions;
+
+// @public
+export const vitestEnvironmentFor: EnvironmentResolver;
+
+// @public
+export interface VitestEnvironmentLike {
+    // (undocumented)
+    readonly name: string;
+    // (undocumented)
+    setup?(global: typeof globalThis, options: Record<string, unknown>): VitestEnvironmentReturn | Promise<VitestEnvironmentReturn>;
+    readonly setupVM?: unknown;
+    // (undocumented)
+    readonly transformMode?: string;
+    // (undocumented)
+    readonly viteEnvironment?: string;
+}
+
+// @public
+export interface VitestEnvironmentOptions {
+    // (undocumented)
+    readonly [key: string]: JsonValue;
+    readonly builtin?: "happy-dom" | "edge-runtime";
+    readonly environmentOptions: JsonObject;
+    readonly module?: string;
+    readonly name: string;
+    readonly rootDir: string;
+}
+
+// @public
+export interface VitestEnvironmentReturn {
+    // (undocumented)
+    teardown(global: typeof globalThis): unknown;
+}
 
 // @public
 export function vitestExpectTable(): ExpectTable;
@@ -91,6 +133,9 @@ export interface VitestGlobalsHost extends GlobalsHost {
     timers(): FakeClock;
     readonly timersPolicy: TimersPolicy;
 }
+
+// @public
+export const vitestJsdomEnvironment: Environment<"jsdom", JsdomAdapterOptions>;
 
 // @public
 export interface VitestMockOptions {

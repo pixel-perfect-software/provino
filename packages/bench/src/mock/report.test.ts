@@ -22,6 +22,7 @@ const sample = (over: Partial<Sample> = {}): Sample => ({
 const all = (over: Partial<Record<Engine, Sample>> = {}): Record<Engine, Sample> => ({
   'provino-jest': sample(),
   'provino-vitest': sample(),
+  'provino-vi': sample(),
   'vitest-spy': sample(),
   'jest-mock': sample(),
   ...over,

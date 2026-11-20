@@ -1,6 +1,7 @@
 // The Vitest 5.0 dialect value (T1.8's Vitest half, T11.1, T11.2). Policy values, the names of the
-// globals it injects and its type entries; no config reader, flags or facades yet (T11.15, T11.16,
-// Phase 2), so `provino` doesn't list it among its built-in dialects and no run reaches the stubs.
+// globals it injects (`/runtime`'s `vitestGlobals`: `vi` and the served `vitest` modules), the
+// environment resolver and its type entries. The config reader is `/node`'s `vitestNodeDialect`;
+// the command line comes with B25g, so `provino vitest` is refused until then.
 //
 // Every value matches Vitest 5.0.5. The evidence for each one is in `@provino/harness`'s
 // `src/policy-truth/claims/` (T1.7, CLAUDE.md non-negotiable 2): a golden recorded from the real
@@ -12,6 +13,7 @@ import { defineDialect, moduleRef } from '@provino/policy'
 import type {
   Dialect,
   EnvironmentConditions,
+  EnvironmentResolver,
   FormatDefinitionError,
   FormatEachTitle,
   GlobalsFactory,
@@ -342,9 +344,9 @@ declare module '@provino/types' {
 }
 
 /**
- * The Vitest 5.0 dialect: its policy values, the globals it injects and its type entries. The
- * config reader, the CLI flags and the `vitest` facade come with T11.15 and T11.16 (Phase 2); until
- * then the globals factory is a stub that throws.
+ * The Vitest 5.0 dialect: its policy values, the globals it injects (`vi` and the served `vitest`
+ * modules), its environment resolver and its type entries. The config reader is `/node`'s
+ * `vitestNodeDialect`; the command line comes with B25g.
  * @public
  */
 export const vitestDialect: Dialect<'vitest'> = defineDialect({
@@ -372,5 +374,11 @@ export const vitestDialect: Dialect<'vitest'> = defineDialect({
       'vitestModuleScope',
     ),
   },
+  // A test file's `@vitest-environment` or `@jest-environment` docblock (T8.6), resolved in the
+  // worker from the project's root (`env/vitest-docblock`, `env/vitest-options`).
+  environmentResolver: moduleRef<EnvironmentResolver>(
+    import.meta.resolve('@provino/dialect-vitest/runtime'),
+    'vitestEnvironmentFor',
+  ),
   typeEntries: ['@provino/dialect-vitest/runtime'],
 })

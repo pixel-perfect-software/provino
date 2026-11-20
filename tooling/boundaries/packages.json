@@ -738,6 +738,9 @@
         "@provino/mock",
         "@provino/timers",
         "@provino/env-shared",
+        "@provino/env-node",
+        "@provino/env-jsdom",
+        "@provino/resolver",
         "@provino/dialect-vitest"
       ],
       "slices": "all"

@@ -180,7 +180,8 @@ export interface ModulePolicy {
    *
    * Jest: `true`, as jest-runtime evaluates node_modules again in every test file's registry;
    * recorded by `ecosystem/rtl-cleanup` and `ecosystem/jest-canvas-mock` (Jest 30.5.2). Vitest:
-   * `false`, pending T11.16 (externalized dependencies load once per worker). Neutral: `false`
+   * `true`, as each isolated file evaluates an externalized package again; recorded by
+   * `module/vitest-externals-two-files` (Vitest 5.0.5). Neutral: `false`
    * (speed: one evaluation per worker).
    */
   readonly reevaluateHookingExternals: boolean
@@ -195,7 +196,8 @@ export interface ModulePolicy {
    *
    * Jest: `true`, as jest-runtime evaluates a package again on every file's fresh global; recorded
    * by `ecosystem/load-time-global`, `ecosystem/msw-setup-file` and `ecosystem/msw-node` (Jest
-   * 30.5.2). Vitest: `false`, pending T11.16. Neutral: `false` (speed: one evaluation per worker,
+   * 30.5.2). Vitest: `true`, recorded by `module/vitest-externals-two-files` (Vitest 5.0.5).
+   * Neutral: `false` (speed: one evaluation per worker,
    * and no second walk of the global per watched load).
    */
   readonly reevaluatePatchingExternals: boolean

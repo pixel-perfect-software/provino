@@ -55,6 +55,8 @@
   "dependencies": {
     "@provino/config": "workspace:*",
     "@provino/core": "workspace:*",
+    "@provino/env-jsdom": "workspace:*",
+    "@provino/env-node": "workspace:*",
     "@provino/env-shared": "workspace:*",
     "@provino/expect": "workspace:*",
     "@provino/mock": "workspace:*",
@@ -69,7 +71,10 @@
     "tinyglobby": "catalog:"
   },
   "devDependencies": {
+    "@edge-runtime/vm": "catalog:",
     "@types/picomatch": "catalog:",
+    "happy-dom": "catalog:",
+    "jsdom": "catalog:",
     "vitest": "catalog:"
   }
 }

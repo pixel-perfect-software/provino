@@ -338,6 +338,7 @@ export async function resolveNeutralProject(
       layers: [dialectLayer, neutral.policy],
       environment: neutral.environment.name,
       environmentOptions: neutral.environment.options,
+      environmentResolverOptions: neutral.environment.resolverOptions,
       isolation: undefined,
       setupFiles: neutral.setupFiles,
       setupFilesAfterEnv: neutral.setupFilesAfterEnv,
@@ -405,6 +406,8 @@ interface ProjectInput {
   readonly layers: readonly (PolicyOverrides | undefined)[]
   readonly environment: string | undefined
   readonly environmentOptions: EnvironmentRef['options']
+  /** The project's `EnvironmentRef.resolverOptions`, when its reader gives any. */
+  readonly environmentResolverOptions?: EnvironmentRef['options'] | undefined
   readonly isolation: IsolationTier | undefined
   /** Worker `setupFiles` (absolute, or relative to `rootDir`). */
   readonly setupFiles: readonly string[]
@@ -545,6 +548,9 @@ async function finishProject(
       module: environmentRef.module,
       export: environmentRef.export,
       options: input.environmentOptions,
+      ...(input.environmentResolverOptions === undefined
+        ? {}
+        : { resolverOptions: input.environmentResolverOptions }),
     },
     globals: globalsFactory,
     // The factory stays whether or not globals are injected: it also serves the imports (`@jest/globals`).

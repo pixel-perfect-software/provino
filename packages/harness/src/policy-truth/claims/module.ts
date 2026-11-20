@@ -12,6 +12,7 @@ import {
   oneOf,
   statusOf,
   templateIn,
+  testIn,
   titlesOf,
 } from '../observe.ts'
 
@@ -142,7 +143,13 @@ export const moduleClaims: Claims = {
         read: reevaluatedIn('intercepts with the second file’s own server'),
       }),
     ],
-    pending('T11.16', 'no Vitest fixture records a package that writes the global as it loads'),
+    golden('module/vitest-externals-two-files', {
+      read: (g) =>
+        [
+          'the patched global is there',
+          'the patching package was evaluated once for this file',
+        ].every((title) => testIn(g, 'b.vitest.test.ts', title).status === 'passed'),
+    }),
   ),
   'module.reevaluateHookingExternals': each(
     [
@@ -160,10 +167,11 @@ export const moduleClaims: Claims = {
         ),
       }),
     ],
-    pending(
-      'T11.16',
-      'no Vitest fixture records a package that reads a per-file global as it loads',
-    ),
+    golden('module/vitest-externals-two-files', {
+      read: (g) =>
+        testIn(g, 'b.vitest.test.ts', 'the package hook ran once before the first test').status ===
+        'passed',
+    }),
   ),
   'module.automockShape': mod('mod-automock-shape', 'mod-automock-inherited'),
   // Jest's source-map support names a failing frame after the map's name at its own position.

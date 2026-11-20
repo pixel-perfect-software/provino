@@ -1,0 +1,16 @@
+{
+  "description": "T8.6: Vitest 5.0.5's built-in `happy-dom` environment over the project's happy-dom (D172): the global is the window, its default URL, a DOM write reads back, `environmentOptions.happyDOM` reaches the window.",
+  "runners": ["vitest"],
+  "config": {
+    "vitest": {
+      "test": {
+        "environment": "happy-dom",
+        "environmentOptions": {
+          "happyDOM": {
+            "width": 640
+          }
+        }
+      }
+    }
+  }
+}
