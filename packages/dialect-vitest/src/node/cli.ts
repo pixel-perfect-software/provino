@@ -206,7 +206,15 @@ const CAC_OWN = new Set(['version', 'help'])
 const toCac = (row: VitestCliOption): CacOption =>
   cacOption(row.flag, CAC_OWN.has(row.path) ? undefined : typeOf(row))
 
-const GLOBAL_OPTIONS: readonly CacOption[] = VITEST_CLI_OPTIONS.map(toCac)
+const ALL_ROWS: readonly VitestCliOption[] = [...VITEST_CLI_OPTIONS, ...VITEST_LIST_OPTIONS]
+
+/** Each row as cac's option, made once: the commands, the diagnostics and the flags share it. */
+const CAC_BY_ROW: ReadonlyMap<VitestCliOption, CacOption> = new Map(
+  ALL_ROWS.map((row) => [row, toCac(row)]),
+)
+const cacOf = (row: VitestCliOption): CacOption => CAC_BY_ROW.get(row) as CacOption
+
+const GLOBAL_OPTIONS: readonly CacOption[] = VITEST_CLI_OPTIONS.map(cacOf)
 
 /** `collectCliOptionsConfig`: every option, `changed` replaced in place, then `list`'s own. */
 const LIST_ROWS: readonly VitestCliOption[] = (() => {
@@ -227,18 +235,14 @@ const COMMANDS: readonly CacCommand[] = [
   cacCommand('bench [...filters]', []),
   cacCommand('init <project>', []),
   cacCommand('doctor [...filters]', []),
-  cacCommand('list [...filters]', LIST_ROWS.map(toCac)),
+  cacCommand('list [...filters]', LIST_ROWS.map(cacOf)),
   cacCommand('[...filters]', []),
   cacCommand('complete [shell]', []),
 ]
 
-const ALL_ROWS: readonly VitestCliOption[] = [...VITEST_CLI_OPTIONS, ...VITEST_LIST_OPTIONS]
-
 /** Every name a row answers to (cac's `Option.names`), for the diagnostics. */
 const ROW_BY_NAME: ReadonlyMap<string, VitestCliOption> = new Map(
-  ALL_ROWS.flatMap((row) =>
-    cacOption(row.flag).names.map((name): [string, VitestCliOption] => [name, row]),
-  ),
+  ALL_ROWS.flatMap((row) => cacOf(row).names.map((name): [string, VitestCliOption] => [name, row])),
 )
 
 const PROTO_NAMES = new Set(Object.getOwnPropertyNames(Object.prototype))
