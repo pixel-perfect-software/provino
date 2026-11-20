@@ -5,7 +5,7 @@ import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { test } from 'node:test'
-import { readVitestConfig } from '../node/index.ts'
+import { readVitestConfig } from './index.ts'
 
 test("edge-runtime's options are read from environmentOptions['edge-runtime'], as Vitest names the key", async () => {
   const root = await realpath(await mkdtemp(join(tmpdir(), 'provino-vitest-env-key-')))
