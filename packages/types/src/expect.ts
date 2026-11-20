@@ -135,6 +135,8 @@ export interface MatcherCall {
   readonly matcherName: string
   readonly isNot: boolean
   readonly promise: PromiseVoice
+  /** `expect(actual, message)`'s message, where the table takes one. */
+  readonly message?: string
 }
 
 /**
@@ -222,6 +224,18 @@ export interface ExpectTable {
    * constructor and `toStrictEqual` treats two of them as equal.
    */
   customAsymmetric(name: string, matcher: Matcher): CustomAsymmetricBuilder
+  /**
+   * The error a failed assertion throws under `ExpectPolicy.errorShape: 'assertion-error'`: called
+   * with the failed result (a table's own matchers may carry more on it than `MatcherResult`
+   * names), its message and the call. The engine anchors it at the user's call. A table without
+   * it can't run under that shape.
+   */
+  readonly assertionError?: (result: MatcherResult, message: string, call: MatcherCall) => Error
+  /**
+   * Whether `expect(actual, message)` takes a message after the value, which a failure is prefixed
+   * with. Absent: a second argument is `messages.tooManyArguments`.
+   */
+  readonly messageArgument?: boolean
 }
 
 /**

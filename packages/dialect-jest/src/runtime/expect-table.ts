@@ -6,9 +6,8 @@
 // `@provino/expect`'s (T7.10): they run over the file's snapshot state, whose printer and words are
 // this dialect's (`snapshot-printer.ts`).
 import { iterableEquality, subsetEquality } from '@jest/expect-utils'
-import { snapshotMatchers } from '@provino/expect'
+import { policyMessages, snapshotMatchers } from '@provino/expect'
 import type { ExpectTable } from '@provino/types'
-import * as policyMessages from './policy-messages.ts'
 import {
   any,
   anything,
@@ -72,7 +71,8 @@ export function jestExpectTable(): ExpectTable {
     },
     // What `makeThrowingMatcher` gives matchers as `this.utils` (index.ts L284–L288).
     utils: lazyUtils({ iterableEquality, subsetEquality }, false),
-    // Jest's text, plus ours for the policies Jest lacks. No `unreachable`: Jest has no
+    // Jest's text, plus the engine's for the policies Jest lacks (`@provino/expect`'s
+    // `policyMessages`, worded as Vitest prints them). No `unreachable`: Jest has no
     // `expect.unreachable`, and its absence here keeps it off `expect`.
     messages: { ...messages, ...policyMessages },
     customAsymmetric: (name, matcher) =>

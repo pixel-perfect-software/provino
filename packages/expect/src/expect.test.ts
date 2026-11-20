@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import type { Matcher } from '@provino/types'
+import type { ExpectTable, Matcher, MatcherCall } from '@provino/types'
 import { ExpectError } from './errors.ts'
 import { createExpect, MatcherResultError } from './expect.ts'
 import {
@@ -8,6 +8,7 @@ import {
   testEngine,
   testPolicy,
   testTable,
+  type TestEngine,
   testTask,
 } from './internal/test-support.ts'
 import { createStateSource } from './state.ts'
@@ -329,7 +330,7 @@ describe('the policy values B08 builds', () => {
   })
 
   for (const [key, override] of [['errorShape', { errorShape: 'assertion-error' }]] as const) {
-    test(`${key} not yet built throws EXPECT_NOT_IMPLEMENTED`, () => {
+    test(`${key} with a table that has no assertionError throws EXPECT_NOT_IMPLEMENTED`, () => {
       assert.throws(
         () => createExpect({ policy: { ...testPolicy, ...override }, table: testTable(), source }),
         (error: unknown) =>
@@ -524,3 +525,97 @@ async function rejection(promise: unknown): Promise<unknown> {
   }
   assert.fail('expected a rejection')
 }
+
+/** The test table with an `assertionError` and a message argument, as an `AssertionError` runner's. */
+class TableAssertionError extends Error {
+  override readonly name = 'AssertionError'
+  readonly call: MatcherCall
+  constructor(message: string, call: MatcherCall) {
+    super(message)
+    this.call = call
+  }
+}
+
+function assertionShaped(): TestEngine {
+  const table: ExpectTable = {
+    ...testTable(),
+    messageArgument: true,
+    assertionError: (_result, message, call) => new TableAssertionError(message, call),
+  }
+  return testEngine({ policy: { errorShape: 'assertion-error' }, table })
+}
+
+describe("errorShape: 'assertion-error' (T7.6)", () => {
+  test("a failure throws the table's error, anchored at the call, with no matcherResult", () => {
+    const { expect, current, source } = assertionShaped()
+    current.enter(testTask('t'))
+    source.startFile('/f.ts')
+    let thrown: unknown
+    try {
+      expect(1).toBe(2)
+    } catch (error) {
+      thrown = error
+    }
+    assert.ok(thrown instanceof TableAssertionError)
+    assert.equal(thrown.message, 'toBe: 1 vs 2')
+    assert.deepEqual(thrown.call, { matcherName: 'toBe', isNot: false, promise: '' })
+    assert.equal(Object.hasOwn(thrown, 'matcherResult'), false)
+    assert.match(topFrame(thrown), /expect\.test\.ts/)
+    current.enter(null)
+  })
+
+  test("expect(actual, message) hands the message to the matcher and the table's error", () => {
+    const { expect } = assertionShaped()
+    const call = expect as unknown as (
+      a: unknown,
+      m: string,
+    ) => { toReadContext(): void; toBe(e: unknown): void }
+    call(1, 'why').toReadContext()
+    assert.equal(lastContext?.customMessage, 'why')
+    assert.throws(
+      () => call(1, 'why').toBe(2),
+      (error: unknown) => error instanceof TableAssertionError && error.call.message === 'why',
+    )
+  })
+
+  test('.resolves on a value that is not a promise throws a TypeError where it is read', () => {
+    const { expect } = assertionShaped()
+    assert.throws(
+      () => expect(5).resolves,
+      (error: unknown) => error instanceof TypeError && topFrame(error).includes('expect.test.ts'),
+    )
+  })
+
+  test('a settled failure carries the stack of the .resolves read, under Error:', async () => {
+    const { expect, current, source } = assertionShaped()
+    current.enter(testTask('t'))
+    source.startFile('/f.ts')
+    const pending = expect(Promise.resolve(1)).resolves
+    await assert.rejects(pending.toBe(2), (error: unknown) => {
+      assert.ok(error instanceof TableAssertionError)
+      const [head, frame] = String(error.stack).split('\n')
+      // The table's promise form of `toBe` words it.
+      assert.equal(head, 'Error: settled toBe: 1')
+      assert.match(frame ?? '', /expect\.test\.ts/)
+      return true
+    })
+    current.enter(null)
+  })
+
+  test('a soft failure is held, not thrown', () => {
+    const { expect, current, source } = testEngine({
+      policy: { errorShape: 'assertion-error', soft: true },
+      table: {
+        ...testTable(),
+        assertionError: (_r, message, call) => new TableAssertionError(message, call),
+      },
+    })
+    current.enter(testTask('t'))
+    source.startFile('/f.ts')
+    expect.soft?.(1).toBe(2)
+    const state = source.current()
+    assert.equal(state.suppressedErrors.length, 1)
+    assert.ok(state.suppressedErrors[0] instanceof TableAssertionError)
+    current.enter(null)
+  })
+})

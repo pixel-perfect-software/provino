@@ -17,6 +17,8 @@ export interface MatcherContext extends Readonly<MatcherState> {
   readonly utils: object
   /** The error the failure will reuse, under `.resolves`/`.rejects`. */
   readonly error?: Error | undefined
+  /** `expect(actual, message)`'s message, where the dialect's table takes one. */
+  readonly customMessage?: string
   /** Records a failure instead of throwing it (snapshot matchers). */
   dontThrow(): void
 }
