@@ -1,8 +1,8 @@
 // The words Vitest 5.0.5's `expect` prints for what the engine checks itself (`ExpectMessages`),
 // each with the upstream line it comes from. The async and counting policies' words are the
-// engine's `policyMessages`, which are Vitest's (`@provino/expect`).
+// engine's `policyMessages`, which are Vitest's (`@provino/expect`), and the engine supplies them.
 import { policyMessages } from '@provino/expect'
-import type { ExpectMessages, MatcherCall } from '@provino/types'
+import type { ExpectTableMessages, MatcherCall } from '@provino/types'
 import { getType } from '../../vendor/vitest-utils/helpers.ts'
 import { chai } from './chai.ts'
 
@@ -18,9 +18,8 @@ const notAFunction = (): never => {
  * Vitest's `ExpectMessages`.
  * @internal
  */
-export const vitestMessages: ExpectMessages = {
-  ...policyMessages,
-  // Vitest's `expect(value, message)` takes a message (the table's `messageArgument`) and ignores
+export const vitestMessages: ExpectTableMessages = {
+  // Vitest's `expect(value, message)` takes a message (`ExpectPolicy.messageArgument`) and ignores
   // anything after it, so this is never printed.
   tooManyArguments: (): string => 'expect() takes a value and an optional message',
   noMessage: notAFunction,
@@ -56,7 +55,7 @@ export const vitestMessages: ExpectMessages = {
   assertionCount: (expected: number, actual: number): string =>
     `expected number of assertions to be ${expected}, but got ${actual}`,
   // `integrations/chai/index.ts` L92.
-  noAssertions: (): string => 'expected any number of assertion, but got none',
+  noAssertions: policyMessages.requiredAssertions,
   // `integrations/chai/index.ts` L69-L71 (`chai.assert.fail`).
   unreachable: (message: string | undefined): string =>
     `expected${message ? ` "${message}" ` : ' '}not to be reached`,

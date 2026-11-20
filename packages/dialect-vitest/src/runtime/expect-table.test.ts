@@ -10,17 +10,9 @@ import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { isDeepStrictEqual } from 'node:util'
-import {
-  createExpect,
-  createMatcherRegistry,
-  createStateSource,
-  installMatchersSlot,
-} from '@provino/expect'
-import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
-import type { CurrentTest } from '@provino/types'
-import { vitestPolicy } from '../dialect.ts'
 import { withDiff } from './expect-table.ts'
 import { type Asymmetric, expectCases, runCase, type Side } from './internal/expect-cases.ts'
+import { setUpVitestExpect } from './internal/expect-setup.ts'
 
 interface Outcome {
   readonly pass: boolean
@@ -33,7 +25,6 @@ interface Outcome {
 interface Oracle {
   readonly jestStyle: readonly string[]
   readonly chaiStyleMethods: readonly string[]
-  readonly chaiStyleProperties: readonly string[]
   readonly asymmetric: readonly string[]
   readonly asymmetricNot: readonly string[]
   readonly customMatchers: readonly string[]
@@ -52,18 +43,9 @@ const child = spawnSync(
 assert.equal(child.status, 0, child.stderr)
 const oracle = JSON.parse(child.stdout) as Oracle
 
-const policy = resolvePolicy(vitestPolicy).expect
-assert.ok(policy.matcherTable)
-// No test runs: every assertion counts into the file's state.
-const source = createStateSource({ get: () => undefined } as unknown as CurrentTest, {
-  nameSeparator: ' > ',
-  expand: policy.expand,
-  outsideTestCounts: policy.outsideTestCounts,
-})
-const registry = createMatcherRegistry()
-installMatchersSlot(source, registry)
-const table = (await createBehaviourLoader().load(policy.matcherTable))()
-const expect = createExpect({ policy, table, source, registry })
+// No test runs: every assertion counts into the file's state. The table is the one
+// `vitestPolicy.expect.matcherTable`'s ref loads, through the behaviour loader, as the worker loads it.
+const { expect, table } = await setUpVitestExpect()
 
 test('the table has every jest-style matcher Vitest defines, and nothing of its plumbing', () => {
   const plumbing = new Set([
@@ -143,7 +125,7 @@ test('a failure is Chai`s AssertionError, loaded only then', async () => {
   )
 })
 
-test('building the table and passing assertions load no Chai; the first failure does', () => {
+test('building the table and passing assertions (toHaveBeenCalled too) load no Chai; the first failure does', () => {
   const run = spawnSync(
     process.execPath,
     [
@@ -156,6 +138,7 @@ test('building the table and passing assertions load no Chai; the first failure 
   assert.deepEqual(JSON.parse(run.stdout), {
     afterBuild: false,
     afterPassing: false,
+    afterCalled: false,
     afterFailure: true,
   })
 })

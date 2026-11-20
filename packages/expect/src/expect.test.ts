@@ -539,10 +539,12 @@ class TableAssertionError extends Error {
 function assertionShaped(): TestEngine {
   const table: ExpectTable = {
     ...testTable(),
-    messageArgument: true,
     assertionError: (_result, message, call) => new TableAssertionError(message, call),
   }
-  return testEngine({ policy: { errorShape: 'assertion-error' }, table })
+  return testEngine({
+    policy: { errorShape: 'assertion-error', settlementCheck: 'at-read', messageArgument: true },
+    table,
+  })
 }
 
 describe("errorShape: 'assertion-error' (T7.6)", () => {
@@ -621,7 +623,7 @@ describe("errorShape: 'assertion-error' (T7.6)", () => {
 })
 
 describe('a table with chains (ExpectTable.chain, D170)', () => {
-  test('an unknown name reads the chain, counted once; then and Object.prototype names do not', () => {
+  test('an unknown name reads the chain, uncounted; then and Object.prototype names do not', () => {
     const calls: [unknown, string, MatcherCall][] = []
     const table: ExpectTable = {
       ...testTable(),
@@ -634,7 +636,8 @@ describe('a table with chains (ExpectTable.chain, D170)', () => {
     const loose = member(expect(1).not)
     assert.equal(loose.to, 'chained')
     assert.deepEqual(calls, [[1, 'to', { matcherName: 'to', isNot: true, promise: '' }]])
-    assert.equal(source.current().assertionCalls, 1)
+    // Counted per `expect()` call, `expect()` counts it; a matcher call counts nothing here.
+    assert.equal(source.current().assertionCalls, 0)
     assert.equal(member(expect(1)).then, undefined)
     assert.equal(member(expect(1)).hasOwnProperty, Object.prototype.hasOwnProperty)
     assert.equal(calls.length, 1)
@@ -642,21 +645,15 @@ describe('a table with chains (ExpectTable.chain, D170)', () => {
 })
 
 describe('the table hooks and the assertion count (B25b review)', () => {
-  test('matcherReturn: a sync pass returns what the table gives; a failure and Jest`s table do not', () => {
-    const calls: [unknown, MatcherCall][] = []
-    const returned = { chained: true }
-    const table: ExpectTable = {
-      ...testTable(),
-      matcherReturn: (actual, call) => {
-        calls.push([actual, call])
-        return returned
-      },
-    }
+  test('a sync pass returns its assertion where the table chains; a failure and Jest`s table do not', () => {
+    const table: ExpectTable = { ...testTable(), chain: () => 'chained' }
     const { expect } = testEngine({ table })
-    assert.equal(expect(1).toBe(1), returned)
-    assert.deepEqual(calls, [[1, { matcherName: 'toBe', isNot: false, promise: '' }]])
+    const assertion = expect(1)
+    const returned = assertion.toBe(1) as unknown
+    assert.equal(returned, assertion)
+    assert.equal(member(returned).to, 'chained')
+    assert.equal(member(returned).then, undefined)
     assert.throws(() => expect(1).toBe(2))
-    assert.equal(calls.length, 1)
     assert.equal(testEngine().expect(1).toBe(1), undefined)
   })
 

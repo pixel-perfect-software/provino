@@ -10,7 +10,7 @@ import { snapshotMatchers } from '@provino/expect'
 import type { ExpectTable, Matcher, MatcherCall, MatcherResult, MatcherSet } from '@provino/types'
 import { printDiffOrStringify } from '../vendor/vitest-utils/diff/index.ts'
 import { chaiChain, loadVitestPlugins, VitestAssertion } from './expect/assertion.ts'
-import { chai, isChaiAssertionError } from './expect/chai.ts'
+import { chai } from './expect/chai.ts'
 import { vitestMessages } from './expect/messages.ts'
 import { customMatchers } from './vendor/vitest-expect/expect/custom-matchers.ts'
 import {
@@ -27,50 +27,24 @@ interface CallContext {
   readonly customMessage?: string
 }
 
-/** A failed Vitest assertion as a matcher result: the error rides along, for `assertionError`. */
-interface FailedResult extends MatcherResult {
-  readonly error: Error
-}
-
 /** Names `def` registers that are Vitest's plumbing, not matchers. */
 const NOT_MATCHERS = new Set(['withTest', 'withContext'])
 
 /**
  * One of Vitest's methods as a matcher: run on a fresh `VitestAssertion` with the call's flags. It
- * passes when the method returns, and a Chai `AssertionError` is its failure, handed back as the
- * result so the engine counts it, holds it under `expect.soft` and throws it where it belongs.
+ * passes when the method returns; what it throws (a Chai `AssertionError` for a failure) goes on to
+ * the engine, which anchors it at the user's call and holds it under `expect.soft`, as Vitest's
+ * `wrapAssertion` does.
  */
 function asMatcher(method: (this: VitestAssertion, ...args: unknown[]) => unknown): Matcher {
   return function vitestMatcher(this: CallContext, received: unknown, ...args: unknown[]) {
-    const flags: Record<string, unknown> = Object.create(null)
-    flags.object = received
+    const flags: Record<string, unknown> = { object: received }
     if (this.isNot) flags.negate = true
     if (this.promise) flags.promise = this.promise
     if (this.customMessage !== undefined) flags.message = this.customMessage
-    const { isNot } = this
-    try {
-      method.apply(new VitestAssertion(flags), args)
-    } catch (error) {
-      if (!isChaiAssertionError(error)) throw error
-      const failed: FailedResult = { pass: isNot, message: () => error.message, error }
-      return failed
-    }
-    return { pass: !isNot, message: () => '' }
+    method.apply(new VitestAssertion(flags), args)
+    return { pass: !this.isNot, message: () => '' }
   } as unknown as Matcher
-}
-
-/**
- * What a passing matcher call returns: an object whose every name (but `then` and symbols, so it
- * is no thenable and prints as nothing) is the Chai chain of that name over `actual`, as the call
- * came (`.not`, `.resolves`, the message). Nothing is loaded until a name is read.
- */
-function chainFrom(actual: unknown, call: MatcherCall): object {
-  return new Proxy(Object.create(null) as object, {
-    get(_target, key) {
-      if (typeof key !== 'string' || key === 'then') return undefined
-      return chaiChain(actual, key, call)
-    },
-  })
 }
 
 /**
@@ -125,29 +99,25 @@ export function vitestExpectTable(): ExpectTable {
     asymmetricNot: asymmetricNot as ExpectTable['asymmetricNot'],
     utils: jestUtils(),
     messages: vitestMessages,
-    messageArgument: true,
-    // D170: Chai loads when a Chai property is first read.
-    chain: (actual, name, call) => chaiChain(actual, name, call),
-    // A matcher returns its assertion in Vitest (`expect(1).toBe(1).to.equal(1)`): a chain over the
-    // same value and flags, which loads Chai only when one of its names is read.
-    matcherReturn: (actual, call) => chainFrom(actual, call),
+    // D170: Chai loads when a Chai property is first read. A matcher that passed returns its
+    // assertion, as in Vitest (`expect(1).toBe(1).to.equal(1)`), which loads Chai only when a chain
+    // is read from it.
+    chain: chaiChain,
     // A custom matcher's `this.equals` is Vitest's (`jest-extend.ts` L42), not Jest's.
     equals: vitestEquals,
     customAsymmetric: (name, matcher) => createCustomAsymmetric(name, matcher as never),
+    // A wrong settlement's error and a custom matcher's: the table's own matchers throw theirs.
+    // `vitestShapeTestError` gives each its `diff` where the run reports it.
     assertionError(result: MatcherResult, message: string, call: MatcherCall): Error {
-      const own = (result as Partial<FailedResult>).error
-      if (own instanceof Error) return withDiff(own)
       // `jest-expect.ts` L1063-L1070 and L1003-L1008: a wrong settlement is Chai's `AssertionError`,
       // with a diff against a rejected promise's error, or none and the reason as its `cause`.
       if (call.settlement === 'resolved') {
         const { AssertionError } = chai()
-        return withDiff(
-          new AssertionError(message, {
-            showDiff: true,
-            expected: new Error('rejected promise'),
-            actual: result.actual,
-          }),
-        )
+        return new AssertionError(message, {
+          showDiff: true,
+          expected: new Error('rejected promise'),
+          actual: result.actual,
+        })
       }
       if (call.settlement === 'rejected') {
         const error = new (chai().AssertionError)(message, { showDiff: false })
@@ -155,7 +125,7 @@ export function vitestExpectTable(): ExpectTable {
       }
       // `jest-extend.ts` L106-L113: a custom matcher's failure.
       const text = call.message === undefined ? message : `${call.message}: ${message}`
-      return withDiff(new JestExtendError(text, result.actual, result.expected))
+      return new JestExtendError(text, result.actual, result.expected)
     },
   }
 }

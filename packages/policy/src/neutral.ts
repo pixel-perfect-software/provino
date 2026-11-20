@@ -252,6 +252,10 @@ export const neutralPolicy: Policy = deepFreeze({
     outsideTestCounts: 'drop',
     assertionCalls: 'per-matcher-call',
     errorShape: 'assertion-error',
+    // Ours: `.resolves`/`.rejects` check their value where they are read, as the error shape's runner does.
+    settlementCheck: 'at-read',
+    // Ours: `expect` takes the value alone.
+    messageArgument: false,
     equality: { errors: 'assert', invalidDate: 'equal' },
     soft: true,
     poll: { enabled: true, intervalMs: 50, timeoutMs: 1000 },

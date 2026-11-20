@@ -2,14 +2,8 @@
 // child process of its own: loading `@vitest/expect` defines the matcher slot on `globalThis`,
 // which the table's own engine owns in the test's process. `@vitest/expect`, `@vitest/utils` and
 // Chai are reached from `vitest`, a devDependency, so nothing is added. Prints one JSON line.
-import { createRequire } from 'node:module'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { importFromVitest } from '../../internal/from-vitest.ts'
 import { type Asymmetric, expectCases, runCase, type Side } from './expect-cases.ts'
-
-const vitestEntry = fileURLToPath(import.meta.resolve('vitest'))
-const fromVitest = createRequire(vitestEntry)
-const load = async (name: string): Promise<Record<string, unknown>> =>
-  import(pathToFileURL(fromVitest.resolve(name)).href)
 
 /** What this reads of Chai and of `chai.expect`. */
 interface ChaiLike {
@@ -21,8 +15,8 @@ interface ChaiLike {
   } & Asymmetric
 }
 
-const upstream = await load('@vitest/expect')
-const { processError } = (await load('@vitest/utils/error')) as {
+const upstream = await importFromVitest('@vitest/expect')
+const { processError } = (await importFromVitest('@vitest/utils/error')) as {
   processError: (error: unknown) => { diff?: string }
 }
 const chai = upstream.chai as ChaiLike
@@ -39,7 +33,6 @@ const chaiStyle = Object.getOwnPropertyNames(chai.Assertion.prototype).filter(
 const isGetter = (n: string): boolean =>
   typeof Object.getOwnPropertyDescriptor(chai.Assertion.prototype, n)?.get === 'function'
 const chaiStyleMethods = chaiStyle.filter((n) => !isGetter(n))
-const chaiStyleProperties = chaiStyle.filter(isGetter)
 const expectBefore = new Set(Object.keys(chai.expect))
 chai.use(upstream.JestAsymmetricMatchers)
 chai.expect.extend(chai.expect, upstream.customMatchers)
@@ -75,7 +68,6 @@ process.stdout.write(
   JSON.stringify({
     jestStyle,
     chaiStyleMethods,
-    chaiStyleProperties,
     asymmetric,
     asymmetricNot,
     customMatchers: Object.keys(upstream.customMatchers as object),

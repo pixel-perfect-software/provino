@@ -175,6 +175,10 @@ export const vitestPolicy: PolicyOverrides = {
     diffContextLines: 5,
     valueFormatter: 'pretty-format',
     errorShape: 'assertion-error',
+    // `.resolves`/`.rejects` check the value as they are read (`expect/messages/promises`).
+    settlementCheck: 'at-read',
+    // `expect(value, message)` takes a message (`expect/messages/extend-and-misuse`).
+    messageArgument: true,
     // `@vitest/expect` 5.0.5's matchers, vendored, exported by `/runtime` (T7.6, D170).
     matcherTable: moduleRef<MatcherTableFactory>(
       import.meta.resolve('@provino/dialect-vitest/runtime'),

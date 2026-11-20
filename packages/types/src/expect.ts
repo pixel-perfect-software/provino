@@ -208,6 +208,25 @@ export interface ExpectMessages {
 }
 
 /**
+ * The messages of the engine's own policies, which `@provino/expect`'s `policyMessages` words: a
+ * table words them only to override them.
+ * @public
+ */
+export type PolicyMessageKey =
+  | 'requiredAssertions'
+  | 'unawaited'
+  | 'pollTimeout'
+  | 'pollUnsupported'
+  | 'outsideTest'
+
+/**
+ * A table's `messages`: every `ExpectMessages` member, those of the engine's own policies optional.
+ * @public
+ */
+export type ExpectTableMessages = Omit<ExpectMessages, PolicyMessageKey> &
+  Partial<Pick<ExpectMessages, PolicyMessageKey>>
+
+/**
  * A dialect's matcher table: what `ExpectPolicy.matcherTable` loads. Its matchers are built-ins
  * (flagged internal, so the engine re-anchors their stack frames like Jest does).
  * @public
@@ -222,7 +241,8 @@ export interface ExpectTable {
   readonly asymmetricNot: AsymmetricFactories
   /** `this.utils` inside matchers and asymmetric matchers. */
   readonly utils: object
-  readonly messages: ExpectMessages
+  /** The table's words; those of the engine's own policies default to `@provino/expect`'s. */
+  readonly messages: ExpectTableMessages
   /**
    * The asymmetric form `expect.extend` registers for a custom matcher (`expect.toBeWithin(…)`):
    * called once per registration, it returns the builder `expect.toBeWithin` and
@@ -238,21 +258,13 @@ export interface ExpectTable {
    */
   readonly assertionError?: (result: MatcherResult, message: string, call: MatcherCall) => Error
   /**
-   * Whether `expect(actual, message)` takes a message after the value, which a failure is prefixed
-   * with. Absent: a second argument is `messages.tooManyArguments`.
-   */
-  readonly messageArgument?: boolean
-  /**
    * What `expect(actual)[name]` is for a name that is no matcher and not on `Object.prototype`:
    * the dialect's own chain (Chai's `to`, `be`, `deep`, …, which do their own asserting). Absent:
-   * such a name reads `undefined`. `call.matcherName` is the name.
+   * such a name reads `undefined`. `call.matcherName` is the name. Present, a matcher call that
+   * passed synchronously returns the assertion it was read from, to chain on (Vitest's
+   * `expect(1).toBe(1).to.equal(1)`); absent, `undefined`, as in Jest.
    */
   readonly chain?: (actual: unknown, name: string, call: MatcherCall) => unknown
-  /**
-   * What a matcher call that passed synchronously returns (Vitest's assertion, to chain on:
-   * `expect(1).toBe(1).to.equal(1)`). Absent: `undefined`, as in Jest.
-   */
-  readonly matcherReturn?: (actual: unknown, call: MatcherCall) => unknown
   /**
    * The deep equality a custom matcher gets as `this.equals` (Vitest's own `equals`, which reads an
    * error's name, cause and own properties). Absent: Jest's.

@@ -960,6 +960,7 @@ export interface ExpectPolicy {
     readonly expand: boolean;
     readonly matcherNamespace: string;
     readonly matcherTable: Behaviour<MatcherTableFactory> | null;
+    readonly messageArgument: boolean;
     readonly outsideTestCounts: "drop" | "next-test";
     readonly poll: {
         readonly enabled: boolean;
@@ -968,6 +969,7 @@ export interface ExpectPolicy {
     };
     readonly pollFailsOnTimeout: boolean;
     readonly requireAssertions: boolean;
+    readonly settlementCheck: "at-call" | "at-read";
     readonly soft: boolean;
     readonly valueFormatter: "pretty-format";
 }
@@ -1012,15 +1014,15 @@ export interface ExpectTable {
     readonly chain?: (actual: unknown, name: string, call: MatcherCall) => unknown;
     customAsymmetric(name: string, matcher: Matcher): CustomAsymmetricBuilder;
     readonly equals?: TesterContext["equals"];
-    readonly matcherReturn?: (actual: unknown, call: MatcherCall) => unknown;
     // (undocumented)
     readonly matchers: MatcherSet;
-    readonly messageArgument?: boolean;
-    // (undocumented)
-    readonly messages: ExpectMessages;
+    readonly messages: ExpectTableMessages;
     readonly promiseMatchers: MatcherSet;
     readonly utils: object;
 }
+
+// @public
+export type ExpectTableMessages = Omit<ExpectMessages, PolicyMessageKey> & Partial<Pick<ExpectMessages, PolicyMessageKey>>;
 
 // @public
 export type ExternalLoadWatcher = (path: string) => (() => boolean) | null;
@@ -2513,6 +2515,9 @@ export type Policy = { readonly [K in SliceName]: PolicySlices[K]; };
 
 // @public
 export type PolicyAtom = string | number | boolean | bigint | null | undefined | AnyFunction | ModuleRef | RegExp | Date | readonly unknown[] | ReadonlySet<unknown> | ReadonlyMap<unknown, unknown>;
+
+// @public
+export type PolicyMessageKey = "requiredAssertions" | "unawaited" | "pollTimeout" | "pollUnsupported" | "outsideTest";
 
 // @public
 export type PolicyOverrides = { readonly [K in SliceName]?: DeepPartial<PolicySlices[K]>; };

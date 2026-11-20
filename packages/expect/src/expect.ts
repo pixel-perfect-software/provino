@@ -14,6 +14,7 @@ import { equals } from '@jest/expect-utils'
 import type {
   Assertion,
   EqualityTester,
+  ExpectMessages,
   ExpectPolicy,
   ExpectStatic,
   ExpectTable,
@@ -30,6 +31,8 @@ import type { MatcherContext } from './context.ts'
 import { equalityTesters } from './equality.ts'
 import { ExpectError } from './errors.ts'
 import { awaitable } from './internal/awaitable.ts'
+import { framesOf, restack } from './internal/restack.ts'
+import { policyMessages } from './policy-messages.ts'
 import { createPoll, type PollTimers } from './poll.ts'
 import { createMatcherRegistry, type MatcherRegistry } from './slot.ts'
 import { addSnapshotSerializer } from './snapshot-matchers.ts'
@@ -81,7 +84,7 @@ const INTERNAL_MATCHER_FLAG: unique symbol = Symbol.for('$$jest-internal-matcher
 const isInternal = (matcher: Matcher): boolean =>
   Reflect.get(matcher, INTERNAL_MATCHER_FLAG) === true
 
-/** A matcher call under `.resolves`/`.rejects`: see `makeThrowingMatcher`. */
+/** A matcher call under `.resolves`/`.rejects` or a try of `expect.poll`: see `makeThrowingMatcher`. */
 interface Settled {
   /** The state of the test that called the matcher. */
   readonly state: MatcherState
@@ -96,22 +99,32 @@ interface Settled {
 /** A matcher as the engine calls it. */
 type Callable = (this: MatcherContext, received: unknown, ...expected: unknown[]) => unknown
 
-/** The data behind one `expect(x)` (and its `.not`, `.resolves`, `.rejects`) Proxy. */
-interface Target {
+/** What a matcher is called on: the value and how the call came. */
+interface Subject {
   readonly actual: unknown
   readonly isNot: boolean
   readonly promise: PromiseVoice
-  /** Made when `.resolves`/`.rejects` is read: the error a wrong settlement throws. */
-  readonly outer: MatcherResultError | undefined
-  /**
-   * Under `errorShape: 'assertion-error'`, made when `.resolves`/`.rejects` is read: the stack a
-   * settled failure and an unawaited assertion report.
-   */
-  readonly read?: MatcherResultError
   /** `expect.soft`: a failure is recorded in the state and the test goes on. */
   readonly soft: boolean
-  /** `expect(actual, message)`, where the table takes one (`ExpectTable.messageArgument`). */
+  /** `expect(actual, message)`, under `ExpectPolicy.messageArgument`. */
   readonly message: string | undefined
+}
+
+/** The data behind one `expect(x)` (and its `.not`, `.resolves`, `.rejects`) Proxy. */
+interface Target extends Subject {
+  /**
+   * The error a wrong settlement throws: made in `expect()` for a promise or a function, or when
+   * `.resolves`/`.rejects` is read. Under `settlementCheck: 'at-read'` it is made at that read,
+   * and it is also the stack a settled failure and an unawaited assertion report.
+   */
+  readonly outer: MatcherResultError | undefined
+}
+
+/** The `MatcherCall` a table hook or a message reads for one call. */
+function callOf(matcherName: string, { isNot, promise, message }: Subject): MatcherCall {
+  return message === undefined
+    ? { matcherName, isNot, promise }
+    : { matcherName, isNot, promise, message }
 }
 
 /**
@@ -127,25 +140,31 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
   registry.utils = table.utils
   // T7.7: the policy's equality rules go ahead of Jest's `equals`, after the user's testers:
   // Vitest's `equals` asks the custom testers first and judges errors and dates itself after them.
-  const policyTesters = equalityTesters(policy.equality)
+  // A table with its own `equals` judges both already, so it gets none.
+  const policyTesters = table.equals === undefined ? equalityTesters(policy.equality) : []
   registry.customEqualityTesters.push(...policyTesters)
-  const { messages } = table
+  // The engine's own policies are worded once (`policyMessages`); a table words what it overrides.
+  const messages: ExpectMessages = { ...policyMessages, ...table.messages }
   /** The table's `equals` for a matcher's `this.equals`, else Jest's. */
   const tableEquals = (table.equals ?? equals) as typeof equals
-  /** What a passing sync matcher call returns under this table. */
-  const matcherReturn = table.matcherReturn?.bind(table)
+  /** Whether a passing sync matcher call returns its assertion, to chain on (Vitest's). */
+  const chains = table.chain !== undefined
   /**
    * `ExpectPolicy.assertionCalls`: `per-expect-call` counts an assertion when `expect()` (or
    * `expect.soft()`, `expect.poll()`) is called, whatever then runs on it; `per-matcher-call`
    * counts each matcher call that returns a result.
    */
   const perExpect = policy.assertionCalls === 'per-expect-call'
-  /** How many arguments `expect` takes after the value: a table may take a message. */
-  const maxRest = table.messageArgument === true ? 1 : 0
+  /** How many arguments `expect` takes after the value (`ExpectPolicy.messageArgument`). */
+  const maxRest = policy.messageArgument ? 1 : 0
+  /**
+   * `ExpectPolicy.settlementCheck: 'at-read'`: `.resolves`/`.rejects` check the value and take the
+   * call's stack when they are read; `'at-call'`: when the matcher is called, as Jest does.
+   */
+  const atRead = policy.settlementCheck === 'at-read'
   /**
    * `errorShape: 'assertion-error'`: a failure throws the table's own error, made by its
-   * `assertionError`, and `.resolves`/`.rejects` check the value and take the call's stack when
-   * they are read (an `AssertionError` runner does both there). `undefined` under `matcher-result`.
+   * `assertionError`. `undefined` under `matcher-result`.
    */
   const assertionError =
     policy.errorShape === 'assertion-error' ? table.assertionError?.bind(table) : undefined
@@ -155,25 +174,25 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
   const getState = (): MatcherState => source.current()
 
   /**
-   * One call of a matcher. `settled` is set under `.resolves`/`.rejects`; a direct call reads the
-   * state now and anchors above `throwingMatcher`, as Jest does.
+   * One call of a matcher. `settled` is set under `.resolves`/`.rejects` and on a try of
+   * `expect.poll`; a direct call reads the state now and anchors above `throwingMatcher`, as Jest
+   * does. `receiver` is the assertion a passing direct call returns where the table chains.
    */
   const makeThrowingMatcher = (
     matcherName: string,
     matcher: Matcher,
-    isNot: boolean,
-    promise: PromiseVoice,
-    actual: unknown,
+    subject: Subject,
     settled?: Settled,
-    soft = false,
-    customMessage?: string,
+    receiver?: Assertion,
   ) =>
     function throwingMatcher(...args: unknown[]): unknown {
+      const { actual, isNot, promise, soft, message: customMessage } = subject
       // A soft assertion records its failure, as `dontThrow()` does, and the test goes on.
       let throws = !soft
       const internal = isInternal(matcher)
       const state = settled?.state ?? getState()
       const above: Caller = settled?.above ?? throwingMatcher
+      // One shape on the hot path; the keys a call may add stay absent when unset, as in Jest.
       const matcherContext: MatcherContext = {
         ...state,
         customTesters: registry.customEqualityTesters,
@@ -188,11 +207,12 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
         error: settled?.error,
         isNot,
         promise,
-        ...(customMessage === undefined ? {} : { customMessage }),
-        // `expect.soft` and `expect.poll` say so to the matcher, as Vitest's `getMatcherState` does.
-        ...(soft ? { soft: true } : {}),
-        ...(settled?.poll === true ? { poll: true } : {}),
       }
+      const optional = matcherContext as { customMessage?: string; soft?: true; poll?: true }
+      if (customMessage !== undefined) optional.customMessage = customMessage
+      // `expect.soft` and `expect.poll` say so to the matcher, as Vitest's `getMatcherState` does.
+      if (soft) optional.soft = true
+      if (settled?.poll === true) optional.poll = true
 
       const processResult = (
         result: unknown,
@@ -210,14 +230,14 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
         if ((valid.pass && isNot) || (!valid.pass && !isNot)) {
           const message = getMessage(valid, messages.noMessage, at)
           if (assertionError !== undefined) {
-            const made = assertionError(valid as MatcherResult, message, {
-              matcherName,
-              isNot,
-              promise,
-              ...(customMessage === undefined ? {} : { message: customMessage }),
-            })
-            // A settled call reports at its `.resolves`/`.rejects`; anything else where it failed.
-            const thrown = settled === undefined ? anchor(made, at) : restack(made, settled.error)
+            const made = assertionError(
+              valid as MatcherResult,
+              message,
+              callOf(matcherName, subject),
+            )
+            // A settled call read at `.resolves`/`.rejects` reports there; anything else where it failed.
+            const thrown =
+              settled !== undefined && atRead ? restack(made, settled.error) : anchor(made, at)
             if (throws) throw thrown
             state.suppressedErrors.push(thrown)
             return false
@@ -239,12 +259,11 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
 
       // Built-ins are re-anchored like Jest's internal matchers; so are the table's promise forms
       // under `.resolves`/`.rejects`, whose frames in Jest are in `node_modules`.
-      const handleError = (error: unknown): never => {
-        // An `AssertionError` runner gives what a settled call throws the stack of the call.
-        if (assertionError !== undefined && settled !== undefined && error instanceof Error) {
-          throw restack(error, settled.error)
-        }
-        if (
+      const handleError = (error: unknown): undefined => {
+        // A settled call read at `.resolves`/`.rejects` throws with the stack of that read.
+        if (atRead && settled !== undefined && error instanceof Error) {
+          restack(error, settled.error)
+        } else if (
           (internal || promiseForms.has(matcher)) &&
           typeof error === 'object' &&
           error !== null &&
@@ -252,6 +271,12 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
           Reflect.get(error, 'name') !== 'PrettyFormatPluginError'
         ) {
           Error.captureStackTrace(error, above)
+        }
+        // An `AssertionError` runner's `expect.soft` holds whatever the assertion throws (Vitest's
+        // `wrapAssertion`), as the table's own failures are thrown.
+        if (soft && assertionError !== undefined) {
+          state.suppressedErrors.push(error instanceof Error ? error : new Error(String(error)))
+          return undefined
         }
         throw error
       }
@@ -276,42 +301,27 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
           })
           return anchored(() => (chained as Promise<void>).catch(handleError), above)
         }
-        // A matcher that passed returns what the table says a call returns (Vitest's assertion, to
-        // chain on); `undefined` otherwise, as in Jest.
-        if (
-          processResult(potentialResult, above) &&
-          matcherReturn !== undefined &&
-          settled === undefined
-        ) {
-          return matcherReturn(actual, {
-            matcherName,
-            isNot,
-            promise,
-            ...(customMessage === undefined ? {} : { message: customMessage }),
-          })
-        }
-        return undefined
+        // A matcher that passed returns the assertion it was read from where the table chains
+        // (Vitest's `expect(1).toBe(1).to.equal(1)`); `undefined` otherwise, as in Jest.
+        return processResult(potentialResult, above) ? receiver : undefined
       } catch (error) {
         return handleError(error)
       }
     }
 
-  const makeSettledMatcher = (
-    matcherName: string,
-    matcher: Matcher,
-    { actual, isNot, promise, outer, soft, message, read }: Target,
-  ) =>
+  const makeSettledMatcher = (matcherName: string, matcher: Matcher, target: Target) =>
     function settledMatcher(...args: unknown[]): PromiseLike<unknown> {
-      const call: MatcherCall = { matcherName, isNot, promise }
+      const { actual, promise, outer, soft } = target
+      const call = callOf(matcherName, target)
       // The state of the test that made the call, not of whatever runs the settle callback.
       const state = getState()
       const actualWrapper: unknown = typeof actual === 'function' ? actual() : actual
       if (!isPromise(actualWrapper)) {
         throw anchor(new MatcherResultError(messages.notAPromise(call, actual)), settledMatcher)
       }
-      // An `AssertionError` runner reports a failure at the `.resolves`/`.rejects` it was read through.
-      const error = read ?? capturedError(settledMatcher)
       const outerErr = outer ?? new MatcherResultError()
+      // Read at `.resolves`/`.rejects`, a failure reports at that read; else where the matcher was called.
+      const error = atRead ? outerErr : capturedError(settledMatcher)
       const wrong = (
         message: string,
         value: unknown,
@@ -319,7 +329,7 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
       ): never => {
         if (assertionError !== undefined) {
           // The table's own error for it (Vitest's `AssertionError`, with its diff), on the
-          // frames of the `.resolves`/`.rejects` read.
+          // frames of the wrong settlement's error.
           const result = { pass: false, message: () => message, actual: value }
           throw restack(assertionError(result, message, { ...call, settlement }), outerErr)
         }
@@ -330,12 +340,8 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
         makeThrowingMatcher(
           matcherName,
           matcher,
-          isNot,
-          promise,
-          value,
+          { ...target, actual: value },
           { state, above, error },
-          soft,
-          message,
         )(...args)
       const chained = actualWrapper.then(
         function onResolved(result) {
@@ -365,8 +371,8 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
       const pending: PendingAssertion = {
         kind: 'settled',
         call,
-        // Under `assertion-error`, the `.resolves`/`.rejects` read, as Vitest records it there.
-        error: read === undefined ? capturedError(settledMatcher) : withFramesOf(read),
+        // Read at `.resolves`/`.rejects`, the read, as Vitest records it there.
+        error: atRead ? withFramesOf(outerErr) : capturedError(settledMatcher),
       }
       state.pendingAsync.add(pending)
       Promise.resolve(outcome).catch(() => undefined)
@@ -395,81 +401,47 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
     if (typeof key !== 'string') return undefined
     if (key === 'not') {
       if (target.isNot) return undefined
-      const { actual, promise, outer, soft, message, read } = target
-      return assertion({
-        actual,
-        isNot: true,
-        promise,
-        outer,
-        soft,
-        message,
-        ...(read === undefined ? {} : { read }),
-      })
+      const { actual, promise, outer, soft, message } = target
+      return assertion({ actual, isNot: true, promise, outer, soft, message })
     }
     if (key === 'resolves' || key === 'rejects') {
       if (target.isNot || target.promise !== '') return undefined
-      if (assertionError !== undefined) {
+      let { actual, outer } = target
+      if (atRead) {
         // Checked as it is read, where a `.rejects` of a function calls it, and the call's stack is
         // the read's.
-        const outer = capturedError(get)
-        const read = capturedError(get)
-        const value =
-          key === 'rejects' && typeof target.actual === 'function' ? target.actual() : target.actual
-        if (!isPromise(value)) {
+        outer = capturedError(get)
+        if (key === 'rejects' && typeof actual === 'function') actual = actual()
+        if (!isPromise(actual)) {
           const call: MatcherCall = { matcherName: '', isNot: false, promise: key }
-          throw anchor(new TypeError(messages.notAPromise(call, value)), get)
+          throw anchor(new TypeError(messages.notAPromise(call, actual)), get)
         }
-        return assertion({
-          actual: value,
-          isNot: false,
-          promise: key,
-          outer,
-          read,
-          soft: target.soft,
-          message: target.message,
-        })
+      } else {
+        // `expect()` made it for a promise or a function; another thenable gets one now, while
+        // the user's line is still on the stack.
+        outer ??= capturedError(get)
       }
-      // `expect()` made it for a promise or a function; another thenable gets one now, while
-      // the user's line is still on the stack.
-      const outer = target.outer ?? capturedError(get)
-      return assertion({
-        actual: target.actual,
-        isNot: false,
-        promise: key,
-        outer,
-        soft: target.soft,
-        message: target.message,
-      })
+      const { soft, message } = target
+      return assertion({ actual, isNot: false, promise: key, outer, soft, message })
     }
     const matcher = registry.matchers[key]
     if (matcher === undefined) {
       // Anything else reads as on Jest's plain object: `Object.prototype`'s members, or undefined;
       // or, where the table has chains (Chai's `to`, `be`, …), as the table's chain of that name. A
-      // thenable check (`then`) is never a chain, so it loads nothing.
+      // thenable check (`then`) is never a chain, so it loads nothing, and an assertion a matcher
+      // returned is no thenable.
       if (table.chain === undefined || key === 'then' || key in Object.prototype) {
         return Reflect.get(Object.prototype, key, receiver)
       }
-      const { actual, isNot, promise, message } = target
-      // Counted per matcher call, a chain counts once, here, since none of its calls reach the
-      // engine; counted per `expect()` call, `expect()` counted it.
-      if (!perExpect) getState().assertionCalls++
-      return table.chain(actual, key, {
-        matcherName: key,
-        isNot,
-        promise,
-        ...(message === undefined ? {} : { message }),
-      })
+      return table.chain(target.actual, key, callOf(key, target))
     }
     if (target.promise === '') {
       return makeThrowingMatcher(
         key,
         matcher,
-        target.isNot,
-        '',
-        target.actual,
+        target,
         undefined,
-        target.soft,
-        target.message,
+        chains ? (receiver as Assertion) : undefined,
       )
     }
     // Own keys only: a custom matcher named like an `Object.prototype` method is still itself.
@@ -500,43 +472,39 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
   const assertion = (target: Target): Assertion =>
     new Proxy(target, handler) as unknown as Assertion
 
-  function expect(actual: unknown, ...rest: unknown[]): Assertion {
-    if (rest.length > maxRest) throw anchor(new Error(messages.tooManyArguments()), expect)
+  /** `expect(actual)` and `expect.soft(actual)`: errors anchor above `caller`. */
+  const begin = (actual: unknown, rest: unknown[], soft: boolean, caller: Caller): Assertion => {
+    if (rest.length > maxRest) throw anchor(new Error(messages.tooManyArguments()), caller)
+    if (soft && source.current() === source.file()) {
+      throw anchor(new ExpectError('EXPECT_OUTSIDE_TEST', messages.outsideTest('soft')), caller)
+    }
     // Jest makes the error a wrong settlement throws in `expect()` itself (index.ts L117), so it
     // points at the `expect(` call. Only a promise or a function can reach `.resolves`/`.rejects`,
-    // so only they pay for a stack here; the check reads no property of the value.
+    // so only they pay for a stack here; the check reads no property of the value. Checked at the
+    // read, the read makes its own.
     const outer =
-      typeof actual === 'function' || types.isPromise(actual) ? capturedError(expect) : undefined
+      !atRead && (typeof actual === 'function' || types.isPromise(actual))
+        ? capturedError(caller)
+        : undefined
     if (perExpect) getState().assertionCalls++
     return assertion({
       actual,
       isNot: false,
       promise: '',
       outer,
-      soft: false,
+      soft,
       message: rest[0] as string | undefined,
     })
+  }
+
+  function expect(actual: unknown, ...rest: unknown[]): Assertion {
+    return begin(actual, rest, false, expect)
   }
 
   /** `expect`, but a failed assertion is recorded and the test goes on. */
   function soft(actual: unknown, ...rest: unknown[]): Assertion {
-    if (rest.length > maxRest) throw anchor(new Error(messages.tooManyArguments()), soft)
-    if (source.current() === source.file()) {
-      throw anchor(new ExpectError('EXPECT_OUTSIDE_TEST', messages.outsideTest('soft')), soft)
-    }
-    const outer =
-      typeof actual === 'function' || types.isPromise(actual) ? capturedError(soft) : undefined
-    if (perExpect) getState().assertionCalls++
-    return assertion({
-      actual,
-      isNot: false,
-      promise: '',
-      outer,
-      soft: true,
-      message: rest[0] as string | undefined,
-    })
+    return begin(actual, rest, true, soft)
   }
-
   const not: Record<string, unknown> = { ...table.asymmetricNot }
 
   const defineAsymmetric = (owner: object, name: string, value: unknown): void => {
@@ -618,29 +586,20 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
           const matcher = registry.matchers[name]
           if (matcher === undefined) throw new TypeError(`${name} is not a matcher`)
           const error = capturedError(pollTry)
-          return makeThrowingMatcher(name, matcher, isNot, '', value, {
-            state,
-            above: pollTry,
-            error,
-            poll: true,
-          })(...args)
+          return makeThrowingMatcher(
+            name,
+            matcher,
+            { actual: value, isNot, promise: '', soft: false, message: undefined },
+            { state, above: pollTry, error, poll: true },
+          )(...args)
         },
       })
     : undefined
 
-  /** `expect.poll`, counted once per call when assertions are counted per `expect()` call. */
-  const countedPoll: typeof poll =
-    poll === undefined || !perExpect
-      ? poll
-      : (...args: Parameters<typeof poll>): ReturnType<typeof poll> => {
-          getState().assertionCalls++
-          return poll(...args)
-        }
-
   const statics = {
     ...table.asymmetric,
     ...(policy.soft ? { soft } : {}),
-    ...(countedPoll === undefined ? {} : { poll: countedPoll }),
+    ...(poll === undefined ? {} : { poll }),
     ...(unreachableText === undefined ? {} : { unreachable }),
     not,
     extend,
@@ -661,7 +620,6 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
 
 /** The policy values the engine builds; the rest throw rather than run half-way. */
 function checkPolicy(policy: ExpectPolicy, table: ExpectTable): void {
-  const missing: string[] = []
   if (policy.matcherTable === null) {
     throw new ExpectError(
       'EXPECT_NO_MATCHER_TABLE',
@@ -669,10 +627,10 @@ function checkPolicy(policy: ExpectPolicy, table: ExpectTable): void {
     )
   }
   if (policy.errorShape === 'assertion-error' && table.assertionError === undefined) {
-    missing.push(`errorShape: 'assertion-error' with a table that has no assertionError`)
-  }
-  if (missing.length > 0) {
-    throw new ExpectError('EXPECT_NOT_IMPLEMENTED', `not built yet: ${missing.join(', ')}`)
+    throw new ExpectError(
+      'EXPECT_NOT_IMPLEMENTED',
+      `not built yet: errorShape: 'assertion-error' with a table that has no assertionError`,
+    )
   }
 }
 
@@ -756,37 +714,26 @@ function capturedError(above: Caller): MatcherResultError {
   return error
 }
 
-/** The frames of `captured`'s stack, from the newline that ends its header. */
-function framesOf(captured: Error): string {
-  const stack = captured.stack ?? ''
-  const head = captured.message === '' ? captured.name : `${captured.name}: ${captured.message}`
-  return stack.startsWith(head) ? stack.slice(head.length) : stack.slice(stack.indexOf('\n'))
-}
-
 /**
  * A new error with `captured`'s frames, whose header reads its own message when the stack is read:
  * a message set later (the end-of-test check words an unawaited assertion) still shows.
  */
 function withFramesOf(captured: Error): MatcherResultError {
   const error = new MatcherResultError()
-  const frames = framesOf(captured)
+  // Taken when the stack is first read: an unawaited assertion nobody reports costs no string.
+  let frames: string | undefined
   let set: string | undefined
   Object.defineProperty(error, 'stack', {
     configurable: true,
-    get: () => set ?? `${error.name}${error.message === '' ? '' : `: ${error.message}`}${frames}`,
+    get: () => {
+      if (set !== undefined) return set
+      frames ??= framesOf(captured)
+      return `${error.name}${error.message === '' ? '' : `: ${error.message}`}${frames}`
+    },
     set: (value: string) => {
       set = value
     },
   })
-  return error
-}
-
-/**
- * Gives `error` the frames of `captured` (made where the user called), under a header of its own
- * message: the stack an `AssertionError` runner reports for an async assertion.
- */
-function restack<E extends Error>(error: E, captured: Error): E {
-  error.stack = `${captured.name}: ${error.message}${framesOf(captured)}`
   return error
 }
 

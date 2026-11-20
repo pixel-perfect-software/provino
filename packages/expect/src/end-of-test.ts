@@ -10,7 +10,13 @@
 //
 // The counters are not reset, as Jest resets them: every attempt has its own state, and the
 // assertion-count sink reads `numPassingAsserts` from it afterwards.
-import type { ExpectMessages, ExpectPolicy, MatcherState } from '@provino/types'
+import type {
+  ExpectMessages,
+  ExpectPolicy,
+  ExpectTableMessages,
+  MatcherState,
+} from '@provino/types'
+import { policyMessages } from './policy-messages.ts'
 import type { StateSource, TestRun } from './state.ts'
 
 /**
@@ -19,8 +25,8 @@ import type { StateSource, TestRun } from './state.ts'
  */
 export interface EndOfTestOptions {
   readonly source: StateSource
-  /** The table's messages (`ExpectTable.messages`). */
-  readonly messages: ExpectMessages
+  /** The table's messages (`ExpectTable.messages`), over the engine's `policyMessages`. */
+  readonly messages: ExpectTableMessages
   /** `ExpectPolicy.requireAssertions`. */
   readonly policy: Pick<ExpectPolicy, 'requireAssertions'>
   /**
@@ -54,7 +60,8 @@ export type EndOfTest = (attempt: EndOfTestAttempt) => readonly Error[]
  * @public
  */
 export function createEndOfTest(options: EndOfTestOptions): EndOfTest {
-  const { source, messages, hasAssertionsWhenFailed } = options
+  const { source, hasAssertionsWhenFailed } = options
+  const messages: ExpectMessages = { ...policyMessages, ...options.messages }
   const { requireAssertions } = options.policy
   return function endOfTest(attempt: EndOfTestAttempt): readonly Error[] {
     const state = source.settle(attempt.test.id, attempt)

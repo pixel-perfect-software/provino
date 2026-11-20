@@ -29,6 +29,10 @@ export const jestExpectPolicy: ExpectPolicy = {
   assertionCalls: 'per-matcher-call',
   // research: track-07 L461
   errorShape: 'matcher-result',
+  // claim: expect.settlementCheck (fixtures/expect/messages/promises)
+  settlementCheck: 'at-call',
+  // claim: expect.messageArgument (fixtures/expect/messages/extend-and-misuse)
+  messageArgument: false,
   // research: track-07 L463, L464
   equality: { errors: 'message', invalidDate: 'unequal' },
   // research: track-07 L465

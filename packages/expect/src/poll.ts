@@ -26,6 +26,7 @@ import type {
 } from '@provino/types'
 import { ExpectError } from './errors.ts'
 import { awaitable } from './internal/awaitable.ts'
+import { restack } from './internal/restack.ts'
 
 /**
  * The clocks `expect.poll` waits with. Everything is optional: it falls back to the real timers
@@ -93,19 +94,6 @@ function raceWith<T>(promise: Promise<T>, timedOut: Promise<void>): Promise<Race
     promise.then((value): Raced<T> => ({ ok: true, value })),
     timedOut.then((): Raced<T> => ({ ok: false })),
   ])
-}
-
-/**
- * Gives `error` the stack of `site` (where the user called the matcher), under the site's header
- * with the error's message, as Vitest's `copyStackTrace` does (`source.stack.replace(source.message,
- * target.message)`: an `AssertionError` reads `Error: …`, `soft-and-poll`). Anything that isn't an
- * `Error` is returned as it is.
- */
-function restack(error: unknown, site: Error): unknown {
-  if (!(error instanceof Error) || typeof site.stack !== 'string') return error
-  const frames = site.stack.split('\n').filter((line) => /^\s+at /.test(line))
-  error.stack = `${site.name}: ${error.message}\n${frames.join('\n')}`
-  return error
 }
 
 /** A time in milliseconds that `setTimeout` accepts. */
@@ -206,7 +194,12 @@ export function createPoll(
     } finally {
       total.cancel()
     }
-    if (policy.pollFailsOnTimeout && failed) throw restack(lastError, site)
+    // The stack of `site` (where the user called the matcher), under the site's header with the
+    // error's message, as Vitest's `copyStackTrace` does (`soft-and-poll`); anything that isn't an
+    // `Error` is thrown as it is.
+    if (policy.pollFailsOnTimeout && failed) {
+      throw lastError instanceof Error ? restack(lastError, site) : lastError
+    }
   }
 
   /** The matcher a poll's proxy hands out for `name`. */
@@ -236,6 +229,8 @@ export function createPoll(
     }
 
   return function poll(fn, options = {}) {
+    // Counted per `expect()` call, a poll is one, whatever its tries do.
+    if (policy.assertionCalls === 'per-expect-call') engine.state().assertionCalls++
     if (!engine.inTest()) {
       throw new ExpectError('EXPECT_OUTSIDE_TEST', messages.outsideTest('poll'))
     }

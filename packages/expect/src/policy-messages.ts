@@ -1,12 +1,17 @@
 // The words for the engine's own async and counting policies (T7.8): a required assertion, an
 // unawaited async assertion, `expect.poll`'s timeout and refusals, `expect.soft`/`expect.poll`
-// outside a test. One copy, which a dialect's table spreads into its `messages`: the Vitest
+// outside a test. One copy, which the engine puts under a table's `messages`: the Vitest
 // dialect, whose runner has these features, prints exactly these (Vitest 5.0.5's text, recorded
 // in `fixtures/expect/policies/unawaited-async` and `soft-and-poll`, from
 // `packages/expect/src/utils.ts` L47-L52, `packages/vitest/src/integrations/chai/poll.ts` and
 // `index.ts`); a dialect whose runner lacks them (Jest) answers with them for a policy layered on
 // it, since its runner has no words of its own.
-import type { ExpectMessages, MatcherCall, PendingAssertion } from '@provino/types'
+import type {
+  ExpectMessages,
+  MatcherCall,
+  PendingAssertion,
+  PolicyMessageKey,
+} from '@provino/types'
 
 const NOT_AWAITED =
   'was not awaited. This assertion is asynchronous and must be awaited; otherwise,'
@@ -16,13 +21,10 @@ const settledCall = ({ matcherName, isNot, promise }: MatcherCall): string =>
   `expect(actual).${promise}.${isNot ? 'not.' : ''}${matcherName}(expected)`
 
 /**
- * The messages of the engine's own policies, for a table to spread into its `messages`.
+ * The messages of the engine's own policies, which a table's `messages` may override.
  * @public
  */
-export const policyMessages: Pick<
-  ExpectMessages,
-  'requiredAssertions' | 'unawaited' | 'pollTimeout' | 'pollUnsupported' | 'outsideTest'
-> = {
+export const policyMessages: Pick<ExpectMessages, PolicyMessageKey> = {
   /** `ExpectPolicy.requireAssertions`: a test made no assertion. */
   requiredAssertions: (): string => 'expected any number of assertion, but got none',
 

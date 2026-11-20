@@ -79,12 +79,9 @@ export interface C {
     readonly chain?: (actual: unknown, name: string, call: MatcherCall) => unknown;
     customAsymmetric(name: string, matcher: I): CustomAsymmetricBuilder;
     readonly equals?: TesterContext["equals"];
-    readonly matcherReturn?: (actual: unknown, call: MatcherCall) => unknown;
     // (undocumented)
     readonly matchers: MatcherSet;
-    readonly messageArgument?: boolean;
-    // (undocumented)
-    readonly messages: ExpectMessages;
+    readonly messages: ExpectTableMessages;
     readonly promiseMatchers: MatcherSet;
     readonly utils: object;
 }
@@ -599,6 +596,7 @@ export interface x {
     readonly expand: boolean;
     readonly matcherNamespace: string;
     readonly matcherTable: Behaviour<MatcherTableFactory> | null;
+    readonly messageArgument: boolean;
     readonly outsideTestCounts: "drop" | "next-test";
     readonly poll: {
         readonly enabled: boolean;
@@ -607,6 +605,7 @@ export interface x {
     };
     readonly pollFailsOnTimeout: boolean;
     readonly requireAssertions: boolean;
+    readonly settlementCheck: "at-call" | "at-read";
     readonly soft: boolean;
     readonly valueFormatter: "pretty-format";
 }

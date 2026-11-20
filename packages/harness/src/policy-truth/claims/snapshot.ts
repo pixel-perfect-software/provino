@@ -5,7 +5,16 @@ import { jestSnapshotStateView } from '@provino/dialect-jest/runtime'
 import type { SnapshotViewMatchOptions, SnapshotViewSource } from '@provino/types'
 import type { Golden } from '../../golden.ts'
 import { type Claims, corpus, each, golden, inert, own, pending } from '../evidence.ts'
-import { capturedFile, observedOf, oneOf, refTo, statusOf } from '../observe.ts'
+import {
+  capturedFile,
+  errorsOf,
+  hasTest,
+  observedOf,
+  oneOf,
+  refTo,
+  statusOf,
+  testOf,
+} from '../observe.ts'
 
 const SNAP = '__snapshots__/written.test.ts.snap'
 const snap = (g: Golden): string => capturedFile(g, SNAP)
@@ -564,6 +573,42 @@ export const expectClaims: Claims = {
     ),
   ),
   'expect.errorShape': shape,
+  // `await expect(5).resolves.toBe(5)` (promises.test.ts L15): Jest fails at the matcher call, a
+  // matcher error at `toBe` (column 30); Vitest throws its TypeError where `.resolves` is read
+  // (column 20).
+  'expect.settlementCheck': golden('expect/messages/promises', {
+    read: (g) => {
+      const [error] = testOf(
+        g,
+        'resolves',
+        'resolves with a non-promise received is a matcher error',
+      ).errors
+      const frame = error?.userFrame
+      return oneOf(frame, [
+        ['at-read', frame?.endsWith(':15:20') === true],
+        ['at-call', frame?.endsWith(':15:30') === true],
+      ])
+    },
+  }),
+  // Jest refuses `expect(1, 'extra')` ("Expect takes at most one argument"), so the test fails;
+  // Vitest prefixes a failure with the message.
+  'expect.messageArgument': golden('expect/messages/extend-and-misuse', {
+    read: (g) => {
+      if (hasTest(g, 'misuse', 'expect with two arguments')) {
+        const status = statusOf(g, 'misuse', 'expect with two arguments')
+        return oneOf(status, [
+          [false, status === 'failed'],
+          [true, status === 'passed'],
+        ])
+      }
+      const [message] = errorsOf(g, 'misuse', 'expect with a message argument')
+      const prefixed = message?.includes('the custom message: ') === true
+      return oneOf(message, [
+        [true, prefixed],
+        [false, !prefixed],
+      ])
+    },
+  }),
   'expect.equality.errors': shape,
   'expect.equality.invalidDate': shape,
   'expect.soft': shape,
