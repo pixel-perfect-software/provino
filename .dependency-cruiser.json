@@ -1976,6 +1976,51 @@
       }
     },
     {
+      "name": "banned-packages-coverage",
+      "comment": "@provino/coverage never imports jest-*, @jest/*, expect, pretty-format, chai, @vitest/*, vite, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/coverage/(?!(?:src/runtime|src/node|test)/)",
+        "pathNot": "\\.test\\.ts$|\\.test-d\\.ts$|(?:^|/)test-support\\.ts$"
+      },
+      "to": {
+        "path": "(?:^|/)node_modules/(?:jest-[^/]+|@jest/[^/]+|expect|pretty-format|chai|@vitest/[^/]+|vite|@babel/[^/]+)/",
+        "dependencyTypesNot": [
+          "type-only"
+        ]
+      }
+    },
+    {
+      "name": "banned-packages-coverage-runtime",
+      "comment": "@provino/coverage/runtime never imports jest-*, @jest/*, expect, pretty-format, chai, @vitest/*, vite, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/coverage/src/runtime/",
+        "pathNot": "\\.test\\.ts$|\\.test-d\\.ts$|(?:^|/)test-support\\.ts$"
+      },
+      "to": {
+        "path": "(?:^|/)node_modules/(?:jest-[^/]+|@jest/[^/]+|expect|pretty-format|chai|@vitest/[^/]+|vite|@babel/[^/]+)/",
+        "dependencyTypesNot": [
+          "type-only"
+        ]
+      }
+    },
+    {
+      "name": "banned-packages-coverage-node",
+      "comment": "@provino/coverage/node never imports jest-*, @jest/*, expect, pretty-format, chai, @vitest/*, vite, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles.",
+      "severity": "error",
+      "from": {
+        "path": "^packages/coverage/src/node/",
+        "pathNot": "\\.test\\.ts$|\\.test-d\\.ts$|(?:^|/)test-support\\.ts$"
+      },
+      "to": {
+        "path": "(?:^|/)node_modules/(?:jest-[^/]+|@jest/[^/]+|expect|pretty-format|chai|@vitest/[^/]+|vite|@babel/[^/]+)/",
+        "dependencyTypesNot": [
+          "type-only"
+        ]
+      }
+    },
+    {
       "name": "banned-packages-mock",
       "comment": "@provino/mock never imports jest-*, @jest/*, expect, pretty-format, chai, @vitest/*, vite, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles.",
       "severity": "error",
@@ -2007,14 +2052,15 @@
     },
     {
       "name": "banned-packages-expect",
-      "comment": "@provino/expect never imports jest-*, expect, pretty-format, chai, @vitest/*, vite, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles.",
+      "comment": "@provino/expect never imports jest-*, @jest/*, expect, pretty-format, chai, @vitest/*, vite, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles. Allowed until its note's owner removes it: @jest/expect-utils.",
       "severity": "error",
       "from": {
         "path": "^packages/expect/(?!(?:src/table|test)/)",
         "pathNot": "\\.test\\.ts$|\\.test-d\\.ts$|(?:^|/)test-support\\.ts$"
       },
       "to": {
-        "path": "(?:^|/)node_modules/(?:jest-[^/]+|expect|pretty-format|chai|@vitest/[^/]+|vite|@babel/[^/]+)/",
+        "path": "(?:^|/)node_modules/(?:jest-[^/]+|@jest/[^/]+|expect|pretty-format|chai|@vitest/[^/]+|vite|@babel/[^/]+)/",
+        "pathNot": "(?:^|/)node_modules/(?:@jest/expect-utils)/",
         "dependencyTypesNot": [
           "type-only"
         ]
@@ -2022,14 +2068,15 @@
     },
     {
       "name": "banned-packages-expect-table",
-      "comment": "@provino/expect/table never imports jest-*, expect, pretty-format, chai, @vitest/*, vite, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles.",
+      "comment": "@provino/expect/table never imports jest-*, @jest/*, expect, pretty-format, chai, @vitest/*, vite, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles. Allowed until its note's owner removes it: @jest/expect-utils.",
       "severity": "error",
       "from": {
         "path": "^packages/expect/src/table/",
         "pathNot": "\\.test\\.ts$|\\.test-d\\.ts$|(?:^|/)test-support\\.ts$"
       },
       "to": {
-        "path": "(?:^|/)node_modules/(?:jest-[^/]+|expect|pretty-format|chai|@vitest/[^/]+|vite|@babel/[^/]+)/",
+        "path": "(?:^|/)node_modules/(?:jest-[^/]+|@jest/[^/]+|expect|pretty-format|chai|@vitest/[^/]+|vite|@babel/[^/]+)/",
+        "pathNot": "(?:^|/)node_modules/(?:@jest/expect-utils)/",
         "dependencyTypesNot": [
           "type-only"
         ]

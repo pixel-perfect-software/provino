@@ -44,6 +44,13 @@ export async function writeFiles(
 export function manifestOf(
   nodes: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
   slices: Readonly<Record<string, string>> = {},
+  bannedPackageSets: Readonly<Record<string, readonly string[]>> = {},
 ): Manifest {
-  return parseManifest({ slices, wholePolicyTypes: [], wholePolicyValues: [], nodes })
+  return parseManifest({
+    slices,
+    wholePolicyTypes: [],
+    wholePolicyValues: [],
+    bannedPackageSets,
+    nodes,
+  })
 }

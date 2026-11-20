@@ -7,7 +7,8 @@
     "\"@provino/*\" means every shipped node in a lower layer (any layer, for dev and tooling).",
     "slices lists the policy slice types the package may import (\"all\" = exempt); a restricted",
     "package also may not use wholePolicyValues, which hand out every slice. Tests are exempt from",
-    "both. neutral turns on the no-dialect-name lint. After editing, run `pnpm boundaries:write`."
+    "both. neutral turns on the no-dialect-name lint. After editing, run `pnpm boundaries:write`.",
+    "bannedPackages is a list of package names (or @scope/*, name-*), or the name of a bannedPackageSets entry. allowedPackages lists the packages a ban pattern covers that the node may still import, each with its owner in note."
   ],
   "slices": {
     "core": "CorePolicy",
@@ -30,6 +31,18 @@
     "formatPolicyDiff",
     "defineDialect"
   ],
+  "bannedPackageSets": {
+    "native": [
+      "jest-*",
+      "@jest/*",
+      "expect",
+      "pretty-format",
+      "chai",
+      "@vitest/*",
+      "vite",
+      "@babel/*"
+    ]
+  },
   "nodes": {
     "@provino/types": {
       "dir": "packages/types",
@@ -37,16 +50,7 @@
       "runsIn": "types",
       "deps": [],
       "slices": "all",
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/policy": {
       "dir": "packages/policy",
@@ -54,16 +58,7 @@
       "runsIn": "both",
       "deps": ["@provino/types"],
       "slices": "all",
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/rpc": {
       "dir": "packages/rpc",
@@ -78,16 +73,7 @@
       "runsIn": "both",
       "deps": ["@provino/types"],
       "slices": [],
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/native": {
       "dir": "packages/native",
@@ -121,16 +107,7 @@
       "runsIn": "both",
       "deps": ["@provino/types", "@provino/resolver", "@provino/transform/v8cache"],
       "slices": [],
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/transform/vite": {
       "dir": "packages/transform/src/vite",
@@ -139,16 +116,7 @@
       "deps": ["@provino/types", "@provino/resolver", "@provino/transform"],
       "slices": [],
       "note": "B25 Phase 4 (T3.9, D171): a project's Vite plugins' resolveId, load and transform hooks and their virtual ids, in the worker. Loaded only when the project has plugins, so a run without them never imports Vite's plugin host.",
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/transform/v8cache": {
       "dir": "packages/transform/src/v8cache",
@@ -157,16 +125,7 @@
       "deps": ["@provino/transform"],
       "slices": [],
       "note": "The V8 code cache helpers (T3.7): Node built-ins and the transform cache's CACHEDIR.TAG writer only, so the provino bin can import this leaf without loading Oxc.",
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/snapshot": {
       "dir": "packages/snapshot",
@@ -175,16 +134,7 @@
       "deps": ["@provino/types", "@provino/policy"],
       "slices": ["snapshot"],
       "neutral": true,
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/snapshot/runtime": {
       "dir": "packages/snapshot/src/runtime",
@@ -193,16 +143,7 @@
       "deps": ["@provino/types", "@provino/policy", "@provino/snapshot"],
       "slices": ["snapshot"],
       "neutral": true,
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/snapshot/node": {
       "dir": "packages/snapshot/src/node",
@@ -211,16 +152,7 @@
       "deps": ["@provino/types", "@provino/policy", "@provino/snapshot"],
       "slices": ["snapshot"],
       "neutral": true,
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/coverage": {
       "dir": "packages/coverage",
@@ -228,7 +160,8 @@
       "runsIn": "both",
       "deps": ["@provino/types"],
       "slices": ["coverage"],
-      "neutral": true
+      "neutral": true,
+      "bannedPackages": "native"
     },
     "@provino/coverage/runtime": {
       "dir": "packages/coverage/src/runtime",
@@ -236,7 +169,8 @@
       "runsIn": "worker",
       "deps": ["@provino/types", "@provino/coverage"],
       "slices": ["coverage"],
-      "neutral": true
+      "neutral": true,
+      "bannedPackages": "native"
     },
     "@provino/coverage/node": {
       "dir": "packages/coverage/src/node",
@@ -244,7 +178,8 @@
       "runsIn": "coordinator",
       "deps": ["@provino/types", "@provino/coverage"],
       "slices": ["coverage"],
-      "neutral": true
+      "neutral": true,
+      "bannedPackages": "native"
     },
     "@provino/mock": {
       "dir": "packages/mock",
@@ -253,16 +188,7 @@
       "deps": ["@provino/types", "@provino/policy"],
       "slices": ["mock", "module"],
       "neutral": true,
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/timers": {
       "dir": "packages/timers",
@@ -271,16 +197,7 @@
       "deps": ["@provino/types", "@provino/policy"],
       "slices": ["timers"],
       "neutral": true,
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/expect": {
       "dir": "packages/expect",
@@ -289,15 +206,9 @@
       "deps": ["@provino/types", "@provino/policy", "@provino/snapshot/runtime"],
       "slices": ["expect"],
       "neutral": true,
-      "bannedPackages": [
-        "jest-*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native",
+      "allowedPackages": ["@jest/expect-utils"],
+      "note": "allowedPackages: @jest/expect-utils (the engine's equals) until B27c vendors it (D187); manifest.test.ts fails once it leaves package.json's dependencies."
     },
     "@provino/expect/table": {
       "dir": "packages/expect/src/table",
@@ -306,16 +217,9 @@
       "deps": ["@provino/types", "@provino/policy", "@provino/expect"],
       "slices": ["expect"],
       "neutral": true,
-      "note": "B27 (D186, D188): the neutral matcher table a project with no dialect gets (NativeRuntimeRefs.matcherTable). It imports @provino/expect for AsymmetricMatcher.",
-      "bannedPackages": [
-        "jest-*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "note": "B27 (D186, D188): the neutral matcher table a project with no dialect gets (NativeRuntimeRefs.matcherTable). It imports @provino/expect for AsymmetricMatcher. allowedPackages: @jest/expect-utils (the engine's equals) until B27c vendors it (D187); manifest.test.ts fails once it leaves package.json's dependencies.",
+      "bannedPackages": "native",
+      "allowedPackages": ["@jest/expect-utils"]
     },
     "@provino/env-shared": {
       "dir": "packages/env-shared",
@@ -324,16 +228,7 @@
       "deps": ["@provino/types"],
       "slices": [],
       "note": "Only if both DOM environments share populateGlobal (build-plan §6).",
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/codemod-lazy": {
       "dir": "packages/codemod-lazy",
@@ -352,16 +247,7 @@
       "slices": ["module"],
       "neutral": true,
       "note": "The node_modules graph (T2.6, D52): the worker inlines from it, and Track 9's affected-test selection can use it in the coordinator. Never imports the loader's root.",
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/loader": {
       "dir": "packages/loader",
@@ -378,16 +264,7 @@
       "slices": ["module"],
       "neutral": true,
       "note": "Both halves (U5, D74): the worker's per-file engine, and the coordinator-mode loader that imports a global setup module (createCoordinatorLoader). It may not import @provino/mock (a worker package): the worker supplies the module-mock registry.",
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/core": {
       "dir": "packages/core",
@@ -396,16 +273,7 @@
       "deps": ["@provino/types", "@provino/policy"],
       "slices": ["core"],
       "neutral": true,
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/env-node": {
       "dir": "packages/env-node",
@@ -413,16 +281,7 @@
       "runsIn": "worker",
       "deps": ["@provino/types", "@provino/env-shared"],
       "slices": [],
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/env-jsdom": {
       "dir": "packages/env-jsdom",
@@ -445,16 +304,7 @@
       "deps": ["@provino/types", "@provino/core"],
       "slices": ["lazy"],
       "neutral": true,
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/api": {
       "dir": "packages/api",
@@ -472,16 +322,7 @@
       "slices": ["core", "lazy", "mock", "module", "timers", "expect"],
       "neutral": true,
       "note": "B27 (D185, D186): the native test API, the served provino module and its globals, reached by NativeRuntimeRefs; private, inlined into provino. Core is for types only.",
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/config": {
       "dir": "packages/config",
@@ -490,16 +331,7 @@
       "deps": ["@provino/types", "@provino/policy", "@provino/transform"],
       "slices": "all",
       "neutral": true,
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/reporters": {
       "dir": "packages/reporters",
@@ -508,16 +340,7 @@
       "deps": ["@provino/types"],
       "slices": ["report"],
       "neutral": true,
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/reporters/live": {
       "dir": "packages/reporters/src/live",
@@ -526,16 +349,7 @@
       "deps": ["@provino/types", "@provino/reporters"],
       "slices": ["report"],
       "neutral": true,
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/reporters/html": {
       "dir": "packages/reporters/src/html",
@@ -544,16 +358,7 @@
       "deps": ["@provino/types", "@provino/reporters"],
       "slices": ["report"],
       "neutral": true,
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/orchestrator": {
       "dir": "packages/orchestrator",
@@ -573,16 +378,7 @@
       ],
       "slices": "all",
       "neutral": true,
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/orchestrator/worker": {
       "dir": "packages/orchestrator/src/worker",
@@ -604,16 +400,7 @@
       "slices": "all",
       "neutral": true,
       "note": "The worker entry (U1). Environments load by ModuleRef, not import. Never imports the coordinator entry.",
-      "bannedPackages": [
-        "jest-*",
-        "@jest/*",
-        "expect",
-        "pretty-format",
-        "chai",
-        "@vitest/*",
-        "vite",
-        "@babel/*"
-      ]
+      "bannedPackages": "native"
     },
     "@provino/dialect-jest": {
       "dir": "packages/dialect-jest",
