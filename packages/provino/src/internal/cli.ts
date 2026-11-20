@@ -1,4 +1,5 @@
 import { type ParseArgsOptionsConfig, parseArgs } from 'node:util'
+import { findConfigUpward } from '@provino/config'
 import { ExitCode } from '@provino/orchestrator'
 import type { TextSink } from '@provino/reporters'
 import type { PoolKind } from '@provino/types'
@@ -24,12 +25,19 @@ const INTERNAL_ERROR_EXIT = 1
 const POOL_KINDS: readonly PoolKind[] = ['forks', 'threads', 'inline']
 
 /**
+ * What `provino run` is asked for: `run()`'s options, with the config file only when the command
+ * line named one (else it is found by walking up from the working directory, D196).
+ * @internal
+ */
+export type ParsedRunOptions = Omit<RunOptions, 'config'> & { readonly config?: string }
+
+/**
  * What a command line asks for.
  * @internal
  */
 export type RunCommand =
   | { readonly type: 'help' }
-  | { readonly type: 'run'; readonly options: RunOptions; readonly forceExit?: true }
+  | { readonly type: 'run'; readonly options: ParsedRunOptions; readonly forceExit?: true }
   | { readonly type: 'jest'; readonly args: readonly string[] }
   | { readonly type: 'vitest'; readonly args: readonly string[] }
   | { readonly type: 'bare'; readonly args: readonly string[] }
@@ -167,8 +175,8 @@ function parseReporters(
 }
 
 /**
- * Parses the arguments after `run`. A flag it doesn't know, a missing or bad value, or a missing
- * `--config` is a `UsageError`.
+ * Parses the arguments after `run`. A flag it doesn't know or a missing or bad value is a
+ * `UsageError`; with no `--config` the file is found later (`runCommand`).
  * @internal
  */
 export function parseRunArgs(
@@ -182,15 +190,14 @@ export function parseRunArgs(
   }
   const { values } = parsed
   if (values.help === true) return { type: 'help' }
-  if (values.config === undefined) throw new UsageError('--config <file> is required')
   if (values.pool !== undefined && !isPoolKind(values.pool)) {
     throw new UsageError(`--pool must be one of ${POOL_KINDS.join(', ')} (got "${values.pool}")`)
   }
   const names = values.reporter ?? []
   const reporters = parseReporters(names, values.outputFile)
   const views = viewsOf(values.tree, values.map)
-  const options: RunOptions = {
-    config: values.config,
+  const options: ParsedRunOptions = {
+    ...(values.config === undefined ? {} : { config: values.config }),
     ...(values.maxWorkers === undefined
       ? {}
       : { maxWorkers: parseWhole(values.maxWorkers, '--maxWorkers') }),
@@ -343,7 +350,14 @@ async function runCommand(
   parsed: Extract<RunCommand, { readonly type: 'run' }>,
   io: CliIo,
 ): Promise<number> {
-  const { exitCode } = await run({ ...parsed.options, ...ioOptions(io) })
+  const cwd = io.cwd ?? process.cwd()
+  const config = parsed.options.config ?? (await findConfigUpward(cwd))
+  if (config === undefined) {
+    throw new UsageError(
+      `found no provino.config.* in ${cwd} or a parent directory (--config <file> names one)`,
+    )
+  }
+  const { exitCode } = await run({ ...parsed.options, config, ...ioOptions(io) })
   if (parsed.forceExit === true) {
     if (parsed.options.detectOpenHandles !== true) {
       ;(io.stderr ?? process.stderr).write(

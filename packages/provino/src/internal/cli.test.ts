@@ -280,7 +280,8 @@ describe('parseRunArgs', () => {
   })
 
   it('refuses what it does not understand', () => {
-    usageError([], /--config <file> is required/)
+    // No --config is the walk up from the working directory's (D196), found when the command runs.
+    assert.deepEqual(parseRunArgs([]), { type: 'run', options: {} })
     usageError(['--config'], /--config/)
     usageError(['--config', 'c.mjs', '--nope'], /--nope/)
     usageError(['--config', 'c.mjs', 'file.test.js'], /file\.test\.js/)

@@ -52,7 +52,7 @@ export class ConfigError extends Error {
 }
 
 // @public
-export type ConfigErrorCode = "CONFIG_LOAD_FAILED" | "CONFIG_INVALID" | "CONFIG_UNKNOWN_DIALECT" | "CONFIG_DIALECT_TIE" | "CONFIG_UNKNOWN_ENVIRONMENT" | "CONFIG_UNSUPPORTED" | "CONFIG_BAD_DIALECT_OPTIONS";
+export type ConfigErrorCode = "CONFIG_LOAD_FAILED" | "CONFIG_INVALID" | "CONFIG_UNKNOWN_DIALECT" | "CONFIG_DIALECT_TIE" | "CONFIG_UNKNOWN_ENVIRONMENT" | "CONFIG_UNSUPPORTED" | "CONFIG_UNKNOWN_KEY" | "CONFIG_BAD_DIALECT_OPTIONS";
 
 // @public
 export interface ConfigIssue {
@@ -61,6 +61,9 @@ export interface ConfigIssue {
     // (undocumented)
     readonly path: string;
 }
+
+// @public
+export function defineConfig<const Config extends ProvinoConfig>(config: Config): Config;
 
 // @public
 export type DialectKeys = { readonly [N in DialectName as N extends ReservedConfigKey ? never : N]?: DialectRegistry[N]; };
@@ -73,6 +76,9 @@ export type PluginKeys = { readonly [N in keyof PluginRegistry & string as N ext
 
 // @public
 export interface ProjectConfig extends BaseConfig, ProjectKeys, DialectKeys, PluginKeys {}
+
+// @public
+export type ProvinoConfig = ProvinoConfigInput | ((env: ConfigEnv) => ProvinoConfigInput | Promise<ProvinoConfigInput>);
 
 // @public
 export interface ProvinoConfigInput extends ProjectConfig, TopLevelKeys {}

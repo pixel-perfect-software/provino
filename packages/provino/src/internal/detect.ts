@@ -1,7 +1,7 @@
 // T11.13: what bare `provino` runs. Gap 8 of B14: a `provino.config.*` first, then the runner the
 // project's own config names.
 import { readdir, readFile } from 'node:fs/promises'
-import { join } from 'node:path'
+import { findConfigUpward } from '@provino/config'
 import { jestNodeDialect } from '@provino/dialect-jest/node'
 import { UsageError } from './usage-error.ts'
 
@@ -13,9 +13,6 @@ export type DetectedProject =
   | { readonly kind: 'provino'; readonly config: string }
   | { readonly kind: 'jest' }
   | { readonly kind: 'vitest' }
-
-/** The extensions a `provino.config.*` may have, in the order they are looked for. */
-const PROVINO_CONFIG_EXTENSIONS: readonly string[] = ['ts', 'mts', 'cts', 'js', 'mjs', 'cjs']
 
 const VITEST_CONFIG = /^vitest\.(config|workspace)\.(ts|mts|cts|js|mjs|cjs|json)$/
 const VITE_CONFIG = /^vite\.config\.(ts|mts|cts|js|mjs|cjs)$/
@@ -49,8 +46,9 @@ async function findsJest(cwd: string): Promise<boolean> {
 }
 
 /**
- * Decides what to run in `cwd`. A forced dialect (`--dialect`) skips the search. Otherwise a
- * `provino.config.*` in `cwd` wins; else the Jest config found from `cwd` (the upward walk Jest
+ * Decides what to run in `cwd`. A forced dialect (`--dialect`) skips the search. Otherwise the
+ * first `provino.config.*` found walking up from `cwd` wins (D196: it stops at a directory with
+ * `.git` or `pnpm-workspace.yaml`), and the Jest code is not loaded; else the Jest config found from `cwd` (the upward walk Jest
  * does, a `package.json` counting only with a `jest` key) or a `vitest.config.*`/
  * `vitest.workspace.*` in `cwd`, or a `vite.config.*` there with a `test` key (read once, by
  * importing it, with no Vite: B25c); both is an error, and none is too.
@@ -61,11 +59,9 @@ export async function detectProject(
   forced?: 'jest' | 'vitest',
 ): Promise<DetectedProject> {
   if (forced !== undefined) return { kind: forced }
+  const config = await findConfigUpward(cwd)
+  if (config !== undefined) return { kind: 'provino', config }
   const names = new Set(await readdir(cwd).catch(() => [] as string[]))
-  for (const extension of PROVINO_CONFIG_EXTENSIONS) {
-    const name = `provino.config.${extension}`
-    if (names.has(name)) return { kind: 'provino', config: join(cwd, name) }
-  }
   const jest = await findsJest(cwd)
   // A Jest config settles it: `vite.config.*` is read only when nothing else says what this is.
   const vitest =

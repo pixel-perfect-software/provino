@@ -74,7 +74,7 @@ const EXPORTED_NAMES: Readonly<Record<string, readonly string[]>> = {
     'test',
   ],
   'provino/globals': [],
-  'provino/config': ['ConfigError', 'formatConfigIssue'],
+  'provino/config': ['ConfigError', 'defineConfig', 'formatConfigIssue'],
   'provino/node': ['run'],
   'provino/reporters': [
     'AGENT_VARIABLES',
@@ -632,7 +632,7 @@ describe('the provino reporter is its own chunk (B26)', () => {
     const dir = await builtProject()
     writeFileSync(
       join(dir, 'provino.config.mjs'),
-      "export default { dialect: 'jest', testMatch: ['**/*.test.js'] }\n",
+      "export default { dialect: 'jest', include: ['**/*.test.js'] }\n",
     )
     for (const [reporter, wantLive, wantHtml] of [
       ['agent', false, false],
@@ -699,7 +699,7 @@ describe('the html reporter is its own chunk, and its page runs from the build (
     const dir = await builtProject()
     writeFileSync(
       join(dir, 'provino.config.mjs'),
-      "export default { dialect: 'jest', testMatch: ['**/*.test.js'] }\n",
+      "export default { dialect: 'jest', include: ['**/*.test.js'] }\n",
     )
     writeFileSync(
       join(dir, 'd.test.js'),
