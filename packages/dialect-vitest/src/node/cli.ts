@@ -417,6 +417,16 @@ function fileFilterOf(raw: unknown): FileFilter {
   return { kind: 'substring', value: filter }
 }
 
+/**
+ * `-u` as `resolveConfig` reads it (L661-L672): `all`, `new` and `none` are themselves, any other
+ * truthy value is `all`, and a falsy one leaves the default (`new`, or `none` on CI).
+ */
+function updateOf(update: unknown): { readonly update?: boolean } {
+  if (update === 'none') return { update: false }
+  if (update === 'new' || !update) return {}
+  return { update: true }
+}
+
 function maxWorkersOf(value: unknown): number | `${number}%` | undefined {
   if (typeof value === 'number' && Number.isInteger(value) && value > 0) return value
   if (typeof value === 'string' && /^\d+(\.\d+)?%$/.test(value)) return value as `${number}%`
@@ -425,8 +435,7 @@ function maxWorkersOf(value: unknown): number | `${number}%` | undefined {
 
 /**
  * The `RunRequest` a parsed Vitest command line asks for: the filters as substring or `file:line`
- * filters, `-t`, `-u` (`true` and `all` update; `none` and `false` don't; `new` is the default and
- * says nothing), `--passWithNoTests`, `-c`, `--maxWorkers` when it is a count or a percentage, and
+ * filters, `-t`, `-u` (as `resolveConfig` reads it: `updateOf`), `--passWithNoTests`, `-c`, `--maxWorkers` when it is a count or a percentage, and
  * `--color`/`--no-color` when given. `list` is the `list-files` mode. Throws a `VitestCliError` for
  * a range location filter (`a.test.ts:1-2`).
  * @public
@@ -446,11 +455,7 @@ export function vitestArgvToRunRequest(argv: VitestArgv): RunRequest {
     ...(namePattern === undefined ? {} : { namePattern: String(namePattern) }),
     ...(maxWorkers === undefined ? {} : { maxWorkers }),
     inBand: false,
-    ...(update === true || update === 'all'
-      ? { update: true }
-      : update === false || update === 'none'
-        ? { update: false }
-        : {}),
+    ...updateOf(update),
     ...(typeof options.passWithNoTests === 'boolean'
       ? { passWithNoTests: options.passWithNoTests }
       : {}),

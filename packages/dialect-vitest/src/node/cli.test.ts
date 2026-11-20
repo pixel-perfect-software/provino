@@ -486,6 +486,13 @@ describe('Provino on top of the parse', () => {
     assert.equal(request(['-u', 'all']).update, true)
     assert.equal(request(['-u', 'none']).update, false)
     assert.equal(request(['-u', 'new']).update, undefined)
+    // resolveConfig.ts L661-L672: any other truthy value updates all, a falsy one says nothing.
+    assert.equal(request(['-u', 'yes']).update, true)
+    assert.equal(request(['-u', '1']).update, true)
+    // No transform: `false` is a string, so truthy; `--no-update` is the falsy one.
+    assert.equal(request(['-u', 'false']).update, true)
+    assert.equal(request(['--no-update']).update, undefined)
+    assert.equal(request(['-u', '']).update, undefined)
     assert.equal(request(['--maxWorkers', '2']).maxWorkers, 2)
     assert.equal(request(['--maxWorkers=50%']).maxWorkers, '50%')
     assert.equal(request([]).colour, undefined)
