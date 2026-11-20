@@ -119,21 +119,13 @@ export class VitestCliError extends Error {
 export type VitestCliErrorCode = "VITEST_CLI_INVALID" | "VITEST_CLI_UNSUPPORTED" | "VITEST_CLI_UNSUPPORTED_FORM";
 
 // @public
-export interface VitestCliOption {
-    readonly array?: true;
-    // (undocumented)
-    readonly description: string;
-    // (undocumented)
-    readonly flag: string;
-    // (undocumented)
-    readonly owner?: string;
-    // (undocumented)
-    readonly path: string;
-    // (undocumented)
-    readonly support: VitestCliSupport;
-    // (undocumented)
-    readonly value?: VitestCliValue;
-}
+export type VitestCliOption = (VitestCliOptionBase & {
+    readonly support: "request" | "config";
+    readonly owner?: never;
+}) | (VitestCliOptionBase & {
+    readonly support: "refuse" | "warn";
+    readonly owner: string;
+});
 
 // @public
 export type VitestCliSupport = "request" | "config" | "refuse" | "warn";
