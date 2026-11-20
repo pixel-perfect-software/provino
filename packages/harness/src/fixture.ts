@@ -583,7 +583,8 @@ const VITEST_RESERVED: readonly string[] = [
   'test.exclude',
   'test.includeTaskLocation',
   'projects',
-  'test.projects',
+  // `test.projects` is the fixture's (B25c): the config reader's project cases need it. The project
+  // directories come from the fixture's own files, and the golden lists every file that ran.
 ]
 /** The reserved keys a `run` fixture's overlay may set after all: which files the run finds. */
 const JEST_DISCOVERY: readonly string[] = ['testMatch', 'testPathIgnorePatterns']

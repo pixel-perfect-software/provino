@@ -678,7 +678,6 @@ test('config refuses a bad shape, an unlisted runner and a key someone else sets
   // Projects bring configs the recorder doesn't write, and a `test` that isn't an object hides keys.
   bad({ config: { jest: { projects: ['a'] } } })
   bad({ config: { vitest: { projects: ['a'] } } })
-  bad({ config: { vitest: { test: { projects: ['a'] } } } })
   bad({ config: { vitest: { test: 'x' } } })
   bad({ config: { vitest: { test: ['x'] } } })
   // A key `mockCleanup` or `jestConfig` sets.
@@ -687,6 +686,13 @@ test('config refuses a bad shape, an unlisted runner and a key someone else sets
   bad({ runners: ['jest'], jestConfig: { roots: ['a'] }, config: { jest: { roots: ['b'] } } })
   // The `vitest-list` profile's own key.
   bad({ runners: ['vitest-list'], config: { vitest: { test: { sequence: { hooks: 'stack' } } } } })
+  // Vitest's `test.projects` is the fixture's own (B25c).
+  assert.deepEqual(
+    parseFixtureManifest(
+      JSON.stringify({ ...VALID, config: { vitest: { test: { projects: ['a'] } } } }),
+    ).config,
+    { vitest: { test: { projects: ['a'] } } },
+  )
   // Without the other source, the same key is the fixture's.
   assert.deepEqual(
     parseFixtureManifest(JSON.stringify({ ...VALID, config: { jest: { clearMocks: true } } }))
