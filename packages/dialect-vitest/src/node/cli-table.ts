@@ -11,8 +11,17 @@
 // (handed to the config reader as `test`, which applies it or warns `VITEST_CONFIG_NOT_APPLIED`),
 // `refuse` (an error naming `owner`), `warn` (read and not applied, naming `owner`).
 
-/** The owner of a row Provino refuses because Vitest is parked after B25g (D183). */
+// The owners several rows share. `PARKED`: Vitest is parked after B25g, so the rest is refused (D183).
 const PARKED = 'parked (D183)'
+const COVERAGE = 'B25h (Vitest coverage)'
+const EXPERIMENTAL = 'experimental flags are not applied'
+const NODE_ONLY = 'not planned: Provino runs Node only (D3)'
+const VITEST_UI = 'not planned: Vitest UI'
+const TYPE_TESTS = 'not planned in B25: type tests'
+const TEST_TAGS = 'a follow-up bundle (test tags)'
+const CHANGED = 'a follow-up bundle (Vitest --changed)'
+const NO_WATCH = 'D175: no watch mode in B25'
+const COLLECTS_BY_RUNNING = 'Provino collects by running the files'
 
 /**
  * What `provino vitest` does with an option.
@@ -43,20 +52,24 @@ export type VitestCliValue =
   | 'import-durations'
   | 'import-durations-print'
 
-/**
- * One Vitest command-line option.
- * @public
- */
-export interface VitestCliOption {
+/** What every Vitest command-line option has. */
+interface VitestCliOptionBase {
   readonly flag: string
   readonly path: string
   readonly description: string
   readonly value?: VitestCliValue
   /** `array: true` on an option whose `transform` is its own (it may then take several values). */
   readonly array?: true
-  readonly support: VitestCliSupport
-  readonly owner?: string
 }
+
+/**
+ * One Vitest command-line option: one Provino refuses or warns about names its owner, one it reads
+ * has none.
+ * @public
+ */
+export type VitestCliOption =
+  | (VitestCliOptionBase & { readonly support: 'request' | 'config'; readonly owner?: never })
+  | (VitestCliOptionBase & { readonly support: 'refuse' | 'warn'; readonly owner: string })
 
 /**
  * The options of every command but `list`, in cac's order (`-v, --version` first and `-h, --help`
@@ -96,7 +109,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     path: 'watch',
     description: 'Enable watch mode',
     support: 'refuse',
-    owner: 'D175: no watch mode in B25',
+    owner: NO_WATCH,
   },
   {
     flag: '-t, --testNamePattern <pattern>',
@@ -116,14 +129,14 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     path: 'ui',
     description: 'Enable UI',
     support: 'refuse',
-    owner: 'not planned: Vitest UI',
+    owner: VITEST_UI,
   },
   {
     flag: '--open',
     path: 'open',
     description: 'Open UI automatically (default: !process.env.CI)',
     support: 'refuse',
-    owner: 'not planned: Vitest UI',
+    owner: VITEST_UI,
   },
   {
     flag: '--api [port]',
@@ -132,7 +145,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       "Specify server port. Note if the port is already being used, Vite will automatically try the next available port so this may not be the actual port the server ends up listening on. If true will be set to 51204 or 63315 in browser mode. Use '--help --api' for more info.",
     value: 'api',
     support: 'refuse',
-    owner: 'not planned: Vitest UI',
+    owner: VITEST_UI,
   },
   {
     flag: '--api.port [port]',
@@ -140,7 +153,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Specify server port. Note if the port is already being used, Vite will automatically try the next available port so this may not be the actual port the server ends up listening on. If true will be set to 51204',
     support: 'refuse',
-    owner: 'not planned: Vitest UI',
+    owner: VITEST_UI,
   },
   {
     flag: '--api.host [host]',
@@ -148,7 +161,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Specify which IP addresses the server should listen on. Set this to 0.0.0.0 or true to listen on all addresses, including LAN and public addresses',
     support: 'refuse',
-    owner: 'not planned: Vitest UI',
+    owner: VITEST_UI,
   },
   {
     flag: '--api.strictPort',
@@ -156,7 +169,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Set to true to exit if port is already in use, instead of automatically trying the next available port',
     support: 'refuse',
-    owner: 'not planned: Vitest UI',
+    owner: VITEST_UI,
   },
   {
     flag: '--api.allowExec',
@@ -164,7 +177,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Allow API to execute code. (Be careful when enabling this option in untrusted environments)',
     support: 'refuse',
-    owner: 'not planned: Vitest UI',
+    owner: VITEST_UI,
   },
   {
     flag: '--api.allowWrite',
@@ -172,7 +185,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Allow API to edit files. (Be careful when enabling this option in untrusted environments)',
     support: 'refuse',
-    owner: 'not planned: Vitest UI',
+    owner: VITEST_UI,
   },
   {
     flag: '--silent [value]',
@@ -210,7 +223,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description: "Enable coverage report. Use '--help --coverage' for more info.",
     value: 'nested-boolean',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.provider <name>',
@@ -218,7 +231,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Select the tool for coverage collection, available values are: "v8", "istanbul" and "custom"',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.enabled',
@@ -226,7 +239,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Enables coverage collection. Can be overridden using the --coverage CLI option (default: false)',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.include <pattern>',
@@ -235,7 +248,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       'Files included in coverage as glob patterns. May be specified more than once when using multiple patterns. By default only files covered by tests are included.',
     value: 'array',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.exclude <pattern>',
@@ -244,21 +257,21 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       'Files to be excluded in coverage. May be specified more than once when using multiple extensions.',
     value: 'array',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.clean',
     path: 'coverage.clean',
     description: 'Clean coverage results before running tests (default: true)',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.cleanOnRerun',
     path: 'coverage.cleanOnRerun',
     description: 'Clean coverage report on watch rerun (default: true)',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.reportsDirectory <path>',
@@ -266,7 +279,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description: 'Directory to write coverage report to (default: ./coverage)',
     value: 'normalize',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.reporter <name>',
@@ -275,21 +288,21 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       'Coverage reporters to use. Visit [coverage.reporter](https://vitest.dev/config/coverage#coverage-reporter) for more information (default: ["text", "html", "clover", "json"])',
     value: 'array',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.reportOnFailure',
     path: 'coverage.reportOnFailure',
     description: 'Generate coverage report even when tests fail (default: false)',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.allowExternal',
     path: 'coverage.allowExternal',
     description: 'Collect coverage of files outside the project root (default: false)',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.skipFull',
@@ -297,14 +310,14 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Do not show files with 100% statement, branch, and function coverage (default: false)',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.thresholds.100',
     path: 'coverage.thresholds.100',
     description: 'Shortcut to set all coverage thresholds to 100 (default: false)',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.thresholds.perFile <boolean>',
@@ -312,7 +325,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Check thresholds per file. See --coverage.thresholds.lines, --coverage.thresholds.functions, --coverage.thresholds.branches and --coverage.thresholds.statements for the actual thresholds (default: false). Object form is available in config files only.',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.thresholds.autoUpdate <boolean|function>',
@@ -321,7 +334,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       'Update threshold values: "lines", "functions", "branches" and "statements" to configuration file when current coverage is above the configured thresholds (default: false)',
     value: 'yes-no',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.thresholds.lines <number>',
@@ -329,7 +342,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Threshold for lines. Visit [istanbuljs](https://github.com/istanbuljs/nyc#coverage-thresholds) for more information. This option is not available for custom providers',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.thresholds.functions <number>',
@@ -337,7 +350,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Threshold for functions. Visit [istanbuljs](https://github.com/istanbuljs/nyc#coverage-thresholds) for more information. This option is not available for custom providers',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.thresholds.branches <number>',
@@ -345,7 +358,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Threshold for branches. Visit [istanbuljs](https://github.com/istanbuljs/nyc#coverage-thresholds) for more information. This option is not available for custom providers',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.thresholds.statements <number>',
@@ -353,7 +366,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Threshold for statements. Visit [istanbuljs](https://github.com/istanbuljs/nyc#coverage-thresholds) for more information. This option is not available for custom providers',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.ignoreClassMethods <name>',
@@ -362,7 +375,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       'Array of class method names to ignore for coverage. Visit [istanbuljs](https://github.com/istanbuljs/nyc#ignoring-methods) for more information. This option is only available for the istanbul providers (default: [])',
     value: 'array',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.processingConcurrency <number>',
@@ -370,7 +383,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Concurrency limit used when processing the coverage results. (default min between 20 and the number of CPUs)',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.customProviderModule <path>',
@@ -379,7 +392,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       'Specifies the module name or path for the custom coverage provider module. Visit [Custom Coverage Provider](https://vitest.dev/guide/coverage#custom-coverage-provider) for more information. This option is only available for custom providers',
     value: 'normalize',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.watermarks.statements <watermarks>',
@@ -387,7 +400,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description: 'High and low watermarks for statements in the format of <high>,<low>',
     value: 'watermarks',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.watermarks.lines <watermarks>',
@@ -395,7 +408,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description: 'High and low watermarks for lines in the format of <high>,<low>',
     value: 'watermarks',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.watermarks.branches <watermarks>',
@@ -403,7 +416,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description: 'High and low watermarks for branches in the format of <high>,<low>',
     value: 'watermarks',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.watermarks.functions <watermarks>',
@@ -411,7 +424,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description: 'High and low watermarks for functions in the format of <high>,<low>',
     value: 'watermarks',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.changed <commit/branch>',
@@ -420,7 +433,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       'Collect coverage only for files changed since a specified commit or branch (e.g., origin/main or HEAD~1). Inherits value from --changed by default.',
     value: 'yes-no',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.excludeAfterRemap',
@@ -428,14 +441,14 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Apply exclusions again after coverage has been remapped to original sources. (default: false)',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.htmlDir <path>',
     path: 'coverage.htmlDir',
     description: 'Directory of HTML coverage output to be served in UI mode and HTML reporter.',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--coverage.autoAttachSubprocess',
@@ -443,7 +456,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Track coverage of the node:child_process and node:worker_threads spawned during test run. Supported only by v8 provider. (default: false)',
     support: 'refuse',
-    owner: 'B25h (Vitest coverage)',
+    owner: COVERAGE,
   },
   {
     flag: '--mode <name>',
@@ -481,14 +494,14 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       "Run tests in the browser. Equivalent to --browser.enabled (default: false). Use '--help --browser' for more info.",
     value: 'browser',
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--browser.enabled',
     path: 'browser.enabled',
     description: 'Run tests in the browser. Equivalent to --browser.enabled (default: false)',
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--browser.name <name>',
@@ -496,7 +509,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Run all tests in a specific browser. Some browsers are only available for specific providers (see --browser.provider).',
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--browser.headless',
@@ -504,14 +517,14 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Run the browser in headless mode (i.e. without opening the GUI (Graphical User Interface)). If you are running Vitest in CI, it will be enabled by default (default: process.env.CI)',
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--browser.ui',
     path: 'browser.ui',
     description: 'Show Vitest UI when running tests (default: !process.env.CI)',
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--browser.detailsPanelPosition <position>',
@@ -519,7 +532,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Default position for the details panel in browser mode. Either right (horizontal split) or bottom (vertical split) (default: right)',
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--browser.connectTimeout <timeout>',
@@ -527,7 +540,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'If connection to the browser takes longer, the test suite will fail (default: 60_000)',
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--browser.dependencySourcemaps',
@@ -535,7 +548,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       "Serve sourcemaps of dependencies to the browser in headless runs, used by devtools when debugging into node_modules. Reported test errors are source-mapped either way. Use --browser.dependencySourcemaps=false to speed up test runs if you don't step into dependency code (default: true)",
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--browser.trackUnhandledErrors',
@@ -543,7 +556,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Control if Vitest catches uncaught exceptions so they can be reported (default: true)',
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--browser.trace <mode>',
@@ -552,7 +565,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       'Enable trace view mode. Supported: "on", "off", "on-first-retry", "on-all-retries", "retain-on-failure".',
     value: 'browser-trace',
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--browser.traceView ',
@@ -561,28 +574,28 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       "Enable Vitest trace-view collection for browser tests (default: false). Use '--help --browser.traceView' for more info.",
     value: 'nested-boolean',
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--browser.traceView.enabled',
     path: 'browser.traceView.enabled',
     description: 'Enable Vitest trace-view collection for browser tests (default: false)',
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--browser.traceView.recordCanvas',
     path: 'browser.traceView.recordCanvas',
     description: 'Capture canvas pixels in trace-view snapshots (default: false)',
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--browser.traceView.inlineImages',
     path: 'browser.traceView.inlineImages',
     description: 'Inline loaded image pixels in trace-view snapshots (default: false)',
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--browser.locators <options>',
@@ -591,14 +604,14 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       "Options for how locators should be handled by default. Use '--help --browser.locators' for more info.",
     value: 'locators',
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--browser.locators.exact',
     path: 'browser.locators.exact',
     description: 'Should locators match the text exactly by default (default: true)',
     support: 'refuse',
-    owner: 'not planned: Provino runs Node only (D3)',
+    owner: NODE_ONLY,
   },
   {
     flag: '--pool <pool>',
@@ -684,7 +697,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     path: 'changed',
     description: 'Run tests that are affected by the changed files (default: false)',
     support: 'refuse',
-    owner: 'a follow-up bundle (Vitest --changed)',
+    owner: CHANGED,
   },
   {
     flag: '--sequence <options>',
@@ -951,21 +964,21 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       "Enable typechecking alongside tests (default: false). Use '--help --typecheck' for more info.",
     value: 'nested-boolean',
     support: 'refuse',
-    owner: 'not planned in B25: type tests',
+    owner: TYPE_TESTS,
   },
   {
     flag: '--typecheck.enabled',
     path: 'typecheck.enabled',
     description: 'Enable typechecking alongside tests (default: false)',
     support: 'refuse',
-    owner: 'not planned in B25: type tests',
+    owner: TYPE_TESTS,
   },
   {
     flag: '--typecheck.only',
     path: 'typecheck.only',
     description: 'Run only typecheck tests. This automatically enables typecheck (default: false)',
     support: 'refuse',
-    owner: 'not planned in B25: type tests',
+    owner: TYPE_TESTS,
   },
   {
     flag: '--typecheck.checker <name>',
@@ -973,7 +986,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Specify the typechecker to use. Available values are: "tsc" and "vue-tsc" and a path to an executable (default: "tsc")',
     support: 'refuse',
-    owner: 'not planned in B25: type tests',
+    owner: TYPE_TESTS,
   },
   {
     flag: '--typecheck.allowJs',
@@ -981,21 +994,21 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Allow JavaScript files to be typechecked. By default takes the value from tsconfig.json',
     support: 'refuse',
-    owner: 'not planned in B25: type tests',
+    owner: TYPE_TESTS,
   },
   {
     flag: '--typecheck.ignoreSourceErrors',
     path: 'typecheck.ignoreSourceErrors',
     description: 'Ignore type errors from source files',
     support: 'refuse',
-    owner: 'not planned in B25: type tests',
+    owner: TYPE_TESTS,
   },
   {
     flag: '--typecheck.build',
     path: 'typecheck.build',
     description: 'Use TypeScript build mode',
     support: 'refuse',
-    owner: 'not planned in B25: type tests',
+    owner: TYPE_TESTS,
   },
   {
     flag: '--typecheck.tsconfig <path>',
@@ -1003,14 +1016,14 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description: 'Path to a custom tsconfig file',
     value: 'normalize',
     support: 'refuse',
-    owner: 'not planned in B25: type tests',
+    owner: TYPE_TESTS,
   },
   {
     flag: '--typecheck.spawnTimeout <time>',
     path: 'typecheck.spawnTimeout',
     description: 'Minimum time in milliseconds it takes to spawn the typechecker',
     support: 'refuse',
-    owner: 'not planned in B25: type tests',
+    owner: TYPE_TESTS,
   },
   {
     flag: '-p, --project <name>',
@@ -1150,7 +1163,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Start Vitest without running tests. Tests will be running only on change. If browser mode is enabled, the UI will be opened automatically. This option is ignored when CLI file filters are passed. (default: false)',
     support: 'refuse',
-    owner: 'D175: no watch mode in B25',
+    owner: NO_WATCH,
   },
   {
     flag: '--mergeReports [path]',
@@ -1167,7 +1180,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'List all available tags instead of running tests. --list-tags=json will output tags in JSON format, unless there are no tags.',
     support: 'refuse',
-    owner: 'a follow-up bundle (test tags)',
+    owner: TEST_TAGS,
   },
   {
     flag: '--clearCache',
@@ -1184,7 +1197,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       'Run only tests with the specified tags. You can use logical operators && (and), || (or) and ! (not) to create complex expressions, see [Test Tags](https://vitest.dev/guide/test-tags#syntax) for more information.',
     value: 'array',
     support: 'refuse',
-    owner: 'a follow-up bundle (test tags)',
+    owner: TEST_TAGS,
   },
   {
     flag: '--strictTags',
@@ -1192,7 +1205,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Should Vitest throw an error if test has a tag that is not defined in the config. (default: true)',
     support: 'refuse',
-    owner: 'a follow-up bundle (test tags)',
+    owner: TEST_TAGS,
   },
   {
     flag: '--sharedViteServer',
@@ -1207,7 +1220,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     path: 'experimental',
     description: "Experimental features.. Use '--help --experimental' for more info.",
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.importDurations ',
@@ -1216,7 +1229,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       "Configure import duration collection and CLI display. Note that UI's \"Module Graph\" tab can always show import breakdown regardless of the print setting.. Use '--help --experimental.importDurations' for more info.",
     value: 'import-durations',
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.importDurations.print <boolean|on-warn>',
@@ -1225,7 +1238,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       'When to print import breakdown to CLI terminal. Use true to always print, false to never print, or on-warn to print only when imports exceed the warn threshold (default: false).',
     value: 'import-durations-print',
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.importDurations.limit <number>',
@@ -1233,14 +1246,14 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Maximum number of imports to collect and display (default: 0, or 10 if print or UI is enabled).',
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.importDurations.failOnDanger',
     path: 'experimental.importDurations.failOnDanger',
     description: 'Fail the test run if any import exceeds the danger threshold (default: false).',
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.importDurations.thresholds ',
@@ -1248,7 +1261,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       "Duration thresholds in milliseconds for coloring and warnings.. Use '--help --experimental.importDurations.thresholds' for more info.",
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.importDurations.thresholds.warn <number>',
@@ -1256,14 +1269,14 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Warning threshold - imports exceeding this are shown in yellow/orange (default: 100).',
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.importDurations.thresholds.danger <number>',
     path: 'experimental.importDurations.thresholds.danger',
     description: 'Danger threshold - imports exceeding this are shown in red (default: 500).',
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.viteModuleRunner',
@@ -1271,7 +1284,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       "Control whether Vitest uses Vite's module runner to run the code or fallback to the native import. (default: true)",
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.nodeLoader',
@@ -1279,14 +1292,14 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Controls whether Vitest will use Node.js Loader API to process in-source or mocked files. This has no effect if viteModuleRunner is enabled. Disabling this can increase performance. (default: true)',
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.vcsProvider <path>',
     path: 'experimental.vcsProvider',
     description: 'Custom provider for detecting changed files. (default: git)',
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.recordDependencies',
@@ -1294,7 +1307,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Record the modules loaded by every test file in the cache and use the records with --changed and --related instead of the static module graph. A test file without a record always runs. (default: false)',
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.preParse',
@@ -1302,7 +1315,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Parse test specifications before running them. This will apply .only flag and test name pattern across all files without running them. (default: false)',
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.diagnostics ',
@@ -1310,7 +1323,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       "Print performance hints after the run when a configuration change would make it significantly faster. Hints never suggest changing options that were set explicitly. (default: true). Use '--help --experimental.diagnostics' for more info.",
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.diagnostics.isolate',
@@ -1318,7 +1331,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Print a hint estimating how much time isolate: false would save when isolate: true spends a significant amount of time spawning a worker per test file. (default: true)',
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.diagnostics.environment',
@@ -1326,7 +1339,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Print a hint when re-creating a DOM environment for every test file dominates the run and a vm pool would set it up once per worker. (default: true)',
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.diagnostics.import',
@@ -1334,7 +1347,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Print a hint when test files repeatedly evaluate the same module graph (typical for barrel-file imports) and isolate: false would evaluate it once per worker. (default: true)',
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '--experimental.diagnostics.transform',
@@ -1342,7 +1355,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Print a hint when transforming modules dominates the run and fsModuleCache would persist the results across runs. (default: true)',
     support: 'warn',
-    owner: 'experimental flags are not applied',
+    owner: EXPERIMENTAL,
   },
   {
     flag: '-h, --help',
@@ -1365,7 +1378,7 @@ export const VITEST_LIST_OPTIONS: readonly VitestCliOption[] = [
     path: 'changed',
     description: 'Print only tests that are affected by the changed files (default: false)',
     support: 'refuse',
-    owner: 'a follow-up bundle (Vitest --changed)',
+    owner: CHANGED,
   },
   {
     flag: '--json [true/path]',
@@ -1386,13 +1399,13 @@ export const VITEST_LIST_OPTIONS: readonly VitestCliOption[] = [
     path: 'staticParse',
     description: 'Parse files statically instead of running them to collect tests (default: true)',
     support: 'warn',
-    owner: 'Provino collects by running the files',
+    owner: COLLECTS_BY_RUNNING,
   },
   {
     flag: '--staticParseConcurrency <limit>',
     path: 'staticParseConcurrency',
     description: 'How many tests to process at the same time (default: os.availableParallelism())',
     support: 'warn',
-    owner: 'Provino collects by running the files',
+    owner: COLLECTS_BY_RUNNING,
   },
 ]

@@ -5,44 +5,28 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
-import { loadVitestFixture, materializeVitest, provinoVitest } from './vitest-recorded.ts'
+import { type Json, normalizedJson } from './mask.ts'
+import { provinoVitest, withVitestFixture } from './vitest-recorded.ts'
 
 const OUTPUT = '.harness-out/vitest.json'
-const TIME_KEYS = new Set(['startTime', 'endTime', 'duration'])
-
-/** The recorder's `json:` capture: `<root>`, `<time>` under the time keys, `<frames>` for each frame run. */
-function normalized(value: unknown, root: string, key = ''): unknown {
-  if (TIME_KEYS.has(key) && typeof value === 'number') return '<time>'
-  if (typeof value === 'string') {
-    return value.replaceAll(root, '<root>').replace(/(\n\s+at [^\n]*)+/g, '\n<frames>')
-  }
-  if (Array.isArray(value)) return value.map((entry) => normalized(entry, root))
-  if (typeof value === 'object' && value !== null) {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, normalized(v, root, k)]))
-  }
-  return value
-}
+const TIME_KEYS = ['startTime', 'endTime', 'duration']
 
 describe('provino vitest --reporter=json against Vitest 5.0.5', () => {
   for (const id of ['cli/vitest-json-snapshot']) {
     it(id, async () => {
-      const fixture = await loadVitestFixture(id)
-      const expected = fixture.golden.observed
-      const project = await materializeVitest(fixture)
-      try {
-        const ended = await provinoVitest(fixture, project.root, [
+      await withVitestFixture(id, async (fixture, root) => {
+        const expected = fixture.golden.observed
+        const ended = await provinoVitest(fixture, root, [
           '--reporter=json',
           `--outputFile=${OUTPUT}`,
         ])
         assert.equal(ended.code, expected?.exitCode, ended.stderr)
-        const written: unknown = JSON.parse(await readFile(join(project.root, OUTPUT), 'utf8'))
-        const actual = normalized(written, project.root)
+        const written: unknown = JSON.parse(await readFile(join(root, OUTPUT), 'utf8'))
+        const actual = normalizedJson(written as Json, { roots: [root], timeKeys: TIME_KEYS })
         assert.deepEqual(actual, expected?.json?.[OUTPUT])
         // The bytes follow the keys' order, which deepEqual does not see.
         assert.equal(JSON.stringify(actual), JSON.stringify(expected?.json?.[OUTPUT]))
-      } finally {
-        await project.dispose()
-      }
+      })
     })
   }
 })

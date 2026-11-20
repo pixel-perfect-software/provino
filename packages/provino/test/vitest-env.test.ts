@@ -4,20 +4,12 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { it } from 'node:test'
-import { loadVitestFixture, materializeVitest, provinoVitest } from './vitest-recorded.ts'
+import { provinoVitest, withVitestFixture } from './vitest-recorded.ts'
 
-it('cli/vitest-env', async () => {
-  const fixture = await loadVitestFixture('cli/vitest-env')
-  const expected = fixture.golden.observed
-  const project = await materializeVitest(fixture)
-  try {
-    const ended = await provinoVitest(fixture, project.root)
+it('cli/vitest-env', () =>
+  withVitestFixture('cli/vitest-env', async (fixture, root) => {
+    const expected = fixture.golden.observed
+    const ended = await provinoVitest(fixture, root)
     assert.equal(ended.code, expected?.exitCode, ended.stderr)
-    assert.equal(
-      await readFile(join(project.root, 'env.json'), 'utf8'),
-      expected?.files?.['env.json'],
-    )
-  } finally {
-    await project.dispose()
-  }
-})
+    assert.equal(await readFile(join(root, 'env.json'), 'utf8'), expected?.files?.['env.json'])
+  }))

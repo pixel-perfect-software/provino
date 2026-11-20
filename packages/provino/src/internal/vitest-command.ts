@@ -76,8 +76,8 @@ const TEXT_REPORTERS: Readonly<Record<string, ReporterChoice | null>> = {
 
 /** Vitest's built-in reporter names Provino refuses by name, with why. */
 const REFUSED_REPORTERS: Readonly<Record<string, string>> = {
-  junit: "Vitest's junit output is not built yet (B25g)",
-  'github-actions': "Vitest's github-actions annotations are not built yet (B25g)",
+  junit: 'parked (D183)',
+  'github-actions': 'parked (D183)',
   tap: 'not supported under provino vitest (D173)',
   'tap-flat': 'not supported under provino vitest (D173)',
   'hanging-process': 'not supported under provino vitest (D173)',
@@ -218,7 +218,7 @@ function maxWorkersOf(value: unknown, fileParallelism: unknown): number | undefi
 function coordinatorFilter(filter: FileFilter): FileFilter {
   if (filter.kind === 'pathLine') {
     throw new VitestCommandError(
-      `the location filter ${filter.value}:${String(filter.line)} is not supported yet under provino vitest (B25g)`,
+      `the location filter ${filter.value}:${String(filter.line)} is not supported under provino vitest (parked (D183))`,
     )
   }
   return filter

@@ -4,10 +4,8 @@
 import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative } from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { FIXTURES } from './recorded.ts'
 import { type Spawned, spawnCli } from './support.ts'
-
-const FIXTURES = fileURLToPath(new URL('../../harness/fixtures/', import.meta.url))
 
 /** The parts of a `fixture.json` a Vitest replay reads. */
 export interface VitestManifest {
@@ -98,10 +96,11 @@ export function provinoVitest(
 /** A stream cut to the fixture's `keepLines`, as the golden records it. */
 export function keptLines(fixture: VitestFixture, text: string): string {
   const pattern = fixture.manifest.run?.keepLines
-  const lines = text.split('\n').filter((line) => line !== '')
-  return (
-    pattern === undefined ? lines : lines.filter((line) => new RegExp(pattern).test(line))
-  ).join('\n')
+  const keep = pattern === undefined ? undefined : new RegExp(pattern)
+  return text
+    .split('\n')
+    .filter((line) => line !== '' && (keep === undefined || keep.test(line)))
+    .join('\n')
 }
 
 /** `fn` over the fixture written out to a fresh directory, removed afterwards. */

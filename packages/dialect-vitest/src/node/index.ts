@@ -2,8 +2,8 @@
 // reader without Vite: find (`vitest.config.*` then `vite.config.*` in the root), load (native
 // import, `vitest/config` served by a stand-in, a plugins list marks `needsVite` for B25d's bridge),
 // resolve (`test` over Vitest's defaults, the command line over the file, `test.projects`, mode and
-// `.env*`) and the neutral projects. `vitestNodeDialect` is `vitestDialect` plus the reader; the
-// command line comes with B25g.
+// `.env*`) and the neutral projects. `vitestNodeDialect` is `vitestDialect` plus the reader, and
+// B25g's command line (`cli.ts`: `vitestCli`, `vitestFlags`).
 
 import { resolve as resolvePath } from 'node:path'
 import { vitestDialect } from '@provino/dialect-vitest'
