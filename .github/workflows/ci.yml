@@ -21,10 +21,10 @@ env:
 
 jobs:
   test:
-    # Two shards per Node version, side by side: shard 1 is `provino` and `@provino/dialect-jest`,
-    # shard 2 every other package (`tooling/packaging/src/test-shards.ts`, which fails the job
-    # when a package with tests is in no shard or in both). Node 22.15 alone outran 15 minutes
-    # unsharded.
+    # Two shards per Node version, side by side: each runs half of `provino`'s test files
+    # (`PROVINO_TEST_SHARD`, read by `tooling/packaging/src/node-test.ts`) plus its own packages (`tooling/packaging/src/test-shards.ts`, which fails
+    # the job when a package with tests is in no shard or in both). Node 22.15 alone outran 15
+    # minutes unsharded.
     name: Typecheck and test (Node ${{ matrix.node }}, ${{ matrix.shard }}/2)
     if: ${{ github.event_name == 'push' || !startsWith(github.head_ref, 'task/') }}
     runs-on: ubuntu-latest
