@@ -1,6 +1,5 @@
 // B25 Phase 1's contracts: the policy keys and the project data the Vitest dialect's lanes fill in
-// (`SnapshotPolicy.mismatch`, `CorePolicy.definitions`), the worker key's dialect, and
-// `NeutralProject.importMetaEnv`.
+// (`SnapshotPolicy.mismatch`, `CorePolicy.definitions`) and `NeutralProject.importMetaEnv`.
 import type {
   Behaviour,
   CorePolicy,
@@ -10,7 +9,6 @@ import type {
   ModuleRef,
   NeutralProject,
   SnapshotPolicy,
-  WorkerKey,
 } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 
@@ -41,21 +39,6 @@ export const words: FormatDefinitionError = (error) => ({
 export const bare: FormatDefinitionError = (error) => error.message
 // @ts-expect-error `fixture` is not one of core's checks
 export const unknownKind: DefinitionErrorInfo['kind'] = 'fixture'
-
-// A worker key may name its dialect; leaving it out is the project's one dialect.
-expectTypeOf<WorkerKey['dialect']>().toEqualTypeOf<string | undefined>()
-export const oneDialect: WorkerKey = {
-  project: 'p',
-  pool: 'forks',
-  isolation: 'registry',
-  environment: 'node',
-  environmentOptionsHash: '',
-  execArgvHash: '',
-  envHash: '',
-}
-export const vitestWorker: WorkerKey = { ...oneDialect, dialect: 'vitest' }
-// @ts-expect-error `exactOptionalPropertyTypes`: an absent dialect is left out, not `undefined`
-export const undefinedDialect: WorkerKey = { ...oneDialect, dialect: undefined }
 
 // `import.meta.env` is data: strings and booleans only.
 expectTypeOf<NeutralProject['importMetaEnv']>().toEqualTypeOf<
