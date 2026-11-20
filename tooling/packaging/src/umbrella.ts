@@ -16,6 +16,9 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   '@provino/orchestrator/worker/bootstrap': 'worker/bootstrap',
   '@provino/orchestrator/worker/main': 'worker/main',
   '@provino/dialect-jest/runtime': 'worker/jest-runtime',
+  // B25b: the Vitest dialect's worker side (its matcher table, `vitestExpectTable`); Chai stays a
+  // dependency, loaded on a failure or a Chai assertion.
+  '@provino/dialect-vitest/runtime': 'worker/vitest-runtime',
   // Loaded by the coordinator (a failing global hook), through a behaviour ref, as the neutral
   // behaviours are: a leaf of its own, so it never pulls the runtime in.
   '@provino/dialect-jest/global-setup': 'worker/jest-global-setup',
