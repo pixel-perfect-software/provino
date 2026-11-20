@@ -18,6 +18,7 @@ export type DetectedProject =
 const PROVINO_CONFIG_EXTENSIONS: readonly string[] = ['ts', 'mts', 'cts', 'js', 'mjs', 'cjs']
 
 const VITEST_CONFIG = /^vitest\.(config|workspace)\.(ts|mts|cts|js|mjs|cjs|json)$/
+const VITE_CONFIG = /^vite\.config\.(ts|mts|cts|js|mjs|cjs)$/
 
 /** Whether `package.json` at `path` has a `jest` key (a Jest source may be a `package.json` without one). */
 async function hasJestKey(path: string): Promise<boolean> {
@@ -27,6 +28,12 @@ async function hasJestKey(path: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+/** Whether `cwd`'s `vite.config.*` has a `test` key; the reader loads only when there is one. */
+async function declaresTests(cwd: string): Promise<boolean> {
+  const { viteConfigDeclaresTests } = await import('@provino/dialect-vitest/node')
+  return viteConfigDeclaresTests(cwd)
 }
 
 async function findsJest(cwd: string): Promise<boolean> {
@@ -39,8 +46,8 @@ async function findsJest(cwd: string): Promise<boolean> {
  * Decides what to run in `cwd`. A forced dialect (`--dialect`) skips the search. Otherwise a
  * `provino.config.*` in `cwd` wins; else the Jest config found from `cwd` (the upward walk Jest
  * does, a `package.json` counting only with a `jest` key) or a `vitest.config.*`/
- * `vitest.workspace.*` in `cwd`; both is an error, and none is too. (A `vite.config.*` with a
- * `test` key is a Vitest project too, but telling needs Vite: T11.15.)
+ * `vitest.workspace.*` in `cwd`, or a `vite.config.*` there with a `test` key (read once, by
+ * importing it, with no Vite: B25c); both is an error, and none is too.
  * @internal
  */
 export async function detectProject(
@@ -54,7 +61,9 @@ export async function detectProject(
     if (names.has(name)) return { kind: 'provino', config: join(cwd, name) }
   }
   const jest = await findsJest(cwd)
-  const vitest = [...names].some((name) => VITEST_CONFIG.test(name))
+  const vitest =
+    [...names].some((name) => VITEST_CONFIG.test(name)) ||
+    ([...names].some((name) => VITE_CONFIG.test(name)) && (await declaresTests(cwd)))
   if (jest && vitest) {
     throw new UsageError(
       'found both a Jest config and a Vitest config here: say which one to run with --dialect jest or --dialect vitest',

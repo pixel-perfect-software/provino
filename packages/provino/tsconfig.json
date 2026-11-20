@@ -9,6 +9,7 @@
     { "path": "../transform" },
     { "path": "../coverage" },
     { "path": "../dialect-jest" },
+    { "path": "../dialect-vitest" },
     { "path": "../env-jsdom" },
     { "path": "../env-node" },
     { "path": "../lazy" }

@@ -465,10 +465,16 @@ describe('the umbrella lists what it bundles (T1.10)', () => {
 
   test("the inlined packages are provino's dev dependencies and what they depend on", () => {
     const names = inlinedPackages(readWorkspacePackages()).map((pkg) => pkg.manifest.name)
-    for (const name of ['@provino/core', '@provino/dialect-jest', '@provino/env-jsdom']) {
+    // B25c: detection imports the Vitest dialect's coordinator half, so it is inlined from here on.
+    for (const name of [
+      '@provino/core',
+      '@provino/dialect-jest',
+      '@provino/dialect-vitest',
+      '@provino/env-jsdom',
+    ]) {
       assert.ok(names.includes(name), name)
     }
-    for (const name of ['@provino/harness', '@provino/dialect-vitest', 'provino']) {
+    for (const name of ['@provino/harness', 'provino']) {
       assert.ok(!names.includes(name), name)
     }
     const base = [
