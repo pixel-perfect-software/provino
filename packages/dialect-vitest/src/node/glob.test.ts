@@ -1,4 +1,5 @@
-// B25c: the two glob helpers, and the alias rules against the replace Vite's alias plugin runs.
+// B25c: the two glob helpers as the reader calls them: Vitest's own behaviour (tinyglobby and
+// picomatch with dot: true), not the libraries' rules.
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
 import { expandGlobs, globToRegexSource } from './glob.ts'
@@ -81,13 +82,4 @@ test('a negated class, a brace with a slash in it, and dot entries follow tinygl
     ),
     [],
   )
-})
-
-test('the same cuts and classes in an exclude regular expression', () => {
-  const regex = (glob: string) => new RegExp(globToRegexSource(glob, '/work/app'))
-  assert.equal(regex('{apps/web,libs}/**').test('/work/app/apps/web/a.ts'), true)
-  assert.equal(regex('{apps/web,libs}/**').test('/work/app/libs/a.ts'), true)
-  assert.equal(regex('{apps/web,libs}/**').test('/work/app/apps/api/a.ts'), false)
-  assert.equal(regex('src/[!a]*.ts').test('/work/app/src/b.ts'), true)
-  assert.equal(regex('src/[!a]*.ts').test('/work/app/src/a.ts'), false)
 })

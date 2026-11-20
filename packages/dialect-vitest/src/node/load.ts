@@ -11,6 +11,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ConfigError, importConfigModule } from '@provino/config'
 import type { ConfigSource } from '@provino/types'
 import { parseSync } from 'oxc-parser'
+import type * as Oxc from 'oxc-transform'
 import { VitestConfigError } from './errors.ts'
 import { isRec } from './util.ts'
 import { viteStandIn, vitestConfigStandIn } from './vitest-config-stand-in.ts'
@@ -79,13 +80,7 @@ function importsOnlyServedFromVite(module: ParsedModule): boolean {
 /** Parents (file URLs) whose `vite` import the stand-in answers; empty when no load is running. */
 const standInParents = new Set<string>()
 
-interface OxcTransform {
-  transformSync(
-    file: string,
-    source: string,
-    options: { sourcemap: false; define?: Record<string, string> },
-  ): { code: string; errors: readonly unknown[] }
-}
+type OxcTransform = typeof Oxc
 
 let oxcTransform: OxcTransform | undefined
 

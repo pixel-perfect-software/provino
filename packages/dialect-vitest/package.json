@@ -48,9 +48,12 @@
     "@provino/resolver": "workspace:*",
     "@provino/types": "workspace:*",
     "oxc-parser": "catalog:",
-    "oxc-transform": "catalog:"
+    "oxc-transform": "catalog:",
+    "picomatch": "catalog:",
+    "tinyglobby": "catalog:"
   },
   "devDependencies": {
+    "@types/picomatch": "catalog:",
     "vitest": "catalog:"
   }
 }
