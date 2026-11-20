@@ -51,6 +51,11 @@ const TRACK_1_DIVERGENCES: readonly string[] = [
   'orchestrator.coverageProvider',
   'orchestrator.coverageReporters',
   'orchestrator.slowTestThresholdMs',
+  // Differs again since #151, by `byEnvironment` only: D6 gives both dialects `registry` as the
+  // default, and Vitest keeps `jsdom` and `happy-dom` on `registry` (its DOM environments set up on
+  // the worker's own global) where Jest keeps the neutral `realm`. The claim is the `own` pair in
+  // `claims/orchestrator.ts` (`VITEST_ISOLATION`, pinned by dialect-vitest's `dialect.test.ts`).
+  'orchestrator.isolationDefault',
   'report.displaySeparator',
   'report.failureTitleBullet',
 ]
@@ -59,7 +64,6 @@ const TRACK_1_DIVERGENCES: readonly string[] = [
 const NOT_DIFFERING: Readonly<Record<string, string>> = {
   'timers.fakeTemporal': 'Jest`s "via sinon 15.4" is pending for T4.9 (B17a)',
   'expect.pollFailsOnTimeout': 'Jest has no expect.poll, so its value is inert (T1.7)',
-  'orchestrator.isolationDefault': 'D6 gives Jest registry, Track 1`s realm notwithstanding',
 }
 
 test('every divergence row of Track 1`s table is a row of policy-diff jest vitest', () => {

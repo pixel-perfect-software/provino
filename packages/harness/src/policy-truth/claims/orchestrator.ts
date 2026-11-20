@@ -303,6 +303,11 @@ const conditionsMatch = (g: Golden, value: unknown): boolean => {
 
 /** The isolation tiers both dialects' tests pin: `registry` (D6), and `realm` for a DOM. */
 const ISOLATION = { default: 'registry', byEnvironment: { jsdom: 'realm', 'happy-dom': 'realm' } }
+/** Vitest's DOM environments run on the worker's own global, so they stay on `registry` too. */
+const VITEST_ISOLATION = {
+  default: 'registry',
+  byEnvironment: { jsdom: 'registry', 'happy-dom': 'registry' },
+}
 
 export const orchestratorClaims: Claims = {
   'orchestrator.include': golden('defaults'),
@@ -527,8 +532,8 @@ export const orchestratorClaims: Claims = {
     own(
       'packages/dialect-vitest/src/dialect.test.ts',
       'isolationDefault',
-      ISOLATION,
-      'the tier is ours (D6 for Jest, the same for Vitest)',
+      VITEST_ISOLATION,
+      'the tier is ours (D6 for Jest, the same for Vitest, its DOM environments included)',
     ),
   ),
   'orchestrator.envDefault': golden('defaults'),

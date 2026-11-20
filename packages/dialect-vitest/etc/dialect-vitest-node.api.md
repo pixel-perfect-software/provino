@@ -9,7 +9,9 @@ import { ConfigReader } from '@provino/types';
 import { ConfigSource } from '@provino/types';
 import { Diagnostic } from '@provino/types';
 import { Dialect } from '@provino/types';
+import { EnvironmentRef } from '@provino/types';
 import { FlagSpec } from '@provino/types';
+import { JsonValue } from '@provino/types';
 import { NeutralProject } from '@provino/types';
 import { RunRequest } from '@provino/types';
 
@@ -159,6 +161,11 @@ export const vitestConfigStandIn: VitestConfigStandIn;
 
 // @public
 export const vitestCoverageConfigDefaults: Readonly<Rec>;
+
+// @public
+export function vitestEnvironmentRef(name: string, environmentOptions: {
+    readonly [key: string]: JsonValue;
+}, rootDir: string): EnvironmentRef;
 
 // @public
 export const vitestFlags: readonly FlagSpec[];
