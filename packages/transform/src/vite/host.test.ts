@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { ViteHostError } from './errors.ts'
 import { passesFilter } from './filter.ts'
-import { createViteHost, pluginCodeHash, type VitePlugin, viteHostFingerprint } from './host.ts'
+import { createViteHost, type VitePlugin, viteHostFingerprint } from './host.ts'
 import { fixturePlugins } from './test-plugins.ts'
 
 const resolveFile = (specifier: string): string | null =>
@@ -241,12 +241,42 @@ describe('the cache fingerprint', () => {
     assert.notEqual(viteHostFingerprint([identity], 'c2'), base)
     assert.notEqual(viteHostFingerprint([], 'c1'), base)
   })
+})
 
-  test('pluginCodeHash follows the hook text', () => {
-    const a = plugin({ name: 'p', transform: (code: string) => code })
-    const b = plugin({ name: 'p', transform: (code: string) => `${code} ` })
-    assert.equal(pluginCodeHash(a), pluginCodeHash(a))
-    assert.notEqual(pluginCodeHash(a), pluginCodeHash(b))
+describe('source maps', () => {
+  const map = {
+    version: 3,
+    sources: ['x.ts'],
+    names: [],
+    mappings: 'AAAA',
+  }
+
+  test('a step that changes the code and gives no map drops the combined map, never a wrong one', async () => {
+    const host = createViteHost({
+      root: '/p',
+      plugins: [
+        plugin({
+          name: 'a',
+          enforce: 'pre',
+          transform: (code: string) => ({ code: `${code}a`, map }),
+        }),
+        plugin({ name: 'b', transform: (code: string) => `\n${code}b` }),
+      ],
+    })
+    const out = await host.transform('>', '/p/x.ts')
+    assert.equal(out?.code, '\n>ab')
+    assert.equal(out?.map, null)
+  })
+
+  test('maps from every step compose when each step gives one', async () => {
+    const host = createViteHost({
+      root: '/p',
+      plugins: [
+        plugin({ name: 'a', transform: (code: string) => ({ code: `${code}a`, map }) }),
+        plugin({ name: 'b', transform: (code: string) => ({ code: `${code}b`, map }) }),
+      ],
+    })
+    assert.equal((await host.transform('>', '/p/x.ts'))?.map?.version, 3)
   })
 })
 
@@ -261,5 +291,21 @@ describe('hook filters', () => {
     assert.equal(passesFilter({ include: /\.ts$/, exclude: /\.d\.ts$/ }, '/a.d.ts'), false)
     assert.equal(passesFilter({ include: /\.ts$/, exclude: /\.d\.ts$/ }, '/a.ts'), true)
     assert.equal(passesFilter({ exclude: /node_modules/ }, '/a.ts'), true)
+  })
+
+  test('globs: braces, a leading **/ that means a whole segment, character classes', () => {
+    assert.equal(passesFilter('**/*.{ts,tsx}', '/p/a.ts'), true)
+    assert.equal(passesFilter('**/*.{ts,tsx}', '/p/a.tsx'), true)
+    assert.equal(passesFilter('**/*.{ts,tsx}', '/p/a.js'), false)
+    assert.equal(passesFilter('**/foo', '/p/foo'), true)
+    assert.equal(passesFilter('**/foo', '/p/xfoo'), false)
+    assert.equal(passesFilter('**/foo', 'foo'), true)
+    assert.equal(passesFilter('**/[ab].ts', '/p/a.ts'), true)
+    assert.equal(passesFilter('**/[ab].ts', '/p/c.ts'), false)
+  })
+
+  test('a string with no glob character is the exact id', () => {
+    assert.equal(passesFilter('/exact/id.ts', '/exact/id.ts'), true)
+    assert.equal(passesFilter('/exact/id.ts', '/exact/id.tsx'), false)
   })
 })

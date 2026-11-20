@@ -223,10 +223,20 @@ export async function loadViteBridge(options: ViteBridgeOptions): Promise<Loaded
     config: configFile,
     mode,
   })
-  const baseline = new Set(
-    pluginsOf(await resolveConfig({ root, config: false, mode })).map(nameOf),
-  )
-  const user = pluginsOf(resolved).filter((plugin) => !baseline.has(nameOf(plugin)))
+  // Vite's and Vitest's own plugins are what a resolve with the same options and no config file
+  // has: counted by name, so a user plugin that shares a built-in's name is still the user's.
+  const baseline = new Map<string, number>()
+  for (const plugin of pluginsOf(
+    await resolveConfig({ ...options.cliOptions, root, config: false, mode }),
+  )) {
+    baseline.set(nameOf(plugin), (baseline.get(nameOf(plugin)) ?? 0) + 1)
+  }
+  const user = pluginsOf(resolved).filter((plugin) => {
+    const left = baseline.get(nameOf(plugin)) ?? 0
+    if (left === 0) return true
+    baseline.set(nameOf(plugin), left - 1)
+    return false
+  })
   const resolve = isRec(resolved.resolve) ? resolved.resolve : {}
   let configHash: string | null = null
   if (configFile !== false) {

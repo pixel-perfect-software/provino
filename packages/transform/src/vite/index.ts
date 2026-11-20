@@ -16,7 +16,6 @@ export type {
 export {
   classifyViteId,
   createViteHost,
-  pluginCodeHash,
   UNSUPPORTED_PLUGIN_HOOKS,
   viteHostFingerprint,
 } from './host.ts'

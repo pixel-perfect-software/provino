@@ -7,7 +7,7 @@ import type { SourceMapV3 } from '@provino/types'
 import { parseSync } from 'oxc-parser'
 import { composeMaps, toSourceMapV3 } from '../internal/maps.ts'
 import { ViteHostError } from './errors.ts'
-import { type FilterValue, type HookFilter, passesFilter } from './filter.ts'
+import { type HookFilter, passesFilter } from './filter.ts'
 
 /** A hook: the function, or Vite's object form with a `filter` that keeps it from running. */
 export type VitePluginHook<F> =
@@ -159,7 +159,6 @@ export interface ViteHost {
 }
 
 const REACT_PLUGIN = /^vite:react/
-const HOOK_NAMES = ['config', 'configResolved', 'buildStart', 'resolveId', 'load', 'transform']
 
 function handlerOf(hook: unknown): AnyHook | null {
   if (typeof hook === 'function') return hook as AnyHook
@@ -232,16 +231,6 @@ export function viteHostFingerprint(
   hash.update(`config:${configHash ?? ''}\0`)
   for (const { name, version, codeHash } of identities) {
     hash.update(`${name}\0${version ?? ''}\0${codeHash}\0`)
-  }
-  return hash.digest('hex')
-}
-
-/** A hash of every hook a plugin defines, by the text of its function. */
-export function pluginCodeHash(plugin: VitePlugin): string {
-  const hash = createHash('sha256')
-  for (const hook of HOOK_NAMES) {
-    const handler = handlerOf((plugin as unknown as Record<string, unknown>)[hook])
-    if (handler !== null) hash.update(`${hook}\0${handler.toString()}\0`)
   }
   return hash.digest('hex')
 }
@@ -432,11 +421,14 @@ export function createViteHost(options: ViteHostOptions): ViteHost {
       let current = code
       const maps: (SourceMapV3 | null)[] = []
       let changed = false
+      // A step that changed the code and gave no map leaves positions we can't trace: composing the
+      // others would point at the wrong lines, so the result then carries no map.
+      let untraceable = false
       for (const plugin of ordered) {
         const hook = plugin.transform
         if (handlerOf(hook) === null) continue
         const filter = filterOf(hook)
-        if (!passesFilter(filter?.id, id) || !passesFilter(filter?.code as FilterValue, current)) {
+        if (!passesFilter(filter?.id, id) || !passesFilter(filter?.code, current)) {
           continue
         }
         const result = await call(plugin, 'transform', [current, id, { ssr: true }], () => {
@@ -445,10 +437,11 @@ export function createViteHost(options: ViteHostOptions): ViteHost {
         const source = sourceOf(result)
         if (source === null) continue
         changed = changed || source.code !== current || source.map !== null
+        if (source.map === null && source.code !== current) untraceable = true
         current = source.code
         maps.push(source.map)
       }
-      return changed ? { code: current, map: composeMaps(maps) } : null
+      return changed ? { code: current, map: untraceable ? null : composeMaps(maps) } : null
     },
   }
 }

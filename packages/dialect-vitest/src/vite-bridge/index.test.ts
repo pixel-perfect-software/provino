@@ -68,6 +68,22 @@ describe('loadViteBridge', () => {
     assert.notEqual(first.result.plugins[0]?.codeHash, second.result.plugins[0]?.codeHash)
   })
 
+  test('a user plugin named like a built-in plugin is still a user plugin', async () => {
+    const root = project({
+      'vite.config.mjs':
+        'export default { plugins: [{ name: "vite:css", transform: () => null }] }',
+    })
+    const { result } = await loadViteBridge({
+      root,
+      configFile: join(root, 'vite.config.mjs'),
+      mode: 'test',
+    })
+    assert.deepEqual(
+      result.plugins.map((entry) => entry.name),
+      ['vite:css'],
+    )
+  })
+
   test('without Vite installed it warns once and returns no plugins', async () => {
     const root = project({ 'vite.config.mjs': CONFIG }, tmpdir())
     const { result, plugins } = await loadViteBridge({

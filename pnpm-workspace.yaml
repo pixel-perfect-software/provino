@@ -55,6 +55,7 @@ catalog:
   # Coverage thresholds (B23b, T8.11): the oracle is `CoverageReporter._checkThreshold` itself, run in-process by `@provino/coverage`'s tests (dev only).
   "@jest/reporters": 30.5.2
   "@jest/test-result": 30.5.2
+  "@sveltejs/vite-plugin-svelte": 7.3.1
   # The Spike A loader fixture's Jest baseline uses @swc/jest (Track 2, bench-e2e).
   "@swc/core": 1.16.22
   "@swc/jest": 0.2.39
@@ -88,6 +89,7 @@ catalog:
   # picomatch ships no types (D26).
   "@types/picomatch": 4.0.3
   "@types/sinonjs__fake-timers": 15.0.1
+  "@vitejs/plugin-vue": 6.0.11
   # Interop tests only: our asymmetric matchers inside Vitest's expect, and its inside ours (T7.4).
   "@vitest/expect": 5.0.5
   # The hoist corpus's Vitest reference: its real hoister at the pinned version (T3.4).
@@ -209,6 +211,7 @@ catalog:
   pure-rand: 7.0.1
   # T1.6: package.json `exports` and file-layout lint, run on every `pnpm pack`.
   publint: 0.3.25
+  svelte: 5.57.3
   # File discovery in the coordinator (B11): include/exclude globs.
   tinyglobby: 0.2.17
   # T3.8's rebuilt fixture runs the real ts-jest 29 (on TypeScript 5.9.3) beside babel-jest and @swc/jest.
@@ -221,20 +224,17 @@ catalog:
   # Jest's v8 coverage provider (B23b, T8.12, D109): a worker's V8 ranges to Istanbul data, at the
   # version Jest 30.5.2's reporters install.
   v8-to-istanbul: 9.3.0
+  vite-plugin-svgr: 5.2.0
+  vite-tsconfig-paths: 6.1.1
   # Jest 30.5 and Vitest 5.0 are the ground truth every golden records (CLAUDE.md NN2, DECISIONS
   # S3), so `.always-up-to-date.json` holds both families: moving one is a re-record, not an update.
   vitest: 5.0.5
+  vue: 3.5.45
   # libxml2 compiled to WebAssembly (MIT): the JUnit reporter's test validates its output against
   # the vendored Jenkins XSD with it (T9.7), so local runs and CI use one validator and need no
   # system xmllint. A devDependency of @provino/reporters only.
   xmllint-wasm: 5.3.0
   zod: 4.6.7
-  "@sveltejs/vite-plugin-svelte": 7.3.1
-  "@vitejs/plugin-vue": 6.0.11
-  svelte: 5.57.3
-  vite-plugin-svgr: 5.2.0
-  vite-tsconfig-paths: 6.1.1
-  vue: 3.5.45
 
 # dependency-cruiser loads `typescript` at runtime to parse .ts files, and 18.7 can't use the
 # TypeScript 7 API yet (Track 1 §Spikes). Give it the TypeScript 6 API under that name.
