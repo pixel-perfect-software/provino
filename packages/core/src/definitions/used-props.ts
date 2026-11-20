@@ -48,27 +48,6 @@ export function usedProps(
   return props
 }
 
-/**
- * The keys `fn`'s parameter at `index` destructures, or none when it is not an object pattern
- * (where a parse error would be): for a function that may take something else there (core's
- * suite hooks get the suite first). Memoized per function.
- */
-export function destructuredProps(fn: AnyFunction, index: number): ReadonlySet<string> {
-  const known = loose.get(fn)
-  if (known !== undefined) return known
-  let props: ReadonlySet<string>
-  try {
-    props = readProps(Function.prototype.toString.call(fn), index, { format: undefined }, {})
-  } catch {
-    // Not an object pattern, or a rest element: nothing a definition could be read into.
-    props = NONE
-  }
-  loose.set(fn, props)
-  return props
-}
-
-const loose = new WeakMap<AnyFunction, ReadonlySet<string>>()
-
 const LOWERED_ASYNC = /__async\((?:this|null), (?:null|arguments|\[[_0-9, ]*\]), function\*/
 
 function readProps(

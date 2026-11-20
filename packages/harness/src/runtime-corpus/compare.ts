@@ -55,8 +55,21 @@ function printed(error: {
   readonly name: string
   readonly message: string
   readonly code?: string
+  readonly stack?: string
 }): string {
-  return error.code === 'CORE_TIMEOUT' ? '<timeout>' : `${error.name}: ${error.message}`
+  if (error.code === 'CORE_TIMEOUT') return '<timeout>'
+  // A stack rewritten to open with the message (Vitest's `error.message + stack` for a fixture
+  // that never called `use`) is what the runner reports, so its text before the frames is read,
+  // as the converter reads the runner's.
+  const { stack } = error
+  if (
+    stack !== undefined &&
+    stack.startsWith(error.message) &&
+    !stack.startsWith(`${error.name}: `)
+  ) {
+    return (stack.split(/\n\s+at /)[0] ?? '').trim()
+  }
+  return `${error.name}: ${error.message}`
 }
 
 /**
@@ -193,6 +206,14 @@ export function assertRunMatchesGolden(
       [expected.collectionErrorCode],
       'the collection error code',
     )
+    // The converters keep the crash's message without its class name.
+    if (expected.compareMessages === true) {
+      assert.deepEqual(
+        run.collectionErrors.map((error) => error.message),
+        [goldenFile.fileError?.message],
+        'the text of the collection error',
+      )
+    }
   }
 }
 

@@ -14,6 +14,15 @@ export const COLLECTION_ERROR_CODES: Readonly<Record<string, CoreErrorCode>> = {
   'runtime/collection-describe-return-value (jest)': 'CORE_DESCRIBE_RETURN_VALUE',
   'runtime/collection-missing-fn (jest)': 'CORE_MISSING_TEST_FN',
   'runtime/collection-todo-with-fn (jest)': 'CORE_TODO_WITH_FN',
+  // Vitest's registration errors (T5.9): `test.extend` throws as the file collects.
+  'runtime/fixture-error-scope-conflict (vitest)': 'CORE_DEFINITION_DEPENDENCY',
+  'runtime/fixture-error-auto-conflict (vitest)': 'CORE_DEFINITION_DEPENDENCY',
+  'runtime/fixture-error-unknown-scope (vitest)': 'CORE_DEFINITION_DEPENDENCY',
+  'runtime/fixture-error-scope-in-describe (vitest)': 'CORE_DEFINITION_DEPENDENCY',
+  'runtime/fixture-error-unknown-dependency (vitest)': 'CORE_DEFINITION_DEPENDENCY',
+  'runtime/fixture-error-self-without-parent (vitest)': 'CORE_DEFINITION_DEPENDENCY',
+  'runtime/fixture-error-narrower-dependency (vitest)': 'CORE_DEFINITION_DEPENDENCY',
+  'runtime/fixture-error-many (vitest)': 'CORE_DEFINITION_DEPENDENCY',
 }
 
 /**
@@ -48,6 +57,16 @@ export const MESSAGE_FIXTURES: ReadonlySet<string> = new Set([
   // `core.definitions.messages`, and the error a fixture's own setup throws.
   'runtime/fixture-parse-error',
   'runtime/fixture-cleanup-order',
+  'runtime/fixture-cycle',
+  // Vitest's registration errors: the crash's text is compared with the golden's `fileError`. Not
+  // `fixture-error-many`: Vitest reports an `AggregateError`'s first error there, core the whole.
+  'runtime/fixture-error-scope-conflict',
+  'runtime/fixture-error-auto-conflict',
+  'runtime/fixture-error-unknown-scope',
+  'runtime/fixture-error-scope-in-describe',
+  'runtime/fixture-error-unknown-dependency',
+  'runtime/fixture-error-self-without-parent',
+  'runtime/fixture-error-narrower-dependency',
   // The retry fixtures: the error each failed test ends with, and under `retry.keepEarlierErrors`
   // (Vitest) the earlier attempts' errors too, in order and in number.
   'runtime/retry-before-all-error',

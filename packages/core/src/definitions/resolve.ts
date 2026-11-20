@@ -48,11 +48,8 @@ export function prepare(
   const words = set.env
   const site: ErrorSite | undefined =
     target.site === undefined ? undefined : { error: target.site, mode: 'message-first' }
-  const props = usedProps(fn, words, {
-    index: target.index,
-    ...(target.suiteHook === undefined ? {} : { suiteHook: target.suiteHook }),
-    ...(site === undefined ? {} : { site }),
-  })
+  // Read as Vitest's `withFixtures` reads it (`getUsedProps(fn)`): no suite-hook hint, no site.
+  const props = usedProps(fn, words, { index: target.index })
   const used: FixtureItem[] = []
   for (const item of registrations.values()) {
     if (
@@ -268,13 +265,18 @@ export function suiteHookAccess(
   words: DefinitionWords,
   hook: SuiteHookKind,
   props: ReadonlySet<string>,
+  site?: ErrorSite,
 ): Error {
   const keys = [...props].join('", "')
-  return definitionError(words, {
-    kind: 'access',
-    code: 'suite-hook-no-context',
-    key: [...props][0] ?? '',
-    message: `The ${hook} hook reads "${keys}", but a plain ${hook} has no definitions to read: register it as test.${hook}() on the test that defines them.`,
-    params: { hook, keys },
-  })
+  return definitionError(
+    words,
+    {
+      kind: 'access',
+      code: 'suite-hook-no-context',
+      key: [...props][0] ?? '',
+      message: `The ${hook} hook reads "${keys}", but a plain ${hook} has no definitions to read: register it as test.${hook}() on the test that defines them.`,
+      params: { hook, keys },
+    },
+    site,
+  )
 }

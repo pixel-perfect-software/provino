@@ -38,7 +38,7 @@ import type {
 import { CALLER_FRAMES, captureSite, parseSite, TEST_FILE_FRAMES } from '../collector/location.ts'
 import { type RetrySpec, retryCount, retryDelay } from '../collector/retry.ts'
 import { newStore, runInStore, setRunningFrame } from '../current/current-test.ts'
-import type { DefinitionWords } from '../definitions/errors.ts'
+import type { DefinitionWords, ErrorSite } from '../definitions/errors.ts'
 import {
   type AttemptFixtures,
   NO_WORDS,
@@ -47,7 +47,7 @@ import {
   suiteHookAccess,
 } from '../definitions/resolve.ts'
 import { CleanupList, type DefinitionSet } from '../definitions/table.ts'
-import { destructuredProps } from '../definitions/used-props.ts'
+import { usedProps } from '../definitions/used-props.ts'
 import type { ProcessErrors } from '../errors/process-errors.ts'
 import { CoreError, serializeError } from '../errors.ts'
 import type {
@@ -1624,10 +1624,26 @@ export class Executor {
       // `refuse-fixtures` only an object pattern is a request for fixtures it fails (Vitest 5.0.5
       // refuses any parameter there: see the divergences).
       if (this.#policy.definitions.plainSuiteHook !== 'refuse-fixtures') return fn
-      const props = destructuredProps(fn, index)
+      const at = hook.definitionSite
+      const site: ErrorSite | undefined =
+        at === undefined ? undefined : { error: at, mode: 'header' }
+      let props: ReadonlySet<string>
+      try {
+        // Vitest's `validateSuiteHook`: any parameter there that is not an object pattern is a
+        // parse error, and one that is fails for want of a context, both at the hook's site.
+        props = usedProps(fn, words, {
+          index,
+          suiteHook: kind,
+          ...(site === undefined ? {} : { site }),
+        })
+      } catch (error) {
+        return function plainSuiteHook(): unknown {
+          throw error
+        }
+      }
       if (props.size === 0) return fn
       return function plainSuiteHook(): unknown {
-        throw suiteHookAccess(words, kind, props)
+        throw suiteHookAccess(words, kind, props, site)
       }
     }
     const site = hook.definitionSite

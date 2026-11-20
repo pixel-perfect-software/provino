@@ -587,7 +587,18 @@ export const coreClaims: Claims = {
       null,
       'Jest has no test.extend (core.definitions.extendApi is absent), so there is no fixture error to word: the neutral null stands',
     ),
-    corpus('runtime', 'runtime/fixture-parse-error'),
+    corpus(
+      'runtime',
+      'runtime/fixture-parse-error',
+      'runtime/fixture-cycle',
+      'runtime/fixture-error-scope-conflict',
+      'runtime/fixture-error-auto-conflict',
+      'runtime/fixture-error-unknown-scope',
+      'runtime/fixture-error-scope-in-describe',
+      'runtime/fixture-error-unknown-dependency',
+      'runtime/fixture-error-self-without-parent',
+      'runtime/fixture-error-narrower-dependency',
+    ),
   ),
 }
 

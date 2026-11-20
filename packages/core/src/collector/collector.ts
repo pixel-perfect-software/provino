@@ -333,7 +333,7 @@ export class Collector {
       ),
       synthetic: false,
       definitions,
-      definitionSite: definitions === undefined ? undefined : new Error('STACK_TRACE_ERROR'),
+      definitionSite: this.#definitionSite(kind, definitions, entry),
       site: this.#site(entry),
       location: null,
     }
@@ -349,6 +349,25 @@ export class Collector {
         timeoutMs: hook.timeoutMs,
       })
     }
+  }
+
+  /**
+   * Where a suite hook that may fail on its fixtures was registered (T5.9): one registered through
+   * an extended test, or any `beforeAll`/`afterAll`/`aroundAll` under
+   * `definitions.plainSuiteHook: 'refuse-fixtures'`. Taken from the caller of `entry`, as Vitest's
+   * hooks take their `stackTraceError`; none for any other hook.
+   */
+  #definitionSite(
+    kind: DeclaredHookKind,
+    definitions: DefinitionSet | undefined,
+    entry: StackMarker,
+  ): Error | undefined {
+    const suiteHook = kind === 'beforeAll' || kind === 'afterAll' || kind === 'aroundAll'
+    const refuses = this.#config.policy.definitions.plainSuiteHook === 'refuse-fixtures'
+    if (definitions === undefined && !(suiteHook && refuses)) return undefined
+    const site = new Error('STACK_TRACE_ERROR')
+    Error.captureStackTrace(site, entry)
+    return site
   }
 
   /** Adds a hook at the end of a suite's list, for `LazyHost.addHook` (eager lazy values). */

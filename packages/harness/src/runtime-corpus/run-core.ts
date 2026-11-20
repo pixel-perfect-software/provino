@@ -59,6 +59,8 @@ export interface CoreRun {
   readonly fileErrors: readonly SerializedError[]
   /** The errors on the `file-collect-end` event: what stopped the file from collecting. */
   readonly collectionErrors: readonly SerializedError[]
+  /** Every suite's errors (a failed `beforeAll` or `afterAll`), in the order the suites ended. */
+  readonly suiteErrors: readonly SerializedError[]
   /**
    * The `unhandled-error` events: who each was charged to (`'run'`, `'file'`, or a test's title
    * path), where it came from and its error. A test charged one has the error in `errors` and is
@@ -228,6 +230,7 @@ export function summarizeRun(
       ...unhandled.filter((item) => item.chargedTo === 'file').map((item) => item.error),
     ],
     collectionErrors,
+    suiteErrors: events.flatMap((event) => (event.type === 'suite-end' ? event.result.errors : [])),
     unhandled,
   }
 }
