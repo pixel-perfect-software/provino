@@ -1,0 +1,11 @@
+{
+  "description": "A flag Vitest 5.0.5 does not know: its cac parser throws 'Unknown option' and the run exits with code 1 (orchestrator.exitCodes.usage). A black-box run; held by provino vitest in B25g.",
+  "runners": ["vitest"],
+  "run": {
+    "argv": {
+      "vitest": ["--bogus-flag"]
+    },
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^CACError: Unknown option"
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "description": "A Vitest 5.0.5 run with a failing test exits with code 1 (orchestrator.exitCodes.testFailure). A black-box run; held by provino vitest in B25g.",
+  "runners": ["vitest"],
+  "run": {
+    "capture": ["exitCode"]
+  }
+}

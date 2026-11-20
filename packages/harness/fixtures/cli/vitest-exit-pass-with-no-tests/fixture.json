@@ -1,0 +1,10 @@
+{
+  "description": "--passWithNoTests turns a Vitest 5.0.5 run whose filter matches no test file into a pass: exit code 0 (orchestrator.passWithNoTests). A black-box run; held by provino vitest in B25g.",
+  "runners": ["vitest"],
+  "run": {
+    "argv": {
+      "vitest": ["--passWithNoTests", "matches-no-file"]
+    },
+    "capture": ["exitCode"]
+  }
+}
