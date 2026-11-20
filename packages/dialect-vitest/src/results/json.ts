@@ -186,6 +186,10 @@ export function createVitestResults(options: VitestResultsOptions): VitestResult
       file.order = event.tasks.map((task) => task.id)
     },
     'task:start': (task) => {
+      // The coordinator's receipt time, not the worker's: an event's `t` is the worker's own
+      // `performance.now()`, and no event carries that worker's time origin, so it can't be made a
+      // wall time here. Vitest's `startTime` is the worker's `Date.now()` at the test's start; ours
+      // is later by the event's trip (a DIVERGENCES candidate, parked with D183).
       files.get(task.fileId)?.started.set(task.id, now())
     },
     'task:end': (task, event) => {
