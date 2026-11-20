@@ -5,7 +5,10 @@ import { BenchError } from '../errors.ts'
 import { errorMessage } from '../internal/guards.ts'
 import { overBar, parseLimit, pastLimit } from '../internal/limits.ts'
 
-/** The engines, in the order they print. The first two are Provino under each dialect's policy. */
+/**
+ * The engines, in the order they print. The first three are Provino: `@provino/mock` under each
+ * dialect's mock policy, and the shipped `vi.fn` under the resolved `vitestPolicy`.
+ */
 export const ENGINES = [
   'provino-jest',
   'provino-vitest',

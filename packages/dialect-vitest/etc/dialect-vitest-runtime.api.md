@@ -7,7 +7,6 @@
 import { createExpect } from '@provino/expect';
 import { Environment } from '@provino/types';
 import { EnvironmentConditions } from '@provino/types';
-import { EnvironmentRef } from '@provino/types';
 import { EnvironmentResolver } from '@provino/types';
 import { ExpectTable } from '@provino/types';
 import { FakeClock } from '@provino/timers';
@@ -84,9 +83,6 @@ export interface VitestEnvironmentOptions {
     readonly name: string;
     readonly rootDir: string;
 }
-
-// @public
-export function vitestEnvironmentRef(name: string, environmentOptions: JsonObject, rootDir: string): EnvironmentRef;
 
 // @public
 export interface VitestEnvironmentReturn {

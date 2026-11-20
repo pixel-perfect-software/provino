@@ -8,12 +8,9 @@
 //             (in `retained`) until the sample is printed, so the optimizer can't drop the creation
 //   call      ns per call of a mock holding an impl; every result is summed and printed
 // Each measurement runs ROUNDS rounds; the first WARMUP_ROUNDS are discarded, the rest are medians.
-import { jestMockPolicy } from '@provino/dialect-jest'
-import { vitestPolicy } from '@provino/dialect-vitest'
-import { type VitestGlobalsHost, vitestGlobals } from '@provino/dialect-vitest/runtime'
-import { vitestMockPolicy } from '@provino/harness'
-import { createMockFn, createMockRegistry } from '@provino/mock'
-import { resolvePolicy } from '@provino/policy'
+import type { VitestGlobalsHost } from '@provino/dialect-vitest/runtime'
+import type { MockRegistry } from '@provino/mock'
+import type { Policy } from '@provino/types'
 import { keptMedian, ROUNDS, SAMPLE_PREFIX, WARMUP_ROUNDS } from '../internal/limits.ts'
 import { ENGINES, type Engine, type Sample } from './report.ts'
 
@@ -32,8 +29,7 @@ interface Subject {
 }
 
 /** What the shipped `vi` reads to make a mock: the registry and the dialect's mock slice. */
-function viHost(): VitestGlobalsHost {
-  const registry = createMockRegistry()
+function viHost(registry: MockRegistry, policy: Policy): VitestGlobalsHost {
   const unused = (): never => {
     throw new Error('bench:mock makes mock functions only')
   }
@@ -44,9 +40,9 @@ function viHost(): VitestGlobalsHost {
     registry: unused,
     mocks: () => registry,
     moduleMocks: unused,
-    mockPolicy: resolvePolicy(vitestPolicy).mock,
+    mockPolicy: policy.mock,
     timers: unused,
-    timersPolicy: resolvePolicy(vitestPolicy).timers,
+    timersPolicy: policy.timers,
     seed: 0,
     environmentTornDown: () => false,
     setDefaultTimeout: unused,
@@ -59,7 +55,11 @@ async function subjectFor(engine: Engine): Promise<Subject> {
   switch (engine) {
     case 'provino-jest':
     case 'provino-vitest': {
-      const policy = engine === 'provino-vitest' ? vitestMockPolicy : jestMockPolicy
+      const { createMockFn, createMockRegistry } = await import('@provino/mock')
+      const policy =
+        engine === 'provino-vitest'
+          ? (await import('@provino/harness')).vitestMockPolicy
+          : (await import('@provino/dialect-jest')).jestMockPolicy
       const registry = createMockRegistry()
       return {
         make: (impl?: (...args: never[]) => unknown) =>
@@ -68,7 +68,14 @@ async function subjectFor(engine: Engine): Promise<Subject> {
       } as unknown as Subject
     }
     case 'provino-vi': {
-      const vi = vitestGlobals(viHost()).vi
+      const [{ vitestPolicy }, { vitestGlobals }, { createMockRegistry }, { resolvePolicy }] =
+        await Promise.all([
+          import('@provino/dialect-vitest'),
+          import('@provino/dialect-vitest/runtime'),
+          import('@provino/mock'),
+          import('@provino/policy'),
+        ])
+      const vi = vitestGlobals(viHost(createMockRegistry(), resolvePolicy(vitestPolicy))).vi
       return {
         make: (impl?: (...args: never[]) => unknown) =>
           impl === undefined ? vi.fn() : vi.fn(impl),

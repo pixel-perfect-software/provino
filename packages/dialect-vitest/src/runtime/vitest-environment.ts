@@ -73,14 +73,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-function rootRequire(rootDir: string): NodeJS.Require {
-  return createRequire(join(rootDir, '__provino_environment__.js'))
-}
-
 /** The project's own copy of a library, else `undefined`. */
 function resolveFromRoot(rootDir: string, name: string): string | undefined {
   try {
-    return rootRequire(rootDir).resolve(name)
+    return createRequire(join(rootDir, '__provino_environment__.js')).resolve(name)
   } catch {
     return undefined
   }
@@ -107,29 +103,34 @@ function resolveEnvironmentPackage(rootDir: string, name: string): string | unde
   return found.type === 'file' ? found.path : undefined
 }
 
-/** Imports the project's own copy of an environment's library. */
+/** Imports the project's own copy of an environment's library, once per name (a failed load is tried again). */
 function projectLoader(rootDir: string): SetupDeps['load'] {
-  return async (name) => {
-    const found = resolveFromRoot(rootDir, name)
-    if (found === undefined) {
-      throw new VitestDialectError(
-        'VITEST_ENVIRONMENT_NOT_INSTALLED',
-        `The ${name} environment needs the '${name}' package: install it as a dev dependency of the project.`,
-      )
+  const loads = new Map<string, Promise<unknown>>()
+  return (name) => {
+    let load = loads.get(name)
+    if (load === undefined) {
+      load = loadFromRoot(rootDir, name)
+      loads.set(name, load)
+      load.catch(() => loads.delete(name))
     }
-    return import(pathToFileURL(found).href)
+    return load
   }
+}
+
+async function loadFromRoot(rootDir: string, name: string): Promise<unknown> {
+  const found = resolveFromRoot(rootDir, name)
+  if (found === undefined) {
+    throw new VitestDialectError(
+      'VITEST_ENVIRONMENT_NOT_INSTALLED',
+      `The ${name} environment needs the '${name}' package: install it as a dev dependency of the project.`,
+    )
+  }
+  return import(pathToFileURL(found).href)
 }
 
 function builtinSetup(name: 'happy-dom' | 'edge-runtime', rootDir: string): VitestEnvironmentLike {
   const deps: SetupDeps = {
-    populateGlobal: (global, win, options) =>
-      populateGlobal(global as object, win as object, {
-        ...(options?.bindFunctions === undefined ? {} : { bindFunctions: options.bindFunctions }),
-        ...(options?.additionalKeys === undefined
-          ? {}
-          : { additionalKeys: options.additionalKeys }),
-      }),
+    populateGlobal,
     KEYS: WINDOW_KEYS,
     load: projectLoader(rootDir),
   }
@@ -342,8 +343,10 @@ export const vitestJsdomEnvironment: Environment<'jsdom', JsdomAdapterOptions> =
 
 const RUNTIME = import.meta.resolve('@provino/dialect-vitest/runtime')
 
-/** Vitest's `isBuiltinEnvironment` names. */
-const BUILTINS = new Set(['node', 'jsdom', 'happy-dom', 'edge-runtime'])
+/** The two of Vitest's `isBuiltinEnvironment` names that run a vendored setup (`node` and `jsdom` are refs of their own). */
+function isSetupBuiltin(name: string): name is 'happy-dom' | 'edge-runtime' {
+  return name === 'happy-dom' || name === 'edge-runtime'
+}
 
 /** Vitest's `Environment "<name>" cannot be found`-shaped error for a package that isn't there. */
 function notFound(name: string, rootDir: string): Error {
@@ -381,11 +384,11 @@ export function vitestEnvironmentRef(
     }
   }
   const base = { name, rootDir, environmentOptions }
-  if (BUILTINS.has(name)) {
+  if (isSetupBuiltin(name)) {
     return {
       module: RUNTIME,
       export: 'vitestEnvironment',
-      options: { ...base, builtin: name as 'happy-dom' | 'edge-runtime' },
+      options: { ...base, builtin: name },
     }
   }
   const module =

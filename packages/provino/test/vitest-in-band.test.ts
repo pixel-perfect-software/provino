@@ -8,11 +8,12 @@ import assert from 'node:assert/strict'
 import { copyFile, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { Writable } from 'node:stream'
+import type { Writable } from 'node:stream'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { resolveNeutralProject } from '@provino/config'
 import { readVitestConfig, vitestNodeDialect } from '@provino/dialect-vitest/node'
+import { Collect, type NormalizedView, viewOfNormalized } from './support.ts'
 
 /** `executeProject` and the built-in environments, loaded by URL (see `projects.test.ts`). */
 const { executeProject } = (await import(
@@ -38,28 +39,10 @@ after(async () => {
   await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 
-/** A sink that keeps what it is given. */
-function collector(): { readonly stream: Writable; text(): string } {
-  const chunks: string[] = []
-  return {
-    stream: new Writable({
-      write(chunk: unknown, _encoding, done) {
-        chunks.push(String(chunk))
-        done()
-      },
-    }),
-    text: () => chunks.join(''),
-  }
-}
-
 /** Reads the project at `root` with Vitest's defaults, resolves it with the dialect and runs it in band. */
-async function runInBand(root: string): Promise<{
-  readonly result: { readonly exitCode: number }
-  readonly run: {
-    files: { file: string; status: string; tests: { id: { path: string[] }; status: string }[] }[]
-  }
-  readonly stderr: { text(): string }
-}> {
+async function runInBand(
+  root: string,
+): Promise<{ readonly exitCode: number; readonly run: NormalizedView; readonly stderr: string }> {
   const read = await readVitestConfig({ cwd: root })
   assert.equal(read.projects.length, 1)
   const [neutral] = read.projects
@@ -70,22 +53,27 @@ async function runInBand(root: string): Promise<{
     ci: true,
   })
   const outputFile = join(root, 'normalized.json')
-  const stdout = collector()
-  const stderr = collector()
-  const result = await executeProject({
+  const stderr = new Collect()
+  const { exitCode } = await executeProject({
     project,
     cwd: root,
-    stdout: stdout.stream,
-    stderr: stderr.stream,
+    stdout: new Collect(),
+    stderr,
     env: { CI: '1' },
     reporters: [['normalized-json', { outputFile }]],
     pool: { kind: 'inline' },
     cache: false,
   })
-  const run = JSON.parse(await readFile(outputFile, 'utf8')) as {
-    files: { file: string; status: string; tests: { id: { path: string[] }; status: string }[] }[]
+  return {
+    exitCode,
+    run: viewOfNormalized(await readFile(outputFile, 'utf8')),
+    stderr: stderr.text,
   }
-  return { result, run, stderr }
+}
+
+/** Each file of a run with its status and each test's title path and status. */
+function statusesOf(run: NormalizedView): unknown[] {
+  return [...run.files].map(([file, view]) => [file, view.status, [...view.tests]])
 }
 
 test('a Vitest project runs in band through vitestNodeDialect', async () => {
@@ -121,15 +109,19 @@ test('a Vitest project runs in band through vitestNodeDialect', async () => {
       '',
     ].join('\n'),
   )
-  const { result, run, stderr } = await runInBand(root)
-  assert.equal(result.exitCode, 0, stderr.text())
-  assert.deepEqual(
-    run.files.map((file) => [file.file, file.status, file.tests.map((t) => t.status)]),
+  const { exitCode, run, stderr } = await runInBand(root)
+  assert.equal(exitCode, 0, stderr)
+  assert.deepEqual(statusesOf(run), [
+    ['dom.test.ts', 'passed', [['the docblock gives a jsdom window', 'passed']]],
     [
-      ['dom.test.ts', 'passed', ['passed']],
-      ['vi.test.ts', 'passed', ['passed', 'passed']],
+      'vi.test.ts',
+      'passed',
+      [
+        ['vi.fn records its calls', 'passed'],
+        ['there is no document', 'passed'],
+      ],
     ],
-  )
+  ])
 })
 
 // D96's Vitest value (module/vitest-require-cache): a test file's `createRequire(import.meta.url)`
@@ -152,10 +144,16 @@ test('require.cache under the Vitest dialect is what Vitest 5.0.5 recorded (modu
   const golden = JSON.parse(
     await readFile(join(fixture, '__goldens__', 'vitest.json'), 'utf8'),
   ) as {
-    files: { file: string; tests: { id: { path: string[] }; status: string }[] }[]
+    files: { file: string; status: string; tests: { id: { path: string[] }; status: string }[] }[]
   }
   const { run, stderr } = await runInBand(root)
-  const statuses = (files: typeof golden.files) =>
-    files.map((file) => [file.file, file.tests.map((t) => [t.id.path.join(' > '), t.status])])
-  assert.deepEqual(statuses(run.files), statuses(golden.files), stderr.text())
+  assert.deepEqual(
+    statusesOf(run),
+    golden.files.map((file) => [
+      file.file,
+      file.status,
+      file.tests.map((t) => [t.id.path.join(' > '), t.status]),
+    ]),
+    stderr,
+  )
 })

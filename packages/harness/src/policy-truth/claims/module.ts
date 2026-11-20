@@ -12,6 +12,7 @@ import {
   oneOf,
   statusOf,
   templateIn,
+  testIn,
   titlesOf,
 } from '../observe.ts'
 
@@ -40,17 +41,6 @@ function observedMessage(g: Golden, id: string): string {
  * fails them (RTL's `screen` and `cleanup` bound to the first file's `document`; a `getContext`
  * mock that is `null`).
  */
-/** Whether every named test of the second file passed: each file of the fixture repeats the titles. */
-const secondFilePassed =
-  (...titles: readonly string[]) =>
-  (g: Golden): boolean => {
-    const second = g.files.find((entry) => entry.file === 'b.vitest.test.ts')
-    return titles.every(
-      (title) =>
-        second?.tests.find((test) => test.id.path.join(' > ') === title)?.status === 'passed',
-    )
-  }
-
 const reevaluatedIn =
   (...titles: readonly string[]) =>
   (g: Golden): boolean =>
@@ -154,10 +144,11 @@ export const moduleClaims: Claims = {
       }),
     ],
     golden('module/vitest-externals-two-files', {
-      read: secondFilePassed(
-        'the patched global is there',
-        'the patching package was evaluated once for this file',
-      ),
+      read: (g) =>
+        [
+          'the patched global is there',
+          'the patching package was evaluated once for this file',
+        ].every((title) => testIn(g, 'b.vitest.test.ts', title).status === 'passed'),
     }),
   ),
   'module.reevaluateHookingExternals': each(
@@ -177,7 +168,9 @@ export const moduleClaims: Claims = {
       }),
     ],
     golden('module/vitest-externals-two-files', {
-      read: secondFilePassed('the package hook ran once before the first test'),
+      read: (g) =>
+        testIn(g, 'b.vitest.test.ts', 'the package hook ran once before the first test').status ===
+        'passed',
     }),
   ),
   'module.automockShape': mod('mod-automock-shape', 'mod-automock-inherited'),

@@ -53,6 +53,22 @@ export function testOf(golden: Golden, ...titles: readonly string[]): GoldenTest
   throw new ObservationError(`${golden.suite} (${golden.runner}) has no test ${titles.join(' > ')}`)
 }
 
+/** The test with this title path in one file of the golden; `ObservationError` when either is missing. */
+export function testIn(golden: Golden, file: string, ...titles: readonly string[]): GoldenTest {
+  const entry = golden.files.find((candidate) => candidate.file === file)
+  if (entry === undefined) {
+    throw new ObservationError(`${golden.suite} (${golden.runner}) has no file ${file}`)
+  }
+  const wanted = JSON.stringify(titles)
+  const found = entry.tests.find((test) => JSON.stringify(test.id.path) === wanted)
+  if (found === undefined) {
+    throw new ObservationError(
+      `${golden.suite} (${golden.runner}) has no test ${titles.join(' > ')} in ${file}`,
+    )
+  }
+  return found
+}
+
 /** Whether the golden has a test with this title path. */
 export function hasTest(golden: Golden, ...titles: readonly string[]): boolean {
   const wanted = JSON.stringify(titles)

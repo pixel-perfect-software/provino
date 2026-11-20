@@ -33,11 +33,10 @@ import { corePolicyFor } from './runtime-corpus/profiles.ts'
 import { pairLabel } from './test-support.ts'
 
 /**
- * The fixture that records `Object.keys` of the `jest` and `vi` objects for T11.10. Nothing reads
- * it yet, so it is not counted.
+ * The fixtures this corpus doesn't count: `api-surface` records `Object.keys` of the `jest` and `vi`
+ * objects for T11.10, and `vi-when-wait` needs the matcher slot and a clock, which this corpus's
+ * host lacks. The dialect's `runtime/globals.test.ts` holds the shipped `vi` to both.
  */
-// `vi-when-wait` needs the matcher slot and a clock, which this corpus's host lacks: the dialect's
-// `runtime/globals.test.ts` holds the shipped `vi` to it.
 const UNCOUNTED = new Set(['mocking/api-surface', 'mocking/vi-when-wait'])
 
 /**

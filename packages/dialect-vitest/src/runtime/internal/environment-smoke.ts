@@ -33,7 +33,7 @@ export interface SmokeResult {
   readonly documentAfter: string
 }
 
-async function refOf(spec: SmokeSpec): Promise<EnvironmentRef> {
+function refOf(spec: SmokeSpec): EnvironmentRef | Promise<EnvironmentRef> {
   if (spec.kind === 'project') {
     return vitestEnvironmentRef(spec.name, spec.environmentOptions, spec.rootDir)
   }

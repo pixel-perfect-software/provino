@@ -29,6 +29,5 @@ export {
   type VitestEnvironmentReturn,
   vitestEnvironment,
   vitestEnvironmentFor,
-  vitestEnvironmentRef,
   vitestJsdomEnvironment,
 } from './vitest-environment.ts'
