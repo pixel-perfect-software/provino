@@ -31,15 +31,16 @@ test('one line per failed test, its diffs in order, the same-named test counted'
       children: { allTests: () => tests },
     }
     const suite = { type: 'suite' as const, name: 'group', parent: module }
+    // A stand-in for Vitest's `TestCase`: the fields the reporter reads.
     const make = (id: string, state: string, errors: object[]): Test => {
-      const made: Test = {
+      const made = {
         type: 'test',
         id,
         name: 'same',
         module,
         parent: suite,
         result: () => ({ state, errors }),
-      }
+      } as unknown as Test
       tests.push(made)
       return made
     }

@@ -3,8 +3,9 @@
 // extracted, `tarball.ts`); a source is a file or a directory, and every file under it counts.
 // The report names each file whose bytes differ, or that only one tag has, with the `UPSTREAM.md`
 // that copied it. It changes nothing: reading the upstream diff and porting it is the person's.
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readFileSync, statSync } from 'node:fs'
+import { join, posix } from 'node:path'
+import { walkFiles } from '../internal/walk.ts'
 import type { Repository, UpstreamFile } from './upstream.ts'
 
 /** One upstream file that differs between the tags. */
@@ -32,13 +33,11 @@ export interface DriftReport {
 }
 
 /** Every file under `dir` (relative to `root`), or `dir` itself when it is a file. */
-function filesUnder(root: string, relative: string): string[] {
+async function filesUnder(root: string, relative: string): Promise<string[]> {
   const full = join(root, relative)
   if (!existsSync(full)) return []
   if (!statSync(full).isDirectory()) return [relative]
-  return readdirSync(full, { recursive: true, withFileTypes: true })
-    .filter((entry) => entry.isFile())
-    .map((entry) => join(entry.parentPath, entry.name).slice(root.length + 1))
+  return (await walkFiles(full)).map((file) => posix.join(relative, file))
 }
 
 /** The bytes of `relative` in `root`, or `undefined` when the tree has no such file. */
@@ -51,12 +50,12 @@ function read(root: string, relative: string): Buffer | undefined {
  * Compares the two extracted trees over the sources the `UPSTREAM.md` files that name
  * `repository` list.
  */
-export function driftBetween(
+export async function driftBetween(
   repository: Repository,
   range: { readonly from: string; readonly to: string },
   trees: { readonly from: string; readonly to: string },
   upstreams: readonly UpstreamFile[],
-): DriftReport {
+): Promise<DriftReport> {
   const namedBy = new Map<string, Set<string>>()
   const unresolved: { upstream: string; source: string }[] = []
   for (const upstream of upstreams) {
@@ -73,7 +72,10 @@ export function driftBetween(
         }
         continue
       }
-      const files = new Set([...filesUnder(trees.from, found), ...filesUnder(trees.to, found)])
+      const files = new Set([
+        ...(await filesUnder(trees.from, found)),
+        ...(await filesUnder(trees.to, found)),
+      ])
       for (const file of files) {
         const set = namedBy.get(file) ?? new Set<string>()
         set.add(upstream.path)

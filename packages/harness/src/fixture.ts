@@ -1485,10 +1485,11 @@ function parseJestConfig(
 }
 
 /**
- * A Jest-only flag of the manifest: `key` must be `expected` (leave it out for off), and only means
- * something for a fixture that runs Jest. `hint` finishes the first message.
+ * A one-runner flag of the manifest: `key` must be `expected` (leave it out for off), and only
+ * means something for a fixture that runs `runner`. `hint` finishes the first message.
  */
-function parseJestFlag<T extends true | string>(
+function parseRunnerFlag<T extends true | string>(
+  runner: 'jest' | 'vitest',
   value: unknown,
   expected: T,
   key: string,
@@ -1504,17 +1505,20 @@ function parseJestFlag<T extends true | string>(
       { path: source },
     )
   }
-  if (!runners.includes('jest')) {
-    throw new HarnessError(code, `${source}: "${key}" is set but "runners" does not list "jest"`, {
-      path: source,
-    })
+  if (!runners.includes(runner)) {
+    throw new HarnessError(
+      code,
+      `${source}: "${key}" is set but "runners" does not list "${runner}"`,
+      { path: source },
+    )
   }
   return expected
 }
 
 /** `jestEsm` is `true` or absent, and only means something for a fixture that runs Jest. */
 function parseJestEsm(jestEsm: unknown, runners: readonly FixtureProfile[], source: string): true {
-  return parseJestFlag(
+  return parseRunnerFlag(
+    'jest',
     jestEsm,
     true,
     'jestEsm',
@@ -1531,7 +1535,8 @@ function parseJestTypeScript(
   runners: readonly FixtureProfile[],
   source: string,
 ): 'babel' {
-  return parseJestFlag(
+  return parseRunnerFlag(
+    'jest',
     jestTypeScript,
     'babel',
     'jestTypeScript',
@@ -1548,7 +1553,8 @@ function parseJestTransformJs(
   runners: readonly FixtureProfile[],
   source: string,
 ): true {
-  return parseJestFlag(
+  return parseRunnerFlag(
+    'jest',
     jestTransformJs,
     true,
     'jestTransformJs',
@@ -1565,21 +1571,16 @@ function parseCaptureDiff(
   runners: readonly FixtureProfile[],
   source: string,
 ): true {
-  if (captureDiff !== true) {
-    throw new HarnessError(
-      'HARNESS_FIXTURE_BAD_CAPTURE_DIFF',
-      `${source}: "captureDiff" must be true (leave it out for off)`,
-      { path: source },
-    )
-  }
-  if (!runners.includes('vitest')) {
-    throw new HarnessError(
-      'HARNESS_FIXTURE_BAD_CAPTURE_DIFF',
-      `${source}: "captureDiff" is set but "runners" does not list "vitest"`,
-      { path: source },
-    )
-  }
-  return true
+  return parseRunnerFlag(
+    'vitest',
+    captureDiff,
+    true,
+    'captureDiff',
+    'HARNESS_FIXTURE_BAD_CAPTURE_DIFF',
+    'leave it out for off',
+    runners,
+    source,
+  )
 }
 
 /** A package name as npm spells it: `name` or `@scope/name`, lowercase, no path tricks. */

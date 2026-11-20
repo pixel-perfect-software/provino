@@ -7,6 +7,7 @@
 import { readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parseArgs } from 'node:util'
 import { isNodeModules, walkFiles } from '../internal/walk.ts'
 import { driftBetween, driftFails, formatDrift } from './drift.ts'
 import { treeAt } from './tarball.ts'
@@ -18,14 +19,27 @@ const USAGE = 'usage: pnpm drift [--jest <from>..<to>] [--vitest <from>..<to>]'
 export function parseDriftArgs(
   args: readonly string[],
 ): { readonly repository: Repository; readonly from: string; readonly to: string }[] | string {
+  const range = { type: 'string', multiple: true } as const
+  const tokens = (() => {
+    try {
+      return parseArgs({
+        args: [...args],
+        options: Object.fromEntries(Object.keys(REPOSITORIES).map((name) => [name, range])),
+        strict: true,
+        tokens: true,
+      }).tokens
+    } catch (error) {
+      return error instanceof Error ? error.message : 'bad arguments'
+    }
+  })()
+  if (typeof tokens === 'string') return tokens
   const ranges: { repository: Repository; from: string; to: string }[] = []
-  for (let i = 0; i < args.length; i++) {
-    const flag = args[i] ?? ''
-    const name = flag.replace(/^--/, '')
-    if (!flag.startsWith('--') || !(name in REPOSITORIES)) return `unknown argument ${flag}`
-    const [from, to, ...rest] = (args[++i] ?? '').split('..')
-    if (!from || !to || rest.length > 0) return `${flag} needs <from>..<to>`
-    ranges.push({ repository: name as Repository, from, to })
+  // In the order given, as the report prints them.
+  for (const token of tokens) {
+    if (token.kind !== 'option') continue
+    const [from, to, ...rest] = (token.value ?? '').split('..')
+    if (!from || !to || rest.length > 0) return `${token.rawName} needs <from>..<to>`
+    ranges.push({ repository: token.name as Repository, from, to })
   }
   return ranges.length > 0 ? ranges : 'name at least one range'
 }
@@ -52,12 +66,12 @@ async function main(args: readonly string[]): Promise<number> {
   for (const { repository, from, to } of ranges) {
     let trees: { from: string; to: string }
     try {
-      trees = { from: treeAt(repository, from), to: treeAt(repository, to) }
+      trees = { from: await treeAt(repository, from), to: await treeAt(repository, to) }
     } catch (error) {
       console.error(`drift: ${repository} ${from}..${to}: ${(error as Error).message}`)
       return 1
     }
-    const report = driftBetween(repository, { from, to }, trees, upstreams)
+    const report = await driftBetween(repository, { from, to }, trees, upstreams)
     console.log(formatDrift(report))
     if (driftFails(report)) failed = true
   }

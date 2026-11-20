@@ -86,17 +86,8 @@ const nodeAssertMatches = (g: Golden, value: unknown): boolean => {
  * `toBe number labels Expected and Received` (`expect(1).toBe(2)`). `null` leaves no diff.
  */
 const vitestDiffMatches = (g: Golden, value: unknown): boolean => {
-  const ref = value as { readonly module?: unknown; readonly export?: unknown } | null
-  if (
-    ref?.module !== import.meta.resolve('@provino/dialect-vitest/runtime') ||
-    ref.export !== 'vitestShapeTestError'
-  ) {
-    return false
-  }
-  const recorded = g.files
-    .flatMap((file) => file.tests)
-    .find((test) => test.id.path.at(-1) === 'toBe number labels Expected and Received')
-    ?.errors[0]?.diff
+  if (!refTo('@provino/dialect-vitest/runtime', 'vitestShapeTestError')(value)) return false
+  const recorded = testOf(g, 'toBe', 'toBe number labels Expected and Received').errors[0]?.diff
   if (recorded === undefined) throw new Error(`${g.suite} (${g.runner}) recorded no diff`)
   const thrown = Object.assign(new Error('expected 1 to be 2 // Object.is equality'), {
     name: 'AssertionError',

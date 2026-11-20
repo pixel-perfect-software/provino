@@ -4,7 +4,7 @@
 // `policy-truth/corpora.ts`, so both hold a run to the same comparison.
 
 import path from 'node:path'
-import { isDeepStrictEqual, stripVTControlCharacters } from 'node:util'
+import { isDeepStrictEqual } from 'node:util'
 import type { CorePolicy } from '@provino/types'
 import { type Fixture, testFilesFor } from '../fixture.ts'
 import { readGolden } from '../golden.ts'
@@ -86,10 +86,9 @@ export async function expectCorpusProblems(
           errors: run.failures.map(({ text, matcher, diff }) =>
             comparable({
               ...normalizer.error(text, matcher),
-              // Colour is the terminal's, not the golden's: the recorder ran with NO_COLOR.
-              ...(diff === undefined
-                ? {}
-                : { diff: normalizer.text(stripVTControlCharacters(diff)) }),
+              // Colour is the terminal's, not the golden's (the recorder ran with NO_COLOR): the
+              // normalizer's `ansi` rule takes it out.
+              ...(diff === undefined ? {} : { diff: normalizer.text(diff) }),
             }),
           ),
           ...(profile === 'jest' ? { passingAssertions: run.passingAssertions } : {}),

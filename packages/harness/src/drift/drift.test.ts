@@ -57,7 +57,7 @@ describe('parseUpstream', () => {
   })
 })
 
-describe('driftBetween', () => {
+describe('driftBetween', async () => {
   const from = tree('from', {
     'packages/expect/src/matchers.ts': 'a',
     'packages/expect/src/print.ts': 'same',
@@ -69,7 +69,7 @@ describe('driftBetween', () => {
     'packages/expect/src/print.ts': 'same',
     'packages/expect/src/index.ts': 'not vendored, changed',
   })
-  const report = driftBetween('jest', { from: 'v1', to: 'v2' }, { from, to }, [
+  const report = await driftBetween('jest', { from: 'v1', to: 'v2' }, { from, to }, [
     parseUpstream('x/UPSTREAM.md', UPSTREAM),
   ])
 
@@ -88,8 +88,8 @@ describe('driftBetween', () => {
     ])
   })
 
-  test('an UPSTREAM.md of another repository is not read', () => {
-    const none = driftBetween('vitest', { from: 'v1', to: 'v2' }, { from, to }, [
+  test('an UPSTREAM.md of another repository is not read', async () => {
+    const none = await driftBetween('vitest', { from: 'v1', to: 'v2' }, { from, to }, [
       parseUpstream('x/UPSTREAM.md', UPSTREAM),
     ])
     assert.deepEqual({ checked: none.checked, drifted: none.drifted }, { checked: 0, drifted: [] })
@@ -144,16 +144,19 @@ describe('an UPSTREAM.md that names two repositories', () => {
     )
   })
 
-  test('a source in neither tree is unresolved in its own repository`s report', () => {
-    const vitest = driftBetween(
+  test('a source in neither tree is unresolved in its own repository`s report', async () => {
+    const vitest = await driftBetween(
       'vitest',
       { from: 'a', to: 'b' },
       { from: vitestTree, to: vitestTree },
       [upstream],
     )
-    const jest = driftBetween('jest', { from: 'a', to: 'b' }, { from: jestTree, to: jestTree }, [
-      upstream,
-    ])
+    const jest = await driftBetween(
+      'jest',
+      { from: 'a', to: 'b' },
+      { from: jestTree, to: jestTree },
+      [upstream],
+    )
     assert.deepEqual(vitest.unresolved, [
       { upstream: 'two/UPSTREAM.md', source: 'packages/expect/src/stale.ts' },
     ])
@@ -189,7 +192,8 @@ describe('parseDriftArgs', () => {
 
   test('usage errors', () => {
     assert.equal(parseDriftArgs([]), 'name at least one range')
-    assert.equal(parseDriftArgs(['--mocha', 'a..b']), 'unknown argument --mocha')
+    assert.match(String(parseDriftArgs(['--mocha', 'a..b'])), /^Unknown option '--mocha'/)
+    assert.match(String(parseDriftArgs(['v1..v2'])), /Unexpected argument 'v1\.\.v2'/)
     assert.equal(parseDriftArgs(['--jest', 'v1']), '--jest needs <from>..<to>')
   })
 })
