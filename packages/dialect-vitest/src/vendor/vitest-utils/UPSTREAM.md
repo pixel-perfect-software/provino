@@ -15,7 +15,7 @@
 | `helpers.ts`, `constants.ts`, `types.ts`, `error.ts`, `serialize.ts`, `nanoid.ts`, `random.ts` | `packages/utils/src/` | copied (1, 2) |
 | `diff/*.ts` | `packages/utils/src/diff/` | copied (1, 2; `index.ts` also 3) |
 | `diff-sequences.ts` | Jest v30.5.2 (https://github.com/jestjs/jest), `packages/diff-sequences/src/index.ts` | copied unchanged: `@vitest/utils` bundles diff-sequences (`^29.6.3`, the same algorithm) |
-| `tinyrainbow.ts` | tinyrainbow 3.2.0, `dist/index.js` (the npm tarball `@vitest/utils` 5.0.5 installs; tinyrainbow has no `.refs` clone) | ported to TypeScript: the same colour test and escape pairs, the names spelled out |
+| `tinyrainbow.ts` | tinyrainbow 3.2.0, `dist/index.js` (the npm tarball `@vitest/utils` 5.0.5 installs; tinyrainbow has no `.refs` clone) | ported to TypeScript: the same colour test and escape pairs, the names spelled out; left out, since nothing copied here calls them: `rgb`, `bgRgb`, `hex`, `bgHex`, `disableDefaultColors` and `enabledDefaultColors` |
 
 Not copied: the entries the expect table and the titles don't import (`offset`, `resolver`, `source-map`, `timers`, `index`).
 
