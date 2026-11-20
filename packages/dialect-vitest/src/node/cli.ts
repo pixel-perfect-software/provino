@@ -444,6 +444,42 @@ export function vitestArgvToRunRequest(argv: VitestArgv): RunRequest {
 }
 
 /**
+ * The options a parsed command line sets that are config keys (`support: 'config'` in the table:
+ * `--globals`, `--pool`, `--maxWorkers`, `--environment`, `--bail`, `--sequence.*`, …), shaped
+ * like `config.test`, for the reader's `test` option: Vitest merges them over the file's `test`
+ * (`createVitest`'s `cliOptions`). A dotted path lands nested (`sequence.shuffle`).
+ * @public
+ */
+export function vitestArgvToTestConfig(argv: VitestArgv): Record<string, unknown> {
+  const test: Record<string, unknown> = {}
+  for (const row of VITEST_CLI_OPTIONS) {
+    if (row.support !== 'config') continue
+    const parts = row.path.split('.')
+    let source: unknown = argv.options
+    for (const part of parts) {
+      source =
+        typeof source === 'object' && source !== null
+          ? (source as Record<string, unknown>)[part]
+          : undefined
+    }
+    if (source === undefined) continue
+    let target = test
+    for (const part of parts.slice(0, -1)) {
+      const next = target[part]
+      if (typeof next === 'object' && next !== null && !Array.isArray(next)) {
+        target = next as Record<string, unknown>
+      } else {
+        const created: Record<string, unknown> = {}
+        target[part] = created
+        target = created
+      }
+    }
+    target[parts[parts.length - 1] as string] = source
+  }
+  return test
+}
+
+/**
  * The Vitest command line: `parse` is `parseVitestCli`, `toRunRequest` is `vitestArgvToRunRequest`.
  * @public
  */

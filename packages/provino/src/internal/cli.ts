@@ -31,6 +31,7 @@ export type RunCommand =
   | { readonly type: 'help' }
   | { readonly type: 'run'; readonly options: RunOptions; readonly forceExit?: true }
   | { readonly type: 'jest'; readonly args: readonly string[] }
+  | { readonly type: 'vitest'; readonly args: readonly string[] }
   | { readonly type: 'bare'; readonly args: readonly string[] }
 
 function isPoolKind(value: string): value is PoolKind {
@@ -301,11 +302,7 @@ function parseCommand(command: string | undefined, args: readonly string[]): Run
   if (command === undefined) return { type: 'bare', args: [] }
   if (command === 'run') return parseRunArgs(args)
   if (command === 'jest') return { type: 'jest', args }
-  if (command === 'vitest') {
-    throw new UsageError(
-      'provino vitest is not available yet: the Vitest dialect has no config reader or command line (T11.15, T11.16, Phase 2)',
-    )
-  }
+  if (command === 'vitest') return { type: 'vitest', args }
   // Anything else starting with a dash is the bare form: `provino --dialect jest -t foo`.
   if (command.startsWith('-')) return { type: 'bare', args: [command, ...args] }
   throw new UsageError(`unknown command "${command}"`)
@@ -334,11 +331,7 @@ async function runBare(args: readonly string[], io: CliIo): Promise<number> {
     throw new UsageError(`--dialect must be jest or vitest (got "${dialect}")`)
   }
   const found = await detectProject(cwd, dialect)
-  if (found.kind === 'vitest') {
-    throw new UsageError(
-      'this is a Vitest project, and provino vitest is not available yet (T11.15, T11.16, Phase 2)',
-    )
-  }
+  if (found.kind === 'vitest') return runBareVitest(rest, io)
   if (found.kind === 'jest') return runBareJest(rest, io)
   const parsed = parseRunArgs(['--config', found.config, ...rest])
   if (parsed.type === 'help') return helpExit(io)
@@ -371,6 +364,22 @@ function runBareJest(args: readonly string[], io: CliIo): Promise<number> {
     ...(io.signal === undefined ? {} : { signal: io.signal }),
     ...(io.forceSignal === undefined ? {} : { forceSignal: io.forceSignal }),
     ...(io.onForceExit === undefined ? {} : { onForceExit: io.onForceExit }),
+  })
+}
+
+/**
+ * `provino vitest`, imported only here, so a Jest or `provino run` command loads none of the Vitest
+ * dialect's coordinator code (D115, `speed`).
+ */
+async function runBareVitest(args: readonly string[], io: CliIo): Promise<number> {
+  const { runVitestCommand } = await import('./vitest-command.ts')
+  return runVitestCommand(args, {
+    stdout: io.stdout ?? process.stdout,
+    stderr: io.stderr ?? process.stderr,
+    cwd: io.cwd ?? process.cwd(),
+    ...(io.env === undefined ? {} : { env: io.env }),
+    ...(io.signal === undefined ? {} : { signal: io.signal }),
+    ...(io.forceSignal === undefined ? {} : { forceSignal: io.forceSignal }),
   })
 }
 
@@ -413,6 +422,7 @@ export async function main(argv: readonly string[], io: CliIo = {}): Promise<num
     if (parsed.type === 'help') return await helpExit(io)
     if (parsed.type === 'bare') return await runBare(parsed.args, io)
     if (parsed.type === 'jest') return await runBareJest(parsed.args, io)
+    if (parsed.type === 'vitest') return await runBareVitest(parsed.args, io)
     return await runCommand(parsed, io)
   } catch (error) {
     if (error instanceof UsageError) {

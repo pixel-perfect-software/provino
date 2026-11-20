@@ -75,7 +75,8 @@ function sizeOf(position: number, total: number, count: number): number {
 }
 
 /**
- * Jest's split: the files sorted by the sha1 of their path relative to their project's root, then
+ * Jest's split: the files sorted by the sha1 of their path relative to their project's root (with
+ * `prefix` before it: Vitest's `BaseSequencer.shard` hashes the path with its leading `/`), then
  * the `index`-th contiguous slice, the first `files.length % count` slices one file longer
  * (`TestSequencer.shard`). The hash is of `ScheduleInput.path`, which is that relative path with
  * `/`. Two files with the same path in different projects hash alike: the project breaks the tie
@@ -85,11 +86,12 @@ function sizeOf(position: number, total: number, count: number): number {
 export function sha1Shard(
   files: readonly ScheduleInput[],
   shard: ShardSpec,
+  prefix = '',
 ): readonly ScheduleInput[] {
   checkShard(shard)
   const hashed = files
     .toSorted(byPathThenProject)
-    .map((file) => ({ file, hash: hash('sha1', file.path) }))
+    .map((file) => ({ file, hash: hash('sha1', `${prefix}${file.path}`) }))
     .toSorted((a, b) => byText(a.hash, b.hash))
   let start = 0
   for (let position = 0; position < shard.index - 1; position++) {
@@ -151,17 +153,18 @@ export function sliceShard(
 /**
  * The shard of `files` a run takes, whatever the dialect: contiguous cuts by predicted time as soon
  * as any file has a time (a timings file), else the dialect's `fallback` (`orchestrator.shard
- * .fallback`): `sha1-slice`, Jest's split, or `path-slice`, slices of the path-sorted files by
- * count.
+ * .fallback`): `sha1-slice`, Jest's split, `rooted-sha1-slice`, the same split over each path with a
+ * leading `/`, or `path-slice`, slices of the path-sorted files by count.
  * @public
  */
 export function shardInputs(
   files: readonly ScheduleInput[],
   shard: ShardSpec,
-  fallback: 'sha1-slice' | 'path-slice',
+  fallback: 'sha1-slice' | 'rooted-sha1-slice' | 'path-slice',
 ): readonly ScheduleInput[] {
   const timed = files.some((file) => timeOf(file) !== undefined)
-  return !timed && fallback === 'sha1-slice' ? sha1Shard(files, shard) : sliceShard(files, shard)
+  if (timed || fallback === 'path-slice') return sliceShard(files, shard)
+  return sha1Shard(files, shard, fallback === 'rooted-sha1-slice' ? '/' : '')
 }
 
 /**
@@ -187,7 +190,7 @@ export function shardFiles(
   members: readonly ShardMember[],
   options: {
     readonly shard: ShardSpec
-    readonly fallback: 'sha1-slice' | 'path-slice'
+    readonly fallback: 'sha1-slice' | 'rooted-sha1-slice' | 'path-slice'
     readonly runRoot: string
     readonly timings?: TimingsFile | undefined
   },

@@ -65,6 +65,7 @@ export function parseVitestCli(args: readonly string[]): {
 
 // @public
 export function readVitestConfig(options?: VitestReadOptions): Promise<{
+    readonly root: VitestResolvedProject;
     readonly projects: readonly NeutralProject[];
     readonly diagnostics: readonly Diagnostic[];
     readonly needsVite: boolean;
@@ -98,6 +99,9 @@ export interface VitestArgv {
 
 // @public
 export function vitestArgvToRunRequest(argv: VitestArgv): RunRequest;
+
+// @public
+export function vitestArgvToTestConfig(argv: VitestArgv): Record<string, unknown>;
 
 // @public
 export const vitestCli: CliDialect<VitestArgv>;

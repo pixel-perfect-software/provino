@@ -1,0 +1,11 @@
+{
+  "description": "--shard=3/3 over seven files under Vitest 5.0.5: which files the shard runs (BaseSequencer.shard: the sha1 of each path from the root, sorted, then sliced). Held by provino vitest in B25g (provino's vitest-shard.test.ts).",
+  "runners": ["vitest"],
+  "run": {
+    "argv": {
+      "vitest": ["--shard=3/3"]
+    },
+    "capture": ["exitCode", "json:.harness-out/vitest.json"],
+    "timeKeys": ["startTime", "endTime", "duration"]
+  }
+}

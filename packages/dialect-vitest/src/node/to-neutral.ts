@@ -26,12 +26,7 @@ const SOURCE_EXTENSIONS: readonly string[] = ['ts', 'mts', 'cts', 'js', 'mjs', '
 /** A key (dotted path into `test`) read and not applied yet, and the phase that applies it. */
 const NOT_APPLIED: readonly (readonly [string, string])[] = [
   ['retry', 'B25g, with the command line (no policy key carries a retry count yet)'],
-  ['bail', 'B25g, with the command line'],
-  ['maxWorkers', 'B25g, with the command line'],
   ['minWorkers', 'B25g, with the command line'],
-  ['fileParallelism', 'B25g, with the command line'],
-  ['reporters', 'B25g, with the command line'],
-  ['outputFile', 'B25g, with the command line'],
   ['coverage', 'B25h (Vitest coverage)'],
   ['fakeTimers', 'B25f (the vi facade)'],
   ['env', 'B25f: it reaches import.meta.env only; process.env needs the worker'],
@@ -39,7 +34,7 @@ const NOT_APPLIED: readonly (readonly [string, string])[] = [
   ['sequence.setupFiles', 'B25g'],
   ['onConsoleLog', 'B25g'],
   ['onStackTrace', 'B25g'],
-  ['provide', 'B25g'],
+  ['provide', 'a later bundle: no B25 phase owns provide and inject'],
   ['execArgv', 'B25g'],
   ['server', 'B25d (the Vite bridge)'],
   ['deps', 'B25d (the Vite bridge)'],

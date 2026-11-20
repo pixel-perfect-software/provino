@@ -26,6 +26,7 @@ import {
   resolveVitestProjects,
   type VitestReadOptions,
   type VitestResolvedConfig,
+  type VitestResolvedProject,
 } from './normalize.ts'
 import { vitestProjectToNeutral } from './to-neutral.ts'
 
@@ -42,6 +43,7 @@ export {
   type VitestCliValue,
   type VitestCommandName,
   vitestArgvToRunRequest,
+  vitestArgvToTestConfig,
   vitestCli,
   vitestFlags,
 } from './cli.ts'
@@ -129,6 +131,8 @@ export function createVitestConfigReader(
  * @public
  */
 export async function readVitestConfig(options: VitestReadOptions = {}): Promise<{
+  /** The root config as one project: the run-wide keys (`bail`, `reporters`, `outputFile`, `maxWorkers`) are read from its `test`. */
+  readonly root: VitestResolvedProject
   readonly projects: readonly NeutralProject[]
   readonly diagnostics: readonly Diagnostic[]
   readonly needsVite: boolean
@@ -140,6 +144,7 @@ export async function readVitestConfig(options: VitestReadOptions = {}): Promise
   const resolved = await reader.resolve(raw, source ?? { kind: 'file', path: cwd })
   const neutral = reader.toNeutral(resolved.value)
   return {
+    root: resolved.value.root,
     projects: neutral.value,
     diagnostics: [...resolved.diagnostics, ...neutral.diagnostics],
     needsVite: resolved.value.projects.some((project) => project.needsVite),

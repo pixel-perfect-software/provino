@@ -36,6 +36,8 @@ export interface VitestJsonAssertionResult {
   readonly location?: { readonly line: number; readonly column: number } | undefined
   readonly meta: Readonly<Record<string, unknown>>
   readonly tags: readonly string[]
+  /** A test's benchmark results: `[]` for every test, since Provino runs no `bench` (`cli/vitest-json-snapshot`). */
+  readonly benchmarks: readonly unknown[]
 }
 
 /**
@@ -260,6 +262,7 @@ export function createVitestResults(options: VitestResultsOptions): VitestResult
               : undefined,
           meta: test.meta,
           tags: test.tags,
+          benchmarks: [],
         }
       })
       const hasFailedTests = tests.some((test) => file.results.get(test.id)?.state === 'fail')

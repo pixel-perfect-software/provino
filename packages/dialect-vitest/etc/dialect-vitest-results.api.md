@@ -13,6 +13,7 @@ export function createVitestResults(options: VitestResultsOptions): VitestResult
 export interface VitestJsonAssertionResult {
     // (undocumented)
     readonly ancestorTitles: readonly string[];
+    readonly benchmarks: readonly unknown[];
     // (undocumented)
     readonly duration?: number | undefined;
     // (undocumented)

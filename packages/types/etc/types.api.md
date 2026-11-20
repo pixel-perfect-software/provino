@@ -2479,7 +2479,7 @@ export interface OrchestratorPolicy {
         readonly unknownFirst: boolean;
     };
     readonly shard: {
-        readonly fallback: "sha1-slice" | "path-slice";
+        readonly fallback: "sha1-slice" | "rooted-sha1-slice" | "path-slice";
     };
     readonly slowTestThresholdMs: number;
     readonly todoOnlyFile: "pass" | "skip";
