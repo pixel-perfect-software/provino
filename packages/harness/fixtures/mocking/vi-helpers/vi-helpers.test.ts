@@ -1,11 +1,4 @@
 // The vi members the other mocking fixtures leave out, one observation a test.
-const attempt = (run: () => unknown) => {
-  try {
-    return { value: run() }
-  } catch (error) {
-    return { threw: error }
-  }
-}
 const c = (id: string, run: () => unknown) => {
   test(id, () => observe(id, run))
 }

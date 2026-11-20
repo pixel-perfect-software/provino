@@ -58,8 +58,10 @@ test('the mock and module slices are whole, so none of their keys is left at the
 })
 
 // B23f: Vitest's values for the three Jest wrap-up keys are the neutral ones until T11.16 records them.
-test('the B23f keys stay at the neutral values', () => {
-  assert.equal(resolved.module.reevaluatePatchingExternals, false)
+test('the B23f keys: D151 is recorded as Vitest re-evaluating, the rest stay neutral', () => {
+  // `module/vitest-externals-two-files`: each isolated file evaluates the package again (B25f).
+  assert.equal(resolved.module.reevaluatePatchingExternals, true)
+  assert.equal(resolved.module.reevaluateHookingExternals, true)
   assert.equal(resolved.expect.outsideTestCounts, 'drop')
   assert.deepEqual(resolved.core.boundaryTurns, neutralPolicy.core.boundaryTurns)
 })
