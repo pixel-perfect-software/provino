@@ -13,6 +13,7 @@ import {
   type RunnerName,
   type SuiteSpec,
   TIMED_RUNNERS,
+  type TimedRunnerName,
 } from './suites.ts'
 
 /**
@@ -33,7 +34,7 @@ export type CliCommand =
   | {
       readonly command: 'run'
       readonly suite: SuiteSpec
-      readonly runners: readonly RunnerName[]
+      readonly runners: readonly TimedRunnerName[]
       readonly warm: number
       readonly cold: number
       readonly label: BenchLabel
@@ -210,12 +211,12 @@ function onlyOptions(
   }
 }
 
-function runners(
+function runners<Allowed extends RunnerName>(
   values: readonly string[] | undefined,
-  allowed: readonly RunnerName[],
-): readonly RunnerName[] {
+  allowed: readonly Allowed[],
+): readonly Allowed[] {
   if (values === undefined || values.length === 0) throw usage('pass at least one --runner')
-  const parsed: RunnerName[] = []
+  const parsed: Allowed[] = []
   for (const value of values) {
     const runner = allowed.find((candidate) => candidate === value)
     if (runner === undefined) throw usage(`--runner must be ${allowed.join(' or ')}; got ${value}`)

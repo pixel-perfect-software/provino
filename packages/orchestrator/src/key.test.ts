@@ -1,7 +1,7 @@
 // WorkerKey hashing: stable across key order, sensitive to every field the key carries.
 import assert from 'node:assert/strict'
 import { describe, it } from 'node:test'
-import { hashOf, sameWorkerKey, stableJson, workerKeyOf } from './key.ts'
+import { hashOf, sameWorkerKey, stableJson, workerKeyId, workerKeyOf } from './key.ts'
 
 const base = {
   project: 'web',
@@ -73,9 +73,39 @@ describe('workerKeyOf', () => {
     for (const other of others) assert.equal(sameWorkerKey(key, other), false)
   })
 
+  it('leaves the dialect off the key when none is given', () => {
+    const key = workerKeyOf(base)
+    assert.equal('dialect' in key, false)
+    assert.equal(workerKeyOf({ ...base, dialect: 'vitest' }).dialect, 'vitest')
+  })
+
   it('keeps execArgv in order, since flags can depend on it', () => {
     const a = workerKeyOf({ ...base, execArgv: ['--a', '--b'] })
     const b = workerKeyOf({ ...base, execArgv: ['--b', '--a'] })
     assert.equal(sameWorkerKey(a, b), false)
+  })
+})
+
+describe('the dialect of a worker key', () => {
+  it('keeps workers of two dialects apart, in the match and in the id', () => {
+    const jest = workerKeyOf({ ...base, dialect: 'jest' })
+    const vitest = workerKeyOf({ ...base, dialect: 'vitest' })
+    assert.equal(sameWorkerKey(jest, vitest), false)
+    assert.notEqual(workerKeyId(jest), workerKeyId(vitest))
+    assert.equal(sameWorkerKey(jest, workerKeyOf({ ...base, dialect: 'jest' })), true)
+  })
+
+  it('tells a worker with a dialect from one with none', () => {
+    const named = workerKeyOf({ ...base, dialect: 'jest' })
+    const bare = workerKeyOf(base)
+    assert.equal(sameWorkerKey(named, bare), false)
+    assert.notEqual(workerKeyId(named), workerKeyId(bare))
+  })
+
+  it('treats two keys with no dialect as the same, as before', () => {
+    const a = workerKeyOf(base)
+    const b = workerKeyOf({ ...base })
+    assert.ok(sameWorkerKey(a, b))
+    assert.equal(workerKeyId(a), workerKeyId(b))
   })
 })

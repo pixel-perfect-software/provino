@@ -1,4 +1,5 @@
 // @provino/bench: Provino's benchmark protocol (Track 12 R5) and its synthetic suites.
+export type { CliCommand } from './cli-args.ts'
 export { readRunRef } from './environment.ts'
 export { BenchError, type BenchErrorCode } from './errors.ts'
 export type { ExecOutcome, ExecProcess, ExecRequest } from './exec.ts'
@@ -40,6 +41,7 @@ export {
   type RunnerName,
   type RunnerPlan,
   type SuiteSpec,
+  type TimedRunnerName,
 } from './suites.ts'
 export {
   type ProcessEntry,
