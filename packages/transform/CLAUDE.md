@@ -15,6 +15,7 @@ The per-file transform pipeline (Track 3): TypeScript and JSX through Oxc, mock 
 | `src/jest-host/` | The Jest transformer host (T3.8), below. |
 | `src/cache/` | The transform cache (T3.6), below. |
 | `src/v8cache/` | The V8 code cache helpers (T3.7), below: their own `@provino/transform/v8cache` entry, not re-exported from the root. |
+| `src/vite/` | The Vite plugin host (T3.9, B25d), below: its own `@provino/transform/vite` entry. |
 
 ## The in-place strip (`src/blank.ts`, D116)
 
@@ -47,6 +48,18 @@ The per-file transform pipeline (Track 3): TypeScript and JSX through Oxc, mock 
 - **A transformer that throws** is a `TRANSFORMER_FAILED` error diagnostic on the record, with `thrown: { name }` (the class of what it threw, `null` for a thrown string). The loader fails the file with the thrown message as it was and the class as the error's `name` (`transformer-failed`, neutral `{message}`), as Jest prints it (`cli/transform-throws-error`, `-string`, `-babel-jest-factory-scope`).
 - **Default transform:** the Jest dialect leaves Jest's default `babel-jest` entry (no options) out, so a project that names no transformer keeps the Oxc path (`to-neutral.ts`), unless the project has a Babel config (D68): then the entry stays and the real babel-jest runs (its `getCacheKey` covers the config, so an edit misses the cache; `provino/test/implicit-babel.test.ts`). A project that names `babel-jest` itself gets it.
 - **Tests:** `host.test.ts` runs the real babel-jest 30.5.2, ts-jest 29.4.15 (TypeScript 5.9.3) and `@swc/jest` 0.2.39 on `fixtures/jest-host` (a TypeScript test with `jest.mock` below its imports, a factory reading a `mock`-prefixed variable and a `__mocks__` file; `jest.<tool>.config.json` for each); the end-to-end statuses against real Jest are `packages/provino/test/transformers.test.ts`. ts-jest finds its TypeScript from the working directory, so run it from the project.
+
+## The Vite plugin host (`src/vite/`, T3.9, B25d)
+
+`createViteHost({ root, plugins, includeReact?, strict?, warn?, resolve? })`: a project's Vite plugins' build-style hooks in a worker. **Not wired into the pipeline or the loader yet** (B25g wires it: the worker creates it from the bridge's plugin list, the loader asks `resolveId`/`load` first and `transform` after Oxc). Plugin objects can't cross threads (NN4), so a worker gets them by importing the config again through `@provino/dialect-vitest/vite-bridge`'s `loadViteBridge`.
+
+| File | Role |
+|---|---|
+| `host.ts` | `buildStart`, `resolveId` (first plugin that answers wins), `load` (first), `transform` (threads the code, composes the maps; `null` when nothing changed), in Vite's order (`enforce: 'pre'`, normal, `'post'`; a hook's `order` is not read). A hook's object form `{ filter: { id, code }, handler }` keeps it from running (`filter.ts`: RegExp, globs, include/exclude). **Ids:** `classifyViteId` makes a `\0` id, a non-absolute id and an id with a query (`/a.vue?vue&type=style`) `{ type: 'virtual', owner: 'vite-host' }` (the resolver's `ResolveResult` shape), an absolute plain id a file, an `external: true` result `external`. **The context** (a Proxy): `parse` (oxc-parser), `resolve` (the plugins, then the `resolve` option, the project's resolver in a worker; `skipSelf`), `warn`, `error`, `addWatchFile`, `getCombinedSourcemap`, `environment` (`ssr`), `meta` (`rolldownVersion` is set, as Vite 8's is, so vite-plugin-svgr takes `transformWithOxc` and needs no esbuild). `this.getModuleInfo`, `getModuleIds`, `emitFile`, `getFileName`, `setAssetSource` and `this.load` throw `VITE_HOOK_UNSUPPORTED` naming the plugin; a plugin's `configureServer`, `handleHotUpdate` and `transformIndexHtml` are never called (Vue and vite-tsconfig-paths define them), and `strict: true` refuses a plugin that has one. A hook that throws is `VITE_PLUGIN_FAILED` with the cause. `@vitejs/plugin-react` (`vite:react*`) is skipped unless `includeReact`: Oxc already does JSX. |
+| `host.ts` fingerprint | `viteHostFingerprint(identities, configHash)`: plugin names, versions, hook-code hashes and the config file's hash, for the transform cache's key (the bridge computes the identities; the pipeline folds it in when B25g wires the host). |
+| `test-plugins.ts` | Test support: a fixture's user plugins resolved through the project's own `vitest/node` `resolveConfig`, as the bridge does. |
+
+**Tests** (`host.test.ts`): the four plugins on `fixtures/vite/{vue,svelte,tsconfig-paths,svgr}` (`@vitejs/plugin-vue` 6.0.11, `@sveltejs/vite-plugin-svelte` 7.3.1, `vite-tsconfig-paths` 6.1.1, `vite-plugin-svgr` 5.2.0, devDependencies per D172; Biome skips the fixtures), a virtual module, the unsupported hooks, ordering, filters, and the fingerprint moving with a plugin's version. `vite` is an optional peer; this package imports none of it.
 
 ## The transform cache (`src/cache/`, T3.6)
 

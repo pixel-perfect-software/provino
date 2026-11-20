@@ -17,7 +17,8 @@
       "!**/__goldens__",
       "!**/__recorded__",
       "!packages/harness/corpus",
-      "!**/vendor"
+      "!**/vendor",
+      "!packages/transform/fixtures/vite"
     ]
   },
   "formatter": {

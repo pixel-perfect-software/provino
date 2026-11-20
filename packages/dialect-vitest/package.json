@@ -29,6 +29,11 @@
       "provino-source": "./src/runtime/index.ts",
       "types": "./dist/runtime/index.d.ts",
       "import": "./dist/runtime/index.js"
+    },
+    "./vite-bridge": {
+      "provino-source": "./src/vite-bridge/index.ts",
+      "types": "./dist/vite-bridge/index.d.ts",
+      "import": "./dist/vite-bridge/index.js"
     }
   },
   "files": [
