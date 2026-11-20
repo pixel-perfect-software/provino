@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runProcess } from '@provino/harness'
 import { brief, type KeyDifference } from '../jest-config/compare.ts'
-import { compareTest, TEST_BAR_KEYS } from './compare.ts'
+import { compareTest, TEST_BAR_KEYS, unstablePaths } from './compare.ts'
 import type { ProvinoOutcome, ReadOutcome } from './oracle.ts'
 import type { SampleManifest } from './sample-manifest.ts'
 import { MANIFEST_PATH, repoDir, SAMPLE_DIR } from './sample-paths.ts'
@@ -31,6 +31,8 @@ export interface SampleResult {
   readonly fetched: boolean
   readonly vitest: ReadOutcome | null
   readonly provino: ProvinoOutcome | null
+  /** Paths where two reads of the config by Vitest itself differ (masked on both sides). */
+  readonly unstable?: readonly string[]
   readonly compared: readonly string[]
   readonly differences: readonly KeyDifference[]
 }
@@ -56,6 +58,7 @@ function childEnvironment(): NodeJS.ProcessEnv {
 }
 
 async function readSide<T extends ReadOutcome>(
+  tag: string,
   sampleDir: string,
   side: 'vitest' | 'provino' | 'defaults',
   target: string,
@@ -64,7 +67,7 @@ async function readSide<T extends ReadOutcome>(
   id: string,
   timeoutMs: number,
 ): Promise<T | Extract<ReadOutcome, { ok: false }>> {
-  const out = join(resultsDir, `${id}.${side}.json`)
+  const out = join(resultsDir, `${id}.${side}${tag}.json`)
   rmSync(out, { force: true })
   const result = await runProcess(
     process.execPath,
@@ -113,6 +116,7 @@ export async function runSample(options: {
   const emptyRoot = join(sampleDir, 'empty-root')
   mkdirSync(emptyRoot, { recursive: true })
   const defaults = await readSide(
+    '',
     sampleDir,
     'defaults',
     emptyRoot,
@@ -156,6 +160,7 @@ export async function runSample(options: {
       const config = realpathSync(unresolved)
       const cwd = dirname(config)
       const vitest = await readSide<ReadOutcome>(
+        '',
         sampleDir,
         'vitest',
         config,
@@ -165,6 +170,7 @@ export async function runSample(options: {
         options.timeoutMs,
       )
       const provino = await readSide<ProvinoOutcome>(
+        '',
         sampleDir,
         'provino',
         config,
@@ -173,6 +179,24 @@ export async function runSample(options: {
         id,
         options.timeoutMs,
       )
+      // A second read by Vitest in a process of its own: what differs between the two (a path made
+      // from the process id) can't be compared with anything, so both sides mask it.
+      const again = await readSide<ReadOutcome>(
+        '.again',
+        sampleDir,
+        'vitest',
+        config,
+        cwd,
+        resultsDir,
+        id,
+        options.timeoutMs,
+      )
+      const unstable =
+        vitest.ok && again.ok
+          ? unstablePaths(vitest.test, again.test).concat(
+              unstablePaths(vitest.alias, again.alias, 'alias'),
+            )
+          : []
       const comparison =
         vitest.ok && provino.ok && !provino.needsVite
           ? compareTest(
@@ -183,9 +207,10 @@ export async function runSample(options: {
               defaults.root,
               new Set(provino.given),
               vitest.alias,
+              new Set(unstable),
             )
           : { compared: [], differences: [] }
-      results.push({ id, ...entry, fetched: true, vitest, provino, ...comparison })
+      results.push({ id, ...entry, fetched: true, vitest, provino, unstable, ...comparison })
     }
   })
   await Promise.all(workers)
@@ -224,6 +249,7 @@ export async function runSample(options: {
     `  readable by Vitest's resolveConfig: ${readable.length}   (unreadable: ${fetched.length - readable.length})`,
     `  compared (readable, no plugins, not refused): ${judged.length}   (needs Vite, B25d: ${needsVite.length}; refused by design: ${refused.length}; ours failed: ${oursFailed.length})`,
     `  equal on every compared key: ${equal.length} of ${judged.length}`,
+    `  unstable between two runs of Vitest itself (masked on both sides): ${results.filter((result) => (result.unstable?.length ?? 0) > 0).length} configs`,
     '  per key (configs that set it: equal/compared):',
     ...[...perKey.entries()].map(([key, row]) => `    ${key}: ${row.equal}/${row.compared}`),
   ]

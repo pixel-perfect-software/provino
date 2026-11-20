@@ -56,6 +56,53 @@ function isRec(value: unknown): value is Rec {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
+/** An encoded function or RegExp is a value, not an object to look inside. */
+function isMarker(value: Rec): boolean {
+  return '$function' in value || '$regexp' in value
+}
+
+/** A list entry that is an object to look inside (a project), not a value. */
+function isObjectEntry(value: unknown): value is Rec {
+  return isRec(value) && !isMarker(value)
+}
+
+/**
+ * The paths (`projects[12].test.execArgv[3]`) where two reads of the same config by Vitest itself
+ * differ: a value that depends on the process, such as a path made from `process.pid`. Such a
+ * value can't be compared with anything, so the comparison masks it on both sides.
+ */
+export function unstablePaths(first: unknown, second: unknown, path = ''): string[] {
+  if (isRec(first) && isRec(second)) {
+    if (isMarker(first) || isMarker(second))
+      return JSON.stringify(first) === JSON.stringify(second) ? [] : [path]
+    const keys = new Set([...Object.keys(first), ...Object.keys(second)])
+    return [...keys].flatMap((key) =>
+      unstablePaths(first[key], second[key], path === '' ? key : `${path}.${key}`),
+    )
+  }
+  if (Array.isArray(first) && Array.isArray(second)) {
+    if (first.length !== second.length) return [path]
+    return first.flatMap((entry, index) => unstablePaths(entry, second[index], `${path}[${index}]`))
+  }
+  return JSON.stringify(first) === JSON.stringify(second) ? [] : [path]
+}
+
+/** `value` with each of `paths` replaced by a marker. */
+export function maskPaths(value: unknown, paths: ReadonlySet<string>, path = ''): unknown {
+  if (paths.has(path)) return '<unstable>'
+  if (Array.isArray(value))
+    return value.map((entry, index) => maskPaths(entry, paths, `${path}[${index}]`))
+  if (isRec(value) && !isMarker(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, inner]) => [
+        key,
+        maskPaths(inner, paths, path === '' ? key : `${path}.${key}`),
+      ]),
+    )
+  }
+  return value
+}
+
 /** `encode`d values are plain JSON; this is the one place the code looks inside them. */
 export function encodeTest(test: unknown): Rec {
   return encode(test) as Rec
@@ -142,7 +189,7 @@ export function subsetOf(ours: unknown, theirs: unknown, nested = false): boolea
   // A function is its source, which the config's transform changes (types stripped, imports
   // rewritten): two functions are equal here.
   if (isRec(ours) && isRec(theirs) && '$function' in ours && '$function' in theirs) return true
-  if (isRec(ours) && isRec(theirs)) {
+  if (isRec(ours) && isRec(theirs) && !isMarker(ours)) {
     // A plugin object is filled in by Vite (its `api`, its hooks' options): not compared.
     return Object.entries(ours).every(
       ([key, value]) => key === 'plugins' || subsetOf(value, theirs[key], true),
@@ -151,7 +198,7 @@ export function subsetOf(ours: unknown, theirs: unknown, nested = false): boolea
   if (Array.isArray(ours) && Array.isArray(theirs)) {
     // A list of objects (`projects`) goes entry by entry; a list of values nested in an object must
     // be contained, since Vitest adds the entries it resolves.
-    if (ours.some(isRec)) {
+    if (ours.some(isObjectEntry)) {
       return (
         ours.length === theirs.length &&
         ours.every((entry, index) => subsetOf(entry, theirs[index], true))
@@ -202,7 +249,12 @@ export function compareTest(
   defaultsRoot: string,
   given: ReadonlySet<string>,
   theirAlias: unknown = undefined,
+  unstable: ReadonlySet<string> = new Set(),
 ): TestComparison {
+  if (unstable.size > 0) {
+    ours = maskPaths(ours, unstable) as Rec
+    theirs = maskPaths(theirs, unstable) as Rec
+  }
   const compared: string[] = []
   const differences: KeyDifference[] = []
   for (const key of TEST_BAR_KEYS) {
@@ -226,7 +278,7 @@ export function compareTest(
       continue
     }
     const ourValue = normalizeValue(key, ours[key], root)
-    const equal = isRec(ourValue) ? subsetOf(ourValue, theirValue) : same(ourValue, theirValue)
+    const equal = subsetOf(ourValue, theirValue)
     if (!equal) differences.push({ key, ours: ourValue, theirs: theirValue })
   }
   return { compared, differences }

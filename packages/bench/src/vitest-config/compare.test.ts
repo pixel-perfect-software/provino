@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { compareTest, subsetOf, TEST_BAR_KEYS } from './compare.ts'
+import { compareTest, maskPaths, subsetOf, TEST_BAR_KEYS, unstablePaths } from './compare.ts'
 
 const ROOT = '/work/app'
 const DEFAULTS = {
@@ -75,4 +75,62 @@ test("name is its label, reporters are pairs, and an object is a subset of Vites
   assert.equal(subsetOf({ a: 1 }, { a: 1, b: 2 }), true)
   assert.equal(subsetOf({ a: 2 }, { a: 1, b: 2 }), false)
   assert.equal(subsetOf([1, 2], [1, 2, 3]), false)
+})
+
+test('a list of objects (projects) is compared as a subset, entry by entry', () => {
+  const ours = [{ test: { name: 'a', include: ['x'] } }, { test: { name: 'b' } }]
+  const theirs = [
+    { test: { name: 'a', include: ['x'], extra: 1 }, resolve: {} },
+    { test: { name: 'b' } },
+  ]
+  assert.equal(subsetOf(ours, theirs), true)
+  assert.equal(subsetOf(ours, theirs.slice(0, 1)), false)
+  assert.equal(subsetOf([{ test: { name: 'c' } }], [{ test: { name: 'a' } }]), false)
+})
+
+test('a list of RegExps nested in an object is contained, not matched entry by entry', () => {
+  const regexp = (source: string) => ({ $regexp: source, flags: '' })
+  assert.equal(
+    subsetOf({ inline: [regexp('a')] }, { inline: [regexp('b'), regexp('a'), regexp('c')] }),
+    true,
+  )
+  assert.equal(subsetOf({ inline: [regexp('z')] }, { inline: [regexp('a')] }), false)
+})
+
+test('what two reads of one config by Vitest differ on is masked on both sides', () => {
+  const first = {
+    execArgv: ['--a', '/tmp/vitest-1.localstorage'],
+    name: 'x',
+    projects: [{ n: 1, p: 11 }],
+  }
+  const second = {
+    execArgv: ['--a', '/tmp/vitest-2.localstorage'],
+    name: 'x',
+    projects: [{ n: 1, p: 22 }],
+  }
+  const paths = unstablePaths(first, second)
+  assert.deepEqual(paths.sort(), ['execArgv[1]', 'projects[0].p'])
+  const ours = {
+    execArgv: ['--a', '/tmp/vitest-99.localstorage'],
+    name: 'x',
+    projects: [{ n: 1, p: 33 }],
+  }
+  assert.deepEqual(maskPaths(ours, new Set(paths)), {
+    execArgv: ['--a', '<unstable>'],
+    name: 'x',
+    projects: [{ n: 1, p: '<unstable>' }],
+  })
+  // A value that is stable between the two reads stays compared: a real difference still fails.
+  const result = compareTest(
+    { execArgv: ['--b'] },
+    { ...DEFAULTS, root: ROOT, execArgv: ['--a'] },
+    ROOT,
+    DEFAULTS,
+    '/work/empty',
+    new Set(['execArgv']),
+    undefined,
+    new Set(paths),
+  )
+  assert.equal(result.differences.length, 1)
+  assert.deepEqual(unstablePaths({ a: 1 }, { a: 1 }), [])
 })
