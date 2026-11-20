@@ -18,50 +18,53 @@ const shardOne = [...SPLIT_PACKAGES, ...SHARD_ONE]
 const packages = [...shardOne, '@provino/core']
 
 /**
- * Seconds each package took in CI on Node 22.15.0 (main, run 44770476921, 2026-11-20), the
- * `duration_ms` of its `node --test` summary. Packages run side by side on 4 CPUs, so a duration
- * is inflated by contention: shard 2's packages summed 1704 s in a job that took 365 s, a ratio of
- * `CONTENTION`. `provino` and `@provino/dialect-jest` ran nearly alone (575 s and 43 s of wall
- * time), so they are divided by it to share the packages' unit. A package not listed weighs
- * nothing here; add it when it is measured.
+ * Seconds each package's `node --test` summary reported on Node 22.15.0 in one CI run (44796424257,
+ * 2026-11-20, the run that put `provino`'s halves in both shards). Packages run side by side, so
+ * a duration is contended; a shard's sum is what its job took, at about 2.3 summed seconds per
+ * second of wall time in both jobs (1840 s in 814 s, 1121 s in 474 s). A split package lists what
+ * each half took, in shard order: Node deals files out by position, so the halves differ. A
+ * package not listed weighs nothing here; add it when it is measured.
  */
-const CONTENTION = 365 / 1704
-const WEIGHTS: Readonly<Record<string, number>> = {
-  provino: 575 / CONTENTION,
-  '@provino/dialect-jest': 43 / CONTENTION,
-  '@provino/harness': 364.4,
-  '@provino/orchestrator': 356.1,
-  '@provino/bench': 262.5,
-  '@provino/transform': 121.6,
-  '@provino/reporters': 116.6,
-  'provino-boundaries': 90.6,
-  'provino-packaging': 83.4,
-  '@provino/loader': 72.1,
-  '@provino/lazy': 36.8,
-  '@provino/core': 33.1,
-  '@provino/dialect-vitest': 29.1,
-  '@provino/coverage': 23.6,
-  '@provino/env-jsdom': 20.9,
-  '@provino/expect': 17.7,
-  '@provino/env-shared': 16,
-  '@provino/timers': 14.5,
-  '@provino/mock': 14.4,
-  '@provino/config': 8.3,
-  '@provino/snapshot': 7.6,
-  '@provino/policy': 4.5,
-  '@provino/env-node': 4.4,
-  '@provino/resolver': 2.4,
-  '@provino/rpc': 1.9,
-  '@provino/types': 1.4,
+const WEIGHTS: Readonly<Record<string, number | readonly number[]>> = {
+  provino: [801, 366],
+  '@provino/harness': 447,
+  '@provino/orchestrator': 437,
+  '@provino/bench': 133,
+  '@provino/dialect-jest': 129,
+  '@provino/transform': 124,
+  '@provino/reporters': 103,
+  'provino-boundaries': 74,
+  'provino-packaging': 71,
+  '@provino/loader': 58,
+  '@provino/lazy': 47,
+  '@provino/core': 28,
+  '@provino/coverage': 19,
+  '@provino/env-shared': 18,
+  '@provino/dialect-vitest': 18,
+  '@provino/env-jsdom': 16,
+  '@provino/mock': 15,
+  '@provino/timers': 12,
+  '@provino/expect': 11,
+  '@provino/config': 8,
+  '@provino/snapshot': 8,
+  '@provino/policy': 5,
+  '@provino/env-node': 5,
+  '@provino/resolver': 4,
+  '@provino/rpc': 2,
+  '@provino/types': 2,
 }
 
-/** What each shard should cost in the weights' unit: its whole packages plus half of each split one. */
+/** What each shard should cost in the weights' unit: the packages it runs, its half of a split one. */
 function expectedShardCosts(): readonly number[] {
-  const sum = (names: readonly string[]) =>
-    names.reduce((total, name) => total + (WEIGHTS[name] ?? 0), 0)
-  const split = sum(SPLIT_PACKAGES) / SHARD_COUNT
-  const whole = Object.keys(WEIGHTS).filter((name) => !SPLIT_PACKAGES.includes(name))
-  return [sum(SHARD_ONE) + split, sum(whole) - sum(SHARD_ONE) + split]
+  const weight = (name: string, shard: number): number => {
+    const value = WEIGHTS[name] ?? 0
+    return typeof value === 'number' ? value : (value[shard] ?? 0)
+  }
+  return Array.from({ length: SHARD_COUNT }, (_, shard) => {
+    const names =
+      shard === 0 ? shardOne : Object.keys(WEIGHTS).filter((name) => !SHARD_ONE.includes(name))
+    return names.reduce((total, name) => total + weight(name, shard), 0)
+  })
 }
 
 const NODE_TEST = fileURLToPath(new URL('./node-test.ts', import.meta.url))

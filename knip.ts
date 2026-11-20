@@ -167,6 +167,16 @@ const config: KnipConfig = {
       ignoreDependencies: ['jest-environment-jsdom'],
     },
     'packages/provino': {
+      // Its `test` script runs `node --test` through `tooling/packaging/src/node-test.ts` (the shard
+      // flag must come first), so knip no longer finds the test files from the script.
+      entry: [
+        'src/**/*.test.ts',
+        'test/**/*.test.ts',
+        'test/**/*.test-d.ts',
+        // Preloads the built-bin tests pass as `data:` URLs of their text, so no import names them.
+        'test/block-oxc-bindings.ts',
+        'test/load-recorder.ts',
+      ],
       ignoreDependencies: [
         // Every dependency of `provino`: the packages it inlines import them and the build leaves
         // them external, so no file of its own does, and after a build knip also reads its

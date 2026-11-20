@@ -29,8 +29,8 @@ export const SPLIT_PACKAGES: readonly string[] = ['provino']
  */
 export const SHARD_ONE: readonly string[] = [
   '@provino/dialect-jest',
-  '@provino/harness',
   '@provino/orchestrator',
+  '@provino/bench',
   '@provino/snapshot',
   '@provino/config',
   '@provino/policy',
