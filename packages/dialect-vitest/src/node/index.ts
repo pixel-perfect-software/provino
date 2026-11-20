@@ -48,6 +48,7 @@ export {
   vitestFlags,
 } from './cli.ts'
 export { expandDotenv, loadVitestEnv, parseDotenv } from './env.ts'
+export { vitestEnvironmentRef } from './environment-ref.ts'
 export { VitestConfigError, type VitestConfigErrorCode } from './errors.ts'
 export {
   findViteConfigFile,
@@ -64,7 +65,6 @@ export {
   type VitestResolvedProject,
 } from './normalize.ts'
 export { vitestProjectToNeutral } from './to-neutral.ts'
-export { vitestEnvironmentRef } from '../internal/environment-ref.ts'
 export { mergeAlias, mergeConfig, normalizeAlias } from './vite-merge.ts'
 export {
   configDefaults as vitestConfigDefaults,

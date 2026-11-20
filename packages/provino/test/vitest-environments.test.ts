@@ -18,17 +18,6 @@ const DIALECT_MODULES = fileURLToPath(
   new URL('../../dialect-vitest/node_modules/', import.meta.url),
 )
 
-interface RecordedTests {
-  readonly success?: boolean
-  readonly files?: readonly {
-    readonly file: string
-    readonly tests: readonly {
-      readonly id: { readonly path: readonly string[] }
-      readonly status: string
-    }[]
-  }[]
-}
-
 interface VitestJson {
   readonly testResults: readonly {
     readonly name: string
@@ -51,9 +40,12 @@ async function linkLibraries(root: string): Promise<void> {
 
 /** Each recorded file's tests as `[file, [[title path, status], …]]`, sorted by file. */
 function recordedStatuses(fixture: VitestFixture): unknown[] {
-  const golden = fixture.golden as RecordedTests
+  const golden = fixture.golden
   return (golden.files ?? [])
-    .map((file) => [file.file, file.tests.map((test) => [test.id.path.join(' > '), test.status])])
+    .map((file) => [
+      file.file,
+      (file.tests ?? []).map((test) => [test.id.path.join(' > '), test.status]),
+    ])
     .sort(byFile)
 }
 
@@ -85,7 +77,7 @@ async function holds(
     '--reporter=json',
     `--outputFile=${OUTPUT}`,
   ])
-  const golden = fixture.golden as RecordedTests
+  const golden = fixture.golden
   const exitCode = fixture.golden.observed?.exitCode ?? (golden.success === true ? 0 : 1)
   assert.equal(ended.code, exitCode, ended.stderr)
   const json = JSON.parse(await readFile(join(root, OUTPUT), 'utf8')) as VitestJson

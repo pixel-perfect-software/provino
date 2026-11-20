@@ -22,8 +22,16 @@ export interface VitestManifest {
 
 /** The parts of a Vitest golden a replay compares. */
 export interface VitestGolden {
-  /** Each file the run reported, relative to the root, with its status. */
-  readonly files?: readonly { readonly file: string; readonly status: string }[]
+  /** Each file the run reported, relative to the root, with its status and its tests. */
+  readonly files?: readonly {
+    readonly file: string
+    readonly status: string
+    readonly tests?: readonly {
+      readonly id: { readonly path: readonly string[] }
+      readonly status: string
+    }[]
+  }[]
+  readonly success?: boolean
   readonly observed?: {
     readonly exitCode?: number
     readonly stdout?: string
