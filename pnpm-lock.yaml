@@ -905,6 +905,9 @@ importers:
       '@provino/types':
         specifier: workspace:*
         version: link:../types
+      oxc-transform:
+        specifier: 'catalog:'
+        version: 0.157.0
     devDependencies:
       vitest:
         specifier: 'catalog:'

@@ -4,12 +4,13 @@
 // lives only while an import runs, so the project's own Vitest and Vite are never loaded to read a
 // config. A function export is called with Vite's `ConfigEnv`.
 
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { registerHooks } from 'node:module'
 import { dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ConfigError, importConfigModule } from '@provino/config'
 import type { ConfigSource } from '@provino/types'
+import { transformSync } from 'oxc-transform'
 import { VitestConfigError } from './errors.ts'
 import { vitestConfigStandIn } from './vitest-config-stand-in.ts'
 
@@ -40,6 +41,63 @@ function declares(text: string, name: string): boolean {
  * ES module of the project (not under `node_modules`) that names one without declaring it gets
  * the two as constants of its own path.
  */
+/** The project's own files: what Vite's bundler reads, and so what these hooks change. */
+function isProjectFile(url: string): boolean {
+  return url.startsWith('file:') && !url.includes('/node_modules/')
+}
+
+const TRANSFORMED = /\.[cm]?[jt]sx?$/
+
+/** Whether stripped source is ES module source: a static import or export, or `import.meta`. */
+function hasModuleSyntax(code: string): boolean {
+  return /^\s*(?:import\b|export\b)|\bimport\.meta\b/m.test(code)
+}
+
+/** Whether a name is a plain identifier, so a JSON key can be a named export. */
+const IDENTIFIER = /^[A-Za-z_$][\w$]*$/
+
+function jsonModule(text: string): string {
+  const value: unknown = JSON.parse(text)
+  const names =
+    typeof value === 'object' && value !== null && !Array.isArray(value)
+      ? Object.keys(value).filter((key) => IDENTIFIER.test(key) && key !== 'default')
+      : []
+  const named = names.map((name) => `export const ${name} = __json[${JSON.stringify(name)}];`)
+  return [`const __json = ${text};`, 'export default __json;', ...named].join('\n')
+}
+
+/**
+ * Loads a project file the way Vite's bundler reads a config: JSON is a module, a `.js` or `.ts`
+ * file is ES module source whatever its package says (unless it is CommonJS by its own syntax),
+ * TypeScript is stripped and an import used only as a type goes with it (no run-time import of
+ * `vite` for `import { UserConfig } from 'vite'`), and `__dirname` and `__filename` are
+ * defined. Everything else, and anything under `node_modules`, loads as Node loads it.
+ */
+function bundled<T extends { format?: string | null | undefined; source?: unknown }>(
+  url: string,
+  context: { format?: string | null | undefined },
+  next: (url: string, context: never) => T,
+): T | { format: 'module'; source: string; shortCircuit: true } {
+  if (!isProjectFile(url)) return next(url, context as never)
+  const file = fileURLToPath(url.replace(/[?#].*$/, ''))
+  if (file.endsWith('.json') && context.format === 'module') {
+    return { format: 'module', source: jsonModule(readFileSync(file, 'utf8')), shortCircuit: true }
+  }
+  if (!TRANSFORMED.test(file) || file.endsWith('.d.ts')) {
+    return withDirnames(url, next(url, context as never))
+  }
+  const source = readFileSync(file, 'utf8')
+  const output = transformSync(file, source, { sourcemap: false })
+  if (output.errors.length > 0) {
+    throw new Error(`can't read ${file}: ${output.errors[0]?.message ?? 'syntax error'}`)
+  }
+  // A file that is CommonJS by its own syntax (or a .cts/.cjs) keeps Node's loader.
+  if (!hasModuleSyntax(output.code) || /\.c[jt]s$/.test(file)) {
+    return withDirnames(url, next(url, context as never))
+  }
+  return withDirnames(url, { format: 'module', source: output.code, shortCircuit: true } as never)
+}
+
 function withDirnames<T extends { format?: string | null | undefined; source?: unknown }>(
   url: string,
   result: T,
@@ -98,7 +156,16 @@ async function withStandIn<T>(work: () => Promise<T>): Promise<T> {
       resolve(specifier, context, next) {
         if (specifier === 'vitest/config') return { url: STAND_IN_URL, shortCircuit: true }
         try {
-          return next(specifier, context)
+          const resolved = next(specifier, context)
+          // Vite's bundler reads a JSON import with no attribute; Node refuses it.
+          if (
+            isProjectFile(resolved.url) &&
+            /\.json$/.test(resolved.url.replace(/[?#].*$/, '')) &&
+            context.importAttributes?.type !== 'json'
+          ) {
+            return { ...resolved, format: 'module' }
+          }
+          return resolved
         } catch (error) {
           const found = withoutExtension(specifier, context.parentURL)
           if (found === undefined) throw error
@@ -109,7 +176,7 @@ async function withStandIn<T>(work: () => Promise<T>): Promise<T> {
         if (url === STAND_IN_URL) {
           return { format: 'module', source: STAND_IN_SOURCE, shortCircuit: true }
         }
-        return withDirnames(url, next(url, context))
+        return bundled(url, context, next)
       },
     })
     deregister = () => handle.deregister()

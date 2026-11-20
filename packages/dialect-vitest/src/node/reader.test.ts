@@ -269,3 +269,67 @@ test('a relative --root and the file it holds', async () => {
   assert.equal(projects[0]?.name, 'app')
   assert.equal(projects[0]?.rootDir, `${root}/app`)
 })
+
+// B25c: a config is read as Vite's bundler reads it, and each class of file the sample showed a
+// native import refusing is held to what `resolveConfig` makes of the same tree.
+const BUNDLED: readonly (readonly [string, Record<string, string>])[] = [
+  [
+    'a JSON import with no import attribute',
+    {
+      'package.json': '{ "name": "from-json", "version": "1.0.0" }\n',
+      'vitest.config.ts':
+        "import pkg from './package.json'\nexport default { test: { name: pkg.name } }\n",
+    },
+  ],
+  [
+    'a type imported as a value',
+    {
+      'package.json': '{ "name": "typed" }\n',
+      'vitest.config.ts':
+        "import { UserConfig } from 'vite'\nconst config: UserConfig = { test: { name: 'typed' } }\nexport default config\n",
+    },
+  ],
+  [
+    'import syntax in a CommonJS-typed .js config',
+    {
+      'package.json': '{ "name": "cjs-typed", "type": "commonjs" }\n',
+      'vitest.config.js':
+        "import { join } from 'node:path'\nexport default { test: { name: join('esm', 'in-cjs') } }\n",
+    },
+  ],
+  [
+    'an import without an extension and __dirname in an ES module',
+    {
+      'package.json': '{ "name": "bundled", "type": "module" }\n',
+      'shared/index.ts': "export const base = 'shared'\n",
+      'vitest.config.ts':
+        "import { base } from './shared'\nexport default { test: { name: base + ':' + __dirname.split('/').pop() } }\n",
+    },
+  ],
+]
+
+for (const [name, files] of BUNDLED) {
+  test(`${name}: the reader gives what resolveConfig gives`, async () => {
+    const root = writeTree(files)
+    const expected = await oracle(root)
+    const { projects } = await readVitestConfig({ cwd: root })
+    assert.equal(projects.length, 1)
+    const label = (expected.name as { label?: string } | string | undefined) ?? ''
+    assert.equal(projects[0]?.name, typeof label === 'string' ? label : label.label)
+  })
+}
+
+test('a projects negation removes what it names from the other patterns', async () => {
+  const root = writeTree({
+    'vitest.config.mjs':
+      "export default { test: { projects: ['./packages/*', '!./packages/tsconfig.base.json', './scripts'] } }\n",
+    'packages/a/package.json': '{ "name": "pkg-a" }\n',
+    'packages/tsconfig.base.json': '{}\n',
+    'scripts/package.json': '{ "name": "scripts" }\n',
+  })
+  const { projects } = await readVitestConfig({ cwd: root })
+  assert.deepEqual(
+    projects.map((project) => project.name),
+    ['pkg-a', 'scripts'],
+  )
+})

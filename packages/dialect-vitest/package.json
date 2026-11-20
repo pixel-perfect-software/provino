@@ -45,7 +45,8 @@
   "dependencies": {
     "@provino/config": "workspace:*",
     "@provino/policy": "workspace:*",
-    "@provino/types": "workspace:*"
+    "@provino/types": "workspace:*",
+    "oxc-transform": "catalog:"
   },
   "devDependencies": {
     "vitest": "catalog:"

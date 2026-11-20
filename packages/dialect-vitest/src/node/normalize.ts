@@ -8,7 +8,7 @@ import type { ConfigSource, Diagnostic } from '@provino/types'
 import { loadVitestEnv } from './env.ts'
 import { VitestConfigError } from './errors.ts'
 import { findVitestConfig } from './find.ts'
-import { expandGlobs, isGlob } from './glob.ts'
+import { expandGlobs, globToRegexSource, isGlob } from './glob.ts'
 import { loadVitestConfig, type VitestLoadedConfig } from './load.ts'
 import { mergeConfig } from './vite-merge.ts'
 import { configDefaults } from './vitest-config-stand-in.ts'
@@ -123,6 +123,13 @@ function refuse(test: Rec, where: string): void {
       `${where}: test.typecheck.enabled is not supported yet: type tests are not part of B25`,
     )
   }
+}
+
+/** Whether a negated project pattern names `path`. */
+function isNegated(path: string, negations: readonly string[], root: string): boolean {
+  return negations.some((negation) =>
+    new RegExp(globToRegexSource(negation.slice(1), root)).test(path),
+  )
 }
 
 function nameOf(test: Rec): string | undefined {
@@ -381,10 +388,12 @@ export async function resolveVitestProjects(
     index++
   }
   const seen = new Set<string>()
-  for (const pattern of patterns) {
+  // A pattern with a leading `!` removes what it names from every other pattern's matches.
+  const negations = patterns.filter((pattern) => pattern.startsWith('!'))
+  for (const pattern of patterns.filter((entry) => !entry.startsWith('!'))) {
     const paths = isGlob(pattern)
-      ? await expandGlobs(rootDir, [pattern])
-      : [resolve(rootDir, pattern)]
+      ? await expandGlobs(rootDir, [pattern, ...negations])
+      : [resolve(rootDir, pattern)].filter((path) => !isNegated(path, negations, rootDir))
     if (paths.length === 0) {
       throw new VitestConfigError(
         'VITEST_CONFIG_INVALID',
