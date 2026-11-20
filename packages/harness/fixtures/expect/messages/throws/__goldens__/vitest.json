@@ -44,7 +44,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [Function throwsBadInput] to throw error including 'timeout' but got 'bad input'",
-              "userFrame": "<root>/throws.test.ts:24:28"
+              "userFrame": "<root>/throws.test.ts:24:28",
+              "diff": "Expected: \"timeout\"\nReceived: \"bad input\""
             }
           ],
           "location": {
@@ -66,7 +67,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [Function throwsBadInput] to throw error matching /^timeout/ but got 'bad input'",
-              "userFrame": "<root>/throws.test.ts:28:28"
+              "userFrame": "<root>/throws.test.ts:28:28",
+              "diff": "- Expected:\n/^timeout/\n\n+ Received:\n\"bad input\""
             }
           ],
           "location": {
@@ -88,7 +90,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected error to be instance of ValidationError",
-              "userFrame": "<root>/throws.test.ts:34:8"
+              "userFrame": "<root>/throws.test.ts:34:8",
+              "diff": "- Expected:\n[Function ValidationError]\n\n+ Received:\nTypeError {\n  \"message\": \"wrong type\",\n}"
             }
           ],
           "location": {
@@ -110,7 +113,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected a thrown error to be Error: other message",
-              "userFrame": "<root>/throws.test.ts:38:28"
+              "userFrame": "<root>/throws.test.ts:38:28",
+              "diff": "- Expected\n+ Received\n\n  Error {\n-   \"message\": \"other message\",\n+   \"message\": \"bad input\",\n  }"
             }
           ],
           "location": {
@@ -132,7 +136,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected error to match asymmetric matcher",
-              "userFrame": "<root>/throws.test.ts:44:8"
+              "userFrame": "<root>/throws.test.ts:44:8",
+              "diff": "- Expected\n+ Received\n\n- ObjectContaining {\n-   \"code\": \"E1\",\n+ CodedError {\n+   \"message\": \"coded\",\n+   \"code\": \"E2\",\n  }"
             }
           ],
           "location": {
@@ -154,7 +159,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [Function] to throw error including 'other' but got 'a string'",
-              "userFrame": "<root>/throws.test.ts:50:8"
+              "userFrame": "<root>/throws.test.ts:50:8",
+              "diff": "Expected: \"other\"\nReceived: \"a string\""
             }
           ],
           "location": {
@@ -198,7 +204,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [Function throwsBadInput] to not throw an error but 'Error: bad input' was thrown",
-              "userFrame": "<root>/throws.test.ts:58:32"
+              "userFrame": "<root>/throws.test.ts:58:32",
+              "diff": "- Expected:\nundefined\n\n+ Received:\n\"Error: bad input\""
             }
           ],
           "location": {
@@ -220,7 +227,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [Function throwsBadInput] to throw error not including 'bad'",
-              "userFrame": "<root>/throws.test.ts:62:32"
+              "userFrame": "<root>/throws.test.ts:62:32",
+              "diff": "Expected: \"bad\"\nReceived: \"bad input\""
             }
           ],
           "location": {
@@ -242,7 +250,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected error not to be instance of ValidationError",
-              "userFrame": "<root>/throws.test.ts:68:12"
+              "userFrame": "<root>/throws.test.ts:68:12",
+              "diff": "- Expected:\n[Function ValidationError]\n\n+ Received:\nValidationError {\n  \"message\": \"invalid\",\n  \"name\": \"ValidationError\",\n}"
             }
           ],
           "location": {

@@ -308,7 +308,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 1 to be NaN",
-              "userFrame": "<root>/numbers.test.ts:60:15"
+              "userFrame": "<root>/numbers.test.ts:60:15",
+              "diff": "- Expected\n+ Received\n\n- NaN\n+ 1"
             }
           ],
           "location": {
@@ -330,7 +331,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected NaN not to be NaN",
-              "userFrame": "<root>/numbers.test.ts:64:28"
+              "userFrame": "<root>/numbers.test.ts:64:28",
+              "diff": ""
             }
           ],
           "location": {

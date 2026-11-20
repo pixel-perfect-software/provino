@@ -4,7 +4,7 @@
 // `policy-truth/corpora.ts`, so both hold a run to the same comparison.
 
 import path from 'node:path'
-import { isDeepStrictEqual } from 'node:util'
+import { isDeepStrictEqual, stripVTControlCharacters } from 'node:util'
 import type { CorePolicy } from '@provino/types'
 import { type Fixture, testFilesFor } from '../fixture.ts'
 import { readGolden } from '../golden.ts'
@@ -20,6 +20,8 @@ interface ComparableError {
   readonly message: string
   readonly matcher?: string
   readonly userFrame?: string
+  /** The runner's diff under the message: a `captureDiff` fixture's Vitest golden holds it. */
+  readonly diff?: string
 }
 
 /** A test's comparable shape: what both the golden and the run can say. */
@@ -31,12 +33,13 @@ interface Comparable {
 }
 
 /** The comparable part of a golden error or a normalized failure, the same on both sides. */
-function comparable({ name, message, matcher, userFrame }: ComparableError): ComparableError {
+function comparable({ name, message, matcher, userFrame, diff }: ComparableError): ComparableError {
   return {
     ...(name === undefined ? {} : { name }),
     message,
     ...(matcher === undefined ? {} : { matcher }),
     ...(userFrame === undefined ? {} : { userFrame }),
+    ...(diff === undefined ? {} : { diff }),
   }
 }
 
@@ -80,8 +83,14 @@ export async function expectCorpusProblems(
         const key = testKey({ file: testFile, path: run.path, dupIndex: run.dupIndex })
         actual.set(key, {
           status: run.status,
-          errors: run.failures.map(({ text, matcher }) =>
-            comparable(normalizer.error(text, matcher)),
+          errors: run.failures.map(({ text, matcher, diff }) =>
+            comparable({
+              ...normalizer.error(text, matcher),
+              // Colour is the terminal's, not the golden's: the recorder ran with NO_COLOR.
+              ...(diff === undefined
+                ? {}
+                : { diff: normalizer.text(stripVTControlCharacters(diff)) }),
+            }),
           ),
           ...(profile === 'jest' ? { passingAssertions: run.passingAssertions } : {}),
         })

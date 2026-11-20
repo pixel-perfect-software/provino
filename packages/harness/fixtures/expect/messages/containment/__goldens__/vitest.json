@@ -44,7 +44,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 'hello world' to contain 'planet'",
-              "userFrame": "<root>/containment.test.ts:7:27"
+              "userFrame": "<root>/containment.test.ts:7:27",
+              "diff": "Expected: \"planet\"\nReceived: \"hello world\""
             }
           ],
           "location": {
@@ -110,7 +111,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 'hello world' not to contain 'world'",
-              "userFrame": "<root>/containment.test.ts:19:31"
+              "userFrame": "<root>/containment.test.ts:19:31",
+              "diff": "Expected: \"world\"\nReceived: \"hello world\""
             }
           ],
           "location": {
@@ -154,7 +156,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [ { a: 1 }, { b: 2 } ] to deep equally contain { a: 2 }",
-              "userFrame": "<root>/containment.test.ts:29:34"
+              "userFrame": "<root>/containment.test.ts:29:34",
+              "diff": "- Expected:\n{\n  \"a\": 2,\n}\n\n+ Received:\n[\n  {\n    \"a\": 1,\n  },\n  {\n    \"b\": 2,\n  },\n]"
             }
           ],
           "location": {
@@ -176,7 +179,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [ { a: 1 } ] to not deep equally contain { a: 1 }",
-              "userFrame": "<root>/containment.test.ts:33:28"
+              "userFrame": "<root>/containment.test.ts:33:28",
+              "diff": "- Expected:\n{\n  \"a\": 1,\n}\n\n+ Received:\n[\n  {\n    \"a\": 1,\n  },\n]"
             }
           ],
           "location": {
@@ -198,7 +202,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [ 1, 2 ] to have a length of 3 but got 2",
-              "userFrame": "<root>/containment.test.ts:39:20"
+              "userFrame": "<root>/containment.test.ts:39:20",
+              "diff": "- Expected\n+ Received\n\n- 3\n+ 2"
             }
           ],
           "location": {
@@ -220,7 +225,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 'abc' to have a length of 2 but got 3",
-              "userFrame": "<root>/containment.test.ts:43:19"
+              "userFrame": "<root>/containment.test.ts:43:19",
+              "diff": "- Expected\n+ Received\n\n- 2\n+ 3"
             }
           ],
           "location": {
@@ -242,7 +248,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [ 1 ] to not have a length of 1",
-              "userFrame": "<root>/containment.test.ts:47:21"
+              "userFrame": "<root>/containment.test.ts:47:21",
+              "diff": ""
             }
           ],
           "location": {
@@ -286,7 +293,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 'abc' to match /d/",
-              "userFrame": "<root>/containment.test.ts:57:19"
+              "userFrame": "<root>/containment.test.ts:57:19",
+              "diff": "- Expected:\n/d/\n\n+ Received:\n\"abc\""
             }
           ],
           "location": {
@@ -308,7 +316,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 'abc' to match 'xyz'",
-              "userFrame": "<root>/containment.test.ts:61:19"
+              "userFrame": "<root>/containment.test.ts:61:19",
+              "diff": "Expected: \"xyz\"\nReceived: \"abc\""
             }
           ],
           "location": {
@@ -330,7 +339,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 'abc' not to match /b/",
-              "userFrame": "<root>/containment.test.ts:65:23"
+              "userFrame": "<root>/containment.test.ts:65:23",
+              "diff": "- Expected:\n/b/\n\n+ Received:\n\"abc\""
             }
           ],
           "location": {

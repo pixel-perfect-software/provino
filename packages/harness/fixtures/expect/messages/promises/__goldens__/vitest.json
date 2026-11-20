@@ -22,7 +22,8 @@
             {
               "name": "Error",
               "message": "Error: expected 1 to be 2 // Object.is equality",
-              "userFrame": "<root>/promises.test.ts:3:37"
+              "userFrame": "<root>/promises.test.ts:3:37",
+              "diff": "- Expected\n+ Received\n\n- 2\n+ 1"
             }
           ],
           "location": {
@@ -44,7 +45,8 @@
             {
               "name": "Error",
               "message": "Error: expected { id: 1 } to deeply equal { id: 2 }",
-              "userFrame": "<root>/promises.test.ts:7:45"
+              "userFrame": "<root>/promises.test.ts:7:45",
+              "diff": "- Expected\n+ Received\n\n  {\n-   \"id\": 2,\n+   \"id\": 1,\n  }"
             }
           ],
           "location": {
@@ -110,7 +112,8 @@
             {
               "name": "Error",
               "message": "Error: expected 3 not to be 3 // Object.is equality",
-              "userFrame": "<root>/promises.test.ts:19:37"
+              "userFrame": "<root>/promises.test.ts:19:37",
+              "diff": ""
             }
           ],
           "location": {
@@ -132,7 +135,8 @@
             {
               "name": "Error",
               "message": "Error: expected [Function] to throw error including 'yes' but got 'nope'",
-              "userFrame": "<root>/promises.test.ts:25:52"
+              "userFrame": "<root>/promises.test.ts:25:52",
+              "diff": "Expected: \"yes\"\nReceived: \"nope\""
             }
           ],
           "location": {
@@ -154,7 +158,8 @@
             {
               "name": "Error",
               "message": "Error: expected { code: 1 } to deeply equal { code: 2 }",
-              "userFrame": "<root>/promises.test.ts:29:46"
+              "userFrame": "<root>/promises.test.ts:29:46",
+              "diff": "- Expected\n+ Received\n\n  {\n-   \"code\": 2,\n+   \"code\": 1,\n  }"
             }
           ],
           "location": {
@@ -176,7 +181,8 @@
             {
               "name": "Error",
               "message": "Error: promise resolved \"5\" instead of rejecting",
-              "userFrame": "<root>/promises.test.ts:33:37"
+              "userFrame": "<root>/promises.test.ts:33:37",
+              "diff": "- Expected:\nError {\n  \"message\": \"rejected promise\",\n}\n\n+ Received:\n5"
             }
           ],
           "location": {
@@ -220,7 +226,8 @@
             {
               "name": "Error",
               "message": "Error: expected [Function] to throw error not including 'gone'",
-              "userFrame": "<root>/promises.test.ts:41:52"
+              "userFrame": "<root>/promises.test.ts:41:52",
+              "diff": ""
             }
           ],
           "location": {

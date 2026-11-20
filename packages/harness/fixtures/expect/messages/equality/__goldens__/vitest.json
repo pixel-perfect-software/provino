@@ -22,7 +22,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 1 to be 2 // Object.is equality",
-              "userFrame": "<root>/equality.test.ts:20:15"
+              "userFrame": "<root>/equality.test.ts:20:15",
+              "diff": "- Expected\n+ Received\n\n- 2\n+ 1"
             }
           ],
           "location": {
@@ -44,7 +45,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 'apple' to be 'apples' // Object.is equality",
-              "userFrame": "<root>/equality.test.ts:24:21"
+              "userFrame": "<root>/equality.test.ts:24:21",
+              "diff": "Expected: \"apples\"\nReceived: \"apple\""
             }
           ],
           "location": {
@@ -66,7 +68,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected null to be undefined // Object.is equality",
-              "userFrame": "<root>/equality.test.ts:28:18"
+              "userFrame": "<root>/equality.test.ts:28:18",
+              "diff": "- Expected:\nundefined\n\n+ Received:\nnull"
             }
           ],
           "location": {
@@ -88,7 +91,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { a: 1, b: [ 2 ] } to be { a: 1, b: [ 2 ] } // Object.is equality\n\nIf it should pass with deep equality, replace \"toBe\" with \"toStrictEqual\"\n\nExpected: { a: 1, b: [ 2 ] }\nReceived: serializes to the same string",
-              "userFrame": "<root>/equality.test.ts:32:30"
+              "userFrame": "<root>/equality.test.ts:32:30",
+              "diff": "Compared values have no visual difference."
             }
           ],
           "location": {
@@ -110,7 +114,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { a: 1, b: undefined } to be { a: 1 } // Object.is equality\n\nIf it should pass with deep equality, replace \"toBe\" with \"toEqual\"\n\nExpected: { a: 1, b: undefined }\nReceived: serializes to the same string",
-              "userFrame": "<root>/equality.test.ts:36:36"
+              "userFrame": "<root>/equality.test.ts:36:36",
+              "diff": "- Expected\n+ Received\n\n  {\n    \"a\": 1,\n+   \"b\": undefined,\n  }"
             }
           ],
           "location": {
@@ -132,7 +137,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected -0 to be +0 // Object.is equality",
-              "userFrame": "<root>/equality.test.ts:40:16"
+              "userFrame": "<root>/equality.test.ts:40:16",
+              "diff": "- Expected\n+ Received\n\n- 0\n+ -0"
             }
           ],
           "location": {
@@ -154,7 +160,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 3 not to be 3 // Object.is equality",
-              "userFrame": "<root>/equality.test.ts:44:19"
+              "userFrame": "<root>/equality.test.ts:44:19",
+              "diff": ""
             }
           ],
           "location": {
@@ -176,7 +183,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { a: 1, b: 2 } to deeply equal { a: 1, b: 3 }",
-              "userFrame": "<root>/equality.test.ts:50:28"
+              "userFrame": "<root>/equality.test.ts:50:28",
+              "diff": "- Expected\n+ Received\n\n  {\n    \"a\": 1,\n-   \"b\": 3,\n+   \"b\": 2,\n  }"
             }
           ],
           "location": {
@@ -198,7 +206,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [ 1, 2, 3 ] to deeply equal [ 1, 2, 4 ]",
-              "userFrame": "<root>/equality.test.ts:54:23"
+              "userFrame": "<root>/equality.test.ts:54:23",
+              "diff": "- Expected\n+ Received\n\n  [\n    1,\n    2,\n-   4,\n+   3,\n  ]"
             }
           ],
           "location": {
@@ -220,7 +229,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { Object (user) } to deeply equal { Object (user) }",
-              "userFrame": "<root>/equality.test.ts:58:52"
+              "userFrame": "<root>/equality.test.ts:58:52",
+              "diff": "- Expected\n+ Received\n\n  {\n    \"user\": {\n-     \"name\": \"bob\",\n+     \"name\": \"ada\",\n      \"tags\": [\n        \"x\",\n      ],\n    },\n  }"
             }
           ],
           "location": {
@@ -242,7 +252,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected Map{ 'a' => 1, 'b' => 2 } to deeply equal Map{ 'a' => 1, 'b' => 3 }",
-              "userFrame": "<root>/equality.test.ts:67:7"
+              "userFrame": "<root>/equality.test.ts:67:7",
+              "diff": "- Expected\n+ Received\n\n  Map {\n    \"a\" => 1,\n-   \"b\" => 3,\n+   \"b\" => 2,\n  }"
             }
           ],
           "location": {
@@ -264,7 +275,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected Set{ 1, 2 } to deeply equal Set{ 1, 3 }",
-              "userFrame": "<root>/equality.test.ts:76:29"
+              "userFrame": "<root>/equality.test.ts:76:29",
+              "diff": "- Expected\n+ Received\n\n  Set {\n    1,\n-   3,\n+   2,\n  }"
             }
           ],
           "location": {
@@ -286,7 +298,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { Object (key00, key01, ...) } to deeply equal { Object (key00, key01, ...) }",
-              "userFrame": "<root>/equality.test.ts:80:22"
+              "userFrame": "<root>/equality.test.ts:80:22",
+              "diff": "- Expected\n+ Received\n\n@@ -7,11 +7,11 @@\n    \"key05\": 5,\n    \"key06\": 6,\n    \"key07\": 7,\n    \"key08\": 8,\n    \"key09\": 9,\n-   \"key10\": 99,\n+   \"key10\": 10,\n    \"key11\": 11,\n    \"key12\": 12,\n    \"key13\": 13,\n    \"key14\": 14,\n    \"key15\": 15,"
             }
           ],
           "location": {
@@ -308,7 +321,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected '1' to deeply equal 1",
-              "userFrame": "<root>/equality.test.ts:84:17"
+              "userFrame": "<root>/equality.test.ts:84:17",
+              "diff": "- Expected:\n1\n\n+ Received:\n\"1\""
             }
           ],
           "location": {
@@ -330,7 +344,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { a: 1 } to not deeply equal { a: 1 }",
-              "userFrame": "<root>/equality.test.ts:88:26"
+              "userFrame": "<root>/equality.test.ts:88:26",
+              "diff": "Compared values have no visual difference."
             }
           ],
           "location": {
@@ -352,7 +367,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected Point{ x: 1, y: 2 } to strictly equal { x: 1, y: 2 }",
-              "userFrame": "<root>/equality.test.ts:94:29"
+              "userFrame": "<root>/equality.test.ts:94:29",
+              "diff": "- Expected\n+ Received\n\n- {\n+ Point {\n    \"x\": 1,\n    \"y\": 2,\n  }"
             }
           ],
           "location": {
@@ -374,7 +390,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { a: 1, b: undefined } to strictly equal { a: 1 }",
-              "userFrame": "<root>/equality.test.ts:98:36"
+              "userFrame": "<root>/equality.test.ts:98:36",
+              "diff": "- Expected\n+ Received\n\n  {\n    \"a\": 1,\n+   \"b\": undefined,\n  }"
             }
           ],
           "location": {
@@ -396,7 +413,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [ 1, undefined, 3 ] to strictly equal [ 1, undefined, 3 ]",
-              "userFrame": "<root>/equality.test.ts:103:22"
+              "userFrame": "<root>/equality.test.ts:103:22",
+              "diff": "Compared values have no visual difference."
             }
           ],
           "location": {
@@ -418,7 +436,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [ 1, 2 ] to not strictly equal [ 1, 2 ]",
-              "userFrame": "<root>/equality.test.ts:107:24"
+              "userFrame": "<root>/equality.test.ts:107:24",
+              "diff": "Compared values have no visual difference."
             }
           ],
           "location": {
@@ -440,7 +459,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { x: 1 } to deeply equal { x: 2 }",
-              "userFrame": "<root>/equality.test.ts:115:22"
+              "userFrame": "<root>/equality.test.ts:115:22",
+              "diff": "- Expected\n+ Received\n\n  {\n-   \"x\": 2,\n+   \"x\": 1,\n  }"
             }
           ],
           "location": {
@@ -462,7 +482,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected true to be false // Object.is equality",
-              "userFrame": "<root>/equality.test.ts:120:18"
+              "userFrame": "<root>/equality.test.ts:120:18",
+              "diff": "- Expected\n+ Received\n\n- false\n+ true"
             }
           ],
           "location": {
@@ -484,7 +505,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 'same' not to be 'same' // Object.is equality",
-              "userFrame": "<root>/equality.test.ts:125:24"
+              "userFrame": "<root>/equality.test.ts:125:24",
+              "diff": ""
             }
           ],
           "location": {

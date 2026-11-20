@@ -40,6 +40,8 @@ export interface ExpectFailure {
   readonly text: string
   /** Jest's `failureDetails[i].matcherResult.name`; absent for an error no matcher made. */
   readonly matcher?: string
+  /** The diff the error carries (the Vitest dialect's, `SerializedError.diff`). */
+  readonly diff?: string
 }
 
 /** A test as the comparison sees it. */
@@ -58,7 +60,11 @@ function failureText(error: SerializedError): string {
 
 function failureOf(error: SerializedError): ExpectFailure {
   const matcher = error.matcherResult?.name
-  return { text: failureText(error), ...(matcher === undefined ? {} : { matcher }) }
+  return {
+    text: failureText(error),
+    ...(matcher === undefined ? {} : { matcher }),
+    ...(error.diff === undefined ? {} : { diff: error.diff }),
+  }
 }
 
 /**
