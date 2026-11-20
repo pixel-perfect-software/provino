@@ -76,11 +76,14 @@ export type b = (this: TesterContext, a: unknown, b: unknown, customTesters: b[]
 
 // @public
 export interface C {
+    readonly assertionError?: (result: MatcherResult, message: string, call: MatcherCall) => Error;
     readonly asymmetric: AsymmetricFactories;
     readonly asymmetricNot: AsymmetricFactories;
+    readonly chain?: (actual: unknown, name: string, call: MatcherCall) => unknown;
     customAsymmetric(name: string, matcher: I): CustomAsymmetricBuilder;
     // (undocumented)
     readonly matchers: MatcherSet;
+    readonly messageArgument?: boolean;
     // (undocumented)
     readonly messages: ExpectMessages;
     readonly promiseMatchers: MatcherSet;

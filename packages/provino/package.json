@@ -130,6 +130,7 @@
     "@provino/config": "workspace:*",
     "@provino/coverage": "workspace:*",
     "@provino/dialect-jest": "workspace:*",
+    "@provino/dialect-vitest": "workspace:*",
     "@provino/env-jsdom": "workspace:*",
     "@provino/env-node": "workspace:*",
     "@provino/lazy": "workspace:*",

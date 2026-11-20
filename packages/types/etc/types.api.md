@@ -1005,11 +1005,14 @@ export interface ExpectStatic extends InvertibleAsymmetric {
 
 // @public
 export interface ExpectTable {
+    readonly assertionError?: (result: MatcherResult, message: string, call: MatcherCall) => Error;
     readonly asymmetric: AsymmetricFactories;
     readonly asymmetricNot: AsymmetricFactories;
+    readonly chain?: (actual: unknown, name: string, call: MatcherCall) => unknown;
     customAsymmetric(name: string, matcher: Matcher): CustomAsymmetricBuilder;
     // (undocumented)
     readonly matchers: MatcherSet;
+    readonly messageArgument?: boolean;
     // (undocumented)
     readonly messages: ExpectMessages;
     readonly promiseMatchers: MatcherSet;
@@ -1843,6 +1846,7 @@ export interface MatcherCall {
     readonly isNot: boolean;
     // (undocumented)
     readonly matcherName: string;
+    readonly message?: string;
     // (undocumented)
     readonly promise: PromiseVoice;
 }
