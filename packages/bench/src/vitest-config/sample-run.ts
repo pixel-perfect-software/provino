@@ -13,7 +13,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runProcess } from '@provino/harness'
 import { brief, type KeyDifference } from '../jest-config/compare.ts'
-import { compareTest, TEST_BAR_KEYS, unstablePaths } from './compare.ts'
+import { compareTest, TEST_BAR_KEYS } from './compare.ts'
 import type { ProvinoOutcome, ReadOutcome } from './oracle.ts'
 import type { SampleManifest } from './sample-manifest.ts'
 import { MANIFEST_PATH, repoDir, SAMPLE_DIR } from './sample-paths.ts'
@@ -31,8 +31,10 @@ export interface SampleResult {
   readonly fetched: boolean
   readonly vitest: ReadOutcome | null
   readonly provino: ProvinoOutcome | null
-  /** Paths where two reads of the config by Vitest itself differ (masked on both sides). */
-  readonly unstable?: readonly string[]
+  /** Leaves Vitest derives itself that differ between its two reads (masked on both sides). */
+  readonly masked?: readonly string[]
+  /** Leaves under a key the config sets that differ between Vitest's reads (ours must match). */
+  readonly verified?: readonly string[]
   readonly compared: readonly string[]
   readonly differences: readonly KeyDifference[]
 }
@@ -180,7 +182,7 @@ export async function runSample(options: {
         options.timeoutMs,
       )
       // A second read by Vitest in a process of its own: what differs between the two (a path made
-      // from the process id) can't be compared with anything, so both sides mask it.
+      // from the process id) is found by value in `compareTest`, never by name.
       const again = await readSide<ReadOutcome>(
         '.again',
         sampleDir,
@@ -191,26 +193,21 @@ export async function runSample(options: {
         id,
         options.timeoutMs,
       )
-      const unstable =
-        vitest.ok && again.ok
-          ? unstablePaths(vitest.test, again.test).concat(
-              unstablePaths(vitest.alias, again.alias, 'alias'),
-            )
-          : []
       const comparison =
         vitest.ok && provino.ok && !provino.needsVite
-          ? compareTest(
-              provino.test,
-              vitest.test,
-              vitest.root,
-              defaults.test,
-              defaults.root,
-              new Set(provino.given),
-              vitest.alias,
-              new Set(unstable),
-            )
-          : { compared: [], differences: [] }
-      results.push({ id, ...entry, fetched: true, vitest, provino, unstable, ...comparison })
+          ? compareTest({
+              ours: provino.test,
+              theirs: vitest.test,
+              configFile: config,
+              ...(again.ok ? { again: again.test } : {}),
+              root: vitest.root,
+              defaults: defaults.test,
+              defaultsRoot: defaults.root,
+              given: new Set(provino.given),
+              theirAlias: vitest.alias,
+            })
+          : { compared: [], differences: [], masked: [], verified: [] }
+      results.push({ id, ...entry, fetched: true, vitest, provino, ...comparison })
     }
   })
   await Promise.all(workers)
@@ -249,10 +246,33 @@ export async function runSample(options: {
     `  readable by Vitest's resolveConfig: ${readable.length}   (unreadable: ${fetched.length - readable.length})`,
     `  compared (readable, no plugins, not refused): ${judged.length}   (needs Vite, B25d: ${needsVite.length}; refused by design: ${refused.length}; ours failed: ${oursFailed.length})`,
     `  equal on every compared key: ${equal.length} of ${judged.length}`,
-    `  unstable between two runs of Vitest itself (masked on both sides): ${results.filter((result) => (result.unstable?.length ?? 0) > 0).length} configs`,
     '  per key (configs that set it: equal/compared):',
     ...[...perKey.entries()].map(([key, row]) => `    ${key}: ${row.equal}/${row.compared}`),
   ]
+  const tally = (field: 'masked' | 'verified') => {
+    const counts = new Map<string, number>()
+    for (const result of judged) {
+      for (const path of result[field] ?? []) {
+        const generic = path.replace(/\[\d+\]/g, '[]')
+        counts.set(generic, (counts.get(generic) ?? 0) + 1)
+      }
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1])
+  }
+  for (const [field, what] of [
+    [
+      'masked',
+      'masked on both sides (Vitest derives it, and it differs between two reads by Vitest)',
+    ],
+    [
+      'verified',
+      'checked to be a value Vitest could have given (the config sets the key, and it differs between two reads by Vitest)',
+    ],
+  ] as const) {
+    const rows = tally(field)
+    lines.push(`  ${field}: ${rows.length} paths, ${what}`)
+    for (const [path, count] of rows) lines.push(`    ${path}: ${count} configs`)
+  }
   for (const result of oursFailed) {
     const error = result.provino?.ok === false ? result.provino.error : 'no result'
     lines.push(

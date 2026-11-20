@@ -1,6 +1,7 @@
 {
   "description": "T3.3 (B25c): which alias wins: the first matching entry of resolve.alias, and resolve.alias against test.alias for the same find. The title names what each import gave.",
   "runners": ["vitest"],
+  "vitestProjects": true,
   "config": {
     "vitest": {
       "test": {

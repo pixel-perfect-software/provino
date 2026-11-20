@@ -46,6 +46,7 @@
     "@provino/config": "workspace:*",
     "@provino/policy": "workspace:*",
     "@provino/types": "workspace:*",
+    "oxc-parser": "catalog:",
     "oxc-transform": "catalog:"
   },
   "devDependencies": {

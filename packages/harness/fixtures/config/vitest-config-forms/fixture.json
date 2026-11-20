@@ -1,6 +1,7 @@
 {
   "description": "T11.15 (B25c): the shapes a config file takes: a function export called with the serve command and the mode, and defineConfig and mergeConfig from vitest/config, where mergeConfig concatenates the include arrays. A test per key prints each project's name and timeout; the files that ran show which include globs applied.",
   "runners": ["vitest"],
+  "vitestProjects": true,
   "config": {
     "vitest": {
       "test": {

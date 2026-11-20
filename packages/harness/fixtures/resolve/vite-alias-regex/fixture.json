@@ -1,6 +1,7 @@
 {
   "description": "T3.3 (B25c): resolve.alias entries with a RegExp find under Vite in Vitest 5.0.5: an anchored one with a capture, one that replaces only the part it matches, and one with several groups reordered. The title names what each import gave.",
   "runners": ["vitest"],
+  "vitestProjects": true,
   "config": {
     "vitest": {
       "test": {

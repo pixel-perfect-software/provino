@@ -101,7 +101,8 @@ export async function readWithProvino(config: string): Promise<ProvinoOutcome> {
       test: { ...encodeTest(resolved.root.test), root: resolved.root.root },
       given: Object.keys(resolved.root.given),
       root: resolved.root.root,
-      needsVite: resolved.root.needsVite,
+      // A plugin in an inline project can change that project's `test` as much as the root's can.
+      needsVite: resolved.root.needsVite || resolved.projects.some((project) => project.needsVite),
       warnings,
     }
   } catch (error) {

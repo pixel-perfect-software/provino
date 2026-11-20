@@ -181,9 +181,29 @@ describe('bare provino', () => {
     assert.equal(none.code, 2)
     assert.match(none.stderr, /found no provino\.config\.\*, Jest config or Vitest config/)
 
-    const both = await tree({ ...JEST_PROJECT, 'vite.config.mjs': 'export default { test: {} }\n' })
-    const clash = await provino([], both)
-    assert.match(clash.stderr, /both a Jest config and a Vitest config/)
+    // A Jest config settles it: the Vite config is not even read.
+    const jestWithVite = await tree({
+      ...JEST_PROJECT,
+      'vite.config.mjs': 'export default { test: {} }\n',
+    })
+    assert.equal((await provino([], jestWithVite)).code, 0)
+
+    // A vitest.config.* beside a Jest config is still the clash.
+    const both = await tree({ ...JEST_PROJECT, 'vitest.config.mjs': 'export default {}\n' })
+    assert.match((await provino([], both)).stderr, /both a Jest config and a Vitest config/)
+  })
+
+  it('a vite.config.* that does not load never breaks detection (B25c)', async () => {
+    const broken = 'export default { test: \n'
+    // Next to a Jest project it is ignored: the project runs.
+    const jest = await tree({ ...JEST_PROJECT, 'vite.config.ts': broken })
+    assert.equal((await provino([], jest)).code, 0)
+    // Alone it is no evidence of Vitest: the usual "found no config" usage error, no stack.
+    const alone = await tree({ 'vite.config.ts': broken })
+    const result = await provino([], alone)
+    assert.equal(result.code, 2)
+    assert.match(result.stderr, /found no provino\.config\.\*, Jest config or Vitest config/)
+    assert.doesNotMatch(result.stderr, /\n\s+at /)
   })
 })
 

@@ -79,3 +79,62 @@ test('a config function that throws, and one that gives no object, are coded err
   )
   assert.equal((bad as { code?: string }).code, 'VITEST_CONFIG_INVALID')
 })
+
+async function loadError(files: Record<string, string>, config: string): Promise<unknown> {
+  return load(files, config).then(
+    () => undefined,
+    (error: unknown) => error,
+  )
+}
+
+function causes(error: unknown): unknown[] {
+  const out: unknown[] = []
+  for (let at = error; at instanceof Error; at = at.cause) out.push(at)
+  return out
+}
+
+test('a config function runs with the hooks and the stand-in still installed', async () => {
+  const { loaded } = await load(
+    {
+      'package.json': '{"type":"module"}',
+      'helper.ts': "export const label: string = 'from-helper'\n",
+      'vitest.config.ts':
+        "export default async () => {\n  const { defineConfig } = await import('vitest/config')\n  const { label } = await import('./helper')\n  return defineConfig({ test: { name: label } })\n}\n",
+    },
+    'vitest.config.ts',
+  )
+  assert.deepEqual(loaded.config, { test: { name: 'from-helper' } })
+})
+
+test('a require() of JSON from a CommonJS config gets the parsed value, not a namespace', async () => {
+  const { loaded } = await load(
+    {
+      'list.json': '["a", "b"]\n',
+      'vitest.config.cjs':
+        "const list = require('./list.json')\nmodule.exports = { test: { name: Array.isArray(list) ? 'array' : 'namespace' } }\n",
+    },
+    'vitest.config.cjs',
+  )
+  assert.deepEqual(loaded.config, { test: { name: 'array' } })
+})
+
+test('CommonJS source is told from ES module source by its parse, not by its lines', async () => {
+  const { loaded } = await load(
+    {
+      'package.json': '{"type":"commonjs"}',
+      'vitest.config.js':
+        "const text = `\nimport this from 'looks-like-an-import'\nexport const x = 1\n`\nPromise.resolve()\n  .then(() => 0)\nimport('node:path').catch(() => {})\nmodule.exports = { test: { name: String(text.length > 0) } }\n",
+    },
+    'vitest.config.js',
+  )
+  assert.deepEqual(loaded.config, { test: { name: 'true' } })
+})
+
+test('a file the parser rejects is left to Node, whose error is the one reported', async () => {
+  const error = await loadError(
+    { 'vitest.config.ts': 'export default { test: { name: \n' },
+    'vitest.config.ts',
+  )
+  assert.equal((error as { code?: string }).code, 'VITEST_CONFIG_LOAD_FAILED')
+  assert.ok(causes(error).some((entry) => entry instanceof SyntaxError))
+})

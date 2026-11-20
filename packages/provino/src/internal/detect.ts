@@ -32,8 +32,14 @@ async function hasJestKey(path: string): Promise<boolean> {
 
 /** Whether `cwd`'s `vite.config.*` has a `test` key; the reader loads only when there is one. */
 async function declaresTests(cwd: string): Promise<boolean> {
-  const { viteConfigDeclaresTests } = await import('@provino/dialect-vitest/node')
-  return viteConfigDeclaresTests(cwd)
+  try {
+    const { viteConfigDeclaresTests } = await import('@provino/dialect-vitest/node')
+    return await viteConfigDeclaresTests(cwd)
+  } catch {
+    // A `vite.config.*` that doesn't load is not evidence of a Vitest project: a Jest project may
+    // carry one for its bundler, and a project with only that one is reported as having no config.
+    return false
+  }
 }
 
 async function findsJest(cwd: string): Promise<boolean> {
@@ -61,9 +67,10 @@ export async function detectProject(
     if (names.has(name)) return { kind: 'provino', config: join(cwd, name) }
   }
   const jest = await findsJest(cwd)
+  // A Jest config settles it: `vite.config.*` is read only when nothing else says what this is.
   const vitest =
     [...names].some((name) => VITEST_CONFIG.test(name)) ||
-    ([...names].some((name) => VITE_CONFIG.test(name)) && (await declaresTests(cwd)))
+    (!jest && [...names].some((name) => VITE_CONFIG.test(name)) && (await declaresTests(cwd)))
   if (jest && vitest) {
     throw new UsageError(
       'found both a Jest config and a Vitest config here: say which one to run with --dialect jest or --dialect vitest',

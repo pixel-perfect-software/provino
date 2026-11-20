@@ -10,6 +10,7 @@ import { dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ConfigError, importConfigModule } from '@provino/config'
 import type { ConfigSource } from '@provino/types'
+import { parseSync } from 'oxc-parser'
 import { transformSync } from 'oxc-transform'
 import { VitestConfigError } from './errors.ts'
 import { vitestConfigStandIn } from './vitest-config-stand-in.ts'
@@ -48,11 +49,6 @@ function isProjectFile(url: string): boolean {
 
 const TRANSFORMED = /\.[cm]?[jt]sx?$/
 
-/** Whether stripped source is ES module source: a static import or export, or `import.meta`. */
-function hasModuleSyntax(code: string): boolean {
-  return /^\s*(?:import\b|export\b)|\bimport\.meta\b/m.test(code)
-}
-
 /** Whether a name is a plain identifier, so a JSON key can be a named export. */
 const IDENTIFIER = /^[A-Za-z_$][\w$]*$/
 
@@ -87,14 +83,17 @@ function bundled<T extends { format?: string | null | undefined; source?: unknow
     return withDirnames(url, next(url, context as never))
   }
   const source = readFileSync(file, 'utf8')
-  const output = transformSync(file, source, { sourcemap: false })
-  if (output.errors.length > 0) {
-    throw new Error(`can't read ${file}: ${output.errors[0]?.message ?? 'syntax error'}`)
-  }
+  // The parse decides: a file the parser rejects is left to Node, which words the error.
+  const parsed = parseSync(file, source)
+  if (parsed.errors.length > 0) return next(url, context as never)
+  const esm = parsed.module.hasModuleSyntax
+  const typed = /\.[cm]?ts$|\.[jt]sx$/.test(file)
   // A file that is CommonJS by its own syntax (or a .cts/.cjs) keeps Node's loader.
-  if (!hasModuleSyntax(output.code) || /\.c[jt]s$/.test(file)) {
-    return withDirnames(url, next(url, context as never))
-  }
+  if (!esm || /\.c[jt]s$/.test(file)) return withDirnames(url, next(url, context as never))
+  // ES module source in a .js file needs no change but its format, whatever its package says.
+  if (!typed) return withDirnames(url, { format: 'module', source, shortCircuit: true } as never)
+  const output = transformSync(file, source, { sourcemap: false })
+  if (output.errors.length > 0) return next(url, context as never)
   return withDirnames(url, { format: 'module', source: output.code, shortCircuit: true } as never)
 }
 
@@ -161,7 +160,8 @@ async function withStandIn<T>(work: () => Promise<T>): Promise<T> {
           if (
             isProjectFile(resolved.url) &&
             /\.json$/.test(resolved.url.replace(/[?#].*$/, '')) &&
-            context.importAttributes?.type !== 'json'
+            context.importAttributes?.type !== 'json' &&
+            !context.conditions.includes('require')
           ) {
             return { ...resolved, format: 'module' }
           }
@@ -225,31 +225,32 @@ export async function loadVitestConfig(
   source: ConfigSource,
   options: { readonly mode: string },
 ): Promise<VitestLoadedConfig> {
+  // The config function runs inside the hooks too: its own imports go through them.
+  const stage: { phase: 'import' | 'function' } = { phase: 'import' }
   let value: unknown
   try {
-    value = await withStandIn(() => importConfigModule(source.path))
-  } catch (cause) {
-    const message =
-      cause instanceof ConfigError ? cause.message : `can't load the config file "${source.path}"`
-    throw new VitestConfigError('VITEST_CONFIG_LOAD_FAILED', message, { cause })
-  }
-  try {
-    if (typeof value === 'function') {
-      value = await value({
+    value = await withStandIn(async () => {
+      const exported = await importConfigModule(source.path)
+      stage.phase = 'function'
+      if (typeof exported !== 'function') return exported
+      return exported({
         command: 'serve',
         mode: options.mode,
         isSsrBuild: false,
         isPreview: false,
       })
-    } else {
-      value = await value
-    }
+    })
   } catch (cause) {
-    throw new VitestConfigError(
-      'VITEST_CONFIG_LOAD_FAILED',
-      `the config function in "${source.path}" threw`,
-      { cause },
-    )
+    if (stage.phase === 'function') {
+      throw new VitestConfigError(
+        'VITEST_CONFIG_LOAD_FAILED',
+        `the config function in "${source.path}" threw`,
+        { cause },
+      )
+    }
+    const message =
+      cause instanceof ConfigError ? cause.message : `can't load the config file "${source.path}"`
+    throw new VitestConfigError('VITEST_CONFIG_LOAD_FAILED', message, { cause })
   }
   if (!isRecord(value)) {
     throw new VitestConfigError(

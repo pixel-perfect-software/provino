@@ -131,3 +131,50 @@ test('an alias object keeps its order, and one that cannot be mapped warns', () 
     ['VITEST_CONFIG_NOT_APPLIED', 'VITEST_CONFIG_NOT_APPLIED'],
   )
 })
+
+test('a negated class, a brace with a slash in it, and dot entries follow tinyglobby with dot: true', async () => {
+  const root = writeTree({
+    'packages/a/x': '',
+    'packages/b/x': '',
+    'packages/c/x': '',
+    'apps/web/x': '',
+    'libs/x': '',
+    '.hidden/x': '',
+    '.git/x': '',
+    '.DS_Store': '',
+    'vitest.config.ts.timestamp-1-abc.mjs': '',
+    'node_modules/pkg/x': '',
+  })
+  // [!ab] is "not a or b", as in a shell, not "!, a or b".
+  assert.deepEqual(await expandGlobs(root, ['packages/[!ab]']), [`${root}/packages/c`])
+  // A brace is expanded before the pattern is cut at its slashes.
+  assert.deepEqual(await expandGlobs(root, ['{apps/web,libs}/x']), [
+    `${root}/apps/web/x`,
+    `${root}/libs/x`,
+  ])
+  // dot: true: * and ** match dot entries and descend into dot directories; node_modules, a
+  // .DS_Store and a *.timestamp-* bundle are what Vitest ignores.
+  assert.deepEqual(await expandGlobs(root, ['*/x']), [
+    `${root}/.git/x`,
+    `${root}/.hidden/x`,
+    `${root}/libs/x`,
+  ])
+  const all = await expandGlobs(root, ['**/x'])
+  assert.ok(all.includes(`${root}/.git/x`) && all.includes(`${root}/.hidden/x`))
+  assert.ok(!all.some((path) => path.includes('node_modules')))
+  assert.deepEqual(
+    await expandGlobs(root, ['*']).then((paths) =>
+      paths.filter((path) => /DS_Store|timestamp/.test(path)),
+    ),
+    [],
+  )
+})
+
+test('the same cuts and classes in an exclude regular expression', () => {
+  const regex = (glob: string) => new RegExp(globToRegexSource(glob, '/work/app'))
+  assert.equal(regex('{apps/web,libs}/**').test('/work/app/apps/web/a.ts'), true)
+  assert.equal(regex('{apps/web,libs}/**').test('/work/app/libs/a.ts'), true)
+  assert.equal(regex('{apps/web,libs}/**').test('/work/app/apps/api/a.ts'), false)
+  assert.equal(regex('src/[!a]*.ts').test('/work/app/src/b.ts'), true)
+  assert.equal(regex('src/[!a]*.ts').test('/work/app/src/a.ts'), false)
+})
