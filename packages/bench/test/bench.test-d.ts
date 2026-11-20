@@ -7,6 +7,7 @@ import {
   buildRecord,
   type CacheDir,
   type CacheKind,
+  type CliCommand,
   type ExecOutcome,
   type ExecProcess,
   type ExecRequest,
@@ -43,6 +44,7 @@ import {
   type SuiteVerdict,
   startRssSampler,
   sumTreeRssMib,
+  type TimedRunnerName,
   wallStats,
 } from '@provino/bench'
 import type {
@@ -190,6 +192,17 @@ expectTypeOf<RunnerPlan['isolation']>().toEqualTypeOf<IsolationMode>()
 expectTypeOf<RunnerName>().toEqualTypeOf<'jest' | 'vitest' | 'provino' | 'provino-vitest'>()
 planRunner(parseSuiteName('app-5'), 'provino-vitest')
 expectTypeOf<RunnerPlan['runner']>().toEqualTypeOf<RunnerName>()
+// A timed run takes every runner but provino-vitest, which only `check` runs.
+expectTypeOf<TimedRunnerName>().toEqualTypeOf<'jest' | 'vitest' | 'provino'>()
+type RunCommand = Extract<CliCommand, { readonly command: 'run' }>
+expectTypeOf<RunCommand['runners']>().toEqualTypeOf<readonly TimedRunnerName[]>()
+expectTypeOf<Extract<CliCommand, { readonly command: 'check' }>['runners']>().toEqualTypeOf<
+  readonly RunnerName[]
+>()
+declare const runCommand: RunCommand
+accept<RunCommand>({ ...runCommand, runners: ['jest', 'provino'] })
+// @ts-expect-error a timed run never holds provino-vitest
+accept<RunCommand>({ ...runCommand, runners: ['provino-vitest'] })
 // @ts-expect-error only Jest, Vitest and Provino (under either dialect) are runners
 planRunner(parseSuiteName('app-5'), 'mocha')
 // @ts-expect-error extra arguments are strings
