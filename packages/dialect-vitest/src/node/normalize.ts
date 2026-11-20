@@ -172,11 +172,19 @@ function build(
     /** Where the project is rooted: derived once, by `rootOf` or from the command line. */
     readonly root: string
     readonly fallbackName: string
+    /** The top-level config, which alone takes `--exclude`. */
+    readonly isRoot?: true
   },
 ): VitestResolvedProject {
   const { vite, fileTest, configFile, root } = parts
-  const given = deepMerge({}, fileTest, context.options.test ?? {})
+  const { cliExclude, ...cliTest } = context.options.test ?? {}
+  const given = deepMerge({}, fileTest, cliTest)
   const test = deepMerge({}, configDefaults as Rec, given)
+  // `--exclude` adds to the excludes (cac.ts L284 `cliExclude`, resolveConfig.ts L633-L635). It is
+  // not among `PROJECT_CLI_OVERRIDES` (resolveProjects.ts L52), so a child project never gets it.
+  if (parts.isRoot === true && Array.isArray(cliExclude)) {
+    test.exclude = [...(Array.isArray(test.exclude) ? test.exclude : []), ...cliExclude]
+  }
   refuse(test, configFile ?? root)
   // `vite.root` and `test.root` are paths, not options a project inherits as text.
   const name = nameOf(test) ?? parts.fallbackName
@@ -310,6 +318,7 @@ export async function resolveVitestProjects(
     configFile: rootFile,
     root: rootDir,
     fallbackName: '',
+    isRoot: true,
   })
   const entries = projectEntries(root.given)
   if (entries.length === 0) return { root, projects: [root] }

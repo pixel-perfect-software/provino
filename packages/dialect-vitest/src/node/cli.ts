@@ -477,6 +477,11 @@ export function vitestArgvToTestConfig(argv: VitestArgv): Record<string, unknown
     }
     target[parts[parts.length - 1] as string] = source
   }
+  // cac.ts L283-L286: `--exclude` is `cliExclude`, which the reader adds to the excludes.
+  if (test.exclude !== undefined) {
+    test.cliExclude = test.exclude
+    delete test.exclude
+  }
   return test
 }
 

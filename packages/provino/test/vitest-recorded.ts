@@ -3,7 +3,7 @@
 // and `provino vitest` run on it through the bin, in the recorder's environment.
 import { cp, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { type Spawned, spawnCli } from './support.ts'
 
@@ -22,6 +22,8 @@ export interface VitestManifest {
 
 /** The parts of a Vitest golden a replay compares. */
 export interface VitestGolden {
+  /** Each file the run reported, relative to the root, with its status. */
+  readonly files?: readonly { readonly file: string; readonly status: string }[]
   readonly observed?: {
     readonly exitCode?: number
     readonly stdout?: string
@@ -100,4 +102,31 @@ export function keptLines(fixture: VitestFixture, text: string): string {
   return (
     pattern === undefined ? lines : lines.filter((line) => new RegExp(pattern).test(line))
   ).join('\n')
+}
+
+/** `fn` over the fixture written out to a fresh directory, removed afterwards. */
+export async function withVitestFixture<T>(
+  id: string,
+  fn: (fixture: VitestFixture, root: string) => Promise<T>,
+): Promise<T> {
+  const fixture = await loadVitestFixture(id)
+  const project = await materializeVitest(fixture)
+  try {
+    return await fn(fixture, project.root)
+  } finally {
+    await project.dispose()
+  }
+}
+
+/** Each file a `--reporter=json` document reports, relative to `root`, with its status, sorted. */
+export async function reportedFiles(
+  root: string,
+  output: string,
+): Promise<readonly { readonly file: string; readonly status: string }[]> {
+  const json = JSON.parse(await readFile(join(root, output), 'utf8')) as {
+    readonly testResults: readonly { readonly name: string; readonly status: string }[]
+  }
+  return json.testResults
+    .map((result) => ({ file: relative(root, result.name), status: result.status }))
+    .sort((a, b) => a.file.localeCompare(b.file))
 }
