@@ -3,6 +3,7 @@
 // testers, in both modes.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
+import { runInNewContext } from 'node:vm'
 import * as upstream from '@jest/expect-utils'
 import * as vendored from './vendor/expect-utils/index.ts'
 
@@ -33,7 +34,7 @@ function makeValue(random: () => number, depth: number): unknown {
     case 5:
       return new Date(Math.floor(random() * 2) * 1000)
     case 6:
-      return Number.isNaN(random()) ? Symbol.for('x') : /re/g
+      return random() < 0.5 ? Symbol.for('x') : /re/g
     case 7:
       return new Error(['m', 'n'][Math.floor(random() * 2)])
     case 8:
@@ -76,7 +77,168 @@ const sets = (lib: typeof upstream | typeof vendored) => ({
   ],
 })
 
+const MATCHER = Symbol.for('jest.asymmetricMatcher')
+const isOne = {
+  $typeof: MATCHER,
+  asymmetricMatch: (other: unknown) => other === 1,
+  toString: () => 'One',
+}
+
+function cycle(): Record<string, unknown> {
+  const a: Record<string, unknown> = { n: 1 }
+  a.self = a
+  return a
+}
+function cyclicSet(): Set<unknown> {
+  const s = new Set<unknown>()
+  s.add(s)
+  return s
+}
+function cyclicMap(): Map<unknown, unknown> {
+  const m = new Map<unknown, unknown>()
+  m.set('me', m)
+  return m
+}
+class Point {
+  x = 1
+}
+class Other {
+  x = 1
+}
+const hidden = Object.defineProperty({ a: 1 }, 'h', { value: 1, enumerable: false })
+const hiddenToo = Object.defineProperty({ a: 1 }, 'h', { value: 2, enumerable: false })
+const sym = Symbol('k')
+function sparse(): unknown[] {
+  const items: unknown[] = [1]
+  items[2] = 3
+  return items
+}
+const foreign = <T>(source: string): T => runInNewContext(source) as T
+
+/** Pairs worth fixing by hand: each one a place a one-line change to the copy shows. */
+const fixed: readonly [name: string, a: unknown, b: unknown][] = [
+  ['asymmetric on the left', isOne, 1],
+  ['asymmetric on the right', 1, isOne],
+  ['asymmetric that fails', isOne, 2],
+  ['asymmetric inside an object', { a: isOne }, { a: 1 }],
+  ['asymmetric inside an array', [isOne], [1]],
+  ['self-referencing objects', cycle(), cycle()],
+  ['self-referencing against a plain object', cycle(), { n: 1 }],
+  ['self-referencing sets', cyclicSet(), cyclicSet()],
+  ['self-referencing maps', cyclicMap(), cyclicMap()],
+  ['array from another realm', foreign('[1, 2]'), [1, 2]],
+  ['array against another realm array', foreign('[1, 2]'), foreign('[1, 2]')],
+  ['Map from another realm', foreign('new Map([[1, 2]])'), new Map([[1, 2]])],
+  ['Set from another realm', foreign('new Set([1])'), new Set([1])],
+  ['Date from another realm', foreign('new Date(5)'), new Date(5)],
+  ['Date from another realm, other time', foreign('new Date(5)'), new Date(6)],
+  ['object from another realm', foreign('({ a: 1 })'), { a: 1 }],
+  ['class instance from another realm', foreign('new (class A { x = 1 })()'), new Point()],
+  ['two instances of one class', new Point(), new Point()],
+  ['two classes with the same shape', new Point(), new Other()],
+  ['a class instance against a plain object', new Point(), { x: 1 }],
+  ['symbol keys equal', { [sym]: 1 }, { [sym]: 1 }],
+  ['symbol keys differ', { [sym]: 1 }, { [sym]: 2 }],
+  ['symbol key against none', { [sym]: 1 }, {}],
+  ['non-enumerable property, equal', hidden, { a: 1 }],
+  ['non-enumerable property, differing', hidden, hiddenToo],
+  ['TypeError against Error, same message', new TypeError('m'), new Error('m')],
+  ['Error against Error, other message', new Error('m'), new Error('n')],
+  ['Error with a cause', new Error('m', { cause: 1 }), new Error('m', { cause: 2 })],
+  ['URLs equal', new URL('http://a.test/x'), new URL('http://a.test/x')],
+  ['URLs differ', new URL('http://a.test/x'), new URL('http://a.test/y')],
+  ['an invalid Date against itself', new Date(Number.NaN), new Date(Number.NaN)],
+  ['an invalid Date against a Date', new Date(Number.NaN), new Date(0)],
+  ['ArrayBuffers equal', new Uint8Array([1, 2]).buffer, new Uint8Array([1, 2]).buffer],
+  ['ArrayBuffers differ', new Uint8Array([1, 2]).buffer, new Uint8Array([1, 3]).buffer],
+  [
+    'DataViews equal',
+    new DataView(new Uint8Array([1, 2]).buffer),
+    new DataView(new Uint8Array([1, 2]).buffer),
+  ],
+  [
+    'DataViews differ',
+    new DataView(new Uint8Array([1, 2]).buffer),
+    new DataView(new Uint8Array([2, 2]).buffer),
+  ],
+  ['undefined property against none', { a: undefined }, {}],
+  ['undefined property against another', { a: undefined }, { b: undefined }],
+  ['0 against -0', 0, -0],
+  ['NaN against NaN', Number.NaN, Number.NaN],
+  ['boxed primitives', new Number(1), new Number(1)],
+  ['a boxed primitive against a primitive', new String('a'), 'a'],
+  ['regular expressions', /a/g, /a/g],
+  ['regular expressions with other flags', /a/g, /a/i],
+  ['sets of objects', new Set([{ a: 1 }]), new Set([{ a: 1 }])],
+  ['maps with object keys', new Map([[{ a: 1 }, 1]]), new Map([[{ a: 1 }, 1]])],
+  ['arrays with extra keys', Object.assign([1], { k: 1 }), [1]],
+  ['sparse against dense', sparse(), [1, undefined, 3]],
+  ['an array against an object with its keys', [1, 2], { 0: 1, 1: 2 }],
+]
+
+/** A tester that asks `this.equals`, as a user's does. */
+function lowercase(this: { equals: (a: unknown, b: unknown) => boolean }, a: unknown, b: unknown) {
+  if (typeof a === 'string' && typeof b === 'string')
+    return this.equals(a.toLowerCase(), b.toLowerCase())
+  return undefined
+}
+
 describe('the vendored @jest/expect-utils', () => {
+  test('fixed pairs agree with the upstream under every tester set and both modes', () => {
+    const mine = { ...sets(vendored), user: [lowercase] }
+    const theirs = { ...sets(upstream), user: [lowercase] }
+    for (const [name, a, b] of fixed) {
+      for (const [x, y] of [
+        [a, b],
+        [b, a],
+      ] as const) {
+        for (const set of Object.keys(mine) as (keyof typeof mine)[]) {
+          for (const strict of [false, true]) {
+            assert.equal(
+              vendored.equals(x, y, mine[set] as never, strict),
+              upstream.equals(x, y, theirs[set] as never, strict),
+              `${name}, ${set}, strict=${strict}`,
+            )
+          }
+        }
+      }
+    }
+  })
+
+  test('a user tester that calls this.equals is used the same way', () => {
+    assert.equal(vendored.equals({ a: 'X' }, { a: 'x' }, [lowercase]), true)
+    assert.equal(upstream.equals({ a: 'X' }, { a: 'x' }, [lowercase]), true)
+    assert.equal(vendored.equals({ a: 'X' }, { a: 'y' }, [lowercase]), false)
+  })
+
+  test('the testers agree on the fixed pairs', () => {
+    type Tester = (x: unknown, y: unknown) => unknown
+    const testers: readonly [string, Tester, Tester][] = [
+      [
+        'iterableEquality',
+        vendored.iterableEquality as Tester,
+        upstream.iterableEquality as Tester,
+      ],
+      ['subsetEquality', vendored.subsetEquality as Tester, upstream.subsetEquality as Tester],
+      ['typeEquality', vendored.typeEquality as Tester, upstream.typeEquality as Tester],
+      [
+        'sparseArrayEquality',
+        vendored.sparseArrayEquality as Tester,
+        upstream.sparseArrayEquality as Tester,
+      ],
+      [
+        'arrayBufferEquality',
+        vendored.arrayBufferEquality as Tester,
+        upstream.arrayBufferEquality as Tester,
+      ],
+    ]
+    for (const [name, a, b] of fixed) {
+      for (const [tester, mine, theirs] of testers) {
+        assert.deepEqual(mine(a, b), theirs(a, b), `${name}, ${tester}`)
+      }
+    }
+  })
+
   test('equals and every tester agree with the upstream on a seeded table of pairs', () => {
     const random = seeded(30_5_2)
     const mine = sets(vendored)
@@ -108,6 +270,26 @@ describe('the vendored @jest/expect-utils', () => {
         vendored.getPath(object, path as string),
         upstream.getPath(object, path as string),
       )
+    }
+    const fnWithUndefined = Object.assign(() => {}, { own: undefined })
+    for (const [target, path] of [
+      ['abc', 'length'],
+      [fnWithUndefined, 'own'],
+      [fnWithUndefined, 'other'],
+      [null, 'a'],
+      [undefined, 'a'],
+      [{ a: undefined }, 'a'],
+      [[1, 2], '1'],
+      [[1, 2], [1]],
+    ] as const) {
+      const run = (lib: typeof upstream | typeof vendored): unknown => {
+        try {
+          return lib.getPath(target as Record<string, unknown>, path as string)
+        } catch (error) {
+          return { threw: (error as Error).constructor.name }
+        }
+      }
+      assert.deepEqual(run(vendored), run(upstream), `${String(target)}, ${String(path)}`)
     }
     assert.equal(vendored.isA('Array', []), upstream.isA('Array', []))
   })
