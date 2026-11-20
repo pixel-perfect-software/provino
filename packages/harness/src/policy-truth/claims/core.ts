@@ -5,6 +5,7 @@ import { equal as assertEqual } from 'node:assert'
 import { isDeepStrictEqual, stripVTControlCharacters } from 'node:util'
 import { formatTimeout, jestShuffle, shapeTestError } from '@provino/dialect-jest/runtime'
 import { vitestPolicy } from '@provino/dialect-vitest'
+import { vitestShapeTestError } from '@provino/dialect-vitest/runtime'
 import { neutralPolicy } from '@provino/policy'
 import type { Golden } from '../../golden.ts'
 import { type Claims, corpus, each, golden, own, pending } from '../evidence.ts'
@@ -76,6 +77,26 @@ const nodeAssertMatches = (g: Golden, value: unknown): boolean => {
     stripVTControlCharacters(shaped.message).split(/\n\s+at /)[0] ===
     stripVTControlCharacters(recorded)
   )
+}
+
+/**
+ * Whether the ref (the Vitest dialect's `core.shapeTestError`) gives a failure the diff Vitest's
+ * runner prints: it is the dialect's own `vitestShapeTestError` ref, and what it makes of an
+ * `AssertionError` holding `actual: 1, expected: 2` carries the `diff` the golden recorded for
+ * `toBe number labels Expected and Received` (`expect(1).toBe(2)`). `null` leaves no diff.
+ */
+const vitestDiffMatches = (g: Golden, value: unknown): boolean => {
+  if (!refTo('@provino/dialect-vitest/runtime', 'vitestShapeTestError')(value)) return false
+  const recorded = testOf(g, 'toBe', 'toBe number labels Expected and Received').errors[0]?.diff
+  if (recorded === undefined) throw new Error(`${g.suite} (${g.runner}) recorded no diff`)
+  const thrown = Object.assign(new Error('expected 1 to be 2 // Object.is equality'), {
+    name: 'AssertionError',
+    showDiff: true,
+    actual: 1,
+    expected: 2,
+  })
+  const shaped = vitestShapeTestError(thrown) as { readonly diff?: unknown }
+  return typeof shaped.diff === 'string' && stripVTControlCharacters(shaped.diff) === recorded
 }
 
 /**
@@ -507,12 +528,9 @@ export const coreClaims: Claims = {
   // (`cli/node-assert`); `null`, the neutral value, leaves Node's `AssertionError [ERR_ASSERTION]`.
   'core.shapeTestError': each(
     golden('cli/node-assert', { matches: nodeAssertMatches }),
-    own(
-      'packages/dialect-vitest/src/dialect.test.ts',
-      'core.shapeTestError',
-      null,
-      'Vitest reports a node:assert AssertionError as thrown: the neutral `null` stands',
-    ),
+    // Vitest's runner gives a failure the diff `processError` makes: the ref's shaping of an
+    // `expect(1).toBe(2)`-shaped error is the diff `expect/messages/equality` recorded for it.
+    golden('expect/messages/equality', { matches: vitestDiffMatches }),
   ),
   'core.orderHooks': own(
     'packages/core/src/executor/executor.test.ts',

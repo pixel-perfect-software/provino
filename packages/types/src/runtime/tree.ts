@@ -130,8 +130,11 @@ export interface SerializedError {
   readonly code?: string
   readonly cause?: SerializedError
   readonly errors?: readonly SerializedError[]
-  /** Filled by the expect layer (Track 7). */
-  readonly diff?: { readonly expected: string; readonly actual: string }
+  /**
+   * The diff a dialect's runner shows under the message, as text: the thrown value's own string
+   * `diff` (the Vitest dialect's failures carry Vitest's `processError` diff, T7.6).
+   */
+  readonly diff?: string
   /**
    * The matcher that failed, from the error's `matcherResult` (Jest's
    * `failureDetails[i].matcherResult`): its `name` and whether it `pass`ed. Only these two fields

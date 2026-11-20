@@ -172,6 +172,9 @@ const config: KnipConfig = {
         ),
         // A test symlinks a real jest-environment-jsdom into a project.
         'jest-environment-jsdom',
+        // Inlined by the build only (`WORKER_ENTRIES`' `worker/vitest-runtime`, B25b): no source of
+        // `provino`'s imports it until `provino vitest` exists (T11.16, Phase 7).
+        '@provino/dialect-vitest',
         // The third-party reporters `reporters-third-party.test.ts` names in a Jest config.
         'jest-html-reporters',
         'jest-junit',

@@ -4,15 +4,14 @@
 // expectations below, each one a title from those goldens. The `format` and `inspect` it calls
 // come from `@vitest/utils`, which is installed, so those are compared in-process.
 import assert from 'node:assert/strict'
-import { createRequire } from 'node:module'
 import { test } from 'node:test'
-import { fileURLToPath, pathToFileURL } from 'node:url'
 import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
 import type { FormatEachTitle } from '@provino/types'
 import { vitestPolicy } from '../dialect.ts'
+import { importFromVitest } from '../internal/from-vitest.ts'
+import * as ours from '../vendor/vitest-utils/display.ts'
 import { formatEachTitle } from './format-each-title.ts'
 import { VITEST_EACH_TITLE_TRUNCATE } from './title-truncate.ts'
-import * as ours from './vendor/utils/display.ts'
 
 interface Display {
   format(args: unknown[], options?: object): string
@@ -20,10 +19,7 @@ interface Display {
 }
 
 // @vitest/utils is a dependency of vitest: resolve it from there.
-const vitestEntry = fileURLToPath(import.meta.resolve('vitest'))
-const real = (await import(
-  pathToFileURL(createRequire(vitestEntry).resolve('@vitest/utils/display')).href
-)) as Display
+const real = (await importFromVitest('@vitest/utils/display')) as unknown as Display
 
 class Point {
   x = 1

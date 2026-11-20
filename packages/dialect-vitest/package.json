@@ -44,9 +44,11 @@
   },
   "dependencies": {
     "@provino/config": "workspace:*",
+    "@provino/expect": "workspace:*",
     "@provino/policy": "workspace:*",
     "@provino/resolver": "workspace:*",
     "@provino/types": "workspace:*",
+    "chai": "catalog:",
     "oxc-parser": "catalog:",
     "oxc-transform": "catalog:",
     "picomatch": "catalog:",

@@ -1,5 +1,5 @@
-// What B08's expect check asks of a fixture's Jest files run through core (T7.5): every test of the
-// golden, with its status, each error's name, normalized message, matcher and user frame, and its
+// What B08's expect check asks of a fixture's files run through core (T7.5, and T7.6 for Vitest's):
+// every test of the golden, with its status, each error's name, normalized message, matcher and user frame, and its
 // passing-assertion count. One function, shared by `expect-corpus.test.ts` and T1.7's
 // `policy-truth/corpora.ts`, so both hold a run to the same comparison.
 
@@ -20,22 +20,26 @@ interface ComparableError {
   readonly message: string
   readonly matcher?: string
   readonly userFrame?: string
+  /** The runner's diff under the message: a `captureDiff` fixture's Vitest golden holds it. */
+  readonly diff?: string
 }
 
 /** A test's comparable shape: what both the golden and the run can say. */
 interface Comparable {
   readonly status: string
   readonly errors: readonly ComparableError[]
-  readonly passingAssertions: number
+  /** Absent when the golden has none (Vitest's JSON carries no passing count). */
+  readonly passingAssertions?: number
 }
 
 /** The comparable part of a golden error or a normalized failure, the same on both sides. */
-function comparable({ name, message, matcher, userFrame }: ComparableError): ComparableError {
+function comparable({ name, message, matcher, userFrame, diff }: ComparableError): ComparableError {
   return {
     ...(name === undefined ? {} : { name }),
     message,
     ...(matcher === undefined ? {} : { matcher }),
     ...(userFrame === undefined ? {} : { userFrame }),
+    ...(diff === undefined ? {} : { diff }),
   }
 }
 
@@ -49,15 +53,16 @@ export async function expectCorpusProblems(
   fixture: Fixture,
   policy: CorePolicy,
   options: ExpectRunOptions = {},
+  profile: 'jest' | 'vitest' = 'jest',
 ): Promise<string[]> {
-  const golden = await readGolden(fixture.dir, 'jest')
+  const golden = await readGolden(fixture.dir, profile)
   const expected = new Map<string, Comparable>()
   for (const file of golden.files) {
     for (const goldenTest of file.tests) {
       expected.set(testKey(goldenTest.id), {
         status: goldenTest.status,
         errors: goldenTest.errors.map(comparable),
-        passingAssertions: goldenTest.passingAssertions ?? 0,
+        ...(profile === 'jest' ? { passingAssertions: goldenTest.passingAssertions ?? 0 } : {}),
       })
     }
   }
@@ -67,7 +72,7 @@ export async function expectCorpusProblems(
   const cwd = process.cwd()
   process.chdir(fixture.dir)
   try {
-    for (const testFile of testFilesFor(fixture.files, 'jest')) {
+    for (const testFile of testFilesFor(fixture.files, profile)) {
       const tests = await runExpectFile(
         path.join(fixture.dir, testFile),
         fixture.dir,
@@ -78,10 +83,15 @@ export async function expectCorpusProblems(
         const key = testKey({ file: testFile, path: run.path, dupIndex: run.dupIndex })
         actual.set(key, {
           status: run.status,
-          errors: run.failures.map(({ text, matcher }) =>
-            comparable(normalizer.error(text, matcher)),
+          errors: run.failures.map(({ text, matcher, diff }) =>
+            comparable({
+              ...normalizer.error(text, matcher),
+              // Colour is the terminal's, not the golden's (the recorder ran with NO_COLOR): the
+              // normalizer's `ansi` rule takes it out.
+              ...(diff === undefined ? {} : { diff: normalizer.text(diff) }),
+            }),
           ),
-          passingAssertions: run.passingAssertions,
+          ...(profile === 'jest' ? { passingAssertions: run.passingAssertions } : {}),
         })
       }
     }

@@ -3,9 +3,15 @@
   "compilerOptions": {
     "exactOptionalPropertyTypes": false,
     "noUncheckedIndexedAccess": false,
-    "lib": ["es2024", "dom", "dom.iterable"],
     "rootDir": ".",
     "outDir": "../../../.tsc/src/each/vendor"
   },
-  "include": ["."]
+  "include": [
+    "."
+  ],
+  "references": [
+    {
+      "path": "../../vendor/vitest-utils"
+    }
+  ]
 }

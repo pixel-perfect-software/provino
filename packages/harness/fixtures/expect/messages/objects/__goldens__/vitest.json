@@ -44,7 +44,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { a: { b: 1 } } to have property \"a.b\" with value 2",
-              "userFrame": "<root>/objects.test.ts:7:29"
+              "userFrame": "<root>/objects.test.ts:7:29",
+              "diff": "- Expected\n+ Received\n\n- 2\n+ 1"
             }
           ],
           "location": {
@@ -66,7 +67,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { a: { b: [ 1, 2 ] } } to have property \"a.b.1\" with value 3",
-              "userFrame": "<root>/objects.test.ts:11:34"
+              "userFrame": "<root>/objects.test.ts:11:34",
+              "diff": "- Expected\n+ Received\n\n- 3\n+ 2"
             }
           ],
           "location": {
@@ -110,7 +112,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { a: 1 } to not have property \"a\"",
-              "userFrame": "<root>/objects.test.ts:19:26"
+              "userFrame": "<root>/objects.test.ts:19:26",
+              "diff": "- Expected:\nundefined\n\n+ Received:\n1"
             }
           ],
           "location": {
@@ -132,7 +135,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { a: { b: 'x' } } to not have property \"a.b\" with value 'x'",
-              "userFrame": "<root>/objects.test.ts:23:35"
+              "userFrame": "<root>/objects.test.ts:23:35",
+              "diff": ""
             }
           ],
           "location": {
@@ -154,7 +158,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { a: 1, b: { c: 2, d: 3 } } to match object { b: { c: 5 } }\n(2 matching properties omitted from actual)",
-              "userFrame": "<root>/objects.test.ts:29:41"
+              "userFrame": "<root>/objects.test.ts:29:41",
+              "diff": "- Expected\n+ Received\n\n  {\n    \"b\": {\n-     \"c\": 5,\n+     \"c\": 2,\n    },\n  }"
             }
           ],
           "location": {
@@ -176,7 +181,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [ { a: 1 }, { b: 2 } ] to match object [ { a: 1 }, { b: 3 } ]",
-              "userFrame": "<root>/objects.test.ts:33:34"
+              "userFrame": "<root>/objects.test.ts:33:34",
+              "diff": "- Expected\n+ Received\n\n  [\n    {\n      \"a\": 1,\n    },\n    {\n-     \"b\": 3,\n+     \"b\": 2,\n    },\n  ]"
             }
           ],
           "location": {
@@ -198,7 +204,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { a: 1 } to match object { a: 1, z: true }",
-              "userFrame": "<root>/objects.test.ts:37:22"
+              "userFrame": "<root>/objects.test.ts:37:22",
+              "diff": "- Expected\n+ Received\n\n  {\n    \"a\": 1,\n-   \"z\": true,\n  }"
             }
           ],
           "location": {
@@ -220,7 +227,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { a: 1, b: 2 } to not match object { a: 1 }",
-              "userFrame": "<root>/objects.test.ts:41:32"
+              "userFrame": "<root>/objects.test.ts:41:32",
+              "diff": "Compared values have no visual difference."
             }
           ],
           "location": {
@@ -242,7 +250,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 1 to match object { a: 1 }",
-              "userFrame": "<root>/objects.test.ts:45:15"
+              "userFrame": "<root>/objects.test.ts:45:15",
+              "diff": "- Expected:\n{\n  \"a\": 1,\n}\n\n+ Received:\n1"
             }
           ],
           "location": {

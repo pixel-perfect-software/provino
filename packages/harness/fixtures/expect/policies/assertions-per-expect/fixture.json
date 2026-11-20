@@ -1,0 +1,4 @@
+{
+  "description": "What counts as an assertion call: a bare expect(x), one expect(x) reused for two matchers, and a custom matcher that throws a TypeError, each under expect.assertions(n). Jest counts each matcher call that returns a result; Vitest counts each expect() call.",
+  "runners": ["jest", "vitest"]
+}

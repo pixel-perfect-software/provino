@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import type { Matcher } from '@provino/types'
+import type { ExpectTable, Matcher, MatcherCall } from '@provino/types'
 import { ExpectError } from './errors.ts'
 import { createExpect, MatcherResultError } from './expect.ts'
 import {
   lastContext,
+  type TestEngine,
   testEngine,
   testPolicy,
   testTable,
@@ -329,7 +330,7 @@ describe('the policy values B08 builds', () => {
   })
 
   for (const [key, override] of [['errorShape', { errorShape: 'assertion-error' }]] as const) {
-    test(`${key} not yet built throws EXPECT_NOT_IMPLEMENTED`, () => {
+    test(`${key} with a table that has no assertionError throws EXPECT_NOT_IMPLEMENTED`, () => {
       assert.throws(
         () => createExpect({ policy: { ...testPolicy, ...override }, table: testTable(), source }),
         (error: unknown) =>
@@ -524,3 +525,213 @@ async function rejection(promise: unknown): Promise<unknown> {
   }
   assert.fail('expected a rejection')
 }
+
+/** The test table with an `assertionError` and a message argument, as an `AssertionError` runner's. */
+class TableAssertionError extends Error {
+  override readonly name = 'AssertionError'
+  readonly call: MatcherCall
+  constructor(message: string, call: MatcherCall) {
+    super(message)
+    this.call = call
+  }
+}
+
+function assertionShaped(): TestEngine {
+  const table: ExpectTable = {
+    ...testTable(),
+    assertionError: (_result, message, call) => new TableAssertionError(message, call),
+  }
+  return testEngine({
+    policy: { errorShape: 'assertion-error', settlementCheck: 'at-read', messageArgument: true },
+    table,
+  })
+}
+
+describe("errorShape: 'assertion-error' (T7.6)", () => {
+  test("a failure throws the table's error, anchored at the call, with no matcherResult", () => {
+    const { expect, current, source } = assertionShaped()
+    current.enter(testTask('t'))
+    source.startFile('/f.ts')
+    let thrown: unknown
+    try {
+      expect(1).toBe(2)
+    } catch (error) {
+      thrown = error
+    }
+    assert.ok(thrown instanceof TableAssertionError)
+    assert.equal(thrown.message, 'toBe: 1 vs 2')
+    assert.deepEqual(thrown.call, { matcherName: 'toBe', isNot: false, promise: '' })
+    assert.equal(Object.hasOwn(thrown, 'matcherResult'), false)
+    assert.match(topFrame(thrown), /expect\.test\.ts/)
+    current.enter(null)
+  })
+
+  test("expect(actual, message) hands the message to the matcher and the table's error", () => {
+    const { expect } = assertionShaped()
+    const call = expect as unknown as (
+      a: unknown,
+      m: string,
+    ) => { toReadContext(): void; toBe(e: unknown): void }
+    call(1, 'why').toReadContext()
+    assert.equal(lastContext?.customMessage, 'why')
+    assert.throws(
+      () => call(1, 'why').toBe(2),
+      (error: unknown) => error instanceof TableAssertionError && error.call.message === 'why',
+    )
+  })
+
+  test('.resolves on a value that is not a promise throws a TypeError where it is read', () => {
+    const { expect } = assertionShaped()
+    assert.throws(
+      () => expect(5).resolves,
+      (error: unknown) => error instanceof TypeError && topFrame(error).includes('expect.test.ts'),
+    )
+  })
+
+  test('a settled failure carries the stack of the .resolves read, under Error:', async () => {
+    const { expect, current, source } = assertionShaped()
+    current.enter(testTask('t'))
+    source.startFile('/f.ts')
+    const pending = expect(Promise.resolve(1)).resolves
+    await assert.rejects(pending.toBe(2), (error: unknown) => {
+      assert.ok(error instanceof TableAssertionError)
+      const [head, frame] = String(error.stack).split('\n')
+      // The table's promise form of `toBe` words it.
+      assert.equal(head, 'Error: settled toBe: 1')
+      assert.match(frame ?? '', /expect\.test\.ts/)
+      return true
+    })
+    current.enter(null)
+  })
+
+  test('a soft failure is held, not thrown', () => {
+    const { expect, current, source } = testEngine({
+      policy: { errorShape: 'assertion-error', soft: true },
+      table: {
+        ...testTable(),
+        assertionError: (_r, message, call) => new TableAssertionError(message, call),
+      },
+    })
+    current.enter(testTask('t'))
+    source.startFile('/f.ts')
+    expect.soft?.(1).toBe(2)
+    const state = source.current()
+    assert.equal(state.suppressedErrors.length, 1)
+    assert.ok(state.suppressedErrors[0] instanceof TableAssertionError)
+    current.enter(null)
+  })
+})
+
+describe('a table with chains (ExpectTable.chain, D170)', () => {
+  test('an unknown name reads the chain, uncounted; then and Object.prototype names do not', () => {
+    const calls: [unknown, string, MatcherCall][] = []
+    const table: ExpectTable = {
+      ...testTable(),
+      chain: (actual, name, call) => {
+        calls.push([actual, name, call])
+        return 'chained'
+      },
+    }
+    const { expect, source } = testEngine({ table })
+    const loose = member(expect(1).not)
+    assert.equal(loose.to, 'chained')
+    assert.deepEqual(calls, [[1, 'to', { matcherName: 'to', isNot: true, promise: '' }]])
+    // Counted per `expect()` call, `expect()` counts it; a matcher call counts nothing here.
+    assert.equal(source.current().assertionCalls, 0)
+    assert.equal(member(expect(1)).then, undefined)
+    assert.equal(member(expect(1)).hasOwnProperty, Object.prototype.hasOwnProperty)
+    assert.equal(calls.length, 1)
+  })
+})
+
+describe('the table hooks and the assertion count (B25b review)', () => {
+  test('a sync pass returns its assertion where the table chains; a failure and Jest`s table do not', () => {
+    const table: ExpectTable = { ...testTable(), chain: () => 'chained' }
+    const { expect } = testEngine({ table })
+    const assertion = expect(1)
+    const returned = assertion.toBe(1) as unknown
+    assert.equal(returned, assertion)
+    assert.equal(member(returned).to, 'chained')
+    assert.equal(member(returned).then, undefined)
+    assert.throws(() => expect(1).toBe(2))
+    assert.equal(testEngine().expect(1).toBe(1), undefined)
+  })
+
+  test('equals: a custom matcher`s this.equals is the table`s when it has one', () => {
+    const seen: unknown[] = []
+    const tableEquals = (): boolean => true
+    const table: ExpectTable = { ...testTable(), equals: tableEquals }
+    for (const engine of [testEngine({ table }), testEngine()]) {
+      engine.expect.extend({
+        toSeeEquals(this: { equals: unknown }) {
+          seen.push(this.equals)
+          return { pass: true, message: () => '' }
+        },
+      })
+      ;(engine.expect(1) as unknown as Loose<'toSeeEquals'>).toSeeEquals()
+    }
+    assert.equal(seen[0], tableEquals)
+    assert.notEqual(seen[1], tableEquals)
+    assert.equal(typeof seen[1], 'function')
+  })
+
+  test('soft: a matcher under expect.soft reads this.soft, a plain call none', () => {
+    const { expect, current } = testEngine({ policy: { soft: true } })
+    current.enter(testTask('t'))
+    const soft = expect.soft as unknown as (actual: unknown) => Loose<'toReadContext'>
+    soft(1).toReadContext()
+    assert.equal(lastContext?.soft, true)
+    ;(expect(1) as unknown as Loose<'toReadContext'>).toReadContext()
+    assert.equal(lastContext?.soft, undefined)
+  })
+
+  test('poll: a try of expect.poll reads this.poll', async () => {
+    const { expect, current } = testEngine({
+      policy: { poll: { enabled: true, intervalMs: 20, timeoutMs: 100 } },
+    })
+    current.enter(testTask('t'))
+    const poll = expect.poll as unknown as (fn: () => unknown) => Loose<'toReadContext'>
+    await poll(() => 1).toReadContext()
+    assert.equal(lastContext?.poll, true)
+  })
+
+  test('per-expect-call counts each expect() call, whatever runs on it', async () => {
+    const { expect, current, source } = testEngine({
+      policy: {
+        assertionCalls: 'per-expect-call',
+        poll: { enabled: true, intervalMs: 20, timeoutMs: 100 },
+      },
+    })
+    current.enter(testTask('t'))
+    expect(1)
+    assert.equal(source.current().assertionCalls, 1, 'a bare expect')
+    const reused = expect(1)
+    reused.toBe(1)
+    reused.toBe(1)
+    assert.equal(source.current().assertionCalls, 2, 'one expect for two matchers')
+    expect.extend({
+      toExplode() {
+        throw new TypeError('blew up')
+      },
+    })
+    assert.throws(() => (expect(1) as unknown as Loose<'toExplode'>).toExplode(), TypeError)
+    assert.equal(source.current().assertionCalls, 3, 'a matcher that throws')
+    const poll = expect.poll as unknown as (fn: () => unknown) => Loose<'toBe'>
+    await poll(() => 1).toBe(1)
+    assert.equal(source.current().assertionCalls, 4, 'a poll')
+    assert.equal(source.current().numPassingAsserts, 3)
+  })
+
+  test('per-matcher-call counts each matcher call that returns a result', () => {
+    const { expect, current, source } = testEngine({
+      policy: { assertionCalls: 'per-matcher-call' },
+    })
+    current.enter(testTask('t'))
+    expect(1)
+    assert.equal(source.current().assertionCalls, 0)
+    const reused = expect(1)
+    reused.toBe(1)
+    reused.toBe(1)
+    assert.equal(source.current().assertionCalls, 2)
+  })
+})

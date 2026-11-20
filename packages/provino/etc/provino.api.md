@@ -9,42 +9,73 @@ import { StandardSchemaV1 } from '@standard-schema/spec';
 
 // @public
 export interface $ {
-    readonly coverage?: CoverageSummary;
     // (undocumented)
-    readonly durationMs: number;
+    readonly arch: string;
     // (undocumented)
-    readonly files: readonly T[];
-    readonly openHandles?: readonly OpenHandle[];
+    readonly ci: boolean;
+    readonly cpuCount: number;
     // (undocumented)
-    readonly reason: RunEndReason;
-    readonly snapshots?: SnapshotRunSummary;
-    readonly snapshotsFail?: boolean;
-    // (undocumented)
-    readonly unhandled: readonly tt[];
+    readonly cpuModel: string;
+    readonly memoryMb: number;
+    readonly node: string;
+    readonly os: string;
+    readonly osRelease: string;
+    readonly runners: Readonly<Record<string, string>>;
 }
 
 // @public
 export type _ = "file" | "worker";
 
 // @public
-export type A = (value: unknown) => string;
+export type A = (timeout: {
+    readonly subject: "test" | "hook";
+    readonly ms: number;
+    readonly done: boolean;
+}) => string;
 
 // @public
-export type a = <const N extends string>(reporter: X & {
+export type a = <const N extends string>(reporter: Z & {
     readonly name: N;
-}) => X & {
+}) => Z & {
     readonly name: N;
 };
 
 // @public
-export type at = (exports: unknown, extension: string) => SnapshotResolver;
+export interface at {
+    // (undocumented)
+    readonly messages: SnapshotMessages;
+    serialize(value: unknown, options: SnapshotSerializeOptions): string;
+}
 
 // @public
 export interface B {
-    // (undocumented)
-    readonly id: string;
-    // (undocumented)
-    map(specifier: string, context: ResolveContext): MapperHit | null;
+    readonly between: {
+        readonly order: readonly z[];
+        readonly clear: boolean;
+        readonly reset: boolean;
+        readonly restore: boolean;
+        readonly unstubEnvs: boolean;
+        readonly unstubGlobals: boolean;
+    };
+    readonly classMockPrototype: "own" | "chain-to-impl";
+    readonly clearReplacesStateObject: boolean;
+    readonly copyStaticProps: boolean;
+    readonly defaultName: string;
+    readonly fnOfMockReturnsSame: boolean;
+    readonly functionName: "mockConstructor" | "impl-or-Mock";
+    readonly getImplPrefersOnce: boolean;
+    readonly isMockAcceptsObjects: boolean;
+    readonly lastCallKey: "after-first-call" | "always";
+    readonly messages: MockMessages;
+    readonly mockPropertyWritable: boolean;
+    readonly newCall: "apply" | "construct";
+    readonly resetTo: "empty" | "original-impl";
+    readonly settledResults: boolean;
+    readonly spyInstall: "assign" | "define";
+    readonly spyNameFromMethod: boolean;
+    readonly spyReportsBridgeImpl: boolean;
+    readonly valueShorthandsThrowOnNew: boolean;
+    readonly withImplementationReturnsMock: boolean;
 }
 
 // @public
@@ -52,32 +83,46 @@ export type b = (this: TesterContext, a: unknown, b: unknown, customTesters: b[]
 
 // @public
 export interface C {
+    readonly assertionError?: (result: MatcherResult, message: string, call: MatcherCall) => Error;
     readonly asymmetric: AsymmetricFactories;
     readonly asymmetricNot: AsymmetricFactories;
-    customAsymmetric(name: string, matcher: I): CustomAsymmetricBuilder;
+    readonly chain?: (actual: unknown, name: string, call: MatcherCall) => unknown;
+    customAsymmetric(name: string, matcher: L): CustomAsymmetricBuilder;
+    readonly equals?: TesterContext["equals"];
     // (undocumented)
     readonly matchers: MatcherSet;
-    // (undocumented)
-    readonly messages: ExpectMessages;
+    readonly messages: ExpectTableMessages;
     readonly promiseMatchers: MatcherSet;
     readonly utils: object;
 }
 
 // @public
-export type c = { readonly [N in DialectName as N extends Z ? never : N]?: DialectRegistry[N]; };
+export type c = { readonly [N in DialectName as N extends Q ? never : N]?: DialectRegistry[N]; };
 
 // @public
 export interface ct {
-    // (undocumented)
-    readonly column: number;
-    // (undocumented)
-    readonly file: string;
-    // (undocumented)
-    readonly line: number;
+    added: number;
+    currentTestId(): string | undefined;
+    expand: boolean;
+    fail(testName: string, testId?: string, key?: string): string;
+    getUncheckedCount(): number;
+    getUncheckedKeys(): string[];
+    readonly liveCounters: Map<string, number>;
+    markCheckedForTest(testName: string): void;
+    match(options: SnapshotViewMatchOptions): st;
+    matched: number;
+    readonly serializeFormat: Readonly<Record<string, unknown>>;
+    readonly snapshotPath: string;
+    unmatched: number;
+    readonly update: "all" | "new" | "none";
+    updated: number;
 }
 
 // @public
-export type D = (template: string, row: readonly unknown[] | Readonly<Record<string, unknown>>, index: number, kind?: u) => string;
+export type D = (error: DefinitionErrorInfo) => {
+    readonly name: string;
+    readonly message: string;
+};
 
 // @public
 export interface d<Name extends string = string, Options = Record<string, never>, G extends object = typeof globalThis> {
@@ -91,7 +136,47 @@ export interface d<Name extends string = string, Options = Record<string, never>
 }
 
 // @public
-export interface dt {
+export type dt = string & {
+    readonly __brand: "TaskId";
+};
+
+// @public
+export interface E extends TaskBase {
+    // (undocumented)
+    readonly children: readonly dt[];
+    readonly path: string;
+    // (undocumented)
+    readonly projectName: string;
+    // (undocumented)
+    readonly type: "file";
+}
+
+// @public
+export interface et {
+    readonly coverage?: CoverageSummary;
+    // (undocumented)
+    readonly durationMs: number;
+    // (undocumented)
+    readonly files: readonly T[];
+    readonly openHandles?: readonly OpenHandle[];
+    // (undocumented)
+    readonly reason: RunEndReason;
+    readonly snapshots?: SnapshotRunSummary;
+    readonly snapshotsFail?: boolean;
+    // (undocumented)
+    readonly unhandled: readonly nt[];
+}
+
+// @public
+export type F = string | number | boolean | null | readonly F[] | {
+    readonly [key: string]: F;
+};
+
+// @public
+export type f = (env: EnvironmentRequest) => readonly string[];
+
+// @public
+export interface ft {
     // (undocumented)
     readonly file: string;
     readonly fullName: string;
@@ -104,66 +189,13 @@ export interface dt {
 }
 
 // @public
-export interface E extends TaskBase {
-    // (undocumented)
-    readonly children: readonly ut[];
-    readonly path: string;
-    // (undocumented)
-    readonly projectName: string;
-    // (undocumented)
-    readonly type: "file";
-}
-
-// @public
-export type et = "test" | "file" | "worker";
-
-// @public
-export interface F {
-    readonly chain?: readonly string[];
-    readonly failed: boolean;
-    readonly key: string;
-    readonly ms: number;
-    readonly override: boolean;
-    readonly site: ct;
-}
-
-// @public
-export type f = (env: EnvironmentRequest) => readonly string[];
-
-// @public
-export interface ft {
-    // (undocumented)
-    annotate(message: string, kind?: string): Promise<void>;
-    // (undocumented)
-    onTestFailed(fn: (ctx: ft) => void | Promise<void>, timeoutMs?: number): void;
-    // (undocumented)
-    onTestFinished(fn: (ctx: ft) => void | Promise<void>, timeoutMs?: number): void;
-    readonly signal: AbortSignal;
-    // (undocumented)
-    skip(note?: string): never;
-    // (undocumented)
-    skip(condition: boolean, note?: string): void;
-    // (undocumented)
-    readonly task: Readonly<TestTask>;
-}
-
-// @public
-export type G = Readonly<Record<string, string | readonly string[]>>;
+export type G = "forks" | "threads" | "inline";
 
 // @public
 export type g = (request: EnvironmentPragmaRequest) => EnvironmentRef | Promise<EnvironmentRef>;
 
 // @public
-export type gt = (port: WorkerPort) => void | Promise<void>;
-
-// @public
-export type H = { readonly [N in keyof PluginRegistry & string as N extends Z | DialectName ? never : N]?: PluginRegistry[N]; };
-
-// @public
-export type h = "worker" | "context";
-
-// @public
-export interface ht {
+export interface gt {
     readonly advanceToNextTimerHonorsSteps: boolean;
     readonly enableGlobally: boolean;
     readonly facadeReturns: "lifecycle" | "all";
@@ -180,39 +212,211 @@ export interface ht {
 }
 
 // @public
-export type I = (received: never, ...expected: never[]) => MatcherResult | Promise<MatcherResult>;
+export type H = (options: F) => V;
+
+// @public
+export type h = "worker" | "context";
+
+// @public
+export interface ht {
+    badge(word: string, colour: "green" | "red" | "yellow"): string;
+    // (undocumented)
+    bold(text: string): string;
+    // (undocumented)
+    dim(text: string): string;
+    // (undocumented)
+    green(text: string): string;
+    inverse(text: string): string;
+    // (undocumented)
+    magenta(text: string): string;
+    // (undocumented)
+    red(text: string): string;
+    // (undocumented)
+    yellow(text: string): string;
+}
+
+// @public
+export interface I {
+    readonly chain?: readonly string[];
+    readonly failed: boolean;
+    readonly key: string;
+    readonly ms: number;
+    readonly override: boolean;
+    readonly site: lt;
+}
 
 // @public
 export type i = <const Name extends string, Options = Record<string, never>, G extends object = typeof globalThis>(environment: d<Name, Options, G>) => d<Name, Options, G>;
 
 // @public
-export interface it {
+export type it = (fullName: string, count: number) => string;
+
+// @public
+export interface J extends t, ProjectKeys, c, U {}
+
+// @public
+export type j = (value: unknown) => string;
+
+// @public
+export type K = Readonly<Record<string, string | readonly string[]>>;
+
+// @public
+export type k = (miss: MapperMiss) => string;
+
+// @public
+export type L = (received: never, ...expected: never[]) => MatcherResult | Promise<MatcherResult>;
+
+// @public
+export type l<Row> = [Row] extends [readonly unknown[]] ? [...Row] : [Row];
+
+// @public
+export interface lt {
     // (undocumented)
-    readonly messages: SnapshotMessages;
-    serialize(value: unknown, options: SnapshotSerializeOptions): string;
+    readonly column: number;
+    // (undocumented)
+    readonly file: string;
+    // (undocumented)
+    readonly line: number;
 }
 
 // @public
-export interface J extends q, TopLevelKeys {}
-
-// @public
-export type j = (thrown: unknown, context: {
+export type M = (thrown: unknown, context: {
     readonly hook: "globalSetup" | "globalTeardown";
     readonly path: string;
 }) => Error;
 
 // @public
-export type K = "per-file" | "shared";
+export interface m {
+    // (undocumented)
+    readonly "happy-dom": {
+        readonly url?: string;
+        readonly width?: number;
+        readonly height?: number;
+        readonly settings?: Readonly<Record<string, unknown>>;
+    };
+    // (undocumented)
+    readonly jsdom: {
+        readonly html?: string;
+        readonly url?: string;
+        readonly userAgent?: string;
+        readonly pretendToBeVisual?: boolean;
+        readonly customExportConditions?: readonly string[];
+        readonly jsdom?: Readonly<Record<string, unknown>>;
+    };
+    // (undocumented)
+    readonly node: Record<string, never>;
+}
 
 // @public
-export type k = (timeout: {
-    readonly subject: "test" | "hook";
-    readonly ms: number;
-    readonly done: boolean;
-}) => string;
+export interface mt {
+    addTeardown(fn: () => unknown): void;
+    // (undocumented)
+    readonly ctx: {
+        readonly task: ft;
+    };
+    // (undocumented)
+    readonly signal: AbortSignal;
+    readonly slots: Map<symbol, unknown>;
+    // (undocumented)
+    readonly state: "running" | "cleanup" | "done";
+    // (undocumented)
+    readonly test: {
+        readonly suite: SuiteHandle;
+    };
+}
 
 // @public
-export interface L {
+export interface N {
+    readonly api: object;
+    environmentTornDown(): boolean;
+    readonly expect: object;
+    readonly mockPolicy: B;
+    mocks(): object;
+    moduleMocks(): ModuleMockRegistry;
+    registry(): FileRegistry;
+    readonly seed: number;
+    setDefaultRetry(retry: DefaultRetry | undefined): void;
+    setDefaultTimeout(ms: number | undefined): void;
+    setDescribeRetry(retry: DescribeRetry): DescribeRetryResult;
+    timers(): object;
+    readonly timersPolicy: gt;
+}
+
+// @public
+export type n = (options: ChangedFilesOptions) => Promise<ChangedFiles>;
+
+// @public
+export interface nt {
+    readonly __record?: never;
+    // (undocumented)
+    readonly cause?: nt;
+    // (undocumented)
+    readonly code?: string;
+    readonly details?: F;
+    readonly diff?: string;
+    readonly enumerableFields?: readonly ("name" | "message" | "stack")[];
+    // (undocumented)
+    readonly errors?: readonly nt[];
+    // (undocumented)
+    readonly location?: lt;
+    readonly matcherResult?: {
+        readonly name: string;
+        readonly pass: boolean;
+    };
+    // (undocumented)
+    readonly message: string;
+    // (undocumented)
+    readonly name: string;
+    // (undocumented)
+    readonly stack?: string;
+}
+
+// @public
+export type O = (template: string, row: readonly unknown[] | Readonly<Record<string, unknown>>, index: number, kind?: u) => string;
+
+// @public
+export type o = () => DependencyExtractor;
+
+// @public
+export type ot = (exports: unknown, extension: string) => SnapshotResolver;
+
+// @public
+export type P = () => InlineSnapshotWriter;
+
+// @public
+export interface p<G extends object = typeof globalThis> {
+    readonly context?: Context;
+    readonly global: G;
+    readonly globalReads?: GlobalReadWatch;
+    onTestEvent?(event: LifecycleEvent): void | PromiseLike<void>;
+    teardown(): void | y | Promise<void | y>;
+}
+
+// @public
+export interface pt {
+    // (undocumented)
+    annotate(message: string, kind?: string): Promise<void>;
+    // (undocumented)
+    onTestFailed(fn: (ctx: pt) => void | Promise<void>, timeoutMs?: number): void;
+    // (undocumented)
+    onTestFinished(fn: (ctx: pt) => void | Promise<void>, timeoutMs?: number): void;
+    readonly signal: AbortSignal;
+    // (undocumented)
+    skip(note?: string): never;
+    // (undocumented)
+    skip(condition: boolean, note?: string): void;
+    // (undocumented)
+    readonly task: Readonly<TestTask>;
+}
+
+// @public
+export type Q = keyof t | keyof ProjectKeys | keyof TopLevelKeys;
+
+// @public
+export type q = "per-file" | "shared";
+
+// @public
+export interface R {
     [key: string]: unknown;
     // (undocumented)
     assertionCalls: number;
@@ -239,162 +443,6 @@ export interface L {
 }
 
 // @public
-export type l<Row> = [Row] extends [readonly unknown[]] ? [...Row] : [Row];
-
-// @public
-export interface lt extends TaskBase {
-    // (undocumented)
-    readonly children: readonly ut[];
-    // (undocumented)
-    readonly concurrent: boolean;
-    // (undocumented)
-    readonly each: boolean;
-    // (undocumented)
-    readonly shuffle: boolean;
-    // (undocumented)
-    readonly type: "suite";
-}
-
-// @public
-export interface M {
-    readonly api: object;
-    environmentTornDown(): boolean;
-    readonly expect: object;
-    readonly mockPolicy: z;
-    mocks(): object;
-    moduleMocks(): ModuleMockRegistry;
-    registry(): FileRegistry;
-    readonly seed: number;
-    setDefaultRetry(retry: DefaultRetry | undefined): void;
-    setDefaultTimeout(ms: number | undefined): void;
-    setDescribeRetry(retry: DescribeRetry): DescribeRetryResult;
-    timers(): object;
-    readonly timersPolicy: ht;
-}
-
-// @public
-export interface m {
-    // (undocumented)
-    readonly "happy-dom": {
-        readonly url?: string;
-        readonly width?: number;
-        readonly height?: number;
-        readonly settings?: Readonly<Record<string, unknown>>;
-    };
-    // (undocumented)
-    readonly jsdom: {
-        readonly html?: string;
-        readonly url?: string;
-        readonly userAgent?: string;
-        readonly pretendToBeVisual?: boolean;
-        readonly customExportConditions?: readonly string[];
-        readonly jsdom?: Readonly<Record<string, unknown>>;
-    };
-    // (undocumented)
-    readonly node: Record<string, never>;
-}
-
-// @public
-export interface mt {
-    badge(word: string, colour: "green" | "red" | "yellow"): string;
-    // (undocumented)
-    bold(text: string): string;
-    // (undocumented)
-    dim(text: string): string;
-    // (undocumented)
-    green(text: string): string;
-    inverse(text: string): string;
-    // (undocumented)
-    magenta(text: string): string;
-    // (undocumented)
-    red(text: string): string;
-    // (undocumented)
-    yellow(text: string): string;
-}
-
-// @public
-export type N = () => InlineSnapshotWriter;
-
-// @public
-export type n = (options: ChangedFilesOptions) => Promise<ChangedFiles>;
-
-// @public
-export type nt = (error: unknown, options: {
-    readonly expand: boolean;
-}) => unknown;
-
-// @public
-export type O = (miss: MapperMiss) => string;
-
-// @public
-export type o = () => DependencyExtractor;
-
-// @public
-export interface ot {
-    readonly actual: string;
-    readonly count: number;
-    readonly expected: string | undefined;
-    // (undocumented)
-    readonly key: string;
-    // (undocumented)
-    readonly pass: boolean;
-}
-
-// @public
-export type P = string | number | boolean | null | readonly P[] | {
-    readonly [key: string]: P;
-};
-
-// @public
-export interface p<G extends object = typeof globalThis> {
-    readonly context?: Context;
-    readonly global: G;
-    readonly globalReads?: GlobalReadWatch;
-    onTestEvent?(event: LifecycleEvent): void | PromiseLike<void>;
-    teardown(): void | y | Promise<void | y>;
-}
-
-// @public
-export interface pt {
-    addTeardown(fn: () => unknown): void;
-    // (undocumented)
-    readonly ctx: {
-        readonly task: dt;
-    };
-    // (undocumented)
-    readonly signal: AbortSignal;
-    readonly slots: Map<symbol, unknown>;
-    // (undocumented)
-    readonly state: "running" | "cleanup" | "done";
-    // (undocumented)
-    readonly test: {
-        readonly suite: SuiteHandle;
-    };
-}
-
-// @public
-export interface Q {
-    // (undocumented)
-    readonly arch: string;
-    // (undocumented)
-    readonly ci: boolean;
-    readonly cpuCount: number;
-    // (undocumented)
-    readonly cpuModel: string;
-    readonly memoryMb: number;
-    readonly node: string;
-    readonly os: string;
-    readonly osRelease: string;
-    readonly runners: Readonly<Record<string, string>>;
-}
-
-// @public
-export interface q extends t, ProjectKeys, c, H {}
-
-// @public
-export type R = "clear" | "reset" | "restore" | "unstubEnvs" | "unstubGlobals";
-
-// @public
 export interface r {
     // (undocumented)
     readonly command: "run" | "watch";
@@ -403,7 +451,9 @@ export interface r {
 }
 
 // @public
-export type rt = (fullName: string, count: number) => string;
+export type rt = (error: unknown, options: {
+    readonly expand: boolean;
+}) => unknown;
 
 // @public
 export interface S extends InvertibleAsymmetric {
@@ -423,7 +473,7 @@ export interface S extends InvertibleAsymmetric {
     // (undocumented)
     extend(matchers: MatcherSet): void;
     // (undocumented)
-    getState(): L;
+    getState(): R;
     // (undocumented)
     hasAssertions(): void;
     // (undocumented)
@@ -432,7 +482,7 @@ export interface S extends InvertibleAsymmetric {
     };
     poll?: (fn: (context: PollContext) => unknown, options?: PollOptions) => PollAssertion;
     // (undocumented)
-    setState(state: Partial<L>): void;
+    setState(state: Partial<R>): void;
     soft?: (actual: unknown) => Assertion;
     unreachable?: (message?: string) => never;
 }
@@ -459,7 +509,7 @@ export interface s<Name extends string = string, Options = unknown> {
     readonly name: Name;
     readonly options?: StandardSchemaV1<unknown, Options>;
     // (undocumented)
-    readonly policy: U | DialectPolicyFactory<Options>;
+    readonly policy: W | DialectPolicyFactory<Options>;
     // (undocumented)
     readonly reporterAdapters?: readonly ReporterAdapter[];
     readonly typeEntries?: readonly string[];
@@ -468,30 +518,22 @@ export interface s<Name extends string = string, Options = unknown> {
 
 // @public
 export interface st {
-    added: number;
-    currentTestId(): string | undefined;
-    expand: boolean;
-    fail(testName: string, testId?: string, key?: string): string;
-    getUncheckedCount(): number;
-    getUncheckedKeys(): string[];
-    readonly liveCounters: Map<string, number>;
-    markCheckedForTest(testName: string): void;
-    match(options: SnapshotViewMatchOptions): ot;
-    matched: number;
-    readonly serializeFormat: Readonly<Record<string, unknown>>;
-    readonly snapshotPath: string;
-    unmatched: number;
-    readonly update: "all" | "new" | "none";
-    updated: number;
+    readonly actual: string;
+    readonly count: number;
+    readonly expected: string | undefined;
+    // (undocumented)
+    readonly key: string;
+    // (undocumented)
+    readonly pass: boolean;
 }
 
 // @public
 export interface T {
-    readonly childOrder?: readonly ut[];
+    readonly childOrder?: readonly dt[];
     // (undocumented)
     readonly durationMs: number;
     // (undocumented)
-    readonly errors: readonly tt[];
+    readonly errors: readonly nt[];
     // (undocumented)
     readonly file: w;
     readonly heapUsedBytes?: number;
@@ -522,47 +564,38 @@ export interface t {
 }
 
 // @public
-export interface tt {
-    readonly __record?: never;
-    // (undocumented)
-    readonly cause?: tt;
-    // (undocumented)
-    readonly code?: string;
-    readonly details?: P;
-    readonly diff?: {
-        readonly expected: string;
-        readonly actual: string;
-    };
-    readonly enumerableFields?: readonly ("name" | "message" | "stack")[];
-    // (undocumented)
-    readonly errors?: readonly tt[];
-    // (undocumented)
-    readonly location?: ct;
-    readonly matcherResult?: {
-        readonly name: string;
-        readonly pass: boolean;
-    };
-    // (undocumented)
-    readonly message: string;
-    // (undocumented)
-    readonly name: string;
-    // (undocumented)
-    readonly stack?: string;
-}
+export type _t = (port: WorkerPort) => void | Promise<void>;
 
 // @public
-export type U = { readonly [K in SliceName]?: DeepPartial<PolicySlices[K]>; };
+export type tt = "test" | "file" | "worker";
+
+// @public
+export type U = { readonly [N in keyof PluginRegistry & string as N extends Q | DialectName ? never : N]?: PluginRegistry[N]; };
 
 // @public
 export type u = "rows" | "template" | "mixed";
 
 // @public
-export type ut = string & {
-    readonly __brand: "TaskId";
-};
+export interface ut extends TaskBase {
+    // (undocumented)
+    readonly children: readonly dt[];
+    // (undocumented)
+    readonly concurrent: boolean;
+    // (undocumented)
+    readonly each: boolean;
+    // (undocumented)
+    readonly shuffle: boolean;
+    // (undocumented)
+    readonly type: "suite";
+}
 
 // @public
-export type V = (options: P) => B;
+export interface V {
+    // (undocumented)
+    readonly id: string;
+    // (undocumented)
+    map(specifier: string, context: ResolveContext): MapperHit | null;
+}
 
 // @public
 export interface v<Options> {
@@ -570,8 +603,8 @@ export interface v<Options> {
     readonly console: Console;
     // (undocumented)
     readonly options: Options;
-    readonly pragmas: G;
-    readonly processObject?: K;
+    readonly pragmas: K;
+    readonly processObject?: q;
     // (undocumented)
     readonly realm: h;
     // (undocumented)
@@ -582,13 +615,13 @@ export interface v<Options> {
 }
 
 // @public
-export type W = "forks" | "threads" | "inline";
+export type W = { readonly [K in SliceName]?: DeepPartial<PolicySlices[K]>; };
 
 // @beta
 export interface w {
     readonly expectedMs?: number;
     // (undocumented)
-    readonly fileId: ut;
+    readonly fileId: dt;
     readonly path: string;
     // (undocumented)
     readonly project: string;
@@ -597,14 +630,17 @@ export interface w {
 }
 
 // @public
-export interface X extends ReporterHandlers {
-    readonly lastError?: () => tt | undefined;
-    // (undocumented)
-    readonly name: string;
+export interface X {
+    readonly defaultReporters: readonly string[];
+    readonly displaySeparator: string;
+    readonly failureTitleBullet: string | null;
+    readonly listTestsForSingleFile: boolean;
+    readonly resultStatusSkipped: "pending" | "skipped";
 }
 
 // @public
 export interface x {
+    readonly assertionCalls: "per-matcher-call" | "per-expect-call";
     readonly diffContextLines: number;
     readonly equality: {
         readonly errors: "message" | "assert";
@@ -614,6 +650,7 @@ export interface x {
     readonly expand: boolean;
     readonly matcherNamespace: string;
     readonly matcherTable: Behaviour<MatcherTableFactory> | null;
+    readonly messageArgument: boolean;
     readonly outsideTestCounts: "drop" | "next-test";
     readonly poll: {
         readonly enabled: boolean;
@@ -622,18 +659,13 @@ export interface x {
     };
     readonly pollFailsOnTimeout: boolean;
     readonly requireAssertions: boolean;
+    readonly settlementCheck: "at-call" | "at-read";
     readonly soft: boolean;
     readonly valueFormatter: "pretty-format";
 }
 
 // @public
-export interface Y {
-    readonly defaultReporters: readonly string[];
-    readonly displaySeparator: string;
-    readonly failureTitleBullet: string | null;
-    readonly listTestsForSingleFile: boolean;
-    readonly resultStatusSkipped: "pending" | "skipped";
-}
+export interface Y extends J, TopLevelKeys {}
 
 // @public
 export interface y {
@@ -642,38 +674,14 @@ export interface y {
 }
 
 // @public
-export type Z = keyof t | keyof ProjectKeys | keyof TopLevelKeys;
+export interface Z extends ReporterHandlers {
+    readonly lastError?: () => nt | undefined;
+    // (undocumented)
+    readonly name: string;
+}
 
 // @public
-export interface z {
-    readonly between: {
-        readonly order: readonly R[];
-        readonly clear: boolean;
-        readonly reset: boolean;
-        readonly restore: boolean;
-        readonly unstubEnvs: boolean;
-        readonly unstubGlobals: boolean;
-    };
-    readonly classMockPrototype: "own" | "chain-to-impl";
-    readonly clearReplacesStateObject: boolean;
-    readonly copyStaticProps: boolean;
-    readonly defaultName: string;
-    readonly fnOfMockReturnsSame: boolean;
-    readonly functionName: "mockConstructor" | "impl-or-Mock";
-    readonly getImplPrefersOnce: boolean;
-    readonly isMockAcceptsObjects: boolean;
-    readonly lastCallKey: "after-first-call" | "always";
-    readonly messages: MockMessages;
-    readonly mockPropertyWritable: boolean;
-    readonly newCall: "apply" | "construct";
-    readonly resetTo: "empty" | "original-impl";
-    readonly settledResults: boolean;
-    readonly spyInstall: "assign" | "define";
-    readonly spyNameFromMethod: boolean;
-    readonly spyReportsBridgeImpl: boolean;
-    readonly valueShorthandsThrowOnNew: boolean;
-    readonly withImplementationReturnsMock: boolean;
-}
+export type z = "clear" | "reset" | "restore" | "unstubEnvs" | "unstubGlobals";
 
 // (No @packageDocumentation comment for this package)
 

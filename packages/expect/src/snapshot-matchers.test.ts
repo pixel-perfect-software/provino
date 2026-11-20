@@ -61,6 +61,8 @@ interface Options {
   inlineWrites?: boolean
   /** The policy's `snapshot.contextView`, loaded: what the matchers find as `this.snapshotState`. */
   contextView?: SnapshotViewFactory
+  /** The policy's `snapshot.mismatch` (D61). */
+  mismatch?: 'end-of-test' | 'throw'
 }
 
 interface Setup {
@@ -123,6 +125,7 @@ function setup(options: Options = {}): Setup {
       keyJoin,
       hintJoin: options.hintJoin ?? ': ',
       throwErrorBody: options.throwErrorBody ?? 'message',
+      mismatch: options.mismatch ?? 'end-of-test',
       format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null, extra: {} },
       inline: { ...neutralPolicy.snapshot.inline, writer: options.inlineWrites ? writer : null },
     },
@@ -357,6 +360,38 @@ describe('expect.soft with the snapshot matchers (T7.8)', () => {
       softOf(expect)(1).toMatchSnapshot()
       assert.equal(source.current().suppressedErrors.length, 0)
       assert.equal(source.current().numPassingAsserts, 1)
+    })
+  })
+})
+
+describe("snapshot.mismatch: 'throw' (D61, Vitest's)", () => {
+  const STORED = `${HEADER}\n\nexports[\`t 1\`] = \`1\`;\n\nexports[\`t 2\`] = \`2\`;\n`
+
+  test('a mismatch throws at the call, so the test goes no further', () => {
+    const { expect, inRawTest, source } = setup({
+      update: 'none',
+      stored: STORED,
+      mismatch: 'throw',
+    })
+    let reached = false
+    inRawTest(['t'], () => {
+      assert.throws(() => expect(9).toMatchSnapshot(), /mismatch t 1/)
+      reached = true
+      assert.equal(source.current().suppressedErrors.length, 0)
+    })
+    assert.ok(reached)
+  })
+
+  test('a thrown error that differs throws at the call too', () => {
+    const { expect, inRawTest } = setup({ update: 'none', stored: STORED, mismatch: 'throw' })
+    inRawTest(['t'], () => {
+      assert.throws(
+        () =>
+          expect(() => {
+            throw new Error('no')
+          }).toThrowErrorMatchingSnapshot(),
+        /mismatch t 1/,
+      )
     })
   })
 })

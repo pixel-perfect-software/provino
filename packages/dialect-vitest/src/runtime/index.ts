@@ -7,6 +7,7 @@ import type { GlobalsHost } from '@provino/types'
 // below are still the stub.
 export { formatEachTitle } from '../each/format-each-title.ts'
 export { vitestEnvironmentConditions } from './environment-conditions.ts'
+export { vitestExpectTable, vitestShapeTestError } from './expect-table.ts'
 export { vitestFixtureMessages } from './fixture-messages.ts'
 export { vitestSnapshotPrinter } from './snapshot-printer.ts'
 

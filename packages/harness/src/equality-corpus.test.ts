@@ -1,14 +1,12 @@
 // T7.7's check: the `fixtures/expect/equality` (spike C's 31 cases) and `fixtures/expect/realm`
-// (its 18 cross-realm cases) goldens, against Provino's engine under each dialect's equality
-// policy. Jest's matcher bodies and `equals` decide everything the policy doesn't, so:
-//   - under the Jest policy the verdicts are Jest's, 31 of 31 and 18 of 18;
-//   - under the Vitest policy (`errors: 'assert'`, `invalidDate: 'equal'`) the 31 equality verdicts
-//     are Vitest's, because the 5 cases the runners disagree on are exactly what those two rules
-//     decide;
-//   - the realm cases are all equal in the other realm, and are all judged so under both
-//     policies. Vitest's own runner fails 10 of them (it reads `constructor` and `instanceof`);
-//     those are the improvement D7 asks for, declared below.
-// The Vitest half needs T7.6's matcher bodies to be complete (§1), so T7.7 ticks `[~]`.
+// (its 18 cross-realm cases) goldens, against Provino's engine under each dialect's own `expect`
+// slice: Jest's matcher table under the Jest policy, Vitest's (T7.6) under the Vitest policy.
+//   - Each profile's 31 equality verdicts are its golden's; the runners disagree on the 5 Error
+//     and invalid-Date cases the two equality rules decide.
+//   - The realm cases are all equal in the other realm, and are all judged so under both
+//     dialects. Vitest's own runner fails 10 of them (its `@vitest/expect` reads `constructor` and
+//     `instanceof`); the vendored copy is realm-safe (`dialect-vitest`'s vendor UPSTREAM.md, patch
+//     10), the improvement D7 asks for, declared below.
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { describe, test } from 'node:test'
@@ -30,7 +28,8 @@ assert.deepEqual(
 
 const policies: Readonly<Record<'jest' | 'vitest', ExpectPolicy>> = {
   jest: jestExpectPolicy,
-  vitest: { ...jestExpectPolicy, equality: VITEST_EQUALITY },
+  // Vitest's own slice: its matcher table (T7.6) and equality rules (T7.7).
+  vitest: resolvePolicy(vitestPolicy).expect,
 }
 
 /**
@@ -53,7 +52,11 @@ async function verdicts(
     path.join(fixture.dir, file),
     fixture.dir,
     corePolicyFor[profile],
-    { expectPolicy: policies[profile], importQuery: query },
+    {
+      expectPolicy: policies[profile],
+      importQuery: query,
+      ...(profile === 'vitest' ? { facade: 'vi' as const } : {}),
+    },
   )
   return new Map(tests.map((t) => [t.path.at(-1)?.slice(0, 2) ?? '', t.status]))
 }

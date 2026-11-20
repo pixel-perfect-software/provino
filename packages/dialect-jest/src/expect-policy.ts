@@ -25,8 +25,14 @@ export const jestExpectPolicy: ExpectPolicy = {
   ),
   // claim: expect.outsideTestCounts (fixtures/expect/policies/assertions-outside-test)
   outsideTestCounts: 'next-test',
+  // claim: expect.assertionCalls (fixtures/expect/policies/assertions-per-expect)
+  assertionCalls: 'per-matcher-call',
   // research: track-07 L461
   errorShape: 'matcher-result',
+  // claim: expect.settlementCheck (fixtures/expect/messages/promises)
+  settlementCheck: 'at-call',
+  // claim: expect.messageArgument (fixtures/expect/messages/extend-and-misuse)
+  messageArgument: false,
   // research: track-07 L463, L464
   equality: { errors: 'message', invalidDate: 'unequal' },
   // research: track-07 L465

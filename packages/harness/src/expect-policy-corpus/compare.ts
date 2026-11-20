@@ -9,15 +9,22 @@ import type { ObservedTest, ObservedTests } from './observe.ts'
 export type Mode =
   /** Status, every error's name, message, matcher and user frame, and the passing count. */
   | 'full'
+  /** Status and every error's name, message, matcher and user frame: `full` with no count. */
+  | 'messages'
   /** Status, and whether the test carries an error: the counting outcome, not the text. */
   | 'outcome'
 
 /** A test reduced to what `mode` reads. */
-export type Reading = ObservedTest | { readonly status: string; readonly hasErrors: boolean }
+export type Reading =
+  | ObservedTest
+  | Pick<ObservedTest, 'status' | 'errors'>
+  | { readonly status: string; readonly hasErrors: boolean }
 
 /** `test` as `mode` reads it. */
 export function read(test: ObservedTest, mode: Mode): Reading {
-  return mode === 'full' ? test : { status: test.status, hasErrors: test.errors.length > 0 }
+  if (mode === 'full') return test
+  if (mode === 'messages') return { status: test.status, errors: test.errors }
+  return { status: test.status, hasErrors: test.errors.length > 0 }
 }
 
 /** A difference the corpus allows: what Provino gives, and why it is not the golden's. */

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { describeRun, type ImportSample, summarise } from './report.ts'
+import { describeRun, type ImportSample, parseImportArgs, summarise } from './report.ts'
 
 const sample = (entry: number, engine: number): ImportSample => ({
   entry,
@@ -19,12 +19,15 @@ describe('summarise', () => {
 })
 
 describe('describeRun', () => {
-  const options = { processes: 15, node: 'v24.0.0' }
+  const options = { dialect: 'jest', processes: 15, node: 'v24.0.0' } as const
 
   test('prints the three numbers, labelled local, and passes with no bar', () => {
     const { lines, ok } = describeRun(sample(0.6, 30), { ...options, maxColdMs: undefined })
     assert.equal(ok, true)
-    assert.match(lines[0] ?? '', /^expect import bench \(local, Node v24\.0\.0, 15 fresh processes/)
+    assert.match(
+      lines[0] ?? '',
+      /^expect import bench \(local, jest dialect: worker\/jest-runtime\.js, Node v24\.0\.0, 15 fresh processes/,
+    )
     assert.match(lines.join('\n'), /import \{ expect \} from 'provino'\s+0\.6 ms/)
     assert.match(lines.join('\n'), /total\s+30\.6 ms/)
   })
@@ -44,5 +47,38 @@ describe('describeRun', () => {
 
   test('a NaN total misses the bar instead of passing it', () => {
     assert.equal(describeRun(sample(0, Number.NaN), { ...options, maxColdMs: 40 }).ok, false)
+  })
+})
+
+describe('the dialect (B25b review)', () => {
+  test('the header names the runtime measured', () => {
+    const { lines } = describeRun(sample(0.6, 30), {
+      dialect: 'vitest',
+      processes: 15,
+      node: 'v24.0.0',
+      maxColdMs: undefined,
+    })
+    assert.match(lines[0] ?? '', /vitest dialect: worker\/vitest-runtime\.js/)
+    assert.match(lines[2] ?? '', /the Vitest dialect's table/)
+  })
+
+  test('--max-cold-ms is refused with --dialect vitest, kept with jest', () => {
+    assert.throws(
+      () => parseImportArgs({ dialect: 'vitest', 'max-cold-ms': '40' }),
+      (error: Error & { code?: string }) =>
+        error.code === 'BENCH_USAGE' &&
+        /no bar is decided for --dialect vitest/.test(error.message),
+    )
+    assert.deepEqual(parseImportArgs({ dialect: 'jest', 'max-cold-ms': '40' }), {
+      dialect: 'jest',
+      maxColdMs: 40,
+      runs: 15,
+    })
+    assert.deepEqual(parseImportArgs({ dialect: 'vitest' }), {
+      dialect: 'vitest',
+      maxColdMs: undefined,
+      runs: 15,
+    })
+    assert.throws(() => parseImportArgs({ dialect: 'mocha' }), /--dialect takes jest or vitest/)
   })
 })

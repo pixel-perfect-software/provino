@@ -26,6 +26,15 @@ export interface ExpectPolicy {
    * Neutral: `drop`, Provino's own.
    */
   readonly outsideTestCounts: 'drop' | 'next-test'
+  /**
+   * What counts as an assertion call (`expect.assertions(n)`, `expect.hasAssertions()`).
+   * `per-matcher-call`: each matcher call that returns a result (Jest's `makeThrowingMatcher`).
+   * `per-expect-call`: each `expect()`, `expect.soft()` and `expect.poll()` call, whatever runs on
+   * it: a bare `expect(x)` counts, one `expect(x)` reused for two matchers counts once (Vitest's
+   * `createExpect`, `integrations/chai/index.ts` L18-L20). Jest and neutral: `per-matcher-call`.
+   * Vitest: `per-expect-call` (`fixtures/expect/policies/assertions-per-expect`).
+   */
+  readonly assertionCalls: 'per-matcher-call' | 'per-expect-call'
   /** Whether `expect.poll` fails on timeout. Jest: no `expect.poll` (any value; `poll.enabled` is off). Vitest: `true`. research: track-01 L222 */
   readonly pollFailsOnTimeout: boolean
   /** Lines of context in diffs. Jest: 5. Vitest: 5. research: track-01 L223 */
@@ -44,6 +53,21 @@ export interface ExpectPolicy {
    * name. Jest: `matcher-result`. Vitest: `assertion-error`. research: track-07 L461
    */
   readonly errorShape: 'matcher-result' | 'assertion-error'
+  /**
+   * When `.resolves`/`.rejects` checks its value. `at-call`: when the matcher is called (Jest's
+   * `makeRejectMatcher`: `expect(5).resolves.toBe(5)` fails at `.toBe`, a matcher error).
+   * `at-read`: when `.resolves`/`.rejects` is read (Vitest's `jest-expect.ts` L979-L983: a
+   * `TypeError` there, `.rejects` of a function calls it then, and a settled failure reports the
+   * read's stack). Jest: `at-call`. Vitest: `at-read` (`fixtures/expect/messages/promises`, the
+   * non-promise cases' column). Neutral: `at-read`.
+   */
+  readonly settlementCheck: 'at-call' | 'at-read'
+  /**
+   * Whether `expect(actual, message)` takes a message after the value, which the table words a
+   * failure with. `false`: a second argument is `messages.tooManyArguments`. Jest: `false`.
+   * Vitest: `true` (`fixtures/expect/messages/extend-and-misuse`). Neutral: `false`.
+   */
+  readonly messageArgument: boolean
   /** Equality edge cases (Track 7 `expect.equality.*`). */
   readonly equality: {
     /** How `toEqual` compares `Error`s. Jest: `message`. Vitest: `assert`. research: track-07 L463 */

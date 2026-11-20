@@ -72,6 +72,12 @@ expectTypeOf<SerializedPolicy['core']['orderHooks']>().toEqualTypeOf<ModuleRef<
 > | null>()
 // B23f: where the assertion counters made outside a test go, and the boundaries beyond a test's own.
 expectTypeOf<ExpectPolicy['outsideTestCounts']>().toEqualTypeOf<'drop' | 'next-test'>()
+expectTypeOf<ExpectPolicy['assertionCalls']>().toEqualTypeOf<
+  'per-matcher-call' | 'per-expect-call'
+>()
+// @ts-expect-error `per-test` is not a value of assertionCalls
+const callsPerTest: ExpectPolicy = { ...expectPolicy, assertionCalls: 'per-test' }
+void callsPerTest
 declare const expectPolicy: ExpectPolicy
 // @ts-expect-error `carry` is not a value of outsideTestCounts
 const countsCarry: ExpectPolicy = { ...expectPolicy, outsideTestCounts: 'carry' }

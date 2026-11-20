@@ -15,7 +15,9 @@ import type {
   FormatDefinitionError,
   FormatEachTitle,
   GlobalsFactory,
+  MatcherTableFactory,
   PolicyOverrides,
+  ShapeTestError,
   SnapshotPrinterFactory,
 } from '@provino/types'
 import { VITEST_EACH_TITLE_TRUNCATE } from './each/title-truncate.ts'
@@ -113,6 +115,12 @@ export const vitestPolicy: PolicyOverrides = {
     focus: { scope: 'suite', insideSkip: 'skipped' },
     status: { todoUnderSkip: 'todo', expectFail: 'attempt' },
     locationFrame: 'test-file',
+    // Each error a failed test ended with gets the `diff` Vitest's runner adds (`processError`),
+    // which core keeps as the serialized error's `diff` (`expect/messages/*`'s Vitest goldens).
+    shapeTestError: moduleRef<ShapeTestError>(
+      import.meta.resolve('@provino/dialect-vitest/runtime'),
+      'vitestShapeTestError',
+    ),
     // Vitest's `test` has `extend` and `override` (`runtime/fixture-extend-api`), and its fixture
     // errors are worded as Vitest words them (`runtime/fixture-parse-error`, T5.9).
     definitions: {
@@ -163,6 +171,8 @@ export const vitestPolicy: PolicyOverrides = {
     ciUpdate: 'none',
     updateEnvVar: 'UPDATE_SNAPSHOT',
     throwErrorBody: 'error',
+    // D61: a mismatch throws at the call (`snapshot/mismatch-throws-at-call`).
+    mismatch: 'throw',
     inline: { indent: 'call', formatter: 'none', writer: null, prettierPath: null },
     // Provino's own key (B23d B1): Vitest's `resolveSnapshotPath` is T11.16's.
     resolverFactory: null,
@@ -178,10 +188,21 @@ export const vitestPolicy: PolicyOverrides = {
     matcherNamespace: 'vitest',
     // Not recorded yet (T11.16): the neutral `drop` stands.
     outsideTestCounts: 'drop',
+    // Vitest counts each `expect()` call (`expect/policies/assertions-per-expect`).
+    assertionCalls: 'per-expect-call',
     pollFailsOnTimeout: true,
     diffContextLines: 5,
     valueFormatter: 'pretty-format',
     errorShape: 'assertion-error',
+    // `.resolves`/`.rejects` check the value as they are read (`expect/messages/promises`).
+    settlementCheck: 'at-read',
+    // `expect(value, message)` takes a message (`expect/messages/extend-and-misuse`).
+    messageArgument: true,
+    // `@vitest/expect` 5.0.5's matchers, vendored, exported by `/runtime` (T7.6, D170).
+    matcherTable: moduleRef<MatcherTableFactory>(
+      import.meta.resolve('@provino/dialect-vitest/runtime'),
+      'vitestExpectTable',
+    ),
     equality: { errors: 'assert', invalidDate: 'equal' },
     soft: true,
     poll: { enabled: true, intervalMs: 50, timeoutMs: 1000 },

@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url'
 import { createRuntime, currentTest } from '@provino/core'
 import { jestExpectPolicy, jestMockPolicy } from '@provino/dialect-jest'
 import { jestGlobals } from '@provino/dialect-jest/runtime'
+import { vitestMockPolicy } from '@provino/dialect-vitest'
 import {
   createExpect,
   createMatcherRegistry,
@@ -14,7 +15,7 @@ import {
   installMatchersSlot,
   type TestRun,
 } from '@provino/expect'
-import { createMockRegistry, type MockRegistry } from '@provino/mock'
+import { createMockRegistry, createStubs, type MockRegistry } from '@provino/mock'
 import { createBehaviourLoader } from '@provino/policy'
 import type {
   CorePolicy,
@@ -27,6 +28,7 @@ import type {
 } from '@provino/types'
 import { installGlobals } from '../internal/globals.ts'
 import { unusedJestHost } from '../internal/unused-jest-host.ts'
+import { createViFacade } from '../mock-corpus/run-mock.ts'
 import { type Reported, reported } from '../runtime-corpus/run-core.ts'
 
 /** One failure of a test: what Jest's JSON holds for it. */
@@ -38,6 +40,8 @@ export interface ExpectFailure {
   readonly text: string
   /** Jest's `failureDetails[i].matcherResult.name`; absent for an error no matcher made. */
   readonly matcher?: string
+  /** The diff the error carries (the Vitest dialect's, `SerializedError.diff`). */
+  readonly diff?: string
 }
 
 /** A test as the comparison sees it. */
@@ -56,7 +60,11 @@ function failureText(error: SerializedError): string {
 
 function failureOf(error: SerializedError): ExpectFailure {
   const matcher = error.matcherResult?.name
-  return { text: failureText(error), ...(matcher === undefined ? {} : { matcher }) }
+  return {
+    text: failureText(error),
+    ...(matcher === undefined ? {} : { matcher }),
+    ...(error.diff === undefined ? {} : { diff: error.diff }),
+  }
 }
 
 /**
@@ -98,13 +106,25 @@ export async function runExpectFile(
       rootDir,
       ci: true,
     })
+    // Under Vitest's table the file sees `vi`, the harness's facade over the same registry
+    // (`mock-corpus`), until the dialect ships its own (Phase 6).
     const restore = installGlobals({
       ...runtime.api,
       expect,
-      jest: jestGlobals({
-        ...unusedJestHost(runtime.api, mockRegistry, jestMockPolicy, 'the expect corpus'),
-        expect,
-      }).jest,
+      ...(options.facade === 'vi'
+        ? {
+            vi: createViFacade(
+              vitestMockPolicy,
+              mockRegistry,
+              createStubs(mockRegistry, process.env, globalThis),
+            ),
+          }
+        : {
+            jest: jestGlobals({
+              ...unusedJestHost(runtime.api, mockRegistry, jestMockPolicy, 'the expect corpus'),
+              expect,
+            }).jest,
+          }),
     })
     try {
       source.startFile(file)
@@ -145,6 +165,8 @@ export async function runExpectFile(
 export interface ExpectRunOptions {
   readonly expectPolicy?: ExpectPolicy
   readonly importQuery?: string
+  /** The test object the file sees: `jest` (the default) or `vi`. */
+  readonly facade?: 'jest' | 'vi'
 }
 
 /**
