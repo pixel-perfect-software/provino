@@ -59,8 +59,8 @@ describe('projects', () => {
 
   it('two projects with one name are a usage error: exit 2, no file runs', async () => {
     const config = `export default { projects: [
-      { name: 'p', include: ['a'] }, { name: 'p', include: ['b'] } ] }\n`
-    const ran = await runProject(config)
+      { name: 'p', root: 'one' }, { name: 'p', root: 'two' } ] }\n`
+    const ran = await runProject(config, { 'one/x.txt': '', 'two/x.txt': '' })
     assert.equal(ran.exitCode, 2)
     assert.equal(ran.summary, null)
     assert.match(ran.stderr, /two projects are named "p"/)
