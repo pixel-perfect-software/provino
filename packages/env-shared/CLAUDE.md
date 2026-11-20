@@ -12,6 +12,8 @@ It captures **descriptors, never values** (reading `localStorage` can warn), for
 
 The check is `src/populate.test.ts`: a jsdom window and a happy-dom `GlobalWindow` populated onto a fresh vm global that has data, accessor and symbol keys, restored, and the names and descriptors deep-equal.
 
+`WINDOW_KEYS` is that vendored list, exported for the Vitest dialect's vendored `edge-runtime` setup, which copies the worker's values of those keys into the edge context.
+
 ## `snapshotProperties(target)` (D71)
 
 The descriptor-exact global restore, moved from `@provino/env-node`: `@provino/env-node` and the Jest adapter share it. It captures every own key with its descriptor (reading descriptors until a pass finds no new key, which loads undici's lazy globals), wraps the setter of each configurable get/set accessor (`process`, `Buffer`, `performance`) so an assignment records the old value, and `restore()` deletes added keys, replays the wrapped setters, redefines changed keys and returns the keys it could not restore (never throws). A non-configurable symbol that graceful-fs or undici defines once per process (`graceful-fs.queue`, `undici.*`) is not reported. Tested on plain objects by `src/restore.test.ts`; the rules are in `@provino/env-node`'s CLAUDE.md.
