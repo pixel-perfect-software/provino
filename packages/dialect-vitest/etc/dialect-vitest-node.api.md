@@ -163,7 +163,9 @@ export const vitestConfigStandIn: VitestConfigStandIn;
 export const vitestCoverageConfigDefaults: Readonly<Rec>;
 
 // @public
-export function vitestEnvironmentRef(name: string, environmentOptions: JsonObject, rootDir: string): EnvironmentRef;
+export function vitestEnvironmentRef(name: string, environmentOptions: {
+    readonly [key: string]: JsonValue;
+}, rootDir: string): EnvironmentRef;
 
 // @public
 export const vitestFlags: readonly FlagSpec[];
