@@ -234,3 +234,78 @@ test('vi.when, vi.waitFor and vi.waitUntil, on calls that settle at once', async
   assert.equal(await vi.waitUntil(() => 'ok'), 'ok')
   assert.deepEqual(vi.mockObject({ f: () => 1 }).f(), undefined)
 })
+
+/** The `observe` reduction of the values these cases return: `undefined` and errors. */
+function reduced(value: unknown): unknown {
+  if (value === undefined) return { $: 'undefined' }
+  if (value instanceof Error) return { $: 'error', name: value.name, message: value.message }
+  if (Array.isArray(value)) return value.map(reduced)
+  if (typeof value === 'object' && value !== null) {
+    return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, reduced(item)]))
+  }
+  return value
+}
+
+test('vi.when, isWhenChain, waitFor and waitUntil give what Vitest 5.0.5 recorded (mocking/vi-when-wait)', async () => {
+  const { vi } = vitestGlobals(makeHost().host)
+  const attempt = (run: () => unknown) => {
+    try {
+      return { value: run() }
+    } catch (error) {
+      return { threw: error }
+    }
+  }
+  const cases: Record<string, () => unknown> = {
+    'when returns per argument and falls back for others': () => {
+      const f = vi.fn((x: number) => `impl ${x}`)
+      const chain = vi.when(f).calledWith(1).thenReturn('one')
+      return { first: f(1), other: f(2), isChain: vi.isWhenChain(chain), plain: vi.isWhenChain({}) }
+    },
+    'when with thenReturnOnce and thenThrow': () => {
+      const f = vi.fn()
+      vi.when(f).calledWith('a').thenReturnOnce('once')
+      vi.when(f).calledWith('b').thenThrow(new Error('b throws'))
+      return [f('a'), f('a'), attempt(() => f('b'))]
+    },
+    'when with onUnmatched throw': () => {
+      const f = vi.fn()
+      vi.when(f, { onUnmatched: 'throw' }).calledWith(1).thenReturn('one')
+      return [attempt(() => f(1)), attempt(() => f(2))]
+    },
+    'waitFor resolves with the callback value at once': async () => {
+      let calls = 0
+      const value = await vi.waitFor(() => {
+        calls++
+        return 'ready'
+      })
+      return { value, calls }
+    },
+    'waitUntil resolves with the first truthy value': async () => {
+      let calls = 0
+      const value = await vi.waitUntil(() => {
+        calls++
+        return { ok: true }
+      })
+      return { value, calls }
+    },
+  }
+  const golden = JSON.parse(
+    readFileSync(
+      new URL(
+        '../../../harness/fixtures/mocking/vi-when-wait/__goldens__/vitest.json',
+        import.meta.url,
+      ),
+      'utf8',
+    ),
+  ) as { trace: readonly string[] }
+  const recorded = golden.trace.map((line) => JSON.parse(line) as { id: string; value: unknown })
+  assert.deepEqual(
+    recorded.map((entry) => entry.id),
+    Object.keys(cases),
+  )
+  for (const entry of recorded) {
+    const run = cases[entry.id]
+    assert.ok(run)
+    assert.deepEqual(reduced(await run()), entry.value, entry.id)
+  }
+})

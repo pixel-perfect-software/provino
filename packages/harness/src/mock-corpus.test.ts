@@ -36,7 +36,9 @@ import { pairLabel } from './test-support.ts'
  * The fixture that records `Object.keys` of the `jest` and `vi` objects for T11.10. Nothing reads
  * it yet, so it is not counted.
  */
-const UNCOUNTED = new Set(['mocking/api-surface'])
+// `vi-when-wait` needs the matcher slot and a clock, which this corpus's host lacks: the dialect's
+// `runtime/globals.test.ts` holds the shipped `vi` to it.
+const UNCOUNTED = new Set(['mocking/api-surface', 'mocking/vi-when-wait'])
 
 /**
  * The counted cases the corpus has under each profile, exactly. B13a's brief set the bar at Jest 72
@@ -45,7 +47,7 @@ const UNCOUNTED = new Set(['mocking/api-surface'])
  */
 const EXPECTED_COUNTED: Readonly<Partial<Record<FixtureProfile, number>>> = {
   jest: 122,
-  vitest: 113,
+  vitest: 119,
 }
 
 const root = path.join(defaultFixturesRoot(), 'mocking')

@@ -1,0 +1,4 @@
+{
+  "description": "`vi.when` and `vi.isWhenChain`, and `vi.waitFor` and `vi.waitUntil` that settle at once, under Vitest 5.0.5. Not a mocking-corpus case (its host has no matcher slot and no clock): `@provino/dialect-vitest`'s `runtime/globals.test.ts` holds the shipped `vi` to this trace.",
+  "runners": ["vitest"]
+}
