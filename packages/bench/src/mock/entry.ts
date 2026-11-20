@@ -9,9 +9,9 @@
 //   call      ns per call of a mock holding an impl; every result is summed and printed
 // Each measurement runs ROUNDS rounds; the first WARMUP_ROUNDS are discarded, the rest are medians.
 import { jestMockPolicy } from '@provino/dialect-jest'
-import { vitestMockPolicy } from '@provino/harness'
 import { vitestPolicy } from '@provino/dialect-vitest'
 import { type VitestGlobalsHost, vitestGlobals } from '@provino/dialect-vitest/runtime'
+import { vitestMockPolicy } from '@provino/harness'
 import { createMockFn, createMockRegistry } from '@provino/mock'
 import { resolvePolicy } from '@provino/policy'
 import { keptMedian, ROUNDS, SAMPLE_PREFIX, WARMUP_ROUNDS } from '../internal/limits.ts'
