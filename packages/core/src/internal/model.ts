@@ -1,5 +1,6 @@
 // The collector's mutable tree and the async-context store. Everything here is worker-only and
 // never crosses threads; the clone-safe `TaskNode`s are built from it once collection ends.
+
 import type {
   AnyFunction,
   DescribeRetry,
@@ -22,6 +23,8 @@ import type {
 } from '@provino/types'
 import type { Site } from '../collector/location.ts'
 import type { RetrySpec } from '../collector/retry.ts'
+import type { AttemptFixtures } from '../definitions/resolve.ts'
+import type { DefinitionSet } from '../definitions/table.ts'
 import type { InvokeEnv } from '../executor/invoke.ts'
 
 /** A user function as stored: any function is assignable; it is called with `Reflect.apply`. */
@@ -56,6 +59,13 @@ export interface HookNode {
    * test file declared it, so the lifecycle events never name it.
    */
   readonly synthetic: boolean
+  /**
+   * The test API a suite hook was registered through (`test.beforeAll` on an extended test): it
+   * reads that API's file and worker fixtures. `undefined` for every other hook.
+   */
+  readonly definitions: DefinitionSet | undefined
+  /** Where a hook with `definitions` was registered, for its errors (T5.9). */
+  readonly definitionSite: Error | undefined
   /** The captured callsite, until the tree is built and it is parsed into `location`. */
   site: Site | null
   /** Where the hook was registered (the first frame in the test file), filled when the tree is built. */
@@ -131,6 +141,8 @@ export interface TestNode extends NodeBase {
   readonly rowArgs: readonly unknown[] | undefined
   /** `.for` passes the context after the row; `.each` never passes one. */
   readonly passContext: boolean
+  /** The fixtures of the test API it was registered through (`test.extend`, T5.9), if any. */
+  readonly definitions: DefinitionSet | undefined
   readonly concurrent: boolean
   readonly expectFail: boolean
   /** The test's own timeout; `undefined` takes the file's default, else the policy's, when it runs. */
@@ -225,4 +237,6 @@ export interface AttemptState {
   invokeEnv: InvokeEnv | undefined
   /** Whether this attempt runs in jest-circus's retry loop (`boundaryTurns.retryEnd`). */
   readonly retryLoop: boolean
+  /** The test-scope fixtures set on its context, made on the first that is (T5.9). */
+  fixtures: AttemptFixtures | undefined
 }

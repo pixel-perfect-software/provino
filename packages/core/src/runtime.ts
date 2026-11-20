@@ -1,6 +1,7 @@
 // `createRuntime`: one per worker. It wires the collector, the executor, the global API and the
 // `LazyHost`, and runs files one at a time: collect (through the caller's `ImportFile`), build the
 // tree, run it, and report every step to the `EventSink`.
+
 import { relative, sep } from 'node:path'
 import type { BehaviourLoader } from '@provino/policy'
 import type {
@@ -21,6 +22,7 @@ import { Collector } from './collector/collector.ts'
 import { type FinalizeOptions, fileIdOf, finalize } from './collector/finalize.ts'
 import { newFileState } from './collector/nodes.ts'
 import { type CurrentTestService, currentTest, reportAsyncContext } from './current/current-test.ts'
+import type { DefinitionEnv } from './definitions/table.ts'
 import { listenForProcessErrors, ProcessErrors, type ProcessLike } from './errors/process-errors.ts'
 import { CoreError, serializeError } from './errors.ts'
 import { capturedTimers, createDeadlines, type RealTimers } from './executor/deadline.ts'
@@ -45,6 +47,11 @@ export interface RuntimeOptions {
   readonly policy: CorePolicy
   /** Loads `formatEachTitle`, `formatValue` and `orderHooks` (the worker's one loader). */
   readonly behaviours: BehaviourLoader
+  /**
+   * The value of an `injected` fixture (Vitest's `provide`), by key; `undefined` keeps the
+   * fixture's own default (T5.9).
+   */
+  readonly injectValue?: (key: string) => unknown
   readonly sink: EventSink
   /** Loads a test file; the worker passes the loader's import. */
   readonly importFile: ImportFile
@@ -214,9 +221,19 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
     shape === undefined ? undefined : (error: unknown): unknown => shape(error, shapeOptions)
   const runs = createRunRegistry()
   const workerTeardowns: Array<() => unknown> = []
+  const definitionFormat =
+    policy.definitions.messages === null
+      ? undefined
+      : await options.behaviours.load(policy.definitions.messages)
+  const definitions: DefinitionEnv = {
+    format: definitionFormat,
+    injectValue: options.injectValue,
+    addWorkerTeardown: (fn) => workerTeardowns.push(fn),
+  }
   const collector = new Collector({
     policy,
     formatEachTitle,
+    definitions,
     locations: options.locations ?? true,
     onLateRegistration(error: CoreError, chargedTo: FileState | undefined) {
       sink.emit({
@@ -246,6 +263,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   const executor: Executor = new Executor({
     policy,
     orderHooks,
+    definitionWords: definitions,
     shapeTestError,
     sink,
     deadlines,

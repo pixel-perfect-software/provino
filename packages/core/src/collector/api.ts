@@ -3,6 +3,7 @@
 // `.each`/`.for`, and the hooks. Neutral names only; Jest's `fit`/`xit` aliases are dialect code.
 import type { EachRowArgs, FileTask, SuiteTask, TestContext } from '@provino/types'
 import { currentStore } from '../current/current-test.ts'
+import { builderEntry, DefinitionSet, type FixtureOptions } from '../definitions/table.ts'
 import { CoreError } from '../errors.ts'
 import { addCallback } from '../executor/context.ts'
 import type { DeclaredHookKind } from '../internal/model.ts'
@@ -21,7 +22,7 @@ import type { StackMarker } from './location.ts'
  * its own `done` form.
  * @public
  */
-export type TestFunction = (context: TestContext) => unknown
+export type TestFunction<C extends object = object> = (context: TestContext & C) => unknown
 
 /**
  * `.each` over rows (array rows spread into arguments) or a tagged-template table.
@@ -63,21 +64,102 @@ export type ForFunction<Register> = <const Row>(
  * `test`/`it`: declares a test. Chain modifiers (`test.only.concurrent`), or pass options second.
  * @public
  */
-export interface TestApi {
-  (name: string | StackMarker, fn?: TestFunction, timeoutMs?: number): void
-  (name: string | StackMarker, options: TestOptions, fn?: TestFunction): void
-  readonly only: TestApi
-  readonly skip: TestApi
-  readonly todo: TestApi
-  readonly concurrent: TestApi
+export interface TestApi<C extends object = object> {
+  (name: string | StackMarker, fn?: TestFunction<C>, timeoutMs?: number): void
+  (name: string | StackMarker, options: TestOptions, fn?: TestFunction<C>): void
+  readonly only: TestApi<C>
+  readonly skip: TestApi<C>
+  readonly todo: TestApi<C>
+  readonly concurrent: TestApi<C>
   /** Passes when the body fails (Vitest's name). */
-  readonly fails: TestApi
+  readonly fails: TestApi<C>
   /** Passes when the body fails (Jest's name). */
-  readonly failing: TestApi
-  skipIf(condition: unknown): TestApi
-  runIf(condition: unknown): TestApi
+  readonly failing: TestApi<C>
+  skipIf(condition: unknown): TestApi<C>
+  runIf(condition: unknown): TestApi<C>
   readonly each: EachFunction<'test'>
   readonly for: ForFunction<'test'>
+}
+
+/**
+ * What a fixture passes its value to; the promise settles when the fixture's scope ends, and what
+ * the fixture does after it is its cleanup.
+ * @public
+ */
+export type FixtureUse<V> = (value: V) => Promise<void>
+
+/**
+ * A fixture function: it reads the keys it destructures from `context` and passes its value to
+ * `use`.
+ * @public
+ */
+export type FixtureFunction<V, C extends object> = (
+  context: TestContext & C,
+  use: FixtureUse<V>,
+) => unknown
+
+/**
+ * One entry of `test.extend`'s object form: a value, a fixture function, or either with options.
+ * @public
+ */
+export type FixtureEntry<V, C extends object> =
+  | V
+  | FixtureFunction<V, C>
+  | readonly [V | FixtureFunction<V, C>, FixtureOptions]
+
+/**
+ * `test.extend`'s object form for the keys `T`, over the context `C` the test already has.
+ * @public
+ */
+export type Fixtures<T extends object, C extends object = object> = {
+  readonly [K in keyof T]: FixtureEntry<T[K], C & T>
+}
+
+/**
+ * What a builder-form fixture gets beside the context.
+ * @public
+ */
+export interface FixtureTools {
+  /** Runs once the value's scope ends; call it at most once. */
+  onCleanup(fn: () => unknown): void
+}
+
+/**
+ * A builder-form fixture: it returns its value.
+ * @public
+ */
+export type FixtureBuilder<V, C extends object> = (
+  context: TestContext & C,
+  tools: FixtureTools,
+) => V
+
+/**
+ * `test` with fixtures (T5.9): `extend` returns a test whose tests and hooks read the keys it adds;
+ * `override` replaces keys in the describe block it is called in. Present only where
+ * `CorePolicy.definitions.extendApi` is `expose`.
+ * @public
+ */
+export interface FixtureTestApi<C extends object = object> extends TestApi<C> {
+  extend<T extends object>(fixtures: Fixtures<T, C>): FixtureTestApi<C & T>
+  extend<K extends string, V>(
+    key: K,
+    build: FixtureBuilder<V, C>,
+  ): FixtureTestApi<C & { readonly [P in K]: Awaited<V> }>
+  extend<K extends string, V>(
+    key: K,
+    options: FixtureOptions,
+    build: FixtureBuilder<V, C>,
+  ): FixtureTestApi<C & { readonly [P in K]: Awaited<V> }>
+  override(fixtures: { readonly [K in keyof C]?: FixtureEntry<C[K], C> }): void
+  override<K extends keyof C & string>(key: K, build: FixtureBuilder<C[K] | Promise<C[K]>, C>): void
+  /** A `beforeAll` that gets this test's file and worker fixtures first, the suite second. */
+  beforeAll(fn: (context: C, suite: HookSuite) => unknown, timeoutMs?: number): void
+  /** An `afterAll` that gets this test's file and worker fixtures first, the suite second. */
+  afterAll(fn: (context: C, suite: HookSuite) => unknown, timeoutMs?: number): void
+  beforeEach(fn: (context: TestContext & C, suite: HookSuite) => unknown, timeoutMs?: number): void
+  afterEach(fn: (context: TestContext & C, suite: HookSuite) => unknown, timeoutMs?: number): void
+  readonly describe: SuiteApi
+  readonly suite: SuiteApi
 }
 
 /**
@@ -168,7 +250,12 @@ function suiteArguments(second: unknown, third: unknown): { options: SuiteOption
 
 /** Builds the global API over a collector. */
 export function createApi(collector: Collector): RuntimeApi {
-  const test = makeTest(collector, {})
+  const expose = collector.policy.definitions.extendApi === 'expose'
+  const test = makeTest(
+    collector,
+    {},
+    expose ? new DefinitionSet(collector.definitions) : undefined,
+  )
   const describe = makeSuite(collector, {})
   const hook = (kind: DeclaredHookKind) =>
     function register(fn: unknown, timeoutMs?: number): void {
@@ -203,22 +290,82 @@ function flagFor(modifier: Modifier): Flags {
   return modifier === 'failing' ? { fails: true } : { [modifier]: true }
 }
 
-function makeTest(collector: Collector, flags: Flags): TestApi {
+function makeTest(
+  collector: Collector,
+  flags: Flags,
+  definitions: DefinitionSet | undefined,
+): TestApi {
   const spec = (name: unknown, second: unknown, third: unknown, entry: StackMarker) => {
     const { options, fn, timeout } = parseArguments(second, third)
-    return { name: formatName(name), fn, options: options as TestOptions, flags, timeout, entry }
+    return {
+      name: formatName(name),
+      fn,
+      options: options as TestOptions,
+      flags,
+      timeout,
+      entry,
+      definitions,
+    }
   }
   const register = function test(name: unknown, second?: unknown, third?: unknown): void {
     collector.addTest(spec(name, second, third, register))
   }
-  return chainable<TestApi>(
+  const api = chainable<TestApi>(
     register,
     TEST_MODIFIERS,
     flags,
-    (next) => makeTest(collector, next),
+    (next) => makeTest(collector, next, definitions),
     (table, name, second, third, entry) =>
       collector.addTestTable(spec(name, second, third, entry), table),
   )
+  if (definitions !== undefined) addFixtureApi(api, collector, flags, definitions)
+  return api
+}
+
+/**
+ * `extend`, `override`, the hooks and `describe` on a test API, as Vitest 5.0.5's `createTaskCollector`
+ * puts them (`runner/suite.ts`): `extend` returns a new test with its own set, `override` changes
+ * this one's for the block being collected, and `beforeAll`/`afterAll` read its file fixtures.
+ */
+function addFixtureApi(
+  api: TestApi,
+  collector: Collector,
+  flags: Flags,
+  definitions: DefinitionSet,
+): void {
+  const collecting = (what: string) => {
+    const suite = collector.collecting()
+    if (suite === undefined) {
+      throw new CoreError(
+        'CORE_INVALID_ARGUMENT',
+        `test.${what} can only be called while a file or a describe body is being collected`,
+      )
+    }
+    return suite
+  }
+  const hook = (kind: DeclaredHookKind, own: DefinitionSet | undefined) =>
+    function register(fn: unknown, timeoutMs?: number): void {
+      collector.addHook(kind, fn, timeoutMs, register, own)
+    }
+  const describe = makeSuite(collector, {})
+  Object.assign(api, {
+    extend(fixtures: unknown, optionsOrValue?: unknown, maybeValue?: unknown): TestApi {
+      const entries = builderEntry(definitions.env, fixtures, optionsOrValue, maybeValue)
+      return makeTest(collector, flags, definitions.extend(entries, collecting('extend')))
+    },
+    override(fixtures: unknown, optionsOrValue?: unknown, maybeValue?: unknown): void {
+      const entries = builderEntry(definitions.env, fixtures, optionsOrValue, maybeValue)
+      definitions.override(entries, collecting('override'))
+    },
+    describe,
+    suite: describe,
+    beforeAll: hook('beforeAll', definitions),
+    afterAll: hook('afterAll', definitions),
+    beforeEach: hook('beforeEach', undefined),
+    afterEach: hook('afterEach', undefined),
+    aroundEach: hook('aroundEach', undefined),
+    aroundAll: hook('aroundAll', undefined),
+  })
 }
 
 function makeSuite(collector: Collector, flags: Flags): SuiteApi {

@@ -39,6 +39,12 @@ export type CoreErrorCode =
   | 'CORE_INVALID_ARGUMENT'
   /** `runFile` called while another file of the same runtime is collecting or running. */
   | 'CORE_BUSY'
+  /** A function that reads definitions has a first parameter they can't be read from (T5.9). */
+  | 'CORE_DEFINITION_PARSE'
+  /** A definition can't be built from what it reads: a cycle, a narrower or unknown scope, a missing key. */
+  | 'CORE_DEFINITION_DEPENDENCY'
+  /** Definitions read where there is no context to read them from (a plain suite hook). */
+  | 'CORE_DEFINITION_ACCESS'
 
 /**
  * An error raised by `@provino/core`, with a stable code.

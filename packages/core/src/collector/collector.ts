@@ -10,6 +10,7 @@ import type {
   RunMode,
 } from '@provino/types'
 import { currentStore, newStore, runInStore } from '../current/current-test.ts'
+import type { DefinitionEnv, DefinitionSet } from '../definitions/table.ts'
 import { CoreError } from '../errors.ts'
 import { resolveTimeout } from '../executor/deadline.ts'
 import { callUser } from '../executor/user-call.ts'
@@ -92,6 +93,8 @@ export interface CollectorConfig {
    * It may run inside a user's timer, so it must not throw.
    */
   readonly onLateRegistration: (error: CoreError, chargedTo: FileState | undefined) => void
+  /** What fixtures share across the runtime (T5.9); absent: core's words, no injected values. */
+  readonly definitions?: DefinitionEnv
 }
 
 /** The registration target behind the global API. One per runtime; one file at a time. */
@@ -106,6 +109,23 @@ export class Collector {
 
   constructor(config: CollectorConfig) {
     this.#config = config
+  }
+
+  /** What every `DefinitionSet` of this runtime shares. */
+  get definitions(): DefinitionEnv {
+    this.#definitions ??= this.#config.definitions ?? {
+      format: undefined,
+      injectValue: undefined,
+      addWorkerTeardown: () => undefined,
+    }
+    return this.#definitions
+  }
+
+  #definitions: DefinitionEnv | undefined
+
+  /** The policy registrations follow. */
+  get policy(): CorePolicy {
+    return this.#config.policy
   }
 
   /** The file collecting or running now. */
@@ -191,6 +211,7 @@ export class Collector {
       arity: typeof fn === 'function' ? fn.length : 0,
       rowArgs: spec.each?.args,
       passContext: spec.each?.passContext ?? true,
+      definitions: spec.definitions,
       concurrent: spec.flags.concurrent ?? spec.options.concurrent ?? inherited.concurrent ?? false,
       expectFail: spec.flags.fails === true || spec.options.fails === true,
       timeoutMs: timeout,
@@ -287,7 +308,13 @@ export class Collector {
   }
 
   /** Registers a hook on the current suite. */
-  addHook(kind: DeclaredHookKind, fn: unknown, timeout: unknown, entry: StackMarker): void {
+  addHook(
+    kind: DeclaredHookKind,
+    fn: unknown,
+    timeout: unknown,
+    entry: StackMarker,
+    definitions?: DefinitionSet,
+  ): void {
     if (typeof fn !== 'function') {
       throw new CoreError('CORE_INVALID_ARGUMENT', `"${kind}" expects a function, got ${typeof fn}`)
     }
@@ -305,6 +332,8 @@ export class Collector {
         typeof timeout === 'number' ? timeout : undefined,
       ),
       synthetic: false,
+      definitions,
+      definitionSite: definitions === undefined ? undefined : new Error('STACK_TRACE_ERROR'),
       site: this.#site(entry),
       location: null,
     }
@@ -333,6 +362,8 @@ export class Collector {
       owner,
       timeoutMs: undefined,
       synthetic: true,
+      definitions: undefined,
+      definitionSite: undefined,
       site: null,
       location: null,
     })
@@ -521,6 +552,8 @@ export interface TestSpec {
   readonly timeout: number | undefined
   readonly entry: StackMarker
   readonly each?: { readonly args: readonly unknown[]; readonly passContext: boolean }
+  /** The fixtures of the test API it was registered through (`test.extend`). */
+  readonly definitions?: DefinitionSet | undefined
 }
 
 /** One describe registration. */
