@@ -179,6 +179,10 @@ function build(
   const { vite, fileTest, configFile, root } = parts
   const { cliExclude, ...cliTest } = context.options.test ?? {}
   const given = deepMerge({}, fileTest, cliTest)
+  // `--dom` is `environment: 'happy-dom'`, over the file's (resolveConfig.ts `resolveTestConfig`,
+  // `if (options.dom)`; `cli/vitest-dom`). Vitest also warns when the file names another one: not
+  // printed here (a limit).
+  if (given.dom === true) given.environment = 'happy-dom'
   const test = deepMerge({}, configDefaults as Rec, given)
   // `--exclude` adds to the excludes (cac.ts L284 `cliExclude`, resolveConfig.ts L633-L635). It is
   // not among `PROJECT_CLI_OVERRIDES` (resolveProjects.ts L52), so a child project never gets it.

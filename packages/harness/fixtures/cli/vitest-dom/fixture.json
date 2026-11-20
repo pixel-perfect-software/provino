@@ -1,0 +1,10 @@
+{
+  "description": "Vitest 5.0.5's --dom runs every file in its built-in happy-dom environment (resolveTestConfig: options.environment = 'happy-dom') in a project whose config names none: a DOM, happy-dom's user agent and default URL. Held by provino vitest in B25f (provino's vitest-environments.test.ts).",
+  "runners": ["vitest"],
+  "run": {
+    "argv": {
+      "vitest": ["--dom"]
+    },
+    "capture": ["exitCode"]
+  }
+}

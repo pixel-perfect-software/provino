@@ -64,6 +64,7 @@ export {
   type VitestResolvedProject,
 } from './normalize.ts'
 export { vitestProjectToNeutral } from './to-neutral.ts'
+export { vitestEnvironmentRef } from '../internal/environment-ref.ts'
 export { mergeAlias, mergeConfig, normalizeAlias } from './vite-merge.ts'
 export {
   configDefaults as vitestConfigDefaults,

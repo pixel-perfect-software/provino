@@ -10,6 +10,8 @@ import { type Spawned, spawnCli } from './support.ts'
 /** The parts of a `fixture.json` a Vitest replay reads. */
 export interface VitestManifest {
   readonly env?: Readonly<Record<string, string>>
+  /** Packages the recorder installs into the work directory's `node_modules/`, file by file. */
+  readonly packages?: Readonly<Record<string, Readonly<Record<string, string>>>>
   readonly files?: { readonly vitest?: Readonly<Record<string, string>> }
   readonly config?: { readonly vitest?: { readonly test?: Readonly<Record<string, unknown>> } }
   readonly run?: {
@@ -50,7 +52,7 @@ export async function loadVitestFixture(id: string): Promise<VitestFixture> {
   }
 }
 
-/** The fixture's files, its `files.vitest` and a `vitest.config.ts` with the recorder's base. */
+/** The fixture's files, its `files.vitest`, its `packages` and a `vitest.config.ts` with the recorder's base. */
 export async function materializeVitest(
   fixture: VitestFixture,
 ): Promise<{ readonly root: string; readonly dispose: () => Promise<void> }> {
@@ -62,6 +64,13 @@ export async function materializeVitest(
   for (const [path, text] of Object.entries(fixture.manifest.files?.vitest ?? {})) {
     await mkdir(dirname(join(root, path)), { recursive: true })
     await writeFile(join(root, path), text)
+  }
+  for (const [name, files] of Object.entries(fixture.manifest.packages ?? {})) {
+    for (const [path, text] of Object.entries(files)) {
+      const target = join(root, 'node_modules', name, path)
+      await mkdir(dirname(target), { recursive: true })
+      await writeFile(target, text)
+    }
   }
   const config = {
     root,

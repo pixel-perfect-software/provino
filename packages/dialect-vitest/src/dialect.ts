@@ -246,7 +246,13 @@ export const vitestPolicy: PolicyOverrides = {
     coverageReporters: ['text', 'html', 'clover', 'json'],
     slowTestThresholdMs: 300,
     // Ours (D6 for Jest; Vitest isolates each file in its own module graph, as `registry` does).
-    isolationDefault: { default: 'registry' },
+    // A DOM environment too: Vitest 5.0.5's `jsdom` and `happy-dom` set up on the worker's own
+    // global (`populateGlobal`), and only a `vm*` pool gives them a context of their own, so they
+    // stay on `registry` where the neutral value puts them on `realm`.
+    isolationDefault: {
+      default: 'registry',
+      byEnvironment: { jsdom: 'registry', 'happy-dom': 'registry' },
+    },
     envDefault: 'node',
     environmentPragmas: ['vitest-environment', 'jest-environment'],
     pool: { default: 'forks' },

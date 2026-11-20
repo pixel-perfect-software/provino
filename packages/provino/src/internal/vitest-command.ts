@@ -13,13 +13,13 @@ import {
   VitestConfigError,
   vitestArgvToTestConfig,
   vitestCli,
+  vitestEnvironmentRef,
   vitestNodeDialect,
 } from '@provino/dialect-vitest/node'
 import type { ShardSpec } from '@provino/orchestrator'
 import type { TextSink } from '@provino/reporters'
-import type { Diagnostic, FileFilter, NeutralProject } from '@provino/types'
+import type { Diagnostic, EnvironmentRef, FileFilter, NeutralProject } from '@provino/types'
 import type { ReporterChoice } from '../types.ts'
-import { ENVIRONMENTS } from './built-ins.ts'
 import { usageMessage } from './describe.ts'
 import { type ExecuteOptions, executeProject } from './execute.ts'
 
@@ -87,6 +87,31 @@ const REFUSED_REPORTERS: Readonly<Record<string, string>> = {
 }
 
 class VitestCommandError extends Error {}
+
+/**
+ * The project with its `environment` resolved as Vitest 5.0.5's `loadEnvironment` resolves it
+ * (`vitestEnvironmentRef`: `node`, `jsdom` over the project's own jsdom, the vendored `happy-dom`
+ * and `edge-runtime` setups, a `vitest-environment-<name>` package or a path), the same refs a
+ * file's docblock gets from the dialect's `environmentResolver`. Provino's own `ENVIRONMENTS` serve
+ * `provino run`: a Vitest project's `jsdom` through them and a docblock's through the dialect
+ * could load two copies of jsdom.
+ */
+function withVitestEnvironment(neutral: NeutralProject): {
+  readonly project: NeutralProject
+  readonly environments: Readonly<Record<string, Omit<EnvironmentRef, 'options'>>>
+} {
+  const { name, resolverOptions } = neutral.environment
+  let ref: EnvironmentRef
+  try {
+    ref = vitestEnvironmentRef(name, resolverOptions ?? {}, neutral.rootDir)
+  } catch (cause) {
+    throw new VitestCommandError(cause instanceof Error ? cause.message : String(cause))
+  }
+  return {
+    project: { ...neutral, environment: { ...neutral.environment, options: ref.options } },
+    environments: { [name]: { module: ref.module, export: ref.export } },
+  }
+}
 
 function report(diagnostics: readonly Diagnostic[], stderr: NodeJS.WritableStream): boolean {
   let failed = false
@@ -296,12 +321,9 @@ export async function runVitestCommand(
     const ci = Boolean(env.CI)
     const projects: ResolvedProject[] = []
     for (const neutral of neutrals) {
+      const { project, environments } = withVitestEnvironment(neutral)
       projects.push(
-        await resolveNeutralProject(neutral, {
-          dialect: vitestNodeDialect,
-          environments: ENVIRONMENTS,
-          ci,
-        }),
+        await resolveNeutralProject(project, { dialect: vitestNodeDialect, environments, ci }),
       )
     }
     const [project, ...others] = projects
