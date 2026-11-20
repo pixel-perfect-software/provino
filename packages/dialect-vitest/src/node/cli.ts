@@ -116,9 +116,8 @@ const TRANSFORMS: Readonly<Record<string, (value: unknown) => unknown>> = {
   api: (value) => (typeof value === 'number' ? { port: value } : value),
   // L125
   silent: (value) => {
-    if (value === 'true' || value === 'yes' || value === true) return true
-    if (value === 'false' || value === 'no' || value === false) return false
-    if (value === 'passed-only') return value
+    const flag = yesNo(value)
+    if (typeof flag === 'boolean' || flag === 'passed-only') return flag
     throw new TypeError(
       `Unexpected value "--silent=${String(value)}". Use "--silent=true ${String(value)}" instead.`,
     )
@@ -320,10 +319,12 @@ function invalid(error: unknown): VitestCliError {
 const NOT_SUPPORTED = 'VITEST_CLI_UNSUPPORTED'
 const NOT_APPLIED = 'VITEST_CLI_NOT_APPLIED'
 
+const RUNS_ONCE = 'D175: provino vitest runs once, as vitest run; watch mode is a follow-up bundle'
+
 /** Commands `provino vitest` refuses, with why (D175 for watch). */
 const REFUSED_COMMANDS: Readonly<Partial<Record<VitestCommandName, string>>> = {
-  watch: 'D175: provino vitest runs once, as vitest run; watch mode is a follow-up bundle',
-  dev: 'D175: provino vitest runs once, as vitest run; watch mode is a follow-up bundle',
+  watch: RUNS_ONCE,
+  dev: RUNS_ONCE,
   related: 'a follow-up bundle (Vitest related)',
   bench: 'not planned: benchmarks',
   init: 'not planned: browser mode (D3)',
@@ -517,8 +518,7 @@ export const vitestCli: CliDialect<VitestArgv> = {
 }
 
 function flagSpec(row: VitestCliOption): FlagSpec {
-  const parts =
-    row.flag.split(' ')[0] === undefined ? [] : row.flag.replace(/ [<[].*$/, '').split(', ')
+  const parts = row.flag.replace(/ [<[].*$/, '').split(', ')
   const long = parts.find((part) => part.startsWith('--')) ?? `--${row.path}`
   const short = parts.find((part) => !part.startsWith('--'))
   return {

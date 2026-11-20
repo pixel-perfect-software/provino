@@ -41,8 +41,16 @@ export interface VitestCommandIo {
   readonly forceSignal?: AbortSignal
 }
 
-/** Every error Vitest's CLI ends on is exit code 1 (`process.exitCode = 1`, cli-api.ts; `cli/unknown-flag`). */
-const VITEST_ERROR_EXIT = 1
+/**
+ * Every error Vitest's CLI ends on is the dialect's `orchestrator.exitCodes.usage` (1:
+ * `process.exitCode = 1`, cli-api.ts; `cli/unknown-flag`).
+ */
+const VITEST_ERROR_EXIT: number = usageExitCode()
+
+function usageExitCode(): number {
+  const { policy } = vitestNodeDialect
+  return (typeof policy === 'function' ? undefined : policy.orchestrator?.exitCodes?.usage) ?? 1
+}
 
 /**
  * The variables Vitest's CLI sets before it reads a config (`prepareVitest`, cli-api.ts L234-L236).
@@ -260,6 +268,7 @@ export async function runVitestCommand(
 ): Promise<number> {
   setVitestEnv(process.env)
   const { stdout, stderr, cwd } = io
+  const env = io.env ?? process.env
   try {
     // `vitest run` is the one-shot command; a bare `vitest` runs once here too (D175).
     const parsed = vitestCli.parse(args)
@@ -284,7 +293,7 @@ export async function runVitestCommand(
       throw new VitestCommandError('--silent=passed-only is not supported (parked (D183))')
     }
     const neutrals = chooseProjects(read.projects, options.project)
-    const ci = Boolean((io.env ?? process.env).CI)
+    const ci = Boolean(env.CI)
     const projects: ResolvedProject[] = []
     for (const neutral of neutrals) {
       projects.push(
@@ -313,7 +322,7 @@ export async function runVitestCommand(
       : undefined
     const maxWorkers = maxWorkersOf(rootTest.maxWorkers, rootTest.fileParallelism)
     const shard = shardOf(options.shard)
-    const bail = typeof rootTest.bail === 'number' && rootTest.bail > 0 ? rootTest.bail : 0
+    const bail = typeof rootTest.bail === 'number' && rootTest.bail > 0 ? rootTest.bail : undefined
     const passWithNoTests = request.passWithNoTests ?? rootTest.passWithNoTests === true
     const pool: ExecuteOptions['pool'] = {
       workerEnv: VITEST_WORKER_ENV,
@@ -332,7 +341,7 @@ export async function runVitestCommand(
         ? {}
         : { reporters: plan.text.length === 0 && plan.json ? [] : plan.text }),
       ...(results === undefined ? {} : { leadingReporters: [results.reporter] }),
-      env: io.env ?? process.env,
+      env,
       display: {
         ...(silent === true ? { silent: true } : {}),
         ...(request.colour === undefined ? {} : { colour: request.colour }),
@@ -342,24 +351,28 @@ export async function runVitestCommand(
       update: request.update,
       fileFilters: request.fileFilters.map(coordinatorFilter),
       passWithNoTests,
-      ...(bail > 0 ? { bail: { count: bail } } : {}),
+      ...(bail === undefined ? {} : { bail: { count: bail } }),
       ...(rootTest.logHeapUsage === true ? { logHeapUsage: true } : {}),
       ...(shard === undefined ? {} : { shard }),
       ...(io.signal === undefined ? {} : { signal: io.signal }),
       ...(io.forceSignal === undefined ? {} : { forceSignal: io.forceSignal }),
     })
-    if (result.summary !== null && result.summary.files.length === 0) {
-      // `Logger.printNoTestFound` (logger.ts L167-L184): stdout under `passWithNoTests`, else stderr.
-      if (passWithNoTests) await stdout.write('No test files found, exiting with code 0\n\n')
-      else stderr.write('No test files found, exiting with code 1\n\n')
-    }
-    if (results !== undefined && result.summary !== null) {
-      await writeJsonReport(
-        JSON.stringify(results.json()),
-        plan.jsonOutputFile ?? outputFileFor(options.outputFile ?? rootTest.outputFile, 'json'),
-        read.root.root,
+    if (result.summary !== null) {
+      await afterRun(result.summary.files.length === 0, {
+        passWithNoTests,
+        json:
+          results === undefined
+            ? undefined
+            : {
+                text: JSON.stringify(results.json()),
+                outputFile:
+                  plan.jsonOutputFile ??
+                  outputFileFor(options.outputFile ?? rootTest.outputFile, 'json'),
+              },
+        root: read.root.root,
         stdout,
-      )
+        stderr,
+      })
     }
     return result.exitCode
   } catch (error) {
@@ -375,6 +388,28 @@ export async function runVitestCommand(
     if (message === undefined) throw error
     stderr.write(`${message}\n`)
     return VITEST_ERROR_EXIT
+  }
+}
+
+/** What a run prints after its reporters: Vitest's no-files line, then the json report. */
+async function afterRun(
+  noFiles: boolean,
+  then: {
+    readonly passWithNoTests: boolean
+    readonly json: { readonly text: string; readonly outputFile: string | undefined } | undefined
+    readonly root: string
+    readonly stdout: TextSink
+    readonly stderr: NodeJS.WritableStream
+  },
+): Promise<void> {
+  if (noFiles) {
+    // `Logger.printNoTestFound` (logger.ts L167-L184): stdout under `passWithNoTests`, else stderr.
+    if (then.passWithNoTests)
+      await then.stdout.write('No test files found, exiting with code 0\n\n')
+    else then.stderr.write('No test files found, exiting with code 1\n\n')
+  }
+  if (then.json !== undefined) {
+    await writeJsonReport(then.json.text, then.json.outputFile, then.root, then.stdout)
   }
 }
 

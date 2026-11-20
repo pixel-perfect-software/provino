@@ -14,7 +14,7 @@ import type {
   Dialect,
   NeutralProject,
 } from '@provino/types'
-import { vitestCli } from './cli.ts'
+import { vitestCli, vitestFlags } from './cli.ts'
 import {
   findViteConfigFile,
   findVitestConfig,
@@ -179,4 +179,5 @@ export const vitestNodeDialect: Dialect<'vitest'> = {
   ...vitestDialect,
   configReader: vitestConfigReader,
   cli: vitestCli,
+  flags: vitestFlags,
 }
