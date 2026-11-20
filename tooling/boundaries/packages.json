@@ -328,7 +328,7 @@
       "dir": "packages/config",
       "layer": 4,
       "runsIn": "coordinator",
-      "deps": ["@provino/types", "@provino/policy", "@provino/transform"],
+      "deps": ["@provino/types", "@provino/policy", "@provino/transform", "@provino/resolver"],
       "slices": "all",
       "neutral": true,
       "bannedPackages": "native"

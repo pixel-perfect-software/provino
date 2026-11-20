@@ -198,28 +198,42 @@ function projectLayer(
 }
 
 /** A string as a regular expression's source that matches only it. */
-function escapeRegExp(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&')
+function escapeText(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /**
- * `resolve.aliases` as the loader's name-mapping rules, in the order given: `'@/*': './src/*'`
- * maps `@/a/b` to `<root>/src/a/b`, and a key without `/*` matches only itself. The targets are
- * absolute, against the project root.
+ * `resolve.aliases` as the loader's name-mapping rules, in the order given, with tsconfig `paths`'
+ * wildcard: one `*` anywhere in the key is what the specifier has there, and the one `*` in the
+ * target (which the key then needs) is that text (`'@/*': './src/*'` maps `@/a/b` to
+ * `<root>/src/a/b`). A key without `*` matches only itself. The targets are absolute, against the
+ * project root. More than one `*`, or one in the target alone, is `CONFIG_INVALID`.
  */
 function aliasesOf(
   aliases: Readonly<Record<string, string>> | undefined,
   rootDir: string,
 ): readonly NeutralAlias[] {
   return Object.entries(aliases ?? {}).map(([from, to]) => {
-    if (from.endsWith('/*')) {
-      const target = to.endsWith('/*') ? to.slice(0, -2) : to
-      return {
-        pattern: `^${escapeRegExp(from.slice(0, -2))}/(.*)$`,
-        targets: [`${resolve(rootDir, target)}/$1`],
-      }
+    const fromParts = from.split('*')
+    const toParts = to.split('*')
+    if (
+      fromParts.length > 2 ||
+      toParts.length > 2 ||
+      (toParts.length === 2 && fromParts.length === 1)
+    ) {
+      throw new ConfigError(
+        'CONFIG_INVALID',
+        `config key "resolve.aliases" has ${JSON.stringify(from)}: ${JSON.stringify(to)}; a key and its target take one "*" each, or the key alone`,
+      )
     }
-    return { pattern: `^${escapeRegExp(from)}$`, targets: [resolve(rootDir, to)] }
+    const [before = '', after = ''] = fromParts
+    const pattern =
+      fromParts.length === 1
+        ? `^${escapeText(from)}$`
+        : `^${escapeText(before)}(.*)${escapeText(after)}$`
+    // The wildcard goes through `resolve` as a character no path holds, then becomes the capture.
+    const target = resolve(rootDir, to.replace('*', '\0')).replace('\0', () => '$1')
+    return { pattern, targets: [target] }
   })
 }
 
@@ -601,10 +615,21 @@ async function finishProject(
     )
   }
 
+  // A package specifier in a setup file resolves as an import of a test would: Node's own
+  // conditions, `provino-source` and the project's `resolve.conditions`.
+  const packageResolution = {
+    conditions: [...new Set(['node', 'provino-source', ...(input.extraConditions ?? [])])],
+    extensions: LOADER_EXTENSIONS,
+  }
   const [[setupFiles, setupFilesAfterEnv], conditions] = await inParallel(
     Promise.all([
-      resolveSetupFiles(input.setupFiles, rootDir, 'setupFiles'),
-      resolveSetupFiles(input.setupFilesAfterEnv, rootDir, input.setupFilesAfterEnvKey),
+      resolveSetupFiles(input.setupFiles, rootDir, 'setupFiles', packageResolution),
+      resolveSetupFiles(
+        input.setupFilesAfterEnv,
+        rootDir,
+        input.setupFilesAfterEnvKey,
+        packageResolution,
+      ),
     ]),
     loaderConditions(policy, environment, input.environmentOptions),
   )

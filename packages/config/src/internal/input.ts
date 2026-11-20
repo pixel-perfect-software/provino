@@ -1,4 +1,5 @@
 import type {
+  BaseConfig,
   ConfigResolve,
   ConfigTimeouts,
   Dialect,
@@ -15,30 +16,42 @@ const ISOLATION_TIERS: readonly IsolationTier[] = ['none', 'registry', 'realm', 
 
 const POOL_KINDS: readonly PoolKind[] = ['forks', 'threads', 'inline']
 
-/** The keys every project reads (`BaseConfig` and the project keys). */
-const PROJECT_KEYS: readonly string[] = [
-  'include',
-  'exclude',
-  'environment',
-  'isolation',
-  'globals',
-  'setupFiles',
-  'environmentOptions',
-  'timeouts',
-  'resolve',
-  'dialects',
-  'plugins',
-  'name',
-  'root',
-  'dialect',
-  'alsoServe',
-]
+/** The keys every project reads (`BaseConfig` and the project keys), in the order they are listed in messages. */
+const PROJECT_KEYS: readonly string[] = Object.keys({
+  include: true,
+  exclude: true,
+  environment: true,
+  isolation: true,
+  globals: true,
+  setupFiles: true,
+  environmentOptions: true,
+  timeouts: true,
+  resolve: true,
+  dialects: true,
+  plugins: true,
+  name: true,
+  root: true,
+  dialect: true,
+  alsoServe: true,
+} satisfies Record<keyof BaseConfig | 'name' | 'root' | 'dialect' | 'alsoServe', true>)
 
 /** The keys only the top-level config has. */
-const TOP_LEVEL_KEYS: readonly string[] = ['projects', 'pool', 'maxWorkers']
+const TOP_LEVEL_KEYS: readonly string[] = Object.keys({
+  projects: true,
+  pool: true,
+  maxWorkers: true,
+} satisfies Record<Exclude<keyof ProvinoConfigInput, keyof ProjectConfig>, true>)
 
-const TIMEOUT_KEYS: readonly string[] = ['test', 'hook', 'teardown']
-const RESOLVE_KEYS: readonly string[] = ['conditions', 'aliases', 'tsconfig']
+const TIMEOUT_KEYS: readonly string[] = Object.keys({
+  test: true,
+  hook: true,
+  teardown: true,
+} satisfies Record<keyof ConfigTimeouts, true>)
+const RESOLVE_KEYS: readonly string[] = Object.keys({
+  conditions: true,
+  aliases: true,
+  tsconfig: true,
+} satisfies Record<keyof ConfigResolve, true>)
 
 /**
  * The keys of a project's config that `resolveProject` reads, each checked to be what its type
@@ -206,9 +219,20 @@ function nearestKey(key: string, known: readonly string[]): string | undefined {
  * `path` gives it) and the nearest known one. A typo would otherwise be ignored and run something
  * other than what the file says.
  */
-function assertKnownKeys(value: object, known: readonly string[], path: string): void {
+function assertKnownKeys(
+  value: object,
+  known: readonly string[],
+  path: string,
+  topLevelOnly: readonly string[] = [],
+): void {
   for (const key of Object.keys(value)) {
     if (known.includes(key)) continue
+    if (topLevelOnly.includes(key)) {
+      throw new ConfigError(
+        'CONFIG_UNKNOWN_KEY',
+        `config key "${key}" belongs to the top-level config only: a project doesn't take it`,
+      )
+    }
     const nearest = nearestKey(key, known)
     const where = path === '' ? `config key "${key}"` : `key "${key}" of config key "${path}"`
     throw new ConfigError(
@@ -292,6 +316,7 @@ export function parseInput(
       ...pluginNames,
     ],
     '',
+    topLevel ? [] : TOP_LEVEL_KEYS,
   )
   for (const [key, owner] of Object.entries(UNSUPPORTED)) {
     const value: unknown = Reflect.get(input, key)

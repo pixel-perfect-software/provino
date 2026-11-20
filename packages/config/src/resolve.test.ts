@@ -14,7 +14,12 @@ import type {
 } from '@provino/types'
 import { ConfigError } from './errors.ts'
 import { makeTempDir, rejectsWith, type TempDir } from './internal/test-support.ts'
-import { type ResolvedProject, type ResolveProjectOptions, resolveProject } from './resolve.ts'
+import {
+  type ResolvedProject,
+  type ResolveProjectOptions,
+  resolveProject,
+  resolveProjectInput,
+} from './resolve.ts'
 
 const NODE_ENV = { module: 'file:///env/node.mjs', export: 'nodeEnvironment' }
 const DOM_ENV = { module: 'file:///env/dom.mjs', export: 'domEnvironment' }
@@ -53,6 +58,13 @@ describe('resolveProject', () => {
       ...options,
     })
   }
+
+  const base = (): ResolveProjectOptions => ({
+    configPath,
+    dialects: [],
+    environments: ENVIRONMENTS,
+    ci: false,
+  })
 
   describe('a project with no dialect', () => {
     test('is neutral: no dialect, the neutral policy, no globals', async () => {
@@ -871,6 +883,41 @@ describe('resolveProject', () => {
       })
     }
 
+    test('a package that only exports an import condition resolves, as the loader would', async () => {
+      await temp.write(
+        'app/node_modules/esm-pkg/package.json',
+        JSON.stringify({ name: 'esm-pkg', exports: { import: './setup.mjs' } }),
+      )
+      const file = await temp.write('app/node_modules/esm-pkg/setup.mjs', '')
+      const project = await resolveWith({ root: 'app', setupFiles: ['esm-pkg'] })
+      assert.deepEqual(project.config.setupFilesAfterEnv, [file])
+    })
+
+    test('the project’s resolve.conditions (and provino-source) choose among a package’s exports', async () => {
+      await temp.write(
+        'app/node_modules/cond-pkg/package.json',
+        JSON.stringify({
+          name: 'cond-pkg',
+          exports: {
+            custom: './custom.js',
+            'provino-source': './source.js',
+            default: './built.js',
+          },
+        }),
+      )
+      const custom = await temp.write('app/node_modules/cond-pkg/custom.js', '')
+      const source = await temp.write('app/node_modules/cond-pkg/source.js', '')
+      await temp.write('app/node_modules/cond-pkg/built.js', '')
+      const plain = await resolveWith({ root: 'app', setupFiles: ['cond-pkg'] })
+      assert.deepEqual(plain.config.setupFilesAfterEnv, [source])
+      const named = await resolveWith({
+        root: 'app',
+        setupFiles: ['cond-pkg'],
+        resolve: { conditions: ['custom'] },
+      })
+      assert.deepEqual(named.config.setupFilesAfterEnv, [custom])
+    })
+
     test('a package specifier resolves from the root, as require.resolve does', async () => {
       await temp.write(
         'app/node_modules/setup-pkg/package.json',
@@ -1175,6 +1222,25 @@ describe('resolveProject', () => {
       assert.equal(/^@\/(.*)$/.test('@/a/b'), true)
     })
 
+    test('one * anywhere in the key and the target is the capture, as tsconfig paths has it', async () => {
+      const project = await resolveWith({
+        root: 'app',
+        resolve: { aliases: { '@x/*/index': './x/*/main.ts', 'pre*': './p/*' } },
+      })
+      const root = join(temp.dir, 'app')
+      assert.deepEqual(project.config.loader.aliases, [
+        { pattern: '^@x/(.*)/index$', targets: [`${root}/x/$1/main.ts`] },
+        { pattern: '^pre(.*)$', targets: [`${root}/p/$1`] },
+      ])
+    })
+
+    test('a * the other side lacks, or more than one, is CONFIG_INVALID', async () => {
+      for (const aliases of [{ a: './b/*' }, { 'a/*/*': './b/*' }, { 'a/*': './b/*/*' }]) {
+        const error = await rejectsWith(resolveWith({ resolve: { aliases } }), 'CONFIG_INVALID')
+        assert.match(error.message, /resolve\.aliases/)
+      }
+    })
+
     test('no aliases leaves the key out', async () => {
       assert.equal((await resolveWith({ resolve: {} })).config.loader.aliases, undefined)
     })
@@ -1201,6 +1267,15 @@ describe('resolveProject', () => {
         await rejectsWith(resolveWith({ resolve: value } as never), 'CONFIG_INVALID')
       })
     }
+
+    test('a key of the whole run, in a project, says so and gives no spelling hint', async () => {
+      const error = await rejectsWith(
+        resolveProjectInput({ pool: 'forks' } as never, base(), false),
+        'CONFIG_UNKNOWN_KEY',
+      )
+      assert.match(error.message, /"pool" belongs to the top-level config only/)
+      assert.doesNotMatch(error.message, /did you mean/)
+    })
 
     test('an unknown resolve key is CONFIG_UNKNOWN_KEY', async () => {
       const error = await rejectsWith(

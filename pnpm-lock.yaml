@@ -726,6 +726,9 @@ importers:
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
+      '@provino/resolver':
+        specifier: workspace:*
+        version: link:../resolver
       '@provino/transform':
         specifier: workspace:*
         version: link:../transform

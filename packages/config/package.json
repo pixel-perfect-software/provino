@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@provino/policy": "workspace:*",
+    "@provino/resolver": "workspace:*",
     "@provino/transform": "workspace:*",
     "@provino/types": "workspace:*",
     "tinyglobby": "catalog:"
