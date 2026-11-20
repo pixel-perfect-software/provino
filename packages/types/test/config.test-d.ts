@@ -40,7 +40,11 @@ expectTypeOf(full).toExtend<ProvinoConfig>()
 expectTypeOf<ProvinoConfigInput['timeouts']>().toEqualTypeOf<ConfigTimeouts | undefined>()
 expectTypeOf<ProvinoConfigInput['resolve']>().toEqualTypeOf<ConfigResolve | undefined>()
 expectTypeOf<ProvinoConfigInput['pool']>().toEqualTypeOf<PoolKind | undefined>()
-expectTypeOf<ConfigResolve['tsconfig']>().toEqualTypeOf<'auto' | false | string | undefined>()
+// `'auto'` stays a member of its own: `'auto' | false | string` would collapse to `false | string`.
+expectTypeOf<ConfigResolve['tsconfig']>().toEqualTypeOf<
+  'auto' | false | (string & {}) | undefined
+>()
+expectTypeOf<ConfigResolve['tsconfig']>().not.toEqualTypeOf<false | string | undefined>()
 expectTypeOf<
   'timeouts' | 'resolve' | 'environmentOptions' | 'pool' | 'maxWorkers'
 >().toExtend<ReservedConfigKey>()

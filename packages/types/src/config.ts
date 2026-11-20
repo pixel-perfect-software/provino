@@ -69,7 +69,8 @@ export interface ConfigResolve {
    * The tsconfig whose `paths` become aliases: `auto` (the default) is the nearest
    * `tsconfig.json`, a path is that file (relative to the project root), `false` is none.
    */
-  readonly tsconfig?: 'auto' | false | string
+  // `string & {}` keeps `'auto'` in the type (and editors' completions): a bare `string` absorbs it.
+  readonly tsconfig?: 'auto' | false | (string & {})
 }
 
 /**

@@ -1,7 +1,7 @@
 // @provino/api: the native runtime (D185, D186). The worker loads these factories by the refs
 // `provino` hands `@provino/config` (`NativeRuntimeRefs`), for a project with no dialect. Phase 2
 // (B27b) builds them; until then each throws `API_NOT_BUILT`.
-import type { GlobalsFactory, GlobalsHost, ModuleScopeFactory } from '@provino/types'
+import type { GlobalsFactory, ModuleScopeFactory } from '@provino/types'
 import { ApiError } from './errors.ts'
 
 export { ApiError, type ApiErrorCode } from './errors.ts'
@@ -15,11 +15,10 @@ function notBuilt(name: string): never {
  * host once, it returns the namespace each importing module gets.
  * @public
  */
-export const provinoModuleScope: ModuleScopeFactory = (_host: GlobalsHost) =>
-  notBuilt('provinoModuleScope')
+export const provinoModuleScope: ModuleScopeFactory = () => notBuilt('provinoModuleScope')
 
 /**
  * The native API as globals (`NativeRuntimeRefs.globals`), used under `globals: true`.
  * @public
  */
-export const provinoGlobals: GlobalsFactory = (_host: GlobalsHost) => notBuilt('provinoGlobals')
+export const provinoGlobals: GlobalsFactory = () => notBuilt('provinoGlobals')

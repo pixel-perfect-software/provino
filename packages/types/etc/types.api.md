@@ -274,7 +274,7 @@ export interface ConfigReadOutcome<Value> {
 export interface ConfigResolve {
     readonly aliases?: Readonly<Record<string, string>>;
     readonly conditions?: readonly string[];
-    readonly tsconfig?: "auto" | false | string;
+    readonly tsconfig?: "auto" | false | (string & {});
 }
 
 // @public
