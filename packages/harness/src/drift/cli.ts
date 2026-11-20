@@ -2,12 +2,13 @@
 // pnpm drift [--jest <from>..<to>] [--vitest <from>..<to>] (T7.15): for each range, the upstream
 // files the vendor directories copied that differ between the two tags, each with the `UPSTREAM.md`
 // that names it. A local command (open question 12): it downloads the tags' tarballs. Exit 0 with
-// the report, 2 on bad usage, 1 when a tarball can't be had.
+// the report, 2 on bad usage, 1 when a tarball can't be had, a source is in neither tag or a range
+// checked no file (a report that read nothing is no all-clear).
 import { readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isNodeModules, walkFiles } from '../internal/walk.ts'
-import { driftBetween, formatDrift } from './drift.ts'
+import { driftBetween, driftFails, formatDrift } from './drift.ts'
 import { treeAt } from './tarball.ts'
 import { parseUpstream, REPOSITORIES, type Repository } from './upstream.ts'
 
@@ -47,6 +48,7 @@ async function main(args: readonly string[]): Promise<number> {
     const full = join(packages, file)
     upstreams.push(parseUpstream(relative(root, full), readFileSync(full, 'utf8')))
   }
+  let failed = false
   for (const { repository, from, to } of ranges) {
     let trees: { from: string; to: string }
     try {
@@ -55,9 +57,11 @@ async function main(args: readonly string[]): Promise<number> {
       console.error(`drift: ${repository} ${from}..${to}: ${(error as Error).message}`)
       return 1
     }
-    console.log(formatDrift(driftBetween(repository, { from, to }, trees, upstreams)))
+    const report = driftBetween(repository, { from, to }, trees, upstreams)
+    console.log(formatDrift(report))
+    if (driftFails(report)) failed = true
   }
-  return 0
+  return failed ? 1 : 0
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {

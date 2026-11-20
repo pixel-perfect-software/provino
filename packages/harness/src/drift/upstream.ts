@@ -14,14 +14,25 @@ export const REPOSITORIES = {
 /** A repository the report knows. */
 export type Repository = keyof typeof REPOSITORIES
 
+/** One source a table lists. */
+export interface UpstreamSource {
+  /** The candidate upstream paths it may be, most specific first. */
+  readonly paths: readonly string[]
+  /**
+   * The repository whose URL is nearest it in the file: the last named above it (the section it is
+   * in), else the first below. Its report names the source unresolved when it is in neither tag.
+   */
+  readonly repository: Repository | undefined
+}
+
 /** What one `UPSTREAM.md` says. */
 export interface UpstreamFile {
   /** Its path, as the caller gave it. */
   readonly path: string
   /** The repositories it names (`github.com/jestjs/jest`, `github.com/vitest-dev/vitest`). */
   readonly repositories: readonly Repository[]
-  /** Each source the tables list: the candidate upstream paths it may be, most specific first. */
-  readonly sources: readonly (readonly string[])[]
+  /** Each source the tables list. */
+  readonly sources: readonly UpstreamSource[]
 }
 
 const BACKTICKED = /`([^`]+)`/g
@@ -54,10 +65,21 @@ export function parseUpstream(path: string, text: string): UpstreamFile {
   const repositories = (Object.keys(REPOSITORIES) as Repository[]).filter((name) =>
     text.includes(`github.com/${REPOSITORIES[name]}`),
   )
-  const sources: string[][] = []
+  const lines = text.split('\n')
+  /** The lines each named repository's URL is on. */
+  const urlLines = repositories.flatMap((name) =>
+    lines.flatMap((line, at) =>
+      line.includes(`github.com/${REPOSITORIES[name]}`) ? [{ name, at }] : [],
+    ),
+  )
+  urlLines.sort((a, b) => a.at - b.at)
+  /** The URL last above `at` (the section it is in), else the first below it. */
+  const nearest = (at: number): Repository | undefined =>
+    (urlLines.findLast((url) => url.at <= at) ?? urlLines.find((url) => url.at > at))?.name
+  const sources: UpstreamSource[] = []
   let sourceColumn = -1
   let base: string | undefined
-  for (const line of text.split('\n')) {
+  for (const [at, line] of lines.entries()) {
     if (!line.trim().startsWith('|')) {
       sourceColumn = -1
       continue
@@ -77,7 +99,8 @@ export function parseUpstream(path: string, text: string): UpstreamFile {
     if (sourceColumn < 0) continue
     for (const match of (row[sourceColumn] ?? '').matchAll(BACKTICKED)) {
       const name = match[1] ?? ''
-      if (looksLikePath(name)) sources.push(candidates(name, base))
+      if (looksLikePath(name))
+        sources.push({ paths: candidates(name, base), repository: nearest(at) })
     }
   }
   return { path, repositories, sources }

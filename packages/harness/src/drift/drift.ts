@@ -23,7 +23,11 @@ export interface DriftReport {
   /** The upstream files the `UPSTREAM.md` files name that either tag has. */
   readonly checked: number
   readonly drifted: readonly DriftedFile[]
-  /** Sources found in neither tag, by `UPSTREAM.md`: a stale name, or a path spelled another way. */
+  /**
+   * Sources of this repository (the nearest named in their `UPSTREAM.md`) found in neither tag: a
+   * stale name, or a path spelled another way. A source in this tree counts here whichever
+   * repository is nearest it, so one is unresolved only when it is in none of the trees asked for.
+   */
   readonly unresolved: readonly { readonly upstream: string; readonly source: string }[]
 }
 
@@ -57,14 +61,15 @@ export function driftBetween(
   const unresolved: { upstream: string; source: string }[] = []
   for (const upstream of upstreams) {
     if (!upstream.repositories.includes(repository)) continue
-    for (const options of upstream.sources) {
-      const found = options.find(
+    for (const source of upstream.sources) {
+      const found = source.paths.find(
         (path) => existsSync(join(trees.from, path)) || existsSync(join(trees.to, path)),
       )
       if (found === undefined) {
-        // A file that names two repositories lists the other's sources too: not this one's to report.
-        if (upstream.repositories.length === 1) {
-          unresolved.push({ upstream: upstream.path, source: options[0] ?? '' })
+        // A file that names two repositories lists the other's sources too: each is reported by the
+        // repository nearest it.
+        if (source.repository === repository) {
+          unresolved.push({ upstream: upstream.path, source: source.paths[0] ?? '' })
         }
         continue
       }
@@ -93,6 +98,11 @@ export function driftBetween(
     }
   }
   return { repository, ...range, checked: namedBy.size, drifted, unresolved }
+}
+
+/** Whether a report fails the command: a source in neither tag, or no file checked at all. */
+export function driftFails(report: DriftReport): boolean {
+  return report.unresolved.length > 0 || report.checked === 0
 }
 
 /** The report as the command prints it. */
