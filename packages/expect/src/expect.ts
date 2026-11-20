@@ -14,6 +14,7 @@ import { equals } from '@jest/expect-utils'
 import type {
   Assertion,
   EqualityTester,
+  ExpectMessages,
   ExpectPolicy,
   ExpectStatic,
   ExpectTable,
@@ -30,6 +31,8 @@ import type { MatcherContext } from './context.ts'
 import { equalityTesters } from './equality.ts'
 import { ExpectError } from './errors.ts'
 import { awaitable } from './internal/awaitable.ts'
+import { framesOf, restack } from './internal/restack.ts'
+import { policyMessages } from './policy-messages.ts'
 import { createPoll, type PollTimers } from './poll.ts'
 import { createMatcherRegistry, type MatcherRegistry } from './slot.ts'
 import { addSnapshotSerializer } from './snapshot-matchers.ts'
@@ -81,7 +84,7 @@ const INTERNAL_MATCHER_FLAG: unique symbol = Symbol.for('$$jest-internal-matcher
 const isInternal = (matcher: Matcher): boolean =>
   Reflect.get(matcher, INTERNAL_MATCHER_FLAG) === true
 
-/** A matcher call under `.resolves`/`.rejects`: see `makeThrowingMatcher`. */
+/** A matcher call under `.resolves`/`.rejects` or a try of `expect.poll`: see `makeThrowingMatcher`. */
 interface Settled {
   /** The state of the test that called the matcher. */
   readonly state: MatcherState
@@ -89,20 +92,39 @@ interface Settled {
   readonly above: Caller
   /** The error a failure reuses, made when the matcher was called (Jest's `innerErr`). */
   readonly error: MatcherResultError
+  /** A try of `expect.poll`: the matcher's context says so (`this.poll`), as Vitest's does. */
+  readonly poll?: true
 }
 
 /** A matcher as the engine calls it. */
 type Callable = (this: MatcherContext, received: unknown, ...expected: unknown[]) => unknown
 
-/** The data behind one `expect(x)` (and its `.not`, `.resolves`, `.rejects`) Proxy. */
-interface Target {
+/** What a matcher is called on: the value and how the call came. */
+interface Subject {
   readonly actual: unknown
   readonly isNot: boolean
   readonly promise: PromiseVoice
-  /** Made when `.resolves`/`.rejects` is read: the error a wrong settlement throws. */
-  readonly outer: MatcherResultError | undefined
   /** `expect.soft`: a failure is recorded in the state and the test goes on. */
   readonly soft: boolean
+  /** `expect(actual, message)`, under `ExpectPolicy.messageArgument`. */
+  readonly message: string | undefined
+}
+
+/** The data behind one `expect(x)` (and its `.not`, `.resolves`, `.rejects`) Proxy. */
+interface Target extends Subject {
+  /**
+   * The error a wrong settlement throws: made in `expect()` for a promise or a function, or when
+   * `.resolves`/`.rejects` is read. Under `settlementCheck: 'at-read'` it is made at that read,
+   * and it is also the stack a settled failure and an unawaited assertion report.
+   */
+  readonly outer: MatcherResultError | undefined
+}
+
+/** The `MatcherCall` a table hook or a message reads for one call. */
+function callOf(matcherName: string, { isNot, promise, message }: Subject): MatcherCall {
+  return message === undefined
+    ? { matcherName, isNot, promise }
+    : { matcherName, isNot, promise, message }
 }
 
 /**
@@ -112,38 +134,65 @@ interface Target {
  */
 export function createExpect(options: CreateExpectOptions): ExpectStatic {
   const { policy, table, source } = options
-  checkPolicy(policy)
+  checkPolicy(policy, table)
   const track = options.unawaited === 'fail'
   const registry = options.registry ?? createMatcherRegistry()
   registry.utils = table.utils
   // T7.7: the policy's equality rules go ahead of Jest's `equals`, after the user's testers:
   // Vitest's `equals` asks the custom testers first and judges errors and dates itself after them.
-  const policyTesters = equalityTesters(policy.equality)
+  // A table with its own `equals` judges both already, so it gets none.
+  const policyTesters = table.equals === undefined ? equalityTesters(policy.equality) : []
   registry.customEqualityTesters.push(...policyTesters)
-  const { messages } = table
+  // The engine's own policies are worded once (`policyMessages`); a table words what it overrides.
+  const messages: ExpectMessages = { ...policyMessages, ...table.messages }
+  /** The table's `equals` for a matcher's `this.equals`, else Jest's. */
+  const tableEquals = (table.equals ?? equals) as typeof equals
+  /** Whether a passing sync matcher call returns its assertion, to chain on (Vitest's). */
+  const chains = table.chain !== undefined
+  /**
+   * `ExpectPolicy.assertionCalls`: `per-expect-call` counts an assertion when `expect()` (or
+   * `expect.soft()`, `expect.poll()`) is called, whatever then runs on it; `per-matcher-call`
+   * counts each matcher call that returns a result.
+   */
+  const perExpect = policy.assertionCalls === 'per-expect-call'
+  /** How many arguments `expect` takes after the value (`ExpectPolicy.messageArgument`). */
+  const maxRest = policy.messageArgument ? 1 : 0
+  /**
+   * `ExpectPolicy.settlementCheck: 'at-read'`: `.resolves`/`.rejects` check the value and take the
+   * call's stack when they are read; `'at-call'`: when the matcher is called, as Jest does.
+   */
+  const atRead = policy.settlementCheck === 'at-read'
+  /**
+   * `errorShape: 'assertion-error'`: a failure throws the table's own error, made by its
+   * `assertionError`. `undefined` under `matcher-result`.
+   */
+  const assertionError =
+    policy.errorShape === 'assertion-error' ? table.assertionError?.bind(table) : undefined
   /** The table's promise forms: dialect code, so their errors are re-anchored like built-ins'. */
   const promiseForms = new WeakSet<Matcher>(Object.values(table.promiseMatchers))
 
   const getState = (): MatcherState => source.current()
 
   /**
-   * One call of a matcher. `settled` is set under `.resolves`/`.rejects`; a direct call reads the
-   * state now and anchors above `throwingMatcher`, as Jest does.
+   * One call of a matcher. `settled` is set under `.resolves`/`.rejects` and on a try of
+   * `expect.poll`; a direct call reads the state now and anchors above `throwingMatcher`, as Jest
+   * does. `receiver` is the assertion a passing direct call returns where the table chains.
    */
   const makeThrowingMatcher = (
+    matcherName: string,
     matcher: Matcher,
-    isNot: boolean,
-    promise: PromiseVoice,
-    actual: unknown,
+    subject: Subject,
     settled?: Settled,
-    soft = false,
+    receiver?: Assertion,
   ) =>
     function throwingMatcher(...args: unknown[]): unknown {
+      const { actual, isNot, promise, soft, message: customMessage } = subject
       // A soft assertion records its failure, as `dontThrow()` does, and the test goes on.
       let throws = !soft
       const internal = isInternal(matcher)
       const state = settled?.state ?? getState()
       const above: Caller = settled?.above ?? throwingMatcher
+      // One shape on the hot path; the keys a call may add stay absent when unset, as in Jest.
       const matcherContext: MatcherContext = {
         ...state,
         customTesters: registry.customEqualityTesters,
@@ -153,18 +202,23 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
           throws = false
           return false
         },
-        equals,
+        equals: tableEquals,
         utils: registry.utils,
         error: settled?.error,
         isNot,
         promise,
       }
+      const optional = matcherContext as { customMessage?: string; soft?: true; poll?: true }
+      if (customMessage !== undefined) optional.customMessage = customMessage
+      // `expect.soft` and `expect.poll` say so to the matcher, as Vitest's `getMatcherState` does.
+      if (soft) optional.soft = true
+      if (settled?.poll === true) optional.poll = true
 
       const processResult = (
         result: unknown,
         at: Caller,
         asyncError?: MatcherResultError,
-      ): void => {
+      ): boolean => {
         // Inline, not `anchored(...)`: this runs on every assertion, and a closure costs.
         let valid: ValidResult
         try {
@@ -172,9 +226,22 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
         } catch (error) {
           throw anchor(error, at)
         }
-        state.assertionCalls++
+        if (!perExpect) state.assertionCalls++
         if ((valid.pass && isNot) || (!valid.pass && !isNot)) {
           const message = getMessage(valid, messages.noMessage, at)
+          if (assertionError !== undefined) {
+            const made = assertionError(
+              valid as MatcherResult,
+              message,
+              callOf(matcherName, subject),
+            )
+            // A settled call read at `.resolves`/`.rejects` reports there; anything else where it failed.
+            const thrown =
+              settled !== undefined && atRead ? restack(made, settled.error) : anchor(made, at)
+            if (throws) throw thrown
+            state.suppressedErrors.push(thrown)
+            return false
+          }
           // The error made at the call (settled or async) takes the message; a sync failure gets
           // its own. Assigning keeps Jest's key order (`matcherResult`, then `message`).
           let error = settled?.error ?? asyncError
@@ -184,15 +251,19 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
           error.matcherResult = { ...valid, message }
           if (throws) throw error
           state.suppressedErrors.push(error)
-        } else {
-          state.numPassingAsserts++
+          return false
         }
+        state.numPassingAsserts++
+        return true
       }
 
       // Built-ins are re-anchored like Jest's internal matchers; so are the table's promise forms
       // under `.resolves`/`.rejects`, whose frames in Jest are in `node_modules`.
-      const handleError = (error: unknown): never => {
-        if (
+      const handleError = (error: unknown): undefined => {
+        // A settled call read at `.resolves`/`.rejects` throws with the stack of that read.
+        if (atRead && settled !== undefined && error instanceof Error) {
+          restack(error, settled.error)
+        } else if (
           (internal || promiseForms.has(matcher)) &&
           typeof error === 'object' &&
           error !== null &&
@@ -200,6 +271,12 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
           Reflect.get(error, 'name') !== 'PrettyFormatPluginError'
         ) {
           Error.captureStackTrace(error, above)
+        }
+        // An `AssertionError` runner's `expect.soft` holds whatever the assertion throws (Vitest's
+        // `wrapAssertion`), as the table's own failures are thrown.
+        if (soft && assertionError !== undefined) {
+          state.suppressedErrors.push(error instanceof Error ? error : new Error(String(error)))
+          return undefined
         }
         throw error
       }
@@ -224,40 +301,59 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
           })
           return anchored(() => (chained as Promise<void>).catch(handleError), above)
         }
-        return processResult(potentialResult, above)
+        // A matcher that passed returns the assertion it was read from where the table chains
+        // (Vitest's `expect(1).toBe(1).to.equal(1)`); `undefined` otherwise, as in Jest.
+        return processResult(potentialResult, above) ? receiver : undefined
       } catch (error) {
         return handleError(error)
       }
     }
 
-  const makeSettledMatcher = (
-    matcherName: string,
-    matcher: Matcher,
-    { actual, isNot, promise, outer, soft }: Target,
-  ) =>
+  const makeSettledMatcher = (matcherName: string, matcher: Matcher, target: Target) =>
     function settledMatcher(...args: unknown[]): PromiseLike<unknown> {
-      const call: MatcherCall = { matcherName, isNot, promise }
+      const { actual, promise, outer, soft } = target
+      const call = callOf(matcherName, target)
       // The state of the test that made the call, not of whatever runs the settle callback.
       const state = getState()
       const actualWrapper: unknown = typeof actual === 'function' ? actual() : actual
       if (!isPromise(actualWrapper)) {
         throw anchor(new MatcherResultError(messages.notAPromise(call, actual)), settledMatcher)
       }
-      const error = capturedError(settledMatcher)
       const outerErr = outer ?? new MatcherResultError()
-      const wrong = (message: string): never => {
+      // Read at `.resolves`/`.rejects`, a failure reports at that read; else where the matcher was called.
+      const error = atRead ? outerErr : capturedError(settledMatcher)
+      const wrong = (
+        message: string,
+        value: unknown,
+        settlement: 'resolved' | 'rejected',
+      ): never => {
+        if (assertionError !== undefined) {
+          // The table's own error for it (Vitest's `AssertionError`, with its diff), on the
+          // frames of the wrong settlement's error.
+          const result = { pass: false, message: () => message, actual: value }
+          throw restack(assertionError(result, message, { ...call, settlement }), outerErr)
+        }
         outerErr.message = message
         throw outerErr
       }
       const settle = (value: unknown, above: Caller): unknown =>
-        makeThrowingMatcher(matcher, isNot, promise, value, { state, above, error }, soft)(...args)
+        makeThrowingMatcher(
+          matcherName,
+          matcher,
+          { ...target, actual: value },
+          { state, above, error },
+        )(...args)
       const chained = actualWrapper.then(
         function onResolved(result) {
-          if (promise === 'rejects') wrong(messages.resolvedInsteadOfRejected(call, result))
+          if (promise === 'rejects') {
+            wrong(messages.resolvedInsteadOfRejected(call, result), result, 'resolved')
+          }
           return settle(result, onResolved)
         },
         function onRejected(reason: unknown) {
-          if (promise === 'resolves') wrong(messages.rejectedInsteadOfResolved(call, reason))
+          if (promise === 'resolves') {
+            wrong(messages.rejectedInsteadOfResolved(call, reason), reason, 'rejected')
+          }
           return settle(reason, onRejected)
         },
       )
@@ -275,7 +371,8 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
       const pending: PendingAssertion = {
         kind: 'settled',
         call,
-        error: capturedError(settledMatcher),
+        // Read at `.resolves`/`.rejects`, the read, as Vitest records it there.
+        error: atRead ? withFramesOf(outerErr) : capturedError(settledMatcher),
       }
       state.pendingAsync.add(pending)
       Promise.resolve(outcome).catch(() => undefined)
@@ -304,27 +401,48 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
     if (typeof key !== 'string') return undefined
     if (key === 'not') {
       if (target.isNot) return undefined
-      const { actual, promise, outer, soft } = target
-      return assertion({ actual, isNot: true, promise, outer, soft })
+      const { actual, promise, outer, soft, message } = target
+      return assertion({ actual, isNot: true, promise, outer, soft, message })
     }
     if (key === 'resolves' || key === 'rejects') {
       if (target.isNot || target.promise !== '') return undefined
-      // `expect()` made it for a promise or a function; another thenable gets one now, while
-      // the user's line is still on the stack.
-      const outer = target.outer ?? capturedError(get)
-      return assertion({
-        actual: target.actual,
-        isNot: false,
-        promise: key,
-        outer,
-        soft: target.soft,
-      })
+      let { actual, outer } = target
+      if (atRead) {
+        // Checked as it is read, where a `.rejects` of a function calls it, and the call's stack is
+        // the read's.
+        outer = capturedError(get)
+        if (key === 'rejects' && typeof actual === 'function') actual = actual()
+        if (!isPromise(actual)) {
+          const call: MatcherCall = { matcherName: '', isNot: false, promise: key }
+          throw anchor(new TypeError(messages.notAPromise(call, actual)), get)
+        }
+      } else {
+        // `expect()` made it for a promise or a function; another thenable gets one now, while
+        // the user's line is still on the stack.
+        outer ??= capturedError(get)
+      }
+      const { soft, message } = target
+      return assertion({ actual, isNot: false, promise: key, outer, soft, message })
     }
     const matcher = registry.matchers[key]
-    // Anything else reads as on Jest's plain object: `Object.prototype`'s members, or undefined.
-    if (matcher === undefined) return Reflect.get(Object.prototype, key, receiver)
+    if (matcher === undefined) {
+      // Anything else reads as on Jest's plain object: `Object.prototype`'s members, or undefined;
+      // or, where the table has chains (Chai's `to`, `be`, …), as the table's chain of that name. A
+      // thenable check (`then`) is never a chain, so it loads nothing, and an assertion a matcher
+      // returned is no thenable.
+      if (table.chain === undefined || key === 'then' || key in Object.prototype) {
+        return Reflect.get(Object.prototype, key, receiver)
+      }
+      return table.chain(target.actual, key, callOf(key, target))
+    }
     if (target.promise === '') {
-      return makeThrowingMatcher(matcher, target.isNot, '', target.actual, undefined, target.soft)
+      return makeThrowingMatcher(
+        key,
+        matcher,
+        target,
+        undefined,
+        chains ? (receiver as Assertion) : undefined,
+      )
     }
     // Own keys only: a custom matcher named like an `Object.prototype` method is still itself.
     const promiseForm = Object.hasOwn(table.promiseMatchers, key)
@@ -354,27 +472,39 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
   const assertion = (target: Target): Assertion =>
     new Proxy(target, handler) as unknown as Assertion
 
-  function expect(actual: unknown, ...rest: unknown[]): Assertion {
-    if (rest.length > 0) throw anchor(new Error(messages.tooManyArguments()), expect)
+  /** `expect(actual)` and `expect.soft(actual)`: errors anchor above `caller`. */
+  const begin = (actual: unknown, rest: unknown[], soft: boolean, caller: Caller): Assertion => {
+    if (rest.length > maxRest) throw anchor(new Error(messages.tooManyArguments()), caller)
+    if (soft && source.current() === source.file()) {
+      throw anchor(new ExpectError('EXPECT_OUTSIDE_TEST', messages.outsideTest('soft')), caller)
+    }
     // Jest makes the error a wrong settlement throws in `expect()` itself (index.ts L117), so it
     // points at the `expect(` call. Only a promise or a function can reach `.resolves`/`.rejects`,
-    // so only they pay for a stack here; the check reads no property of the value.
+    // so only they pay for a stack here; the check reads no property of the value. Checked at the
+    // read, the read makes its own.
     const outer =
-      typeof actual === 'function' || types.isPromise(actual) ? capturedError(expect) : undefined
-    return assertion({ actual, isNot: false, promise: '', outer, soft: false })
+      !atRead && (typeof actual === 'function' || types.isPromise(actual))
+        ? capturedError(caller)
+        : undefined
+    if (perExpect) getState().assertionCalls++
+    return assertion({
+      actual,
+      isNot: false,
+      promise: '',
+      outer,
+      soft,
+      message: rest[0] as string | undefined,
+    })
+  }
+
+  function expect(actual: unknown, ...rest: unknown[]): Assertion {
+    return begin(actual, rest, false, expect)
   }
 
   /** `expect`, but a failed assertion is recorded and the test goes on. */
   function soft(actual: unknown, ...rest: unknown[]): Assertion {
-    if (rest.length > 0) throw anchor(new Error(messages.tooManyArguments()), soft)
-    if (source.current() === source.file()) {
-      throw anchor(new ExpectError('EXPECT_OUTSIDE_TEST', messages.outsideTest('soft')), soft)
-    }
-    const outer =
-      typeof actual === 'function' || types.isPromise(actual) ? capturedError(soft) : undefined
-    return assertion({ actual, isNot: false, promise: '', outer, soft: true })
+    return begin(actual, rest, true, soft)
   }
-
   const not: Record<string, unknown> = { ...table.asymmetricNot }
 
   const defineAsymmetric = (owner: object, name: string, value: unknown): void => {
@@ -456,9 +586,12 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
           const matcher = registry.matchers[name]
           if (matcher === undefined) throw new TypeError(`${name} is not a matcher`)
           const error = capturedError(pollTry)
-          return makeThrowingMatcher(matcher, isNot, '', value, { state, above: pollTry, error })(
-            ...args,
-          )
+          return makeThrowingMatcher(
+            name,
+            matcher,
+            { actual: value, isNot, promise: '', soft: false, message: undefined },
+            { state, above: pollTry, error, poll: true },
+          )(...args)
         },
       })
     : undefined
@@ -486,18 +619,18 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
 }
 
 /** The policy values the engine builds; the rest throw rather than run half-way. */
-function checkPolicy(policy: ExpectPolicy): void {
-  const missing: string[] = []
+function checkPolicy(policy: ExpectPolicy, table: ExpectTable): void {
   if (policy.matcherTable === null) {
     throw new ExpectError(
       'EXPECT_NO_MATCHER_TABLE',
       'ExpectPolicy.matcherTable is null: the neutral matcher table is not built yet',
     )
   }
-  if (policy.errorShape !== 'matcher-result')
-    missing.push(`errorShape: '${policy.errorShape}' (T7.6)`)
-  if (missing.length > 0) {
-    throw new ExpectError('EXPECT_NOT_IMPLEMENTED', `not built yet: ${missing.join(', ')}`)
+  if (policy.errorShape === 'assertion-error' && table.assertionError === undefined) {
+    throw new ExpectError(
+      'EXPECT_NOT_IMPLEMENTED',
+      `not built yet: errorShape: 'assertion-error' with a table that has no assertionError`,
+    )
   }
 }
 
@@ -549,7 +682,7 @@ function getMessage(result: ValidResult, noMessage: () => string, above: Caller)
   }
   const message = raw as (() => string) | undefined
   // biome-ignore lint/complexity/useOptionalChain: Jest's `&&` lets a falsy `message` (`''`, `false`) mean "no message"; `?.()` would call it
-  return (message && message()) || noMessage()
+  return (message && message()) || anchored(noMessage, above)
 }
 
 /** A function whose frame, and every frame above it, an anchored error leaves out. */
@@ -578,6 +711,29 @@ function capturedError(above: Caller): MatcherResultError {
     Error.stackTraceLimit = limit
   }
   Error.captureStackTrace(error, above)
+  return error
+}
+
+/**
+ * A new error with `captured`'s frames, whose header reads its own message when the stack is read:
+ * a message set later (the end-of-test check words an unawaited assertion) still shows.
+ */
+function withFramesOf(captured: Error): MatcherResultError {
+  const error = new MatcherResultError()
+  // Taken when the stack is first read: an unawaited assertion nobody reports costs no string.
+  let frames: string | undefined
+  let set: string | undefined
+  Object.defineProperty(error, 'stack', {
+    configurable: true,
+    get: () => {
+      if (set !== undefined) return set
+      frames ??= framesOf(captured)
+      return `${error.name}${error.message === '' ? '' : `: ${error.message}`}${frames}`
+    },
+    set: (value: string) => {
+      set = value
+    },
+  })
   return error
 }
 

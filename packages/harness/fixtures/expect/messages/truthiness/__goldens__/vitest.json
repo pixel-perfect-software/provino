@@ -22,7 +22,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected +0 to be truthy",
-              "userFrame": "<root>/truthiness.test.ts:8:15"
+              "userFrame": "<root>/truthiness.test.ts:8:15",
+              "diff": "- Expected:\ntrue\n\n+ Received:\n0"
             }
           ],
           "location": {
@@ -44,7 +45,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 'x' to not be truthy",
-              "userFrame": "<root>/truthiness.test.ts:12:21"
+              "userFrame": "<root>/truthiness.test.ts:12:21",
+              "diff": "- Expected:\ntrue\n\n+ Received:\n\"x\""
             }
           ],
           "location": {
@@ -66,7 +68,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 1 to be falsy",
-              "userFrame": "<root>/truthiness.test.ts:16:15"
+              "userFrame": "<root>/truthiness.test.ts:16:15",
+              "diff": "- Expected:\nfalse\n\n+ Received:\n1"
             }
           ],
           "location": {
@@ -88,7 +91,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected '' to not be falsy",
-              "userFrame": "<root>/truthiness.test.ts:20:20"
+              "userFrame": "<root>/truthiness.test.ts:20:20",
+              "diff": "- Expected:\nfalse\n\n+ Received:\n\"\""
             }
           ],
           "location": {
@@ -110,7 +114,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected undefined to be null",
-              "userFrame": "<root>/truthiness.test.ts:26:23"
+              "userFrame": "<root>/truthiness.test.ts:26:23",
+              "diff": "- Expected:\nnull\n\n+ Received:\nundefined"
             }
           ],
           "location": {
@@ -132,7 +137,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected null not to be null",
-              "userFrame": "<root>/truthiness.test.ts:30:22"
+              "userFrame": "<root>/truthiness.test.ts:30:22",
+              "diff": ""
             }
           ],
           "location": {
@@ -154,7 +160,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected +0 to be undefined",
-              "userFrame": "<root>/truthiness.test.ts:34:15"
+              "userFrame": "<root>/truthiness.test.ts:34:15",
+              "diff": "- Expected:\nundefined\n\n+ Received:\n0"
             }
           ],
           "location": {
@@ -220,7 +227,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { a: 1 } to be undefined",
-              "userFrame": "<root>/truthiness.test.ts:46:26"
+              "userFrame": "<root>/truthiness.test.ts:46:26",
+              "diff": "Compared values have no visual difference."
             }
           ],
           "location": {

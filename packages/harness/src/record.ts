@@ -67,11 +67,15 @@ import {
   resolveRecordRoot,
   type WorkDirRegistry,
 } from './internal/work-dirs.ts'
-import { createNormalizer } from './normalize.ts'
+import { createNormalizer, testKey } from './normalize.ts'
 import { parseJestJson, parseVitestJson } from './parse-results.ts'
+import { DIFF_ENV, type DiffEntry } from './reporters/vitest-diff.ts'
 import { runProcess } from './run-process.ts'
 import { resolveRunnerPackage } from './runner-package.ts'
 import { SCHEMA_VERSION } from './schema.ts'
+
+/** The diff reporter a `captureDiff` fixture's Vitest run loads by absolute path (B25b). */
+const DIFF_REPORTER_PATH = fileURLToPath(new URL('reporters/vitest-diff.ts', import.meta.url))
 
 /** The run a black-box fixture's golden holds when the runner wrote no JSON. */
 const EMPTY_RUN: Omit<NormalizedRun, 'runner' | 'runnerVersion' | 'suite' | 'env' | 'success'> = {
@@ -547,6 +551,9 @@ async function runUnderRunner(
   const extraArgs = spec?.argv?.[runner] ?? []
   // A watch session (B23c Phase 3) keeps its runs in a log of its own, written by a reporter.
   const watch = fixture.manifest.watch
+  // `captureDiff` (B25b): Vitest's JSON has no `diff`, so a reporter of the recorder's writes it.
+  const captureDiff = runner === 'vitest' && fixture.manifest.captureDiff === true
+  const diffFile = path.join(outDir, 'diffs.jsonl')
   const logs = { runLog: path.join(outDir, 'runs.jsonl'), doneLog: path.join(outDir, 'done.txt') }
 
   let commandArgs: (extra: readonly string[]) => string[]
@@ -585,6 +592,7 @@ async function runUnderRunner(
       configFile,
       '--reporter=json',
       `--outputFile=${outputFile}`,
+      ...(captureDiff ? [`--reporter=${DIFF_REPORTER_PATH}`] : []),
       ...extra,
     ]
   }
@@ -595,6 +603,7 @@ async function runUnderRunner(
     ...hermeticGitEnv(path.dirname(paths.realWorkDir)),
     ...Object.fromEntries(manifestEnv.filter(([, value]) => value !== null)),
     [TRACE_ENV]: traceFile,
+    ...(captureDiff ? { [DIFF_ENV]: diffFile } : {}),
   })
   // `null` in the fixture's `env` removes the variable (`NO_COLOR` for an editor's `--colors`).
   for (const [name, value] of manifestEnv) if (value === null) delete env[name]
@@ -788,7 +797,10 @@ async function runUnderRunner(
     })
   }
   assertTraceFromOneFile(trace, testFiles, label)
-  return { run, trace, ...(observed === undefined ? {} : { observed }) }
+  const withDiffs = captureDiff
+    ? withCapturedDiffs(run, await readFile(diffFile, 'utf8'), paths.realWorkDir, normalizer.text)
+    : run
+  return { run: withDiffs, trace, ...(observed === undefined ? {} : { observed }) }
 }
 
 /**
@@ -868,4 +880,41 @@ export async function recordRead(
 export async function removeWorkDir(workDir: string): Promise<void> {
   await rm(workDir, REMOVE_TREE_OPTIONS)
   workDirs.forget(workDir)
+}
+
+/**
+ * `run` with each failed test's errors given the `diff` the diff reporter wrote for them (a
+ * `captureDiff` fixture's Vitest run), normalized as the messages are. An error the reporter gave
+ * no diff (`null`) keeps none; a test the reporter never named keeps its errors as they are.
+ */
+function withCapturedDiffs(
+  run: NormalizedRun,
+  log: string,
+  rootDir: string,
+  normalize: (text: string) => string,
+): NormalizedRun {
+  const byTest = new Map<string, readonly (string | null)[]>()
+  for (const line of log.split('\n')) {
+    if (line === '') continue
+    const entry = JSON.parse(line) as DiffEntry
+    const file = path.relative(rootDir, entry.file).split(path.sep).join('/')
+    byTest.set(testKey({ file, path: entry.path, dupIndex: entry.dupIndex }), entry.diffs)
+  }
+  return {
+    ...run,
+    files: run.files.map((file) => ({
+      ...file,
+      tests: file.tests.map((test) => {
+        const diffs = byTest.get(testKey(test.id))
+        if (diffs === undefined) return test
+        return {
+          ...test,
+          errors: test.errors.map((error, i) => {
+            const diff = diffs[i]
+            return typeof diff === 'string' ? { ...error, diff: normalize(diff) } : error
+          }),
+        }
+      }),
+    })),
+  }
 }

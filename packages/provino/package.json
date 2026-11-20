@@ -99,6 +99,7 @@
     "@sinonjs/fake-timers": "catalog:",
     "@standard-schema/spec": "catalog:",
     "babel-preset-current-node-syntax": "catalog:",
+    "chai": "catalog:",
     "es-module-lexer": "catalog:",
     "istanbul-lib-coverage": "catalog:",
     "istanbul-lib-report": "catalog:",

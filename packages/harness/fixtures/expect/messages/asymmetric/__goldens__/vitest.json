@@ -22,7 +22,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { id: 'x' } to deeply equal { id: Any<Number> }",
-              "userFrame": "<root>/asymmetric.test.ts:5:25"
+              "userFrame": "<root>/asymmetric.test.ts:5:25",
+              "diff": "- Expected\n+ Received\n\n  {\n-   \"id\": Any<Number>,\n+   \"id\": \"x\",\n  }"
             }
           ],
           "location": {
@@ -44,7 +45,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { owner: {} } to deeply equal { owner: Any<Owner> }",
-              "userFrame": "<root>/asymmetric.test.ts:9:27"
+              "userFrame": "<root>/asymmetric.test.ts:9:27",
+              "diff": "- Expected\n+ Received\n\n  {\n-   \"owner\": Any<Owner>,\n+   \"owner\": {},\n  }"
             }
           ],
           "location": {
@@ -66,7 +68,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [ 1, 'two' ] to deeply equal [ Any<Number>, Any<Number> ]",
-              "userFrame": "<root>/asymmetric.test.ts:13:24"
+              "userFrame": "<root>/asymmetric.test.ts:13:24",
+              "diff": "- Expected\n+ Received\n\n  [\n    1,\n-   Any<Number>,\n+   \"two\",\n  ]"
             }
           ],
           "location": {
@@ -88,7 +91,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { value: null } to deeply equal { value: Anything }",
-              "userFrame": "<root>/asymmetric.test.ts:17:29"
+              "userFrame": "<root>/asymmetric.test.ts:17:29",
+              "diff": "- Expected\n+ Received\n\n  {\n-   \"value\": Anything,\n+   \"value\": null,\n  }"
             }
           ],
           "location": {
@@ -110,7 +114,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { a: 1, b: 2 } to deeply equal ObjectContaining {\"c\": 3}",
-              "userFrame": "<root>/asymmetric.test.ts:21:28"
+              "userFrame": "<root>/asymmetric.test.ts:21:28",
+              "diff": "- Expected\n+ Received\n\n- ObjectContaining {\n-   \"c\": 3,\n+ {\n+   \"a\": 1,\n+   \"b\": 2,\n  }"
             }
           ],
           "location": {
@@ -132,7 +137,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [ 1, 2 ] to deeply equal ArrayContaining [3]",
-              "userFrame": "<root>/asymmetric.test.ts:25:20"
+              "userFrame": "<root>/asymmetric.test.ts:25:20",
+              "diff": "- Expected\n+ Received\n\n- ArrayContaining [\n-   3,\n+ [\n+   1,\n+   2,\n  ]"
             }
           ],
           "location": {
@@ -154,7 +160,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { text: 'hello' } to deeply equal { text: StringContaining \"bye\" }",
-              "userFrame": "<root>/asymmetric.test.ts:29:31"
+              "userFrame": "<root>/asymmetric.test.ts:29:31",
+              "diff": "- Expected\n+ Received\n\n  {\n-   \"text\": StringContaining \"bye\",\n+   \"text\": \"hello\",\n  }"
             }
           ],
           "location": {
@@ -198,7 +205,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { total: 0.5 } to deeply equal { total: NumberCloseTo 0.6 (2 digits) }",
-              "userFrame": "<root>/asymmetric.test.ts:37:28"
+              "userFrame": "<root>/asymmetric.test.ts:37:28",
+              "diff": "- Expected\n+ Received\n\n  {\n-   \"total\": NumberCloseTo 0.6 (2 digits),\n+   \"total\": 0.5,\n  }"
             }
           ],
           "location": {
@@ -220,7 +228,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { a: 1, b: 2 } to deeply equal ObjectNotContaining {\"a\": 1}",
-              "userFrame": "<root>/asymmetric.test.ts:41:28"
+              "userFrame": "<root>/asymmetric.test.ts:41:28",
+              "diff": "- Expected\n+ Received\n\n- ObjectNotContaining {\n+ {\n    \"a\": 1,\n+   \"b\": 2,\n  }"
             }
           ],
           "location": {
@@ -242,7 +251,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected [ 1, 2, 3 ] to deeply equal ArrayNotContaining [2]",
-              "userFrame": "<root>/asymmetric.test.ts:45:23"
+              "userFrame": "<root>/asymmetric.test.ts:45:23",
+              "diff": "- Expected\n+ Received\n\n- ArrayNotContaining [\n+ [\n+   1,\n    2,\n+   3,\n  ]"
             }
           ],
           "location": {

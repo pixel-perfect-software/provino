@@ -1,9 +1,19 @@
 // provino: an extract of Vitest 5.0.5 `packages/vitest/src/runtime/runner/suite.ts`:
 // `formatTitle` (L980-L1052) and `handleRegexMatch` (L1055-L1074), bodies unchanged except the two
 // patches marked below. Vitest 5.0 has no @vitest/runner package; the runner lives in `vitest`.
-import type { InspectOptions } from '../utils/display.ts'
-import { format, formatRegExp, inspect, truncateString } from '../utils/display.ts'
-import { isNegativeNaN, isObject, objectAttr } from '../utils/helpers.ts'
+// provino: `@vitest/utils` is the copy the expect table vendors (`src/vendor/vitest-utils`)
+import type { InspectOptions } from '../../../vendor/vitest-utils/display.ts'
+import {
+  format,
+  formatRegExp,
+  inspect,
+  truncateString,
+} from '../../../vendor/vitest-utils/display.ts'
+import {
+  isNegativeNaN,
+  isObject,
+  objectAttr,
+} from '../../../vendor/vitest-utils/helpers.ts'
 
 // provino: exported, and `runner.config.taskTitleValueFormatTruncate` is a parameter (the worker's
 // runner config is not here); annotated for isolatedDeclarations

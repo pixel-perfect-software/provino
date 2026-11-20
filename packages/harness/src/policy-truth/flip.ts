@@ -77,6 +77,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'snapshot.obsoleteFiles': ['report', 'ignore'],
   'expect.valueFormatter': ['pretty-format'],
   'expect.errorShape': ['matcher-result', 'assertion-error'],
+  'expect.settlementCheck': ['at-call', 'at-read'],
   'expect.equality.errors': ['message', 'assert'],
   'expect.equality.invalidDate': ['unequal', 'equal'],
   'orchestrator.bail.checkAfter': ['file', 'test'],

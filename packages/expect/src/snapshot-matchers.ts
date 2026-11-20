@@ -7,9 +7,11 @@
 // state, where the worker put it (Jest's `setState({ snapshotState })`).
 //
 // Like Jest's, `toMatchSnapshot`, `toMatchInlineSnapshot` and the two `toThrowErrorMatching*`
-// matchers call `this.dontThrow()` first (T7.8): a mismatch is added to the test's
-// `suppressedErrors` and the test goes on to its other snapshots, then fails when it ends (the
-// end-of-test check, `createEndOfTest`). A matcher that throws on its own (`.not`, a bad argument,
+// matchers call `this.dontThrow()` first (T7.8) when the file's state says a mismatch is held to
+// the end of the test (`SnapshotState.mismatch`, the snapshot slice's `mismatch`, D61): a mismatch
+// is added to the test's `suppressedErrors` and the test goes on to its other snapshots, then
+// fails when it ends (the end-of-test check, `createEndOfTest`). Under `throw` (Vitest's) the
+// mismatch throws at the call. A matcher that throws on its own (`.not`, a bad argument,
 // no snapshot state) still throws at the call, and so does `toMatchFileSnapshot`, which Jest
 // doesn't have. Under `expect.soft` the engine holds every failure the same way.
 import { dirname, resolve } from 'node:path'
@@ -152,7 +154,7 @@ function infoOf(
 /** Jest's `_toMatchSnapshot` (index.ts L222-L367). */
 function match(call: Call): SnapshotResult {
   const { context, state, matcherName, isInline, hint, inlineSnapshot, properties } = call
-  context.dontThrow()
+  if (state.mismatch === 'end-of-test') context.dontThrow()
   let { received } = call
   if (context.isNot) throw notAllowedWithNot(matcherName)
 
@@ -331,8 +333,8 @@ function matchThrown(
   },
 ): SnapshotResult {
   const { matcherName, isInline, hint, inlineSnapshot, fromPromise } = options
-  context.dontThrow()
   const state = stateOf(context, matcherName)
+  if (state.mismatch === 'end-of-test') context.dontThrow()
   if (!fromPromise && typeof received !== 'function') {
     throw new Error(
       `expect(received).${matcherName}()\n\nreceived value must be a function\n\nReceived: ${String(received)}`,

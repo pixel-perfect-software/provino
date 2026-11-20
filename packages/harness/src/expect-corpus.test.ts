@@ -10,10 +10,20 @@
 import assert from 'node:assert/strict'
 import path from 'node:path'
 import { describe, test } from 'node:test'
+import { vitestPolicy } from '@provino/dialect-vitest'
+import { resolvePolicy } from '@provino/policy'
 import { expectCorpusProblems } from './expect-corpus/compare.ts'
-import { defaultFixturesRoot, findFixtures, readFixture } from './fixture.ts'
+import {
+  checkedOnNode,
+  defaultFixturesRoot,
+  type Fixture,
+  type FixtureProfile,
+  findFixtures,
+  readFixture,
+} from './fixture.ts'
 import { corePolicyFor } from './runtime-corpus/profiles.ts'
 
+const vitestExpectPolicy = resolvePolicy(vitestPolicy).expect
 const root = path.join(defaultFixturesRoot(), 'expect', 'messages')
 const dirs = await findFixtures(root)
 const fixtures = await Promise.all(dirs.map((dir) => readFixture(dir)))
@@ -22,10 +32,27 @@ test('the message corpus is there', () => {
   assert.ok(dirs.length >= 10, `expected the B08 corpus under ${root}, found ${dirs.length}`)
 })
 
+/** A golden whose text the Node major changes is checked only on the majors its `nodeMajors` lists. */
+function skipOn(fixture: Fixture, profile: FixtureProfile): string | false {
+  return checkedOnNode(fixture.manifest, profile)
+    ? false
+    : `the ${profile} golden is checked on Node ${fixture.manifest.nodeMajors?.[profile]?.join(', ')} only`
+}
+
 for (const fixture of fixtures) {
   describe(fixture.id, () => {
-    test('jest', async () => {
+    test('jest', { skip: skipOn(fixture, 'jest') }, async () => {
       const problems = await expectCorpusProblems(fixture, corePolicyFor.jest)
+      assert.deepEqual(problems, [], `${problems.length} tests differ`)
+    })
+    // T7.6: the Vitest dialect's own table, under its `expect` slice, with `vi` for the spies.
+    test('vitest', { skip: skipOn(fixture, 'vitest') }, async () => {
+      const problems = await expectCorpusProblems(
+        fixture,
+        corePolicyFor.vitest,
+        { expectPolicy: vitestExpectPolicy, facade: 'vi', importQuery: 'vitest' },
+        'vitest',
+      )
       assert.deepEqual(problems, [], `${problems.length} tests differ`)
     })
   })

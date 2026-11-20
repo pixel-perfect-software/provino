@@ -5,7 +5,16 @@ import { jestSnapshotStateView } from '@provino/dialect-jest/runtime'
 import type { SnapshotViewMatchOptions, SnapshotViewSource } from '@provino/types'
 import type { Golden } from '../../golden.ts'
 import { type Claims, corpus, each, golden, inert, own, pending } from '../evidence.ts'
-import { capturedFile, observedOf, oneOf, refTo, statusOf } from '../observe.ts'
+import {
+  capturedFile,
+  errorsOf,
+  hasTest,
+  observedOf,
+  oneOf,
+  refTo,
+  statusOf,
+  testOf,
+} from '../observe.ts'
 
 const SNAP = '__snapshots__/written.test.ts.snap'
 const snap = (g: Golden): string => capturedFile(g, SNAP)
@@ -363,12 +372,19 @@ export const snapshotClaims: Claims = {
       'what Vitest does with a snapshot file no test file has is recorded with its reader',
     ),
   ),
-  // D61: no golden yet tells a mismatch held to the end of the test (Jest's `dontThrow`, DV32) from
-  // one thrown at the call (Vitest's). B25b records `snapshot/mismatch-throws-at-call` under both.
-  'snapshot.mismatch': pending(
-    'B25b',
-    'no golden tells a mismatch held to the end of the test from one thrown at the call; B25b records one',
-  ),
+  // D61: a test with two stored snapshots that both differ and a trace after each. Held to the end
+  // of the test (Jest's `dontThrow`, DV32), both traces run and the test fails with both mismatches;
+  // thrown at the call (Vitest's), no trace runs and the test fails with the first alone.
+  'snapshot.mismatch': golden('snapshot/mismatch-throws-at-call', {
+    read: (g) => {
+      const errors = g.files[0]?.tests[0]?.errors.length
+      const traced = g.trace?.length ?? 0
+      return oneOf(`${errors} errors, ${traced} traces`, [
+        ['end-of-test', errors === 2 && traced === 2],
+        ['throw', errors === 1 && traced === 0],
+      ])
+    },
+  }),
   // Provino's own key (B23e, D128): what a matcher finds as `this.snapshotState`, held to what
   // the `ecosystem/image-snapshot-*` and `ecosystem/custom-snapshot-*` recordings show (each
   // `fixture.json` says what). Each claim builds the matcher's `this.snapshotState` under the value
@@ -546,12 +562,53 @@ export const expectClaims: Claims = {
       { module: import.meta.resolve('@provino/dialect-jest/runtime'), export: 'jestExpectTable' },
       "the dialect's vendored matchers, which the expect corpus holds to every Jest message golden (T7.5)",
     ),
-    pending(
-      'T7.6',
-      "Vitest's matcher table is T7.6's (Phase 2); until then the neutral null stands",
+    own(
+      'packages/dialect-vitest/src/runtime/expect-table.test.ts',
+      'matcherTable',
+      {
+        module: import.meta.resolve('@provino/dialect-vitest/runtime'),
+        export: 'vitestExpectTable',
+      },
+      "the dialect's vendored @vitest/expect matchers, held to the real package case by case there and to every Vitest message golden by the expect corpus (T7.6)",
     ),
   ),
   'expect.errorShape': shape,
+  // `await expect(5).resolves.toBe(5)` (promises.test.ts L15): Jest fails at the matcher call, a
+  // matcher error at `toBe` (column 30); Vitest throws its TypeError where `.resolves` is read
+  // (column 20).
+  'expect.settlementCheck': golden('expect/messages/promises', {
+    read: (g) => {
+      const [error] = testOf(
+        g,
+        'resolves',
+        'resolves with a non-promise received is a matcher error',
+      ).errors
+      const frame = error?.userFrame
+      return oneOf(frame, [
+        ['at-read', frame?.endsWith(':15:20') === true],
+        ['at-call', frame?.endsWith(':15:30') === true],
+      ])
+    },
+  }),
+  // Jest refuses `expect(1, 'extra')` ("Expect takes at most one argument"), so the test fails;
+  // Vitest prefixes a failure with the message.
+  'expect.messageArgument': golden('expect/messages/extend-and-misuse', {
+    read: (g) => {
+      if (hasTest(g, 'misuse', 'expect with two arguments')) {
+        const status = statusOf(g, 'misuse', 'expect with two arguments')
+        return oneOf(status, [
+          [false, status === 'failed'],
+          [true, status === 'passed'],
+        ])
+      }
+      const [message] = errorsOf(g, 'misuse', 'expect with a message argument')
+      const prefixed = message?.includes('the custom message: ') === true
+      return oneOf(message, [
+        [true, prefixed],
+        [false, !prefixed],
+      ])
+    },
+  }),
   'expect.equality.errors': shape,
   'expect.equality.invalidDate': shape,
   'expect.soft': shape,
@@ -593,4 +650,20 @@ export const expectClaims: Claims = {
     }),
     pending('T11.16', "Vitest's counters aren't recorded: the neutral `drop` stands"),
   ),
+  // Jest counts a matcher call that returns a result (makeThrowingMatcher's processResult), Vitest
+  // each `expect()` call (integrations/chai/index.ts L18-L20): one `expect(1)` used for two
+  // matchers meets `expect.assertions(2)` under Jest and misses it under Vitest.
+  'expect.assertionCalls': golden('expect/policies/assertions-per-expect', {
+    read: (g) => {
+      const status = statusOf(
+        g,
+        'assertions per expect',
+        'one expect reused for two matchers, with assertions(2)',
+      )
+      return oneOf(status, [
+        ['per-matcher-call', status === 'passed'],
+        ['per-expect-call', status === 'failed'],
+      ])
+    },
+  }),
 }

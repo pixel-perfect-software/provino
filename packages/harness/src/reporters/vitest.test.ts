@@ -15,11 +15,27 @@ after(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 
-type Lookup = ReportedEntities['state']['getReportedEntityById']
-type Entity = NonNullable<ReturnType<Lookup>>
-type ModuleEntity = Extract<Entity, { type: 'module' }>
-type SuiteEntity = Extract<Entity, { type: 'suite' }>
-type TestEntity = Extract<Entity, { type: 'test' }>
+// Stand-ins for Vitest's `TestModule`, `TestSuite` and `TestCase`: the fields the reporter reads.
+interface ModuleEntity {
+  readonly type: 'module'
+  readonly id: string
+  readonly moduleId: string
+  readonly children: { allTests(): Iterable<TestEntity> }
+}
+interface SuiteEntity {
+  readonly type: 'suite'
+  readonly name: string
+  readonly module: ModuleEntity
+  readonly parent: SuiteEntity | ModuleEntity
+}
+interface TestEntity {
+  readonly type: 'test'
+  readonly id: string
+  readonly name: string
+  readonly module: ModuleEntity
+  readonly parent: SuiteEntity | ModuleEntity
+}
+type Entity = ModuleEntity | SuiteEntity | TestEntity
 
 /**
  * A module the way Vitest reports one: `/work/a.test.ts` with a top-level test, a suite with two
@@ -69,7 +85,9 @@ test('a write in a test names the test by title path and dupIndex; others name t
   const outputFile = path.join(dir, 'attribution.jsonl')
   const { entities } = moduleTree()
   const reporter = new VitestSidecarReporter({ outputFile })
-  reporter.onInit({ state: { getReportedEntityById: (id) => entities.get(id) } })
+  reporter.onInit({
+    state: { getReportedEntityById: (id: string) => entities.get(id) },
+  } as unknown as ReportedEntities)
   reporter.onUserConsoleLog(log('t0', 'stdout', 'top\n'))
   reporter.onUserConsoleLog(log('t2', 'stderr', 'second same\nand more\n'))
   reporter.onUserConsoleLog(log('t1', 'stdout', 'first same\n'))

@@ -51,6 +51,11 @@ export interface NormalizedError {
   readonly matcher?: string
   /** The first user frame, as `<root>/src/a.test.ts:12:5`. */
   readonly userFrame?: string
+  /**
+   * The diff the runner shows under the message (Vitest's `processError`), normalized, when the
+   * run captured it (the harness's `captureDiff` fixtures).
+   */
+  readonly diff?: string
   /** The text as the runner emitted it; for drill-down only, never compared. */
   readonly raw: string
 }

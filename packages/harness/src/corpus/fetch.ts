@@ -52,8 +52,11 @@ export async function sha256OfFile(file: string): Promise<string> {
   return (await digestFile(file)).sha256
 }
 
-/** Downloads the tarball to `dest` through a temporary name, so a partial file never stays. */
-async function download(
+/**
+ * Downloads the tarball to `dest` through a temporary name, so a partial file never stays.
+ * @internal
+ */
+export async function download(
   url: string,
   dest: string,
   deps: CorpusDeps,

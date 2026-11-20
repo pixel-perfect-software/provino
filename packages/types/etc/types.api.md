@@ -951,6 +951,7 @@ export interface ExpectMessages {
 
 // @public
 export interface ExpectPolicy {
+    readonly assertionCalls: "per-matcher-call" | "per-expect-call";
     readonly diffContextLines: number;
     readonly equality: {
         readonly errors: "message" | "assert";
@@ -960,6 +961,7 @@ export interface ExpectPolicy {
     readonly expand: boolean;
     readonly matcherNamespace: string;
     readonly matcherTable: Behaviour<MatcherTableFactory> | null;
+    readonly messageArgument: boolean;
     readonly outsideTestCounts: "drop" | "next-test";
     readonly poll: {
         readonly enabled: boolean;
@@ -968,6 +970,7 @@ export interface ExpectPolicy {
     };
     readonly pollFailsOnTimeout: boolean;
     readonly requireAssertions: boolean;
+    readonly settlementCheck: "at-call" | "at-read";
     readonly soft: boolean;
     readonly valueFormatter: "pretty-format";
 }
@@ -1006,16 +1009,21 @@ export interface ExpectStatic extends InvertibleAsymmetric {
 
 // @public
 export interface ExpectTable {
+    readonly assertionError?: (result: MatcherResult, message: string, call: MatcherCall) => Error;
     readonly asymmetric: AsymmetricFactories;
     readonly asymmetricNot: AsymmetricFactories;
+    readonly chain?: (actual: unknown, name: string, call: MatcherCall) => unknown;
     customAsymmetric(name: string, matcher: Matcher): CustomAsymmetricBuilder;
+    readonly equals?: TesterContext["equals"];
     // (undocumented)
     readonly matchers: MatcherSet;
-    // (undocumented)
-    readonly messages: ExpectMessages;
+    readonly messages: ExpectTableMessages;
     readonly promiseMatchers: MatcherSet;
     readonly utils: object;
 }
+
+// @public
+export type ExpectTableMessages = Omit<ExpectMessages, PolicyMessageKey> & Partial<Pick<ExpectMessages, PolicyMessageKey>>;
 
 // @public
 export type ExternalLoadWatcher = (path: string) => (() => boolean) | null;
@@ -1845,8 +1853,10 @@ export interface MatcherCall {
     readonly isNot: boolean;
     // (undocumented)
     readonly matcherName: string;
+    readonly message?: string;
     // (undocumented)
     readonly promise: PromiseVoice;
+    readonly settlement?: "resolved" | "rejected";
 }
 
 // @public
@@ -2332,6 +2342,7 @@ export interface NeutralTransform {
 
 // @public
 export interface NormalizedError {
+    readonly diff?: string;
     readonly matcher?: string;
     readonly message: string;
     readonly name?: string;
@@ -2507,6 +2518,9 @@ export type Policy = { readonly [K in SliceName]: PolicySlices[K]; };
 
 // @public
 export type PolicyAtom = string | number | boolean | bigint | null | undefined | AnyFunction | ModuleRef | RegExp | Date | readonly unknown[] | ReadonlySet<unknown> | ReadonlyMap<unknown, unknown>;
+
+// @public
+export type PolicyMessageKey = "requiredAssertions" | "unawaited" | "pollTimeout" | "pollUnsupported" | "outsideTest";
 
 // @public
 export type PolicyOverrides = { readonly [K in SliceName]?: DeepPartial<PolicySlices[K]>; };
@@ -3090,10 +3104,7 @@ export interface SerializedError {
     // (undocumented)
     readonly code?: string;
     readonly details?: JsonValue;
-    readonly diff?: {
-        readonly expected: string;
-        readonly actual: string;
-    };
+    readonly diff?: string;
     readonly enumerableFields?: readonly ("name" | "message" | "stack")[];
     // (undocumented)
     readonly errors?: readonly SerializedError[];

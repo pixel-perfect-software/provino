@@ -50,3 +50,10 @@ for (const [name, file] of [
     for (const specifier of imports) assert.match(specifier, /^node:/, specifier)
   })
 }
+
+// B25b: the diff reporter a `captureDiff` fixture's Vitest run loads by absolute path.
+test('the vitest diff reporter loads Node builtins only', async () => {
+  const imports = await runtimeImports(path.join(import.meta.dirname, 'vitest-diff.ts'))
+  assert.ok(imports.length > 0, 'it imports node:fs at least')
+  for (const specifier of imports) assert.match(specifier, /^node:/, specifier)
+})

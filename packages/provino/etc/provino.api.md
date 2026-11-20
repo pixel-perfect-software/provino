@@ -83,13 +83,15 @@ export type b = (this: TesterContext, a: unknown, b: unknown, customTesters: b[]
 
 // @public
 export interface C {
+    readonly assertionError?: (result: MatcherResult, message: string, call: MatcherCall) => Error;
     readonly asymmetric: AsymmetricFactories;
     readonly asymmetricNot: AsymmetricFactories;
+    readonly chain?: (actual: unknown, name: string, call: MatcherCall) => unknown;
     customAsymmetric(name: string, matcher: L): CustomAsymmetricBuilder;
+    readonly equals?: TesterContext["equals"];
     // (undocumented)
     readonly matchers: MatcherSet;
-    // (undocumented)
-    readonly messages: ExpectMessages;
+    readonly messages: ExpectTableMessages;
     readonly promiseMatchers: MatcherSet;
     readonly utils: object;
 }
@@ -352,10 +354,7 @@ export interface nt {
     // (undocumented)
     readonly code?: string;
     readonly details?: F;
-    readonly diff?: {
-        readonly expected: string;
-        readonly actual: string;
-    };
+    readonly diff?: string;
     readonly enumerableFields?: readonly ("name" | "message" | "stack")[];
     // (undocumented)
     readonly errors?: readonly nt[];
@@ -661,6 +660,7 @@ export interface X {
 
 // @public
 export interface x {
+    readonly assertionCalls: "per-matcher-call" | "per-expect-call";
     readonly diffContextLines: number;
     readonly equality: {
         readonly errors: "message" | "assert";
@@ -670,6 +670,7 @@ export interface x {
     readonly expand: boolean;
     readonly matcherNamespace: string;
     readonly matcherTable: Behaviour<MatcherTableFactory> | null;
+    readonly messageArgument: boolean;
     readonly outsideTestCounts: "drop" | "next-test";
     readonly poll: {
         readonly enabled: boolean;
@@ -678,6 +679,7 @@ export interface x {
     };
     readonly pollFailsOnTimeout: boolean;
     readonly requireAssertions: boolean;
+    readonly settlementCheck: "at-call" | "at-read";
     readonly soft: boolean;
     readonly valueFormatter: "pretty-format";
 }

@@ -314,7 +314,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected last \"vi.fn()\" call to have been called with [ 'first' ]",
-              "userFrame": "<root>/spies.vitest.test.ts:68:16"
+              "userFrame": "<root>/spies.vitest.test.ts:68:16",
+              "diff": "- Expected\n+ Received\n\n  [\n-   \"first\",\n+   \"second\",\n  ]"
             }
           ],
           "location": {
@@ -336,7 +337,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 2nd \"vi.fn()\" call to have been called with [ 'a' ]",
-              "userFrame": "<root>/spies.vitest.test.ts:75:16"
+              "userFrame": "<root>/spies.vitest.test.ts:75:16",
+              "diff": "- Expected\n+ Received\n\n  [\n-   \"a\",\n+   \"b\",\n  ]"
             }
           ],
           "location": {
@@ -468,7 +470,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected last \"vi.fn()\" call to return 2",
-              "userFrame": "<root>/spies.vitest.test.ts:120:16"
+              "userFrame": "<root>/spies.vitest.test.ts:120:16",
+              "diff": "- Expected\n+ Received\n\n- 2\n+ 4"
             }
           ],
           "location": {
@@ -490,7 +493,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected 1st call \"vi.fn()\" call to return 4",
-              "userFrame": "<root>/spies.vitest.test.ts:127:16"
+              "userFrame": "<root>/spies.vitest.test.ts:127:16",
+              "diff": "- Expected\n+ Received\n\n- 4\n+ 2"
             }
           ],
           "location": {

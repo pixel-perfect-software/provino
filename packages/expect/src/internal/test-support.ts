@@ -28,6 +28,8 @@ export const testPolicy: ExpectPolicy = {
   ...neutralPolicy.expect,
   matcherTable: { module: 'test-support', export: 'table' } as ModuleRef<() => ExpectTable>,
   errorShape: 'matcher-result',
+  settlementCheck: 'at-call',
+  messageArgument: false,
   equality: { errors: 'message', invalidDate: 'unequal' },
   soft: false,
   poll: { enabled: false, intervalMs: 50, timeoutMs: 1000 },

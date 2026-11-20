@@ -43,6 +43,7 @@ const pinned: Readonly<Record<string, unknown>> = {
   // B23f: ours. An assertion made outside any test counts for no test; a shared package that patches
   // a global stays shared (speed); no extra microtask turns anywhere.
   'expect.outsideTestCounts': 'drop',
+  'expect.assertionCalls': 'per-matcher-call',
   'module.reevaluatePatchingExternals': false,
   'core.boundaryTurns': {
     hookStart: 0,

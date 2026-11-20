@@ -96,9 +96,12 @@ test('a few divergences from the neutral policy are Vitest`s', () => {
   // while Jest's is a ref to jest-circus's.
   assert.equal(row('core.shuffle'), undefined)
   assert.equal(resolved.core.shuffle, null)
-  // Vitest reports a node:assert AssertionError as thrown: `core.shapeTestError` stays `null`.
-  assert.equal(row('core.shapeTestError'), undefined)
-  assert.equal(resolved.core.shapeTestError, null)
+  // A failed test's errors get the `diff` Vitest's runner adds (`processError`, B25b): a ref to
+  // `/runtime`'s `vitestShapeTestError`, where the neutral value is `null`.
+  assert.deepEqual(resolved.core.shapeTestError, {
+    module: import.meta.resolve('@provino/dialect-vitest/runtime'),
+    export: 'vitestShapeTestError',
+  })
   // Vitest words a timeout as core does (`Test timed out in 5000ms.`): `core.timeouts.message`
   // stays `null`, while Jest's is a ref to jest-circus's text.
   assert.equal(row('core.timeouts.message'), undefined)

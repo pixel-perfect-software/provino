@@ -33,6 +33,7 @@ export const policy: SnapshotStateOptions['policy'] = {
   keyJoin: ' ',
   hintJoin: ': ',
   throwErrorBody: 'message',
+  mismatch: 'end-of-test',
   format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null, extra: {} },
 }
 

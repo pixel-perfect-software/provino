@@ -64,7 +64,7 @@ const HELD_BY_PROVINO_JEST: Readonly<Record<string, string>> = {
 }
 
 /** The pairs the check ran and the snapshot tests in them, pinned so it cannot pass by running nothing. */
-const EXPECTED = { pairs: 50, evidenceOnly: 11, tests: 128 } as const
+const EXPECTED = { pairs: 52, evidenceOnly: 11, tests: 130 } as const
 
 const fixtures: Fixture[] = await Promise.all(
   (await findFixtures(path.join(defaultFixturesRoot(), 'snapshot'))).map((dir) => readFixture(dir)),

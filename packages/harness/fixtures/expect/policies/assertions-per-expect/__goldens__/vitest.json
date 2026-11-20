@@ -1,0 +1,84 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "expect/policies/assertions-per-expect",
+  "files": [
+    {
+      "file": "assertions-per-expect.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "assertions-per-expect.test.ts",
+            "path": [
+              "assertions per expect",
+              "a bare expect, with assertions(1)"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 13,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "assertions-per-expect.test.ts",
+            "path": [
+              "assertions per expect",
+              "one expect reused for two matchers, with assertions(2)"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: expected number of assertions to be 2, but got 1"
+            }
+          ],
+          "location": {
+            "line": 18,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "assertions-per-expect.test.ts",
+            "path": [
+              "assertions per expect",
+              "a matcher that throws a TypeError, caught, with assertions(1)"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 25,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false
+}

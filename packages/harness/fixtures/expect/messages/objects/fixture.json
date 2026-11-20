@@ -1,4 +1,5 @@
 {
   "description": "Failure messages of toHaveProperty (a missing dotted path, a wrong value, an array path, a missing array path) and toMatchObject (a nested diff, arrays, a non-object received), with their .not voices. Each test makes one failing assertion.",
-  "runners": ["jest", "vitest"]
+  "runners": ["jest", "vitest"],
+  "captureDiff": true
 }

@@ -110,7 +110,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { n: 3 } to deeply equal { n: toBeEven<> }",
-              "userFrame": "<root>/extend-and-misuse.test.ts:80:22"
+              "userFrame": "<root>/extend-and-misuse.test.ts:80:22",
+              "diff": "- Expected\n+ Received\n\n  {\n-   \"n\": toBeEven<>,\n+   \"n\": 3,\n  }"
             }
           ],
           "location": {
@@ -132,7 +133,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: expected { n: 4 } to deeply equal { n: not.toBeEven<> }",
-              "userFrame": "<root>/extend-and-misuse.test.ts:84:22"
+              "userFrame": "<root>/extend-and-misuse.test.ts:84:22",
+              "diff": "- Expected\n+ Received\n\n  {\n-   \"n\": not.toBeEven<>,\n+   \"n\": 4,\n  }"
             }
           ],
           "location": {
@@ -226,7 +228,8 @@
             {
               "name": "AssertionError",
               "message": "AssertionError: the custom message: expected 1 to be 2 // Object.is equality",
-              "userFrame": "<root>/extend-and-misuse.vitest.test.ts:4:37"
+              "userFrame": "<root>/extend-and-misuse.vitest.test.ts:4:37",
+              "diff": "- Expected\n+ Received\n\n- 2\n+ 1"
             }
           ],
           "location": {
