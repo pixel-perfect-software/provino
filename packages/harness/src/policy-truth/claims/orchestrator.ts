@@ -119,28 +119,6 @@ const sliceOf = (ordered: readonly string[], index: number, count: number): stri
   return ordered.slice(start, start + size(index - 1))
 }
 
-/**
- * Which split a `--shard=i/n` golden shows: the files Jest ran (its PASS lines) against the slice of
- * the sha1 order and the slice of the path order. `unknown` when neither is what it ran.
- */
-const shardSplit = (g: Golden): string => {
-  const [, index, count] = /shard-(\d+)-of-(\d+)$/.exec(g.suite) ?? []
-  if (index === undefined || count === undefined) throw new Error(`${g.suite} is no shard fixture`)
-  const ran = stderrOf(g)
-    .split('\n')
-    .flatMap((line) => (line.startsWith('PASS ') ? [line.slice(5).replace(/^\.\//, '')] : []))
-    .toSorted()
-  const bySha1 = SHARD_FILES.toSorted((a, b) => {
-    const [ha, hb] = [a, b].map((name) => createHash('sha1').update(name).digest('hex'))
-    return (ha as string) < (hb as string) ? -1 : 1
-  })
-  const expected = (ordered: readonly string[]): string[] =>
-    sliceOf(ordered, Number(index), Number(count)).toSorted()
-  if (isDeepStrictEqual(ran, expected(bySha1))) return 'sha1-slice'
-  if (isDeepStrictEqual(ran, expected(SHARD_FILES.toSorted()))) return 'path-slice'
-  return `unknown: ${ran.join(', ')}`
-}
-
 /** The seven files of the `cli/vitest-shard-*-of-3` fixtures, root-relative. */
 const VITEST_SHARD_FILES: readonly string[] = [
   'alpha.test.ts',
@@ -153,27 +131,43 @@ const VITEST_SHARD_FILES: readonly string[] = [
 ]
 
 /**
- * Which split a `cli/vitest-shard-*` golden shows: the files its json report holds against the
- * slices of the sha1 order of the paths with and without a leading `/`, and of the path order.
+ * Which split a shard golden shows: the files it ran (`ranOf`) against the slices of the sha1
+ * order of the paths with and without a leading `/`, and of the path order. `unknown` when none is
+ * what it ran.
  */
-const vitestShardSplit = (g: Golden): string => {
-  const [, index, count] = /shard-(\d+)-of-(\d+)$/.exec(g.suite) ?? []
-  if (index === undefined || count === undefined) throw new Error(`${g.suite} is no shard fixture`)
+const shardSplitOf =
+  (files: readonly string[], ranOf: (g: Golden) => readonly string[]) =>
+  (g: Golden): string => {
+    const [, index, count] = /shard-(\d+)-of-(\d+)$/.exec(g.suite) ?? []
+    if (index === undefined || count === undefined)
+      throw new Error(`${g.suite} is no shard fixture`)
+    const ran = ranOf(g).toSorted()
+    const byHashOf = (key: (name: string) => string): string[] =>
+      files.toSorted((a, b) => {
+        const [ha, hb] = [a, b].map((name) => createHash('sha1').update(key(name)).digest('hex'))
+        return (ha as string) < (hb as string) ? -1 : 1
+      })
+    const expected = (ordered: readonly string[]): string[] =>
+      sliceOf(ordered, Number(index), Number(count)).toSorted()
+    if (isDeepStrictEqual(ran, expected(byHashOf((name) => `/${name}`)))) return 'rooted-sha1-slice'
+    if (isDeepStrictEqual(ran, expected(byHashOf((name) => name)))) return 'sha1-slice'
+    if (isDeepStrictEqual(ran, expected(files.toSorted()))) return 'path-slice'
+    return `unknown: ${ran.join(', ')}`
+  }
+
+/** Jest's `cli/shard-*`: the files of its PASS lines. */
+const shardSplit = shardSplitOf(SHARD_FILES, (g) =>
+  stderrOf(g)
+    .split('\n')
+    .flatMap((line) => (line.startsWith('PASS ') ? [line.slice(5).replace(/^\.\//, '')] : [])),
+)
+
+/** Vitest's `cli/vitest-shard-*`: the files of its json report. */
+const vitestShardSplit = shardSplitOf(VITEST_SHARD_FILES, (g) => {
   const report = (observedOf(g) as { json?: Record<string, { testResults?: { name: string }[] }> })
     .json?.['.harness-out/vitest.json']
-  const ran = (report?.testResults ?? []).map((file) => file.name.replace('<root>/', '')).toSorted()
-  const byHashOf = (key: (name: string) => string): string[] =>
-    VITEST_SHARD_FILES.toSorted((a, b) => {
-      const [ha, hb] = [a, b].map((name) => createHash('sha1').update(key(name)).digest('hex'))
-      return (ha as string) < (hb as string) ? -1 : 1
-    })
-  const expected = (ordered: readonly string[]): string[] =>
-    sliceOf(ordered, Number(index), Number(count)).toSorted()
-  if (isDeepStrictEqual(ran, expected(byHashOf((name) => `/${name}`)))) return 'rooted-sha1-slice'
-  if (isDeepStrictEqual(ran, expected(byHashOf((name) => name)))) return 'sha1-slice'
-  if (isDeepStrictEqual(ran, expected(VITEST_SHARD_FILES.toSorted()))) return 'path-slice'
-  return `unknown: ${ran.join(', ')}`
-}
+  return (report?.testResults ?? []).map((file) => file.name.replace('<root>/', ''))
+})
 
 /** What a recorded black-box run printed on stderr (Jest writes its report there). */
 const stderrOf = (g: Golden): string => observedOf(g).stderr ?? ''

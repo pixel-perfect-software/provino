@@ -89,6 +89,7 @@ export type {
   GlobalSetupFailure,
   OrchestratorPolicy,
   PoolKind,
+  ShardFallback,
 } from './orchestrator.ts'
 export type { ReportPolicy } from './report.ts'
 export type {

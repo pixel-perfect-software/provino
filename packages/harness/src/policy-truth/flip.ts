@@ -8,6 +8,7 @@
 // other refs where the claim tells refs apart (`REF_FLIPS`).
 import { isDeepStrictEqual } from 'node:util'
 import { neutralPolicy } from '@provino/policy'
+import type { ShardFallback } from '@provino/types'
 
 /** Every value of each enumerated policy key, by its path relative to its slice's root. */
 export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
@@ -93,7 +94,11 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'orchestrator.coverageProvider': ['v8', 'istanbul'],
   'orchestrator.isolationDefault.default': ['none', 'registry', 'realm', 'process'],
   'orchestrator.pool.default': ['forks', 'threads', 'inline'],
-  'orchestrator.shard.fallback': ['sha1-slice', 'rooted-sha1-slice', 'path-slice'],
+  'orchestrator.shard.fallback': [
+    'sha1-slice',
+    'rooted-sha1-slice',
+    'path-slice',
+  ] satisfies readonly ShardFallback[],
   'orchestrator.globalSetup.signature': ['global-and-project-config', 'project-with-teardown'],
   'orchestrator.globalSetup.teardownOrder': ['in-order', 'reverse'],
   'orchestrator.affected.invalidateAll': ['project-inputs', 'none'],

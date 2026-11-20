@@ -13,7 +13,7 @@
 // (path, then project), and a file's shard is a function of its place in that order.
 import { hash } from 'node:crypto'
 import { join } from 'node:path'
-import type { ScheduleInput, TimingsFile } from '@provino/types'
+import type { ScheduleInput, ShardFallback, TimingsFile } from '@provino/types'
 import type { DiscoveredFile } from './discover.ts'
 import { OrchestratorError } from './errors.ts'
 import { relativePosix } from './file-id.ts'
@@ -161,7 +161,7 @@ export function sliceShard(
 export function shardInputs(
   files: readonly ScheduleInput[],
   shard: ShardSpec,
-  fallback: 'sha1-slice' | 'rooted-sha1-slice' | 'path-slice',
+  fallback: ShardFallback,
 ): readonly ScheduleInput[] {
   const timed = files.some((file) => timeOf(file) !== undefined)
   if (timed || fallback === 'path-slice') return sliceShard(files, shard)
@@ -193,7 +193,7 @@ export function shardFiles(
   members: readonly ShardMember[],
   options: {
     readonly shard: ShardSpec
-    readonly fallback: 'sha1-slice' | 'rooted-sha1-slice' | 'path-slice'
+    readonly fallback: ShardFallback
     readonly runRoot: string
     readonly timings?: TimingsFile | undefined
   },

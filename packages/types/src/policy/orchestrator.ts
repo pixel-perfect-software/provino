@@ -256,7 +256,7 @@ export interface OrchestratorPolicy {
    * `cli/shard-1-of-3` to `3-of-3`). Vitest: `rooted-sha1-slice` (recorded: `cli/vitest-shard-1-of-3`
    * to `3-of-3`). Neutral: `path-slice`. research: track-09 L558
    */
-  readonly shard: { readonly fallback: 'sha1-slice' | 'rooted-sha1-slice' | 'path-slice' }
+  readonly shard: { readonly fallback: ShardFallback }
   /** Whether files with no timing history run first. Jest: `true`. Vitest: `true`. research: track-09 L559 */
   readonly sequence: { readonly unknownFirst: boolean }
   /**
@@ -286,3 +286,9 @@ export interface OrchestratorPolicy {
     readonly failure: Behaviour<GlobalSetupFailure>
   }
 }
+
+/**
+ * How a shard splits the files when no timings say otherwise (`orchestrator.shard.fallback`).
+ * @public
+ */
+export type ShardFallback = 'sha1-slice' | 'rooted-sha1-slice' | 'path-slice'
