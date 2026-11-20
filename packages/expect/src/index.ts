@@ -17,8 +17,8 @@ export {
   MatcherResultError,
   type UnawaitedAssertion,
 } from './expect.ts'
-export type { PollTimers } from './poll.ts'
 export { policyMessages } from './policy-messages.ts'
+export type { PollTimers } from './poll.ts'
 export {
   createMatcherRegistry,
   installMatchersSlot,
