@@ -14,7 +14,7 @@ import {
 } from '@provino/expect'
 import type { MatcherSet } from '@provino/types'
 import { show } from './print.ts'
-import { expectedReceived, result, type Self } from './result.ts'
+import { aligned, expectedReceived, result, type Self, testersWith } from './result.ts'
 
 const invalid = (name: string, what: string, value: unknown): ExpectError =>
   new ExpectError('EXPECT_INVALID_ARGUMENT', `${name}: ${what}, but it is ${show(value)}`)
@@ -22,7 +22,10 @@ const invalid = (name: string, what: string, value: unknown): ExpectError =>
 const isNumeric = (value: unknown): value is number | bigint =>
   typeof value === 'number' || typeof value === 'bigint'
 
-const sameValueZero = (a: unknown, b: unknown): boolean => a === b || Object.is(a, b)
+const isIterable = (value: unknown): value is Iterable<unknown> =>
+  value !== null &&
+  value !== undefined &&
+  typeof (value as Iterable<unknown>)[Symbol.iterator] === 'function'
 
 /** A compare of two numbers: `pass` from `test`, the words from `phrase`. */
 function compare(
@@ -35,13 +38,8 @@ function compare(
       throw invalid(name, 'the received value must be a number or bigint', received)
     if (!isNumeric(expected))
       throw invalid(name, 'the expected value must be a number or bigint', expected)
-    return result(
-      this,
-      name,
-      'expected',
-      test(received, expected),
-      () =>
-        `Expected: ${this.isNot ? 'not ' : ''}${phrase} ${show(expected)}\nReceived: ${this.isNot ? '    ' : ''}${show(received)}`,
+    return result(this, name, 'expected', test(received, expected), () =>
+      aligned(this, 'Expected', `${phrase} ${show(expected)}`, 'Received', `${show(received)}`),
     )
   }
 }
@@ -49,13 +47,8 @@ function compare(
 /** The check of a value against `true`/`false`/`null`/`undefined`/`NaN` and the like. */
 function state(name: string, describe: string, test: (received: unknown) => boolean) {
   return function (this: Self, received: unknown) {
-    return result(
-      this,
-      name,
-      '',
-      test(received),
-      () =>
-        `Expected: ${this.isNot ? 'not ' : ''}${describe}\nReceived: ${this.isNot ? '    ' : ''}${show(received)}`,
+    return result(this, name, '', test(received), () =>
+      aligned(this, 'Expected', `${describe}`, 'Received', `${show(received)}`),
     )
   }
 }
@@ -70,7 +63,7 @@ function equality(name: string, strict: boolean) {
           sparseArrayEquality,
           arrayBufferEquality,
         ]
-      : [...this.customTesters, iterableEquality]
+      : testersWith(this, iterableEquality)
     const pass = this.equals(received, expected, testers, strict)
     return result(
       this,
@@ -153,8 +146,8 @@ const listCalls = (calls: readonly (readonly unknown[])[]): string =>
 function calledWith(name: string, pick: 'any' | 'last') {
   return function (this: Self, received: unknown, ...expected: unknown[]) {
     const { calls } = mockOf(name, received)
-    const matches = (args: readonly unknown[]): boolean =>
-      this.equals(args, expected, [...this.customTesters, iterableEquality])
+    const testers = testersWith(this, iterableEquality)
+    const matches = (args: readonly unknown[]): boolean => this.equals(args, expected, testers)
     const pass =
       pick === 'any' ? calls.some(matches) : calls.length > 0 && matches(calls.at(-1) ?? [])
     return result(
@@ -230,34 +223,19 @@ export const matchers: MatcherSet = {
         expectedReceived(this, expected, received, { label: 'Expected substring' }),
       )
     }
-    if (
-      received === null ||
-      received === undefined ||
-      typeof (received as Iterable<unknown>)[Symbol.iterator] !== 'function'
-    ) {
+    if (!isIterable(received)) {
       throw invalid('toContain', 'the received value must be a string or an iterable', received)
     }
-    const items = Array.from(received as Iterable<unknown>)
-    return result(
-      this,
-      'toContain',
-      'expected',
-      items.some((item) => sameValueZero(item, expected)),
-      () => expectedReceived(this, expected, received, { label: 'Expected item' }),
+    return result(this, 'toContain', 'expected', Array.from(received).includes(expected), () =>
+      expectedReceived(this, expected, received, { label: 'Expected item' }),
     )
   },
   toContainEqual(this: Self, received: unknown, expected: unknown) {
-    if (
-      received === null ||
-      received === undefined ||
-      typeof (received as Iterable<unknown>)[Symbol.iterator] !== 'function'
-    ) {
+    if (!isIterable(received)) {
       throw invalid('toContainEqual', 'the received value must be an iterable', received)
     }
-    const items = Array.from(received as Iterable<unknown>)
-    const pass = items.some((item) =>
-      this.equals(item, expected, [...this.customTesters, iterableEquality]),
-    )
+    const testers = testersWith(this, iterableEquality)
+    const pass = Array.from(received).some((item) => this.equals(item, expected, testers))
     return result(this, 'toContainEqual', 'expected', pass, () =>
       expectedReceived(this, expected, received, { label: 'Expected item' }),
     )
@@ -276,7 +254,7 @@ export const matchers: MatcherSet = {
       'expected',
       length === expected,
       () =>
-        `Expected length: ${this.isNot ? 'not ' : ''}${expected}\nReceived length: ${this.isNot ? '    ' : ''}${length}\nReceived value: ${show(received)}`,
+        `${aligned(this, 'Expected length', `${expected}`, 'Received length', `${length}`)}\nReceived value: ${show(received)}`,
     )
   },
   toHaveProperty(this: Self, received: unknown, path: unknown, ...rest: unknown[]) {
@@ -290,7 +268,7 @@ export const matchers: MatcherSet = {
     const found = getPath(received, path as string | string[])
     const pass =
       found.hasEndProp === true &&
-      (!hasValue || this.equals(found.value, rest[0], [...this.customTesters, iterableEquality]))
+      (!hasValue || this.equals(found.value, rest[0], testersWith(this, iterableEquality)))
     const shown = typeof path === 'string' ? path : show(path)
     return result(this, 'toHaveProperty', hasValue ? 'path, value' : 'path', pass, () => {
       if (!hasValue) {
@@ -327,7 +305,7 @@ export const matchers: MatcherSet = {
       'expected, digits',
       pass,
       () =>
-        `Expected: ${this.isNot ? 'not ' : ''}${show(expected)} (within ${limit})\nReceived: ${this.isNot ? '    ' : ''}${show(received)}\nDifference: ${difference}`,
+        `${aligned(this, 'Expected', `${show(expected)} (within ${limit})`, 'Received', `${show(received)}`)}\nDifference: ${difference}`,
     )
   },
   toMatch(this: Self, received: unknown, expected: unknown) {
@@ -394,7 +372,7 @@ export const matchers: MatcherSet = {
       'expected',
       typeof received === expected,
       () =>
-        `Expected type: ${this.isNot ? 'not ' : ''}${expected}\nReceived type: ${this.isNot ? '    ' : ''}${typeof received}\nReceived value: ${show(received)}`,
+        `${aligned(this, 'Expected type', `${expected}`, 'Received type', `${typeof received}`)}\nReceived value: ${show(received)}`,
     )
   },
   toSatisfy(this: Self, received: unknown, predicate: unknown) {
@@ -429,13 +407,8 @@ export const matchers: MatcherSet = {
         expected,
       )
     }
-    return result(
-      this,
-      'toHaveBeenCalledTimes',
-      'expected',
-      calls.length === expected,
-      () =>
-        `Expected calls: ${this.isNot ? 'not ' : ''}${expected}\nReceived calls: ${this.isNot ? '    ' : ''}${calls.length}`,
+    return result(this, 'toHaveBeenCalledTimes', 'expected', calls.length === expected, () =>
+      aligned(this, 'Expected calls', `${expected}`, 'Received calls', `${calls.length}`),
     )
   },
   toHaveBeenCalledWith: calledWith('toHaveBeenCalledWith', 'any'),
@@ -447,7 +420,7 @@ export const matchers: MatcherSet = {
     }
     const call = calls[nth - 1]
     const pass =
-      call !== undefined && this.equals(call, expected, [...this.customTesters, iterableEquality])
+      call !== undefined && this.equals(call, expected, testersWith(this, iterableEquality))
     return result(
       this,
       'toHaveBeenNthCalledWith',
@@ -470,11 +443,8 @@ export const matchers: MatcherSet = {
   },
   toHaveReturnedWith(this: Self, received: unknown, expected: unknown) {
     const { results } = mockOf('toHaveReturnedWith', received)
-    const pass = results.some(
-      (r) =>
-        r.type === 'return' &&
-        this.equals(r.value, expected, [...this.customTesters, iterableEquality]),
-    )
+    const testers = testersWith(this, iterableEquality)
+    const pass = results.some((r) => r.type === 'return' && this.equals(r.value, expected, testers))
     return result(
       this,
       'toHaveReturnedWith',
@@ -493,13 +463,8 @@ export const matchers: MatcherSet = {
       )
     }
     const count = returned(results).length
-    return result(
-      this,
-      'toHaveReturnedTimes',
-      'expected',
-      count === expected,
-      () =>
-        `Expected returns: ${this.isNot ? 'not ' : ''}${expected}\nReceived returns: ${this.isNot ? '    ' : ''}${count}`,
+    return result(this, 'toHaveReturnedTimes', 'expected', count === expected, () =>
+      aligned(this, 'Expected returns', `${expected}`, 'Received returns', `${count}`),
     )
   },
   toHaveLastReturnedWith(this: Self, received: unknown, expected: unknown) {
@@ -508,7 +473,7 @@ export const matchers: MatcherSet = {
     const pass =
       last !== undefined &&
       last.type === 'return' &&
-      this.equals(last.value, expected, [...this.customTesters, iterableEquality])
+      this.equals(last.value, expected, testersWith(this, iterableEquality))
     return result(
       this,
       'toHaveLastReturnedWith',
@@ -526,7 +491,7 @@ export const matchers: MatcherSet = {
     const pass =
       nthResult !== undefined &&
       nthResult.type === 'return' &&
-      this.equals(nthResult.value, expected, [...this.customTesters, iterableEquality])
+      this.equals(nthResult.value, expected, testersWith(this, iterableEquality))
     return result(
       this,
       'toHaveNthReturnedWith',

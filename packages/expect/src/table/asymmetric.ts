@@ -10,10 +10,22 @@ import type {
 } from '@provino/types'
 import { show } from './print.ts'
 
-const finish = (inverse: boolean, pass: boolean): boolean => (inverse ? !pass : pass)
+/** An asymmetric matcher that says whether it matches; the base turns that around for `expect.not`. */
+abstract class Inversible<T> extends AsymmetricMatcher<T> {
+  abstract matches(other: unknown, testers?: readonly EqualityTester[]): boolean
 
-class Any extends AsymmetricMatcher<unknown> {
-  asymmetricMatch(other: unknown): boolean {
+  asymmetricMatch(other: unknown, testers?: readonly EqualityTester[]): boolean {
+    return this.matches(other, testers) !== this.inverse
+  }
+
+  /** `Not` under `expect.not`, the prefix of every description. */
+  protected not(): string {
+    return this.inverse ? 'Not' : ''
+  }
+}
+
+class Any extends Inversible<unknown> {
+  matches(other: unknown): boolean {
     const type = this.sample
     let pass: boolean
     if (type === String) pass = typeof other === 'string' || other instanceof String
@@ -24,97 +36,93 @@ class Any extends AsymmetricMatcher<unknown> {
     else if (type === Function) pass = typeof other === 'function'
     else if (type === Object) pass = typeof other === 'object' && other !== null
     else pass = typeof type === 'function' && other instanceof type
-    return finish(this.inverse, pass)
+    return pass
   }
   toString(): string {
-    return `${this.inverse ? 'Not' : ''}Any<${(this.sample as { name?: string }).name ?? show(this.sample)}>`
+    return `${this.not()}Any<${(this.sample as { name?: string }).name ?? show(this.sample)}>`
   }
   override getExpectedType(): string {
     return (this.sample as { name?: string }).name ?? 'any'
   }
 }
 
-class Anything extends AsymmetricMatcher<undefined> {
-  asymmetricMatch(other: unknown): boolean {
-    return finish(this.inverse, other !== null && other !== undefined)
+class Anything extends Inversible<undefined> {
+  matches(other: unknown): boolean {
+    return other !== null && other !== undefined
   }
   toString(): string {
     return this.inverse ? 'Nothing' : 'Anything'
   }
 }
 
-class ObjectContaining extends AsymmetricMatcher<object> {
-  asymmetricMatch(other: unknown, testers?: readonly EqualityTester[]): boolean {
-    if (typeof other !== 'object' || other === null) return finish(this.inverse, false)
-    const pass = Reflect.ownKeys(this.sample).every(
+class ObjectContaining extends Inversible<object> {
+  matches(other: unknown, testers?: readonly EqualityTester[]): boolean {
+    if (typeof other !== 'object' || other === null) return false
+    const use = [...(testers ?? this.getMatcherContext().customTesters)]
+    const sample = this.sample as Record<PropertyKey, unknown>
+    return Reflect.ownKeys(sample).every(
       (key) =>
-        key in other &&
-        equals(
-          (this.sample as Record<PropertyKey, unknown>)[key],
-          (other as Record<PropertyKey, unknown>)[key],
-          [...(testers ?? this.getMatcherContext().customTesters)],
-        ),
+        key in other && equals(sample[key], (other as Record<PropertyKey, unknown>)[key], use),
     )
-    return finish(this.inverse, pass)
   }
   toString(): string {
-    return `${this.inverse ? 'Not' : ''}ObjectContaining ${show(this.sample)}`
+    return `${this.not()}ObjectContaining ${show(this.sample)}`
   }
 }
 
-class ArrayContaining extends AsymmetricMatcher<readonly unknown[]> {
-  asymmetricMatch(other: unknown, testers?: readonly EqualityTester[]): boolean {
-    if (!Array.isArray(other)) return finish(this.inverse, false)
+class ArrayContaining extends Inversible<readonly unknown[]> {
+  matches(other: unknown, testers?: readonly EqualityTester[]): boolean {
+    if (!Array.isArray(other)) return false
     const use = [...(testers ?? this.getMatcherContext().customTesters)]
     const pass = this.sample.every((item) =>
       other.some((candidate) => equals(item, candidate, use)),
     )
-    return finish(this.inverse, pass)
+    return pass
   }
   toString(): string {
-    return `${this.inverse ? 'Not' : ''}ArrayContaining ${show(this.sample)}`
+    return `${this.not()}ArrayContaining ${show(this.sample)}`
   }
 }
 
-class StringContaining extends AsymmetricMatcher<string> {
-  asymmetricMatch(other: unknown): boolean {
-    return finish(this.inverse, typeof other === 'string' && other.includes(this.sample))
+class StringContaining extends Inversible<string> {
+  matches(other: unknown): boolean {
+    return typeof other === 'string' && other.includes(this.sample)
   }
   toString(): string {
-    return `${this.inverse ? 'Not' : ''}StringContaining ${show(this.sample)}`
+    return `${this.not()}StringContaining ${show(this.sample)}`
   }
 }
 
-class StringMatching extends AsymmetricMatcher<RegExp> {
-  asymmetricMatch(other: unknown): boolean {
+class StringMatching extends Inversible<RegExp> {
+  matches(other: unknown): boolean {
     this.sample.lastIndex = 0
     const pass = typeof other === 'string' && this.sample.test(other)
     this.sample.lastIndex = 0
-    return finish(this.inverse, pass)
+    return pass
   }
   toString(): string {
-    return `${this.inverse ? 'Not' : ''}StringMatching ${String(this.sample)}`
+    return `${this.not()}StringMatching ${String(this.sample)}`
   }
 }
 
-class CloseTo extends AsymmetricMatcher<number> {
+class CloseTo extends Inversible<number> {
   readonly digits: number
   constructor(sample: number, digits: number, inverse: boolean) {
     super(sample, inverse)
     this.digits = digits
   }
-  asymmetricMatch(other: unknown): boolean {
-    if (typeof other !== 'number') return finish(this.inverse, false)
+  matches(other: unknown): boolean {
+    if (typeof other !== 'number') return false
     const pass = other === this.sample || Math.abs(this.sample - other) < 10 ** -this.digits / 2
-    return finish(this.inverse, pass)
+    return pass
   }
   toString(): string {
-    return `${this.inverse ? 'Not' : ''}CloseTo ${this.sample} (${this.digits} digits)`
+    return `${this.not()}CloseTo ${this.sample} (${this.digits} digits)`
   }
 }
 
 /** `expect.extend`'s asymmetric form of a custom matcher. */
-class Custom extends AsymmetricMatcher<readonly unknown[]> {
+class Custom extends Inversible<readonly unknown[]> {
   readonly #name: string
   readonly #matcher: Matcher
   constructor(name: string, matcher: Matcher, inverse: boolean, sample: readonly unknown[]) {
@@ -122,15 +130,15 @@ class Custom extends AsymmetricMatcher<readonly unknown[]> {
     this.#name = name
     this.#matcher = matcher
   }
-  asymmetricMatch(other: unknown): boolean {
+  matches(other: unknown): boolean {
     const run = this.#matcher as unknown as (
       this: MatcherContext,
       ...args: unknown[]
     ) => { pass: boolean }
-    return finish(this.inverse, run.call(this.getMatcherContext(), other, ...this.sample).pass)
+    return run.call(this.getMatcherContext(), other, ...this.sample).pass
   }
   toString(): string {
-    return `${this.inverse ? 'Not' : ''}${this.#name}`
+    return `${this.not()}${this.#name}`
   }
 }
 
