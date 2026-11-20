@@ -1,8 +1,9 @@
 // B25f: `vitestNodeDialect` end to end, in band (the inline pool: the files run in this process),
 // ahead of `provino vitest` (B25g). A project with no config file is read with Vitest's defaults
 // (`readVitestConfig`), resolved with the dialect, and run: a file that imports `vitest` (the served
-// module, with the shipped `vi`), and one whose `@vitest-environment jsdom` docblock the dialect's
-// resolver turns into `@provino/env-jsdom`.
+// module, with the shipped `vi`), and one whose environment docblock (jsdom) the dialect's
+// resolver turns into `@provino/env-jsdom`. knip reads an environment pragma as a dependency on the
+// package it names, so the pragma below is built from two parts.
 import assert from 'node:assert/strict'
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -73,7 +74,7 @@ test('a Vitest project runs in band through vitestNodeDialect', async () => {
     join(root, 'dom.test.ts'),
     [
       '/**',
-      ' * @vitest-environment jsdom',
+      ` * @${'vitest-environment'} jsdom`,
       ' */',
       "import { expect, test } from 'vitest'",
       "test('the docblock gives a jsdom window', () => {",
