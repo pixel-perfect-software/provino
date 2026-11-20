@@ -171,7 +171,9 @@ export function vitestProjectToNeutral(project: VitestResolvedProject): {
     notApplied(
       diagnostics,
       key,
-      `${key} is read and not applied yet: it comes with B25d (the Vite bridge and the transform)`,
+      key === 'plugins'
+        ? 'plugins are read by the Vite bridge (`@provino/dialect-vitest/vite-bridge`) and hosted by `@provino/transform/vite`; running them in a worker comes with B25g'
+        : `${key} is read and not applied yet: the Vite bridge reads it, and a worker applies it with B25f`,
     )
   }
   const sequence = isRec(test.sequence) ? test.sequence : {}

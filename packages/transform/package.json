@@ -24,6 +24,11 @@
       "provino-source": "./src/v8cache/index.ts",
       "types": "./dist/v8cache.d.ts",
       "import": "./dist/v8cache.js"
+    },
+    "./vite": {
+      "provino-source": "./src/vite/index.ts",
+      "types": "./dist/vite.d.ts",
+      "import": "./dist/vite.js"
     }
   },
   "files": [
@@ -52,11 +57,26 @@
     "@jest/transform": "catalog:",
     "@jridgewell/trace-mapping": "catalog:",
     "@oxc-project/types": "catalog:",
+    "@sveltejs/vite-plugin-svelte": "catalog:",
     "@swc/core": "catalog:",
     "@swc/jest": "catalog:",
+    "@vitejs/plugin-vue": "catalog:",
     "babel-jest": "catalog:",
     "jest": "catalog:",
+    "svelte": "catalog:",
     "ts-jest": "catalog:",
-    "typescript": "npm:typescript@5.9.3"
+    "typescript": "npm:typescript@5.9.3",
+    "vite-plugin-svgr": "catalog:",
+    "vite-tsconfig-paths": "catalog:",
+    "vitest": "catalog:",
+    "vue": "catalog:"
+  },
+  "peerDependencies": {
+    "vite": ">=6"
+  },
+  "peerDependenciesMeta": {
+    "vite": {
+      "optional": true
+    }
   }
 }

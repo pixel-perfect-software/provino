@@ -31,6 +31,9 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   '@provino/dialect-vitest/runtime': 'worker/vitest-runtime',
   // Vite's alias rule as a mapper, loaded by the worker's loader when a Vitest project has aliases.
   '@provino/resolver/vite-alias': 'worker/vite-alias',
+  // The Vite plugin host (B25d, T3.9), created by a worker whose project has plugins: no run
+  // without them imports it, and it never imports Vite (the project's plugins do).
+  '@provino/transform/vite': 'worker/vite-host',
   '@provino/policy/behaviours': 'worker/policy-behaviours',
   '@provino/env-node': 'worker/env-node',
   '@provino/env-jsdom': 'worker/env-jsdom',
