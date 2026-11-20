@@ -484,8 +484,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     flag: '--dom',
     path: 'dom',
     description: 'Mock browser API with happy-dom',
-    support: 'refuse',
-    owner: 'B25f (environments)',
+    support: 'config',
   },
   {
     flag: '--browser <name>',

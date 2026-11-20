@@ -48,6 +48,7 @@ export {
   vitestFlags,
 } from './cli.ts'
 export { expandDotenv, loadVitestEnv, parseDotenv } from './env.ts'
+export { vitestEnvironmentRef } from './environment-ref.ts'
 export { VitestConfigError, type VitestConfigErrorCode } from './errors.ts'
 export {
   findViteConfigFile,
