@@ -120,6 +120,9 @@ const COORDINATOR = new RegExp(
     `provino[\\/]src[\\/](?!internal[\\/](?:${BIN_LIGHT_FILES.join('|')})\\.ts)`,
     'policy[\\/]src[\\/]dialect\\.ts',
     'dialect-jest[\\/]src[\\/](?:dialect|expect-policy|hoist-policy|mock-policy)\\.ts',
+    // The Vitest dialect's value: `defineDialect` is the coordinator's, so in `shared` it made every
+    // worker import `coordinator.js`.
+    'dialect-vitest[\\/]src[\\/]dialect\\.ts',
   ]
     .map((alternative) => `[\\/]packages[\\/]${alternative}`)
     .join('|'),
