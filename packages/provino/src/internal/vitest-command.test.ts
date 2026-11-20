@@ -4,7 +4,8 @@ import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, before, describe, it } from 'node:test'
-import { runVitestCommand } from './vitest-command.ts'
+import type { NeutralProject } from '@provino/types'
+import { chooseProjects, runVitestCommand } from './vitest-command.ts'
 
 /** Runs the command with in-memory streams. */
 async function runVitest(
@@ -127,5 +128,25 @@ describe('provino vitest reporter options', () => {
       /the reporter "verbose" takes no options here \(parked \(D183\)\)/.test(ended.stderr),
       head(ended.stderr),
     )
+  })
+})
+
+describe('--project', () => {
+  const projects = ['Web', 'api', 'api-e2e'].map((name) => ({ name }) as NeutralProject)
+  const chosen = (patterns: unknown): string[] =>
+    chooseProjects(projects, patterns).map((project) => project.name)
+
+  it('matches names without regard to case, with * wildcards (wildcardPatternToRegExp)', () => {
+    assert.deepEqual(chosen('web'), ['Web'])
+    assert.deepEqual(chosen(['API*']), ['api', 'api-e2e'])
+  })
+
+  it('leaves out a name a ! pattern matches (isExcludedByProjectFilter)', () => {
+    assert.deepEqual(chosen(['!api*']), ['Web'])
+    assert.deepEqual(chosen(['api*', '!api-e2e']), ['api'])
+  })
+
+  it('says so when no project is left', () => {
+    assert.throws(() => chosen(['nope']), /No projects matched the filter "nope"\./)
   })
 })

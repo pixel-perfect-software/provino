@@ -216,23 +216,33 @@ function coordinatorFilter(filter: FileFilter): FileFilter {
   return filter
 }
 
-/** `--project` names, with `*` wildcards (`wildcardPatternToRegExp`), matched against each project's name. */
-function chooseProjects(
+/**
+ * `--project` names as `matchesProjectFilter` reads them (resolveConfig.ts L1258-L1287): `*`
+ * wildcards and no case (`wildcardPatternToRegExp`), a `!` pattern leaves its names out, and with
+ * no positive pattern every other project stays.
+ * @internal
+ */
+export function chooseProjects(
   projects: readonly NeutralProject[],
   patterns: unknown,
 ): readonly NeutralProject[] {
   if (patterns === undefined) return projects
   const list = (Array.isArray(patterns) ? patterns : [patterns]).map(String)
-  const matchers = list.map(
-    (pattern) =>
-      new RegExp(
-        `^${pattern
-          .split('*')
-          .map((part) => part.replace(/[.+?^${}()|[\]\\]/g, '\\$&'))
-          .join('.*')}$`,
-      ),
+  const wildcard = (pattern: string): RegExp =>
+    new RegExp(
+      `^${pattern
+        .split('*')
+        .map((part) => part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+        .join('.*')}$`,
+      'i',
+    )
+  const excluded = list.filter((p) => p.startsWith('!')).map((p) => wildcard(p.slice(1)))
+  const positive = list.filter((p) => !p.startsWith('!')).map(wildcard)
+  const chosen = projects.filter(
+    ({ name }) =>
+      !excluded.some((m) => m.test(name)) &&
+      (positive.length === 0 || positive.some((m) => m.test(name))),
   )
-  const chosen = projects.filter((project) => matchers.some((m) => m.test(project.name)))
   if (chosen.length === 0) {
     // `resolveProjects` (projects/resolveProjects.ts): Vitest's own text.
     throw new VitestCommandError(`No projects matched the filter "${list.join('", "')}".`)
