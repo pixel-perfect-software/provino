@@ -1,0 +1,22 @@
+{
+  "description": "T8.6: `environment: 'provino-custom'` loads the package `vitest-environment-provino-custom` from the project, whose default export is `{ name, viteEnvironment, setup }`; `setup(global, options)` gets the whole `environmentOptions` object, once per file.",
+  "runners": ["vitest"],
+  "config": {
+    "vitest": {
+      "test": {
+        "environment": "provino-custom",
+        "environmentOptions": {
+          "provino-custom": {
+            "flag": "on"
+          }
+        }
+      }
+    }
+  },
+  "packages": {
+    "vitest-environment-provino-custom": {
+      "package.json": "{\"name\": \"vitest-environment-provino-custom\", \"version\": \"1.0.0\", \"main\": \"index.js\"}\n",
+      "index.js": "module.exports = {\n  name: 'provino-custom',\n  viteEnvironment: 'ssr',\n  setup(global, options) {\n    global.__customOptions = JSON.stringify(options)\n    global.__customSetups = (global.__customSetups ?? 0) + 1\n    return {\n      teardown(global) {\n        delete global.__customOptions\n        delete global.__customSetups\n      },\n    }\n  },\n}\n"
+    }
+  }
+}

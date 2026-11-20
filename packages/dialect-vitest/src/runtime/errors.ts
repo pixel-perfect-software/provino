@@ -4,7 +4,11 @@
  * The code a `VitestDialectError` carries.
  * @public
  */
-export type VitestDialectErrorCode = 'VITEST_DIALECT_NOT_BUILT'
+export type VitestDialectErrorCode =
+  | 'VITEST_DIALECT_NOT_BUILT'
+  | 'VITEST_ENVIRONMENT_NOT_FOUND'
+  | 'VITEST_ENVIRONMENT_NOT_INSTALLED'
+  | 'VITEST_ENVIRONMENT_SETUP_VM'
 
 /**
  * An error from the Vitest dialect.

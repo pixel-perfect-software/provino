@@ -1,0 +1,4 @@
+{
+  "description": "T8.6: a file's `@vitest-environment` or `@jest-environment` docblock picks its environment under Vitest 5.0.5 in a `node` project; a file without one stays `node`.",
+  "runners": ["vitest"]
+}

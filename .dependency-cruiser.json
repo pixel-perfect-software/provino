@@ -899,7 +899,7 @@
     },
     {
       "name": "boundary-dialect-vitest-runtime",
-      "comment": "@provino/dialect-vitest/runtime (layer 5, runs in worker) may import only: @provino/core, @provino/dialect-vitest, @provino/env-shared, @provino/expect, @provino/lazy, @provino/mock, @provino/policy, @provino/timers, @provino/types.",
+      "comment": "@provino/dialect-vitest/runtime (layer 5, runs in worker) may import only: @provino/core, @provino/dialect-vitest, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/expect, @provino/lazy, @provino/mock, @provino/policy, @provino/timers, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/dialect-vitest/src/runtime/"
@@ -924,6 +924,10 @@
           "^@provino/timers$",
           "^packages/env-shared/",
           "^@provino/env-shared$",
+          "^packages/env-node/",
+          "^@provino/env-node$",
+          "^packages/env-jsdom/",
+          "^@provino/env-jsdom$",
           "^packages/dialect-vitest/(?!(?:src/node|src/results|src/vite-bridge|src/runtime|test)/)",
           "^@provino/dialect-vitest$"
         ]
@@ -1667,7 +1671,7 @@
     },
     {
       "name": "boundary-dialect-vitest-test",
-      "comment": "@provino/dialect-vitest/test (layer 5, runs in dev) may import only: @provino/config, @provino/core, @provino/dialect-vitest, @provino/dialect-vitest/node, @provino/dialect-vitest/results, @provino/dialect-vitest/runtime, @provino/dialect-vitest/vite-bridge, @provino/env-shared, @provino/expect, @provino/lazy, @provino/mock, @provino/policy, @provino/resolver, @provino/timers, @provino/transform, @provino/types.",
+      "comment": "@provino/dialect-vitest/test (layer 5, runs in dev) may import only: @provino/config, @provino/core, @provino/dialect-vitest, @provino/dialect-vitest/node, @provino/dialect-vitest/results, @provino/dialect-vitest/runtime, @provino/dialect-vitest/vite-bridge, @provino/env-jsdom, @provino/env-node, @provino/env-shared, @provino/expect, @provino/lazy, @provino/mock, @provino/policy, @provino/resolver, @provino/timers, @provino/transform, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/dialect-vitest/test/"
@@ -1707,7 +1711,11 @@
           "^packages/timers/",
           "^@provino/timers$",
           "^packages/env-shared/",
-          "^@provino/env-shared$"
+          "^@provino/env-shared$",
+          "^packages/env-node/",
+          "^@provino/env-node$",
+          "^packages/env-jsdom/",
+          "^@provino/env-jsdom$"
         ]
       }
     },

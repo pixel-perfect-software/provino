@@ -12,6 +12,7 @@ import { defineDialect, moduleRef } from '@provino/policy'
 import type {
   Dialect,
   EnvironmentConditions,
+  EnvironmentResolver,
   FormatDefinitionError,
   FormatEachTitle,
   GlobalsFactory,
@@ -371,5 +372,11 @@ export const vitestDialect: Dialect<'vitest'> = defineDialect({
       'vitestModuleScope',
     ),
   },
+  // A test file's `@vitest-environment` or `@jest-environment` docblock (T8.6), resolved in the
+  // worker from the project's root (`env/vitest-docblock`, `env/vitest-options`).
+  environmentResolver: moduleRef<EnvironmentResolver>(
+    import.meta.resolve('@provino/dialect-vitest/runtime'),
+    'vitestEnvironmentFor',
+  ),
   typeEntries: ['@provino/dialect-vitest/runtime'],
 })

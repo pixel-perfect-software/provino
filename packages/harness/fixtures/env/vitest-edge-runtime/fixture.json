@@ -1,0 +1,11 @@
+{
+  "description": "T8.6: Vitest 5.0.5's built-in `edge-runtime` environment over the project's `@edge-runtime/vm` (D172): `EdgeRuntime` is defined, there is no `document`, `window` is the global (Vitest's `populateGlobal` sets it for every environment), and `Buffer` and `fetch` are there.",
+  "runners": ["vitest"],
+  "config": {
+    "vitest": {
+      "test": {
+        "environment": "edge-runtime"
+      }
+    }
+  }
+}
