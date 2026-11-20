@@ -1,7 +1,9 @@
 // T9.6: which files a shard runs (`--shard=i/n`). Two splits, both pure in (files, shard):
 //
-// - `sha1Shard`: Jest's and Vitest's. Sort by `sha1(path relative to the project root)`, then
-//   take contiguous slices by file count (jest-test-sequencer 30.5.2 `shard`). No timings.
+// - `sha1Shard`: Jest's and Vitest's. Sort by `sha1(path)`, then take contiguous slices by file
+//   count (jest-test-sequencer 30.5.2 `shard`). Jest hashes the path relative to each project's
+//   root (`sha1-slice`); Vitest hashes `/` and the path relative to the top-level root
+//   (`rooted-sha1-slice`, BaseSequencer.ts L18-L26). No timings.
 // - `sliceShard`: path-sorted, contiguous cuts by predicted time (Bun's `--timings` method, Track
 //   9 §Sharding): a file the timings file has no time for counts as the median of the ones it has,
 //   so a new file doesn't move the files around it. With no timings at all every file counts the
@@ -90,9 +92,8 @@ export function sha1Shard(
 ): readonly ScheduleInput[] {
   checkShard(shard)
   const hashed = files
-    .toSorted(byPathThenProject)
     .map((file) => ({ file, hash: hash('sha1', `${prefix}${file.path}`) }))
-    .toSorted((a, b) => byText(a.hash, b.hash))
+    .sort((a, b) => byText(a.hash, b.hash) || byPathThenProject(a.file, b.file))
   let start = 0
   for (let position = 0; position < shard.index - 1; position++) {
     start += sizeOf(position, hashed.length, shard.count)
@@ -183,7 +184,9 @@ export interface ShardMember {
  * The files each project runs of shard `shard` of the whole run: Jest shards one list across all
  * its projects, after the file filters, so this does too. Returns each member's kept files, in the
  * members' order and each member's own order. `timings` is the committed file: a file is looked up
- * by its path relative to `runRoot`, with `/`.
+ * by its path relative to `runRoot`, with `/`. Under `rooted-sha1-slice` that path is also what is
+ * hashed (Vitest's `BaseSequencer.shard` hashes from the top-level root, BaseSequencer.ts L18-L26);
+ * `sha1-slice` hashes each project's own relative path, as Jest does.
  * @public
  */
 export function shardFiles(
@@ -197,26 +200,32 @@ export function shardFiles(
 ): DiscoveredFile[][] {
   // Zero-padded, so the tie-break compares as numbers: Jest keeps tied files in project order.
   const keyOf = (index: number): string => String(index).padStart(8, '0')
-  const inputs = members.flatMap((member, index) =>
+  const times = options.timings?.files
+  const rooted = options.fallback === 'rooted-sha1-slice'
+  const byInput = new Map<ScheduleInput, DiscoveredFile>()
+  const perMember = members.map((member, index) =>
     member.files.map((file): ScheduleInput => {
+      const fromRunRoot =
+        times !== undefined || rooted
+          ? relativePosix(options.runRoot, join(member.rootDir, file.relativePath))
+          : undefined
       // Own entries only: `files['constructor']` is a function on an ordinary object.
-      const path = relativePosix(options.runRoot, join(member.rootDir, file.relativePath))
-      const times = options.timings?.files
-      const timingMs = times !== undefined && Object.hasOwn(times, path) ? times[path] : undefined
-      return {
-        path: file.relativePath,
+      const timingMs =
+        times !== undefined && fromRunRoot !== undefined && Object.hasOwn(times, fromRunRoot)
+          ? times[fromRunRoot]
+          : undefined
+      const input: ScheduleInput = {
+        path: rooted && fromRunRoot !== undefined ? fromRunRoot : file.relativePath,
         project: keyOf(index),
         sizeBytes: file.sizeBytes,
         ...(timingMs === undefined ? {} : { timingMs }),
       }
+      byInput.set(input, file)
+      return input
     }),
   )
-  const kept = new Set(
-    shardInputs(inputs, options.shard, options.fallback).map(
-      (input) => `${input.project}\0${input.path}`,
-    ),
-  )
-  return members.map((member, index) =>
-    member.files.filter((file) => kept.has(`${keyOf(index)}\0${file.relativePath}`)),
+  const kept = new Set(shardInputs(perMember.flat(), options.shard, options.fallback))
+  return perMember.map((inputs) =>
+    inputs.filter((input) => kept.has(input)).map((input) => byInput.get(input) as DiscoveredFile),
   )
 }
