@@ -40,6 +40,17 @@ function observedMessage(g: Golden, id: string): string {
  * fails them (RTL's `screen` and `cleanup` bound to the first file's `document`; a `getContext`
  * mock that is `null`).
  */
+/** Whether every named test of the second file passed: each file of the fixture repeats the titles. */
+const secondFilePassed =
+  (...titles: readonly string[]) =>
+  (g: Golden): boolean => {
+    const second = g.files.find((entry) => entry.file === 'b.vitest.test.ts')
+    return titles.every(
+      (title) =>
+        second?.tests.find((test) => test.id.path.join(' > ') === title)?.status === 'passed',
+    )
+  }
+
 const reevaluatedIn =
   (...titles: readonly string[]) =>
   (g: Golden): boolean =>
@@ -142,7 +153,12 @@ export const moduleClaims: Claims = {
         read: reevaluatedIn('intercepts with the second file’s own server'),
       }),
     ],
-    pending('T11.16', 'no Vitest fixture records a package that writes the global as it loads'),
+    golden('module/vitest-externals-two-files', {
+      read: secondFilePassed(
+        'the patched global is there',
+        'the patching package was evaluated once for this file',
+      ),
+    }),
   ),
   'module.reevaluateHookingExternals': each(
     [
@@ -160,10 +176,9 @@ export const moduleClaims: Claims = {
         ),
       }),
     ],
-    pending(
-      'T11.16',
-      'no Vitest fixture records a package that reads a per-file global as it loads',
-    ),
+    golden('module/vitest-externals-two-files', {
+      read: secondFilePassed('the package hook ran once before the first test'),
+    }),
   ),
   'module.automockShape': mod('mod-automock-shape', 'mod-automock-inherited'),
   // Jest's source-map support names a failing frame after the map's name at its own position.

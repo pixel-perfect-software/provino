@@ -83,10 +83,13 @@ export const vitestModulePolicy: ModulePolicy = {
   moduleSyncCondition: 'never',
   // Recorded, Vitest 5.0.5: `mod-shared-dep` and `mod-shared-dep-root` (a mock reaches only a direct import).
   mocksReachShared: false,
-  // Not recorded yet (T11.16): an externalized dependency loads once per worker.
-  reevaluateHookingExternals: false,
-  // Not recorded yet (T11.16): an externalized dependency loads once per worker.
-  reevaluatePatchingExternals: false,
+  // Recorded, Vitest 5.0.5: `module/vitest-externals-two-files` (with `isolate` on, its default,
+  // each file has its own worker, so an externalized package that registers a hook as it loads
+  // does so again in every file: D127). Compat; the faster option is one evaluation per worker.
+  reevaluateHookingExternals: true,
+  // Recorded, Vitest 5.0.5: `module/vitest-externals-two-files` (a package that writes the global
+  // as it loads has written it again in the second file: D151). Compat, as above.
+  reevaluatePatchingExternals: true,
   // Not recorded yet (T11.16): a frame keeps the name V8 gave it.
   stackFrameNames: 'engine',
   // Not recorded yet (T11.16): an externalized dependency loads through Node's loader as it is.

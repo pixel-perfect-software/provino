@@ -85,7 +85,6 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'vitest orchestrator.todoOnlyFile': 'T11.16',
   'vitest orchestrator.noTestsFile': 'T11.16',
   'vitest orchestrator.consoleOrigin': 'T11.16',
-  'vitest module.reevaluateHookingExternals': 'T11.16',
   'vitest module.edgeResolveKind': 'T11.16',
   'vitest module.moduleSyncCondition': 'T11.16',
   'vitest module.stackFrameNames': 'T11.16',
@@ -117,7 +116,6 @@ const EXPECTED_PENDING: Readonly<Record<string, string>> = {
   'vitest core.boundaryTurns.testStart': 'T11.16',
   'vitest core.boundaryTurns.testEnd': 'T11.16',
   // B23f Phase 1: research values nothing reads yet; each lane records its own and removes its entry.
-  'vitest module.reevaluatePatchingExternals': 'T11.16',
   'vitest expect.outsideTestCounts': 'T11.16',
   'vitest core.boundaryTurns.skippedTest': 'T11.16',
   'vitest core.boundaryTurns.suiteStart': 'T11.16',

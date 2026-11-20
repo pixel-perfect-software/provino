@@ -1,0 +1,4 @@
+{
+  "description": "D96, the Vitest value: what `require.cache` is in a Vitest 5.0.5 test file. The file has no `require` of its own (an ES module), so `createRequire(import.meta.url)` gives Node's: its cache holds a required file, and deleting the entry evaluates the file again on the next `require`.",
+  "runners": ["vitest"]
+}

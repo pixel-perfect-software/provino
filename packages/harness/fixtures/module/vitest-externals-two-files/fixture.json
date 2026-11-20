@@ -1,0 +1,21 @@
+{
+  "description": "D127 and D151, the Vitest values: two files in one worker (`fileParallelism: false`) each load the externalized packages `hooker` (registers a `beforeEach` as it loads) and `patcher` (writes `globalThis.__patched` as it loads). Whether the second file sees its own hook run once and the patched global (each package evaluated again for the file) is what `module.reevaluateHookingExternals` and `module.reevaluatePatchingExternals` claim.",
+  "runners": ["vitest"],
+  "config": {
+    "vitest": {
+      "test": {
+        "fileParallelism": false
+      }
+    }
+  },
+  "packages": {
+    "hooker": {
+      "package.json": "{\"name\": \"hooker\", \"version\": \"1.0.0\", \"main\": \"index.js\"}\n",
+      "index.js": "// Registers a hook as it loads (D127's trigger): Vitest's globals are on.\nlet runs = 0\nbeforeEach(() => {\n  runs++\n})\nmodule.exports = { runs: () => runs }\n"
+    },
+    "patcher": {
+      "package.json": "{\"name\": \"patcher\", \"version\": \"1.0.0\", \"main\": \"index.js\"}\n",
+      "index.js": "// Writes the global as it loads (D151's trigger) and counts its evaluations on it.\nglobalThis.__patcherLoads = (globalThis.__patcherLoads ?? 0) + 1\nglobalThis.__patched = 'yes'\nmodule.exports = {}\n"
+    }
+  }
+}
