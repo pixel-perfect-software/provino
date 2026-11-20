@@ -1,0 +1,91 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "module/vitest-require-cache",
+  "files": [
+    {
+      "file": "vitest-require-cache.vitest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "vitest-require-cache.vitest.test.ts",
+            "path": [
+              "a test file has no require of its own"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 6,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "vitest-require-cache.vitest.test.ts",
+            "path": [
+              "the cache holds a required file"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 10,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "vitest-require-cache.vitest.test.ts",
+            "path": [
+              "deleting the entry evaluates the file again"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 15,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "vitest-require-cache.vitest.test.ts",
+            "path": [
+              "a property set on the cache stays"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 22,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

@@ -1,0 +1,17 @@
+{
+  "description": "T8.6: `environmentOptions.jsdom` reaches a jsdom project's files, and a file's `@vitest-environment-options` docblock replaces the project's options for that file (Vitest 5.0.5's `getSpecificationDocblock`: `{ [envKey]: options }`, not merged).",
+  "runners": ["vitest"],
+  "config": {
+    "vitest": {
+      "test": {
+        "environment": "jsdom",
+        "environmentOptions": {
+          "jsdom": {
+            "url": "http://example.test/base",
+            "userAgent": "provino-project"
+          }
+        }
+      }
+    }
+  }
+}

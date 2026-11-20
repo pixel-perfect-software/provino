@@ -1,0 +1,21 @@
+{
+  "description": "D127 and D151, the Vitest values: two files (`fileParallelism: false`) each load the externalized packages `hooker` (registers a `beforeEach` as it loads) and `patcher` (writes `globalThis.__patched` and counts its evaluations there as it loads). The first file clears both globals in an `afterAll`. Vitest 5.0.5 gives each file its own worker under isolation (`node/pool.ts` L393, `pools/pool.ts` L339), so the second file sees its own hook run once, the patched global and one evaluation: each package is evaluated again for the file, which `module.reevaluateHookingExternals` and `module.reevaluatePatchingExternals` claim.",
+  "runners": ["vitest"],
+  "config": {
+    "vitest": {
+      "test": {
+        "fileParallelism": false
+      }
+    }
+  },
+  "packages": {
+    "hooker": {
+      "package.json": "{\"name\": \"hooker\", \"version\": \"1.0.0\", \"main\": \"index.js\"}\n",
+      "index.js": "// Registers a hook as it loads (D127's trigger): Vitest's globals are on.\nlet runs = 0\nbeforeEach(() => {\n  runs++\n})\nmodule.exports = { runs: () => runs }\n"
+    },
+    "patcher": {
+      "package.json": "{\"name\": \"patcher\", \"version\": \"1.0.0\", \"main\": \"index.js\"}\n",
+      "index.js": "// Writes the global as it loads (D151's trigger) and counts its evaluations on it.\nglobalThis.__patcherLoads = (globalThis.__patcherLoads ?? 0) + 1\nglobalThis.__patched = 'yes'\nmodule.exports = {}\n"
+    }
+  }
+}

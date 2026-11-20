@@ -89,6 +89,7 @@ describe('parseProjectConfig', () => {
       ['environment.module', undefined],
       ['environment.export', 1],
       ['environment.options', []],
+      ['environment.resolverOptions', 'x'],
       ['globals', { module: 'x' }],
       ['globals', undefined],
       ['setupFiles', 'a'],
@@ -117,6 +118,12 @@ describe('parseProjectConfig', () => {
         path,
       )
     }
+  })
+
+  it("keeps the environment's resolverOptions, and leaves the key out when there are none", () => {
+    const parsed = parseProjectConfig(with_('environment.resolverOptions', { jsdom: { url: 'x' } }))
+    assert.deepEqual(parsed.environment.resolverOptions, { jsdom: { url: 'x' } })
+    assert.equal('resolverOptions' in parseProjectConfig(valid).environment, false)
   })
 
   it('accepts an absolute path or an absolute URL for the environment and the globals', () => {

@@ -1,0 +1,4 @@
+{
+  "description": "The `vi` members the other mocking fixtures leave out, under Vitest 5.0.5: `defineHelper`, `hoisted`, `mockObject`, `dynamicImportSettled`, and `setConfig` with `resetConfig`.",
+  "runners": ["vitest"]
+}

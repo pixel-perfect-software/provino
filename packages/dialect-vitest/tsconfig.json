@@ -22,6 +22,12 @@
       "path": "../env-shared"
     },
     {
+      "path": "../env-jsdom"
+    },
+    {
+      "path": "../env-node"
+    },
+    {
       "path": "../mock"
     },
     {
@@ -41,6 +47,9 @@
     },
     {
       "path": "src/runtime/vendor/vitest-vi"
+    },
+    {
+      "path": "src/runtime/vendor/vitest-env"
     }
   ]
 }

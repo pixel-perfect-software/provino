@@ -72,7 +72,11 @@ test('setup files stay in their phases, environment options reach the worker, di
   const project = neutral({
     setupFiles: [before],
     setupFilesAfterEnv: [afterEnv],
-    environment: { name: 'dom', options: { url: 'http://x/' } },
+    environment: {
+      name: 'dom',
+      options: { url: 'http://x/' },
+      resolverOptions: { dom: { url: 'http://x/' }, other: 1 },
+    },
   })
   const resolved = await resolveNeutralProject(project, {
     dialect: reader,
@@ -84,6 +88,7 @@ test('setup files stay in their phases, environment options reach the worker, di
   assert.deepEqual(resolved.config.environment, {
     ...ENVIRONMENTS.dom,
     options: { url: 'http://x/' },
+    resolverOptions: { dom: { url: 'http://x/' }, other: 1 },
   })
   assert.equal(resolved.environment, 'dom')
   assert.deepEqual(resolved.discovery, project.discovery)

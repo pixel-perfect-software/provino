@@ -22,3 +22,12 @@ export type {
   VitestWhen,
   VitestWhenCalledWith,
 } from './vi.ts'
+export {
+  fromVitestEnvironment,
+  type VitestEnvironmentLike,
+  type VitestEnvironmentOptions,
+  type VitestEnvironmentReturn,
+  vitestEnvironment,
+  vitestEnvironmentFor,
+  vitestJsdomEnvironment,
+} from './vitest-environment.ts'

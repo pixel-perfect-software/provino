@@ -6,8 +6,9 @@ import { describe, isRecord, messageOf } from './input.ts'
 /** Whether a value is a plain `{ module: string, export: string }` and nothing else. */
 function isRefShape(value: unknown): value is { readonly module: string; readonly export: string } {
   if (!isRecord(value) || Object.getPrototypeOf(value) !== Object.prototype) return false
-  // The environment ref also carries `options`.
-  if (Object.keys(value).length !== (Object.hasOwn(value, 'options') ? 3 : 2)) return false
+  // The environment ref also carries `options`, and may carry `resolverOptions`.
+  const extra = ['options', 'resolverOptions'].filter((key) => Object.hasOwn(value, key)).length
+  if (Object.keys(value).length !== 2 + extra) return false
   return isModuleRef({ module: value.module, export: value.export })
 }
 

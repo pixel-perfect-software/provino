@@ -1,0 +1,97 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "env/vitest-options",
+  "files": [
+    {
+      "file": "docblock.vitest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "docblock.vitest.test.ts",
+            "path": [
+              "the URL is the docblock option"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 5,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "docblock.vitest.test.ts",
+            "path": [
+              "the project user agent is not merged in"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 9,
+            "column": 1
+          }
+        }
+      ]
+    },
+    {
+      "file": "project.vitest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "project.vitest.test.ts",
+            "path": [
+              "the URL is the project option"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 2,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "project.vitest.test.ts",
+            "path": [
+              "the user agent is the project option"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 6,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

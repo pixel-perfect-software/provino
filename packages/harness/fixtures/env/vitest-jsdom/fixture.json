@@ -1,0 +1,11 @@
+{
+  "description": "T8.6: Vitest 5.0.5's `environment: 'jsdom'` (D177): the global is the window, its default URL, a DOM write reads back, `navigator`'s jsdom user agent, Node's `Buffer` and fetch family on the window. Each title names what the test holds.",
+  "runners": ["vitest"],
+  "config": {
+    "vitest": {
+      "test": {
+        "environment": "jsdom"
+      }
+    }
+  }
+}
