@@ -207,3 +207,12 @@ export function chaiChain(
   if (isNot) assertion = assertion.not as Record<string, unknown>
   return assertion[name]
 }
+
+/**
+ * Chai with Vitest's plugins, as the `chai` global and `assert` are (`integrations/chai/setup.ts`):
+ * Chai is loaded and set up on the first call.
+ * @internal
+ */
+export function chaiWithVitestPlugins(): object {
+  return chaiWithPlugins()
+}

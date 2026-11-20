@@ -899,12 +899,24 @@ importers:
 
   packages/dialect-vitest:
     dependencies:
+      '@provino/core':
+        specifier: workspace:*
+        version: link:../core
+      '@provino/env-shared':
+        specifier: workspace:*
+        version: link:../env-shared
       '@provino/expect':
         specifier: workspace:*
         version: link:../expect
+      '@provino/mock':
+        specifier: workspace:*
+        version: link:../mock
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
+      '@provino/timers':
+        specifier: workspace:*
+        version: link:../timers
       '@provino/types':
         specifier: workspace:*
         version: link:../types

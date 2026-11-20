@@ -58,6 +58,8 @@ SOFTWARE.
 
 `packages/dialect-vitest/src/runtime/vendor/vitest-expect/` is copied from Vitest v5.0.5: `@vitest/expect`'s matchers, asymmetric matchers, custom matchers, sinon-chai names, equality and matcher utilities (`packages/expect/src/`, with an extract of `jest-extend.ts`).
 
+`packages/dialect-vitest/src/runtime/vendor/vitest-vi/` is copied from Vitest v5.0.5: `vi.when` (`packages/vitest/src/integrations/mock/when.ts`) and `vi.waitFor`/`vi.waitUntil` (`packages/vitest/src/integrations/wait.ts`).
+
 `packages/dialect-vitest/src/vendor/vitest-utils/` is copied from Vitest v5.0.5: `@vitest/utils`' `diff/`, `display.ts`, `error.ts`, `serialize.ts`, `helpers.ts` and the files they import (`packages/utils/src/`; the diff files keep Meta's MIT header: they are forked from Jest's). Its `diff-sequences.ts` is Jest v30.5.2's `packages/diff-sequences/src/index.ts` (the Jest license above), which `@vitest/utils` bundles, and its `tinyrainbow.ts` is tinyrainbow (below).
 
 `packages/env-shared/src/vendor/vitest/jsdom-keys.ts` is copied unchanged from Vitest v5.0.5, `packages/vitest/src/integrations/env/jsdom-keys.ts`: the keys jsdom's interfaces and window add. The file has no license header. `provino` ships it, through `@provino/env-shared`.

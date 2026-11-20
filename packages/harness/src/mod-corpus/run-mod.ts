@@ -4,17 +4,17 @@
 // real pipeline with the profile's hoist policy, every edge through the real module-mock registry),
 // then removed, also on failure.
 //
-// The Jest profile's modules get the shipped per-module `jest` (`jestModuleScope`). The Vitest
-// profile's get a local `vi` over the same loader, on B13a's precedent: the shipped `vi` is Phase 2
-// (T11.15, T11.16). The non-vacuity checks' broken engines wrap the injected module-mock registry,
+// The Jest profile's modules get the shipped per-module `jest` (`jestModuleScope`), the Vitest
+// profile's the shipped per-module `vi` (`vitestModuleScope`, B25f). The non-vacuity checks' broken engines wrap the injected module-mock registry,
 // so nothing broken ships.
 import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { createRuntime } from '@provino/core'
 import { type JestGlobalsHost, jestModuleScope } from '@provino/dialect-jest/runtime'
+import { vitestModuleScope } from '@provino/dialect-vitest/runtime'
 import { createLoader } from '@provino/loader'
-import { createMockRegistry, createModuleMockRegistry, createStubs } from '@provino/mock'
+import { createMockRegistry, createModuleMockRegistry } from '@provino/mock'
 import { createBehaviourLoader } from '@provino/policy'
 import { createResolver } from '@provino/resolver'
 import { createPipeline } from '@provino/transform'
@@ -23,10 +23,7 @@ import type {
   FileRegistry,
   HoistPolicy,
   MockDecision,
-  MockFactory,
   MockPolicy,
-  MockSpec,
-  ModuleId,
   ModuleMockRegistry,
   ModulePolicy,
   ModuleScopeValues,
@@ -36,7 +33,6 @@ import type { Fixture } from '../fixture.ts'
 import { installGlobals } from '../internal/globals.ts'
 import '../internal/observe-setup.ts'
 import { unusedJestHost } from '../internal/unused-jest-host.ts'
-import { createViFacade } from '../mock-corpus/run-mock.ts'
 import { copyFixture, installPackages } from '../record.ts'
 import { type CoreRun, summarizeRun } from '../runtime-corpus/run-core.ts'
 
@@ -124,50 +120,6 @@ function sabotaged(
   }
 }
 
-/** What `vi.mock(path, factoryOrOptions)` registers. */
-function viSpec(factory: unknown): MockSpec {
-  if (typeof factory === 'function') return { kind: 'factory', factory: factory as MockFactory }
-  const spy =
-    factory !== null && typeof factory === 'object' && Reflect.get(factory, 'spy') === true
-  return { kind: 'automock', spy }
-}
-
-/**
- * The corpus's `vi` for the module at `from`: B13a's mock functions over the file's registry, and
- * the module-mock calls over the real loader, from that module.
- */
-function viFor(
-  from: string,
-  base: Record<string, unknown>,
-  files: () => FileRegistry,
-  moduleMocks: () => ModuleMockRegistry,
-): Record<string, unknown> {
-  const parent = from as ModuleId
-  const vi: Record<string, unknown> = { ...base }
-  const chain =
-    <A extends unknown[]>(run: (...args: A) => void) =>
-    (...args: A): unknown => {
-      run(...args)
-      return vi
-    }
-  const mock = chain((specifier: string, factory?: unknown) =>
-    files().registerMock(specifier, parent, viSpec(factory)),
-  )
-  const unmock = chain((specifier: string) => files().unregisterMock(specifier, parent))
-  return Object.assign(vi, {
-    mock,
-    doMock: mock,
-    unmock,
-    doUnmock: unmock,
-    resetModules: chain(() => files().resetModules()),
-    importActual: (specifier: string): Promise<unknown> => files().importActual(specifier, parent),
-    importMock: (specifier: string): Promise<unknown> =>
-      new Promise((done) => done(moduleMocks().mockFor(specifier, from))),
-    hoisted: <T>(fn: () => T): T => fn(),
-    mocked: <T>(value: T): T => value,
-  })
-}
-
 async function runIn(
   fixture: Fixture,
   root: string,
@@ -178,7 +130,6 @@ async function runIn(
   const lines: string[] = []
   const events: RuntimeEvent[] = []
   const mocks = createMockRegistry()
-  const stubs = createStubs(mocks, process.env, globalThis)
   const cleanup = fixture.manifest.mockCleanup ?? {}
   // The fixture's `jestConfig` is Jest's, so it reaches the Jest profile only: Jest's `roots` are
   // where `__mocks__` is looked for, and `unmockedModulePathPatterns` the policy's patterns.
@@ -237,11 +188,8 @@ async function runIn(
     registry: currentFiles,
     moduleMocks: currentModuleMocks,
   }
-  const viBase = profile.facade === 'vi' ? createViFacade(profile.mock, mocks, stubs) : {}
   const moduleScope: ModuleScopeValues =
-    profile.facade === 'jest'
-      ? jestModuleScope(host)
-      : (from) => ({ vi: viFor(from, viBase, currentFiles, currentModuleMocks) })
+    profile.facade === 'jest' ? jestModuleScope(host) : vitestModuleScope(host)
   const testPath = path.join(root, testFile)
   files = loader.createFileRegistry(testPath, {
     tier: 'registry',

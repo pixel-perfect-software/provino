@@ -15,6 +15,7 @@ import type {
   FormatEachTitle,
   GlobalsFactory,
   MatcherTableFactory,
+  ModuleScopeFactory,
   PolicyOverrides,
   ShapeTestError,
   SnapshotPrinterFactory,
@@ -273,6 +274,17 @@ export const vitestPolicy: PolicyOverrides = {
  * The globals Vitest 5.0 injects with `globals: true` (`vitest/src/constants.ts`'s `globalApis`,
  * which `integrations/globals.ts` installs), sorted. `core-globals-at-setup` records them.
  */
+/**
+ * The modules the Vitest dialect serves itself (`moduleScope.modules`, U9's Vitest half): Vitest
+ * 5.0.5's own `vitest`, `@vitest/expect`, `@vitest/spy` and `vitest/runtime` (`populateGlobal`).
+ */
+const VITEST_SERVED_MODULES: readonly string[] = [
+  'vitest',
+  '@vitest/expect',
+  '@vitest/spy',
+  'vitest/runtime',
+]
+
 const VITEST_GLOBAL_NAMES: readonly string[] = [
   'afterAll',
   'afterEach',
@@ -327,5 +339,18 @@ export const vitestDialect: Dialect<'vitest'> = defineDialect({
     names: VITEST_GLOBAL_NAMES,
   },
   loader: { hoist: vitestHoistPolicy },
+  moduleScope: {
+    // Each module that names `vi` gets its own, which knows its caller: Vitest has one object and
+    // finds the caller from the stack (`getImporter`). The global `vitest` (the same object) is no
+    // binding, since the scope's keys are also the served specifiers and `vitest` is one: a module
+    // that calls `vitest.mock` through the global resolves from the root (a limit). The four
+    // modules are the runner's own (U9), answered before the resolver, the mapper and any mock.
+    names: ['vi'],
+    modules: VITEST_SERVED_MODULES,
+    factory: moduleRef<ModuleScopeFactory>(
+      import.meta.resolve('@provino/dialect-vitest/runtime'),
+      'vitestModuleScope',
+    ),
+  },
   typeEntries: ['@provino/dialect-vitest/runtime'],
 })

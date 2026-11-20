@@ -13,6 +13,18 @@
       "path": "../expect"
     },
     {
+      "path": "../core"
+    },
+    {
+      "path": "../env-shared"
+    },
+    {
+      "path": "../mock"
+    },
+    {
+      "path": "../timers"
+    },
+    {
       "path": "src/vendor/pretty-format"
     },
     {
@@ -23,6 +35,9 @@
     },
     {
       "path": "src/each/vendor"
+    },
+    {
+      "path": "src/runtime/vendor/vitest-vi"
     }
   ]
 }

@@ -8,6 +8,7 @@ import { createRuntime, currentTest } from '@provino/core'
 import { jestExpectPolicy, jestMockPolicy } from '@provino/dialect-jest'
 import { jestGlobals } from '@provino/dialect-jest/runtime'
 import { vitestMockPolicy } from '@provino/dialect-vitest'
+import { vitestGlobals } from '@provino/dialect-vitest/runtime'
 import {
   createExpect,
   createMatcherRegistry,
@@ -15,7 +16,7 @@ import {
   installMatchersSlot,
   type TestRun,
 } from '@provino/expect'
-import { createMockRegistry, createStubs, type MockRegistry } from '@provino/mock'
+import { createMockRegistry, type MockRegistry } from '@provino/mock'
 import { createBehaviourLoader } from '@provino/policy'
 import type {
   CorePolicy,
@@ -28,7 +29,6 @@ import type {
 } from '@provino/types'
 import { installGlobals } from '../internal/globals.ts'
 import { unusedJestHost } from '../internal/unused-jest-host.ts'
-import { createViFacade } from '../mock-corpus/run-mock.ts'
 import { type Reported, reported } from '../runtime-corpus/run-core.ts'
 
 /** One failure of a test: what Jest's JSON holds for it. */
@@ -106,18 +106,16 @@ export async function runExpectFile(
       rootDir,
       ci: true,
     })
-    // Under Vitest's table the file sees `vi`, the harness's facade over the same registry
-    // (`mock-corpus`), until the dialect ships its own (Phase 6).
+    // Under Vitest's table the file sees the dialect's `vi` over the same registry.
     const restore = installGlobals({
       ...runtime.api,
       expect,
       ...(options.facade === 'vi'
         ? {
-            vi: createViFacade(
-              vitestMockPolicy,
-              mockRegistry,
-              createStubs(mockRegistry, process.env, globalThis),
-            ),
+            vi: vitestGlobals({
+              ...unusedJestHost(runtime.api, mockRegistry, vitestMockPolicy, 'the expect corpus'),
+              expect,
+            }).vi,
           }
         : {
             jest: jestGlobals({

@@ -43,8 +43,12 @@
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@provino/core": "workspace:*",
+    "@provino/env-shared": "workspace:*",
     "@provino/expect": "workspace:*",
+    "@provino/mock": "workspace:*",
     "@provino/policy": "workspace:*",
+    "@provino/timers": "workspace:*",
     "@provino/types": "workspace:*",
     "chai": "catalog:"
   },

@@ -1,0 +1,28 @@
+{
+  "extends": "../../../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": false,
+    "isolatedDeclarations": false,
+    "rootDir": ".",
+    "outDir": "../../../../.tsc/src/runtime/vendor/vitest-vi",
+    "noImplicitOverride": false,
+    "noImplicitReturns": false,
+    "lib": [
+      "es2024",
+      "esnext.error",
+      "esnext.disposable"
+    ]
+  },
+  "include": [
+    "."
+  ],
+  "references": [
+    {
+      "path": "../vitest-expect"
+    },
+    {
+      "path": "../../../vendor/vitest-utils"
+    }
+  ]
+}
