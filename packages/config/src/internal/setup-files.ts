@@ -1,5 +1,6 @@
 import { stat } from 'node:fs/promises'
-import { isAbsolute, resolve } from 'node:path'
+import { createRequire } from 'node:module'
+import { isAbsolute, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ConfigError } from '../errors.ts'
 
@@ -15,10 +16,23 @@ function setupPath(entry: string, rootDir: string, key: string): string {
     }
   }
   if (isAbsolute(entry) || RELATIVE.test(entry)) return resolve(rootDir, entry)
-  throw new ConfigError(
-    'CONFIG_INVALID',
-    `${key} must be a relative path (./ or ../), an absolute path or a file: URL; package specifiers and <rootDir> tokens in setupFiles aren't supported yet (T1.4)`,
-  )
+  if (entry.startsWith('<')) {
+    throw new ConfigError(
+      'CONFIG_INVALID',
+      `${key} must be a relative path (./ or ../), an absolute path, a file: URL or a package specifier; a <rootDir> token isn't supported`,
+    )
+  }
+  // A package specifier, resolved from the project root as `require.resolve` does (the root's own
+  // `node_modules`, then its ancestors').
+  try {
+    return createRequire(join(rootDir, 'noop.js')).resolve(entry)
+  } catch (cause) {
+    throw new ConfigError(
+      'CONFIG_INVALID',
+      `${key} isn't a path or a package that resolves from "${rootDir}"`,
+      { cause },
+    )
+  }
 }
 
 /**

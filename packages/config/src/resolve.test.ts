@@ -862,15 +862,31 @@ describe('resolveProject', () => {
       'nested/setup2.ts',
       '<rootDir>/setup.ts',
     ]) {
-      test(`${JSON.stringify(entry)} is CONFIG_INVALID: package specifiers aren't supported yet`, async () => {
+      test(`${JSON.stringify(entry)} is CONFIG_INVALID: it is not a file and no package resolves it`, async () => {
         const error = await rejectsWith(
           resolveWith({ root: 'app', setupFiles: [entry] }),
           'CONFIG_INVALID',
         )
         assert.match(error.message, /setupFiles\[0\]/)
-        assert.match(error.message, /T1\.4/)
       })
     }
+
+    test('a package specifier resolves from the root, as require.resolve does', async () => {
+      await temp.write(
+        'app/node_modules/setup-pkg/package.json',
+        '{"name":"setup-pkg","main":"./index.cjs"}',
+      )
+      const main = await temp.write('app/node_modules/setup-pkg/index.cjs', '')
+      await temp.write('app/node_modules/setup-pkg/extra.cjs', '')
+      const project = await resolveWith({
+        root: 'app',
+        setupFiles: ['setup-pkg', 'setup-pkg/extra.cjs'],
+      })
+      assert.deepEqual(project.config.setupFilesAfterEnv, [
+        main,
+        join(temp.dir, 'app/node_modules/setup-pkg/extra.cjs'),
+      ])
+    })
 
     test('an entry that doesn’t exist is CONFIG_INVALID, naming it', async () => {
       const error = await rejectsWith(
@@ -1071,7 +1087,6 @@ describe('resolveProject', () => {
 
   describe('keys that have no owner yet', () => {
     const CASES: readonly (readonly [string, ProvinoConfigInput])[] = [
-      ['projects', { projects: ['./a'] }],
       ['plugins', { plugins: [{ name: 'p' }] as never }],
       ['alsoServe', { alsoServe: ['x'] as never }],
     ]
@@ -1093,35 +1108,170 @@ describe('resolveProject', () => {
     })
   })
 
-  // B27a types these keys; B27d reads them. Until then a set one would be ignored, so it is refused.
-  describe('keys B27d gives behaviour to', () => {
-    const CASES: readonly (readonly [
-      string,
-      ProvinoConfigInput,
-      ProvinoConfigInput | undefined,
-    ])[] = [
-      ['timeouts', { timeouts: { test: 120_000 } }, { timeouts: {} }],
-      ['resolve', { resolve: { conditions: ['provino-source'] } }, { resolve: {} }],
-      [
-        'environmentOptions',
-        { environmentOptions: { url: 'http://x/' } },
-        { environmentOptions: {} },
-      ],
-      ['pool', { pool: 'threads' }, undefined],
-      ['maxWorkers', { maxWorkers: 2 }, undefined],
-    ]
-    for (const [key, input, empty] of CASES) {
-      test(`a set \`${key}\` is CONFIG_UNSUPPORTED, naming the key and B27d`, async () => {
-        const error = await rejectsWith(resolveWith(input), 'CONFIG_UNSUPPORTED')
-        assert.match(error.message, new RegExp(`"${key}"`))
-        assert.match(error.message, /B27d/)
+  // B27d: the keys B27a typed.
+  describe('timeouts', () => {
+    test('are layered over the policy, key by key', async () => {
+      const project = await resolveWith({ timeouts: { test: 50, teardown: 70 } })
+      const base = resolvePolicy().core.timeouts
+      assert.equal(project.policy.core.timeouts.test, 50)
+      assert.equal(project.policy.core.timeouts.teardown, 70)
+      assert.equal(project.policy.core.timeouts.hook, base.hook)
+      assert.equal(project.config.policy.core.timeouts.test, 50)
+    })
+
+    test('go over a dialect’s', async () => {
+      const project = await resolveWith(
+        { dialect: 'pipe' as never, timeouts: { hook: 9 } },
+        { dialects: [pipe] },
+      )
+      assert.equal(project.policy.core.timeouts.hook, 9)
+    })
+
+    for (const timeouts of [{ test: -1 }, { hook: 'x' }, { test: Number.NaN }, 'x']) {
+      test(`${JSON.stringify(timeouts)} is CONFIG_INVALID`, async () => {
+        await rejectsWith(resolveWith({ timeouts } as never), 'CONFIG_INVALID')
       })
-      if (empty !== undefined) {
-        test(`an empty \`${key}\` is fine`, async () => {
-          assert.equal((await resolveWith(empty)).dialect, null)
-        })
-      }
     }
+
+    test('an unknown timeout is CONFIG_UNKNOWN_KEY with the nearest', async () => {
+      const error = await rejectsWith(
+        resolveWith({ timeouts: { tset: 1 } } as never),
+        'CONFIG_UNKNOWN_KEY',
+      )
+      assert.match(error.message, /"tset"/)
+      assert.match(error.message, /did you mean "test"/)
+    })
+  })
+
+  describe('resolve', () => {
+    test('conditions come after the environment’s own', async () => {
+      const plain = await resolveWith({})
+      const project = await resolveWith({ resolve: { conditions: ['provino-source', 'custom'] } })
+      assert.deepEqual(project.config.loader.conditions, [
+        ...plain.config.loader.conditions,
+        'provino-source',
+        'custom',
+      ])
+    })
+
+    test('a condition the environment has is not repeated', async () => {
+      const plain = await resolveWith({})
+      const [first] = plain.config.loader.conditions
+      assert.ok(first !== undefined)
+      const project = await resolveWith({ resolve: { conditions: [first] } })
+      assert.deepEqual(project.config.loader.conditions, plain.config.loader.conditions)
+    })
+
+    test('aliases become name-mapping rules with absolute targets', async () => {
+      const project = await resolveWith({
+        root: 'app',
+        resolve: { aliases: { '@/*': './src/*', '#cfg': './config.ts' } },
+      })
+      const root = join(temp.dir, 'app')
+      assert.deepEqual(project.config.loader.aliases, [
+        { pattern: '^@/(.*)$', targets: [`${root}/src/$1`] },
+        { pattern: '^#cfg$', targets: [join(root, 'config.ts')] },
+      ])
+      assert.equal(/^@\/(.*)$/.test('@/a/b'), true)
+    })
+
+    test('no aliases leaves the key out', async () => {
+      assert.equal((await resolveWith({ resolve: {} })).config.loader.aliases, undefined)
+    })
+
+    test('tsconfig is auto, false or a path made absolute against the root', async () => {
+      assert.equal((await resolveWith({})).config.loader.tsconfig, 'auto')
+      assert.equal(
+        (await resolveWith({ resolve: { tsconfig: false } })).config.loader.tsconfig,
+        false,
+      )
+      assert.equal(
+        (await resolveWith({ resolve: { tsconfig: 'auto' } })).config.loader.tsconfig,
+        'auto',
+      )
+      assert.equal(
+        (await resolveWith({ root: 'app', resolve: { tsconfig: './tsconfig.test.json' } })).config
+          .loader.tsconfig,
+        join(temp.dir, 'app/tsconfig.test.json'),
+      )
+    })
+
+    for (const value of [{ conditions: 'x' }, { aliases: { a: 1 } }, { tsconfig: true }, []]) {
+      test(`${JSON.stringify(value)} is CONFIG_INVALID`, async () => {
+        await rejectsWith(resolveWith({ resolve: value } as never), 'CONFIG_INVALID')
+      })
+    }
+
+    test('an unknown resolve key is CONFIG_UNKNOWN_KEY', async () => {
+      const error = await rejectsWith(
+        resolveWith({ resolve: { condition: ['x'] } } as never),
+        'CONFIG_UNKNOWN_KEY',
+      )
+      assert.match(error.message, /did you mean "conditions"/)
+    })
+  })
+
+  describe('environmentOptions', () => {
+    test('reach the environment ref and the conditions behaviour', async () => {
+      const project = await resolveWith({ environmentOptions: { url: 'http://x/', n: [1, null] } })
+      assert.deepEqual(project.config.environment.options, { url: 'http://x/', n: [1, null] })
+    })
+
+    test('must be JSON', async () => {
+      await rejectsWith(
+        resolveWith({ environmentOptions: { f: () => 1 } } as never),
+        'CONFIG_INVALID',
+      )
+      await rejectsWith(resolveWith({ environmentOptions: [] } as never), 'CONFIG_INVALID')
+    })
+  })
+
+  describe('keys of the whole run', () => {
+    test('pool and maxWorkers are checked', async () => {
+      await resolveWith({ pool: 'threads', maxWorkers: 2 })
+      await rejectsWith(resolveWith({ pool: 'cluster' } as never), 'CONFIG_INVALID')
+      await rejectsWith(resolveWith({ maxWorkers: 0 }), 'CONFIG_INVALID')
+      await rejectsWith(resolveWith({ maxWorkers: 1.5 }), 'CONFIG_INVALID')
+    })
+
+    test('resolveProject refuses a non-empty projects: resolveProjects reads it', async () => {
+      const error = await rejectsWith(resolveWith({ projects: ['./a'] }), 'CONFIG_INVALID')
+      assert.match(error.message, /resolveProjects/)
+    })
+  })
+
+  describe('unknown keys', () => {
+    test('a typo is CONFIG_UNKNOWN_KEY, naming the key and the nearest known one', async () => {
+      const error = await rejectsWith(resolveWith({ incude: ['a'] } as never), 'CONFIG_UNKNOWN_KEY')
+      assert.match(error.message, /"incude"/)
+      assert.match(error.message, /did you mean "include"\?/)
+    })
+
+    test('a key near nothing lists the known keys', async () => {
+      const error = await rejectsWith(resolveWith({ zzzzzzzzzz: 1 } as never), 'CONFIG_UNKNOWN_KEY')
+      assert.match(error.message, /"zzzzzzzzzz"/)
+      assert.match(error.message, /the known keys are/)
+    })
+
+    test('the options of a listed dialect are a key, and of one that is not are not', async () => {
+      await resolveWith({ pipe: { a: 1 } } as never, { dialects: [pipe] })
+      await rejectsWith(resolveWith({ pipe: { a: 1 } } as never), 'CONFIG_UNKNOWN_KEY')
+    })
+
+    test('a config’s own dialects decide which dialect keys pass', async () => {
+      await resolveWith({ dialects: [dash], dash: {} } as never, { dialects: [pipe] })
+      await rejectsWith(
+        resolveWith({ dialects: [dash], pipe: {} } as never, { dialects: [pipe] }),
+        'CONFIG_UNKNOWN_KEY',
+      )
+    })
+
+    test('the name of a plugin the config lists is a key', async () => {
+      await rejectsWith(
+        resolveWith({ plugins: [{ name: 'p' }], p: {} } as never),
+        'CONFIG_UNSUPPORTED',
+      )
+    })
   })
 
   describe('a config that is not what its type says', () => {

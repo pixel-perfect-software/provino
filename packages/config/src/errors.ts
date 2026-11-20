@@ -7,7 +7,9 @@
  * - `CONFIG_UNKNOWN_DIALECT`: `dialect` names a dialect that isn't known.
  * - `CONFIG_DIALECT_TIE`: several dialects tie for the best `detect` score.
  * - `CONFIG_UNKNOWN_ENVIRONMENT`: the environment has no entry in the table the caller gave.
- * - `CONFIG_UNSUPPORTED`: a key that isn't wired yet (`projects`, `plugins`, `alsoServe`).
+ * - `CONFIG_UNSUPPORTED`: a key that isn't wired yet (`plugins`, `alsoServe`).
+ * - `CONFIG_UNKNOWN_KEY`: a key no project reads and no listed dialect or plugin owns; the message
+ *   names the nearest known key.
  * - `CONFIG_BAD_DIALECT_OPTIONS`: the dialect's options failed its schema, or its policy factory threw.
  * @public
  */
@@ -18,6 +20,7 @@ export type ConfigErrorCode =
   | 'CONFIG_DIALECT_TIE'
   | 'CONFIG_UNKNOWN_ENVIRONMENT'
   | 'CONFIG_UNSUPPORTED'
+  | 'CONFIG_UNKNOWN_KEY'
   | 'CONFIG_BAD_DIALECT_OPTIONS'
 
 /**

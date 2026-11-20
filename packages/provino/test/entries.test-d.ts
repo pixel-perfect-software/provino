@@ -110,7 +110,8 @@ expectTypeOf(defaultReporter).toBeFunction()
 expectTypeOf<ProvinoConfigInput>().toExtend<ProjectConfig>()
 expectTypeOf<ConfigError>().toExtend<Error>()
 
-// @ts-expect-error `defineConfig` is not built yet (T1.4)
 import { defineConfig } from 'provino/config'
 
-void defineConfig
+expectTypeOf(defineConfig({ include: ['a'] })).toExtend<ProvinoConfigInput>()
+// @ts-expect-error an unknown key is an error
+defineConfig({ incude: ['a'] })

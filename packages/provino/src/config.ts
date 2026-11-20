@@ -1,9 +1,9 @@
-// `provino/config`: what a `provino.config.*` file and its tools type against. Not built yet:
-// `defineConfig` and `defineProject` (T1.4's rest), which this entry will export beside the types.
+// `provino/config`: what a `provino.config.*` file and its tools type against.
 export {
   ConfigError,
   type ConfigErrorCode,
   type ConfigIssue,
+  defineConfig,
   formatConfigIssue,
 } from '@provino/config'
 export type {
@@ -12,6 +12,7 @@ export type {
   DialectKeys,
   PluginKeys,
   ProjectConfig,
+  ProvinoConfig,
   ProvinoConfigInput,
   ReservedConfigKey,
 } from '@provino/types'
