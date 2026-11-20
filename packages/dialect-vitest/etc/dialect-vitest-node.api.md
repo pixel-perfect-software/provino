@@ -4,10 +4,143 @@
 
 ```ts
 
+import { ConfigReader } from '@provino/types';
+import { ConfigSource } from '@provino/types';
+import { Diagnostic } from '@provino/types';
 import { Dialect } from '@provino/types';
+import { NeutralAlias } from '@provino/types';
+import { NeutralProject } from '@provino/types';
+
+// @public
+export function createVitestConfigReader(options?: VitestReadOptions): ConfigReader<VitestRawConfig, VitestResolvedConfig>;
+
+// @public
+export function expandDotenv(parsed: Readonly<Record<string, string>>, processEnv: Readonly<Record<string, string | undefined>>): Record<string, string>;
+
+// @public
+export function expandGlobs(root: string, patterns: readonly string[]): Promise<string[]>;
+
+// @public
+export function findViteConfigFile(root: string): ConfigSource | undefined;
+
+// @public
+export function findVitestConfig(root: string, explicit?: string): ConfigSource | undefined;
+
+// @public
+export function findVitestWorkspaceFile(root: string): string | undefined;
+
+// @public
+export function globToRegexSource(glob: string, root: string): string;
+
+// @public
+export function loadVitestConfig(source: ConfigSource, options: {
+    readonly mode: string;
+}): Promise<VitestLoadedConfig>;
+
+// @public
+export function loadVitestEnv(options: LoadEnvOptions): Record<string, string>;
+
+// @public
+export function mergeConfig(defaults: Rec$1, overrides: Rec$1, isRoot?: boolean): Rec$1;
+
+// @public
+export function parseDotenv(text: string): Record<string, string>;
+
+// @public
+export function readVitestConfig(options?: VitestReadOptions): Promise<{
+    readonly projects: readonly NeutralProject[];
+    readonly diagnostics: readonly Diagnostic[];
+    readonly needsVite: boolean;
+}>;
+
+// @public
+export function resolveVitestProjects(loaded: VitestLoadedConfig | undefined, options: VitestReadOptions, diagnostics: Diagnostic[]): Promise<VitestResolvedConfig>;
+
+// @public
+export function viteAliasesToNeutral(alias: unknown, diagnostics: Diagnostic[], key: string): NeutralAlias[];
+
+// @public
+export function viteConfigDeclaresTests(root: string): Promise<boolean>;
+
+// @public
+export const VITEST_CONFIG_CANDIDATES: readonly string[];
+
+// @public
+export const vitestConfigDefaults: Readonly<Rec>;
+
+// @public
+export class VitestConfigError extends Error {
+    constructor(code: VitestConfigErrorCode, message: string, options?: {
+        readonly cause?: unknown;
+    });
+    // (undocumented)
+    readonly code: VitestConfigErrorCode;
+}
+
+// @public
+export type VitestConfigErrorCode = "VITEST_CONFIG_NOT_FOUND" | "VITEST_CONFIG_LOAD_FAILED" | "VITEST_CONFIG_INVALID" | "VITEST_CONFIG_UNSUPPORTED";
+
+// @public
+export const vitestConfigReader: ConfigReader<VitestRawConfig, VitestResolvedConfig>;
+
+// @public
+export const vitestConfigStandIn: VitestConfigStandIn;
+
+// @public
+export const vitestCoverageConfigDefaults: Readonly<Rec>;
+
+// @public
+export interface VitestLoadedConfig {
+    readonly config: Readonly<Record<string, unknown>>;
+    readonly needsVite: boolean;
+    // (undocumented)
+    readonly path: string;
+}
 
 // @public
 export const vitestNodeDialect: Dialect<"vitest">;
+
+// @public
+export function vitestProjectToNeutral(project: VitestResolvedProject): {
+    readonly project: NeutralProject;
+    readonly diagnostics: readonly Diagnostic[];
+};
+
+// @public
+export type VitestRawConfig = VitestLoadedConfig | undefined;
+
+// @public
+export interface VitestReadOptions {
+    readonly config?: string;
+    readonly cwd?: string;
+    readonly env?: Readonly<Record<string, string | undefined>>;
+    readonly mode?: string;
+    readonly root?: string;
+    readonly test?: Readonly<Rec$2>;
+}
+
+// @public
+export interface VitestResolvedConfig {
+    // (undocumented)
+    readonly projects: readonly VitestResolvedProject[];
+}
+
+// @public
+export interface VitestResolvedProject {
+    readonly configFile: string | null;
+    readonly given: Readonly<Rec$2>;
+    readonly importMetaEnv: Readonly<Record<string, string | boolean>>;
+    // (undocumented)
+    readonly mode: string;
+    // (undocumented)
+    readonly name: string;
+    // (undocumented)
+    readonly needsVite: boolean;
+    // (undocumented)
+    readonly root: string;
+    readonly test: Readonly<Rec$2>;
+    readonly vite: Readonly<Rec$2>;
+}
 
 // (No @packageDocumentation comment for this package)
 

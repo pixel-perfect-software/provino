@@ -893,6 +893,9 @@ importers:
 
   packages/dialect-vitest:
     dependencies:
+      '@provino/config':
+        specifier: workspace:*
+        version: link:../config
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
@@ -1371,6 +1374,9 @@ importers:
       '@provino/dialect-jest':
         specifier: workspace:*
         version: link:../dialect-jest
+      '@provino/dialect-vitest':
+        specifier: workspace:*
+        version: link:../dialect-vitest
       '@provino/env-jsdom':
         specifier: workspace:*
         version: link:../env-jsdom

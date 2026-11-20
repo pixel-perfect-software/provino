@@ -43,6 +43,7 @@
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@provino/config": "workspace:*",
     "@provino/policy": "workspace:*",
     "@provino/types": "workspace:*"
   },
