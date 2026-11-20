@@ -18,7 +18,7 @@ import {
 } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join, posix } from 'node:path'
+import { join, posix } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runInNewContext } from 'node:vm'
@@ -230,24 +230,8 @@ describe("`import 'provino'` alone", () => {
     assert.doesNotMatch(source, /import\(/)
   })
 
-  test('loads dist/index.js and the lazy-api leaf, not shared.js, loading.js or the coordinator', async () => {
-    const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
-    after(() => rm(logs, { recursive: true, force: true }))
-    const result = spawnSync(
-      process.execPath,
-      ['--input-type=module', '-e', "await import('provino')"],
-      {
-        cwd: PACKAGE,
-        encoding: 'utf8',
-        env: childEnv(['load-recorder'], { PROVINO_LOAD_LOG: logs }),
-        timeout: 60_000,
-      },
-    )
-    assert.equal(result.status, 0, result.stderr)
-    const loaded = readdirSync(logs)
-      .flatMap((file) => readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean))
-      .map((line) => line.split('\t')[1] ?? '')
-      .filter((url) => url.includes('/dist/'))
+  test('loads dist/index.js and the lazy-api leaf, not shared.js, loading.js or the coordinator', () => {
+    const loaded = loadsOf("await import('provino')").urls.filter((url) => url.includes('/dist/'))
     assert.ok(
       loaded.some((url) => url.endsWith('/dist/index.js')),
       loaded.join('\n'),
@@ -262,29 +246,10 @@ describe("`import 'provino'` alone", () => {
 })
 
 describe('the worker-side expect (T7.12)', () => {
-  test('imports no transform, resolver, loader, Oxc package or coordinator code', async () => {
-    const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
-    after(() => rm(logs, { recursive: true, force: true }))
+  test('imports no transform, resolver, loader, Oxc package or coordinator code', () => {
     // What `bench:expect-import` imports: the entry, then the runtime it forwards to.
     const runtime = pathToFileURL(join(PACKAGE, 'dist', 'worker', 'jest-runtime.js')).href
-    const result = spawnSync(
-      process.execPath,
-      [
-        '--input-type=module',
-        '-e',
-        `await import('provino'); await import(${JSON.stringify(runtime)})`,
-      ],
-      {
-        cwd: PACKAGE,
-        encoding: 'utf8',
-        env: childEnv(['load-recorder'], { PROVINO_LOAD_LOG: logs }),
-        timeout: 60_000,
-      },
-    )
-    assert.equal(result.status, 0, result.stderr)
-    const loaded = readdirSync(logs)
-      .flatMap((file) => readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean))
-      .map((line) => line.split('\t')[1] ?? '')
+    const loaded = loadsOf(`await import('provino'); await import(${JSON.stringify(runtime)})`).urls
     assert.ok(
       loaded.some((url) => url.endsWith('/dist/worker/jest-runtime.js')),
       loaded.join('\n'),
@@ -466,20 +431,17 @@ describe('a built worker (T1.10)', () => {
  * what a process loads when it imports the module, before any dynamic import.
  */
 function staticClosure(entries: readonly string[]): string[] {
-  const dist = join(PACKAGE, 'dist')
+  const sources = builtSources()
   const seen = new Set<string>()
-  const pending = entries.map((entry) => join(dist, entry))
+  const pending = [...entries]
   for (let file = pending.pop(); file !== undefined; file = pending.pop()) {
     if (seen.has(file)) continue
     seen.add(file)
-    const source = readFileSync(file, 'utf8')
-    for (const match of source.matchAll(
-      /^\s*(?:import|export)\s+(?:[^'"]*?\sfrom\s+)?["'](\.[^"']+)["']/gm,
-    )) {
-      pending.push(join(dirname(file), match[1] ?? ''))
-    }
+    const source = sources.get(file)
+    if (source === undefined) throw new Error(`${file} is not a built file`)
+    pending.push(...staticImports(file, source))
   }
-  return [...seen].map((file) => file.slice(dist.length + 1)).sort()
+  return [...seen].sort()
 }
 
 /** The files a fresh process loads from `dist`, and every URL it loads, after running `code`. */
