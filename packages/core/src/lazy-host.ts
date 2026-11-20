@@ -5,7 +5,14 @@
 // 2. `frame.suite` is the test's innermost suite, never the suite a hook was declared on.
 // 3. Teardowns run after `afterEach`, and `run.state` is `'cleanup'` while they do.
 // 4. `run.slots` is a fresh map for every attempt (retry and repeat).
-import type { FileHandle, LazyFrame, LazyHost, SuiteHandle, TestRunHandle } from '@provino/types'
+import type {
+  Definition,
+  FileHandle,
+  LazyFrame,
+  LazyHost,
+  SuiteHandle,
+  TestRunHandle,
+} from '@provino/types'
 import type { Collector } from './collector/collector.ts'
 import { isOpen } from './collector/nodes.ts'
 import { currentStore } from './current/current-test.ts'
@@ -19,6 +26,8 @@ export interface HostParts {
   readonly runs: RunRegistry
   readonly workerTeardowns: Array<() => unknown>
   readonly workerSlots: Map<symbol, unknown>
+  /** Each suite's definition table, by handle (`LazyHost.definitions`, D106). */
+  readonly tables: WeakMap<SuiteHandle, Map<string, Pick<Definition, 'key' | 'kind'>>>
 }
 
 /** Builds the runtime's `LazyHost`. */
@@ -61,6 +70,14 @@ export function createLazyHost(parts: HostParts): LazyHost {
     },
     get workerSlots(): Map<symbol, unknown> {
       return parts.workerSlots
+    },
+    definitions(suite: SuiteHandle): Map<string, Pick<Definition, 'key' | 'kind'>> {
+      let table = parts.tables.get(suite)
+      if (table === undefined) {
+        table = new Map()
+        parts.tables.set(suite, table)
+      }
+      return table
     },
   }
 }

@@ -1573,6 +1573,7 @@ export interface LazyHost {
     addWorkerTeardown(fn: () => unknown): void;
     collecting(): SuiteHandle | undefined;
     current(): LazyFrame | undefined;
+    definitions(suite: SuiteHandle): Map<string, Pick<Definition, "key" | "kind">>;
     onCollected(fn: (file: FileHandle) => void): void;
     runOf(ctx: object): TestRunHandle | undefined;
     // (undocumented)

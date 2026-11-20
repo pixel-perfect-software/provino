@@ -25,7 +25,7 @@ export function eagerHook(engine: Engine, owner: LazyEntry): () => Promise<void>
     if (frame === undefined) {
       throw new LazyError('LAZY_NO_TEST', `the eager value \`${key}\` ran outside a test or hook`)
     }
-    const entry = resolveEntry(frame.suite, key)
+    const entry = resolveEntry(engine.host, frame.suite, key)
     // A nested `lazy.let` of the key makes it lazy again, as its type says; a re-declare has its
     // own hook.
     if (!entry.eager || !belongsTo(entry, owner)) return

@@ -4,6 +4,7 @@
 // the real core lives in `@provino/bench`'s `src/lazy/`.
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type {
+  Definition,
   FileHandle,
   LazyFrame,
   LazyHost,
@@ -143,6 +144,8 @@ export function createWorld(policy: LazyPolicy = { readInBeforeAll: 'error' }): 
   let file: FakeFile | undefined
   let collecting: FakeSuite | undefined
   const names = new WeakMap<FakeRun, string>()
+  // The runtime's definition tables (core owns them in a real run, D106).
+  const tables = new WeakMap<SuiteHandle, Map<string, Pick<Definition, 'key' | 'kind'>>>()
 
   const host: LazyHost = {
     collecting: () => collecting,
@@ -159,6 +162,14 @@ export function createWorld(policy: LazyPolicy = { readInBeforeAll: 'error' }): 
       workerTeardowns.push(fn)
     },
     workerSlots,
+    definitions(suite) {
+      let table = tables.get(suite)
+      if (table === undefined) {
+        table = new Map()
+        tables.set(suite, table)
+      }
+      return table
+    },
   }
 
   const api: FakeApi = {

@@ -510,7 +510,13 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   return {
     api: createApi(collector),
     currentTest,
-    lazyHost: createLazyHost({ collector, runs, workerTeardowns, workerSlots: new Map() }),
+    lazyHost: createLazyHost({
+      collector,
+      runs,
+      workerTeardowns,
+      workerSlots: new Map(),
+      tables: new WeakMap(),
+    }),
     runFile,
     onBeforeTryTask: (listener) => addListener(tryTask.before, listener),
     onAfterTryTask: (listener) => addListener(tryTask.after, listener),
