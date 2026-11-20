@@ -5,9 +5,11 @@ import {
   type ApiHost,
   PROVINO_API_SLOT,
   type ProvinoApi,
+  type ProvinoModuleScope,
   type ProvinoTimers,
   provinoGlobals,
   provinoModuleScope,
+  uninstallProvinoApi,
 } from '@provino/api'
 import type { FixtureTestApi, SuiteApi } from '@provino/core'
 import type { Mock, SpiedMethod } from '@provino/mock'
@@ -21,9 +23,15 @@ expectTypeOf(PROVINO_API_SLOT).toEqualTypeOf<typeof PROVINO_API_SLOT>()
 expectTypeOf<ApiError['code']>().toEqualTypeOf<ApiErrorCode>()
 
 declare const host: ApiHost
-expectTypeOf(provinoModuleScope(host)).toEqualTypeOf<
-  (from: string) => Readonly<Record<string, unknown>>
+expectTypeOf(provinoModuleScope(host)).toEqualTypeOf<ProvinoModuleScope>()
+// The worker disposes it as it stops.
+expectTypeOf(provinoModuleScope(host)).toExtend<Disposable>()
+expectTypeOf(provinoModuleScope(host)('/a.test.ts')).toEqualTypeOf<
+  Readonly<Record<string, unknown>>
 >()
+expectTypeOf(uninstallProvinoApi).toEqualTypeOf<(api: ProvinoApi) => boolean>()
+// @ts-expect-error it takes the API it installed
+uninstallProvinoApi()
 expectTypeOf(provinoGlobals(host)).toEqualTypeOf<ProvinoApi>()
 // @ts-expect-error the factories take the worker's host
 provinoModuleScope()

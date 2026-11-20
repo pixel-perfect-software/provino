@@ -12,7 +12,13 @@ import type {
   FileRegistry,
   ModuleMockRegistry,
 } from '@provino/types'
-import { type ApiHost, PROVINO_API_SLOT, provinoGlobals, provinoModuleScope } from './index.ts'
+import {
+  type ApiHost,
+  PROVINO_API_SLOT,
+  provinoGlobals,
+  provinoModuleScope,
+  uninstallProvinoApi,
+} from './index.ts'
 
 const API_NAMES = [
   'describe',
@@ -201,5 +207,23 @@ describe('provinoGlobals', () => {
       assert.equal(namespace[name], (globals as unknown as Record<string, unknown>)[name], name)
     }
     assert.ok(!('lazy' in globals))
+  })
+})
+
+describe('the slot at stop', () => {
+  test('disposing the scope takes the slot out, only while it holds this API', () => {
+    const first = fakeHost().host
+    const scope = provinoModuleScope(first)
+    assert.ok(Object.hasOwn(globalThis, PROVINO_API_SLOT))
+    scope[Symbol.dispose]()
+    assert.equal(Object.hasOwn(globalThis, PROVINO_API_SLOT), false)
+
+    // A later worker in the same process installed its own: the first one's uninstall leaves it.
+    const second = fakeHost().host
+    provinoModuleScope(second)
+    assert.equal(uninstallProvinoApi(provinoGlobals(first)), false)
+    assert.equal(Reflect.get(globalThis, PROVINO_API_SLOT) === provinoGlobals(second), true)
+    assert.equal(uninstallProvinoApi(provinoGlobals(second)), true)
+    assert.equal(Object.hasOwn(globalThis, PROVINO_API_SLOT), false)
   })
 })

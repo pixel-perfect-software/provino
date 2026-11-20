@@ -130,15 +130,32 @@ function built(host: ApiHost): ProvinoApi {
  * gets the API only by importing it, or as globals under `globals: true`.
  * @public
  */
-export function provinoModuleScope(
-  host: ApiHost,
-): (from: string) => Readonly<Record<string, unknown>> {
-  const namespace = Object.freeze({ ...built(host), ...LAZY_EXPORTS })
+export function provinoModuleScope(host: ApiHost): ProvinoModuleScope {
+  const api = built(host)
+  const namespace = Object.freeze({ ...api, ...LAZY_EXPORTS })
   // The keys of the result are the binding names (none); the served module is not one of them.
   const scope: Readonly<Record<string, unknown>> = Object.freeze(
     Object.defineProperty({}, SERVED, { value: namespace, enumerable: false }),
   )
-  return () => scope
+  // The worker disposes a disposable scope when it stops (the runner's `stop`), so the slot goes
+  // with the worker: an inline pool shares its process with whatever runs next.
+  return Object.assign(() => scope, { [Symbol.dispose]: () => uninstallProvinoApi(api) })
+}
+
+/**
+ * The served module's function, which the worker disposes as it stops (`uninstallProvinoApi`).
+ * @public
+ */
+export type ProvinoModuleScope = ((from: string) => Readonly<Record<string, unknown>>) & Disposable
+
+/**
+ * Takes `api` out of the `provino.api` slot, only while the slot still holds it (a later worker's
+ * API in the same process stays). Returns whether it did.
+ * @public
+ */
+export function uninstallProvinoApi(api: ProvinoApi): boolean {
+  if (Reflect.get(globalThis, PROVINO_API_SLOT) !== api) return false
+  return Reflect.deleteProperty(globalThis, PROVINO_API_SLOT)
 }
 
 /**

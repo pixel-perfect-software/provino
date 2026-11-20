@@ -12,7 +12,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { BUILT_BIN, childEnv, spawnCli, viewOfNormalized } from './support.ts'
+import { run } from '../src/run.ts'
+import { BUILT_BIN, Collect, childEnv, QUIET_ENV, spawnCli, viewOfNormalized } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 
@@ -276,5 +277,59 @@ process.stdout.write(JSON.stringify(codes))`
     })
     assert.equal(run.status, 0, run.stderr)
     assert.deepEqual(JSON.parse(run.stdout), Array(9).fill('PROVINO_NO_WORKER_API'))
+  })
+})
+
+describe('the native API slot in one process (inline pool)', () => {
+  test('a native run takes its slot out at stop, so a later Jest run reaches the Jest globals', async () => {
+    const native = await project()
+    const first = await run({
+      config: 'provino.config.mjs',
+      cwd: native.dir,
+      pool: 'inline',
+      stdout: new Collect(),
+      stderr: new Collect(),
+      env: { ...QUIET_ENV, ...native.env },
+      reporters: [['normalized-json', { outputFile: 'results.json' }]],
+    })
+    await assertNativeRun(native.dir, first.exitCode, 'the inline native run')
+    // A boolean: a failed assertion on the API object itself would print the whole runtime.
+    assert.equal(
+      Object.hasOwn(globalThis, Symbol.for('provino.api')),
+      false,
+      'the slot is still installed',
+    )
+
+    const jest = await project()
+    writeFileSync(
+      join(jest.dir, 'jest.config.mjs'),
+      "export default { dialect: 'jest', include: ['tests/**/*.test.ts'] }\n",
+    )
+    writeFileSync(
+      join(jest.dir, 'tests', 'native.test.ts'),
+      `import { describe, expect, it } from 'provino'
+
+describe('the Jest dialect', () => {
+  it('reaches its own globals through the provino entry', () => {
+    expect(describe).not.toBe(undefined)
+    expect(1).toBe(1)
+  })
+})
+`,
+    )
+    const second = await run({
+      config: 'jest.config.mjs',
+      cwd: jest.dir,
+      pool: 'inline',
+      stdout: new Collect(),
+      stderr: new Collect(),
+      env: QUIET_ENV,
+      reporters: [['normalized-json', { outputFile: 'results.json' }]],
+    })
+    const { readFile } = await import('node:fs/promises')
+    const text = await readFile(join(jest.dir, 'results.json'), 'utf8')
+    assert.equal(second.exitCode, 0, text)
+    const [file] = [...viewOfNormalized(text).files.values()]
+    assert.deepEqual([...(file?.tests.values() ?? [])], ['passed'], text)
   })
 })
