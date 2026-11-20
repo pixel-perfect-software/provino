@@ -123,6 +123,7 @@ export interface VitestReadOptions {
 export interface VitestResolvedConfig {
     // (undocumented)
     readonly projects: readonly VitestResolvedProject[];
+    readonly root: VitestResolvedProject;
 }
 
 // @public

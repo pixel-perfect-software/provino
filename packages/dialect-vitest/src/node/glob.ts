@@ -18,28 +18,34 @@ function escapeRegex(text: string): string {
 /** One path segment's glob as a regular expression source (no `/` in it). */
 function segmentSource(segment: string): string {
   let out = ''
-  let depth = 0
+  // What each open group closes with: `{a,b}` closes with `)`, an extglob `?(a|b)` with `)?`.
+  const closers: string[] = []
   for (let index = 0; index < segment.length; index++) {
     const char = segment[index] as string
-    if (char === '*') out += '[^/]*'
+    const next = segment[index + 1]
+    if ('?*+@'.includes(char) && next === '(') {
+      out += '(?:'
+      closers.push(char === '?' ? ')?' : char === '*' ? ')*' : char === '+' ? ')+' : ')')
+      index++
+    } else if (char === '*') out += '[^/]*'
     else if (char === '?') out += '[^/]'
     else if (char === '{') {
-      depth++
+      closers.push(')')
       out += '(?:'
-    } else if (char === '}' && depth > 0) {
-      depth--
-      out += ')'
-    } else if (char === ',' && depth > 0) out += '|'
+    } else if ((char === '}' || char === ')') && closers.length > 0) {
+      out += closers.pop() as string
+    } else if (char === ',' && closers.length > 0) out += '|'
+    else if (char === '|' && closers.length > 0) out += '|'
     else if (char === '[') {
-      const end = segment.indexOf(']', index + 1)
-      if (end === -1) out += '\\['
+      const close = segment.indexOf(']', index + 1)
+      if (close === -1) out += '\\['
       else {
-        out += segment.slice(index, end + 1)
-        index = end
+        out += segment.slice(index, close + 1)
+        index = close
       }
     } else out += SPECIAL.test(char) ? `\\${char}` : char
   }
-  return out + ')'.repeat(depth)
+  return out + closers.reverse().join('')
 }
 
 /**

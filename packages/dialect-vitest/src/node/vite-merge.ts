@@ -44,7 +44,12 @@ function normalizeAlias(value: unknown): AliasEntry[] {
   return []
 }
 
-function mergeAlias(a: unknown, b: unknown): unknown {
+/**
+ * Vite's merge of two `alias` values (`resolve.alias` over `test.alias`: Vitest hands it the pair):
+ * two objects merge key by key, else the second's entries come first, as a list.
+ * @public
+ */
+export function mergeAlias(a: unknown, b: unknown): unknown {
   if (!a) return b
   if (!b) return a
   if (isObject(a) && isObject(b)) return { ...a, ...b }

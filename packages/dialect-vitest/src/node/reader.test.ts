@@ -165,7 +165,8 @@ test('test.projects: inline objects, directories, config files and globs', async
   test: {
     testTimeout: 11,
     projects: [
-      { test: { name: 'inline', include: ['inline/**/*.test.ts'] } },
+      { extends: false, test: { name: 'inline', include: ['inline/**/*.test.ts'] } },
+      { test: { name: 'implicit' } },
       { extends: true, test: { name: 'extended' } },
       'packages/*',
       'tools/vitest.config.mjs',
@@ -181,12 +182,14 @@ test('test.projects: inline objects, directories, config files and globs', async
   const { projects } = await readVitestConfig({ cwd: root })
   assert.deepEqual(
     projects.map((project) => project.name),
-    ['inline', 'extended', 'pkg-a', 'b', 'tools'],
+    ['inline', 'implicit', 'extended', 'pkg-a', 'b', 'tools'],
   )
   const byName = Object.fromEntries(projects.map((project) => [project.name, project]))
   assert.equal(byName.inline?.rootDir, root)
   assert.equal(byName.inline?.policy.core?.timeouts?.test, undefined)
   assert.equal(byName.extended?.policy.core?.timeouts?.test, 11)
+  // Since Vitest 5 an inline project extends the declaring config unless it says `extends: false`.
+  assert.equal(byName.implicit?.policy.core?.timeouts?.test, 11)
   assert.equal(byName['pkg-a']?.rootDir, `${root}/packages/a`)
   assert.equal(byName['pkg-a']?.policy.core?.timeouts?.test, 22)
   assert.equal(byName.b?.rootDir, `${root}/packages/b`)

@@ -3,6 +3,7 @@
 // apply is a `VITEST_CONFIG_NOT_APPLIED` warning that names the phase that will (gap 9's rule), so
 // nothing is dropped silently. Nothing here names a neutral package's internals: the values are
 // policy keys over the dialect's own.
+import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import type {
@@ -15,6 +16,7 @@ import type {
 import { VitestConfigError } from './errors.ts'
 import { globToRegexSource } from './glob.ts'
 import type { VitestResolvedProject } from './normalize.ts'
+import { mergeAlias } from './vite-merge.ts'
 
 type Rec = Record<string, unknown>
 
@@ -85,6 +87,9 @@ function absolute(entry: string, root: string, key: string): string {
   try {
     return createRequire(join(root, 'noop.js')).resolve(entry)
   } catch (cause) {
+    // Vitest reads a name that is no package as a path from the root (`vitest.setup.ts`).
+    const fromRoot = resolve(root, entry)
+    if (existsSync(fromRoot)) return fromRoot
     throw new VitestConfigError(
       'VITEST_CONFIG_INVALID',
       `${key}: can't resolve "${entry}" from ${root}`,
@@ -249,10 +254,13 @@ export function vitestProjectToNeutral(project: VitestResolvedProject): {
     ? (jsonOf(options, 'test.environmentOptions', diagnostics) ?? {})
     : {}
   const viteAlias = isRec(project.vite.resolve) ? project.vite.resolve.alias : undefined
-  const aliases = [
-    ...viteAliasesToNeutral(viteAlias, diagnostics, 'resolve.alias'),
-    ...viteAliasesToNeutral(test.alias, diagnostics, 'test.alias'),
-  ]
+  // Vitest merges `test.alias` into `resolve.alias` with Vite's `mergeAlias` (recorded: a `test.alias`
+  // entry wins over a `resolve.alias` entry with the same find, `resolve/vite-alias-order`).
+  const aliases = viteAliasesToNeutral(
+    mergeAlias(viteAlias, test.alias),
+    diagnostics,
+    'resolve.alias',
+  )
   const include = list(test.include)
   const exclude = list(test.exclude)
   const dir = typeof test.dir === 'string' ? resolve(root, test.dir) : root

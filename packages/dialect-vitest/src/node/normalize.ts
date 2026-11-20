@@ -60,6 +60,8 @@ export interface VitestResolvedProject {
  * @public
  */
 export interface VitestResolvedConfig {
+  /** The root config as one project: what `resolveConfig(...).test` is, whether or not `test.projects` splits it. */
+  readonly root: VitestResolvedProject
   readonly projects: readonly VitestResolvedProject[]
 }
 
@@ -184,7 +186,9 @@ function build(
         : context.options.root !== undefined
           ? resolve(context.cwd, context.options.root)
           : baseDir
-  const root = typeof given.root === 'string' ? resolve(viteRoot, given.root) : viteRoot
+  // Vitest's root is Vite's `root` or the working directory; a `test.root` is read by neither
+  // (recorded by the sample: `bench:vitest-config`).
+  const root = viteRoot
   const test = deepMerge({}, configDefaults as Rec, given)
   refuse(test, configFile ?? root)
   // `vite.root` and `test.root` are paths, not options a project inherits as text.
@@ -283,7 +287,9 @@ async function projectFromInline(
   let vite: Rec = own
   let needsVite = Array.isArray(own.plugins) && own.plugins.length > 0
   let baseDir = root.dir
-  if (base === true) {
+  // Since Vitest 5 an inline project extends the config file that declares it unless it says
+  // `extends: false` (`resolveProjects.ts` L361-L365, recorded: `config/vitest-projects`).
+  if (base === undefined || base === true) {
     vite = mergeConfig(withTestKept(root.vite), own)
   } else if (typeof base === 'string') {
     const path = resolve(root.dir, base)
@@ -292,7 +298,11 @@ async function projectFromInline(
     needsVite = needsVite || loaded.needsVite
     baseDir = dirname(path)
   }
-  if (base === true && Array.isArray(root.vite.plugins) && root.vite.plugins.length > 0) {
+  if (
+    (base === undefined || base === true) &&
+    Array.isArray(root.vite.plugins) &&
+    root.vite.plugins.length > 0
+  ) {
     needsVite = true
   }
   return build(context, {
@@ -342,21 +352,16 @@ export async function resolveVitestProjects(
         : cwd
   const rootTest = deepMerge({}, testOf(rootVite), options.test ?? {})
   refuse(rootTest, rootFile ?? rootDir)
+  const root = build(context, {
+    vite: rootVite,
+    fileTest: testOf(rootVite),
+    configFile: rootFile,
+    baseDir: rootDir,
+    fallbackName: '',
+    needsVite: loaded?.needsVite ?? false,
+  })
   const entries = projectEntries(rootTest)
-  if (entries.length === 0) {
-    return {
-      projects: [
-        build(context, {
-          vite: rootVite,
-          fileTest: testOf(rootVite),
-          configFile: rootFile,
-          baseDir: rootDir,
-          fallbackName: '',
-          needsVite: loaded?.needsVite ?? false,
-        }),
-      ],
-    }
-  }
+  if (entries.length === 0) return { root, projects: [root] }
   const projects: VitestResolvedProject[] = []
   const patterns: string[] = []
   let index = 0
@@ -409,5 +414,5 @@ export async function resolveVitestProjects(
     }
     names.add(project.name)
   }
-  return { projects }
+  return { root, projects }
 }

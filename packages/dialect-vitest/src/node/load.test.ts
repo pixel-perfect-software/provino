@@ -1,0 +1,81 @@
+// B25c: loading a config file: the `__dirname` and `__filename` Vite defines in a bundled config.
+import assert from 'node:assert/strict'
+import { test } from 'node:test'
+import { findVitestConfig } from './find.ts'
+import { loadVitestConfig } from './load.ts'
+import { writeTree } from './test-support.ts'
+
+async function load(files: Record<string, string>, config: string) {
+  const root = writeTree(files)
+  const source = findVitestConfig(root, config)
+  assert.ok(source)
+  return { root, loaded: await loadVitestConfig(source, { mode: 'test' }) }
+}
+
+test('an ES module config may use __dirname and __filename, as Vite lets it', async () => {
+  const { root, loaded } = await load(
+    {
+      'package.json': '{"type":"module"}',
+      'vitest.config.ts':
+        "import { defineConfig } from 'vitest/config'\nexport default defineConfig({ test: { name: __dirname + '|' + __filename } })\n",
+    },
+    'vitest.config.ts',
+  )
+  assert.deepEqual(loaded.config, { test: { name: `${root}|${root}/vitest.config.ts` } })
+})
+
+test('a config that declares them itself, or is CommonJS, is left alone', async () => {
+  const declared = await load(
+    {
+      'package.json': '{"type":"module"}',
+      'vitest.config.mjs':
+        "import { dirname } from 'node:path'\nimport { fileURLToPath } from 'node:url'\nconst __dirname = dirname(fileURLToPath(import.meta.url))\nexport default { test: { name: __dirname } }\n",
+    },
+    'vitest.config.mjs',
+  )
+  assert.deepEqual(declared.loaded.config, { test: { name: declared.root } })
+  const commonjs = await load(
+    { 'vitest.config.cjs': 'module.exports = { test: { name: __dirname } }\n' },
+    'vitest.config.cjs',
+  )
+  assert.deepEqual(commonjs.loaded.config, { test: { name: commonjs.root } })
+})
+
+test('a module the config imports gets them too', async () => {
+  const { root, loaded } = await load(
+    {
+      'package.json': '{"type":"module"}',
+      'shared/paths.ts': 'export const here = __dirname\n',
+      'vitest.config.ts':
+        "import { here } from './shared/paths.ts'\nexport default { test: { name: here } }\n",
+    },
+    'vitest.config.ts',
+  )
+  assert.deepEqual(loaded.config, { test: { name: `${root}/shared` } })
+})
+
+test("an import without an extension finds the file, or the directory's index, as the bundler does", async () => {
+  const { loaded } = await load(
+    {
+      'package.json': '{"type":"module"}',
+      'utils/index.ts': "export const a = 'index'\n",
+      'shared.ts': "export const b = 'file'\n",
+      'vitest.config.ts':
+        "import { a } from './utils'\nimport { b } from './shared'\nexport default { test: { name: a + b } }\n",
+    },
+    'vitest.config.ts',
+  )
+  assert.deepEqual(loaded.config, { test: { name: 'indexfile' } })
+})
+
+test('a config function that throws, and one that gives no object, are coded errors', async () => {
+  const thrown = await load(
+    { 'vitest.config.mjs': 'export default () => { throw new Error("x") }\n' },
+    'vitest.config.mjs',
+  ).catch((error: unknown) => error)
+  assert.equal((thrown as { code?: string }).code, 'VITEST_CONFIG_LOAD_FAILED')
+  const bad = await load({ 'vitest.config.mjs': 'export default 3\n' }, 'vitest.config.mjs').catch(
+    (error: unknown) => error,
+  )
+  assert.equal((bad as { code?: string }).code, 'VITEST_CONFIG_INVALID')
+})
