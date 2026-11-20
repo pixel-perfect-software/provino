@@ -62,11 +62,7 @@ function printed(error: {
   // that never called `use`) is what the runner reports, so its text before the frames is read,
   // as the converter reads the runner's.
   const { stack } = error
-  if (
-    stack !== undefined &&
-    stack.startsWith(error.message) &&
-    !stack.startsWith(`${error.name}: `)
-  ) {
+  if (stack?.startsWith(error.message) && !stack.startsWith(`${error.name}: `)) {
     return (stack.split(/\n\s+at /)[0] ?? '').trim()
   }
   return `${error.name}: ${error.message}`

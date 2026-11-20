@@ -390,6 +390,7 @@ export interface CorePolicy {
     readonly definitions: {
         readonly extendApi: "expose" | "absent";
         readonly messages: Behaviour<FormatDefinitionError> | null;
+        readonly plainSuiteHook: "pass-suite" | "refuse-fixtures";
     };
     readonly doneDeprecatedMessage: string | null;
     readonly eachHooksForConcurrent: boolean;
