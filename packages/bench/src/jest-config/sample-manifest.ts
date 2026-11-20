@@ -50,7 +50,7 @@ export interface SampleManifest {
 }
 
 /** A GitHub client over `gh api`, with an answer cache and backoff on rate limits. */
-class GitHub {
+export class GitHub {
   readonly #cacheDir: string
   calls = 0
 
@@ -105,14 +105,14 @@ class GitHub {
   }
 }
 
-interface SearchItem {
+export interface SearchItem {
   readonly full_name: string
   readonly stargazers_count: number
   readonly default_branch: string
   readonly fork: boolean
 }
 
-async function popularRepos(github: GitHub): Promise<SearchItem[]> {
+export async function popularRepos(github: GitHub): Promise<SearchItem[]> {
   const byName = new Map<string, SearchItem>()
   for (const language of ['TypeScript', 'JavaScript']) {
     for (let page = 1; page <= 10; page++) {
@@ -153,8 +153,8 @@ async function repoCandidates(
   return { sha, candidates, truncated: body.truncated === true }
 }
 
-/** The `package.json` texts of a repository at a commit, at most `limit`, shallowest first. */
-async function packageJsonTexts(
+/** The texts of files of a repository at a commit (`package.json`s, config files), 40 to a query. */
+export async function packageJsonTexts(
   github: GitHub,
   repo: string,
   sha: string,
