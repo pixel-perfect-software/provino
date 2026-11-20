@@ -1,11 +1,16 @@
 // `vitestEnvironmentRef` for the coordinator: `provino vitest` resolves a project's `environment` with
 // it, so the project gets the refs a file's docblock gets from the runtime's `vitestEnvironmentFor`.
 // The lookup of an environment package is the runtime's (`runtime/vitest-environment.ts`), kept
-// in both entries because neither may import the other.
+// in both entries: neither may import the other, and the one place both could share,
+// `src/internal/` (the root node), may not import `@provino/resolver` (`pnpm boundaries`), so the
+// one `vitestEnvironmentRef` there takes the lookup as a parameter.
 import { join } from 'node:path'
 import { createResolver } from '@provino/resolver'
-import type { EnvironmentRef, JsonValue } from '@provino/types'
+import type { EnvironmentRef, JsonValue, Resolver } from '@provino/types'
 import { environmentRefOf } from '../internal/environment-ref.ts'
+
+/** One resolver per project root: a run asks for the same root once per project or docblock file. */
+const resolvers = new Map<string, Resolver>()
 
 /**
  * Where an environment package resolves from the root as an `import` does (`import` and `node`
@@ -15,11 +20,15 @@ import { environmentRefOf } from '../internal/environment-ref.ts'
  * build, whose namespace has the environment one level down.
  */
 function resolveEnvironmentPackage(rootDir: string, name: string): string | undefined {
-  const resolver = createResolver({
-    root: rootDir,
-    mappers: [],
-    extensions: ['.js', '.mjs', '.cjs', '.json'],
-  })
+  let resolver = resolvers.get(rootDir)
+  if (resolver === undefined) {
+    resolver = createResolver({
+      root: rootDir,
+      mappers: [],
+      extensions: ['.js', '.mjs', '.cjs', '.json'],
+    })
+    resolvers.set(rootDir, resolver)
+  }
   const found = resolver.resolve(name, {
     importer: join(rootDir, '__provino_environment__.js'),
     kind: 'import',

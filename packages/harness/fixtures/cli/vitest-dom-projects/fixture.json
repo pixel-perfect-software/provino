@@ -1,0 +1,16 @@
+{
+  "description": "Vitest 5.0.5's --dom sets the root's environment only (resolveTestConfig; PROJECT_CLI_OVERRIDES has neither dom nor environment): a child project that names jsdom stays on jsdom. Held by provino vitest (provino's vitest-environments.test.ts) and the reader (reader.test.ts).",
+  "runners": ["vitest"],
+  "vitestProjects": true,
+  "config": {
+    "vitest": {
+      "test": {
+        "projects": [{ "extends": true, "test": { "name": "child", "environment": "jsdom" } }]
+      }
+    }
+  },
+  "run": {
+    "argv": { "vitest": ["--dom"] },
+    "capture": ["exitCode"]
+  }
+}

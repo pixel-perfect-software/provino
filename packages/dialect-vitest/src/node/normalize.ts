@@ -177,7 +177,12 @@ function build(
   },
 ): VitestResolvedProject {
   const { vite, fileTest, configFile, root } = parts
-  const { cliExclude, ...cliTest } = context.options.test ?? {}
+  const { cliExclude, ...cli } = context.options.test ?? {}
+  // A child project gets only the command line's `PROJECT_CLI_OVERRIDES` (resolveProjects.ts
+  // L52-L79), which has neither `environment` nor `dom`: `--dom` reaches `resolveTestConfig` for
+  // the root alone.
+  const { environment: _environment, dom: _dom, ...forChild } = cli
+  const cliTest = parts.isRoot === true ? cli : forChild
   const given = deepMerge({}, fileTest, cliTest)
   // `--dom` is `environment: 'happy-dom'`, over the file's (resolveConfig.ts `resolveTestConfig`,
   // `if (options.dom)`; `cli/vitest-dom`). Vitest also warns when the file names another one: not

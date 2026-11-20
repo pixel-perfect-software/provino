@@ -21,10 +21,11 @@ import type {
   EnvironmentTeardownReport,
   GlobalReadWatch,
   JsonValue,
+  Resolver,
 } from '@provino/types'
+import { VitestDialectError } from '../internal/dialect-error.ts'
 import { environmentOptionsKey } from '../internal/environment-options-key.ts'
 import { environmentRefOf } from '../internal/environment-ref.ts'
-import { VitestDialectError } from './errors.ts'
 import { edgeRuntimeEnvironment } from './vendor/vitest-env/edge-runtime.ts'
 import { happyDomEnvironment } from './vendor/vitest-env/happy-dom.ts'
 import type { SetupDeps } from './vendor/vitest-env/types.ts'
@@ -321,6 +322,9 @@ export const vitestJsdomEnvironment: Environment<'jsdom', JsdomAdapterOptions> =
   },
 }
 
+/** One resolver per project root: a run asks for the same root once per project or docblock file. */
+const resolvers = new Map<string, Resolver>()
+
 /**
  * Where an environment package resolves from the root as an `import` does (`import` and `node`
  * conditions), as Vitest 5.0.5's `loadNativeEnvironment` resolves it with `import.meta.resolve`
@@ -329,11 +333,15 @@ export const vitestJsdomEnvironment: Environment<'jsdom', JsdomAdapterOptions> =
  * build, whose namespace has the environment one level down.
  */
 function resolveEnvironmentPackage(rootDir: string, name: string): string | undefined {
-  const resolver = createResolver({
-    root: rootDir,
-    mappers: [],
-    extensions: ['.js', '.mjs', '.cjs', '.json'],
-  })
+  let resolver = resolvers.get(rootDir)
+  if (resolver === undefined) {
+    resolver = createResolver({
+      root: rootDir,
+      mappers: [],
+      extensions: ['.js', '.mjs', '.cjs', '.json'],
+    })
+    resolvers.set(rootDir, resolver)
+  }
   const found = resolver.resolve(name, {
     importer: join(rootDir, '__provino_environment__.js'),
     kind: 'import',

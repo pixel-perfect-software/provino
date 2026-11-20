@@ -113,6 +113,9 @@ describe('provino vitest environments against Vitest 5.0.5 (T8.6)', () => {
   it('--dom (cli/vitest-dom)', () =>
     withVitestFixture('cli/vitest-dom', (fixture, root) => holds(fixture, root)))
 
+  it('--dom leaves a child project on its own jsdom (cli/vitest-dom-projects)', () =>
+    withVitestFixture('cli/vitest-dom-projects', (fixture, root) => holds(fixture, root)))
+
   it('an environment that is neither built in nor installed ends 1 with its message', () =>
     withVitestFixture('cli/vitest-env', async (fixture, root) => {
       const ended = await provinoVitest(fixture, root, ['--environment=provino-not-installed'])
