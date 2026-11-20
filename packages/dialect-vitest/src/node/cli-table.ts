@@ -11,6 +11,9 @@
 // (handed to the config reader as `test`, which applies it or warns `VITEST_CONFIG_NOT_APPLIED`),
 // `refuse` (an error naming `owner`), `warn` (read and not applied, naming `owner`).
 
+/** The owner of a row Provino refuses because Vitest is parked after B25g (D183). */
+const PARKED = 'parked (D183)'
+
 /**
  * What `provino vitest` does with an option.
  * @public
@@ -106,7 +109,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     path: 'dir',
     description: 'Base directory to scan for the test files',
     value: 'normalize',
-    support: 'request',
+    support: 'config',
   },
   {
     flag: '--ui ',
@@ -183,7 +186,8 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     flag: '--hideSkippedTests',
     path: 'hideSkippedTests',
     description: 'Hide logs for skipped tests',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--reporter <name>',
@@ -460,7 +464,8 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     path: 'injectCjsGlobals',
     description:
       'Inject CommonJS variables (module, exports, require, __filename, __dirname) into every test module. To disable, use --no-inject-cjs-globals (default: true)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--dom',
@@ -607,7 +612,8 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Pass additional arguments to node process when spawning worker_threads or child_process.',
     value: 'array',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--vmMemoryLimit <limit>',
@@ -651,7 +657,8 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     flag: '--detectAsyncLeaks',
     path: 'detectAsyncLeaks',
     description: 'Detect asynchronous resources leaking from the test file (default: false)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--allowOnly',
@@ -663,7 +670,8 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     flag: '--dangerouslyIgnoreUnhandledErrors',
     path: 'dangerouslyIgnoreUnhandledErrors',
     description: 'Ignore any unhandled errors that occur',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--shard <shards>',
@@ -696,7 +704,8 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     path: 'sequence.shuffle.files',
     description:
       'Run files in a random order. Long running tests will not start earlier if you enable this option. (default: false)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--sequence.shuffle.tests',
@@ -708,7 +717,8 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     flag: '--sequence.concurrent',
     path: 'sequence.concurrent',
     description: 'Make tests run in parallel (default: false)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--sequence.seed <seed>',
@@ -729,7 +739,8 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     path: 'sequence.setupFiles',
     description:
       'Changes the order in which setup files are executed. Accepted values are: "list" and "parallel". If set to "list", will run setup files in the order they are defined. If set to "parallel", will run setup files in parallel (default: "list")',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--inspect [[host:]port]',
@@ -772,19 +783,22 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     path: 'retry',
     description:
       "Retry the test specific number of times if it fails (default: 0). Use '--help --retry' for more info.",
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--retry.count <times>',
     path: 'retry.count',
     description: 'Number of times to retry a test if it fails (default: 0)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--retry.delay <ms>',
     path: 'retry.delay',
     description: 'Delay in milliseconds between retry attempts (default: 0)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--retry.condition <pattern>',
@@ -792,105 +806,122 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Regex pattern to match error messages that should trigger a retry. Only errors matching this pattern will cause a retry (default: retry on all errors)',
     value: 'retry-condition',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--repeats <number>',
     path: 'repeats',
     description:
       'Repeat every test a specific number of times regardless of the result (default: 0)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--diff <path>',
     path: 'diff',
     description:
       "DiffOptions object or a path to a module which exports DiffOptions object. Use '--help --diff' for more info.",
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--diff.aAnnotation <annotation>',
     path: 'diff.aAnnotation',
     description: 'Annotation for expected lines (default: Expected)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--diff.aIndicator <indicator>',
     path: 'diff.aIndicator',
     description: 'Indicator for expected lines (default: -)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--diff.bAnnotation <annotation>',
     path: 'diff.bAnnotation',
     description: 'Annotation for received lines (default: Received)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--diff.bIndicator <indicator>',
     path: 'diff.bIndicator',
     description: 'Indicator for received lines (default: +)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--diff.commonIndicator <indicator>',
     path: 'diff.commonIndicator',
     description: 'Indicator for common lines (default:  )',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--diff.contextLines <lines>',
     path: 'diff.contextLines',
     description: 'Number of lines of context to show around each change (default: 5)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--diff.emptyFirstOrLastLinePlaceholder <placeholder>',
     path: 'diff.emptyFirstOrLastLinePlaceholder',
     description: 'Placeholder for an empty first or last line (default: "")',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--diff.expand',
     path: 'diff.expand',
     description: 'Expand all common lines (default: false)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--diff.includeChangeCounts',
     path: 'diff.includeChangeCounts',
     description: 'Include comparison counts in diff output (default: false)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--diff.omitAnnotationLines',
     path: 'diff.omitAnnotationLines',
     description: 'Omit annotation lines from the output (default: false)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--diff.printBasicPrototype',
     path: 'diff.printBasicPrototype',
     description: 'Print basic prototype Object and Array (default: false)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--diff.maxDepth <maxDepth>',
     path: 'diff.maxDepth',
     description: 'Limit the depth to recurse when printing nested objects (default: 20)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--diff.truncateThreshold <threshold>',
     path: 'diff.truncateThreshold',
     description: 'Number of lines to show before and after each change (default: 0)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--diff.truncateAnnotation <annotation>',
     path: 'diff.truncateAnnotation',
     description: 'Annotation for truncated lines (default: ... Diff result is truncated)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--exclude <glob>',
@@ -903,13 +934,15 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     flag: '--expandSnapshotDiff',
     path: 'expandSnapshotDiff',
     description: 'Show full diff when snapshot fails',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--disableConsoleIntercept',
     path: 'disableConsoleIntercept',
     description: 'Disable automatic interception of console logging (default: false)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--typecheck ',
@@ -1005,7 +1038,8 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     path: 'cache',
     description:
       'Store the results of test runs to run failed and longer test files first (default: true)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--maxConcurrency <number>',
@@ -1019,52 +1053,60 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     path: 'fsModuleCache',
     description:
       'Cache transformed modules on the file system and reuse them between reruns (default: true)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--fsModuleCachePath <path>',
     path: 'fsModuleCachePath',
     description:
       'Directory where the fsModuleCache is stored (default: node_modules/.vitest-cache)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--expect ',
     path: 'expect',
     description: "Configuration options for expect() matches. Use '--help --expect' for more info.",
     value: 'expect',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--expect.requireAssertions',
     path: 'expect.requireAssertions',
     description: 'Require that all tests have at least one assertion',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--expect.poll ',
     path: 'expect.poll',
     description: "Default options for expect.poll(). Use '--help --expect.poll' for more info.",
     value: 'expect-poll',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--expect.poll.interval <interval>',
     path: 'expect.poll.interval',
     description: 'Poll interval in milliseconds for expect.poll() assertions (default: 50)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--expect.poll.timeout <timeout>',
     path: 'expect.poll.timeout',
     description: 'Poll timeout in milliseconds for expect.poll() assertions (default: 1000)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--printConsoleTrace',
     path: 'printConsoleTrace',
     description: 'Always print console stack traces',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--includeTaskLocation',
@@ -1077,7 +1119,8 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     path: 'attachmentsDir',
     description:
       'The directory where attachments from context.annotate are stored in (default: .vitest/attachments)',
-    support: 'config',
+    support: 'refuse',
+    owner: PARKED,
   },
   { flag: '--run', path: 'run', description: 'Disable watch mode', support: 'request' },
   {
@@ -1328,13 +1371,15 @@ export const VITEST_LIST_OPTIONS: readonly VitestCliOption[] = [
     flag: '--json [true/path]',
     path: 'json',
     description: 'Print collected tests as JSON or write to a file (Default: false)',
-    support: 'request',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--filesOnly',
     path: 'filesOnly',
     description: 'Print only test files with out the test cases',
-    support: 'request',
+    support: 'refuse',
+    owner: PARKED,
   },
   {
     flag: '--staticParse',

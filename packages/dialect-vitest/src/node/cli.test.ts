@@ -15,6 +15,7 @@ import {
   vitestFlags,
 } from './cli.ts'
 import { cacOption } from './internal/cac-parse.ts'
+import { VITEST_APPLIED_TEST_KEYS } from './to-neutral.ts'
 
 interface CacLike {
   readonly options: Record<string, unknown>
@@ -372,6 +373,61 @@ describe('Provino on top of the parse', () => {
     assert.deepEqual(codes(['--pool=vmThreads', '--environment', 'node']), [])
     const [watch] = parseVitestCli(['watch']).diagnostics
     assert.match(watch?.message ?? '', /D175/)
+  })
+
+  it('consumes every row it neither refuses nor warns about (D183: nothing is dropped)', () => {
+    // Each `request` row, with what reads it: `provino vitest` or `vitestArgvToRunRequest`.
+    const requestRows = [
+      'root', // readVitestConfig's root
+      'config', // RunRequest.configPath
+      'update', // RunRequest.update
+      'testNamePattern', // RunRequest.namePattern
+      'silent', // the command's display
+      'reporters', // the command's reporter plan
+      'outputFile', // the json report's path
+      'mode', // readVitestConfig's mode
+      'passWithNoTests', // RunRequest.passWithNoTests
+      'shard', // the command's shard
+      'project', // the command's project choice
+      'includeTaskLocation', // the json report's locations
+      'run', // provino vitest runs once
+      'color', // RunRequest.colour
+    ]
+    // Each `config` row goes to the reader as `test`, which applies its top-level key.
+    const configRows = [
+      'dir',
+      'isolate',
+      'globals',
+      'pool',
+      'fileParallelism',
+      'maxWorkers',
+      'environment',
+      'logHeapUsage',
+      'allowOnly',
+      'sequence',
+      'sequence.shuffle',
+      'sequence.shuffle.tests',
+      'sequence.seed',
+      'sequence.hooks',
+      'testTimeout',
+      'hookTimeout',
+      'bail',
+      'exclude',
+      'slowTestThreshold',
+      'teardownTimeout',
+      'maxConcurrency',
+    ]
+    const rows = [...VITEST_CLI_OPTIONS, ...VITEST_LIST_OPTIONS]
+    const paths = (support: string): string[] =>
+      rows.filter((row) => row.support === support).map((row) => row.path)
+    assert.deepEqual(paths('request').sort(), [...requestRows].sort())
+    assert.deepEqual(paths('config').sort(), [...configRows].sort())
+    for (const path of configRows) {
+      assert.ok(VITEST_APPLIED_TEST_KEYS.has(path.split('.')[0] ?? ''), path)
+    }
+    for (const path of ['repeats', 'diff.expand', 'expect.poll', 'retry', 'json']) {
+      assert.match(rows.find((row) => row.path === path)?.owner ?? '', /parked \(D183\)/, path)
+    }
   })
 
   it('refuses help, version and prototype names as unsupported, not as invalid', () => {

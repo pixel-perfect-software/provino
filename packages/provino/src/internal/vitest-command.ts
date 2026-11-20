@@ -244,6 +244,10 @@ export async function runVitestCommand(
     })
     if (report(read.diagnostics, stderr)) return VITEST_ERROR_EXIT
     const rootTest = read.root.test
+    const silent = options.silent ?? rootTest.silent
+    if (silent === 'passed-only') {
+      throw new VitestCommandError('--silent=passed-only is not supported (parked (D183))')
+    }
     const neutrals = chooseProjects(read.projects, options.project)
     const ci = Boolean((io.env ?? process.env).CI)
     const projects: ResolvedProject[] = []
@@ -293,7 +297,7 @@ export async function runVitestCommand(
       ...(results === undefined ? {} : { leadingReporters: [results.reporter] }),
       env: io.env ?? process.env,
       display: {
-        ...(rootTest.silent === true ? { silent: true } : {}),
+        ...(silent === true ? { silent: true } : {}),
         ...(request.colour === undefined ? {} : { colour: request.colour }),
       },
       pool,
@@ -302,6 +306,7 @@ export async function runVitestCommand(
       fileFilters: request.fileFilters.map(coordinatorFilter),
       passWithNoTests,
       ...(bail > 0 ? { bail: { count: bail } } : {}),
+      ...(rootTest.logHeapUsage === true ? { logHeapUsage: true } : {}),
       ...(shard === undefined ? {} : { shard }),
       ...(io.signal === undefined ? {} : { signal: io.signal }),
       ...(io.forceSignal === undefined ? {} : { forceSignal: io.forceSignal }),
