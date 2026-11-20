@@ -5,21 +5,13 @@
 // way Vitest's do (CI, a terminal, an agent) and aren't compared. `mergeConfig` is Vite's, rebuilt
 // in `vite-merge.ts`.
 import { availableParallelism } from 'node:os'
+import { resolve } from 'node:path'
+import { defaultExclude, defaultInclude } from '../dialect.ts'
+import { loadVitestEnv } from './env.ts'
+import type { Rec } from './util.ts'
 import { mergeConfig } from './vite-merge.ts'
 
-type Rec = Record<string, unknown>
-
-/**
- * Vitest's `defaultInclude`.
- * @public
- */
-export const defaultInclude: string[] = ['**/*.{test,spec}.?(c|m)[jt]s?(x)']
-
-/**
- * Vitest's `defaultExclude`.
- * @public
- */
-export const defaultExclude: string[] = ['**/node_modules/**', '**/.git/**']
+export { defaultExclude, defaultInclude }
 
 const isCI = Boolean(process.env.CI) && process.env.CI !== 'false'
 
@@ -137,6 +129,42 @@ export const vitestConfigStandIn: VitestConfigStandIn = {
   coverageConfigDefaults,
   defaultExclude,
   defaultInclude,
+}
+
+/**
+ * The members of `vite` the stand-in serves.
+ * @public
+ */
+export interface ViteStandIn {
+  readonly defineConfig: typeof defineConfig
+  readonly mergeConfig: typeof mergeConfig
+  readonly loadEnv: (
+    mode: string,
+    envDir: string,
+    prefixes?: string | readonly string[],
+  ) => Record<string, string>
+}
+
+/**
+ * What a config that imports only `defineConfig`, `mergeConfig` or `loadEnv` from `vite` is given
+ * (the three need nothing of Vite's but their rule); any other name loads the real package.
+ * @public
+ */
+export const viteStandIn: ViteStandIn = {
+  defineConfig: defineConfig,
+  mergeConfig: mergeConfig,
+  loadEnv(
+    mode: string,
+    envDir: string,
+    prefixes: string | readonly string[] = 'VITE_',
+  ): Record<string, string> {
+    return loadVitestEnv({
+      mode,
+      envDir: resolve(envDir),
+      prefixes: typeof prefixes === 'string' ? [prefixes] : prefixes,
+      processEnv: process.env,
+    })
+  },
 }
 
 export { mergeConfig }

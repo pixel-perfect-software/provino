@@ -8,7 +8,6 @@ import { ConfigReader } from '@provino/types';
 import { ConfigSource } from '@provino/types';
 import { Diagnostic } from '@provino/types';
 import { Dialect } from '@provino/types';
-import { NeutralAlias } from '@provino/types';
 import { NeutralProject } from '@provino/types';
 
 // @public
@@ -41,7 +40,7 @@ export function loadVitestConfig(source: ConfigSource, options: {
 export function loadVitestEnv(options: LoadEnvOptions): Record<string, string>;
 
 // @public
-export function mergeConfig(defaults: Rec$1, overrides: Rec$1, isRoot?: boolean): Rec$1;
+export function mergeConfig(defaults: Rec, overrides: Rec, isRoot?: boolean): Rec;
 
 // @public
 export function parseDotenv(text: string): Record<string, string>;
@@ -54,10 +53,7 @@ export function readVitestConfig(options?: VitestReadOptions): Promise<{
 }>;
 
 // @public
-export function resolveVitestProjects(loaded: VitestLoadedConfig | undefined, options: VitestReadOptions, diagnostics: Diagnostic[]): Promise<VitestResolvedConfig>;
-
-// @public
-export function viteAliasesToNeutral(alias: unknown, diagnostics: Diagnostic[], key: string): NeutralAlias[];
+export function resolveVitestProjects(loaded: VitestLoadedConfig | undefined, options: VitestReadOptions): Promise<VitestResolvedConfig>;
 
 // @public
 export function viteConfigDeclaresTests(root: string): Promise<boolean>;
@@ -116,7 +112,7 @@ export interface VitestReadOptions {
     readonly env?: Readonly<Record<string, string | undefined>>;
     readonly mode?: string;
     readonly root?: string;
-    readonly test?: Readonly<Rec$2>;
+    readonly test?: Readonly<Rec>;
 }
 
 // @public
@@ -129,7 +125,7 @@ export interface VitestResolvedConfig {
 // @public
 export interface VitestResolvedProject {
     readonly configFile: string | null;
-    readonly given: Readonly<Rec$2>;
+    readonly given: Readonly<Rec>;
     readonly importMetaEnv: Readonly<Record<string, string | boolean>>;
     // (undocumented)
     readonly mode: string;
@@ -139,8 +135,8 @@ export interface VitestResolvedProject {
     readonly needsVite: boolean;
     // (undocumented)
     readonly root: string;
-    readonly test: Readonly<Rec$2>;
-    readonly vite: Readonly<Rec$2>;
+    readonly test: Readonly<Rec>;
+    readonly vite: Readonly<Rec>;
 }
 
 // (No @packageDocumentation comment for this package)

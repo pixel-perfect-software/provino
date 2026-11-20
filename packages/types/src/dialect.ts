@@ -4,6 +4,7 @@ import type { SerializedCoverageConfig } from './coverage.ts'
 import type { EnvironmentResolver } from './environment.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { FileRegistry, ModuleMockRegistry } from './loader.ts'
+import type { SerializedModuleMapper } from './resolve.ts'
 import type {
   GlobalSetupArgs,
   MockPolicy,
@@ -170,6 +171,12 @@ export interface NeutralProject {
     readonly options: Readonly<Record<string, JsonValue>>
   }
   readonly aliases: readonly NeutralAlias[]
+  /**
+   * Module mappers, in order, run after `aliases`: a factory's `ModuleRef` and the data it is
+   * called with (Vite's `resolve.alias`, whose rules a regular-expression alias can't carry).
+   * Absent means none.
+   */
+  readonly mappers?: readonly SerializedModuleMapper[]
   /** How specifiers resolve beyond `aliases` (Jest's `moduleDirectories`, `modulePaths`, `resolver`). */
   readonly resolution?: NeutralResolution
   /** Which files count toward coverage, when the project or the run turns it on. Absent means off. */

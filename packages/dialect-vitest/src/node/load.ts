@@ -5,43 +5,31 @@
 // config. A function export is called with Vite's `ConfigEnv`.
 
 import { existsSync, readFileSync } from 'node:fs'
-import { registerHooks } from 'node:module'
+import { createRequire, registerHooks } from 'node:module'
 import { dirname } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { ConfigError, importConfigModule } from '@provino/config'
 import type { ConfigSource } from '@provino/types'
 import { parseSync } from 'oxc-parser'
-import { transformSync } from 'oxc-transform'
 import { VitestConfigError } from './errors.ts'
-import { vitestConfigStandIn } from './vitest-config-stand-in.ts'
+import { isRec } from './util.ts'
+import { viteStandIn, vitestConfigStandIn } from './vitest-config-stand-in.ts'
 
 const STAND_IN_URL = 'provino-vitest-config:stand-in'
-const STAND_IN_KEY = Symbol.for('provino.vitest.config-stand-in')
+const VITE_STAND_IN_URL = 'provino-vitest-config:vite'
+const STAND_IN_KEY = 'provino.vitest.config-stand-in'
+const VITE_STAND_IN_KEY = 'provino.vitest.vite-stand-in'
 
-const STAND_IN_SOURCE = `const s = globalThis[Symbol.for('provino.vitest.config-stand-in')]
-export const defineConfig = s.defineConfig
-export const defineProject = s.defineProject
-export const mergeConfig = s.mergeConfig
-export const configDefaults = s.configDefaults
-export const coverageConfigDefaults = s.coverageConfigDefaults
-export const defaultExclude = s.defaultExclude
-export const defaultInclude = s.defaultInclude
-export default s
-`
-
-/** A declaration of `name` in the module, which a second one would clash with. */
-function declares(text: string, name: string): boolean {
-  return new RegExp(
-    `(?:\\b(?:const|let|var|function|class)\\s+${name}\\b|\\bas\\s+${name}\\b|[{,]\\s*${name}\\s*[,}]\\s*=|\\bimport\\s+${name}\\b)`,
-  ).test(text)
+/** The module a stand-in is served as: each member is a named export, the whole an `export default`. */
+function standInSource(key: string, members: object): string {
+  return [
+    `const s = globalThis[Symbol.for(${JSON.stringify(key)})]`,
+    ...Object.keys(members).map((name) => `export const ${name} = s.${name}`),
+    'export default s',
+    '',
+  ].join('\n')
 }
 
-/**
- * Vite bundles a config and defines `__dirname` and `__filename` in it, whatever its module
- * format, so a config written for the bundler may use them in an ES module. Node doesn't, so an
- * ES module of the project (not under `node_modules`) that names one without declaring it gets
- * the two as constants of its own path.
- */
 /** The project's own files: what Vite's bundler reads, and so what these hooks change. */
 function isProjectFile(url: string): boolean {
   return url.startsWith('file:') && !url.includes('/node_modules/')
@@ -62,12 +50,58 @@ function jsonModule(text: string): string {
   return [`const __json = ${text};`, 'export default __json;', ...named].join('\n')
 }
 
+type ParsedModule = ReturnType<typeof parseSync>['module']
+
+/**
+ * Whether the file imports from `vite` only what the stand-in serves (`defineConfig`,
+ * `mergeConfig`, `loadEnv`; a type import costs nothing), so reading it needs no real Vite.
+ * An `export … from 'vite'`, a dynamic import or any other name keeps the real one.
+ */
+function importsOnlyServedFromVite(module: ParsedModule): boolean {
+  if (module.dynamicImports.length > 0) return false
+  const exported = module.staticExports.some((entry) =>
+    entry.entries.some((item) => item.moduleRequest?.value === 'vite'),
+  )
+  if (exported) return false
+  const served = new Set(Object.keys(viteStandIn))
+  let imported = false
+  for (const statement of module.staticImports) {
+    if (statement.moduleRequest.value !== 'vite') continue
+    imported = true
+    for (const entry of statement.entries) {
+      if (entry.isType) continue
+      if (entry.importName.kind !== 'Name' || !served.has(entry.importName.name ?? '')) return false
+    }
+  }
+  return imported
+}
+
+/** Parents (file URLs) whose `vite` import the stand-in answers; empty when no load is running. */
+const standInParents = new Set<string>()
+
+interface OxcTransform {
+  transformSync(
+    file: string,
+    source: string,
+    options: { sourcemap: false; define?: Record<string, string> },
+  ): { code: string; errors: readonly unknown[] }
+}
+
+let oxcTransform: OxcTransform | undefined
+
+/** Oxc's transform, loaded the first time a config needs it (a TypeScript one, or a `__dirname`). */
+function transformer(): OxcTransform {
+  oxcTransform ??= createRequire(import.meta.url)('oxc-transform') as OxcTransform
+  return oxcTransform
+}
+
 /**
  * Loads a project file the way Vite's bundler reads a config: JSON is a module, a `.js` or `.ts`
  * file is ES module source whatever its package says (unless it is CommonJS by its own syntax),
  * TypeScript is stripped and an import used only as a type goes with it (no run-time import of
  * `vite` for `import { UserConfig } from 'vite'`), and `__dirname` and `__filename` are
- * defined. Everything else, and anything under `node_modules`, loads as Node loads it.
+ * defined where nothing declares them (the transform's own scope-aware define). Everything else,
+ * and anything under `node_modules`, loads as Node loads it.
  */
 function bundled<T extends { format?: string | null | undefined; source?: unknown }>(
   url: string,
@@ -79,41 +113,26 @@ function bundled<T extends { format?: string | null | undefined; source?: unknow
   if (file.endsWith('.json') && context.format === 'module') {
     return { format: 'module', source: jsonModule(readFileSync(file, 'utf8')), shortCircuit: true }
   }
-  if (!TRANSFORMED.test(file) || file.endsWith('.d.ts')) {
-    return withDirnames(url, next(url, context as never))
-  }
+  if (!TRANSFORMED.test(file) || file.endsWith('.d.ts')) return next(url, context as never)
   const source = readFileSync(file, 'utf8')
   // The parse decides: a file the parser rejects is left to Node, which words the error.
   const parsed = parseSync(file, source)
   if (parsed.errors.length > 0) return next(url, context as never)
-  const esm = parsed.module.hasModuleSyntax
-  const typed = /\.[cm]?ts$|\.[jt]sx$/.test(file)
   // A file that is CommonJS by its own syntax (or a .cts/.cjs) keeps Node's loader.
-  if (!esm || /\.c[jt]s$/.test(file)) return withDirnames(url, next(url, context as never))
+  if (!parsed.module.hasModuleSyntax || /\.c[jt]s$/.test(file)) return next(url, context as never)
+  if (importsOnlyServedFromVite(parsed.module)) standInParents.add(url)
+  const typed = /\.[cm]?ts$|\.[jt]sx$/.test(file)
+  const dirnames = /\b__(?:dirname|filename)\b/.test(source)
   // ES module source in a .js file needs no change but its format, whatever its package says.
-  if (!typed) return withDirnames(url, { format: 'module', source, shortCircuit: true } as never)
-  const output = transformSync(file, source, { sourcemap: false })
+  if (!typed && !dirnames) return { format: 'module', source, shortCircuit: true }
+  const output = transformer().transformSync(file, source, {
+    sourcemap: false,
+    ...(dirnames
+      ? { define: { __dirname: JSON.stringify(dirname(file)), __filename: JSON.stringify(file) } }
+      : {}),
+  })
   if (output.errors.length > 0) return next(url, context as never)
-  return withDirnames(url, { format: 'module', source: output.code, shortCircuit: true } as never)
-}
-
-function withDirnames<T extends { format?: string | null | undefined; source?: unknown }>(
-  url: string,
-  result: T,
-): T {
-  if (!url.startsWith('file:') || url.includes('/node_modules/')) return result
-  if (result.format !== 'module' && result.format !== 'module-typescript') return result
-  if (result.source === undefined || result.source === null) return result
-  const text = String(result.source)
-  const wanted = ['__dirname', '__filename'].filter(
-    (name) => new RegExp(`\\b${name}\\b`).test(text) && !declares(text, name),
-  )
-  if (wanted.length === 0) return result
-  const file = fileURLToPath(url.replace(/[?#].*$/, ''))
-  const lines = wanted.map(
-    (name) => `const ${name} = ${JSON.stringify(name === '__dirname' ? dirname(file) : file)};`,
-  )
-  return { ...result, source: `${lines.join(' ')}\n${text}` }
+  return { format: 'module', source: output.code, shortCircuit: true }
 }
 
 const SUFFIXES: readonly string[] = [
@@ -150,10 +169,18 @@ let deregister: (() => void) | undefined
 /** Installs the hooks for the length of `work`; overlapping loads share one pair. */
 async function withStandIn<T>(work: () => Promise<T>): Promise<T> {
   if (active === 0) {
-    Reflect.set(globalThis, STAND_IN_KEY, vitestConfigStandIn)
+    Reflect.set(globalThis, Symbol.for(STAND_IN_KEY), vitestConfigStandIn)
+    Reflect.set(globalThis, Symbol.for(VITE_STAND_IN_KEY), viteStandIn)
     const handle = registerHooks({
       resolve(specifier, context, next) {
         if (specifier === 'vitest/config') return { url: STAND_IN_URL, shortCircuit: true }
+        if (
+          specifier === 'vite' &&
+          context.parentURL !== undefined &&
+          standInParents.has(context.parentURL)
+        ) {
+          return { url: VITE_STAND_IN_URL, shortCircuit: true }
+        }
         try {
           const resolved = next(specifier, context)
           // Vite's bundler reads a JSON import with no attribute; Node refuses it.
@@ -174,7 +201,18 @@ async function withStandIn<T>(work: () => Promise<T>): Promise<T> {
       },
       load(url, context, next) {
         if (url === STAND_IN_URL) {
-          return { format: 'module', source: STAND_IN_SOURCE, shortCircuit: true }
+          return {
+            format: 'module',
+            source: standInSource(STAND_IN_KEY, vitestConfigStandIn),
+            shortCircuit: true,
+          }
+        }
+        if (url === VITE_STAND_IN_URL) {
+          return {
+            format: 'module',
+            source: standInSource(VITE_STAND_IN_KEY, viteStandIn),
+            shortCircuit: true,
+          }
         }
         return bundled(url, context, next)
       },
@@ -189,7 +227,9 @@ async function withStandIn<T>(work: () => Promise<T>): Promise<T> {
     if (active === 0) {
       deregister?.()
       deregister = undefined
-      Reflect.deleteProperty(globalThis, STAND_IN_KEY)
+      Reflect.deleteProperty(globalThis, Symbol.for(STAND_IN_KEY))
+      Reflect.deleteProperty(globalThis, Symbol.for(VITE_STAND_IN_KEY))
+      standInParents.clear()
     }
   }
 }
@@ -206,12 +246,8 @@ export interface VitestLoadedConfig {
   readonly needsVite: boolean
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
 /** Whether a Vite `plugins` value holds a plugin (nested arrays, promises, falsy entries skipped). */
-function hasPlugin(plugins: unknown): boolean {
+export function hasPlugin(plugins: unknown): boolean {
   if (Array.isArray(plugins)) return plugins.some(hasPlugin)
   return Boolean(plugins)
 }
@@ -252,7 +288,7 @@ export async function loadVitestConfig(
       cause instanceof ConfigError ? cause.message : `can't load the config file "${source.path}"`
     throw new VitestConfigError('VITEST_CONFIG_LOAD_FAILED', message, { cause })
   }
-  if (!isRecord(value)) {
+  if (!isRec(value)) {
     throw new VitestConfigError(
       'VITEST_CONFIG_INVALID',
       `the config file "${source.path}" must export an object, or a function that returns one`,

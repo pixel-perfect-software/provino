@@ -1,10 +1,10 @@
 // B25c, T11.15: where a Vitest config is. Vitest 5.0.5 looks in the root only, never upward
 // (`findConfigFile`, `node/config/resolveConfig.ts` L55-L64), for `vitest.config.*` and then
 // `vite.config.*` (`constants.ts` L5-L14); the first that exists wins and the two are not merged.
-import { statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { ConfigSource } from '@provino/types'
 import { VitestConfigError } from './errors.ts'
+import { firstExisting, isFile } from './util.ts'
 
 const CONFIG_NAMES: readonly string[] = ['vitest.config', 'vite.config']
 const CONFIG_EXTENSIONS: readonly string[] = ['.ts', '.mts', '.cts', '.js', '.mjs', '.cjs']
@@ -23,14 +23,6 @@ const WORKSPACE_CANDIDATES: readonly string[] = [
   'vitest.workspace.json',
 ]
 
-function isFile(path: string): boolean {
-  try {
-    return statSync(path).isFile()
-  } catch {
-    return false
-  }
-}
-
 /**
  * The config for `root`: the file `explicit` names (relative to `root`), else the first of
  * `VITEST_CONFIG_CANDIDATES` in `root`. `undefined` when an implicit search finds none (Vitest
@@ -48,11 +40,8 @@ export function findVitestConfig(root: string, explicit?: string): ConfigSource 
     }
     return { kind: 'file', path }
   }
-  for (const candidate of VITEST_CONFIG_CANDIDATES) {
-    const path = resolve(root, candidate)
-    if (isFile(path)) return { kind: 'file', path }
-  }
-  return undefined
+  const path = firstExisting(root, VITEST_CONFIG_CANDIDATES)
+  return path === undefined ? undefined : { kind: 'file', path }
 }
 
 /**
@@ -60,12 +49,11 @@ export function findVitestConfig(root: string, explicit?: string): ConfigSource 
  * @public
  */
 export function findViteConfigFile(root: string): ConfigSource | undefined {
-  for (const candidate of VITEST_CONFIG_CANDIDATES) {
-    if (!candidate.startsWith('vite.config')) continue
-    const path = resolve(root, candidate)
-    if (isFile(path)) return { kind: 'file', path }
-  }
-  return undefined
+  const path = firstExisting(
+    root,
+    VITEST_CONFIG_CANDIDATES.filter((candidate) => candidate.startsWith('vite.config')),
+  )
+  return path === undefined ? undefined : { kind: 'file', path }
 }
 
 /**
@@ -74,9 +62,5 @@ export function findViteConfigFile(root: string): ConfigSource | undefined {
  * @public
  */
 export function findVitestWorkspaceFile(root: string): string | undefined {
-  for (const candidate of WORKSPACE_CANDIDATES) {
-    const path = resolve(root, candidate)
-    if (isFile(path)) return path
-  }
-  return undefined
+  return firstExisting(root, WORKSPACE_CANDIDATES)
 }

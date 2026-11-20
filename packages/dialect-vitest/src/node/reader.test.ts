@@ -333,3 +333,18 @@ test('a projects negation removes what it names from the other patterns', async 
     ['pkg-a', 'scripts'],
   )
 })
+
+test('a relative vite root resolves once, from the directory; inline plugins that are falsy need no Vite', async () => {
+  const root = writeTree({
+    'vitest.config.mjs':
+      "export default { root: 'sub', plugins: [false, [null]], test: { name: 'r' } }\n",
+    'sub/x.txt': '',
+  })
+  const { projects, needsVite } = await readVitestConfig({ cwd: root })
+  assert.equal(projects[0]?.rootDir, `${root}/sub`)
+  assert.equal(needsVite, false)
+  const real = writeTree({
+    'vitest.config.mjs': "export default { plugins: [{ name: 'p' }], test: {} }\n",
+  })
+  assert.equal((await readVitestConfig({ cwd: real })).needsVite, true)
+})

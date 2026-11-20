@@ -9,7 +9,7 @@ import { basename, join, resolve } from 'node:path'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { resolvePolicy } from '@provino/policy'
-import type { NeutralProject, Policy } from '@provino/types'
+import type { ModuleMapper, ModuleMapperFactory, NeutralProject, Policy } from '@provino/types'
 import { vitestPolicy } from '../dialect.ts'
 import { globToRegexSource } from './glob.ts'
 import { readVitestConfig } from './index.ts'
@@ -269,17 +269,24 @@ test('a function export, defineConfig and mergeConfig give what Vitest resolved'
   assert.deepEqual(got, expected)
 })
 
-/** The `$n` replacement of the loader's name mapper: the first rule that matches decides. */
-function mapped(project: NeutralProject, specifier: string): string {
-  for (const rule of project.aliases) {
-    const match = specifier.match(new RegExp(rule.pattern))
-    if (match === null) continue
-    return (rule.targets[0] as string).replaceAll(
-      /\$(\d+)/g,
-      (_, index: string) => match[Number(index)] ?? '',
-    )
+/**
+ * What the project's mappers do to a specifier, built the way a worker's loader builds them: the
+ * factory is imported from its ref and called with its options, and the first hit decides.
+ */
+async function mappersOf(project: NeutralProject): Promise<(specifier: string) => string> {
+  const built: ModuleMapper[] = []
+  for (const mapper of project.mappers ?? []) {
+    const loaded: Record<string, unknown> = await import(mapper.factory.module)
+    const factory = loaded[mapper.factory.export] as ModuleMapperFactory
+    built.push(factory(mapper.options))
   }
-  return specifier
+  return (specifier) => {
+    for (const mapper of built) {
+      const hit = mapper.map(specifier, {} as never)
+      if (hit !== null) return hit.candidates[0] ?? specifier
+    }
+    return specifier
+  }
 }
 
 /** What importing `path` finds: the file, `path.js`, or a directory's index; `export default 'v'`. */
@@ -309,8 +316,9 @@ for (const id of [
     const { projects } = await readVitestConfig({ cwd: proj })
     const project = projects[0]
     assert.ok(project)
+    const mapped = await mappersOf(project)
     for (const spec of specs) {
-      const target = mapped(project, spec)
+      const target = mapped(spec)
       const path = target.startsWith('.') ? resolve(proj, target) : target
       const got = `${spec} -> ${target.startsWith('/') || target.startsWith('.') ? importedValue(path) : 'unresolved'}`
       const golden = recording.titles.find(([, title]) => title.startsWith(`${spec} -> `))?.[1]

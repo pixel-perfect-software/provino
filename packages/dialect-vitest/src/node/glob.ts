@@ -1,18 +1,16 @@
 // B25c: the two glob jobs the reader has, with no glob dependency: a `test.projects` entry that
 // names directories or config files (found by walking the root), and a `test.exclude` glob turned
 // into the regular expression `NeutralDiscovery.excludePatterns` holds.
+import type { Dirent } from 'node:fs'
 import { readdir, stat } from 'node:fs/promises'
-import { join, relative, resolve, sep } from 'node:path'
+import { join, resolve, sep } from 'node:path'
+import { escapeRegex } from './util.ts'
 
 const SPECIAL = /[.+^$()|\\[\]{}*?]/
 
 /** Whether `text` has a glob character. */
 export function isGlob(text: string): boolean {
   return /[*?{}[\]!]/.test(text)
-}
-
-function escapeRegex(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 /** One path segment's glob as a regular expression source (no `/` in it). */
@@ -127,20 +125,37 @@ function ignored(name: string): boolean {
   return name === 'node_modules' || name === '.DS_Store' || name.includes('.timestamp-')
 }
 
-async function walk(base: string, segments: readonly string[], found: Set<string>): Promise<void> {
+/** The entries of each directory, read once per expansion. */
+type Listings = Map<string, Promise<Dirent[]>>
+
+function listing(base: string, listings: Listings): Promise<Dirent[]> {
+  let entries = listings.get(base)
+  if (entries === undefined) {
+    entries = readdir(base, { withFileTypes: true }).catch(() => [])
+    listings.set(base, entries)
+  }
+  return entries
+}
+
+async function walk(
+  base: string,
+  segments: readonly string[],
+  found: Set<string>,
+  listings: Listings,
+): Promise<void> {
   const [head, ...rest] = segments
   if (head === undefined) {
     found.add(base)
     return
   }
   if (head === '**') {
-    await walk(base, rest, found)
-    const entries = await readdir(base, { withFileTypes: true }).catch(() => [])
-    for (const entry of entries) {
-      if (entry.isDirectory() && !ignored(entry.name)) {
-        await walk(join(base, entry.name), segments, found)
-      }
-    }
+    const entries = await listing(base, listings)
+    await Promise.all([
+      walk(base, rest, found, listings),
+      ...entries
+        .filter((entry) => entry.isDirectory() && !ignored(entry.name))
+        .map((entry) => walk(join(base, entry.name), segments, found, listings)),
+    ])
     return
   }
   if (!isGlob(head)) {
@@ -151,16 +166,21 @@ async function walk(base: string, segments: readonly string[], found: Set<string
         () => false,
       )
     )
-      await walk(next, rest, found)
+      await walk(next, rest, found, listings)
     return
   }
   const test = matcher(head)
-  const entries = await readdir(base, { withFileTypes: true }).catch(() => [])
-  for (const entry of entries) {
-    if (!test.test(entry.name) || ignored(entry.name)) continue
-    if (rest.length > 0 && !entry.isDirectory()) continue
-    await walk(join(base, entry.name), rest, found)
-  }
+  const entries = await listing(base, listings)
+  await Promise.all(
+    entries
+      .filter(
+        (entry) =>
+          test.test(entry.name) &&
+          !ignored(entry.name) &&
+          (rest.length === 0 || entry.isDirectory()),
+      )
+      .map((entry) => walk(join(base, entry.name), rest, found, listings)),
+  )
 }
 
 /**
@@ -171,6 +191,7 @@ async function walk(base: string, segments: readonly string[], found: Set<string
  */
 export async function expandGlobs(root: string, patterns: readonly string[]): Promise<string[]> {
   const found = new Set<string>()
+  const listings: Listings = new Map()
   const negated: RegExp[] = []
   for (const pattern of patterns) {
     if (pattern.startsWith('!')) {
@@ -179,7 +200,7 @@ export async function expandGlobs(root: string, patterns: readonly string[]): Pr
     }
     for (const expanded of expandBraces(pattern)) {
       const clean = expanded.replace(/^\.\//, '').replace(/\/+$/, '')
-      await walk(resolve(root), clean === '' ? [] : clean.split('/'), found)
+      await walk(resolve(root), clean === '' ? [] : clean.split('/'), found, listings)
     }
   }
   return [...found]
@@ -187,7 +208,9 @@ export async function expandGlobs(root: string, patterns: readonly string[]): Pr
     .sort()
 }
 
-/** The path from `root`, POSIX. */
-export function relativeTo(root: string, path: string): string {
-  return relative(root, path).split(sep).join('/')
+/** Whether a negated project pattern (`!glob`) names `path`. */
+export function isNegated(path: string, negations: readonly string[], root: string): boolean {
+  return negations.some((negation) =>
+    new RegExp(globToRegexSource(negation.slice(1), root)).test(path),
+  )
 }

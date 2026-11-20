@@ -44,7 +44,7 @@ export {
   type VitestResolvedConfig,
   type VitestResolvedProject,
 } from './normalize.ts'
-export { viteAliasesToNeutral, vitestProjectToNeutral } from './to-neutral.ts'
+export { vitestProjectToNeutral } from './to-neutral.ts'
 export { mergeConfig } from './vite-merge.ts'
 export {
   configDefaults as vitestConfigDefaults,
@@ -87,11 +87,10 @@ export function createVitestConfigReader(
           message: `${workspace} is not read: Vitest 4 and later ignore vitest.workspace files; list the projects in test.projects`,
         })
       }
-      const value = await resolveVitestProjects(
-        raw,
-        { ...options, cwd: options.cwd ?? process.cwd() },
-        diagnostics,
-      )
+      const value = await resolveVitestProjects(raw, {
+        ...options,
+        cwd: options.cwd ?? process.cwd(),
+      })
       return { value, diagnostics }
     },
     toNeutral(resolved: VitestResolvedConfig) {

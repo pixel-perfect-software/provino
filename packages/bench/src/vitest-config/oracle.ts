@@ -90,11 +90,7 @@ export async function readWithProvino(config: string): Promise<ProvinoOutcome> {
     if (source === undefined || !existsSync(source.path)) throw new Error('config not found')
     const loaded = await loadVitestConfig(source, { mode: 'test' })
     const warnings: string[] = []
-    const resolved = await resolveVitestProjects(
-      loaded,
-      { cwd: root, config: basename(config) },
-      [],
-    )
+    const resolved = await resolveVitestProjects(loaded, { cwd: root, config: basename(config) })
     return {
       ok: true,
       // `root` is computed from the config, so it joins the merged keys here.

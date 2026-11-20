@@ -1,8 +1,9 @@
 // B25c, T11.15: `import.meta.env` for a Vitest project, from `mode` and the `.env*` files, as
 // Vite's `loadEnv` reads them (`dotenv` 16's parser and `dotenv-expand`'s substitution, rebuilt
 // here: the config reader runs without Vite). Held to Vite's own `loadEnv` by `env.test.ts`.
-import { readFileSync, statSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { isFile } from './util.ts'
 
 const LINE =
   /(?:^|^)\s*(?:export\s+)?([\w.-]+)(?:\s*=\s*?|:\s+?)(\s*'(?:\\'|[^'])*'|\s*"(?:\\"|[^"])*"|\s*`(?:\\`|[^`])*`|[^#\r\n]+)?\s*(?:#.*)?(?:$|$)/gm
@@ -65,14 +66,6 @@ export function expandDotenv(
     expanded[key] = interpolate(base ?? '', key, processEnv, expanded, new Set())
   }
   return expanded
-}
-
-function isFile(path: string): boolean {
-  try {
-    return statSync(path).isFile()
-  } catch {
-    return false
-  }
 }
 
 /** What `loadVitestEnv` reads. */

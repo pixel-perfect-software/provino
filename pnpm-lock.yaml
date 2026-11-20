@@ -902,6 +902,9 @@ importers:
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
+      '@provino/resolver':
+        specifier: workspace:*
+        version: link:../resolver
       '@provino/types':
         specifier: workspace:*
         version: link:../types

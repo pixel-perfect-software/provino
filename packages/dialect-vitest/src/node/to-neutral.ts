@@ -6,23 +6,20 @@
 import { existsSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
+import { moduleRef } from '@provino/policy'
 import type {
   Diagnostic,
   JsonValue,
-  NeutralAlias,
+  ModuleMapperFactory,
   NeutralProject,
   PolicyOverrides,
+  SerializedModuleMapper,
 } from '@provino/types'
 import { VitestConfigError } from './errors.ts'
 import { globToRegexSource } from './glob.ts'
 import type { VitestResolvedProject } from './normalize.ts'
-import { mergeAlias } from './vite-merge.ts'
-
-type Rec = Record<string, unknown>
-
-function isRec(value: unknown): value is Rec {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
+import { isRec, type Rec } from './util.ts'
+import { mergeAlias, normalizeAlias } from './vite-merge.ts'
 
 const SOURCE_EXTENSIONS: readonly string[] = ['ts', 'mts', 'cts', 'js', 'mjs', 'cjs', 'tsx', 'jsx']
 
@@ -98,107 +95,50 @@ function absolute(entry: string, root: string, key: string): string {
   }
 }
 
-function regexGroups(source: string): number {
-  return (new RegExp(`${source}|`).exec('') ?? []).length - 1
-}
-
-/** `$&`, `$\``, `$'` and `$<name>` have no counterpart in a mapped target. */
-const UNMAPPABLE_REPLACEMENT = /\$[&`'<]/
-
-function escapeRegex(text: string): string {
-  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-}
-
 /**
- * Vite's `resolve.alias` entries (object or list) as the neutral alias rules, which replace whole
- * specifiers with `$n` targets: a string `find` matches the specifier or a path under it, a RegExp
- * replaces its match (head and tail kept). `@provino/resolver`'s `viteAliasMapper` is the same rule
- * written directly; this form is what the loader's alias list carries today.
- * @public
+ * Vite's `resolve.alias` merged with `test.alias` as the one mapper that applies plugin-alias's
+ * rule exactly (`@provino/resolver`'s `viteAliasMapper`), or none when there are no entries.
  */
-export function viteAliasesToNeutral(
-  alias: unknown,
-  diagnostics: Diagnostic[],
-  key: string,
-): NeutralAlias[] {
-  const entries: { find: unknown; replacement: unknown }[] = Array.isArray(alias)
-    ? alias.filter(isRec).map((entry) => ({ find: entry.find, replacement: entry.replacement }))
-    : isRec(alias)
-      ? Object.entries(alias).map(([find, replacement]) => ({ find, replacement }))
-      : []
-  const out: NeutralAlias[] = []
-  for (const { find, replacement } of entries) {
-    if (typeof replacement !== 'string' || UNMAPPABLE_REPLACEMENT.test(replacement)) {
-      diagnostics.push({
-        level: 'warning',
-        code: 'VITEST_CONFIG_NOT_APPLIED',
-        message: `${key}: the alias for ${String(find)} has a replacement this reader can't map and was dropped`,
-        key,
-      })
-      continue
-    }
-    if (typeof find === 'string') {
-      const base = find.endsWith('/') && replacement.endsWith('/') ? find.slice(0, -1) : find
-      const target =
-        find.endsWith('/') && replacement.endsWith('/') ? replacement.slice(0, -1) : replacement
-      out.push({ pattern: `^${escapeRegex(base)}(/.*)?$`, targets: [`${target}$1`] })
-    } else if (find instanceof RegExp) {
-      if (/[^gdu]/.test(find.flags.replace(/[gdu]/g, ''))) {
-        diagnostics.push({
-          level: 'warning',
-          code: 'VITEST_CONFIG_NOT_APPLIED',
-          message: `${key}: the alias ${String(find)} has flags (${find.flags}) the neutral alias can't carry and was dropped`,
-          key,
-        })
-        continue
-      }
-      const groups = regexGroups(find.source)
-      const shifted = replacement.replace(
-        /\$(\d+)/g,
-        (_, digits: string) => `$${Number(digits) + 1}`,
-      )
-      out.push({
-        pattern: `^(.*?)(?:${find.source})(.*)$`,
-        targets: [`$1${shifted}$${groups + 2}`],
-      })
-    }
-  }
-  return out
+function viteAliasMappers(alias: unknown): SerializedModuleMapper[] {
+  const aliases = normalizeAlias(alias).flatMap(({ find, replacement }) =>
+    typeof replacement !== 'string' || !(typeof find === 'string' || find instanceof RegExp)
+      ? []
+      : [
+          {
+            find: typeof find === 'string' ? find : { source: find.source, flags: find.flags },
+            replacement,
+          },
+        ],
+  )
+  if (aliases.length === 0) return []
+  return [
+    {
+      factory: moduleRef<ModuleMapperFactory>(
+        import.meta.resolve('@provino/resolver/vite-alias'),
+        'viteAliasMapper',
+      ),
+      options: { aliases },
+    },
+  ]
 }
+
+/** A key read and not applied: a warning that names the phase that will. */
+function notApplied(diagnostics: Diagnostic[], key: string, message: string): void {
+  diagnostics.push({ level: 'warning', code: 'VITEST_CONFIG_NOT_APPLIED', message, key })
+}
+
+/** Each `sequence.hooks` value: the order of the `before` hooks, then of the `after` hooks (D60). */
+const HOOK_ORDERS = {
+  stack: ['declaration', 'reverse'],
+  list: ['declaration', 'declaration'],
+  parallel: ['parallel', 'parallel'],
+} as const
 
 /** Vitest's `sequence.hooks` as the policy's per-kind order (D60). */
 function hookOrder(hooks: unknown): PolicyOverrides['core'] | undefined {
-  if (hooks === 'stack') {
-    return {
-      hookOrder: {
-        beforeAll: 'declaration',
-        beforeEach: 'declaration',
-        afterEach: 'reverse',
-        afterAll: 'reverse',
-      },
-    }
-  }
-  if (hooks === 'list') {
-    return {
-      hookOrder: {
-        beforeAll: 'declaration',
-        beforeEach: 'declaration',
-        afterEach: 'declaration',
-        afterAll: 'declaration',
-      },
-    }
-  }
-  if (hooks === 'parallel') {
-    return {
-      hookOrder: {
-        beforeAll: 'parallel',
-        beforeEach: 'parallel',
-        afterEach: 'parallel',
-        afterAll: 'parallel',
-      },
-    }
-  }
-  return undefined
+  if (typeof hooks !== 'string' || !Object.hasOwn(HOOK_ORDERS, hooks)) return undefined
+  const [before, after] = HOOK_ORDERS[hooks as keyof typeof HOOK_ORDERS]
+  return { hookOrder: { beforeAll: before, beforeEach: before, afterEach: after, afterAll: after } }
 }
 
 const ENVIRONMENT_OPTION_KEY: Readonly<Record<string, string>> = {
@@ -219,33 +159,30 @@ export function vitestProjectToNeutral(project: VitestResolvedProject): {
   const { root, test, given } = project
   for (const [key, phase] of NOT_APPLIED) {
     if (read(given as Rec, key) === undefined) continue
-    diagnostics.push({
-      level: 'warning',
-      code: 'VITEST_CONFIG_NOT_APPLIED',
-      message: `test.${key} is read and not applied yet: it comes with ${phase}`,
-      key: `test.${key}`,
-    })
+    notApplied(
+      diagnostics,
+      `test.${key}`,
+      `test.${key} is read and not applied yet: it comes with ${phase}`,
+    )
   }
   for (const key of ['define', 'resolve.conditions', 'plugins']) {
     if (read(project.vite as Rec, key) === undefined) continue
-    if (key === 'plugins' && project.vite.plugins !== undefined && !project.needsVite) continue
-    diagnostics.push({
-      level: 'warning',
-      code: 'VITEST_CONFIG_NOT_APPLIED',
-      message: `${key} is read and not applied yet: it comes with B25d (the Vite bridge and the transform)`,
+    if (key === 'plugins' && !project.needsVite) continue
+    notApplied(
+      diagnostics,
       key,
-    })
+      `${key} is read and not applied yet: it comes with B25d (the Vite bridge and the transform)`,
+    )
   }
   const sequence = isRec(test.sequence) ? test.sequence : {}
   const shuffle = sequence.shuffle
   const shuffleTests = shuffle === true || (isRec(shuffle) && shuffle.tests === true)
   if (isRec(shuffle) && shuffle.files === true) {
-    diagnostics.push({
-      level: 'warning',
-      code: 'VITEST_CONFIG_NOT_APPLIED',
-      message: 'test.sequence.shuffle.files is read and not applied yet: it comes with B25g',
-      key: 'test.sequence.shuffle.files',
-    })
+    notApplied(
+      diagnostics,
+      'test.sequence.shuffle.files',
+      'test.sequence.shuffle.files is read and not applied yet: it comes with B25g',
+    )
   }
   const environmentName = typeof test.environment === 'string' ? test.environment : 'node'
   const environmentOptions = isRec(test.environmentOptions) ? test.environmentOptions : {}
@@ -256,11 +193,7 @@ export function vitestProjectToNeutral(project: VitestResolvedProject): {
   const viteAlias = isRec(project.vite.resolve) ? project.vite.resolve.alias : undefined
   // Vitest merges `test.alias` into `resolve.alias` with Vite's `mergeAlias` (recorded: a `test.alias`
   // entry wins over a `resolve.alias` entry with the same find, `resolve/vite-alias-order`).
-  const aliases = viteAliasesToNeutral(
-    mergeAlias(viteAlias, test.alias),
-    diagnostics,
-    'resolve.alias',
-  )
+  const mappers = viteAliasMappers(mergeAlias(viteAlias, test.alias))
   const include = list(test.include)
   const exclude = list(test.exclude)
   const dir = typeof test.dir === 'string' ? resolve(root, test.dir) : root
@@ -343,7 +276,8 @@ export function vitestProjectToNeutral(project: VitestResolvedProject): {
     globalSetup: list(test.globalSetup).map((entry) => absolute(entry, root, 'test.globalSetup')),
     globalTeardown: [],
     environment: { name: environmentName, options: environmentJson as Record<string, JsonValue> },
-    aliases,
+    aliases: [],
+    ...(mappers.length === 0 ? {} : { mappers }),
     transforms: [],
     transformIgnorePatterns: [],
     snapshotSerializers: serializers,

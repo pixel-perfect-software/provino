@@ -138,3 +138,52 @@ test('a file the parser rejects is left to Node, whose error is the one reported
   assert.equal((error as { code?: string }).code, 'VITEST_CONFIG_LOAD_FAILED')
   assert.ok(causes(error).some((entry) => entry instanceof SyntaxError))
 })
+
+test('a config that imports only defineConfig, mergeConfig and loadEnv from vite needs no Vite', async () => {
+  const { loaded } = await load(
+    {
+      '.env': 'VITE_NAME=from-env\nOTHER=x\n',
+      'package.json': '{"type":"module"}',
+      'vite.config.ts':
+        "import { defineConfig, loadEnv, mergeConfig, type UserConfig } from 'vite'\nconst env = loadEnv('test', __dirname, 'VITE_')\nconst base: UserConfig = { test: { name: env.VITE_NAME } }\nexport default defineConfig(mergeConfig(base, { test: { globals: true } }))\n",
+    },
+    'vite.config.ts',
+  )
+  assert.deepEqual(loaded.config, { test: { name: 'from-env', globals: true } })
+})
+
+test('any other export of vite loads the real package: not found here, a coded error', async () => {
+  const error = await loadError(
+    {
+      'package.json': '{"type":"module"}',
+      'vite.config.ts':
+        "import { defineConfig, build } from 'vite'\nexport default defineConfig({ test: { name: typeof build } })\n",
+    },
+    'vite.config.ts',
+  )
+  assert.equal((error as { code?: string }).code, 'VITEST_CONFIG_LOAD_FAILED')
+})
+
+test('__dirname is defined where nothing declares it, and not where something does', async () => {
+  const { root, loaded } = await load(
+    {
+      'package.json': '{"type":"module"}',
+      'vitest.config.mjs':
+        "const a = 1, __dirname = 'declared'\nexport default { test: { name: a + __dirname + typeof __filename } }\n",
+      'other.mjs': '',
+    },
+    'vitest.config.mjs',
+  )
+  assert.deepEqual(loaded.config, { test: { name: '1declaredstring' } })
+  const imported = await load(
+    {
+      'package.json': '{"type":"module"}',
+      'dir.mjs': "export const __dirname = 'imported'\n",
+      'vitest.config.mjs':
+        "import { __dirname } from './dir.mjs'\nexport default { test: { name: __dirname } }\n",
+    },
+    'vitest.config.mjs',
+  )
+  assert.deepEqual(imported.loaded.config, { test: { name: 'imported' } })
+  assert.ok(root.length > 0)
+})

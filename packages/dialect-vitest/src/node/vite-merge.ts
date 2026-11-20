@@ -2,11 +2,7 @@
 // which `vitest/config` re-exports, rebuilt so a config's `mergeConfig` call needs no Vite. Held to
 // the real one by `vite-merge.test.ts`, in-process, over the cases below.
 
-type Rec = Record<string, unknown>
-
-function isObject(value: unknown): value is Rec {
-  return Object.prototype.toString.call(value) === '[object Object]'
-}
+import { isRec as isObject, type Rec } from './util.ts'
 
 function arraify<T>(value: T | readonly T[]): T[] {
   return Array.isArray(value) ? [...(value as readonly T[])] : [value as T]
@@ -34,7 +30,7 @@ function normalizeSingleAlias(entry: Rec): AliasEntry {
   return alias
 }
 
-function normalizeAlias(value: unknown): AliasEntry[] {
+export function normalizeAlias(value: unknown): AliasEntry[] {
   if (Array.isArray(value)) return value.map((entry) => normalizeSingleAlias(entry as Rec))
   if (isObject(value)) {
     return Object.keys(value).map((find) =>

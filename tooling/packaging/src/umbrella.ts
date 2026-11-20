@@ -28,6 +28,8 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   // The Vitest dialect's worker half (B25c: the coordinator's detection imports the dialect, whose
   // value names this ref). A stub until B25b/B25f; the Jest worker never loads it.
   '@provino/dialect-vitest/runtime': 'worker/vitest-runtime',
+  // Vite's alias rule as a mapper, loaded by the worker's loader when a Vitest project has aliases.
+  '@provino/resolver/vite-alias': 'worker/vite-alias',
   '@provino/policy/behaviours': 'worker/policy-behaviours',
   '@provino/env-node': 'worker/env-node',
   '@provino/env-jsdom': 'worker/env-jsdom',

@@ -19,6 +19,11 @@
       "provino-source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./vite-alias": {
+      "provino-source": "./src/vite-alias.ts",
+      "types": "./dist/vite-alias.d.ts",
+      "import": "./dist/vite-alias.js"
     }
   },
   "files": [
