@@ -1,21 +1,25 @@
 // T11.13: what bare `provino` runs. Gap 8 of B14: a `provino.config.*` first, then the runner the
-// project's own config names.
+// project's own config names. D200: the nearest directory holding any config wins.
 import { readdir, readFile } from 'node:fs/promises'
-import { findConfigUpward } from '@provino/config'
-import { jestNodeDialect } from '@provino/dialect-jest/node'
+import { dirname, join } from 'node:path'
+import { findConfigInDirectory } from '@provino/config'
+import { JEST_CONFIG_CANDIDATES } from '@provino/dialect-jest/node'
 import { UsageError } from './usage-error.ts'
 
 /**
- * What a project directory is.
+ * What a project directory is, and the directory whose config says so.
  * @internal
  */
 export type DetectedProject =
-  | { readonly kind: 'provino'; readonly config: string }
-  | { readonly kind: 'jest' }
-  | { readonly kind: 'vitest' }
+  | { readonly kind: 'provino'; readonly config: string; readonly directory: string }
+  | { readonly kind: 'jest'; readonly directory: string }
+  | { readonly kind: 'vitest'; readonly directory: string }
 
 const VITEST_CONFIG = /^vitest\.(config|workspace)\.(ts|mts|cts|js|mjs|cjs|json)$/
 const VITE_CONFIG = /^vite\.config\.(ts|mts|cts|js|mjs|cjs)$/
+
+/** What ends the walk up (D196): a directory holding one of these is the top of a project or workspace. */
+const ROOT_MARKERS: readonly string[] = ['.git', 'pnpm-workspace.yaml']
 
 /** Whether `package.json` at `path` has a `jest` key (a Jest source may be a `package.json` without one). */
 async function hasJestKey(path: string): Promise<boolean> {
@@ -27,11 +31,11 @@ async function hasJestKey(path: string): Promise<boolean> {
   }
 }
 
-/** Whether `cwd`'s `vite.config.*` has a `test` key; the reader loads only when there is one. */
-async function declaresTests(cwd: string): Promise<boolean> {
+/** Whether `directory`'s `vite.config.*` has a `test` key; the reader loads only when there is one. */
+async function declaresTests(directory: string): Promise<boolean> {
   try {
     const { viteConfigDeclaresTests } = await import('@provino/dialect-vitest/node')
-    return await viteConfigDeclaresTests(cwd)
+    return await viteConfigDeclaresTests(directory)
   } catch {
     // A `vite.config.*` that doesn't load is not evidence of a Vitest project: a Jest project may
     // carry one for its bundler, and a project with only that one is reported as having no config.
@@ -39,42 +43,52 @@ async function declaresTests(cwd: string): Promise<boolean> {
   }
 }
 
-async function findsJest(cwd: string): Promise<boolean> {
-  const source = await jestNodeDialect.configReader?.find(cwd)
-  if (source === undefined) return false
-  return source.kind === 'package-json' ? hasJestKey(source.path) : true
+/** Whether `directory` itself holds a Jest config (a `package.json` counts only with a `jest` key). */
+async function holdsJest(directory: string, names: ReadonlySet<string>): Promise<boolean> {
+  if (JEST_CONFIG_CANDIDATES.some((name) => name !== 'package.json' && names.has(name))) return true
+  return names.has('package.json') && (await hasJestKey(join(directory, 'package.json')))
 }
 
 /**
- * Decides what to run in `cwd`. A forced dialect (`--dialect`) skips the search. Otherwise the
- * first `provino.config.*` found walking up from `cwd` wins (D196: it stops at a directory with
- * `.git` or `pnpm-workspace.yaml`), and the Jest code is not loaded; else the Jest config found from `cwd` (the upward walk Jest
- * does, a `package.json` counting only with a `jest` key) or a `vitest.config.*`/
- * `vitest.workspace.*` in `cwd`, or a `vite.config.*` there with a `test` key (read once, by
- * importing it, with no Vite: B25c); both is an error, and none is too.
+ * Decides what to run from `cwd` (D200). A forced dialect (`--dialect`) skips the search.
+ * Otherwise it walks up from `cwd`, and the first directory that holds any config decides: its
+ * `provino.config.*`, else its Jest config (a `package.json` counting only with a `jest` key),
+ * else its `vitest.config.*`/`vitest.workspace.*`, or a `vite.config.*` with a `test` key (read
+ * once, by importing it, with no Vite: B25c). A Jest and a Vitest config in one directory is an
+ * error, and a `provino.config.*` beside either wins. The walk stops after a directory with
+ * `.git` or `pnpm-workspace.yaml` (D196), and none found is an error. The Jest dialect's code
+ * is still imported by this file whatever the answer (B27e makes that lazy).
  * @internal
  */
 export async function detectProject(
   cwd: string,
   forced?: 'jest' | 'vitest',
 ): Promise<DetectedProject> {
-  if (forced !== undefined) return { kind: forced }
-  const config = await findConfigUpward(cwd)
-  if (config !== undefined) return { kind: 'provino', config }
-  const names = new Set(await readdir(cwd).catch(() => [] as string[]))
-  const jest = await findsJest(cwd)
-  // A Jest config settles it: `vite.config.*` is read only when nothing else says what this is.
-  const vitest =
-    [...names].some((name) => VITEST_CONFIG.test(name)) ||
-    (!jest && [...names].some((name) => VITE_CONFIG.test(name)) && (await declaresTests(cwd)))
-  if (jest && vitest) {
-    throw new UsageError(
-      'found both a Jest config and a Vitest config here: say which one to run with --dialect jest or --dialect vitest',
-    )
+  if (forced !== undefined) return { kind: forced, directory: cwd }
+  let directory = cwd
+  for (;;) {
+    const config = await findConfigInDirectory(directory)
+    if (config !== undefined) return { kind: 'provino', config, directory }
+    const names = new Set(await readdir(directory).catch(() => [] as string[]))
+    const jest = await holdsJest(directory, names)
+    // A Jest config settles it: `vite.config.*` is read only when nothing else says what this is.
+    const vitest =
+      [...names].some((name) => VITEST_CONFIG.test(name)) ||
+      (!jest &&
+        [...names].some((name) => VITE_CONFIG.test(name)) &&
+        (await declaresTests(directory)))
+    if (jest && vitest) {
+      throw new UsageError(
+        `found both a Jest config and a Vitest config in ${directory}: say which one to run with --dialect jest or --dialect vitest`,
+      )
+    }
+    if (jest) return { kind: 'jest', directory }
+    if (vitest) return { kind: 'vitest', directory }
+    const parent = dirname(directory)
+    if (ROOT_MARKERS.some((marker) => names.has(marker)) || parent === directory) break
+    directory = parent
   }
-  if (jest) return { kind: 'jest' }
-  if (vitest) return { kind: 'vitest' }
   throw new UsageError(
-    `found no provino.config.*, Jest config or Vitest config in ${cwd} (provino jest runs a Jest project with Jest's defaults)`,
+    `found no provino.config.*, Jest config or Vitest config in ${cwd} or a parent directory (provino jest runs a Jest project with Jest's defaults)`,
   )
 }

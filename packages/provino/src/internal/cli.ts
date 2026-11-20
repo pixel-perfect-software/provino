@@ -1,5 +1,4 @@
 import { type ParseArgsOptionsConfig, parseArgs } from 'node:util'
-import { findConfigUpward } from '@provino/config'
 import { ExitCode } from '@provino/orchestrator'
 import type { TextSink } from '@provino/reporters'
 import type { PoolKind } from '@provino/types'
@@ -338,11 +337,24 @@ async function runBare(args: readonly string[], io: CliIo): Promise<number> {
     throw new UsageError(`--dialect must be jest or vitest (got "${dialect}")`)
   }
   const found = await detectProject(cwd, dialect)
-  if (found.kind === 'vitest') return runBareVitest(rest, io)
+  if (found.kind === 'vitest') return runBareVitest(rest, io, found.directory)
   if (found.kind === 'jest') return runBareJest(rest, io)
   const parsed = parseRunArgs(['--config', found.config, ...rest])
   if (parsed.type === 'help') return helpExit(io)
   return runCommand(parsed, io)
+}
+
+/**
+ * The config `provino run` takes with no `--config`: the nearest directory with any config decides
+ * (D200), so a Jest or Vitest config nearer than a `provino.config.*` is an error that says so,
+ * not a reason to run the farther one.
+ */
+async function nearestProvinoConfig(cwd: string): Promise<string> {
+  const found = await detectProject(cwd)
+  if (found.kind === 'provino') return found.config
+  throw new UsageError(
+    `the nearest config is a ${found.kind === 'jest' ? 'Jest' : 'Vitest'} config in ${found.directory}, not a provino.config.*: run provino there, or name the file with --config <file>`,
+  )
 }
 
 /** `provino run`: the run, then the process's exit if `--forceExit` asked for it. */
@@ -351,12 +363,7 @@ async function runCommand(
   io: CliIo,
 ): Promise<number> {
   const cwd = io.cwd ?? process.cwd()
-  const config = parsed.options.config ?? (await findConfigUpward(cwd))
-  if (config === undefined) {
-    throw new UsageError(
-      `found no provino.config.* in ${cwd} or a parent directory (--config <file> names one)`,
-    )
-  }
+  const config = parsed.options.config ?? (await nearestProvinoConfig(cwd))
   const { exitCode } = await run({ ...parsed.options, config, ...ioOptions(io) })
   if (parsed.forceExit === true) {
     if (parsed.options.detectOpenHandles !== true) {
@@ -385,12 +392,16 @@ function runBareJest(args: readonly string[], io: CliIo): Promise<number> {
  * `provino vitest`, imported only here, so a Jest or `provino run` command loads none of the Vitest
  * dialect's coordinator code (D115, `speed`).
  */
-async function runBareVitest(args: readonly string[], io: CliIo): Promise<number> {
+async function runBareVitest(
+  args: readonly string[],
+  io: CliIo,
+  directory?: string,
+): Promise<number> {
   const { runVitestCommand } = await import('./vitest-command.ts')
   return runVitestCommand(args, {
     stdout: io.stdout ?? process.stdout,
     stderr: io.stderr ?? process.stderr,
-    cwd: io.cwd ?? process.cwd(),
+    cwd: directory ?? io.cwd ?? process.cwd(),
     ...(io.env === undefined ? {} : { env: io.env }),
     ...(io.signal === undefined ? {} : { signal: io.signal }),
     ...(io.forceSignal === undefined ? {} : { forceSignal: io.forceSignal }),

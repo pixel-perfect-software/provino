@@ -11,10 +11,12 @@ Commands:
   vitest   Run a Vitest project (not available yet)
   run      Run a project from a provino config file: provino run [--config <file>] [options]
 
-With no command, provino [options] runs the provino.config.* found from this directory upward (the
-search stops at a directory with .git or pnpm-workspace.yaml), else the Jest config found from it;
---dialect jest|vitest names the runner and skips that search. A config that names no dialect runs
-Provino's own: it loads no Jest or Vitest code. provino jest
+With no command, provino [options] walks up from this directory to the nearest one that holds a
+config of any kind and runs it: a provino.config.* (which wins within one directory), else a Jest
+config, else a Vitest config; the walk stops at a directory with .git or pnpm-workspace.yaml.
+provino run takes a provino.config.* only, and says so when the nearest config is another kind.
+--dialect jest|vitest names the runner and skips the search. A config that names no dialect runs
+Provino's own policy; this build still loads the Jest dialect's code at start. provino jest
 takes Jest's own flags; one Provino can't run yet is refused by name, with the task that builds it.
 
 Options of provino run:

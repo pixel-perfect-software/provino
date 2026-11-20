@@ -5,7 +5,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, describe, it } from 'node:test'
-import { passing, spawnCli } from './support.ts'
+import { jestConfigJson, passing, spawnCli } from './support.ts'
 
 const made: string[] = []
 after(async () => {
@@ -43,6 +43,32 @@ describe('config discovery', () => {
     }
   })
 
+  it('the nearest config of any kind wins: a Jest config below a provino.config (D200)', async () => {
+    const dir = await tree({
+      'provino.config.mjs': "export default { dialect: 'jest', include: ['nothing/**'] }\n",
+      'packages/x/jest.config.json': jestConfigJson(),
+      'packages/x/tests/a.test.js': passing('a'),
+    })
+    const bare = await spawnCli([], { cwd: join(dir, 'packages/x') })
+    assert.equal(bare.code, 0, bare.stderr)
+    assert.match(bare.stderr, /PASS tests\/a\.test\.js/)
+    // `provino run` takes provino's own config only: the nearest one is not that, and it says so.
+    const run = await spawnCli(['run'], { cwd: join(dir, 'packages/x') })
+    assert.equal(run.code, 2, run.stderr)
+    assert.match(run.stderr, /nearest config is a Jest config in .*packages\/x/)
+  })
+
+  it('within one directory provino.config wins over a Jest config', async () => {
+    const dir = await tree({
+      'provino.config.mjs': JEST_CONFIG,
+      'jest.config.json': JSON.stringify({ testMatch: ['<rootDir>/nothing/**/*.js'] }),
+      'tests/a.test.js': passing('a'),
+    })
+    const ended = await spawnCli([], { cwd: dir })
+    assert.equal(ended.code, 0, ended.stderr)
+    assert.match(ended.stderr, /PASS tests\/a\.test\.js/)
+  })
+
   it('--config still names the file, and wins over the walk', async () => {
     const dir = await tree({
       'provino.config.mjs': "export default { dialect: 'jest', include: ['nothing/**'] }\n",
@@ -65,7 +91,7 @@ describe('config discovery', () => {
       assert.equal(ended.code, 2, ended.stderr)
       assert.match(
         ended.stderr,
-        /found no provino\.config\.\* in .*inner\/pkg or a parent directory/,
+        /found no provino\.config\.\*, Jest config or Vitest config in .*inner\/pkg or a parent directory/,
       )
     }
   })
@@ -74,7 +100,7 @@ describe('config discovery', () => {
     const dir = await tree({ 'tests/a.test.js': passing('a') })
     const run = await spawnCli(['run'], { cwd: dir })
     assert.equal(run.code, 2, run.stderr)
-    assert.match(run.stderr, /found no provino\.config\.\* in/)
+    assert.match(run.stderr, /found no provino\.config\.\*, Jest config or Vitest config in/)
     const bare = await spawnCli([], { cwd: dir })
     assert.equal(bare.code, 2, bare.stderr)
     assert.match(bare.stderr, /found no provino\.config\.\*, Jest config or Vitest config/)
