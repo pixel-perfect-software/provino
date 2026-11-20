@@ -57,7 +57,7 @@ function countingResolver(counter: string): string {
     "const { extname } = require('node:path')",
     `globalThis.${counter} = (globalThis.${counter} ?? 0) + 1`,
     'module.exports = (path, options) =>',
-    "  options.defaultResolver(extname(path) === '' ? `${path}.js` : path, options)",
+    "  options.defaultResolver(extname(path) === '' ? path + '.js' : path, options)",
     '',
   ].join('\n')
 }

@@ -121,7 +121,7 @@ describe('the vendored instrumenter against babel-plugin-istanbul 8.0.0', () => 
     const { code: instrumented, coverage } = ours(code, `${ROOT}/src/run.js`)
     // Run it as a script body: the counters are on the global the code names.
     const global: Record<string, unknown> = {}
-    const body = instrumented.replace('export function f', 'function f') + '\nreturn f;'
+    const body = `${instrumented.replace('export function f', 'function f')}\nreturn f;`
     const f = new Function(body).call(global) as (a: unknown) => number
     assert.equal(f(1), 1)
     const data = Object.values(

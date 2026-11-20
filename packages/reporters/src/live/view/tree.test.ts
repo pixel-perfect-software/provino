@@ -144,7 +144,7 @@ describe('the tree', () => {
   })
 
   test('no row is wider than the terminal less one column, even a long name at a narrow width', () => {
-    const long = failing('a/' + 'x'.repeat(120) + '.test.ts', {
+    const long = failing(`a/${'x'.repeat(120)}.test.ts`, {
       children: [test_('a'.repeat(200), 'm'.repeat(300))],
       messages: ['e'.repeat(300)],
       moreFailed: 3,

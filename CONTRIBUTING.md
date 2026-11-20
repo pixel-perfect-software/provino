@@ -24,8 +24,7 @@ Run everything from the repository root.
 | Typecheck | `pnpm typecheck` |
 | Unit tests | `pnpm test` (one package: `pnpm test --filter @provino/core`) |
 | Type tests | `pnpm test:types` and `pnpm test:types:ts5.9` |
-| Lint, and fix | `pnpm lint`, `pnpm lint --write` |
-| Format, and check | `pnpm format`, `pnpm format:check` (Markdown is not formatted) |
+| Format and lint, and fix | `pnpm format-and-lint`, `pnpm format-and-lint:fix` (Markdown is not formatted) |
 | Package boundaries | `pnpm boundaries` |
 | Build | `pnpm build` |
 | Package checks | `pnpm hygiene`: builds, packs every public package and checks the tarballs, the API reports and the changesets |
@@ -37,7 +36,7 @@ The full command list, with every bench and corpus command, is in the Commands t
 
 - **TypeScript only.** Packages, scripts and tests are TypeScript, and scripts run on Node's type stripping. The only committed `.js` files are in `fixtures/` directories: projects the harness records real Jest and Vitest against. Tests that need another JavaScript project generate it into a temp directory as text.
 - **Strict TypeScript:** `strict`, `exactOptionalPropertyTypes`, `noUncheckedIndexedAccess`, `verbatimModuleSyntax`, `isolatedDeclarations` and `erasableSyntaxOnly` (no `enum`, `namespace` or parameter properties). No `any` in public types. Relative imports use the `.ts` extension.
-- **Biome** formats and lints. `pnpm lint --write` fixes what it can, and `pnpm format` formats.
+- **Biome** formats and lints. `pnpm format-and-lint` checks both, and `pnpm format-and-lint:fix` fixes what it can.
 - **Tests use `node:test`** with `node:assert/strict`, in `*.test.ts` files next to the source. Every public API also has type tests (`*.test-d.ts`, with `expect-type`), including a `@ts-expect-error` line for each misuse, and they must pass on TypeScript 7 and 5.9. Don't wait on real time in a unit test: use a fake clock or an explicit signal.
 - **Boundaries.** Packages import only downward through the layers in [`monorepo-architecture.md`](.claude/context/ai-context/monorepo-architecture.md), by their public `exports`, and `pnpm boundaries` fails on a violation. The neutral packages (`core`, `mock`, `timers`, `expect`, `snapshot`, `loader`, `orchestrator`, `reporters`, `config`) never compare against `'jest'` or `'vitest'` and never import a dialect: a difference between the two runners is a typed policy value that a dialect supplies.
 - **Public API.** Every export of a published package is tagged `@public`, `@beta` or `@internal`. For the packages with a semver promise before 1.0 (`provino`, the two dialects, the two environments and `@provino/types`), a change to a `@public` signature needs a changeset: run `pnpm changeset`. `pnpm hygiene` checks it.
@@ -56,7 +55,7 @@ Benchmark numbers from a laptop are a development signal, never a result. Label 
 - Branch from `main`, and make small commits.
 - **Sign off every commit** (`git commit -s`), which adds a `Signed-off-by` line, as the [Developer Certificate of Origin](https://developercertificate.org/) describes.
 - **Start the subject with a conventional prefix**, with the package in parentheses when one package changes: `feat(loader): ...`, `fix(snapshot): ...`, `docs: ...`, `test(core): ...`, `refactor(...)`, `build(packaging): ...`, `chore: ...`. Say what the change does, and why in the body.
-- Before you open a pull request, run `pnpm lint`, `pnpm format:check`, `pnpm typecheck`, `pnpm test`, `pnpm test:types` and `pnpm boundaries`, and `pnpm hygiene` if you touched a package's exports, metadata or build.
+- Before you open a pull request, run `pnpm format-and-lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:types` and `pnpm boundaries`, and `pnpm hygiene` if you touched a package's exports, metadata or build.
 - In the pull request, say what changed and how you checked it. Say what you did not verify.
 
 By contributing you agree that your work is licensed under the [MIT license](LICENSE).

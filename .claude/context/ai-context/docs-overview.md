@@ -12,6 +12,7 @@ Tier 1 is project-wide. Read a Tier 1 file only when the task needs it; `.claude
 - `packages/*/README.md`: each published package's npm page (`packages/provino/README.md` is the one users read; the others say they are building blocks inlined into `provino`, and whether D82 gives them semver).
 - `.claude/context/ai-context/handoff.md`: where the last session stopped. **Read first in every session** (it is created after the first session). Gitignored, so each checkout and worktree keeps its own.
 - `.claude/context/ai-context/monorepo-architecture.md`: package map, layers, dependency rules, coordinator vs worker placement. Read before creating a package or adding an import between packages.
+- `.claude/context/ai-context/commands.md`: the long command reference moved out of the root `CLAUDE.md` (build, hygiene, pack and smoke, release, run Provino and run a Jest project, every bench, corpus and check, goldens, harness and corpus). Read before running a bench, corpus, hygiene, or release command.
 - `.claude/context/ai-context/project-structure.md`: directory tree, stack and where things go. Read before adding a top-level directory.
 - `.claude/rules/benchmarks.md`: rules for `packages/bench/**`.
 - `.claude/rules/dialects.md`: rules for `packages/dialect-*/**`.
@@ -50,6 +51,14 @@ When a package gains non-obvious structure, add `packages/<name>/CLAUDE.md` (und
 - `packages/transform/CLAUDE.md`: how the hoister is laid out, the import rewrite (D36) and its output shape, how the pipeline runs it, the transform cache, the V8 code cache and Node's compile cache helper (`@provino/transform/v8cache`, T3.7), and what is still stubbed (with owning tasks).
 - `tooling/boundaries/CLAUDE.md`: the package manifest, what is generated from it, and how to add a package or rule.
 - `tooling/packaging/CLAUDE.md`: the shared tsdown preset, the `provino` bundle (what is inlined, how worker modules are found by file, the shared chunk), `pnpm hygiene` and each check's planted case, the API reports and changesets, the release workflow lint and the install smoke.
+
+## Tier 3 — Package reference notes
+
+Reference sections moved verbatim out of a package's `CLAUDE.md` to keep it under ~150 lines. Never loaded automatically.
+
+- `packages/harness/NOTES.md`: the fixture format. Read when recording, converting or editing a golden fixture.
+- `packages/loader/NOTES.md`: Node's loader as found, mock-aware auto-inlining, externals evaluated per file, `node_modules` files a transform takes, V8's code cache of the wrapper scripts. Read when changing one of those.
+- `packages/orchestrator/NOTES.md`: the module map, sharding and the timings file, the watch session, the isolation tier of a file, global setup, the transform cache, several projects. Read when moving or adding a file in the package or changing one of those.
 
 ## Reference (read when named)
 

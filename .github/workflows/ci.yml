@@ -111,9 +111,7 @@ jobs:
       - id: install
         run: pnpm install --frozen-lockfile
       # Each check runs even when an earlier one failed, so one run reports every problem.
-      - run: pnpm lint
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: pnpm format:check
+      - run: pnpm format-and-lint
       # Manifest vs workspace vs generated config, then dependency-cruiser (DECISIONS D11).
       - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
         run: pnpm boundaries
