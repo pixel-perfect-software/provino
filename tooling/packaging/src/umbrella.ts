@@ -153,6 +153,14 @@ const LOADING =
 const COVERAGE = /[\\/]packages[\\/]coverage[\\/]src[\\/]/
 
 /**
+ * The Vitest dialect's coordinator code (B25g): the config reader, the command line (its table of
+ * Vitest's options and the rebuild of cac's parser) and the json results. Only `provino vitest`
+ * imports it (`cli.ts` loads `vitest-command.ts` by a dynamic import), so it is a chunk of its own;
+ * left to `shared`, every command and worker would read it. `exports-vitest.test.ts` checks the bytes.
+ */
+const VITEST_NODE = /[\\/]packages[\\/]dialect-vitest[\\/]src[\\/](?:node|results)[\\/]/
+
+/**
  * Watch mode (B23f): the driver, its interrupt latch, the orchestrator's watch session and file
  * watcher, and Jest's watch loop rebuilt in the dialect. `provino jest` imports the driver
  * dynamically under `--watch` and `--watchAll`, so no other run reads them. The plugin error
@@ -328,6 +336,13 @@ export function umbrellaConfig(dir: string): UserConfig[] {
             {
               name: 'watch',
               test: WATCH,
+              priority: 5,
+              includeDependenciesRecursively: false,
+            },
+            // The Vitest dialect's coordinator code: `provino vitest` only.
+            {
+              name: 'vitest-node',
+              test: VITEST_NODE,
               priority: 5,
               includeDependenciesRecursively: false,
             },

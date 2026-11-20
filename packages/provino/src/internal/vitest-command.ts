@@ -15,7 +15,6 @@ import {
   vitestCli,
   vitestNodeDialect,
 } from '@provino/dialect-vitest/node'
-import { createVitestResults } from '@provino/dialect-vitest/results'
 import type { ShardSpec } from '@provino/orchestrator'
 import type { TextSink } from '@provino/reporters'
 import type { Diagnostic, FileFilter, NeutralProject } from '@provino/types'
@@ -302,8 +301,9 @@ export async function runVitestCommand(
       io.reporters === undefined
         ? reporterPlan(options.reporter, rootTest.reporters)
         : { text: io.reporters, json: false }
+    // Only a json run reads the results module (D115, `speed`).
     const results = plan.json
-      ? createVitestResults({
+      ? (await import('@provino/dialect-vitest/results')).createVitestResults({
           roots: projects.map((each) => each.rootDir),
           passWithNoTests: request.passWithNoTests === true || rootTest.passWithNoTests === true,
           includeTaskLocation:
