@@ -4,6 +4,24 @@
   "references": [
     {
       "path": "../types"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../expect"
+    },
+    {
+      "path": "../lazy"
+    },
+    {
+      "path": "../mock"
+    },
+    {
+      "path": "../policy"
+    },
+    {
+      "path": "../timers"
     }
   ]
 }

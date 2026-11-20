@@ -24,9 +24,15 @@
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@provino/core": "workspace:*",
+    "@provino/expect": "workspace:*",
+    "@provino/lazy": "workspace:*",
+    "@provino/mock": "workspace:*",
+    "@provino/timers": "workspace:*",
     "@provino/types": "workspace:*"
   },
   "devDependencies": {
+    "@provino/policy": "workspace:*",
     "expect-type": "catalog:"
   }
 }
