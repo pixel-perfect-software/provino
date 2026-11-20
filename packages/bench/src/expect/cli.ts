@@ -1,7 +1,9 @@
 #!/usr/bin/env node
-// `pnpm bench:expect [--max-tobe-us N] [--max-toequal-us N]`: Track 7's spike F, ported (B08).
-// Passing `toBe` and `toEqual` through the Jest dialect's `expect` on `@provino/expect` against
-// `expect@30.5.2`, each engine in its own process (they can't share a realm), runs interleaved.
+// `pnpm bench:expect [--dialect jest|vitest] [--max-tobe-us N] [--max-toequal-us N]`: Track 7's
+// spike F, ported (B08). Passing `toBe` and `toEqual` through the dialect's `expect` on
+// `@provino/expect` against the runner's own (`expect@30.5.2`; with `--dialect vitest`, B25b,
+// `@vitest/expect` 5.0.5 over Chai), each engine in its own process (they can't share a realm),
+// runs interleaved.
 // The numbers are medians per call over the runs; T7.3's bar is ≤ 1 µs per `toBe` and ≤ 4 µs per
 // `toEqual` on Node 24. Every number is labelled `local`: an in-process micro-benchmark, not a
 // Track 12 R5 BenchRecord.
@@ -12,13 +14,17 @@ import { parseLimit, readSample } from '../internal/limits.ts'
 import { median } from '../stats.ts'
 
 const RUNS = 5
-const ENGINES = ['provino', 'jest'] as const
-type Engine = (typeof ENGINES)[number]
+const PAIRS = {
+  jest: ['provino', 'jest'],
+  vitest: ['provino-vitest', 'vitest'],
+} as const
+type Dialect = keyof typeof PAIRS
 const KEYS = ['toBe', 'toEqual'] as const
 type Sample = Record<(typeof KEYS)[number], number>
 
 const { values: args } = parseArgs({
   options: {
+    dialect: { type: 'string', default: 'jest' },
     'max-tobe-us': { type: 'string' },
     'max-toequal-us': { type: 'string' },
   },
@@ -30,8 +36,16 @@ const bars = {
   toEqual: parseLimit('max-toequal-us', args['max-toequal-us']),
 }
 
+if (!(args.dialect in PAIRS)) {
+  process.stderr.write(`--dialect takes jest or vitest, got ${args.dialect}\n`)
+  process.exit(2)
+}
+const ENGINES = PAIRS[args.dialect as Dialect]
+type Engine = (typeof ENGINES)[number]
+const [ours, theirs] = ENGINES
+
 const entry = fileURLToPath(new URL('entry.ts', import.meta.url))
-const samples: Record<Engine, Sample[]> = { provino: [], jest: [] }
+const samples = { [ours]: [], [theirs]: [] } as unknown as Record<Engine, Sample[]>
 for (let run = 0; run < RUNS; run++) {
   // Alternate which engine goes first, so neither always runs on a cooler machine.
   const order = run % 2 === 0 ? ENGINES : [...ENGINES].reverse()
@@ -56,15 +70,15 @@ const medians = (engine: Engine) => ({
   toBe: median(samples[engine].map((s) => s.toBe)),
   toEqual: median(samples[engine].map((s) => s.toEqual)),
 })
-const provino = medians('provino')
-const jest = medians('jest')
+const provino = medians(ours)
+const jest = medians(theirs)
 // `toBe` is padded to the width of `toEqual`, plus two spaces.
 const labelWidth = Math.max(...KEYS.map((key) => key.length)) + 2
 const lines = [
-  `expect bench (local, Node ${process.version}, ${RUNS} interleaved runs per engine, median per call)`,
+  `expect bench (local, Node ${process.version}, ${args.dialect} dialect, ${RUNS} interleaved runs per engine, median per call)`,
   ...KEYS.map(
     (key) =>
-      `  ${key.padEnd(labelWidth)}provino ${us(provino[key])}   jest ${us(jest[key])}   jest/provino ${(jest[key] / provino[key]).toFixed(1)}×`,
+      `  ${key.padEnd(labelWidth)}provino ${us(provino[key])}   ${theirs} ${us(jest[key])}   ${theirs}/provino ${(jest[key] / provino[key]).toFixed(1)}×`,
   ),
 ]
 let ok = true

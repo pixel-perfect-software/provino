@@ -586,6 +586,9 @@ importers:
       '@provino/dialect-jest':
         specifier: workspace:*
         version: link:../dialect-jest
+      '@provino/dialect-vitest':
+        specifier: workspace:*
+        version: link:../dialect-vitest
       '@provino/env-jsdom':
         specifier: workspace:*
         version: link:../env-jsdom
@@ -1307,6 +1310,9 @@ importers:
       babel-preset-current-node-syntax:
         specifier: 'catalog:'
         version: 1.2.0(@babel/core@7.29.7(supports-color@8.1.1))
+      chai:
+        specifier: 'catalog:'
+        version: 6.3.0
       es-module-lexer:
         specifier: 'catalog:'
         version: 3.0.4
