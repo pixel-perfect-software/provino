@@ -118,7 +118,7 @@ jobs:
       - run: pnpm hygiene
 
   # `pnpm test`, as the two shards CI runs (`tooling/packaging/src/test-shards.ts`, which fails
-  # the job when a package with tests is in no shard or in both), side by side.
+  # the job when a package with tests is in no shard, or a package that is not split is in both), side by side.
   test:
     name: Unit tests (shard ${{ matrix.shard }}/2)
     needs: check

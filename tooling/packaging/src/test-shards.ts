@@ -1,7 +1,8 @@
 // CI runs the workspace's tests as two shards per Node version (the `test` job in ci.yml). `provino`
 // (the end-to-end tests through the bin) is more than half the workspace's test time, so no whole-
 // package split can balance it: it runs in both shards, each taking half its files through Node's
-// own `--test-shard=<n>/2`. Shard 1 also names the other packages it runs; shard 2 is every
+// own `--test-shard=<n>/2`, which `packages/provino`'s test script reaches through `node-test.ts` and the
+// `PROVINO_TEST_SHARD` variable (Node ignores the flag after the script's globs). Shard 1 also names the other packages it runs; shard 2 is every
 // remaining package, so a new package lands in shard 2 without an edit. `check` proves that, from
 // Turborepo's own dry run: each package with a `test` script is in exactly one shard (a split
 // package in every shard), and a name listed here that no longer exists fails rather than shrinking
@@ -16,7 +17,7 @@ import { ROOT, readWorkspacePackages } from './workspace.ts'
 
 /**
  * Packages whose test files are split across the shards: each shard runs them with
- * `--test-shard=<n>/SHARD_COUNT`.
+ * `PROVINO_TEST_SHARD=<n>/SHARD_COUNT`, and their test script must run through `node-test.ts`.
  * @internal
  */
 export const SPLIT_PACKAGES: readonly string[] = ['provino']
@@ -36,82 +37,27 @@ export const SHARD_ONE: readonly string[] = [
   '@provino/env-node',
 ]
 
-/**
- * Seconds each package took in CI on Node 22.15.0 (main, run 44770476921, 2026-11-20), the
- * `duration_ms` of its `node --test` summary. Packages run side by side on 4 CPUs, so a
- * duration is inflated by contention: shard 2 summed 1704 s of them in a 365 s job, a ratio of
- * 0.214 (`CONTENTION`). `provino` alone took 575 s of the 4 CPUs, `@provino/dialect-jest` 43 s.
- * A package not listed here weighs nothing in the balance test; add it when it is measured.
- * @internal
- */
-export const WEIGHTS: Readonly<Record<string, number>> = {
-  provino: 575 / 0.214,
-  '@provino/dialect-jest': 43 / 0.214,
-  '@provino/harness': 364.4,
-  '@provino/orchestrator': 356.1,
-  '@provino/bench': 262.5,
-  '@provino/transform': 121.6,
-  '@provino/reporters': 116.6,
-  'provino-boundaries': 90.6,
-  'provino-packaging': 83.4,
-  '@provino/loader': 72.1,
-  '@provino/lazy': 36.8,
-  '@provino/core': 33.1,
-  '@provino/dialect-vitest': 29.1,
-  '@provino/coverage': 23.6,
-  '@provino/env-jsdom': 20.9,
-  '@provino/expect': 17.7,
-  '@provino/env-shared': 16,
-  '@provino/timers': 14.5,
-  '@provino/mock': 14.4,
-  '@provino/config': 8.3,
-  '@provino/snapshot': 7.6,
-  '@provino/policy': 4.5,
-  '@provino/env-node': 4.4,
-  '@provino/resolver': 2.4,
-  '@provino/rpc': 1.9,
-  '@provino/types': 1.4,
-}
-
-/** What each shard should cost, in the weights' own unit, for the balance test. @internal */
-export function expectedShardCosts(): readonly number[] {
-  const weight = (name: string) => WEIGHTS[name] ?? 0
-  const sum = (names: readonly string[]) => names.reduce((total, name) => total + weight(name), 0)
-  const split = sum(SPLIT_PACKAGES) / SHARD_COUNT
-  const wholeOnes = Object.keys(WEIGHTS).filter((name) => !SPLIT_PACKAGES.includes(name))
-  const shardOne = sum(SHARD_ONE) + split
-  return [shardOne, sum(wholeOnes) - sum(SHARD_ONE) + split]
-}
-
 /** @internal */
 export const SHARD_COUNT = 2
 
 /**
- * The Turborepo filters that select one shard (1-based).
+ * What one shard's Turborepo run takes: the filters that select its packages and the environment
+ * that gives each split package its half of the files (1-based). `check`'s dry run and `run` both
+ * read it, so they can't drift apart.
  * @internal
  */
-export function shardFilters(shard: number): readonly string[] {
-  if (shard === 1) return SHARD_ONE.map((name) => `--filter=${name}`)
-  if (shard === 2) {
-    return [...SHARD_ONE, ...SPLIT_PACKAGES].map((name) => `--filter=!${name}`)
-  }
-  throw new RangeError(`there are ${SHARD_COUNT} test shards; got ${shard}`)
-}
-
-/**
- * The Turborepo arguments that run a shard's half of the split packages: their filters, then the
- * flag Node's test runner takes after the package's own script.
- * @internal
- */
-export function splitArgs(shard: number): readonly string[] {
-  if (shard < 1 || shard > SHARD_COUNT) {
+export function shardInvocation(shard: number): {
+  readonly filters: readonly string[]
+  readonly env: Readonly<Record<string, string>>
+} {
+  if (!Number.isInteger(shard) || shard < 1 || shard > SHARD_COUNT) {
     throw new RangeError(`there are ${SHARD_COUNT} test shards; got ${shard}`)
   }
-  return [
-    ...SPLIT_PACKAGES.map((name) => `--filter=${name}`),
-    '--',
-    `--test-shard=${shard}/${SHARD_COUNT}`,
-  ]
+  const filters =
+    shard === 1
+      ? [...SPLIT_PACKAGES, ...SHARD_ONE].map((name) => `--filter=${name}`)
+      : SHARD_ONE.map((name) => `--filter=!${name}`)
+  return { filters, env: { PROVINO_TEST_SHARD: `${shard}/${SHARD_COUNT}` } }
 }
 
 /**
@@ -124,14 +70,9 @@ export function shardProblems(
   ran: readonly (readonly string[])[],
 ): readonly string[] {
   const problems: string[] = []
-  for (const name of SHARD_ONE) {
+  for (const name of [...SHARD_ONE, ...SPLIT_PACKAGES]) {
     if (!testPackages.includes(name)) {
-      problems.push(`SHARD_ONE names ${name}, which is not a package with a test script`)
-    }
-  }
-  for (const name of SPLIT_PACKAGES) {
-    if (!testPackages.includes(name)) {
-      problems.push(`SPLIT_PACKAGES names ${name}, which is not a package with a test script`)
+      problems.push(`test-shards.ts names ${name}, which is not a package with a test script`)
     }
   }
   for (const name of testPackages) {
@@ -168,24 +109,36 @@ interface DryRun {
 
 /** The packages Turborepo would run `test` for under a shard's filters, from a dry run. */
 function plannedPackages(shard: number): readonly string[] {
-  const dry = (filters: readonly string[]): readonly string[] => {
-    const result = spawnSync('pnpm', ['exec', 'turbo', 'run', 'test', '--dry=json', ...filters], {
-      cwd: ROOT,
-      encoding: 'utf8',
-      maxBuffer: 64 * 1024 * 1024,
-    })
-    if (result.status !== 0) {
-      throw new Error(`turbo's dry run for shard ${shard} failed:\n${result.stderr}`)
-    }
-    const plan = JSON.parse(result.stdout) as DryRun
-    return plan.tasks.filter((task) => task.task === 'test').map((task) => task.package)
+  const { filters, env } = shardInvocation(shard)
+  const result = spawnSync('pnpm', ['exec', 'turbo', 'run', 'test', '--dry=json', ...filters], {
+    cwd: ROOT,
+    encoding: 'utf8',
+    env: { ...process.env, ...env },
+    maxBuffer: 64 * 1024 * 1024,
+  })
+  if (result.status !== 0) {
+    throw new Error(`turbo's dry run for shard ${shard} failed:\n${result.stderr}`)
   }
-  return [...dry(shardFilters(shard)), ...dry(splitArgs(shard))]
+  const plan = JSON.parse(result.stdout) as DryRun
+  return plan.tasks.filter((task) => task.task === 'test').map((task) => task.package)
+}
+
+/** The split packages whose `test` script does not run through `node-test.ts`. */
+function unshardableSplits(): readonly string[] {
+  return readWorkspacePackages()
+    .filter((pkg) => SPLIT_PACKAGES.includes(pkg.manifest.name))
+    .filter((pkg) => !(pkg.manifest.scripts?.test ?? '').includes('/node-test.ts '))
+    .map((pkg) => pkg.manifest.name)
 }
 
 function check(): number {
   const ran = Array.from({ length: SHARD_COUNT }, (_, index) => plannedPackages(index + 1))
-  const problems = shardProblems(packagesWithTests(), ran)
+  const problems = [
+    ...shardProblems(packagesWithTests(), ran),
+    ...unshardableSplits().map(
+      (name) => `${name} is split but its test script does not run through node-test.ts`,
+    ),
+  ]
   if (problems.length > 0) {
     for (const problem of problems) console.error(`test shards: ${problem}`)
     return 1
@@ -196,21 +149,19 @@ function check(): number {
   return 0
 }
 
-/** Turborepo twice at once: the shard's whole packages, and its half of the split ones. */
+/** One Turborepo run: the shard's packages, and the variable that halves the split ones. */
 async function run(shard: number, flags: readonly string[]): Promise<number> {
   if (check() !== 0) return 1
-  const turbo = (args: readonly string[]): Promise<number> =>
-    new Promise((resolve) => {
-      const child = spawn('pnpm', ['exec', 'turbo', 'run', 'test', ...flags, ...args], {
-        cwd: ROOT,
-        stdio: 'inherit',
-        env: { ...process.env, PROVINO_NODE: process.version },
-      })
-      child.on('error', () => resolve(1))
-      child.on('close', (code) => resolve(code ?? 1))
+  const { filters, env } = shardInvocation(shard)
+  return new Promise((resolve) => {
+    const child = spawn('pnpm', ['exec', 'turbo', 'run', 'test', ...flags, ...filters], {
+      cwd: ROOT,
+      stdio: 'inherit',
+      env: { ...process.env, ...env, PROVINO_NODE: process.version },
     })
-  const codes = await Promise.all([turbo(shardFilters(shard)), turbo(splitArgs(shard))])
-  return codes.find((code) => code !== 0) ?? 0
+    child.on('error', () => resolve(1))
+    child.on('close', (code) => resolve(code ?? 1))
+  })
 }
 
 const entry = process.argv[1]

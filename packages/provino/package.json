@@ -83,7 +83,7 @@
   },
   "scripts": {
     "build": "tsdown --config ../../tooling/packaging/tsdown.umbrella.config.ts",
-    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\" \"test/**/*.test.ts\""
+    "test": "node ../../tooling/packaging/src/node-test.ts --conditions=provino-source \"src/**/*.test.ts\" \"test/**/*.test.ts\""
   },
   "dependencies": {
     "@babel/core": "catalog:",
