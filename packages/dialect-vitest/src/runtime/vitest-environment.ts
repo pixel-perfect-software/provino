@@ -10,8 +10,8 @@ import { createRequire } from 'node:module'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { jsdomEnvironment } from '@provino/env-jsdom'
-import { createResolver } from '@provino/resolver'
 import { leakReport, populateGlobal, snapshotProperties, WINDOW_KEYS } from '@provino/env-shared'
+import { createResolver } from '@provino/resolver'
 import type {
   Environment,
   EnvironmentInstance,
@@ -22,6 +22,7 @@ import type {
   GlobalReadWatch,
   JsonValue,
 } from '@provino/types'
+import { environmentOptionsKey } from '../internal/environment-options-key.ts'
 import { VitestDialectError } from './errors.ts'
 import { edgeRuntimeEnvironment } from './vendor/vitest-env/edge-runtime.ts'
 import { happyDomEnvironment } from './vendor/vitest-env/happy-dom.ts'
@@ -66,11 +67,6 @@ export interface VitestEnvironmentOptions {
   readonly module?: string
   /** What `setup(global, options)` gets: Vitest's whole `environmentOptions` object. */
   readonly environmentOptions: JsonObject
-}
-
-/** The key of `environmentOptions` an environment reads (`getSpecificationDocblock`'s `envKey`). */
-function optionsKey(name: string): string {
-  return name === 'happy-dom' ? 'happyDOM' : name
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -372,7 +368,7 @@ export const vitestEnvironmentFor: EnvironmentResolver = (request) => {
   const docblock = isRecord(request.options) ? (request.options as JsonObject) : undefined
   const environmentOptions: JsonObject =
     docblock !== undefined
-      ? { [optionsKey(request.name)]: docblock }
+      ? { [environmentOptionsKey(request.name)]: docblock }
       : sameEnvironment(request.base, request.name)
         ? baseOptions(request.base, request.name)
         : {}
@@ -393,5 +389,5 @@ function baseOptions(base: EnvironmentRef, name: string): JsonObject {
   const options = base.options
   if (isRecord(options.environmentOptions)) return options.environmentOptions as JsonObject
   const { rootDir: _rootDir, ...own } = options
-  return { [optionsKey(name)]: own }
+  return { [environmentOptionsKey(name)]: own }
 }

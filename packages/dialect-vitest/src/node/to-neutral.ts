@@ -15,6 +15,7 @@ import type {
   PolicyOverrides,
   SerializedModuleMapper,
 } from '@provino/types'
+import { environmentOptionsKey } from '../internal/environment-options-key.ts'
 import { VitestConfigError } from './errors.ts'
 import { globToRegexSource } from './glob.ts'
 import type { VitestResolvedProject } from './normalize.ts'
@@ -141,11 +142,6 @@ function hookOrder(hooks: unknown): PolicyOverrides['core'] | undefined {
   return { hookOrder: { beforeAll: before, beforeEach: before, afterEach: after, afterAll: after } }
 }
 
-const ENVIRONMENT_OPTION_KEY: Readonly<Record<string, string>> = {
-  'happy-dom': 'happyDOM',
-  'edge-runtime': 'edgeRuntime',
-}
-
 /**
  * Turns a resolved project into a neutral one, with the warnings for what it reads and doesn't
  * apply.
@@ -188,7 +184,7 @@ export function vitestProjectToNeutral(project: VitestResolvedProject): {
   }
   const environmentName = typeof test.environment === 'string' ? test.environment : 'node'
   const environmentOptions = isRec(test.environmentOptions) ? test.environmentOptions : {}
-  const options = environmentOptions[ENVIRONMENT_OPTION_KEY[environmentName] ?? environmentName]
+  const options = environmentOptions[environmentOptionsKey(environmentName)]
   const environmentJson = isRec(options)
     ? (jsonOf(options, 'test.environmentOptions', diagnostics) ?? {})
     : {}
