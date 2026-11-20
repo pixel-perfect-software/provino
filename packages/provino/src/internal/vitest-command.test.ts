@@ -86,6 +86,14 @@ describe('provino vitest file filters', () => {
     )
   })
 
+  it('sets VITEST_MODE for the workers only, as pool.ts L260 does', async () => {
+    delete process.env.VITEST_MODE
+    const ended = await runVitest(['run', 'beta'], root)
+    assert.equal(ended.code, 0, head(ended.stderr))
+    assert.equal(process.env.VITEST, 'true')
+    assert.equal(process.env.VITEST_MODE, undefined)
+  })
+
   it('refuse a file:line filter with a printed error', async () => {
     const ended = await runVitest(['run', 'Alpha.test.ts:1'], root)
     assert.equal(ended.code, 1)

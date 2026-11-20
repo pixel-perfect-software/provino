@@ -121,6 +121,12 @@ export interface RunPoolOptions {
    */
   readonly startupEnv?: Readonly<Record<string, string>>
   /**
+   * Variables set for the forked and threaded workers on top of this process's, which tests do see
+   * (a dialect's, such as Vitest's `VITEST_MODE`, which its pool gives only its workers). An inline
+   * worker shares this process's environment and gets none of them. Default: none.
+   */
+  readonly workerEnv?: Readonly<Record<string, string>>
+  /**
    * The most one test file may run, in ms. A worker still on a file after it is killed and the
    * file fails with the worker's exit `{ type: 'timeout', phase: 'file' }`. Default: none (Jest
    * has none either: a synchronous loop in a test hangs it too). An inline worker shares this
@@ -602,6 +608,9 @@ export function poolSettings(
     ...(options.stderr === undefined ? {} : { stderr: options.stderr }),
     ...(execArgv === undefined ? {} : { execArgv }),
     ...(options.pool?.startupEnv === undefined ? {} : { startupEnv: options.pool.startupEnv }),
+    ...(options.pool?.workerEnv === undefined
+      ? {}
+      : { env: { ...process.env, ...options.pool.workerEnv } }),
     ...(options.pool?.heapLimitMb === undefined ? {} : { memoryLimitMb: options.pool.heapLimitMb }),
   })
   // The transport can cap the workers, whatever is asked for: an inline pool runs one.

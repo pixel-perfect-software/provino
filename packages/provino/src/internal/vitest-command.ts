@@ -45,8 +45,7 @@ export interface VitestCommandIo {
 const VITEST_ERROR_EXIT = 1
 
 /**
- * The variables Vitest's CLI sets before it reads a config (`prepareVitest`, cli-api.ts L234-L236),
- * and the one its pool gives every worker (`VITEST_MODE`, pool.ts L259; a run is `RUN`, D175).
+ * The variables Vitest's CLI sets before it reads a config (`prepareVitest`, cli-api.ts L234-L236).
  * Set on this process, so a config, a global setup and every worker see them (`cli/vitest-env`).
  * @internal
  */
@@ -54,8 +53,10 @@ export function setVitestEnv(env: NodeJS.ProcessEnv): void {
   env.TEST = 'true'
   env.VITEST = 'true'
   env.NODE_ENV ??= 'test'
-  env.VITEST_MODE = 'RUN'
 }
+
+/** What Vitest's pool gives its workers alone (pool.ts L256-L262; a run is `RUN`, D175). */
+const VITEST_WORKER_ENV: Readonly<Record<string, string>> = { VITEST_MODE: 'RUN' }
 
 /** Vitest's reporter names that D173 maps onto Provino's own text (the human text is not reproduced). */
 const TEXT_REPORTERS: Readonly<Record<string, ReporterChoice | null>> = {
@@ -315,6 +316,7 @@ export async function runVitestCommand(
     const bail = typeof rootTest.bail === 'number' && rootTest.bail > 0 ? rootTest.bail : 0
     const passWithNoTests = request.passWithNoTests ?? rootTest.passWithNoTests === true
     const pool: ExecuteOptions['pool'] = {
+      workerEnv: VITEST_WORKER_ENV,
       ...(rootTest.pool === 'threads' ? { kind: 'threads' as const } : {}),
       ...(maxWorkers === undefined ? {} : { maxWorkers }),
     }
