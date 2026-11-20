@@ -1,0 +1,4 @@
+{
+  "description": "test.override in a describe: the override reads the fixture it overrides, a fixture that depends on it sees the override, nested blocks inherit it, the builder and static forms, and the tests outside see the base again.",
+  "runners": ["vitest"]
+}

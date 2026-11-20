@@ -6,6 +6,7 @@
 
 import { EnvironmentConditions } from '@provino/types';
 import { ExpectTable } from '@provino/types';
+import { FormatDefinitionError } from '@provino/types';
 import { FormatEachTitle } from '@provino/types';
 import { GlobalsHost } from '@provino/types';
 import { SnapshotPrinter } from '@provino/types';
@@ -30,6 +31,9 @@ export const vitestEnvironmentConditions: EnvironmentConditions;
 
 // @public
 export function vitestExpectTable(): ExpectTable;
+
+// @public
+export const vitestFixtureMessages: FormatDefinitionError;
 
 // @public
 export function vitestGlobals(_host: GlobalsHost): Readonly<Record<string, unknown>>;

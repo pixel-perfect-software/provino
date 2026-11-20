@@ -1,0 +1,31 @@
+{
+  "description": "T11.15 (B25c): test.projects as Vitest 5.0.5 resolves them: an inline object, an inline object that extends the root, a glob of directories (one with a config file and a package name, one with neither) and a config file named directly. A test per key prints each project's name, root directory and timeouts.",
+  "runners": ["vitest"],
+  "vitestProjects": true,
+  "config": {
+    "vitest": {
+      "test": {
+        "testTimeout": 22,
+        "hookTimeout": 33,
+        "projects": [
+          {
+            "test": {
+              "name": "inline",
+              "include": ["inline/**/*.test.ts"],
+              "testTimeout": 11
+            }
+          },
+          {
+            "extends": true,
+            "test": {
+              "name": "extended",
+              "include": ["inline-ext/**/*.test.ts"]
+            }
+          },
+          "packages/*",
+          "tools/vitest.config.mjs"
+        ]
+      }
+    }
+  }
+}

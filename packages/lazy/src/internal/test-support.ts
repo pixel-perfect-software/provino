@@ -4,6 +4,7 @@
 // the real core lives in `@provino/bench`'s `src/lazy/`.
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type {
+  Definition,
   FileHandle,
   LazyFrame,
   LazyHost,
@@ -133,6 +134,10 @@ export interface FakeWorld extends FakeApi {
   currentTestName(): string | undefined
 }
 
+const DEFINITIONS: unique symbol = Symbol('provino.lazy.test-definitions')
+
+type DefinitionTable = Map<string, Pick<Definition, 'key' | 'kind'>>
+
 /** Builds a world; `policy` is the `lazy` policy slice. */
 export function createWorld(policy: LazyPolicy = { readInBeforeAll: 'error' }): FakeWorld {
   const als = new AsyncLocalStorage<LazyFrame>()
@@ -159,6 +164,15 @@ export function createWorld(policy: LazyPolicy = { readInBeforeAll: 'error' }): 
       workerTeardowns.push(fn)
     },
     workerSlots,
+    // Core keeps a suite's table in its slots (D106); the fake does the same.
+    definitions(suite) {
+      let table = suite.slots.get(DEFINITIONS) as DefinitionTable | undefined
+      if (table === undefined) {
+        table = new Map()
+        suite.slots.set(DEFINITIONS, table)
+      }
+      return table
+    },
   }
 
   const api: FakeApi = {

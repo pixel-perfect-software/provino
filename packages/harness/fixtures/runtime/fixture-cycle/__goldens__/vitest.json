@@ -1,0 +1,90 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/fixture-cycle",
+  "files": [
+    {
+      "file": "cycle.test.ts",
+      "status": "failed",
+      "tests": [
+        {
+          "id": {
+            "file": "cycle.test.ts",
+            "path": [
+              "a cycle"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "name": "Error",
+              "message": "Error: Circular fixture dependency detected: ping <- pong <- ping"
+            }
+          ],
+          "location": {
+            "line": 14,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "cycle.test.ts",
+            "path": [
+              "use is never called"
+            ],
+            "dupIndex": 0
+          },
+          "status": "failed",
+          "errors": [
+            {
+              "message": "Fixture \"noUse\" returned without calling \"use\". Make sure to call \"use\" in every code path of the fixture function.Error:",
+              "userFrame": "<root>/cycle.test.ts:1:21"
+            }
+          ],
+          "location": {
+            "line": 18,
+            "column": 1
+          }
+        },
+        {
+          "id": {
+            "file": "cycle.test.ts",
+            "path": [
+              "a test with a fine fixture"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 22,
+            "column": 1
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false,
+  "trace": [
+    "noUse returns",
+    "fine 1"
+  ]
+}

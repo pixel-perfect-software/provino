@@ -1,0 +1,4 @@
+{
+  "description": "When fixtures are torn down: after afterEach and the cleanups beforeEach returned, before onTestFinished, dependents first; a fixture whose setup throws fails its test, and the fixtures set up before it are still torn down.",
+  "runners": ["vitest"]
+}

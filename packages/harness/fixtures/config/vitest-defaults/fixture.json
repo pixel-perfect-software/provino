@@ -1,0 +1,4 @@
+{
+  "description": "T11.15 (B25c): the keys the Vitest config reader applies, at Vitest 5.0.5's defaults. A test per key prints the worker's resolved value (`getWorkerState().config`, D27) in its title, so the golden holds what Vitest resolved.",
+  "runners": ["vitest"]
+}

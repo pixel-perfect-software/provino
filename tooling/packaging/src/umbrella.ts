@@ -16,9 +16,6 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   '@provino/orchestrator/worker/bootstrap': 'worker/bootstrap',
   '@provino/orchestrator/worker/main': 'worker/main',
   '@provino/dialect-jest/runtime': 'worker/jest-runtime',
-  // B25b: the Vitest dialect's worker side (its matcher table, `vitestExpectTable`); Chai stays a
-  // dependency, loaded on a failure or a Chai assertion.
-  '@provino/dialect-vitest/runtime': 'worker/vitest-runtime',
   // Loaded by the coordinator (a failing global hook), through a behaviour ref, as the neutral
   // behaviours are: a leaf of its own, so it never pulls the runtime in.
   '@provino/dialect-jest/global-setup': 'worker/jest-global-setup',
@@ -28,6 +25,12 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   // Loaded by the coordinator (changed files, the dependency extractor) through behaviour refs
   // (B23c, D118): a leaf of its own, so it never pulls the runtime in.
   '@provino/dialect-jest/affected': 'worker/jest-affected',
+  // The Vitest dialect's worker half (B25c: the coordinator's detection imports the dialect, whose
+  // value names this ref): its matcher table (B25b, `vitestExpectTable`; Chai stays a dependency,
+  // loaded on a failure or a Chai assertion). The Jest worker never loads it.
+  '@provino/dialect-vitest/runtime': 'worker/vitest-runtime',
+  // Vite's alias rule as a mapper, loaded by the worker's loader when a Vitest project has aliases.
+  '@provino/resolver/vite-alias': 'worker/vite-alias',
   '@provino/policy/behaviours': 'worker/policy-behaviours',
   '@provino/env-node': 'worker/env-node',
   '@provino/env-jsdom': 'worker/env-jsdom',

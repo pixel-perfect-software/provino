@@ -1,0 +1,4 @@
+{
+  "description": "Fixtures in suite hooks: test.beforeAll and test.afterAll get file-scoped fixtures; a test-scoped one there fails the hook; a plain beforeAll that destructures its first argument fails because it has no context.",
+  "runners": ["vitest"]
+}

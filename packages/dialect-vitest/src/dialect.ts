@@ -12,6 +12,7 @@ import { defineDialect, moduleRef } from '@provino/policy'
 import type {
   Dialect,
   EnvironmentConditions,
+  FormatDefinitionError,
   FormatEachTitle,
   GlobalsFactory,
   MatcherTableFactory,
@@ -22,6 +23,12 @@ import type {
 import { VITEST_EACH_TITLE_TRUNCATE } from './each/title-truncate.ts'
 import { vitestHoistPolicy } from './hoist-policy.ts'
 import { vitestMockPolicy, vitestModulePolicy } from './mock-policy.ts'
+
+/** Vitest's `defaultInclude`: what its `test.include` is when nothing sets it. */
+export const defaultInclude: string[] = ['**/*.{test,spec}.?(c|m)[jt]s?(x)']
+
+/** Vitest's `defaultExclude`: what its `test.exclude` is when nothing sets it. */
+export const defaultExclude: string[] = ['**/node_modules/**', '**/.git/**']
 
 /**
  * Vitest 5.0's policy (with `sequence.hooks: 'stack'`, its default), layered over the neutral
@@ -114,6 +121,18 @@ export const vitestPolicy: PolicyOverrides = {
       import.meta.resolve('@provino/dialect-vitest/runtime'),
       'vitestShapeTestError',
     ),
+    // Vitest's `test` has `extend` and `override` (`runtime/fixture-extend-api`), and its fixture
+    // errors are worded as Vitest words them (`runtime/fixture-parse-error`, T5.9).
+    definitions: {
+      extendApi: 'expose',
+      messages: moduleRef<FormatDefinitionError>(
+        import.meta.resolve('@provino/dialect-vitest/runtime'),
+        'vitestFixtureMessages',
+      ),
+      // A plain `beforeAll(({ key }) => …)` fails as Vitest's `validateSuiteHook` fails it
+      // (runtime corpus `fixture-suite-hook-access` agrees).
+      plainSuiteHook: 'refuse-fixtures',
+    },
   },
   lazy: { readInBeforeAll: 'error' },
   mock: vitestMockPolicy,
@@ -191,8 +210,8 @@ export const vitestPolicy: PolicyOverrides = {
     expand: false,
   },
   orchestrator: {
-    include: ['**/*.{test,spec}.?(c|m)[jt]s?(x)'],
-    exclude: ['**/node_modules/**', '**/.git/**'],
+    include: defaultInclude,
+    exclude: defaultExclude,
     bail: { checkAfter: 'test' },
     watchDefault: 'tty-not-ci',
     watch: { initialRun: 'all' },
