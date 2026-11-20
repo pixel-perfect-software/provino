@@ -13,17 +13,26 @@ export const KEYS = ['entry', 'engine', 'total'] as const
  */
 export type ImportSample = Readonly<Record<(typeof KEYS)[number], number>>
 
-/** The worker runtime each dialect's `expect` is, under the built `provino`'s `dist`. */
-export const RUNTIMES = {
-  jest: 'worker/jest-runtime.js',
-  vitest: 'worker/vitest-runtime.js',
+/**
+ * Each dialect the bench measures: the worker runtime its `expect` is, under the built
+ * `provino`'s `dist`, and what the report says that runtime holds.
+ */
+export const DIALECTS = {
+  jest: {
+    runtime: 'worker/jest-runtime.js',
+    holds: "engine, the Jest dialect's table, pretty-format",
+  },
+  vitest: {
+    runtime: 'worker/vitest-runtime.js',
+    holds: "engine, the Vitest dialect's table, pretty-format; no Chai",
+  },
 } as const
 
 /**
  * A dialect the bench measures.
  * @internal
  */
-export type ImportDialect = keyof typeof RUNTIMES
+export type ImportDialect = keyof typeof DIALECTS
 
 /**
  * The command's flags. `--max-cold-ms` is T7.12's bar, decided for Jest's runtime: no Vitest bar
@@ -40,7 +49,7 @@ export function parseImportArgs(values: {
   readonly maxColdMs: number | undefined
   readonly runs: number
 } {
-  if (!(values.dialect in RUNTIMES)) {
+  if (!Object.hasOwn(DIALECTS, values.dialect)) {
     throw new BenchError('BENCH_USAGE', '--dialect takes jest or vitest')
   }
   const dialect = values.dialect as ImportDialect
@@ -59,12 +68,6 @@ export function parseImportArgs(values: {
 }
 
 const DEFAULT_RUNS = 15
-
-/** What the second line says the worker-side `expect` holds, per dialect. */
-const HOLDS: Readonly<Record<ImportDialect, string>> = {
-  jest: "engine, the Jest dialect's table, pretty-format",
-  vitest: "engine, the Vitest dialect's table, pretty-format; no Chai",
-}
 
 /**
  * The median of each part over the processes.
@@ -91,9 +94,9 @@ export function describeRun(
 ): { readonly lines: readonly string[]; readonly ok: boolean } {
   const ms = (value: number): string => `${value.toFixed(1)} ms`
   const lines = [
-    `expect import bench (local, ${options.dialect} dialect: ${RUNTIMES[options.dialect]}, Node ${options.node}, ${options.processes} fresh processes, median inside the process)`,
+    `expect import bench (local, ${options.dialect} dialect: ${DIALECTS[options.dialect].runtime}, Node ${options.node}, ${options.processes} fresh processes, median inside the process)`,
     `  import { expect } from 'provino'             ${ms(summary.entry)}`,
-    `  + the worker-side expect it forwards to      ${ms(summary.engine)}   (${HOLDS[options.dialect]})`,
+    `  + the worker-side expect it forwards to      ${ms(summary.engine)}   (${DIALECTS[options.dialect].holds})`,
     `  total                                        ${ms(summary.total)}`,
   ]
   const bar = options.maxColdMs

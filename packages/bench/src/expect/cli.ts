@@ -10,7 +10,8 @@
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { runProcess } from '@provino/harness'
-import { parseLimit, readSample } from '../internal/limits.ts'
+import { BenchError } from '../errors.ts'
+import { parseLimit, parseOrExitUsage, readSample } from '../internal/limits.ts'
 import { median } from '../stats.ts'
 
 const RUNS = 5
@@ -36,11 +37,13 @@ const bars = {
   toEqual: parseLimit('max-toequal-us', args['max-toequal-us']),
 }
 
-if (!(args.dialect in PAIRS)) {
-  process.stderr.write(`--dialect takes jest or vitest, got ${args.dialect}\n`)
-  process.exit(2)
-}
-const ENGINES = PAIRS[args.dialect as Dialect]
+const dialect = parseOrExitUsage('bench:expect', (): Dialect => {
+  if (!Object.hasOwn(PAIRS, args.dialect)) {
+    throw new BenchError('BENCH_USAGE', `--dialect takes jest or vitest, got ${args.dialect}`)
+  }
+  return args.dialect as Dialect
+})
+const ENGINES = PAIRS[dialect]
 type Engine = (typeof ENGINES)[number]
 const [ours, theirs] = ENGINES
 
@@ -75,7 +78,7 @@ const jest = medians(theirs)
 // `toBe` is padded to the width of `toEqual`, plus two spaces.
 const labelWidth = Math.max(...KEYS.map((key) => key.length)) + 2
 const lines = [
-  `expect bench (local, Node ${process.version}, ${args.dialect} dialect, ${RUNS} interleaved runs per engine, median per call)`,
+  `expect bench (local, Node ${process.version}, ${dialect} dialect, ${RUNS} interleaved runs per engine, median per call)`,
   ...KEYS.map(
     (key) =>
       `  ${key.padEnd(labelWidth)}provino ${us(provino[key])}   ${theirs} ${us(jest[key])}   ${theirs}/provino ${(jest[key] / provino[key]).toFixed(1)}×`,

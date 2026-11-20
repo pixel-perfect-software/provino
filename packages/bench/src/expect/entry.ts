@@ -32,16 +32,13 @@ import { SAMPLE_PREFIX } from '../internal/limits.ts'
 import { median } from '../stats.ts'
 
 /**
- * Calls per timed round, by engine, and rounds per process (the first is a warm-up and not kept).
- * Jest's `expect` costs about 60 times more per call, so a tenth of the calls still gives it rounds
- * of about 0.2 s, and the bench no longer spends minutes on Jest's side alone.
+ * Calls per timed round, for Provino's engines and for the runners' own, and rounds per process
+ * (the first is a warm-up and not kept). Jest's `expect` costs about 60 times more per call, so a
+ * tenth of the calls still gives it rounds of about 0.2 s, and the bench no longer spends minutes
+ * on Jest's side alone.
  */
-const CALLS_PER_ROUND = {
-  provino: 200_000,
-  jest: 20_000,
-  'provino-vitest': 200_000,
-  vitest: 20_000,
-} as const
+const OURS_CALLS = 200_000
+const UPSTREAM_CALLS = 20_000
 const ROUNDS = 8
 
 /** The `toEqual` payload (spike F's isn't given; B08 notes). */
@@ -91,10 +88,10 @@ function provinoMeasure(policy: ExpectPolicy, table: () => ExpectTable, calls: n
 const engine = process.argv[2]
 let result: { toBe: number; toEqual: number }
 if (engine === 'provino') {
-  result = provinoMeasure(jestExpectPolicy, jestExpectTable, CALLS_PER_ROUND.provino)
+  result = provinoMeasure(jestExpectPolicy, jestExpectTable, OURS_CALLS)
 } else if (engine === 'provino-vitest') {
   const policy = resolvePolicy(vitestPolicy).expect
-  result = provinoMeasure(policy, vitestExpectTable, CALLS_PER_ROUND['provino-vitest'])
+  result = provinoMeasure(policy, vitestExpectTable, OURS_CALLS)
 } else if (engine === 'vitest') {
   const fromVitest = createRequire(fileURLToPath(import.meta.resolve('vitest')))
   const upstream = (await import(
@@ -125,10 +122,10 @@ if (engine === 'provino') {
     return chai.expect(actual).withTest(test)
   }
   setState({ assertionCalls: 0, currentTestName: 'bench' }, expect)
-  result = measure(expect, CALLS_PER_ROUND.vitest)
+  result = measure(expect, UPSTREAM_CALLS)
 } else if (engine === 'jest') {
   const { expect } = await import('expect')
-  result = measure(expect as unknown as Expect, CALLS_PER_ROUND.jest)
+  result = measure(expect as unknown as Expect, UPSTREAM_CALLS)
 } else {
   throw new Error(`usage: entry.ts <provino|jest|provino-vitest|vitest>, got ${String(engine)}`)
 }

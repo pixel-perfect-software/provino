@@ -16,11 +16,11 @@ import { parseArgs } from 'node:util'
 import { exitOnSignals, runProcess } from '@provino/harness'
 import { parseOrExitUsage, readSample } from '../internal/limits.ts'
 import {
+  DIALECTS,
   describeRun,
   type ImportSample,
   KEYS,
   parseImportArgs,
-  RUNTIMES,
   summarise,
 } from './report.ts'
 
@@ -37,7 +37,7 @@ const { dialect, maxColdMs, runs } = parseOrExitUsage('bench:expect-import', () 
   })
   return parseImportArgs(values)
 })
-const runtime = RUNTIMES[dialect]
+const { runtime } = DIALECTS[dialect]
 
 const dist = join(dirname(fileURLToPath(import.meta.resolve('provino/package.json'))), 'dist')
 if (!existsSync(join(dist, runtime))) {
