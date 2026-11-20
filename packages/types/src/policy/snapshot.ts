@@ -319,8 +319,7 @@ export interface SnapshotPolicy {
    * When a snapshot that differs from the stored one fails its test. `end-of-test`: the matcher
    * records the failure and the test goes on, failing when it ends (Jest's snapshot matchers call
    * `dontThrow()` first, DV32). `throw`: the call throws, as any failed matcher does (Vitest,
-   * D61). Jest and neutral: `end-of-test`. Vitest: `throw`, which B25b records
-   * (`snapshot/mismatch-throws-at-call`, a fixture that tells the two apart).
+   * D61). Jest and neutral: `end-of-test`. Vitest: `throw` (D61).
    */
   readonly mismatch: 'end-of-test' | 'throw'
   /** Snapshot update mode in CI. Jest: `none`. Vitest: `none`. research: track-01 L220, track-07 L473 */
