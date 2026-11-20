@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "include": ["src"],
-  "exclude": ["src/each/vendor", "src/vendor"],
+  "exclude": ["src/each/vendor", "src/vendor", "src/runtime/vendor"],
   "references": [
     {
       "path": "../types"
@@ -14,6 +14,12 @@
     },
     {
       "path": "src/vendor/pretty-format"
+    },
+    {
+      "path": "src/runtime/vendor/vitest-expect"
+    },
+    {
+      "path": "../expect"
     }
   ]
 }

@@ -14,6 +14,7 @@ import type {
   EnvironmentConditions,
   FormatEachTitle,
   GlobalsFactory,
+  MatcherTableFactory,
   PolicyOverrides,
   SnapshotPrinterFactory,
 } from '@provino/types'
@@ -144,6 +145,8 @@ export const vitestPolicy: PolicyOverrides = {
     ciUpdate: 'none',
     updateEnvVar: 'UPDATE_SNAPSHOT',
     throwErrorBody: 'error',
+    // D61: a mismatch throws at the call (`snapshot/mismatch-throws-at-call`).
+    mismatch: 'throw',
     inline: { indent: 'call', formatter: 'none', writer: null, prettierPath: null },
     // Provino's own key (B23d B1): Vitest's `resolveSnapshotPath` is T11.16's.
     resolverFactory: null,
@@ -163,6 +166,11 @@ export const vitestPolicy: PolicyOverrides = {
     diffContextLines: 5,
     valueFormatter: 'pretty-format',
     errorShape: 'assertion-error',
+    // `@vitest/expect` 5.0.5's matchers, vendored, exported by `/runtime` (T7.6, D170).
+    matcherTable: moduleRef<MatcherTableFactory>(
+      import.meta.resolve('@provino/dialect-vitest/runtime'),
+      'vitestExpectTable',
+    ),
     equality: { errors: 'assert', invalidDate: 'equal' },
     soft: true,
     poll: { enabled: true, intervalMs: 50, timeoutMs: 1000 },

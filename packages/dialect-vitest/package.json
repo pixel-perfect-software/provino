@@ -43,8 +43,10 @@
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "@provino/expect": "workspace:*",
     "@provino/policy": "workspace:*",
-    "@provino/types": "workspace:*"
+    "@provino/types": "workspace:*",
+    "chai": "catalog:"
   },
   "devDependencies": {
     "vitest": "catalog:"
