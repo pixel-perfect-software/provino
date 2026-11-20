@@ -22,7 +22,15 @@ import type { StackMarker } from './location.ts'
  * its own `done` form.
  * @public
  */
-export type TestFunction<C extends object = object> = (context: TestContext & C) => unknown
+export type TestFunction<C extends object = object> = (context: WithFixtures<C>) => unknown
+
+/**
+ * The test context with the fixtures `C` on it; the plain context when there are none.
+ * @public
+ */
+export type WithFixtures<C extends object> = [keyof C] extends [never]
+  ? TestContext
+  : TestContext & C
 
 /**
  * `.each` over rows (array rows spread into arguments) or a tagged-template table.
