@@ -1,0 +1,4 @@
+{
+  "description": "A worker-scoped fixture read by a file-scoped one and by tests, in one file: each is set up once there. One file cannot tell worker scope from file scope (a worker value outliving its file needs two files on one worker, which a traced fixture cannot hold); this shows the order and the single setup only.",
+  "runners": ["vitest"]
+}

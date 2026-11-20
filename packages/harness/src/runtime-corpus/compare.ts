@@ -1,8 +1,10 @@
 // What B07's corpus check asks of a run under `@provino/core`, given the golden recorded from the
 // real runner (T5.3, T5.6). One function, so the comparison is itself under unit test.
+
 import assert from 'node:assert/strict'
 import type { CoreErrorCode } from '@provino/core'
 import type { Golden } from '../golden.ts'
+import { messageOf, parseStack } from '../internal/stack.ts'
 import { testKey } from '../normalize.ts'
 import type { CoreRun } from './run-core.ts'
 
@@ -55,8 +57,21 @@ function printed(error: {
   readonly name: string
   readonly message: string
   readonly code?: string
+  readonly stack?: string
 }): string {
-  return error.code === 'CORE_TIMEOUT' ? '<timeout>' : `${error.name}: ${error.message}`
+  if (error.code === 'CORE_TIMEOUT') return '<timeout>'
+  // A dialect's fixture error whose stack opens with its message (Vitest's
+  // `error.message + stack` for a fixture that never called `use`) is what the runner reports:
+  // its text before the frames, as the converter reads the runner's.
+  const { stack } = error
+  if (
+    error.code?.startsWith('CORE_DEFINITION_') === true &&
+    stack?.startsWith(error.message) === true &&
+    !stack.startsWith(`${error.name}: `)
+  ) {
+    return messageOf(parseStack(stack)).trim()
+  }
+  return `${error.name}: ${error.message}`
 }
 
 /**
@@ -193,6 +208,14 @@ export function assertRunMatchesGolden(
       [expected.collectionErrorCode],
       'the collection error code',
     )
+    // The converters keep the crash's message without its class name.
+    if (expected.compareMessages === true) {
+      assert.deepEqual(
+        run.collectionErrors.map((error) => error.message),
+        [goldenFile.fileError?.message],
+        'the text of the collection error',
+      )
+    }
   }
 }
 

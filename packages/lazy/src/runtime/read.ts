@@ -4,6 +4,7 @@
 import type {
   LazyEvaluation,
   LazyFrame,
+  LazyHost,
   Scope,
   SourceLocation,
   SuiteHandle,
@@ -192,11 +193,11 @@ type ViewClass = new (
   from: EvalFrame | null,
 ) => View
 
-function viewClassOf(suite: SuiteHandle): ViewClass {
+function viewClassOf(host: LazyHost, suite: SuiteHandle): ViewClass {
   let cls = suite.slots.get(VIEW_CLASS) as ViewClass | undefined
   if (cls === undefined) {
     const made = class extends View {}
-    for (const key of visibleKeys(suite)) {
+    for (const key of visibleKeys(host, suite)) {
       Object.defineProperty(made.prototype, key, {
         enumerable: true,
         get(this: View): unknown {
@@ -215,7 +216,7 @@ function viewClassOf(suite: SuiteHandle): ViewClass {
  * returns.
  */
 export function viewOf(engine: Engine, frame: LazyFrame): object {
-  const Cls = viewClassOf(frame.suite)
+  const Cls = viewClassOf(engine.host, frame.suite)
   return new Cls(engine, frame, frame.suite, null)
 }
 
@@ -362,7 +363,7 @@ interface Outcome {
 function run(engine: Engine, entry: LazyEntry, frame: LazyFrame, from: EvalFrame | null): Outcome {
   const evalFrame = new EvalFrame(entry, from)
   const resolveFrom = entry.scope === 'test' ? frame.suite : entry.suite
-  const Cls = viewClassOf(resolveFrom)
+  const Cls = viewClassOf(engine.host, resolveFrom)
   const deps = new Cls(engine, frame, resolveFrom, evalFrame)
   const scope = scopeSignal(engine, entry, frame)
   let controller: AbortController | undefined
@@ -444,7 +445,7 @@ export function readFrom(
   key: string,
   from: EvalFrame | null,
 ): unknown {
-  return readEntry(engine, frame, resolveEntry(suite, key), from)
+  return readEntry(engine, frame, resolveEntry(engine.host, suite, key), from)
 }
 
 /**
@@ -554,7 +555,7 @@ export function peek(
   key: string,
 ): { readonly evaluated: boolean; readonly value: unknown } {
   try {
-    const entry = resolveEntry(frame.suite, key)
+    const entry = resolveEntry(engine.host, frame.suite, key)
     let memo: Map<symbol, unknown> | undefined
     if (entry.scope === 'worker') memo = engine.host.workerSlots
     else if (entry.scope === 'file') memo = frame.file.slots

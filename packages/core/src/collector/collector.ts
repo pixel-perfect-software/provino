@@ -10,18 +10,23 @@ import type {
   RunMode,
 } from '@provino/types'
 import { currentStore, newStore, runInStore } from '../current/current-test.ts'
+import { captureSite as captureDefinitionSite, type ErrorSite } from '../definitions/errors.ts'
+import { suiteHookAccess } from '../definitions/resolve.ts'
+import type { DefinitionEnv, DefinitionSet } from '../definitions/table.ts'
+import { usedProps } from '../definitions/used-props.ts'
 import { CoreError } from '../errors.ts'
 import { resolveTimeout } from '../executor/deadline.ts'
 import { callUser } from '../executor/user-call.ts'
-import type {
-  DeclaredHookKind,
-  FileState,
-  HookNode,
-  InheritedOptions,
-  Store,
-  SuiteNode,
-  TestNode,
-  UserFn,
+import {
+  type DeclaredHookKind,
+  type FileState,
+  type HookNode,
+  type InheritedOptions,
+  isSuiteHook,
+  type Store,
+  type SuiteNode,
+  type TestNode,
+  type UserFn,
 } from '../internal/model.ts'
 import { isThenable } from '../internal/thenable.ts'
 import { type EachRow, eachRows } from './each.ts'
@@ -92,6 +97,8 @@ export interface CollectorConfig {
    * It may run inside a user's timer, so it must not throw.
    */
   readonly onLateRegistration: (error: CoreError, chargedTo: FileState | undefined) => void
+  /** What fixtures share across the runtime (T5.9): `NO_DEFINITIONS` for core's words alone. */
+  readonly definitions: DefinitionEnv
 }
 
 /** The registration target behind the global API. One per runtime; one file at a time. */
@@ -106,6 +113,16 @@ export class Collector {
 
   constructor(config: CollectorConfig) {
     this.#config = config
+  }
+
+  /** What every `DefinitionSet` of this runtime shares. */
+  get definitions(): DefinitionEnv {
+    return this.#config.definitions
+  }
+
+  /** The policy registrations follow. */
+  get policy(): CorePolicy {
+    return this.#config.policy
   }
 
   /** The file collecting or running now. */
@@ -191,6 +208,7 @@ export class Collector {
       arity: typeof fn === 'function' ? fn.length : 0,
       rowArgs: spec.each?.args,
       passContext: spec.each?.passContext ?? true,
+      definitions: spec.definitions,
       concurrent: spec.flags.concurrent ?? spec.options.concurrent ?? inherited.concurrent ?? false,
       expectFail: spec.flags.fails === true || spec.options.fails === true,
       timeoutMs: timeout,
@@ -287,7 +305,13 @@ export class Collector {
   }
 
   /** Registers a hook on the current suite. */
-  addHook(kind: DeclaredHookKind, fn: unknown, timeout: unknown, entry: StackMarker): void {
+  addHook(
+    kind: DeclaredHookKind,
+    fn: unknown,
+    timeout: unknown,
+    entry: StackMarker,
+    definitions?: DefinitionSet,
+  ): void {
     if (typeof fn !== 'function') {
       throw new CoreError('CORE_INVALID_ARGUMENT', `"${kind}" expects a function, got ${typeof fn}`)
     }
@@ -305,6 +329,10 @@ export class Collector {
         typeof timeout === 'number' ? timeout : undefined,
       ),
       synthetic: false,
+      definitions,
+      definitionSite: definitions === undefined ? undefined : captureDefinitionSite(entry),
+      fixtureError:
+        definitions === undefined ? this.#refusal(kind, fn as UserFn, entry) : undefined,
       site: this.#site(entry),
       location: null,
     }
@@ -322,6 +350,37 @@ export class Collector {
     }
   }
 
+  /**
+   * The error a plain suite hook fails with under `definitions.plainSuiteHook: 'refuse-fixtures'`
+   * (Vitest 5.0.5's `validateSuiteHook`, `runner/fixture.ts` L619-L635), read once here: a first
+   * parameter (the second for `aroundAll`, after `runSuite`) that is a name is a parse error, one
+   * that is an object pattern an access error, both with the stack in the header form at the
+   * hook's site. `undefined` when the hook is fine, or the policy passes the suite there.
+   */
+  #refusal(kind: DeclaredHookKind, fn: UserFn, entry: StackMarker): Error | undefined {
+    if (!isSuiteHook(kind)) return undefined
+    if (this.#config.policy.definitions.plainSuiteHook !== 'refuse-fixtures') return undefined
+    const words = this.#config.definitions
+    const index = kind === 'aroundAll' ? 1 : 0
+    let props: ReadonlySet<string>
+    try {
+      props = usedProps(fn, words, { index, suiteHook: kind })
+    } catch {
+      // Read again at the hook's site, so the error the hook throws has its stack there.
+      const site: ErrorSite = { error: captureDefinitionSite(entry), mode: 'header' }
+      try {
+        usedProps(fn, words, { index, suiteHook: kind, site })
+      } catch (error) {
+        return error instanceof Error ? error : new Error(String(error))
+      }
+      return undefined
+    }
+    if (props.size === 0) return undefined
+    return suiteHookAccess(words, kind, props, {
+      error: captureDefinitionSite(entry),
+      mode: 'header',
+    })
+  }
   /** Adds a hook at the end of a suite's list, for `LazyHost.addHook` (eager lazy values). */
   appendHook(owner: SuiteNode, kind: 'beforeEach' | 'beforeAll', fn: () => unknown): void {
     const hooks = owner.hooks[kind]
@@ -333,6 +392,9 @@ export class Collector {
       owner,
       timeoutMs: undefined,
       synthetic: true,
+      definitions: undefined,
+      definitionSite: undefined,
+      fixtureError: undefined,
       site: null,
       location: null,
     })
@@ -521,6 +583,8 @@ export interface TestSpec {
   readonly timeout: number | undefined
   readonly entry: StackMarker
   readonly each?: { readonly args: readonly unknown[]; readonly passContext: boolean }
+  /** The fixtures of the test API it was registered through (`test.extend`). */
+  readonly definitions?: DefinitionSet | undefined
 }
 
 /** One describe registration. */

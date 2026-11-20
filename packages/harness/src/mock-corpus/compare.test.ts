@@ -24,6 +24,7 @@ function coreRun(overrides: Partial<CoreRun> = {}): CoreRun {
     fileStatus: 'passed',
     fileErrors: [],
     collectionErrors: [],
+    suiteErrors: [],
     unhandled: [],
     ...overrides,
   }

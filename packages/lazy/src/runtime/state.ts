@@ -11,6 +11,7 @@ import type {
 import type { OverrideContext } from '../types.ts'
 
 // The slots keys. Private symbols: nothing outside this package can read or clash with them.
+/** The memo key an entry has until it is settled (core holds the table itself, D106). */
 export const TABLE: unique symbol = Symbol('provino.lazy.table')
 export const RESOLVED: unique symbol = Symbol('provino.lazy.resolved')
 export const VIEW_CLASS: unique symbol = Symbol('provino.lazy.view')
@@ -25,9 +26,9 @@ export type DefineFn = (deps: object, ctx: OverrideContext<unknown, Scope>) => u
 export type EntryKind = 'let' | 'eager' | 'override'
 
 /**
- * One definition of one key in one suite, shaped as `@provino/types` `Definition` (B25's T5.9
- * moves the table into core; `define` is then `factory`, `site` is `location`, `eager` is `auto`
- * and `parentEntry` is `parent`). `scope`, `eager`, `parentEntry` and `memo` are settled on the
+ * One definition of one key in one suite, shaped as `@provino/types` `Definition` (`define` is
+ * its `factory`, `site` its `location`, `eager` its `auto` and `parentEntry` its `parent`), kept
+ * in the suite's table that core owns (`LazyHost.definitions`, D106). `scope`, `eager`, `parentEntry` and `memo` are settled on the
  * first read, once the whole file is collected.
  */
 export class LazyEntry
@@ -116,5 +117,3 @@ export interface Engine {
   /** The evaluations whose definition is running synchronously right now. */
   readonly stack: EvalFrame[]
 }
-
-export type SuiteTable = Map<string, LazyEntry>

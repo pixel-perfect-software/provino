@@ -2,8 +2,10 @@
 // `allowOnly`, the two focus algorithms (`focus.scope`) with `focus.insideSkip` and
 // `status.todoUnderSkip`, the name, id and line filters, and the task list itself. Each policy value
 // is set on its own over the neutral base.
+
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
+import { NO_DEFINITIONS } from '../definitions/table.ts'
 import type { FileState } from '../internal/model.ts'
 import {
   type CoreOverrides,
@@ -531,6 +533,7 @@ describe('lines', () => {
       policy,
       formatEachTitle: (name) => name,
       locations: true,
+      definitions: NO_DEFINITIONS,
       onLateRegistration: () => {},
     })
     const state = newFileState(

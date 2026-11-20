@@ -440,10 +440,21 @@ export interface CorePolicy {
     /**
      * How a definition error is worded. `null`: core's own words, on a `CoreError`. Vitest: a ref
      * to its `FixtureParseError`, `FixtureDependencyError` and `FixtureAccessError` texts.
-     * Jest and neutral: `null`. Provino's own key. The ref is loaded on the first definition error,
-     * never at worker boot, through the policy's behaviour loader, which caches it per worker.
+     * Jest and neutral: `null`. Provino's own key. The ref is loaded when the runtime is created, through the policy's
+     * behaviour loader, because a registration error is thrown synchronously (under Vitest it is
+     * the module the worker has already loaded for `formatEachTitle`).
      */
     readonly messages: Behaviour<FormatDefinitionError> | null
+    /**
+     * What a plain suite hook (`beforeAll`, `afterAll`, `aroundAll` not registered through an
+     * extended test) may take where an extended one takes its fixtures. `pass-suite`: core passes
+     * the suite there, whatever the parameter looks like. `refuse-fixtures`: a parameter that is an
+     * object pattern is a request for fixtures it can't have, and the hook fails
+     * (`suite-hook-no-context`), as Vitest 5.0.5's `validateSuiteHook` refuses it
+     * (`runtime/fixture-suite-hook-access`). Vitest: `refuse-fixtures`. Jest and neutral:
+     * `pass-suite`. Provino's own key (B25e).
+     */
+    readonly plainSuiteHook: 'pass-suite' | 'refuse-fixtures'
   }
 }
 

@@ -1,11 +1,13 @@
 // T5.3 acceptance: each `collect.*` policy value, the registration API and the task tree it builds,
 // one value at a time against the neutral base. The scripts below are the "test files": they run
 // through a real runtime (`runScript`), so a registration goes through the same path a file's does.
+
 import assert from 'node:assert/strict'
 import { basename } from 'node:path'
 import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import type { CorePolicy } from '@provino/types'
+import { NO_DEFINITIONS } from '../definitions/table.ts'
 import type { FileState } from '../internal/model.ts'
 import {
   type CoreOverrides,
@@ -43,6 +45,7 @@ function bareCollector(overrides: CoreOverrides = {}, locations = false) {
     policy,
     formatEachTitle: (name) => name,
     locations,
+    definitions: NO_DEFINITIONS,
     onLateRegistration: (error, chargedTo) =>
       late.push({ file: chargedTo?.path, code: error.code }),
   })

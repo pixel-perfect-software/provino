@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "runtime/fixture-error-scope-conflict",
+  "files": [
+    {
+      "file": "error-scope-conflict.test.ts",
+      "status": "crashed",
+      "fileError": {
+        "message": "The \"value\" fixture was already registered with a \"test\" scope."
+      },
+      "tests": []
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": false
+}
