@@ -25,6 +25,7 @@ import {
 import 'provino/globals'
 import { jestDialect } from 'provino/jest'
 import { defaultReporter, defineReporter } from 'provino/reporters'
+import { vitestDialect } from 'provino/vitest'
 
 // The entry is the Jest dialect's test-definition globals and the lazy variables, and no more.
 expectTypeOf<keyof typeof import('provino')>().toEqualTypeOf<
@@ -83,6 +84,12 @@ expectTypeOf(globalThis.expect).toEqualTypeOf<WorkerApi['expect']>()
 // `provino/jest` is the dialect value a config's `dialects` lists.
 expectTypeOf(jestDialect).toEqualTypeOf<Dialect<'jest'>>()
 expectTypeOf(jestDialect.name).toEqualTypeOf<'jest'>()
+
+// `provino/vitest` is the Vitest dialect's.
+expectTypeOf(vitestDialect).toEqualTypeOf<Dialect<'vitest'>>()
+expectTypeOf(vitestDialect.name).toEqualTypeOf<'vitest'>()
+// @ts-expect-error: the dialect is the Vitest one, not Jest's.
+expectTypeOf(vitestDialect.name).toEqualTypeOf<'jest'>()
 
 // `provino/environment`: the shipped environments and `defineEnvironment`, which keeps the type.
 expectTypeOf(defineEnvironment(nodeEnvironment)).toEqualTypeOf<Environment<'node'>>()
