@@ -7,23 +7,27 @@
 // `local`: not a Track 12 R5 BenchRecord. It needs `provino` built: `pnpm bench:expect-import`
 // builds it first. `--dialect vitest` (B25b) imports the Vitest dialect's worker runtime
 // (`worker/vitest-runtime.js`) in place of Jest's: its line is measured in the final pass (D160).
+// The header names the dialect measured, and `--max-cold-ms` (Jest's bar) is refused with
+// `--dialect vitest` (exit 2): no Vitest bar is decided.
 import { existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { exitOnSignals, runProcess } from '@provino/harness'
-import { BenchError } from '../errors.ts'
-import { parseLimit, parseOrExitUsage, readSample } from '../internal/limits.ts'
-import { describeRun, type ImportSample, KEYS, summarise } from './report.ts'
+import { parseOrExitUsage, readSample } from '../internal/limits.ts'
+import {
+  describeRun,
+  type ImportSample,
+  KEYS,
+  parseImportArgs,
+  RUNTIMES,
+  summarise,
+} from './report.ts'
 
 // Each run is a child in its own process group, so Ctrl-C must end them through this hook.
 exitOnSignals()
 
-const DEFAULT_RUNS = 15
-
-const RUNTIMES = { jest: 'worker/jest-runtime.js', vitest: 'worker/vitest-runtime.js' } as const
-
-const { maxColdMs, runs, runtime } = parseOrExitUsage('bench:expect-import', () => {
+const { dialect, maxColdMs, runs } = parseOrExitUsage('bench:expect-import', () => {
   const { values } = parseArgs({
     options: {
       dialect: { type: 'string', default: 'jest' },
@@ -31,19 +35,9 @@ const { maxColdMs, runs, runtime } = parseOrExitUsage('bench:expect-import', () 
       runs: { type: 'string' },
     },
   })
-  if (!(values.dialect in RUNTIMES)) {
-    throw new BenchError('BENCH_USAGE', '--dialect takes jest or vitest')
-  }
-  const count = values.runs === undefined ? DEFAULT_RUNS : parseLimit('runs', values.runs)
-  if (count === undefined || !Number.isInteger(count) || count < 1) {
-    throw new BenchError('BENCH_USAGE', '--runs needs a whole number of at least 1')
-  }
-  return {
-    maxColdMs: parseLimit('max-cold-ms', values['max-cold-ms']),
-    runs: count,
-    runtime: RUNTIMES[values.dialect as keyof typeof RUNTIMES],
-  }
+  return parseImportArgs(values)
 })
+const runtime = RUNTIMES[dialect]
 
 const dist = join(dirname(fileURLToPath(import.meta.resolve('provino/package.json'))), 'dist')
 if (!existsSync(join(dist, runtime))) {
@@ -70,6 +64,7 @@ for (let run = 0; run <= runs; run++) {
 }
 
 const { lines, ok } = describeRun(summarise(samples), {
+  dialect,
   processes: runs,
   node: process.version,
   maxColdMs,

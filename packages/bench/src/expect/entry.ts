@@ -9,7 +9,10 @@
 //   jest            `expect@30.5.2` as Jest's runtime loads it
 //   provino-vitest  the same, with the Vitest dialect's slice and table (B25b, T7.6)
 //   vitest          `@vitest/expect` 5.0.5 as Vitest sets Chai up (`integrations/chai/setup.ts`), reached
-//                   from `vitest`; its `expect(x)` is Chai's, one `Assertion` per call
+//                   from `vitest`, called through a copy of Vitest's per-test `createExpect`
+//                   (`integrations/chai/index.ts`: the state's `assertionCalls` incremented, then
+//                   Chai's `expect` and `withTest` on a stub test), so both Vitest sides do the same
+//                   per-test work that Provino's state lookup stands for; one `Assertion` per call
 import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { currentTest } from '@provino/core'
@@ -96,7 +99,14 @@ if (engine === 'provino') {
   const fromVitest = createRequire(fileURLToPath(import.meta.resolve('vitest')))
   const upstream = (await import(
     pathToFileURL(fromVitest.resolve('@vitest/expect')).href
-  )) as Record<string, unknown> & { chai: { use(plugin: unknown): void; expect: Expect } }
+  )) as Record<string, unknown> & {
+    chai: {
+      use(plugin: unknown): void
+      expect: (actual: unknown) => Assert & { withTest(test: object): Assert }
+    }
+    getState(expect: unknown): { assertionCalls: number }
+    setState(state: object, expect: unknown): void
+  }
   for (const plugin of [
     'JestExtend',
     'JestChaiExpect',
@@ -105,7 +115,17 @@ if (engine === 'provino') {
   ]) {
     upstream.chai.use(upstream[plugin])
   }
-  result = measure(upstream.chai.expect, CALLS_PER_ROUND.vitest)
+  const { chai, getState, setState } = upstream
+  // Vitest's `createExpect(test)` (`integrations/chai/index.ts` L15-L27): every `expect()` adds one
+  // to the state's `assertionCalls` and binds the assertion to its test.
+  const test = { type: 'test', name: 'bench' }
+  const expect: Expect = (actual) => {
+    const { assertionCalls } = getState(expect)
+    setState({ assertionCalls: assertionCalls + 1 }, expect)
+    return chai.expect(actual).withTest(test)
+  }
+  setState({ assertionCalls: 0, currentTestName: 'bench' }, expect)
+  result = measure(expect, CALLS_PER_ROUND.vitest)
 } else if (engine === 'jest') {
   const { expect } = await import('expect')
   result = measure(expect as unknown as Expect, CALLS_PER_ROUND.jest)
