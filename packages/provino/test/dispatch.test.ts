@@ -101,13 +101,30 @@ describe('provino jest', () => {
   })
 })
 
+const VITEST_PROJECT = {
+  'vitest.config.mjs': 'export default { test: { globals: true } }\n',
+  'tests/a.test.js': passing('a'),
+}
+
 describe('provino vitest', () => {
-  it('is refused until the Vitest dialect has a parser (T11.16)', async () => {
-    const dir = await tree(JEST_PROJECT)
-    const result = await provino(['vitest', 'run'], dir)
-    assert.equal(result.code, 2)
-    assert.match(result.stderr, /provino vitest is not available yet/)
-    assert.match(result.stderr, /T11\.16/)
+  it('runs a Vitest project once with Vitest’s exit codes (B25g, T11.16)', async () => {
+    const dir = await tree(VITEST_PROJECT)
+    const passed = await provino(['vitest', 'run'], dir)
+    assert.equal(passed.code, 0, passed.stderr)
+    // A bare `vitest` runs once too (D175).
+    assert.equal((await provino(['vitest'], dir)).code, 0)
+
+    const broken = await tree({ ...VITEST_PROJECT, 'tests/b.test.js': failing('b') })
+    assert.equal((await provino(['vitest', 'run'], broken)).code, 1)
+    // A filter is a substring of the path, as Vitest's.
+    assert.equal((await provino(['vitest', 'run', 'a.test'], broken)).code, 0)
+  })
+
+  it('refuses watch mode by name and ends 1, as Vitest ends on any error (D175)', async () => {
+    const dir = await tree(VITEST_PROJECT)
+    const watch = await provino(['vitest', 'watch'], dir)
+    assert.equal(watch.code, 1)
+    assert.match(watch.stderr, /vitest watch is not supported \(D175/)
   })
 })
 
@@ -153,28 +170,31 @@ describe('bare provino', () => {
     assert.match(both.stderr, /--dialect jest or --dialect vitest/)
 
     assert.equal((await provino(['--dialect=jest'], dir)).code, 0)
+    // Vitest's own config: no globals, so the Jest-style test file fails to load.
     const vitest = await provino(['--dialect', 'vitest'], dir)
-    assert.equal(vitest.code, 2)
-    assert.match(vitest.stderr, /provino vitest is not available yet/)
+    assert.equal(vitest.code, 1, vitest.stderr)
+    assert.match(vitest.stderr, /test is not defined/)
     const bad = await provino(['--dialect', 'mocha'], dir)
     assert.equal(bad.code, 2)
     assert.match(bad.stderr, /--dialect must be jest or vitest/)
   })
 
-  it('names a Vitest project it can’t run yet', async () => {
-    const dir = await tree({ 'vitest.config.ts': 'export default {}\n' })
+  it('runs a Vitest project as provino vitest does (B25g)', async () => {
+    const dir = await tree(VITEST_PROJECT)
     const result = await provino([], dir)
-    assert.equal(result.code, 2)
-    assert.match(result.stderr, /Vitest project/)
+    assert.equal(result.code, 0, result.stderr)
+    const broken = await tree({ ...VITEST_PROJECT, 'tests/b.test.js': failing('b') })
+    assert.equal((await provino([], broken)).code, 1)
   })
 
   it('finds a Vitest project in a vite.config.* that has a test key (B25c), and not in one without', async () => {
     const withTest = await tree({
       'vite.config.mjs': 'export default { test: { globals: true } }\n',
     })
+    // Run as a Vitest project, which has no test file: Vitest's text and exit code.
     const found = await provino([], withTest)
-    assert.equal(found.code, 2)
-    assert.match(found.stderr, /Vitest project/)
+    assert.equal(found.code, 1)
+    assert.match(found.stderr, /No test files found, exiting with code 1/)
 
     const plain = await tree({ 'vite.config.mjs': 'export default { server: {} }\n' })
     const none = await provino([], plain)
