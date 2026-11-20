@@ -583,6 +583,9 @@ importers:
       '@provino/dialect-jest':
         specifier: workspace:*
         version: link:../dialect-jest
+      '@provino/dialect-vitest':
+        specifier: workspace:*
+        version: link:../dialect-vitest
       '@provino/env-jsdom':
         specifier: workspace:*
         version: link:../env-jsdom
