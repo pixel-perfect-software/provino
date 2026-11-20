@@ -55,6 +55,16 @@ describe('serializeError of an Error', () => {
   })
 })
 
+describe('serializeError of a diff (B25b)', () => {
+  test('a string diff on the error is kept, anything else is not', () => {
+    const withDiff = Object.assign(new Error('expected 1 to be 2'), { diff: '- 2\n+ 1' })
+    assert.equal(serializeError(withDiff).diff, '- 2\n+ 1')
+    const withObject = Object.assign(new Error('x'), { diff: { expected: '2', actual: '1' } })
+    assert.equal('diff' in serializeError(withObject), false)
+    assert.equal('diff' in serializeError(new Error('none')), false)
+  })
+})
+
 describe('serializeError of a failed assertion’s matcherResult', () => {
   const withResult = (matcherResult: unknown): Error =>
     Object.assign(new Error('expected 1 to be 2'), { matcherResult })

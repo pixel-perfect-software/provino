@@ -229,12 +229,15 @@ function ownFields(value: object): SerializedError {
   // the field's absence says.
   const stack = read(value, 'stack')
   const code = read(value, 'code')
+  // The diff a dialect's failure carries as text (Vitest's), kept for the reporters.
+  const diff = read(value, 'diff')
   const matcherResult = matcherResultOf(value)
   return {
     name: typeof name === 'string' ? name : 'Error',
     message: typeof message === 'string' ? message : describe(message),
     ...(typeof stack === 'string' ? { stack } : {}),
     ...(typeof code === 'string' ? { code } : {}),
+    ...(typeof diff === 'string' ? { diff } : {}),
     ...(matcherResult === undefined ? {} : { matcherResult }),
   }
 }

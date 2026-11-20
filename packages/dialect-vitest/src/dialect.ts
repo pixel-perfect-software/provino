@@ -16,6 +16,7 @@ import type {
   GlobalsFactory,
   MatcherTableFactory,
   PolicyOverrides,
+  ShapeTestError,
   SnapshotPrinterFactory,
 } from '@provino/types'
 import { VITEST_EACH_TITLE_TRUNCATE } from './each/title-truncate.ts'
@@ -107,6 +108,12 @@ export const vitestPolicy: PolicyOverrides = {
     focus: { scope: 'suite', insideSkip: 'skipped' },
     status: { todoUnderSkip: 'todo', expectFail: 'attempt' },
     locationFrame: 'test-file',
+    // Each error a failed test ended with gets the `diff` Vitest's runner adds (`processError`),
+    // which core keeps as the serialized error's `diff` (`expect/messages/*`'s Vitest goldens).
+    shapeTestError: moduleRef<ShapeTestError>(
+      import.meta.resolve('@provino/dialect-vitest/runtime'),
+      'vitestShapeTestError',
+    ),
   },
   lazy: { readInBeforeAll: 'error' },
   mock: vitestMockPolicy,

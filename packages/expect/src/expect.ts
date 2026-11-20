@@ -282,7 +282,17 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
       // An `AssertionError` runner reports a failure at the `.resolves`/`.rejects` it was read through.
       const error = read ?? capturedError(settledMatcher)
       const outerErr = outer ?? new MatcherResultError()
-      const wrong = (message: string): never => {
+      const wrong = (
+        message: string,
+        value: unknown,
+        settlement: 'resolved' | 'rejected',
+      ): never => {
+        if (assertionError !== undefined) {
+          // The table's own error for it (Vitest's `AssertionError`, with its diff), on the
+          // frames of the `.resolves`/`.rejects` read.
+          const result = { pass: false, message: () => message, actual: value }
+          throw restack(assertionError(result, message, { ...call, settlement }), outerErr)
+        }
         outerErr.message = message
         throw outerErr
       }
@@ -299,11 +309,15 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
         )(...args)
       const chained = actualWrapper.then(
         function onResolved(result) {
-          if (promise === 'rejects') wrong(messages.resolvedInsteadOfRejected(call, result))
+          if (promise === 'rejects') {
+            wrong(messages.resolvedInsteadOfRejected(call, result), result, 'resolved')
+          }
           return settle(result, onResolved)
         },
         function onRejected(reason: unknown) {
-          if (promise === 'resolves') wrong(messages.rejectedInsteadOfResolved(call, reason))
+          if (promise === 'resolves') {
+            wrong(messages.rejectedInsteadOfResolved(call, reason), reason, 'rejected')
+          }
           return settle(reason, onRejected)
         },
       )

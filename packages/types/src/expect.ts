@@ -137,6 +137,12 @@ export interface MatcherCall {
   readonly promise: PromiseVoice
   /** `expect(actual, message)`'s message, where the table takes one. */
   readonly message?: string
+  /**
+   * Set for the error of a wrong settlement under `errorShape: 'assertion-error'`: the promise
+   * `resolved` under `.rejects`, or `rejected` under `.resolves`. The result's `actual` is the value
+   * or the reason.
+   */
+  readonly settlement?: 'resolved' | 'rejected'
 }
 
 /**

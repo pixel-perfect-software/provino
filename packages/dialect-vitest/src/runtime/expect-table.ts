@@ -10,7 +10,7 @@ import { snapshotMatchers } from '@provino/expect'
 import type { ExpectTable, Matcher, MatcherCall, MatcherResult, MatcherSet } from '@provino/types'
 import { printDiffOrStringify } from '../vendor/vitest-utils/diff/index.ts'
 import { chaiChain, loadVitestPlugins, VitestAssertion } from './expect/assertion.ts'
-import { isChaiAssertionError } from './expect/chai.ts'
+import { chai, isChaiAssertionError } from './expect/chai.ts'
 import { vitestMessages } from './expect/messages.ts'
 import { customMatchers } from './vendor/vitest-expect/expect/custom-matchers.ts'
 import {
@@ -71,6 +71,7 @@ export function withDiff(error: Error): Error {
     expected?: unknown
     diff?: string | undefined
   }
+  if (typeof shaped.diff === 'string') return error
   if (
     shaped.showDiff ||
     (shaped.showDiff === undefined && shaped.expected !== undefined && shaped.actual !== undefined)
@@ -116,9 +117,36 @@ export function vitestExpectTable(): ExpectTable {
     assertionError(result: MatcherResult, message: string, call: MatcherCall): Error {
       const own = (result as Partial<FailedResult>).error
       if (own instanceof Error) return withDiff(own)
+      // `jest-expect.ts` L1063-L1070 and L1003-L1008: a wrong settlement is Chai's `AssertionError`,
+      // with a diff against a rejected promise's error, or none and the reason as its `cause`.
+      if (call.settlement === 'resolved') {
+        const { AssertionError } = chai()
+        return withDiff(
+          new AssertionError(message, {
+            showDiff: true,
+            expected: new Error('rejected promise'),
+            actual: result.actual,
+          }),
+        )
+      }
+      if (call.settlement === 'rejected') {
+        const error = new (chai().AssertionError)(message, { showDiff: false })
+        return Object.assign(error, { cause: result.actual })
+      }
       // `jest-extend.ts` L106-L113: a custom matcher's failure.
       const text = call.message === undefined ? message : `${call.message}: ${message}`
       return withDiff(new JestExtendError(text, result.actual, result.expected))
     },
   }
+}
+
+/**
+ * The Vitest dialect's `core.shapeTestError`: each error a failed test ended with gets the `diff`
+ * Vitest's runner gives it (`withDiff`) when it has none yet, which an error thrown past the table
+ * (a Chai chain's, a test's own `AssertionError`-shaped value) needs; core keeps it as the
+ * serialized error's `diff`. Anything that isn't an `Error` is reported as thrown.
+ * @public
+ */
+export function vitestShapeTestError(error: unknown): unknown {
+  return error instanceof Error ? withDiff(error) : error
 }
