@@ -1,0 +1,286 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "config/vitest-options",
+  "files": [
+    {
+      "file": "observe.vitest.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "testTimeout=1234"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "hookTimeout=4321"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "isolate=false"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "pool=\"threads\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "globals=true"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "clearMocks=false"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "mockReset=true"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "restoreMocks=true"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "unstubGlobals=true"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "unstubEnvs=true"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "maxConcurrency=7"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "sequence.hooks=\"parallel\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "sequence.shuffle=false"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "retry=2"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "passWithNoTests=true"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "environmentOptions={\"node\":{\"a\":1}}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "observe.vitest.test.ts",
+            "path": [
+              "snapshotOptions.snapshotFormat={\"printBasicPrototype\":true,\"escapeString\":true}"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 33,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

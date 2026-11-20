@@ -1,0 +1,133 @@
+{
+  "schemaVersion": 1,
+  "runner": "vitest",
+  "runnerVersion": "5.0.5",
+  "suite": "config/vitest-config-forms",
+  "files": [
+    {
+      "file": "fn/f.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "fn/f.test.ts",
+            "path": [
+              "name=\"serve:test\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 23,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "fn/f.test.ts",
+            "path": [
+              "testTimeout=55"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 23,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "merged/extra/e.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "merged/extra/e.test.ts",
+            "path": [
+              "name=\"merged\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 23,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "merged/extra/e.test.ts",
+            "path": [
+              "testTimeout=66"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 23,
+            "column": 3
+          }
+        }
+      ]
+    },
+    {
+      "file": "merged/src/s.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "merged/src/s.test.ts",
+            "path": [
+              "name=\"merged\""
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 23,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "merged/src/s.test.ts",
+            "path": [
+              "testTimeout=66"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "location": {
+            "line": 23,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 0,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 0,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": []
+  },
+  "runErrors": [],
+  "success": true
+}

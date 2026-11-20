@@ -1,0 +1,8 @@
+{
+  "description": "T11.15 (B25c): import.meta.env for a test file: MODE, DEV, PROD, SSR and BASE_URL, a VITE_ variable of the process environment and one without the prefix. A test per key prints what the worker saw.",
+  "runners": ["vitest"],
+  "env": {
+    "VITE_FROM_PROCESS": "p",
+    "NOT_PREFIXED": "n"
+  }
+}
