@@ -95,9 +95,11 @@ export function interopDefault(value: unknown): unknown {
  * again (see `freshUrl`).
  *
  * Throws `ConfigError`: `CONFIG_LOAD_FAILED` when the import throws (the error is the `cause`),
- * `CONFIG_INVALID` when the module has no default export.
+ * `CONFIG_INVALID` when the module has no default export. Exported for dialect readers that load a
+ * runner's own config file the same way (the Vitest dialect's `load.ts`, B25c).
+ * @internal
  */
-async function importConfigModule(path: string): Promise<unknown> {
+export async function importConfigModule(path: string): Promise<unknown> {
   const file = resolve(path)
   let namespace: unknown
   try {
