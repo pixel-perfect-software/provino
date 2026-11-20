@@ -15,7 +15,12 @@ test("edge-runtime's options are read from environmentOptions['edge-runtime'], a
       "export default { test: { environment: 'edge-runtime', environmentOptions: { 'edge-runtime': { a: 1 }, edgeRuntime: { b: 2 } } } }\n",
     )
     const read = await readVitestConfig({ cwd: root })
-    assert.deepEqual(read.projects[0]?.environment, { name: 'edge-runtime', options: { a: 1 } })
+    assert.deepEqual(read.projects[0]?.environment, {
+      name: 'edge-runtime',
+      options: { a: 1 },
+      // The whole object, for a docblock environment with no options (runtime/workers/base.ts).
+      resolverOptions: { 'edge-runtime': { a: 1 }, edgeRuntime: { b: 2 } },
+    })
   } finally {
     await rm(root, { recursive: true, force: true })
   }

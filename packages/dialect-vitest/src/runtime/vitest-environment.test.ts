@@ -204,6 +204,25 @@ describe('the Vitest environments against Vitest 5.0.5 (T8.6)', () => {
   })
 })
 
+describe("a docblock with no -options gets the project's whole environmentOptions (runtime/workers/base.ts)", () => {
+  it('a jsdom docblock in a node project reads environmentOptions.jsdom', async () => {
+    const result = await smoke(
+      {
+        kind: 'docblock',
+        name: 'jsdom',
+        options: null,
+        base: {
+          name: 'node',
+          environmentOptions: { jsdom: { url: 'http://example.test/project' } },
+        },
+        rootDir: ROOT,
+      },
+      { 'the URL is the project option': "location.href === 'http://example.test/project'" },
+    )
+    assert.equal(result.results['the URL is the project option'], true)
+  })
+})
+
 describe("Vitest's jsdom options reach the JSDOM constructor, as Vitest 5.0.5's jsdom.ts reads them", () => {
   /** Runs every check under one project and asserts each held, then an exact restore. */
   async function allHold(

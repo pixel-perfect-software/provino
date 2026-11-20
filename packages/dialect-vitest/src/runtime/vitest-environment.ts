@@ -400,9 +400,10 @@ export function vitestEnvironmentRef(
  * The environment a file's `@vitest-environment` or `@jest-environment` docblock names (the
  * dialect's `environmentResolver`). The `-options` docblock **replaces** the project's options
  * for the file, as Vitest 5.0.5's `getSpecificationDocblock` does (`{ [envKey]: options }`,
- * `utils/test-helpers.ts` L47-L54); without one the file gets the project's options when it
- * names the project's own environment, else none (a limit: the worker holds only the project
- * environment's own options, not the whole `environmentOptions`).
+ * `utils/test-helpers.ts` L47-L54); without one the file gets the project's whole
+ * `environmentOptions` (`runtime/workers/base.ts`: `environmentOptions || config.environmentOptions`),
+ * which the reader puts on the project ref's `resolverOptions`. A ref with none (one not from the
+ * reader) gives its own options to a file naming the same environment, else none.
  * @public
  */
 export const vitestEnvironmentFor: EnvironmentResolver = (request) => {
@@ -410,9 +411,10 @@ export const vitestEnvironmentFor: EnvironmentResolver = (request) => {
   const environmentOptions: JsonObject =
     docblock !== undefined
       ? { [environmentOptionsKey(request.name)]: docblock }
-      : sameEnvironment(request.base, request.name)
-        ? baseOptions(request.base, request.name)
-        : {}
+      : (request.base.resolverOptions ??
+        (sameEnvironment(request.base, request.name)
+          ? baseOptions(request.base, request.name)
+          : {}))
   return vitestEnvironmentRef(request.name, environmentOptions, request.rootDir)
 }
 

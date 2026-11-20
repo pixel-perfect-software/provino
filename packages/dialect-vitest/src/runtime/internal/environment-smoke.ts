@@ -37,7 +37,11 @@ async function refOf(spec: SmokeSpec): Promise<EnvironmentRef> {
   if (spec.kind === 'project') {
     return vitestEnvironmentRef(spec.name, spec.environmentOptions, spec.rootDir)
   }
-  const base = vitestEnvironmentRef(spec.base.name, spec.base.environmentOptions, spec.rootDir)
+  // The project's whole `environmentOptions` rides on the ref, as the reader and config put it there.
+  const base = {
+    ...vitestEnvironmentRef(spec.base.name, spec.base.environmentOptions, spec.rootDir),
+    resolverOptions: spec.base.environmentOptions,
+  }
   return vitestEnvironmentFor({
     name: spec.name,
     options: spec.options,

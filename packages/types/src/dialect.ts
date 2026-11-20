@@ -169,6 +169,12 @@ export interface NeutralProject {
   readonly environment: {
     readonly name: string
     readonly options: Readonly<Record<string, JsonValue>>
+    /**
+     * What the dialect's `environmentResolver` reads of the project's environment config beside the
+     * environment's own `options` (a Vitest project's whole `environmentOptions`, which a docblock
+     * with no options gets). The environment's `setup` never sees it. Absent for most projects.
+     */
+    readonly resolverOptions?: { readonly [key: string]: JsonValue }
   }
   readonly aliases: readonly NeutralAlias[]
   /**

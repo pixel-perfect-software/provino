@@ -172,6 +172,9 @@ export interface g {
     readonly options: {
         readonly [key: string]: I;
     };
+    readonly resolverOptions?: {
+        readonly [key: string]: I;
+    };
 }
 
 // @public

@@ -122,6 +122,14 @@ function environmentRef(value: unknown): EnvironmentRef {
     module: moduleLocation(ref.module, 'environment.module'),
     export: text(ref.export, 'environment.export'),
     options: record(ref.options, 'environment.options') as EnvironmentRef['options'],
+    ...(ref.resolverOptions === undefined
+      ? {}
+      : {
+          resolverOptions: record(
+            ref.resolverOptions,
+            'environment.resolverOptions',
+          ) as EnvironmentRef['options'],
+        }),
   }
 }
 

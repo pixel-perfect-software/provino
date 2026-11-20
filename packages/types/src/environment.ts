@@ -158,6 +158,12 @@ export interface EnvironmentRef {
   readonly export: string
   /** What `setup` and `prepare` get as `options`. */
   readonly options: { readonly [key: string]: JsonValue }
+  /**
+   * What the dialect's `environmentResolver` reads of the project's environment config beside the
+   * environment's own `options` (a Vitest project's whole `environmentOptions`, which a docblock
+   * with no options gets). The environment's `setup` never sees it. Absent for most projects.
+   */
+  readonly resolverOptions?: { readonly [key: string]: JsonValue }
 }
 
 /**

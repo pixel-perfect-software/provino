@@ -865,6 +865,9 @@ export interface EnvironmentRef {
     readonly options: {
         readonly [key: string]: JsonValue;
     };
+    readonly resolverOptions?: {
+        readonly [key: string]: JsonValue;
+    };
 }
 
 // @public
@@ -2288,6 +2291,9 @@ export interface NeutralProject {
     readonly environment: {
         readonly name: string;
         readonly options: Readonly<Record<string, JsonValue>>;
+        readonly resolverOptions?: {
+            readonly [key: string]: JsonValue;
+        };
     };
     readonly fakeTimers?: Readonly<Record<string, JsonValue>>;
     readonly globalSetup: readonly string[];

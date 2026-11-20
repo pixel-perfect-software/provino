@@ -273,7 +273,14 @@ export function vitestProjectToNeutral(project: VitestResolvedProject): {
     ),
     globalSetup: list(test.globalSetup).map((entry) => absolute(entry, root, 'test.globalSetup')),
     globalTeardown: [],
-    environment: { name: environmentName, options: environmentJson as Record<string, JsonValue> },
+    environment: {
+      name: environmentName,
+      options: environmentJson as Record<string, JsonValue>,
+      // A docblock environment with no `-options` gets the whole object (Vitest 5.0.5's
+      // `runtime/workers/base.ts`: `environmentOptions || config.environmentOptions || {}`).
+      resolverOptions: (jsonOf(environmentOptions, 'test.environmentOptions', diagnostics) ??
+        {}) as Record<string, JsonValue>,
+    },
     aliases: [],
     ...(mappers.length === 0 ? {} : { mappers }),
     transforms: [],
