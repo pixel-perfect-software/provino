@@ -328,6 +328,7 @@ const REFUSED_COMMANDS: Readonly<Partial<Record<VitestCommandName, string>>> = {
   bench: 'not planned: benchmarks',
   init: 'not planned: browser mode (D3)',
   doctor: 'a follow-up bundle (Vitest doctor)',
+  list: 'parked (D183)',
   complete: 'not planned: shell completions',
 }
 

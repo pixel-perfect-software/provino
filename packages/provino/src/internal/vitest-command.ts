@@ -231,6 +231,9 @@ export async function runVitestCommand(
     if (report(parsed.diagnostics, stderr)) return VITEST_ERROR_EXIT
     const { argv } = parsed
     const request = vitestCli.toRunRequest(argv)
+    if (request.mode !== 'run') {
+      throw new VitestCommandError(`the ${request.mode} mode is not supported (parked (D183))`)
+    }
     const { options } = argv
     const read = await readVitestConfig({
       cwd,

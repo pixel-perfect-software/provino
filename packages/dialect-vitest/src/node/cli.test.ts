@@ -367,6 +367,7 @@ describe('Provino on top of the parse', () => {
     assert.deepEqual(codes(['--coverage']), ['error:--coverage'])
     assert.deepEqual(codes(['--no-coverage']), [])
     assert.deepEqual(codes(['bench']), ['error:bench'])
+    assert.deepEqual(codes(['list']), ['error:list'])
     assert.deepEqual(codes(['--configLoader', 'runner']), ['warning:--configLoader'])
     assert.deepEqual(codes(['--pool=vmThreads', '--environment', 'node']), [])
     const [watch] = parseVitestCli(['watch']).diagnostics
