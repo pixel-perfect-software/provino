@@ -332,6 +332,22 @@ const REFUSED_COMMANDS: Readonly<Partial<Record<VitestCommandName, string>>> = {
   complete: 'not planned: shell completions',
 }
 
+/**
+ * The row a given key answers to, and the name to report it by. A dotted key no row registers
+ * (`--expect.soft`, `--sequence.foo`) has its nearest parent's row (cac takes it as that option's
+ * property), so it is refused, warned or handed on with it, never dropped.
+ */
+function rowOf(key: string): { readonly row: VitestCliOption; readonly long: string } | undefined {
+  const own = ROW_BY_NAME.get(key)
+  if (own !== undefined) return { row: own, long: `--${own.path}` }
+  const parts = key.split('.')
+  for (let end = parts.length - 1; end > 0; end--) {
+    const parent = ROW_BY_NAME.get(parts.slice(0, end).join('.'))
+    if (parent !== undefined) return { row: parent, long: `--${key}` }
+  }
+  return undefined
+}
+
 const isOff = (value: unknown): boolean => value === false || value === 'false' || value === 'no'
 
 /**
@@ -354,12 +370,13 @@ export function parseVitestCli(args: readonly string[]): {
       message: `vitest ${argv.command} is not supported (${refusedCommand})`,
     })
   }
-  const seen = new Set<VitestCliOption>()
+  const seen = new Set<string>()
   for (const [key, value] of argv.given) {
-    const row = ROW_BY_NAME.get(key)
-    if (row === undefined || seen.has(row) || isOff(value)) continue
-    seen.add(row)
-    const long = `--${row.path}`
+    const found = rowOf(key)
+    if (found === undefined || isOff(value)) continue
+    const { row, long } = found
+    if (seen.has(long)) continue
+    seen.add(long)
     if (row.support === 'refuse') {
       diagnostics.push({
         level: 'error',

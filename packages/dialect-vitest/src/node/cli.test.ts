@@ -12,6 +12,7 @@ import {
   VITEST_LIST_OPTIONS,
   VitestCliError,
   vitestArgvToRunRequest,
+  vitestArgvToTestConfig,
   vitestFlags,
 } from './cli.ts'
 import { cacOption } from './internal/cac-parse.ts'
@@ -369,6 +370,13 @@ describe('Provino on top of the parse', () => {
     assert.deepEqual(codes(['--no-coverage']), [])
     assert.deepEqual(codes(['bench']), ['error:bench'])
     assert.deepEqual(codes(['list']), ['error:list'])
+    // A key no row registers falls back to its parent's row (D183: never dropped).
+    assert.deepEqual(codes(['--expect.soft']), ['error:--expect.soft'])
+    assert.deepEqual(codes(['--retry.foo', '1']), ['error:--retry.foo'])
+    assert.deepEqual(codes(['--sequence.foo', '1']), [])
+    assert.deepEqual(vitestArgvToTestConfig(parseVitestArgv(['--sequence.foo', '1'])), {
+      sequence: { foo: 1 },
+    })
     assert.deepEqual(codes(['--configLoader', 'runner']), ['warning:--configLoader'])
     assert.deepEqual(codes(['--pool=vmThreads', '--environment', 'node']), [])
     const [watch] = parseVitestCli(['watch']).diagnostics
