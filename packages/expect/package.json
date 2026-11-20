@@ -19,6 +19,11 @@
       "provino-source": "./src/index.ts",
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./table": {
+      "provino-source": "./src/table/index.ts",
+      "types": "./dist/table/index.d.ts",
+      "import": "./dist/table/index.js"
     }
   },
   "files": [
