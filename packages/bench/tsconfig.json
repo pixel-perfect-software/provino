@@ -36,6 +36,9 @@
       "path": "../dialect-jest"
     },
     {
+      "path": "../dialect-vitest"
+    },
+    {
       "path": "../env-jsdom"
     },
     {

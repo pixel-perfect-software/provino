@@ -21,6 +21,12 @@ import { VITEST_EACH_TITLE_TRUNCATE } from './each/title-truncate.ts'
 import { vitestHoistPolicy } from './hoist-policy.ts'
 import { vitestMockPolicy, vitestModulePolicy } from './mock-policy.ts'
 
+/** Vitest's `defaultInclude`: what its `test.include` is when nothing sets it. */
+export const defaultInclude: string[] = ['**/*.{test,spec}.?(c|m)[jt]s?(x)']
+
+/** Vitest's `defaultExclude`: what its `test.exclude` is when nothing sets it. */
+export const defaultExclude: string[] = ['**/node_modules/**', '**/.git/**']
+
 /**
  * Vitest 5.0's policy (with `sequence.hooks: 'stack'`, its default), layered over the neutral
  * policy by `resolvePolicy`. This is `vitestDialect.policy`, typed as the overrides it is.
@@ -170,8 +176,8 @@ export const vitestPolicy: PolicyOverrides = {
     expand: false,
   },
   orchestrator: {
-    include: ['**/*.{test,spec}.?(c|m)[jt]s?(x)'],
-    exclude: ['**/node_modules/**', '**/.git/**'],
+    include: defaultInclude,
+    exclude: defaultExclude,
     bail: { checkAfter: 'test' },
     watchDefault: 'tty-not-ci',
     watch: { initialRun: 'all' },

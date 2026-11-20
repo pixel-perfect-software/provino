@@ -99,6 +99,13 @@ export interface FixtureManifest {
    */
   readonly jestEsm?: true
   /**
+   * `true`: the fixture brings project directories of its own and its Vitest `config` sets
+   * `test.projects` (B25c: the config reader's project cases). Without it `test.projects` is a key
+   * the recorder refuses, since a run with projects lists one file once per project that ran it.
+   * Absent means off.
+   */
+  readonly vitestProjects?: true
+  /**
    * `"babel"`: Jest runs the fixture's TypeScript as Jest's documentation sets it up (D123):
    * `babel-jest` with `@babel/preset-typescript` (and, with `jestEsm`, the CommonJS plugin), with
    * no type stripping before it. Absent means the recorder's own transformer (Node's type
@@ -390,6 +397,7 @@ const KNOWN_KEYS: ReadonlySet<string> = new Set([
   'mockCleanup',
   'packages',
   'jestEsm',
+  'vitestProjects',
   'jestTypeScript',
   'jestTransformJs',
   'jestConfig',
@@ -432,7 +440,7 @@ export function parseFixtureManifest(
     if (!KNOWN_KEYS.has(key)) {
       throw new HarnessError(
         'HARNESS_FIXTURE_UNKNOWN_KEY',
-        `${source}: unknown key "${key}" (expected description, runners, env, nodeFlags, nodeMajors, expectCrash, mockCleanup, packages, jestEsm, jestTypeScript, jestTransformJs, jestConfig, config, files, run, scm, before, watch)`,
+        `${source}: unknown key "${key}" (expected description, runners, env, nodeFlags, nodeMajors, expectCrash, mockCleanup, packages, jestEsm, vitestProjects, jestTypeScript, jestTransformJs, jestConfig, config, files, run, scm, before, watch)`,
         { path: source },
       )
     }
@@ -447,6 +455,7 @@ export function parseFixtureManifest(
     mockCleanup,
     packages,
     jestEsm,
+    vitestProjects,
     jestTypeScript,
     jestTransformJs,
     jestConfig,
@@ -507,6 +516,9 @@ export function parseFixtureManifest(
       : { mockCleanup: parseMockCleanup(mockCleanup, runners, source) }),
     ...(packages === undefined ? {} : { packages: parsePackages(packages, source) }),
     ...(jestEsm === undefined ? {} : { jestEsm: parseJestEsm(jestEsm, runners, source) }),
+    ...(vitestProjects === undefined
+      ? {}
+      : { vitestProjects: parseVitestProjects(vitestProjects, runners, config, source) }),
     ...(jestTypeScript === undefined
       ? {}
       : { jestTypeScript: parseJestTypeScript(jestTypeScript, runners, source) }),
@@ -523,6 +535,7 @@ export function parseFixtureManifest(
             mockCleanup: mockCleanup !== undefined,
             jestConfig: isRecord(jestConfig) ? Object.keys(jestConfig) : [],
             run: run !== undefined,
+            vitestProjects: vitestProjects !== undefined,
           }),
         }),
     ...(parsedFiles === undefined ? {} : { files: parsedFiles }),
@@ -622,6 +635,7 @@ function parseConfigOverlay(
     readonly mockCleanup: boolean
     readonly jestConfig: readonly string[]
     readonly run: boolean
+    readonly vitestProjects: boolean
   },
 ): FixtureConfigOverlay {
   const bad = (reason: string): HarnessError =>
@@ -656,7 +670,11 @@ function parseConfigOverlay(
             ...owned.jestConfig,
           ]
         : [
-            ...VITEST_RESERVED.filter((key) => !owned.run || !VITEST_DISCOVERY.includes(key)),
+            ...VITEST_RESERVED.filter(
+              (key) =>
+                (!owned.run || !VITEST_DISCOVERY.includes(key)) &&
+                (!owned.vitestProjects || key !== 'test.projects'),
+            ),
             ...(owned.mockCleanup ? VITEST_MOCK_CLEANUP_OPTIONS : []),
             ...(runners.includes('vitest-list') ? ['test.sequence.hooks'] : []),
           ]
@@ -1498,6 +1516,31 @@ function parseJestFlag<T extends true | string>(
     })
   }
   return expected
+}
+
+/**
+ * `vitestProjects` is `true` or absent: it needs a Vitest runner and a Vitest `config` that sets
+ * `test.projects`, so the flag and the key are one decision.
+ */
+function parseVitestProjects(
+  vitestProjects: unknown,
+  runners: readonly FixtureProfile[],
+  config: unknown,
+  source: string,
+): true {
+  const bad = (reason: string): HarnessError =>
+    new HarnessError('HARNESS_FIXTURE_BAD_CONFIG', `${source}: "vitestProjects" ${reason}`, {
+      path: source,
+    })
+  if (vitestProjects !== true) throw bad('must be true, or left out for off')
+  if (!runners.some((profile) => profile === 'vitest' || profile === 'vitest-list')) {
+    throw bad('is set but "runners" does not list "vitest"')
+  }
+  const test = isRecord(config) && isRecord(config.vitest) ? config.vitest.test : undefined
+  if (!isRecord(test) || !Array.isArray(test.projects)) {
+    throw bad('is set but config.vitest.test.projects is not a list')
+  }
+  return true
 }
 
 /** `jestEsm` is `true` or absent, and only means something for a fixture that runs Jest. */

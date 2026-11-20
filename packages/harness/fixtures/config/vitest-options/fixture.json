@@ -1,0 +1,36 @@
+{
+  "description": "T11.15 (B25c): the keys the Vitest config reader applies, each set to a non-default value in the config file. A test per key prints the worker's resolved value in its title.",
+  "runners": ["vitest"],
+  "config": {
+    "vitest": {
+      "test": {
+        "testTimeout": 1234,
+        "hookTimeout": 4321,
+        "isolate": false,
+        "pool": "threads",
+        "clearMocks": false,
+        "mockReset": true,
+        "restoreMocks": true,
+        "unstubGlobals": true,
+        "unstubEnvs": true,
+        "maxConcurrency": 7,
+        "retry": 2,
+        "passWithNoTests": true,
+        "sequence": {
+          "hooks": "parallel",
+          "seed": 42,
+          "shuffle": false
+        },
+        "snapshotFormat": {
+          "printBasicPrototype": true,
+          "escapeString": true
+        },
+        "environmentOptions": {
+          "node": {
+            "a": 1
+          }
+        }
+      }
+    }
+  }
+}

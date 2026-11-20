@@ -2284,6 +2284,7 @@ export interface NeutralProject {
     readonly globalTeardown: readonly string[];
     readonly globalValues?: Readonly<Record<string, JsonValue>>;
     readonly importMetaEnv?: Readonly<Record<string, string | boolean>>;
+    readonly mappers?: readonly SerializedModuleMapper[];
     readonly name: string;
     readonly policy: PolicyOverrides;
     readonly randomize?: true;
