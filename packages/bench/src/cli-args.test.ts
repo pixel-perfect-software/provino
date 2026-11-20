@@ -52,7 +52,19 @@ test('check and run both take provino beside jest', () => {
     () => parseCli(['check', 'app-5', '--runner', 'mocha']),
     (error) =>
       error instanceof BenchError &&
-      /must be jest or vitest or provino; got mocha/.test(error.message),
+      /must be jest or vitest or provino or provino-vitest; got mocha/.test(error.message),
+  )
+})
+
+test('check takes provino-vitest beside vitest, and a timed run refuses it', () => {
+  const parsed = parseCli(['check', 'app-500', '--runner', 'vitest', '--runner', 'provino-vitest'])
+  assert.equal(parsed.command === 'check' && parsed.runners.join(), 'vitest,provino-vitest')
+  assert.match(USAGE, /--runner provino-vitest/)
+  assert.throws(
+    () => parseCli(['run', 'app-5', '--runner', 'provino-vitest']),
+    (error) =>
+      error instanceof BenchError &&
+      /must be jest or vitest or provino; got provino-vitest/.test(error.message),
   )
 })
 

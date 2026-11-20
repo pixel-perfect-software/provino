@@ -187,9 +187,10 @@ planRunner(parseSuiteName('app-5'), 'provino', { isolation: 'none' })
 // @ts-expect-error Provino's tiers here are registry and none
 planRunner(parseSuiteName('app-5'), 'provino', { isolation: 'realm' })
 expectTypeOf<RunnerPlan['isolation']>().toEqualTypeOf<IsolationMode>()
-expectTypeOf<RunnerName>().toEqualTypeOf<'jest' | 'vitest' | 'provino'>()
+expectTypeOf<RunnerName>().toEqualTypeOf<'jest' | 'vitest' | 'provino' | 'provino-vitest'>()
+planRunner(parseSuiteName('app-5'), 'provino-vitest')
 expectTypeOf<RunnerPlan['runner']>().toEqualTypeOf<RunnerName>()
-// @ts-expect-error only Jest, Vitest and Provino are runners
+// @ts-expect-error only Jest, Vitest and Provino (under either dialect) are runners
 planRunner(parseSuiteName('app-5'), 'mocha')
 // @ts-expect-error extra arguments are strings
 planRunner(parseSuiteName('app-5'), 'jest', { extraArgs: [1] })

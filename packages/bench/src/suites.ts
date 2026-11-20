@@ -229,16 +229,24 @@ export async function writeSuite(spec: SuiteSpec, root?: string): Promise<WriteS
 
 /**
  * The runners a suite can be checked and benchmarked under. `provino` is the `provino` bin, run on
- * the suite's `jest/` tree.
+ * the suite's `jest/` tree; `provino-vitest` is the same bin as `provino vitest run` on the suite's
+ * `vitest/` tree, which `check` runs and nothing times (B25).
  * @public
  */
-export type RunnerName = 'jest' | 'vitest' | 'provino'
+export type RunnerName = 'jest' | 'vitest' | 'provino' | 'provino-vitest'
 
 /**
  * The runners, in the order a bench lists them.
  * @public
  */
-export const RUNNERS: readonly RunnerName[] = ['jest', 'vitest', 'provino']
+export const RUNNERS: readonly RunnerName[] = ['jest', 'vitest', 'provino', 'provino-vitest']
+
+/**
+ * The runners a timed run takes: every runner but `provino-vitest`, which `check` alone runs until
+ * `provino vitest` is measured (B25 times nothing, D160).
+ * @public
+ */
+export const TIMED_RUNNERS: readonly RunnerName[] = ['jest', 'vitest', 'provino']
 
 /**
  * How each runner is started: the tree under the suite it runs in, the Node arguments before its
@@ -252,6 +260,8 @@ const RUNNER_SETUP: Readonly<
     {
       /** The tree it runs in under the suite; the runner's own name when left out. */
       readonly tree?: string
+      /** The package whose bin it runs; the runner's own name when left out. */
+      readonly package?: string
       /** The runner id its results carry: Provino runs the Jest tree, so it is the Jest dialect's. */
       readonly subjectRunner: RunnerId
       readonly nodeArgs: readonly string[]
@@ -286,17 +296,25 @@ const RUNNER_SETUP: Readonly<
     cacheKind: 'provino',
     cacheDir: 'jest/node_modules/.cache/provino',
   },
+  'provino-vitest': {
+    subjectRunner: 'provino:vitest',
+    tree: 'vitest',
+    package: 'provino',
+    nodeArgs: ['--conditions=provino-source'],
+    config: 'vitest.config.ts',
+    args: ['vitest', 'run'],
+    cacheKind: 'provino',
+    cacheDir: 'vitest/node_modules/.cache/provino',
+  },
 }
 
-function installedPackage(runner: RunnerName): RunnerPackage {
+function installedPackage(name: string): RunnerPackage {
   try {
-    return resolveRunnerPackage(runner, import.meta.url)
+    return resolveRunnerPackage(name, import.meta.url)
   } catch (cause) {
-    throw new BenchError(
-      'BENCH_RUNNER_NOT_FOUND',
-      `${runner} is not installed for @provino/bench`,
-      { cause },
-    )
+    throw new BenchError('BENCH_RUNNER_NOT_FOUND', `${name} is not installed for @provino/bench`, {
+      cause,
+    })
   }
 }
 
@@ -353,19 +371,20 @@ export function planRunner(
     args: leading,
     cacheKind,
     tree = runner,
+    package: packageName = runner,
     cacheDir = join('.cache', cacheKind),
   } = setup
   const tier = options?.isolation ?? 'registry'
   const isolation: IsolationMode = runner === 'provino' ? tier : 'runner-default'
   const config = runner === 'provino' ? PROVINO_CONFIG[tier] : setup.config
   const root = suiteDir(spec, suitesRoot)
-  const pkg = installedPackage(runner)
+  const pkg = installedPackage(packageName)
   const cwd = join(root, tree)
   const args = [...leading, '--config', config, ...(options?.extraArgs ?? [])]
   const compileCache = join(root, '.cache', `node-${runner}`)
   const toolCache = join(root, cacheDir)
 
-  const shownBin = relative(cwd, join(PACKAGE_DIR, 'node_modules', runner, pkg.binInPackage))
+  const shownBin = relative(cwd, join(PACKAGE_DIR, 'node_modules', packageName, pkg.binInPackage))
   const command = [
     `cd ${relative(repoRoot, cwd)} &&`,
     `NODE_COMPILE_CACHE=${relative(cwd, compileCache)}`,

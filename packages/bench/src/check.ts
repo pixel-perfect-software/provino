@@ -112,6 +112,11 @@ const REPORTERS: Readonly<
     args: (outputFile) => ['--reporter=json', `--outputFile=${outputFile}`],
     parse: (text, source) => ({ report: parseVitestJson(text, source), parsed: {} }),
   },
+  // `provino vitest` is asked as Vitest is, and its report is held to Vitest's shape (T11.16).
+  'provino-vitest': {
+    args: (outputFile) => ['--reporter=json', `--outputFile=${outputFile}`],
+    parse: (text, source) => ({ report: parseVitestJson(text, source), parsed: {} }),
+  },
   provino: {
     args: (outputFile) => [
       '--reporter',
