@@ -129,8 +129,7 @@ test('the served modules: vitest, @vitest/spy, @vitest/expect and vitest/runtime
   const own = scope.vi
   // The scope's served values are not enumerable, beside the bindings of the same name.
   const served = (name: string): Record<string, unknown> => {
-    const descriptors = Object.getOwnPropertyDescriptors(scope)
-    const descriptor = Object.entries(descriptors).find(([key]) => key === name)?.[1]
+    const descriptor = Object.getOwnPropertyDescriptor(scope, name)
     assert.ok(descriptor !== undefined, name)
     return (descriptor.get?.() ?? descriptor.value) as Record<string, unknown>
   }

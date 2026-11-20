@@ -25,14 +25,7 @@ import {
   type UnknownFunction,
 } from '@provino/mock'
 import { createTimerMembers, type FakeClock, type FakeTimersConfig } from '@provino/timers'
-import type {
-  GlobalsHost,
-  MockFactory,
-  MockSpec,
-  ModuleId,
-  ModulePolicy,
-  TimersPolicy,
-} from '@provino/types'
+import type { GlobalsHost, MockFactory, MockSpec, ModuleId, TimersPolicy } from '@provino/types'
 import { vitestModulePolicy } from '../mock-policy.ts'
 import { assertTypes } from '../vendor/vitest-utils/helpers.ts'
 import { createWait } from './vendor/vitest-vi/wait.ts'
@@ -227,6 +220,29 @@ const SAFE_TIMERS = {
   clearInterval: globalThis.clearInterval,
 }
 
+/** Vitest's timer members, in its order (vi.ts `createVitest`). */
+const VI_TIMER_NAMES = [
+  'useFakeTimers',
+  'isFakeTimers',
+  'useRealTimers',
+  'runOnlyPendingTimers',
+  'runOnlyPendingTimersAsync',
+  'runAllTimers',
+  'runAllTimersAsync',
+  'runAllTicks',
+  'advanceTimersByTime',
+  'advanceTimersByTimeAsync',
+  'advanceTimersToNextTimer',
+  'advanceTimersToNextTimerAsync',
+  'advanceTimersToNextFrame',
+  'getTimerCount',
+  'setSystemTime',
+  'getMockedSystemTime',
+  'getRealSystemTime',
+  'clearAllTimers',
+  'setTimerTickMode',
+] as const
+
 /** `vi.stubEnv`'s names that hold a boolean (`_envBooleans`, vi.ts L629). */
 const ENV_BOOLEANS: readonly string[] = ['PROD', 'DEV', 'SSR']
 
@@ -299,7 +315,6 @@ export function createVi(shared: ViShared, from: string | null): VitestObject {
   const parent = from as ModuleId | null
   const self = (): VitestObject => vi
   const timers = createTimerMembers(() => host.timers(), host.timersPolicy, self)
-  const timer = timers as unknown as Record<string, (...args: readonly unknown[]) => unknown>
   const chain =
     <A extends unknown[]>(run: (...args: A) => void) =>
     (...args: A): VitestObject => {
@@ -316,35 +331,18 @@ export function createVi(shared: ViShared, from: string | null): VitestObject {
     },
     SAFE_TIMERS,
   )
+  // Vitest's timer members come first, in its order; the loosely typed members are this
+  // interface's (`TimerMembers` is the dialect's to type).
+  const timerPart = Object.fromEntries(
+    VI_TIMER_NAMES.map((name) => [name, timers[name]]),
+  ) as unknown as Pick<VitestObject, (typeof VI_TIMER_NAMES)[number]>
   const vi: VitestObject = {
+    ...timerPart,
     useFakeTimers(config) {
       const defaults = shared.config.get(host.mocks())?.fakeTimers
-      timer.useFakeTimers?.(defaults === undefined ? config : { ...defaults, ...config })
+      timerPart.useFakeTimers(defaults === undefined ? config : { ...defaults, ...config })
       return vi
     },
-    isFakeTimers: () => timer.isFakeTimers?.() as boolean,
-    useRealTimers: timers.useRealTimers as VitestObject['useRealTimers'],
-    runOnlyPendingTimers: timers.runOnlyPendingTimers as VitestObject['runOnlyPendingTimers'],
-    runOnlyPendingTimersAsync:
-      timers.runOnlyPendingTimersAsync as VitestObject['runOnlyPendingTimersAsync'],
-    runAllTimers: timers.runAllTimers as VitestObject['runAllTimers'],
-    runAllTimersAsync: timers.runAllTimersAsync as VitestObject['runAllTimersAsync'],
-    runAllTicks: timers.runAllTicks as VitestObject['runAllTicks'],
-    advanceTimersByTime: timers.advanceTimersByTime as VitestObject['advanceTimersByTime'],
-    advanceTimersByTimeAsync:
-      timers.advanceTimersByTimeAsync as VitestObject['advanceTimersByTimeAsync'],
-    advanceTimersToNextTimer:
-      timers.advanceTimersToNextTimer as VitestObject['advanceTimersToNextTimer'],
-    advanceTimersToNextTimerAsync:
-      timers.advanceTimersToNextTimerAsync as VitestObject['advanceTimersToNextTimerAsync'],
-    advanceTimersToNextFrame:
-      timers.advanceTimersToNextFrame as VitestObject['advanceTimersToNextFrame'],
-    getTimerCount: timers.getTimerCount as VitestObject['getTimerCount'],
-    setSystemTime: timers.setSystemTime as VitestObject['setSystemTime'],
-    getMockedSystemTime: timers.getMockedSystemTime as VitestObject['getMockedSystemTime'],
-    getRealSystemTime: timers.getRealSystemTime as VitestObject['getRealSystemTime'],
-    clearAllTimers: timers.clearAllTimers as VitestObject['clearAllTimers'],
-    setTimerTickMode: timers.setTimerTickMode as VitestObject['setTimerTickMode'],
     // The engine's overloads take the access kind last; one signature serves all three.
     spyOn: ((object: object, key: PropertyKey, access?: 'get' | 'set'): unknown =>
       (spyOn as (...args: readonly unknown[]) => unknown)(
@@ -392,9 +390,11 @@ export function createVi(shared: ViShared, from: string | null): VitestObject {
     importMock: <T>(path: string): Promise<T> =>
       new Promise<T>((done) => done(host.moduleMocks().mockFor(path, from ?? '') as T)),
     mockObject<T>(value: T, options?: VitestMockOptions): T {
-      const shape: ModulePolicy['automockShape'] = vitestModulePolicy.automockShape
-      const made = automock({ value }, shape, options?.spy ? 'autospy' : 'automock', (made) =>
-        createMockFn(host.mockPolicy, host.mocks(), made),
+      const made = automock(
+        { value },
+        vitestModulePolicy.automockShape,
+        options?.spy ? 'autospy' : 'automock',
+        (made) => createMockFn(host.mockPolicy, host.mocks(), made),
       ) as { value: T }
       return made.value
     },
