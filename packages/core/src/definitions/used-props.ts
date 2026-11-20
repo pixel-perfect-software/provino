@@ -4,10 +4,9 @@
 // are dropped first, a function lowered from `async` (`__async(this, null, function* ...`) is read
 // from its generator, a default or a rename (`{ a = 1, b: c }`) names `a` and `b`, and a rest
 // element is refused.
+import type { AnyFunction } from '@provino/types'
+import type { SuiteHookKind } from '../internal/model.ts'
 import { type DefinitionWords, definitionError, type ErrorSite } from './errors.ts'
-
-/** Any function: its source is what is read. */
-export type AnyFunction = (...args: never[]) => unknown
 
 /** Where to read the props from, when it is not the function itself (a wrapper's original). */
 export interface PropsSource {
@@ -21,7 +20,7 @@ export interface PropsSource {
 export interface PropsReading {
   /** The parameter that holds the fixtures, unless `propsFrom` named it (default 0). */
   readonly index?: number
-  readonly suiteHook?: 'beforeAll' | 'afterAll' | 'aroundAll'
+  readonly suiteHook?: SuiteHookKind
   readonly site?: ErrorSite
 }
 

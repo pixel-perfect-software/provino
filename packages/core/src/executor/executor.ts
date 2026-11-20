@@ -38,27 +38,20 @@ import type {
 import { CALLER_FRAMES, captureSite, parseSite, TEST_FILE_FRAMES } from '../collector/location.ts'
 import { type RetrySpec, retryCount, retryDelay } from '../collector/retry.ts'
 import { newStore, runInStore, setRunningFrame } from '../current/current-test.ts'
-import type { DefinitionWords, ErrorSite } from '../definitions/errors.ts'
-import {
-  type AttemptFixtures,
-  NO_WORDS,
-  prepare,
-  type SuiteHookKind,
-  suiteHookAccess,
-} from '../definitions/resolve.ts'
-import { CleanupList, type DefinitionSet } from '../definitions/table.ts'
-import { usedProps } from '../definitions/used-props.ts'
+import { prepare } from '../definitions/resolve.ts'
+import type { DefinitionEnv, DefinitionSet } from '../definitions/table.ts'
 import type { ProcessErrors } from '../errors/process-errors.ts'
 import { CoreError, serializeError } from '../errors.ts'
-import type {
-  AttemptState,
-  FileState,
-  HookNode,
-  Store,
-  SuiteNode,
-  TestCallback,
-  TestNode,
-  UserFn,
+import {
+  type AttemptState,
+  type FileState,
+  type HookNode,
+  isSuiteHook,
+  type Store,
+  type SuiteNode,
+  type TestCallback,
+  type TestNode,
+  type UserFn,
 } from '../internal/model.ts'
 import type { RunRegistry } from '../internal/run-registry.ts'
 import { type AroundCall, runAround } from './around.ts'
@@ -73,8 +66,8 @@ import { callUser } from './user-call.ts'
 export interface ExecutorConfig {
   readonly policy: CorePolicy
   readonly orderHooks: OrderHooks | undefined
-  /** How definition errors are worded (`CorePolicy.definitions.messages`, loaded); absent: core's. */
-  readonly definitionWords?: DefinitionWords
+  /** What fixtures share across the runtime: how their errors are worded (T5.9). */
+  readonly definitions: DefinitionEnv
   /**
    * `CorePolicy.shapeTestError`, loaded and bound to the run's options (`expand`): replaces a failed
    * test's error before it is reported.
@@ -1563,6 +1556,26 @@ export class Executor {
   }
 
   /**
+   * The function a declared hook is called as (T5.9): under `firstArg: 'context'` an each-hook (or
+   * `aroundEach`) of a test that has fixtures reads them first (`index`: where its context is), a
+   * suite hook registered through an extended test gets its fixtures where the suite went, and a
+   * plain suite hook the collector refused throws what it built. Any other hook is called as it is.
+   */
+  #hookFn(hook: HookNode, attempt: AttemptState | undefined, index: number): UserFn {
+    if (this.#policy.firstArg !== 'context' || hook.synthetic) return hook.fn
+    if (attempt !== undefined) {
+      return this.#withFixtures(hook.fn, attempt.test.definitions, hook.owner, attempt, index)
+    }
+    const refused = hook.fixtureError
+    if (refused !== undefined) {
+      return function refusedSuiteHook(): never {
+        throw refused
+      }
+    }
+    return this.#suiteHookFixtures(hook, index)
+  }
+
+  /**
    * `fn` with the fixtures it reads (its parameter at `index`) and the `auto` ones set on the
    * attempt's context before it is called (T5.9). `fn` itself when its test has none.
    */
@@ -1573,18 +1586,12 @@ export class Executor {
     attempt: AttemptState,
     index: number,
   ): UserFn {
-    if (set === undefined || set.get(suite).size === 0) return fn
-    const context = (): Record<string, unknown> =>
-      this.#contextOf(attempt) as unknown as Record<string, unknown>
-    const fixtures = (): AttemptFixtures => this.#attemptFixtures(attempt)
+    if (set === undefined || !set.active) return fn
+    const registrations = set.get(suite)
+    const self = this
     return function withFixtures(this: unknown, ...args: unknown[]): unknown {
-      const ready = prepare(fn, {
-        set,
-        suite,
-        context: context(),
-        attempt: fixtures(),
-        index,
-      })
+      const context = self.#contextOf(attempt) as unknown as Record<string, unknown>
+      const ready = prepare(fn, { set, registrations, suite, context, attempt, index })
       if (ready === undefined) return Reflect.apply(fn, this, args)
       // A fixture that outlived the attempt's deadline: the attempt has failed and moved on, so
       // its function is not called late (the fixture's cleanup runs as its scope already ended).
@@ -1594,58 +1601,15 @@ export class Executor {
     }
   }
 
-  /** The attempt's test-scope fixtures; their cleanups are one teardown, after `afterEach`. */
-  #attemptFixtures(attempt: AttemptState): AttemptFixtures {
-    let fixtures = attempt.fixtures
-    if (fixtures === undefined) {
-      const made: AttemptFixtures = { made: new Set(), cleanups: new CleanupList() }
-      fixtures = made
-      attempt.fixtures = made
-      attempt.run.addTeardown(() => made.cleanups.drain())
-    }
-    return fixtures
-  }
-
   /**
-   * A suite hook as Vitest 5.0.5 calls it (`runner/hooks.ts` `withSuiteFixtures`): one registered
-   * through an extended test (`test.beforeAll`) gets that test's file and worker fixtures, then the
-   * suite; a plain one that names a parameter where the fixtures go fails, since it has no context
-   * (`FixtureAccessError`). `index` is where that parameter is (`aroundAll`'s follows `runSuite`).
-   * Only under `definitions.extendApi: 'expose'`.
+   * A suite hook registered through an extended test (`test.beforeAll`), as Vitest 5.0.5's
+   * `withSuiteFixtures` calls it (`runner/hooks.ts`): it gets that test's file and worker fixtures
+   * where the suite was (`index`), and the suite after them. Any other suite hook as it is.
    */
   #suiteHookFixtures(hook: HookNode, index: number): UserFn {
-    const fn = hook.fn
-    if (hook.synthetic) return fn
-    const kind = hook.kind as SuiteHookKind
-    const set = hook.definitions
-    const words = this.#config.definitionWords ?? NO_WORDS
-    if (set === undefined) {
-      // `definitions.plainSuiteHook`: core hands a plain suite hook its suite there, and under
-      // `refuse-fixtures` only an object pattern is a request for fixtures it fails (Vitest 5.0.5
-      // refuses any parameter there: see the divergences).
-      if (this.#policy.definitions.plainSuiteHook !== 'refuse-fixtures') return fn
-      const at = hook.definitionSite
-      const site: ErrorSite | undefined =
-        at === undefined ? undefined : { error: at, mode: 'header' }
-      let props: ReadonlySet<string>
-      try {
-        // Vitest's `validateSuiteHook`: any parameter there that is not an object pattern is a
-        // parse error, and one that is fails for want of a context, both at the hook's site.
-        props = usedProps(fn, words, {
-          index,
-          suiteHook: kind,
-          ...(site === undefined ? {} : { site }),
-        })
-      } catch (error) {
-        return function plainSuiteHook(): unknown {
-          throw error
-        }
-      }
-      if (props.size === 0) return fn
-      return function plainSuiteHook(): unknown {
-        throw suiteHookAccess(words, kind, props, site)
-      }
-    }
+    const { fn, definitions: set, kind } = hook
+    if (set === undefined || !set.active || !isSuiteHook(kind)) return fn
+    const registrations = set.get(hook.owner)
     const site = hook.definitionSite
     return function suiteHookWithFixtures(this: unknown, ...args: unknown[]): unknown {
       const context = set.fileScope(hook.owner.file).values
@@ -1654,6 +1618,7 @@ export class Executor {
         Reflect.apply(fn, this, [...args.slice(0, index), context, ...args.slice(index)])
       const ready = prepare(fn, {
         set,
+        registrations,
         suite: hook.owner,
         context,
         attempt: undefined,
@@ -1819,12 +1784,7 @@ export class Executor {
         ? [this.#contextOf(attempt), taskOf(attempt.test.parent)]
         : [taskOf(hook.owner)]
     const thisArg = attempt !== undefined ? attempt.thisArg : byContext ? undefined : {}
-    const fn =
-      !byContext || hook.synthetic
-        ? hook.fn
-        : attempt !== undefined
-          ? this.#withFixtures(hook.fn, attempt.test.definitions, hook.owner, attempt, 0)
-          : this.#suiteHookFixtures(hook, 0)
+    const fn = this.#hookFn(hook, attempt, 0)
     return this.#callUser(
       run,
       {
@@ -2063,12 +2023,7 @@ export class Executor {
             attempt === undefined
               ? [inner, taskOf(hook.owner)]
               : [inner, this.#contextOf(attempt), taskOf(attempt.test.parent)]
-          const fn =
-            this.#policy.firstArg !== 'context'
-              ? hook.fn
-              : attempt === undefined
-                ? this.#suiteHookFixtures(hook, 1)
-                : this.#withFixtures(hook.fn, attempt.test.definitions, hook.owner, attempt, 1)
+          const fn = this.#hookFn(hook, attempt, 1)
           await runInStore(store, () => callUser(fn, undefined, args))
           this.#emitHookEnd(spec, PASSED)
         } catch (error) {

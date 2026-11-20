@@ -263,7 +263,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   const executor: Executor = new Executor({
     policy,
     orderHooks,
-    definitionWords: definitions,
+    definitions,
     shapeTestError,
     sink,
     deadlines,
@@ -510,13 +510,7 @@ export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   return {
     api: createApi(collector),
     currentTest,
-    lazyHost: createLazyHost({
-      collector,
-      runs,
-      workerTeardowns,
-      workerSlots: new Map(),
-      tables: new WeakMap(),
-    }),
+    lazyHost: createLazyHost({ collector, runs, workerTeardowns, workerSlots: new Map() }),
     runFile,
     onBeforeTryTask: (listener) => addListener(tryTask.before, listener),
     onAfterTryTask: (listener) => addListener(tryTask.after, listener),

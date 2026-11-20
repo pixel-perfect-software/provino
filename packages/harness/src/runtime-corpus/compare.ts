@@ -1,8 +1,10 @@
 // What B07's corpus check asks of a run under `@provino/core`, given the golden recorded from the
 // real runner (T5.3, T5.6). One function, so the comparison is itself under unit test.
+
 import assert from 'node:assert/strict'
 import type { CoreErrorCode } from '@provino/core'
 import type { Golden } from '../golden.ts'
+import { messageOf, parseStack } from '../internal/stack.ts'
 import { testKey } from '../normalize.ts'
 import type { CoreRun } from './run-core.ts'
 
@@ -58,12 +60,16 @@ function printed(error: {
   readonly stack?: string
 }): string {
   if (error.code === 'CORE_TIMEOUT') return '<timeout>'
-  // A stack rewritten to open with the message (Vitest's `error.message + stack` for a fixture
-  // that never called `use`) is what the runner reports, so its text before the frames is read,
-  // as the converter reads the runner's.
+  // A dialect's fixture error whose stack opens with its message (Vitest's
+  // `error.message + stack` for a fixture that never called `use`) is what the runner reports:
+  // its text before the frames, as the converter reads the runner's.
   const { stack } = error
-  if (stack?.startsWith(error.message) && !stack.startsWith(`${error.name}: `)) {
-    return (stack.split(/\n\s+at /)[0] ?? '').trim()
+  if (
+    error.code?.startsWith('CORE_DEFINITION_') === true &&
+    stack?.startsWith(error.message) === true &&
+    !stack.startsWith(`${error.name}: `)
+  ) {
+    return messageOf(parseStack(stack)).trim()
   }
   return `${error.name}: ${error.message}`
 }

@@ -5,13 +5,17 @@
 // `worker` value once per scope instance, its cleanup when that scope ends. A function entry is
 // `(context, use) => …`: the value is what it passes to `use`, and what follows `use` is its
 // cleanup, run when its scope ends.
-import type { SuiteNode } from '../internal/model.ts'
-import { type DefinitionWords, definitionError, type ErrorSite } from './errors.ts'
-import type { CleanupList, DefinitionSet, FixtureItem, Registrations, ScopeState } from './table.ts'
+import type { AnyFunction } from '@provino/types'
+import type { AttemptState, SuiteHookKind, SuiteNode } from '../internal/model.ts'
+import { type DefinitionWords, definitionError, dependencyError, type ErrorSite } from './errors.ts'
+import {
+  CleanupList,
+  type DefinitionSet,
+  type FixtureItem,
+  type Registrations,
+  type ScopeState,
+} from './table.ts'
 import { usedProps } from './used-props.ts'
-
-/** The suite hooks that take file and worker fixtures only. */
-export type SuiteHookKind = 'beforeAll' | 'afterAll' | 'aroundAll'
 
 /** One attempt's test-scope state: what is set on its context, and the cleanups, last first. */
 export interface AttemptFixtures {
@@ -22,73 +26,92 @@ export interface AttemptFixtures {
 /** Where a call's fixtures go. */
 export interface Target {
   readonly set: DefinitionSet
+  /** What the function sees: `set.get(suite)`, looked up once by the caller. */
+  readonly registrations: Registrations
   readonly suite: SuiteNode
   /** The object the function gets: the test context, or the file scope's values for a suite hook. */
   readonly context: Record<string, unknown>
-  /** The attempt's test-scope state; absent for a suite hook. */
-  readonly attempt: AttemptFixtures | undefined
+  /** The attempt whose test-scope fixtures these are; absent for a suite hook. */
+  readonly attempt: AttemptState | undefined
   /** Which parameter of the function holds the fixtures. */
   readonly index: number
   readonly suiteHook?: SuiteHookKind
   /** Where a suite hook was registered, for its errors. */
-  readonly site?: Error
+  readonly site?: ErrorSite['error']
 }
+
+const NOTHING: readonly FixtureItem[] = []
+
+/**
+ * Each function's resolution plan, by the registrations it read them from and whether a suite hook
+ * reads them (a suite hook makes no unnamed `test` entry). Only a plan that was built is kept: a
+ * function whose reading throws is read again, and throws again, at its next call.
+ */
+const plans = new WeakMap<
+  Registrations,
+  WeakMap<AnyFunction, Map<string, readonly FixtureItem[]>>
+>()
 
 /**
  * Sets on `target.context` every fixture `fn` needs. `undefined` when there is nothing to do,
  * so the call can go on synchronously; a parse error is thrown at once.
  */
-export function prepare(
-  fn: (...args: never[]) => unknown,
-  target: Target,
-): Promise<void> | undefined {
-  const { set, suite } = target
-  const registrations = set.get(suite)
-  if (registrations.size === 0) return undefined
-  const words = set.env
-  const site: ErrorSite | undefined =
-    target.site === undefined ? undefined : { error: target.site, mode: 'message-first' }
+export function prepare(fn: AnyFunction, target: Target): Promise<void> | undefined {
+  const pending = planOf(fn, target)
+  return pending.length === 0 ? undefined : resolveAll(pending, target)
+}
+
+function planOf(fn: AnyFunction, target: Target): readonly FixtureItem[] {
+  const { registrations } = target
+  const kind = target.suiteHook ?? 'each'
+  let byFn = plans.get(registrations)
+  const known = byFn?.get(fn)?.get(kind)
+  if (known !== undefined) return known
+  const plan = buildPlan(fn, target)
+  if (byFn === undefined) {
+    byFn = new WeakMap()
+    plans.set(registrations, byFn)
+  }
+  let byKind = byFn.get(fn)
+  if (byKind === undefined) {
+    byKind = new Map()
+    byFn.set(fn, byKind)
+  }
+  byKind.set(kind, plan)
+  return plan
+}
+
+function buildPlan(fn: AnyFunction, target: Target): readonly FixtureItem[] {
+  const { registrations, suiteHook } = target
+  const words = target.set.env
   // Read as Vitest's `withFixtures` reads it (`getUsedProps(fn)`): no suite-hook hint, no site.
   const props = usedProps(fn, words, { index: target.index })
-  const used: FixtureItem[] = []
-  for (const item of registrations.values()) {
-    if (
-      (item.auto && !(target.suiteHook !== undefined && item.scope === 'test')) ||
-      props.has(item.key)
-    ) {
-      used.push(item)
-    }
-  }
-  if (used.length === 0) return undefined
+  const used = [...registrations.values()].filter(
+    (item) =>
+      (item.auto && !(suiteHook !== undefined && item.scope === 'test')) || props.has(item.key),
+  )
+  if (used.length === 0) return NOTHING
   const pending = order(used, registrations, words)
-  if (pending.length === 0) return undefined
-  if (target.suiteHook !== undefined) {
+  if (suiteHook !== undefined) {
     const testScoped = pending.filter((item) => item.scope === 'test')
     if (testScoped.length > 0) {
-      const keys = testScoped.map((item) => item.key)
+      const keys = testScoped.map((item) => `"${item.key}"`).join(', ')
       const alternative = {
         aroundAll: 'aroundEach',
         beforeAll: 'beforeEach',
         afterAll: 'afterEach',
-      }[target.suiteHook]
-      throw definitionError(
+      }[suiteHook]
+      throw dependencyError(
         words,
-        {
-          kind: 'dependency',
-          code: 'test-scoped-in-suite-hook',
-          key: keys[0] as string,
-          message: `A ${target.suiteHook} hook cannot read test-scoped definitions (${keys.map((k) => `"${k}"`).join(', ')}): give them scope "file" or "worker", or use ${alternative}.`,
-          params: {
-            hook: target.suiteHook,
-            keys: keys.map((k) => `"${k}"`).join(', '),
-            alternative,
-          },
-        },
-        site,
+        'test-scoped-in-suite-hook',
+        testScoped[0]?.key ?? '',
+        `A ${suiteHook} hook cannot read test-scoped definitions (${keys}): give them scope "file" or "worker", or use ${alternative}.`,
+        { hook: suiteHook, keys, alternative },
+        target.site === undefined ? undefined : { error: target.site, mode: 'message-first' },
       )
     }
   }
-  return resolveAll(pending, target)
+  return pending
 }
 
 async function resolveAll(pending: readonly FixtureItem[], target: Target): Promise<void> {
@@ -96,37 +119,43 @@ async function resolveAll(pending: readonly FixtureItem[], target: Target): Prom
   for (const item of pending) {
     if (item.scope === 'test') {
       if (attempt === undefined) continue
+      const fixtures = attemptFixtures(attempt)
       // Made already by an earlier hook of the attempt; the context may hold the parent's value.
-      if (attempt.made.has(item)) continue
-      attempt.made.add(item)
+      if (fixtures.made.has(item)) continue
+      fixtures.made.add(item)
       try {
-        context[item.key] = await testValue(item, context, attempt.cleanups, target.set)
+        context[item.key] =
+          typeof item.value === 'function'
+            ? await run(item, context, fixtures.cleanups, target.set)
+            : item.value
       } catch (error) {
-        attempt.made.delete(item)
+        fixtures.made.delete(item)
         throw error
       }
-      attempt.cleanups.push(() => attempt.made.delete(item))
+      fixtures.cleanups.push(() => fixtures.made.delete(item))
     } else {
       context[item.key] = await scopeValue(item, target)
     }
   }
 }
 
-function testValue(
-  item: FixtureItem,
-  context: Record<string, unknown>,
-  cleanups: CleanupList,
-  set: DefinitionSet,
-): unknown {
-  if (typeof item.value !== 'function') return item.value
-  return run(item, context, cleanups, set)
+/** The attempt's test-scope fixtures, made on the first one read: one teardown, after `afterEach`. */
+function attemptFixtures(attempt: AttemptState): AttemptFixtures {
+  let fixtures = attempt.fixtures
+  if (fixtures === undefined) {
+    const made: AttemptFixtures = { made: new Set(), cleanups: new CleanupList() }
+    fixtures = made
+    attempt.fixtures = made
+    attempt.run.addTeardown(() => made.cleanups.drain())
+  }
+  return fixtures
 }
 
 function scopeValue(item: FixtureItem, target: Target): unknown {
   const { set } = target
-  const worker = set.workerScope()
-  const file = set.fileScope(target.suite.file)
-  const scope: ScopeState = item.scope === 'worker' ? worker : file
+  // The item's own scope first; the worker's values are read only to build a file value.
+  const scope: ScopeState =
+    item.scope === 'worker' ? set.workerScope() : set.fileScope(target.suite.file)
   if (typeof item.value !== 'function') {
     scope.values[item.key] = item.value
     return item.value
@@ -134,7 +163,8 @@ function scopeValue(item: FixtureItem, target: Target): unknown {
   if (item.key in scope.values) return scope.values[item.key]
   const inFlight = scope.pending.get(item)
   if (inFlight !== undefined) return inFlight
-  const context = item.scope === 'file' ? { ...worker.values, ...file.values } : worker.values
+  const context =
+    item.scope === 'file' ? { ...set.workerScope().values, ...scope.values } : scope.values
   const promise = run(item, context, scope.cleanups, set)
     .then((value) => {
       scope.values[item.key] = value
@@ -179,15 +209,12 @@ async function run(
     .then(() => {
       if (!used) {
         value.reject(
-          definitionError(
+          dependencyError(
             set.env,
-            {
-              kind: 'dependency',
-              code: 'use-not-called',
-              key: item.key,
-              message: `"${item.key}" returned without calling use: call it on every path of the definition.`,
-              params: {},
-            },
+            'use-not-called',
+            item.key,
+            `"${item.key}" returned without calling use: call it on every path of the definition.`,
+            {},
             item.site === undefined ? undefined : { error: item.site, mode: 'message-first' },
           ),
         )
@@ -228,13 +255,13 @@ function order(
         if (item.parent === undefined) {
           const names = [...chain].reverse().map((entry) => entry.key)
           const cycle = `${item.key} <- ${names.join(' <- ')}`
-          throw definitionError(words, {
-            kind: 'dependency',
-            code: 'cycle',
-            key: item.key,
-            message: `The definitions read each other in a cycle: ${cycle}.`,
-            params: { cycle },
-          })
+          throw dependencyError(
+            words,
+            'cycle',
+            item.key,
+            `The definitions read each other in a cycle: ${cycle}.`,
+            { cycle },
+          )
         }
         item = item.parent
       }
@@ -253,9 +280,6 @@ function order(
   visit(used, new Set())
   return pending
 }
-
-/** Core's `DefinitionWords` when the runtime gives none: its own words. */
-export const NO_WORDS: DefinitionWords = { format: undefined }
 
 /**
  * A plain suite hook that names fixtures: it has no context to read them from (Vitest's

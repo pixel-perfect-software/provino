@@ -5,20 +5,18 @@
 // function `(context, use) => …`, or `[value, { scope, auto, injected }]`; a key registered again
 // keeps its scope and `auto` (a different one is an error) and reads the earlier entry as its
 // parent; only `test` scope is allowed inside a describe; a dependency must exist and be no
-// narrower than its dependent. Lazy variables keep their own entries per suite (`suiteTable`).
-import type { Scope } from '@provino/types'
+// narrower than its dependent. Lazy variables keep their own entries per suite (`LazyHost.definitions`).
+import type { AnyFunction, Scope } from '@provino/types'
 import type { FileState, SuiteNode } from '../internal/model.ts'
-import { type DefinitionWords, definitionError, oneOf } from './errors.ts'
+import { type DefinitionWords, dependencyError, oneOf } from './errors.ts'
 import { propsFrom, usedProps } from './used-props.ts'
 
 /** One fixture: its value or function, its options, the keys it reads and the entry it overrides. */
 export interface FixtureItem {
   readonly key: string
-  readonly kind: 'fixture'
   readonly value: unknown
   readonly scope: Scope
   readonly auto: boolean
-  readonly injected: boolean
   /** The keys a function entry destructures; empty for a value. */
   readonly deps: ReadonlySet<string>
   readonly parent: FixtureItem | undefined
@@ -34,6 +32,13 @@ export interface DefinitionEnv extends DefinitionWords {
   readonly injectValue: ((key: string) => unknown) | undefined
   /** Registers a cleanup for when the worker stops. */
   readonly addWorkerTeardown: (fn: () => unknown) => void
+}
+
+/** An env for a collector a test builds alone: core's words, no injected values, no worker. */
+export const NO_DEFINITIONS: DefinitionEnv = {
+  format: undefined,
+  injectValue: undefined,
+  addWorkerTeardown: () => undefined,
 }
 
 /** The memo and cleanups of one scope instance (a file, or the worker) of one set. */
@@ -86,14 +91,24 @@ export class DefinitionSet {
   readonly #overrides = new WeakMap<SuiteNode, Registrations>()
   readonly #files = new WeakMap<FileState, ScopeState>()
   #worker: ScopeState | undefined
+  /**
+   * Whether any test or hook can read a fixture of this set: it has registrations, or an override
+   * made some. A base test's empty set is never active, so its functions are called unwrapped.
+   */
+  #active: boolean
 
   constructor(env: DefinitionEnv, registrations: Registrations = new Map()) {
     this.#env = env
     this.#registrations = registrations
+    this.#active = registrations.size > 0
   }
 
   get env(): DefinitionEnv {
     return this.#env
+  }
+
+  get active(): boolean {
+    return this.#active
   }
 
   /** A new set with `fixtures` added: what `test.extend` returns. */
@@ -106,6 +121,7 @@ export class DefinitionSet {
   override(fixtures: Readonly<Record<string, unknown>>, collecting: SuiteNode): void {
     const topLevel = collecting.type === 'file'
     const registrations = this.#parse(fixtures, topLevel, this.get(collecting))
+    this.#active = true
     if (topLevel) this.#registrations = registrations
     else this.#overrides.set(collecting, registrations)
   }
@@ -149,7 +165,7 @@ export class DefinitionSet {
     const env = this.#env
     const errors: Error[] = []
     const fail = (key: string, code: string, message: string, params: Record<string, string>) =>
-      errors.push(definitionError(env, { kind: 'dependency', code, key, message, params }))
+      errors.push(dependencyError(env, code, key, message, params))
     const registrations = new Map(base)
     for (const [key, entry] of Object.entries(fixtures)) {
       let given: FixtureOptions | undefined
@@ -159,34 +175,24 @@ export class DefinitionSet {
         value = entry[0]
       }
       const parent = registrations.get(key)
-      let scope: Scope
-      let auto: boolean
-      let injected: boolean
-      if (given !== undefined) {
-        scope = given.scope ?? 'test'
-        auto = given.auto ?? false
-        injected = given.injected ?? false
-        if (parent !== undefined && parent.scope !== scope) {
-          fail(
-            key,
-            'scope-conflict',
-            `"${key}" is already defined with scope "${parent.scope}", not "${scope}".`,
-            { scope },
-          )
-        }
-        if (parent !== undefined && parent.auto !== auto) {
-          fail(key, 'auto-conflict', `"${key}" is already defined with auto: ${parent.auto}.`, {
-            auto: String(auto),
-          })
-        }
-      } else if (parent !== undefined) {
-        ;({ scope, auto, injected } = parent)
-      } else {
-        scope = 'test'
-        auto = false
-        injected = false
+      // A bare entry takes the options of the one it overrides; an entry with options its own.
+      const base = given === undefined ? parent : undefined
+      const scope: Scope = given?.scope ?? base?.scope ?? 'test'
+      const auto = given?.auto ?? base?.auto ?? false
+      if (given !== undefined && parent !== undefined && parent.scope !== scope) {
+        fail(
+          key,
+          'scope-conflict',
+          `"${key}" is already defined with scope "${parent.scope}", not "${scope}".`,
+          { scope },
+        )
       }
-      if (given !== undefined && injected) {
+      if (given !== undefined && parent !== undefined && parent.auto !== auto) {
+        fail(key, 'auto-conflict', `"${key}" is already defined with auto: ${parent.auto}.`, {
+          auto: String(auto),
+        })
+      }
+      if (given?.injected === true) {
         // `??`: a provided `null` keeps the default too, as Vitest's `injectValue?.(name) ?? fn[0]`.
         value = env.injectValue?.(key) ?? value
       }
@@ -205,17 +211,16 @@ export class DefinitionSet {
         )
       }
       const isFunction = typeof value === 'function'
-      const deps = isFunction ? usedProps(value as Fn, env) : new Set<string>()
+      const deps = isFunction ? usedProps(value as AnyFunction, env) : new Set<string>()
       registrations.set(key, {
         key,
-        kind: 'fixture',
         value,
         scope,
         auto,
-        injected,
         deps,
         parent,
-        site: isFunction ? new Error('STACK_TRACE_ERROR') : undefined,
+        // Only a dialect's words place an error at its site (`use-not-called`).
+        site: isFunction && env.format !== undefined ? new Error('STACK_TRACE_ERROR') : undefined,
       })
     }
     for (const item of registrations.values()) {
@@ -255,8 +260,6 @@ export class DefinitionSet {
   }
 }
 
-type Fn = (...args: never[]) => unknown
-
 function newScope(): ScopeState {
   return {
     values: Object.create(null) as Record<string, unknown>,
@@ -268,7 +271,10 @@ function newScope(): ScopeState {
 /**
  * One scope's cleanups, run last first when it ends. Once it has ended, a cleanup added (by a
  * fixture whose setup outlived its test's deadline) runs at once instead of waiting for a drain
- * that already happened; what it throws then is an unhandled rejection the runtime charges.
+ * that already happened; what it throws then is an unhandled rejection the runtime charges. Not
+ * the runtime's teardown arrays: the drain stops at the first cleanup that throws, as Vitest 5.0.5's
+ * `callFixtureCleanup` does (`runner/fixture.ts`), and the late-cleanup run is pinned by the
+ * definitions tests.
  */
 export class CleanupList {
   readonly #fns: Array<() => unknown> = []
@@ -327,13 +333,12 @@ export function builderEntry(
       let cleanup: (() => unknown) | undefined
       const onCleanup = (fn: () => unknown): void => {
         if (cleanup !== undefined) {
-          throw definitionError(words, {
-            kind: 'dependency',
-            code: 'cleanup-twice',
+          throw dependencyError(
+            words,
+            'cleanup-twice',
             key,
-            message: `onCleanup can be called once per definition ("${key}"): define another one for a second cleanup.`,
-            params: {},
-          })
+            `onCleanup can be called once per definition ("${key}"): define another one for a second cleanup.`,
+          )
         }
         cleanup = fn
       }

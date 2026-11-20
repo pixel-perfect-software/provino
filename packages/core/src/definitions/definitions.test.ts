@@ -9,8 +9,11 @@ import FakeTimers from '@sinonjs/fake-timers'
 import type { FixtureTestApi } from '../collector/api.ts'
 import { CoreError } from '../errors.ts'
 import { clockOptions, runScript, type Script, settle } from '../internal/test-support.ts'
-import { definitionError } from './errors.ts'
-import { NO_WORDS } from './resolve.ts'
+import { type DefinitionWords, definitionError } from './errors.ts'
+
+/** Core's own words: no `definitions.messages`. */
+const NO_WORDS: DefinitionWords = { format: undefined }
+
 import { usedProps } from './used-props.ts'
 
 type Use<V> = (value: V) => Promise<void>

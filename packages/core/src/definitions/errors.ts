@@ -8,6 +8,7 @@ import type {
   FormatDefinitionError,
 } from '@provino/types'
 import { CoreError, type CoreErrorCode } from '../errors.ts'
+import type { ErrorSiteSource } from '../internal/model.ts'
 
 /** The `CoreError` code of each kind. */
 const CODES: { readonly [K in DefinitionErrorKind]: CoreErrorCode } = {
@@ -23,13 +24,30 @@ export interface DefinitionWords {
 
 /**
  * Where an error's stack comes from, beside its message: the site a fixture or hook was
- * registered at (an `Error` captured then). `message-first` puts the message where the site's
- * header was, with nothing before it (Vitest's `error.message + stack.replace(message, '')`);
- * `header` keeps the site's header and puts the message in its place.
+ * registered at. `message-first` puts the message where the site's header was, with nothing before
+ * it (Vitest's `error.message + stack.replace(message, '')`); `header` keeps the site's header and
+ * puts the message in its place. Only a dialect's words rewrite a stack: core's own errors keep
+ * the stack they were thrown with.
  */
 export interface ErrorSite {
-  readonly error: Error
+  readonly error: ErrorSiteSource
   readonly mode: 'message-first' | 'header'
+}
+
+/**
+ * Where the caller of `entry` is, as a bounded stack (10 frames) on a holder whose header reads
+ * `Error: STACK_TRACE_ERROR`, as Vitest's `stackTraceError` does.
+ */
+export function captureSite(entry: Parameters<typeof Error.captureStackTrace>[1]): ErrorSiteSource {
+  const holder: { name: string; message: string; stack?: string } = {
+    name: 'Error',
+    message: 'STACK_TRACE_ERROR',
+  }
+  const limit = Error.stackTraceLimit
+  Error.stackTraceLimit = 10
+  Error.captureStackTrace(holder, entry)
+  Error.stackTraceLimit = limit
+  return holder
 }
 
 /** One definition error, worded and coded. */
@@ -38,19 +56,25 @@ export function definitionError(
   info: DefinitionErrorInfo,
   site?: ErrorSite,
 ): Error {
-  const code = CODES[info.kind]
-  let error: Error
-  if (words.format === undefined) {
-    error = new CoreError(code, info.message)
-  } else {
-    const worded = words.format(info)
-    error = new Error(worded.message)
-    error.name = worded.name
-    // Not enumerable: a reporter that prints an error's own properties prints what the runner did.
-    Object.defineProperty(error, 'code', { value: code, configurable: true, writable: true })
-  }
+  if (words.format === undefined) return new CoreError(CODES[info.kind], info.message)
+  const worded = words.format(info)
+  const error = new Error(worded.message)
+  error.name = worded.name
+  setCode(error, CODES[info.kind])
   if (site !== undefined) placeAt(error, site)
   return error
+}
+
+/** A `dependency` error: the kind most of the table's checks raise. */
+export function dependencyError(
+  words: DefinitionWords,
+  code: string,
+  key: string,
+  message: string,
+  params: Readonly<Record<string, string>> = {},
+  site?: ErrorSite,
+): Error {
+  return definitionError(words, { kind: 'dependency', code, key, message, params }, site)
 }
 
 /** Many errors from one registration: one `AggregateError` (Vitest's), or the one alone. */
@@ -66,12 +90,13 @@ export function oneOf(words: DefinitionWords, errors: readonly Error[], key: str
   const worded = words.format?.(info)
   const error = new AggregateError(errors, worded?.message ?? info.message)
   if (worded !== undefined) error.name = worded.name
-  Object.defineProperty(error, 'code', {
-    value: CODES.dependency,
-    configurable: true,
-    writable: true,
-  })
+  setCode(error, CODES.dependency)
   return error
+}
+
+/** Not enumerable: a reporter that prints an error's own properties prints what the runner did. */
+function setCode(error: Error, code: CoreErrorCode): void {
+  Object.defineProperty(error, 'code', { value: code, configurable: true, writable: true })
 }
 
 function placeAt(error: Error, site: ErrorSite): void {

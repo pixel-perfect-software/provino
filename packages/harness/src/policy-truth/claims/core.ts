@@ -565,8 +565,6 @@ export const coreClaims: Claims = {
     'runtime/fixture-object',
     'runtime/fixture-override-reads-parent',
   ),
-  // Vitest words a fixture error with its own classes (`runtime/fixture-parse-error`, its texts
-  // compared); the neutral `null` (core's words) fails it. Jest has no fixtures to word.
   // A plain suite hook whose first parameter is an object pattern: Vitest refuses it
   // (`runtime/fixture-suite-hook-access`: the hook fails and its tests don't run), core passes the
   // suite there otherwise. Jest's hooks get no context (`firstArg: 'done-if-arity'`), so core never
@@ -580,6 +578,8 @@ export const coreClaims: Claims = {
     ),
     corpus('runtime', 'runtime/fixture-suite-hook-access'),
   ),
+  // Vitest words a fixture error with its own classes (`runtime/fixture-parse-error`, its texts
+  // compared); the neutral `null` (core's words) fails it. Jest has no fixtures to word.
   'core.definitions.messages': each(
     own(
       'packages/core/src/definitions/definitions.test.ts',

@@ -26,9 +26,12 @@ export interface HostParts {
   readonly runs: RunRegistry
   readonly workerTeardowns: Array<() => unknown>
   readonly workerSlots: Map<symbol, unknown>
-  /** Each suite's definition table, by handle (`LazyHost.definitions`, D106). */
-  readonly tables: WeakMap<SuiteHandle, Map<string, Pick<Definition, 'key' | 'kind'>>>
 }
+
+/** Where core keeps a suite's definition table (`LazyHost.definitions`, D106): its own slot. */
+const TABLE: unique symbol = Symbol('provino.core.definitions')
+
+type DefinitionTable = Map<string, Pick<Definition, 'key' | 'kind'>>
 
 /** Builds the runtime's `LazyHost`. */
 export function createLazyHost(parts: HostParts): LazyHost {
@@ -71,11 +74,12 @@ export function createLazyHost(parts: HostParts): LazyHost {
     get workerSlots(): Map<symbol, unknown> {
       return parts.workerSlots
     },
-    definitions(suite: SuiteHandle): Map<string, Pick<Definition, 'key' | 'kind'>> {
-      let table = parts.tables.get(suite)
+    definitions(suite: SuiteHandle): DefinitionTable {
+      // Only this module writes the slot, and only a table.
+      let table = suite.slots.get(TABLE) as DefinitionTable | undefined
       if (table === undefined) {
         table = new Map()
-        parts.tables.set(suite, table)
+        suite.slots.set(TABLE, table)
       }
       return table
     },

@@ -39,6 +39,20 @@ export type DeclaredHookKind =
   | 'aroundEach'
   | 'aroundAll'
 
+/** The suite hooks: they take file and worker fixtures only (T5.9). */
+export type SuiteHookKind = Extract<DeclaredHookKind, 'beforeAll' | 'afterAll' | 'aroundAll'>
+
+/** Whether `kind` is a suite hook's. */
+export function isSuiteHook(kind: DeclaredHookKind): kind is SuiteHookKind {
+  return kind === 'beforeAll' || kind === 'afterAll' || kind === 'aroundAll'
+}
+
+/** Where a fixture or hook was registered: a bounded stack captured then (T5.9). */
+export interface ErrorSiteSource {
+  readonly message: string
+  readonly stack?: string
+}
+
 /** Why a node is skipped, as registration, focus and the filters decide it. */
 export type NodeSkipReason = Extract<
   SkipReason,
@@ -65,7 +79,12 @@ export interface HookNode {
    */
   readonly definitions: DefinitionSet | undefined
   /** Where a hook with `definitions` was registered, for its errors (T5.9). */
-  readonly definitionSite: Error | undefined
+  readonly definitionSite: ErrorSiteSource | undefined
+  /**
+   * The error a plain suite hook fails with when it names fixtures it can't have
+   * (`definitions.plainSuiteHook: 'refuse-fixtures'`), built once at registration (T5.9).
+   */
+  readonly fixtureError: Error | undefined
   /** The captured callsite, until the tree is built and it is parsed into `location`. */
   site: Site | null
   /** Where the hook was registered (the first frame in the test file), filled when the tree is built. */

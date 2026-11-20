@@ -134,6 +134,10 @@ export interface FakeWorld extends FakeApi {
   currentTestName(): string | undefined
 }
 
+const DEFINITIONS: unique symbol = Symbol('provino.lazy.test-definitions')
+
+type DefinitionTable = Map<string, Pick<Definition, 'key' | 'kind'>>
+
 /** Builds a world; `policy` is the `lazy` policy slice. */
 export function createWorld(policy: LazyPolicy = { readInBeforeAll: 'error' }): FakeWorld {
   const als = new AsyncLocalStorage<LazyFrame>()
@@ -144,8 +148,6 @@ export function createWorld(policy: LazyPolicy = { readInBeforeAll: 'error' }): 
   let file: FakeFile | undefined
   let collecting: FakeSuite | undefined
   const names = new WeakMap<FakeRun, string>()
-  // The runtime's definition tables (core owns them in a real run, D106).
-  const tables = new WeakMap<SuiteHandle, Map<string, Pick<Definition, 'key' | 'kind'>>>()
 
   const host: LazyHost = {
     collecting: () => collecting,
@@ -162,11 +164,12 @@ export function createWorld(policy: LazyPolicy = { readInBeforeAll: 'error' }): 
       workerTeardowns.push(fn)
     },
     workerSlots,
+    // Core keeps a suite's table in its slots (D106); the fake does the same.
     definitions(suite) {
-      let table = tables.get(suite)
+      let table = suite.slots.get(DEFINITIONS) as DefinitionTable | undefined
       if (table === undefined) {
         table = new Map()
-        tables.set(suite, table)
+        suite.slots.set(DEFINITIONS, table)
       }
       return table
     },

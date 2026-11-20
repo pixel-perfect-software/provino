@@ -440,8 +440,9 @@ export interface CorePolicy {
     /**
      * How a definition error is worded. `null`: core's own words, on a `CoreError`. Vitest: a ref
      * to its `FixtureParseError`, `FixtureDependencyError` and `FixtureAccessError` texts.
-     * Jest and neutral: `null`. Provino's own key. The ref is loaded on the first definition error,
-     * never at worker boot, through the policy's behaviour loader, which caches it per worker.
+     * Jest and neutral: `null`. Provino's own key. The ref is loaded when the runtime is created, through the policy's
+     * behaviour loader, because a registration error is thrown synchronously (under Vitest it is
+     * the module the worker has already loaded for `formatEachTitle`).
      */
     readonly messages: Behaviour<FormatDefinitionError> | null
     /**

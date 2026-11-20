@@ -6,7 +6,7 @@ import { currentStore } from '../current/current-test.ts'
 import { builderEntry, DefinitionSet, type FixtureOptions } from '../definitions/table.ts'
 import { CoreError } from '../errors.ts'
 import { addCallback } from '../executor/context.ts'
-import type { DeclaredHookKind } from '../internal/model.ts'
+import type { DeclaredHookKind, SuiteNode } from '../internal/model.ts'
 import {
   type Collector,
   type EachTable,
@@ -166,6 +166,14 @@ export interface FixtureTestApi<C extends object = object> extends TestApi<C> {
   afterAll(fn: (context: C, suite: HookSuite) => unknown, timeoutMs?: number): void
   beforeEach(fn: (context: TestContext & C, suite: HookSuite) => unknown, timeoutMs?: number): void
   afterEach(fn: (context: TestContext & C, suite: HookSuite) => unknown, timeoutMs?: number): void
+  aroundEach(
+    fn: (runTest: () => Promise<void>, context: TestContext & C, suite: HookSuite) => unknown,
+    timeoutMs?: number,
+  ): void
+  aroundAll(
+    fn: (runSuite: () => Promise<void>, suite: HookSuite) => unknown,
+    timeoutMs?: number,
+  ): void
   readonly describe: SuiteApi
   readonly suite: SuiteApi
 }
@@ -256,30 +264,47 @@ function suiteArguments(second: unknown, third: unknown): { options: SuiteOption
   return { options: timeout === undefined ? suiteOptions : { ...suiteOptions, timeout }, body: fn }
 }
 
+/** A hook's registration function; a suite hook given `definitions` reads that test's fixtures. */
+function hookOf(collector: Collector, kind: DeclaredHookKind, definitions?: DefinitionSet) {
+  return function register(fn: unknown, timeoutMs?: number): void {
+    collector.addHook(kind, fn, timeoutMs, register, definitions)
+  }
+}
+
+/** What every test API shares with the global one: `describe` and the hooks that read no set. */
+interface SharedParts {
+  readonly describe: SuiteApi
+  readonly suite: SuiteApi
+  readonly beforeEach: (fn: unknown, timeoutMs?: number) => void
+  readonly afterEach: (fn: unknown, timeoutMs?: number) => void
+  readonly aroundEach: (fn: unknown, timeoutMs?: number) => void
+  readonly aroundAll: (fn: unknown, timeoutMs?: number) => void
+}
+
 /** Builds the global API over a collector. */
 export function createApi(collector: Collector): RuntimeApi {
   const expose = collector.policy.definitions.extendApi === 'expose'
+  const describe = makeSuite(collector, {})
+  const shared: SharedParts = {
+    describe,
+    suite: describe,
+    beforeEach: hookOf(collector, 'beforeEach'),
+    afterEach: hookOf(collector, 'afterEach'),
+    aroundEach: hookOf(collector, 'aroundEach'),
+    aroundAll: hookOf(collector, 'aroundAll'),
+  }
   const test = makeTest(
     collector,
     {},
     expose ? new DefinitionSet(collector.definitions) : undefined,
+    shared,
   )
-  const describe = makeSuite(collector, {})
-  const hook = (kind: DeclaredHookKind) =>
-    function register(fn: unknown, timeoutMs?: number): void {
-      collector.addHook(kind, fn, timeoutMs, register)
-    }
   return {
-    describe,
-    suite: describe,
+    ...shared,
     test,
     it: test,
-    beforeAll: hook('beforeAll'),
-    afterAll: hook('afterAll'),
-    beforeEach: hook('beforeEach'),
-    afterEach: hook('afterEach'),
-    aroundEach: hook('aroundEach'),
-    aroundAll: hook('aroundAll'),
+    beforeAll: hookOf(collector, 'beforeAll'),
+    afterAll: hookOf(collector, 'afterAll'),
     onTestFinished(fn: unknown, timeoutMs?: number): void {
       addCallback(currentStore()?.attempt, 'onTestFinished', fn, timeoutMs)
     },
@@ -302,6 +327,7 @@ function makeTest(
   collector: Collector,
   flags: Flags,
   definitions: DefinitionSet | undefined,
+  shared: SharedParts,
 ): TestApi {
   const spec = (name: unknown, second: unknown, third: unknown, entry: StackMarker) => {
     const { options, fn, timeout } = parseArguments(second, third)
@@ -322,58 +348,64 @@ function makeTest(
     register,
     TEST_MODIFIERS,
     flags,
-    (next) => makeTest(collector, next, definitions),
+    (next) => makeTest(collector, next, definitions, shared),
     (table, name, second, third, entry) =>
       collector.addTestTable(spec(name, second, third, entry), table),
   )
-  if (definitions !== undefined) addFixtureApi(api, collector, flags, definitions)
-  return api
-}
-
-/**
- * `extend`, `override`, the hooks and `describe` on a test API, as Vitest 5.0.5's `createTaskCollector`
- * puts them (`runner/suite.ts`): `extend` returns a new test with its own set, `override` changes
- * this one's for the block being collected, and `beforeAll`/`afterAll` read its file fixtures.
- */
-function addFixtureApi(
-  api: TestApi,
-  collector: Collector,
-  flags: Flags,
-  definitions: DefinitionSet,
-): void {
-  const collecting = (what: string) => {
-    const suite = collector.collecting()
-    if (suite === undefined) {
-      throw new CoreError(
-        'CORE_INVALID_ARGUMENT',
-        `test.${what} can only be called while a file or a describe body is being collected`,
-      )
-    }
-    return suite
-  }
-  const hook = (kind: DeclaredHookKind, own: DefinitionSet | undefined) =>
-    function register(fn: unknown, timeoutMs?: number): void {
-      collector.addHook(kind, fn, timeoutMs, register, own)
-    }
-  const describe = makeSuite(collector, {})
-  Object.assign(api, {
+  if (definitions === undefined) return api
+  // `extend` keeps this node's modifiers; the rest is the set's, built once (`fixtureParts`).
+  return Object.assign(api, fixtureParts(collector, definitions, shared), {
     extend(fixtures: unknown, optionsOrValue?: unknown, maybeValue?: unknown): TestApi {
       const entries = builderEntry(definitions.env, fixtures, optionsOrValue, maybeValue)
-      return makeTest(collector, flags, definitions.extend(entries, collecting('extend')))
+      return makeTest(
+        collector,
+        flags,
+        definitions.extend(entries, collecting(collector, 'extend')),
+        shared,
+      )
     },
-    override(fixtures: unknown, optionsOrValue?: unknown, maybeValue?: unknown): void {
-      const entries = builderEntry(definitions.env, fixtures, optionsOrValue, maybeValue)
-      definitions.override(entries, collecting('override'))
-    },
-    describe,
-    suite: describe,
-    beforeAll: hook('beforeAll', definitions),
-    afterAll: hook('afterAll', definitions),
-    beforeEach: hook('beforeEach', undefined),
-    afterEach: hook('afterEach', undefined),
-    aroundEach: hook('aroundEach', undefined),
-    aroundAll: hook('aroundAll', undefined),
   })
+}
+
+/** The fixture API of each set: `override` and the suite hooks that read its fixtures. */
+const partsOfSet = new WeakMap<DefinitionSet, object>()
+
+/**
+ * `override`, the hooks and `describe` on a test API, as Vitest 5.0.5's `createTaskCollector`
+ * puts them (`runner/suite.ts`): `override` changes the set for the block being collected, and
+ * `beforeAll`/`afterAll` read its file fixtures; the rest are the global API's own.
+ */
+function fixtureParts(
+  collector: Collector,
+  definitions: DefinitionSet,
+  shared: SharedParts,
+): object {
+  let parts = partsOfSet.get(definitions)
+  if (parts === undefined) {
+    parts = {
+      ...shared,
+      override(fixtures: unknown, optionsOrValue?: unknown, maybeValue?: unknown): void {
+        const entries = builderEntry(definitions.env, fixtures, optionsOrValue, maybeValue)
+        definitions.override(entries, collecting(collector, 'override'))
+      },
+      beforeAll: hookOf(collector, 'beforeAll', definitions),
+      afterAll: hookOf(collector, 'afterAll', definitions),
+    }
+    partsOfSet.set(definitions, parts)
+  }
+  return parts
+}
+
+/** The suite `test.extend` or `test.override` registers for: only while a file collects. */
+function collecting(collector: Collector, what: string): SuiteNode {
+  const suite = collector.collecting()
+  if (suite === undefined) {
+    throw new CoreError(
+      'CORE_INVALID_ARGUMENT',
+      `test.${what} can only be called while a file or a describe body is being collected`,
+    )
+  }
+  return suite
 }
 
 function makeSuite(collector: Collector, flags: Flags): SuiteApi {
@@ -422,8 +454,13 @@ function chainable<Api>(
       },
     })
   }
-  const skipIf = (condition: unknown): Api =>
-    make(condition ? { ...flags, conditionSkip: true } : flags)
+  // A condition that doesn't skip is this API itself; the skipping one is built once.
+  let skipped: Api | undefined
+  const skipIf = (condition: unknown): Api => {
+    if (!condition) return api
+    skipped ??= make({ ...flags, conditionSkip: true })
+    return skipped
+  }
   const rows = (mode: 'each' | 'for') =>
     function rows(cases: unknown, ...values: readonly unknown[]) {
       const perRow = function each(name: unknown, second?: unknown, third?: unknown): void {
@@ -431,10 +468,11 @@ function chainable<Api>(
       }
       return perRow
     }
-  return Object.assign(register, {
+  const api = Object.assign(register, {
     skipIf,
     runIf: (condition: unknown): Api => skipIf(!condition),
     each: rows('each'),
     for: rows('for'),
   }) as Api
+  return api
 }
