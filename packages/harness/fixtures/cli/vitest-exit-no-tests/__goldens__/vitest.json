@@ -22,6 +22,7 @@
   "runErrors": [],
   "success": false,
   "observed": {
-    "exitCode": 1
+    "exitCode": 1,
+    "stderr": "No test files found, exiting with code 1"
   }
 }

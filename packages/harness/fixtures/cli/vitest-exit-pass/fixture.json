@@ -1,7 +1,0 @@
-{
-  "description": "A Vitest 5.0.5 run where every test passes exits with code 0 (orchestrator.exitCodes). A black-box run; held by provino vitest in B25g.",
-  "runners": ["vitest"],
-  "run": {
-    "capture": ["exitCode"]
-  }
-}

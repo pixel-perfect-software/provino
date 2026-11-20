@@ -3,8 +3,9 @@
   "runners": ["vitest"],
   "run": {
     "argv": {
-      "vitest": ["matches-no-file"]
+      "vitest": ["matches-no-file", "--reporter=default"]
     },
-    "capture": ["exitCode"]
+    "capture": ["exitCode", "stderr"],
+    "keepLines": "^No test files found"
   }
 }

@@ -749,6 +749,8 @@ async function sampleHtml(state: SampleState): Promise<string> {
       htmlReporter({
         outputFile,
         now: clock.now,
+        // The sample CLI's wall clock: the start time the page shows is not today's date.
+        wallClock: () => Date.UTC(2026, 10, 19, 12, 0, 0),
         seed: 1827364,
         sample: true,
       }),
