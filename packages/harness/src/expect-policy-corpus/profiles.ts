@@ -24,6 +24,8 @@ export type PolicyFlip =
   | 'poll-off'
   | 'poll-quiet-timeout'
   | 'counts-dropped'
+  | 'calls-per-matcher'
+  | 'calls-per-expect'
 
 /** Wrong policy values, to show the corpus notices each. */
 export const FLIPS: Readonly<Record<PolicyFlip, PolicyLayer>> = {
@@ -36,6 +38,10 @@ export const FLIPS: Readonly<Record<PolicyFlip, PolicyLayer>> = {
   'poll-quiet-timeout': { expect: { pollFailsOnTimeout: false } },
   /** Jest's `next-test` carry turned off: nothing counted outside a test reaches a test. */
   'counts-dropped': { expect: { outsideTestCounts: 'drop' } },
+  /** Jest's count, one per matcher call that returns a result, under Vitest. */
+  'calls-per-matcher': { expect: { assertionCalls: 'per-matcher-call' } },
+  /** Vitest's count, one per `expect()` call, under Jest. */
+  'calls-per-expect': { expect: { assertionCalls: 'per-expect-call' } },
 }
 
 /** The policy a profile runs under, with `flip` laid over it when there is one. */

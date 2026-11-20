@@ -78,6 +78,8 @@ export interface C {
     readonly asymmetricNot: AsymmetricFactories;
     readonly chain?: (actual: unknown, name: string, call: MatcherCall) => unknown;
     customAsymmetric(name: string, matcher: I): CustomAsymmetricBuilder;
+    readonly equals?: TesterContext["equals"];
+    readonly matcherReturn?: (actual: unknown, call: MatcherCall) => unknown;
     // (undocumented)
     readonly matchers: MatcherSet;
     readonly messageArgument?: boolean;
@@ -587,6 +589,7 @@ export interface X {
 
 // @public
 export interface x {
+    readonly assertionCalls: "per-matcher-call" | "per-expect-call";
     readonly diffContextLines: number;
     readonly equality: {
         readonly errors: "message" | "assert";

@@ -605,4 +605,20 @@ export const expectClaims: Claims = {
     }),
     pending('T11.16', "Vitest's counters aren't recorded: the neutral `drop` stands"),
   ),
+  // Jest counts a matcher call that returns a result (makeThrowingMatcher's processResult), Vitest
+  // each `expect()` call (integrations/chai/index.ts L18-L20): one `expect(1)` used for two
+  // matchers meets `expect.assertions(2)` under Jest and misses it under Vitest.
+  'expect.assertionCalls': golden('expect/policies/assertions-per-expect', {
+    read: (g) => {
+      const status = statusOf(
+        g,
+        'assertions per expect',
+        'one expect reused for two matchers, with assertions(2)',
+      )
+      return oneOf(status, [
+        ['per-matcher-call', status === 'passed'],
+        ['per-expect-call', status === 'failed'],
+      ])
+    },
+  }),
 }

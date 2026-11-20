@@ -26,6 +26,15 @@ export interface ExpectPolicy {
    * Neutral: `drop`, Provino's own.
    */
   readonly outsideTestCounts: 'drop' | 'next-test'
+  /**
+   * What counts as an assertion call (`expect.assertions(n)`, `expect.hasAssertions()`).
+   * `per-matcher-call`: each matcher call that returns a result (Jest's `makeThrowingMatcher`).
+   * `per-expect-call`: each `expect()`, `expect.soft()` and `expect.poll()` call, whatever runs on
+   * it: a bare `expect(x)` counts, one `expect(x)` reused for two matchers counts once (Vitest's
+   * `createExpect`, `integrations/chai/index.ts` L18-L20). Jest and neutral: `per-matcher-call`.
+   * Vitest: `per-expect-call` (`fixtures/expect/policies/assertions-per-expect`).
+   */
+  readonly assertionCalls: 'per-matcher-call' | 'per-expect-call'
   /** Whether `expect.poll` fails on timeout. Jest: no `expect.poll` (any value; `poll.enabled` is off). Vitest: `true`. research: track-01 L222 */
   readonly pollFailsOnTimeout: boolean
   /** Lines of context in diffs. Jest: 5. Vitest: 5. research: track-01 L223 */

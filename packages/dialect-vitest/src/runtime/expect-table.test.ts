@@ -9,6 +9,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { isDeepStrictEqual } from 'node:util'
 import {
   createExpect,
   createMatcherRegistry,
@@ -19,13 +20,14 @@ import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
 import type { CurrentTest } from '@provino/types'
 import { vitestPolicy } from '../dialect.ts'
 import { withDiff } from './expect-table.ts'
-import { type Asymmetric, expectCases, runCase } from './internal/expect-cases.ts'
+import { type Asymmetric, expectCases, runCase, type Side } from './internal/expect-cases.ts'
 
 interface Outcome {
   readonly pass: boolean
   readonly name?: string
   readonly message?: string
   readonly diff?: string | null
+  readonly cause?: string | null
 }
 
 interface Oracle {
@@ -99,13 +101,18 @@ test('the asymmetric factories are Vitest`s, on expect and expect.not', () => {
   assert.deepEqual(Object.keys(table.asymmetricNot).sort(), [...oracle.asymmetricNot].sort())
 })
 
-test('every case passes or fails as in Vitest, with its name, message and diff', () => {
+test('every case passes or fails as in Vitest, with its name, message and diff', async () => {
   const cases = expectCases(expect as unknown as Asymmetric, expect.not as unknown as Asymmetric)
   assert.equal(cases.length, oracle.results.length)
-  cases.forEach((c, i) => {
+  const side: Side = {
+    expect: expect as unknown as Side['expect'],
+    extend: (matchers) => expect.extend(matchers as never),
+  }
+  const differ: string[] = []
+  for (const [i, c] of cases.entries()) {
     let outcome: Outcome = { pass: true }
     try {
-      runCase(expect, c)
+      await runCase(side, c)
     } catch (error) {
       // A Chai chain's error is thrown past the table, so it gets its diff where the run reports it.
       const shaped = withDiff(error as Error) as Error & { diff?: string }
@@ -114,10 +121,16 @@ test('every case passes or fails as in Vitest, with its name, message and diff',
         name: shaped.name,
         message: shaped.message,
         diff: shaped.diff ?? null,
+        cause: shaped.cause === undefined ? null : String(shaped.cause),
       }
     }
-    assert.deepEqual(outcome, oracle.results[i], `case ${i}: ${c.not ? 'not.' : ''}${c.matcher}`)
-  })
+    if (!isDeepStrictEqual(outcome, oracle.results[i])) {
+      differ.push(
+        `case ${i}: ${c.not ? 'not.' : ''}${c.matcher}\n  want ${JSON.stringify(oracle.results[i])}\n  got  ${JSON.stringify(outcome)}`,
+      )
+    }
+  }
+  assert.deepEqual(differ, [])
 })
 
 test('a failure is Chai`s AssertionError, loaded only then', async () => {

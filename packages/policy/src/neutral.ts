@@ -250,6 +250,7 @@ export const neutralPolicy: Policy = deepFreeze({
     matcherTable: null,
     // Ours: an assertion made outside any test counts for no test.
     outsideTestCounts: 'drop',
+    assertionCalls: 'per-matcher-call',
     errorShape: 'assertion-error',
     equality: { errors: 'assert', invalidDate: 'equal' },
     soft: true,

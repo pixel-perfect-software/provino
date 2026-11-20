@@ -8,20 +8,79 @@
  * One assertion: `expect(received())[.not][matcher](...args())`. A dotted `matcher` is a Chai chain
  * (`to.deep.equal`): every name but the last is read, the last is called.
  */
-export function runCase(expect: (actual: unknown) => unknown, c: ExpectCase): void {
-  let target = expect(c.received()) as Record<string, unknown>
+export function runCase(side: Side, c: ExpectCase): unknown {
+  if (c.run !== undefined) return c.run(side)
+  const { expect } = side
+  let target = expect(c.received()) as unknown as Record<string, unknown>
   if (c.not) target = target.not as Record<string, unknown>
   const names = c.matcher.split('.')
   const last = names.pop() ?? ''
   for (const name of names) target = target[name] as Record<string, unknown>
-  ;(target[last] as (...args: readonly unknown[]) => unknown).call(target, ...(c.args?.() ?? []))
+  return (target[last] as (...args: readonly unknown[]) => unknown).call(
+    target,
+    ...(c.args?.() ?? []),
+  )
 }
+
+/** A name a script reads on an assertion: a further chain, and callable. */
+export interface Link extends Chain {
+  (...args: readonly unknown[]): Chain
+}
+
+/** What the script cases read on an assertion (`runCase` reads the table cases' names loosely). */
+export interface Chain {
+  readonly equal: Link
+  readonly rejects: Link
+  readonly resolves: Link
+  readonly to: Link
+  readonly toBe: Link
+  readonly toEqual: Link
+  readonly toEqualByThisEquals: Link
+  readonly toMatchObject: Link
+  readonly toShowContext: Link
+  readonly toStrictEqual: Link
+  readonly toThrow: Link
+  readonly toThrowError: Link
+}
+
+/** What a custom matcher of a case reads on its `this`. */
+export interface CaseContext {
+  equals(a: unknown, b: unknown): boolean
+  readonly soft?: boolean
+  readonly poll?: boolean
+  readonly promise: string
+}
+
+/** A custom matcher a case registers. */
+export type CaseMatcher = (
+  this: CaseContext,
+  received: unknown,
+  expected: unknown,
+) => { readonly pass: boolean; readonly message: () => string }
+
+/** What a case runs on: the side's `expect` and its `expect.extend`. */
+export interface Side {
+  readonly expect: (actual: unknown, message?: string) => Chain
+  readonly extend: (matchers: Readonly<Record<string, CaseMatcher>>) => void
+}
+
 export interface ExpectCase {
   readonly matcher: string
   readonly received: () => unknown
   readonly args?: () => readonly unknown[]
   readonly not?: boolean
+  /** A case that is a script of its own (a sequence, an `await`); its value is awaited. */
+  readonly run?: (side: Side) => unknown
 }
+
+/** A script case: `matcher` names it in a failure. */
+const script = (matcher: string, run: (side: Side) => unknown): ExpectCase => ({
+  matcher,
+  received: () => undefined,
+  run,
+})
+
+const tag = Symbol.toStringTag
 
 class Point {
   x: number
@@ -135,6 +194,75 @@ export function expectCases(a: Asymmetric, not: Asymmetric): readonly ExpectCase
       args: () => [new Error('yes')],
     },
     { matcher: 'toSatisfy', received: () => 1, args: () => [(n: number) => n > 2] },
+    // B25b review: a sync matcher returns the assertion, so a chain goes on from it.
+    script('toBe.to.equal (passes)', ({ expect }) => expect(1).toBe(1).to.equal(1)),
+    script('toBe.to.equal (fails)', ({ expect }) => expect(1).toBe(1).to.equal(2)),
+    // B25b review: after a Chai chain is read, `.rejects.toThrow` still unwraps once.
+    script('chain, then rejects.toThrow', ({ expect }) => {
+      expect(1).to.equal(1)
+      return expect(Promise.reject(new Error('boom'))).rejects.toThrow('boom')
+    }),
+    script('chain, then rejects.toThrowError(/re/)', ({ expect }) => {
+      expect(1).to.equal(1)
+      return expect(Promise.reject(new Error('boom'))).rejects.toThrowError(/bo/)
+    }),
+    script('chain, then rejects.toThrow()', ({ expect }) => {
+      expect(1).to.equal(1)
+      return expect(Promise.reject(new Error('boom'))).rejects.toThrow()
+    }),
+    script('rejects.toThrow a message not in it', ({ expect }) =>
+      expect(Promise.reject(new Error('boom'))).rejects.toThrow('nope'),
+    ),
+    // B25b review: a wrong settlement is Chai's AssertionError, with its diff or its cause.
+    script('resolves on a rejection', ({ expect }) =>
+      expect(Promise.reject(new Error('x'))).resolves.toBe(1),
+    ),
+    script('rejects on a resolution', ({ expect }) => expect(Promise.resolve(5)).rejects.toBe(1)),
+    // B25b review: a custom matcher's `this` is Vitest's (its `equals`, `soft`, `poll`).
+    script('custom matcher this.equals of errors that differ in cause', ({ expect, extend }) => {
+      extend({
+        toEqualByThisEquals(this: CaseContext, received: unknown, expected: unknown) {
+          return { pass: this.equals(received, expected), message: () => 'not equal' }
+        },
+      })
+      return expect(new Error('a', { cause: 1 })).toEqualByThisEquals(new Error('a', { cause: 2 }))
+    }),
+    script("a custom matcher's context", ({ expect, extend }) => {
+      extend({
+        toShowContext(this: CaseContext) {
+          const seen = {
+            soft: this.soft ?? null,
+            poll: this.poll ?? null,
+            promise: this.promise,
+          }
+          return { pass: false, message: () => JSON.stringify(seen) }
+        },
+      })
+      return expect(1).toShowContext()
+    }),
+    // B25b review: the realm-safe class tests keep a same-realm value's verdict.
+    script('toMatchObject over an object tagged Date', ({ expect }) =>
+      expect({ x: { a: 1, [tag]: 'Date' } }).toMatchObject({ x: { a: 1 } }),
+    ),
+    script('toMatchObject over an object tagged Date (fails)', ({ expect }) =>
+      expect({ x: { a: 1, [tag]: 'Date' } }).toMatchObject({ x: { a: 2 } }),
+    ),
+    script('toStrictEqual of objects tagged ArrayBuffer', ({ expect }) =>
+      expect({ a: 1, [tag]: 'ArrayBuffer' }).toStrictEqual({ a: 2, [tag]: 'ArrayBuffer' }),
+    ),
+    script('toThrow with an object tagged RegExp', ({ expect }) =>
+      expect(() => {
+        throw new Error('x')
+      }).toThrow({ message: 'y', [tag]: 'RegExp' }),
+    ),
+    script('toEqual of a Map subclass with its own tag', ({ expect }) => {
+      class Tagged extends Map<number, number> {
+        get [tag](): string {
+          return 'Other'
+        }
+      }
+      return expect(new Tagged([[1, 2]])).toEqual(new Tagged([[1, 3]]))
+    }),
     // Chai's own chains (D170: Chai loads when one is read).
     { matcher: 'to.equal', received: () => 1, args: () => [1] },
     { matcher: 'to.equal', received: () => 1, args: () => [2] },

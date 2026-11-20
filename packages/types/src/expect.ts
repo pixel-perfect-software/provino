@@ -248,6 +248,16 @@ export interface ExpectTable {
    * such a name reads `undefined`. `call.matcherName` is the name.
    */
   readonly chain?: (actual: unknown, name: string, call: MatcherCall) => unknown
+  /**
+   * What a matcher call that passed synchronously returns (Vitest's assertion, to chain on:
+   * `expect(1).toBe(1).to.equal(1)`). Absent: `undefined`, as in Jest.
+   */
+  readonly matcherReturn?: (actual: unknown, call: MatcherCall) => unknown
+  /**
+   * The deep equality a custom matcher gets as `this.equals` (Vitest's own `equals`, which reads an
+   * error's name, cause and own properties). Absent: Jest's.
+   */
+  readonly equals?: TesterContext['equals']
 }
 
 /**

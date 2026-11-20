@@ -18,6 +18,32 @@ function chaiCall(assertion: VitestAssertion, name: string, args: readonly unkno
   return Reflect.apply(method, assertion, args)
 }
 
+/** The methods Vitest's plugin overwrites (`jest-expect.ts` L56): `throw`, `throws`, `Throw`. */
+const OVERWRITTEN = ['throw', 'throws', 'Throw'] as const
+
+/**
+ * Chai's own `throw`, `throws` and `Throw`, taken from its prototype the first time one is
+ * needed and before Vitest's plugin goes on Chai's own `Assertion` (`chaiWithPlugins`): the base a
+ * `VitestAssertion`'s overwritten method calls. Read after that, the prototype's would be Vitest's
+ * wrapper again, and `.rejects.toThrow('msg')` would unwrap the rejection twice.
+ */
+let chaiOriginals: Readonly<Record<string, (...args: readonly unknown[]) => unknown>> | undefined
+
+function chaiOriginal(name: string): (...args: readonly unknown[]) => unknown {
+  if (chaiOriginals === undefined) {
+    const proto = chai().Assertion.prototype
+    chaiOriginals = Object.fromEntries(
+      OVERWRITTEN.map((each) => [
+        each,
+        Reflect.get(proto, each) as (...args: readonly unknown[]) => unknown,
+      ]),
+    )
+  }
+  const original = chaiOriginals[name]
+  if (original === undefined) throw new Error(`Chai has no ${name} to overwrite`)
+  return original
+}
+
 /**
  * One `expect(actual)` as Vitest's matchers see it: `_obj`, the flags, `assert`, and the Chai
  * assertions they delegate to (`contain`, `instanceOf`, `have.length`, `throws`).
@@ -112,7 +138,7 @@ export function loadVitestPlugins(): VitestPlugins {
       wrap: (base: (...args: unknown[]) => unknown) => unknown,
     ): void {
       target[name] = wrap(function chaiMethod(this: VitestAssertion, ...args: unknown[]) {
-        return chaiCall(this, name, args)
+        return Reflect.apply(chaiOriginal(name), this, args)
       })
     },
     getMessage: (assertion: object, args: readonly unknown[]): string =>
@@ -148,6 +174,8 @@ function chaiWithPlugins(): NonNullable<typeof pluggedChai> {
     readonly use: (plugin: (chai: unknown, utils: unknown) => void) => void
     readonly expect: (actual: unknown, message?: string) => Record<string, unknown>
   }
+  // Chai's own `throws`, kept before Vitest's plugin overwrites it on Chai's prototype.
+  chaiOriginal('throws')
   // `integrations/chai/setup.ts`: the jest-style methods, sinon-chai's names and the asymmetric
   // factories, on Chai's own objects this time.
   real.use(JestChaiExpect)

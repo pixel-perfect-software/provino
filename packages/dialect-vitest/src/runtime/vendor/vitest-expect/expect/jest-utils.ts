@@ -60,8 +60,8 @@ export function hasAsymmetric(obj: any, seen: Set<any> = new Set()): boolean {
   if (Array.isArray(obj)) {
     return obj.some((i) => hasAsymmetric(i, seen))
   }
-  // provino: realm-safe (T7.7): a class test, not `instanceof`
-  if (isA('Set', obj)) {
+  // provino: realm-safe (T7.7): `instanceof`, or the class of a value from another realm
+  if (isKind(obj, Set, 'Set')) {
     return Array.from(obj as Set<unknown>).some((i) => hasAsymmetric(i, seen))
   }
   if (isObject(obj)) {
@@ -130,8 +130,8 @@ function eq(
     }
   }
 
-  // provino: realm-safe (T7.7): a class test, not `instanceof`
-  if (typeof URL === 'function' && isA('URL', a) && isA('URL', b)) {
+  // provino: realm-safe (T7.7): `instanceof`, or the class of a value from another realm
+  if (typeof URL === 'function' && isKind(a, URL, 'URL') && isKind(b, URL, 'URL')) {
     return a.href === b.href
   }
 
@@ -561,10 +561,10 @@ function isObjectWithKeys(a: any) {
     isObject(a) &&
     !isError(a) &&
     !Array.isArray(a) &&
-    // provino: realm-safe (T7.7): class tests, not `instanceof`
-    !isA('Date', a) &&
-    !isA('Set', a) &&
-    !isA('Map', a)
+    // provino: realm-safe (T7.7): `instanceof`, or the class of a value from another realm
+    !isKind(a, Date, 'Date') &&
+    !isKind(a, Set, 'Set') &&
+    !isKind(a, Map, 'Map')
   )
 }
 
@@ -637,9 +637,9 @@ export function arrayBufferEquality(a: unknown, b: unknown): boolean | undefined
   let dataViewA = a as DataView
   let dataViewB = b as DataView
 
-  // provino: realm-safe (T7.7): class tests, not `instanceof`
-  if (!(isA('DataView', a) && isA('DataView', b))) {
-    if (!isA('ArrayBuffer', a) || !isA('ArrayBuffer', b)) {
+  // provino: realm-safe (T7.7): `instanceof`, or the class of a value from another realm
+  if (!(isKind(a, DataView, 'DataView') && isKind(b, DataView, 'DataView'))) {
+    if (!isKind(a, ArrayBuffer, 'ArrayBuffer') || !isKind(b, ArrayBuffer, 'ArrayBuffer')) {
       return undefined
     }
 
@@ -727,8 +727,8 @@ export function getObjectSubset(
             getObjectSubsetWithContext(seenReferences)(object[i], sub),
           )
         }
-      // provino: realm-safe (T7.7): a class test, not `instanceof`
-      } else if (isA('Date', object)) {
+      // provino: realm-safe (T7.7): `instanceof`, or the class of a value from another realm
+      } else if (isKind(object, Date, 'Date')) {
         return object
       } else if (isObject(object) && isObject(subset)) {
         if (equals(object, subset, [...customTesters, iterableEquality, subsetEquality])) {
@@ -790,7 +790,17 @@ export function isStandardSchema(obj: any): obj is StandardSchemaV1 {
   )
 }
 
-// provino: realm-safe helpers (T7.7). `isNativeFunction` and the constructor-name rule are Jest
+// provino: realm-safe helpers (T7.7). `isKind` keeps upstream's `instanceof` verdict for a value of
+// this realm (a subclass with its own `Symbol.toStringTag`, a plain object tagged `Date`) and adds a
+// value of another realm, which is no `Object` of this one, by its class tag.
+export function isKind(value: unknown, Ctor: abstract new (...args: never[]) => unknown, name: string): boolean {
+  if (value instanceof Ctor) return true
+  return (
+    typeof value === 'object' && value !== null && !(value instanceof Object) && isA(name, value)
+  )
+}
+
+// provino: `isNativeFunction` and the constructor-name rule are Jest
 // 30.5.2's (`packages/expect-utils/src/utils.ts` L423-L428, L446-L460).
 function isNativeFunction(fn: unknown): boolean {
   return typeof fn === 'function' && Function.prototype.toString.call(fn).includes('[native code]')

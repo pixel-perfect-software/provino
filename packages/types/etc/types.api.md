@@ -950,6 +950,7 @@ export interface ExpectMessages {
 
 // @public
 export interface ExpectPolicy {
+    readonly assertionCalls: "per-matcher-call" | "per-expect-call";
     readonly diffContextLines: number;
     readonly equality: {
         readonly errors: "message" | "assert";
@@ -1010,6 +1011,8 @@ export interface ExpectTable {
     readonly asymmetricNot: AsymmetricFactories;
     readonly chain?: (actual: unknown, name: string, call: MatcherCall) => unknown;
     customAsymmetric(name: string, matcher: Matcher): CustomAsymmetricBuilder;
+    readonly equals?: TesterContext["equals"];
+    readonly matcherReturn?: (actual: unknown, call: MatcherCall) => unknown;
     // (undocumented)
     readonly matchers: MatcherSet;
     readonly messageArgument?: boolean;

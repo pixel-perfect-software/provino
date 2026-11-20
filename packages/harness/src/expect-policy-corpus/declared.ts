@@ -81,6 +81,20 @@ export const VITEST_DECLARED: Readonly<Record<string, Declared>> = {
     reason: COUNT_FRAME,
     ours: { status: 'failed', errors: [countError(1, 2, 16)] },
   },
+  'assertions-per-expect (vitest) assertions-per-expect.test.ts::assertions per expect › one expect reused for two matchers, with assertions(2)#0':
+    {
+      reason: COUNT_FRAME,
+      ours: {
+        status: 'failed',
+        errors: [
+          {
+            name: 'Error',
+            message: 'Error: expected number of assertions to be 2, but got 1',
+            userFrame: '<root>/assertions-per-expect.test.ts:19:12',
+          },
+        ],
+      },
+    },
   [`assertions-count (vitest) ${COUNT} › assertions(2) missed after a failed assertion#0`]: {
     reason:
       'Vitest checks the counts only on a test whose body passed; Provino adds the count error to ' +

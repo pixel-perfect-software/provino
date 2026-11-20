@@ -4,7 +4,7 @@
 // Chai are reached from `vitest`, a devDependency, so nothing is added. Prints one JSON line.
 import { createRequire } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { type Asymmetric, expectCases, runCase } from './expect-cases.ts'
+import { type Asymmetric, expectCases, runCase, type Side } from './expect-cases.ts'
 
 const vitestEntry = fileURLToPath(import.meta.resolve('vitest'))
 const fromVitest = createRequire(vitestEntry)
@@ -49,15 +49,27 @@ const asymmetric = Object.keys(chai.expect).filter(
   (n) => !expectBefore.has(n) && n !== 'not' && n !== '__flags',
 )
 
-const results = expectCases(chai.expect as Asymmetric, chai.expect.not as Asymmetric).map((c) => {
+const asymmetricNot = Object.keys(chai.expect.not)
+const side: Side = {
+  expect: chai.expect as Side['expect'],
+  extend: (matchers) => chai.expect.extend(chai.expect, matchers),
+}
+const results = []
+for (const c of expectCases(chai.expect as Asymmetric, chai.expect.not as Asymmetric)) {
   try {
-    runCase(chai.expect, c)
-    return { pass: true }
+    await runCase(side, c)
+    results.push({ pass: true })
   } catch (error) {
-    const { name, message } = error as Error
-    return { pass: false, name, message, diff: processError(error).diff ?? null }
+    const { name, message, cause } = error as Error
+    results.push({
+      pass: false,
+      name,
+      message,
+      diff: processError(error).diff ?? null,
+      cause: cause === undefined ? null : String(cause),
+    })
   }
-})
+}
 
 process.stdout.write(
   JSON.stringify({
@@ -65,7 +77,7 @@ process.stdout.write(
     chaiStyleMethods,
     chaiStyleProperties,
     asymmetric,
-    asymmetricNot: Object.keys(chai.expect.not),
+    asymmetricNot,
     customMatchers: Object.keys(upstream.customMatchers as object),
     results,
   }),

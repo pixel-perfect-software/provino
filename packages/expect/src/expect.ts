@@ -89,6 +89,8 @@ interface Settled {
   readonly above: Caller
   /** The error a failure reuses, made when the matcher was called (Jest's `innerErr`). */
   readonly error: MatcherResultError
+  /** A try of `expect.poll`: the matcher's context says so (`this.poll`), as Vitest's does. */
+  readonly poll?: true
 }
 
 /** A matcher as the engine calls it. */
@@ -128,6 +130,16 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
   const policyTesters = equalityTesters(policy.equality)
   registry.customEqualityTesters.push(...policyTesters)
   const { messages } = table
+  /** The table's `equals` for a matcher's `this.equals`, else Jest's. */
+  const tableEquals = (table.equals ?? equals) as typeof equals
+  /** What a passing sync matcher call returns under this table. */
+  const matcherReturn = table.matcherReturn?.bind(table)
+  /**
+   * `ExpectPolicy.assertionCalls`: `per-expect-call` counts an assertion when `expect()` (or
+   * `expect.soft()`, `expect.poll()`) is called, whatever then runs on it; `per-matcher-call`
+   * counts each matcher call that returns a result.
+   */
+  const perExpect = policy.assertionCalls === 'per-expect-call'
   /** How many arguments `expect` takes after the value: a table may take a message. */
   const maxRest = table.messageArgument === true ? 1 : 0
   /**
@@ -171,19 +183,22 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
           throws = false
           return false
         },
-        equals,
+        equals: tableEquals,
         utils: registry.utils,
         error: settled?.error,
         isNot,
         promise,
         ...(customMessage === undefined ? {} : { customMessage }),
+        // `expect.soft` and `expect.poll` say so to the matcher, as Vitest's `getMatcherState` does.
+        ...(soft ? { soft: true } : {}),
+        ...(settled?.poll === true ? { poll: true } : {}),
       }
 
       const processResult = (
         result: unknown,
         at: Caller,
         asyncError?: MatcherResultError,
-      ): void => {
+      ): boolean => {
         // Inline, not `anchored(...)`: this runs on every assertion, and a closure costs.
         let valid: ValidResult
         try {
@@ -191,7 +206,7 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
         } catch (error) {
           throw anchor(error, at)
         }
-        state.assertionCalls++
+        if (!perExpect) state.assertionCalls++
         if ((valid.pass && isNot) || (!valid.pass && !isNot)) {
           const message = getMessage(valid, messages.noMessage, at)
           if (assertionError !== undefined) {
@@ -205,7 +220,7 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
             const thrown = settled === undefined ? anchor(made, at) : restack(made, settled.error)
             if (throws) throw thrown
             state.suppressedErrors.push(thrown)
-            return
+            return false
           }
           // The error made at the call (settled or async) takes the message; a sync failure gets
           // its own. Assigning keeps Jest's key order (`matcherResult`, then `message`).
@@ -216,9 +231,10 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
           error.matcherResult = { ...valid, message }
           if (throws) throw error
           state.suppressedErrors.push(error)
-        } else {
-          state.numPassingAsserts++
+          return false
         }
+        state.numPassingAsserts++
+        return true
       }
 
       // Built-ins are re-anchored like Jest's internal matchers; so are the table's promise forms
@@ -260,7 +276,21 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
           })
           return anchored(() => (chained as Promise<void>).catch(handleError), above)
         }
-        return processResult(potentialResult, above)
+        // A matcher that passed returns what the table says a call returns (Vitest's assertion, to
+        // chain on); `undefined` otherwise, as in Jest.
+        if (
+          processResult(potentialResult, above) &&
+          matcherReturn !== undefined &&
+          settled === undefined
+        ) {
+          return matcherReturn(actual, {
+            matcherName,
+            isNot,
+            promise,
+            ...(customMessage === undefined ? {} : { message: customMessage }),
+          })
+        }
+        return undefined
       } catch (error) {
         return handleError(error)
       }
@@ -420,9 +450,9 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
         return Reflect.get(Object.prototype, key, receiver)
       }
       const { actual, isNot, promise, message } = target
-      // An `AssertionError` runner counts an assertion when `expect()` is called; a chain is
-      // counted once, here, since none of its calls reach the engine.
-      getState().assertionCalls++
+      // Counted per matcher call, a chain counts once, here, since none of its calls reach the
+      // engine; counted per `expect()` call, `expect()` counted it.
+      if (!perExpect) getState().assertionCalls++
       return table.chain(actual, key, {
         matcherName: key,
         isNot,
@@ -477,6 +507,7 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
     // so only they pay for a stack here; the check reads no property of the value.
     const outer =
       typeof actual === 'function' || types.isPromise(actual) ? capturedError(expect) : undefined
+    if (perExpect) getState().assertionCalls++
     return assertion({
       actual,
       isNot: false,
@@ -495,6 +526,7 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
     }
     const outer =
       typeof actual === 'function' || types.isPromise(actual) ? capturedError(soft) : undefined
+    if (perExpect) getState().assertionCalls++
     return assertion({
       actual,
       isNot: false,
@@ -590,15 +622,25 @@ export function createExpect(options: CreateExpectOptions): ExpectStatic {
             state,
             above: pollTry,
             error,
+            poll: true,
           })(...args)
         },
       })
     : undefined
 
+  /** `expect.poll`, counted once per call when assertions are counted per `expect()` call. */
+  const countedPoll: typeof poll =
+    poll === undefined || !perExpect
+      ? poll
+      : (...args: Parameters<typeof poll>): ReturnType<typeof poll> => {
+          getState().assertionCalls++
+          return poll(...args)
+        }
+
   const statics = {
     ...table.asymmetric,
     ...(policy.soft ? { soft } : {}),
-    ...(poll === undefined ? {} : { poll }),
+    ...(countedPoll === undefined ? {} : { poll: countedPoll }),
     ...(unreachableText === undefined ? {} : { unreachable }),
     not,
     extend,

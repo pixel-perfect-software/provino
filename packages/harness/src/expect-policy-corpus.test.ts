@@ -37,6 +37,7 @@ test('the policy corpus is there', () => {
     'assertions-concurrent',
     'assertions-count',
     'assertions-outside-test',
+    'assertions-per-expect',
     'context-expect',
     'removed-aliases',
     'soft-and-poll',
@@ -50,6 +51,7 @@ describe('the Jest goldens', () => {
     'assertions-concurrent',
     'assertions-count',
     'assertions-outside-test',
+    'assertions-per-expect',
     'removed-aliases',
     'unawaited-async',
   ]) {
@@ -94,7 +96,13 @@ describe('P4-P7: the global expect counts per test, under both policies', () => 
 
 describe('the Vitest goldens, as counting outcomes', () => {
   const seen = new Set<string>()
-  for (const name of ['assertions-count', 'removed-aliases', 'soft-and-poll', 'unawaited-async']) {
+  for (const name of [
+    'assertions-count',
+    'assertions-per-expect',
+    'removed-aliases',
+    'soft-and-poll',
+    'unawaited-async',
+  ]) {
     test(name, async () => {
       const fixture = fixtureNamed(name)
       const found = differences(
@@ -118,6 +126,8 @@ describe('the corpus catches a wrong policy value', () => {
     ['soft-and-poll', 'vitest', 'poll-off'],
     ['soft-and-poll', 'vitest', 'poll-quiet-timeout'],
     ['assertions-outside-test', 'jest', 'counts-dropped'],
+    ['assertions-per-expect', 'jest', 'calls-per-expect'],
+    ['assertions-per-expect', 'vitest', 'calls-per-matcher'],
   ] as const) {
     test(`${name} under ${profile} with ${flip}`, async () => {
       const fixture = fixtureNamed(name)

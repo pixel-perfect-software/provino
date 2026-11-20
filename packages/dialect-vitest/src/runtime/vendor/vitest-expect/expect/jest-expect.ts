@@ -11,6 +11,7 @@ import { JEST_MATCHERS_OBJECT } from './constants.ts'
 import { diff, getCustomEqualityTesters, stringify } from './jest-matcher-utils.ts'
 import {
   arrayBufferEquality,
+  isKind,
   generateToBeMessage,
   getObjectSubset,
   isError,
@@ -669,8 +670,8 @@ export const JestChaiExpect: ChaiPlugin = (chai, utils) => {
     if (
       typeof expected === 'string' ||
       typeof expected === 'undefined' ||
-      // provino: realm-safe (T7.7): a class test, not `instanceof`
-      Object.prototype.toString.call(expected) === '[object RegExp]'
+      // provino: realm-safe (T7.7): `instanceof`, or the class of a RegExp from another realm
+      isKind(expected, RegExp, 'RegExp')
     ) {
       return this.throws(expected)
     }

@@ -18,6 +18,7 @@ import {
   JestExtendError,
   jestUtils,
 } from './vendor/vitest-expect/expect/jest-extend.ts'
+import { equals as vitestEquals } from './vendor/vitest-expect/expect/jest-utils.ts'
 
 /** What a matcher's `this` holds that the wrapper reads. */
 interface CallContext {
@@ -56,6 +57,20 @@ function asMatcher(method: (this: VitestAssertion, ...args: unknown[]) => unknow
     }
     return { pass: !isNot, message: () => '' }
   } as unknown as Matcher
+}
+
+/**
+ * What a passing matcher call returns: an object whose every name (but `then` and symbols, so it
+ * is no thenable and prints as nothing) is the Chai chain of that name over `actual`, as the call
+ * came (`.not`, `.resolves`, the message). Nothing is loaded until a name is read.
+ */
+function chainFrom(actual: unknown, call: MatcherCall): object {
+  return new Proxy(Object.create(null) as object, {
+    get(_target, key) {
+      if (typeof key !== 'string' || key === 'then') return undefined
+      return chaiChain(actual, key, call)
+    },
+  })
 }
 
 /**
@@ -113,6 +128,11 @@ export function vitestExpectTable(): ExpectTable {
     messageArgument: true,
     // D170: Chai loads when a Chai property is first read.
     chain: (actual, name, call) => chaiChain(actual, name, call),
+    // A matcher returns its assertion in Vitest (`expect(1).toBe(1).to.equal(1)`): a chain over the
+    // same value and flags, which loads Chai only when one of its names is read.
+    matcherReturn: (actual, call) => chainFrom(actual, call),
+    // A custom matcher's `this.equals` is Vitest's (`jest-extend.ts` L42), not Jest's.
+    equals: vitestEquals,
     customAsymmetric: (name, matcher) => createCustomAsymmetric(name, matcher as never),
     assertionError(result: MatcherResult, message: string, call: MatcherCall): Error {
       const own = (result as Partial<FailedResult>).error

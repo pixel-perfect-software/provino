@@ -169,6 +169,8 @@ export const vitestPolicy: PolicyOverrides = {
     matcherNamespace: 'vitest',
     // Not recorded yet (T11.16): the neutral `drop` stands.
     outsideTestCounts: 'drop',
+    // Vitest counts each `expect()` call (`expect/policies/assertions-per-expect`).
+    assertionCalls: 'per-expect-call',
     pollFailsOnTimeout: true,
     diffContextLines: 5,
     valueFormatter: 'pretty-format',

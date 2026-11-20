@@ -19,6 +19,10 @@ export interface MatcherContext extends Readonly<MatcherState> {
   readonly error?: Error | undefined
   /** `expect(actual, message)`'s message, where the dialect's table takes one. */
   readonly customMessage?: string
+  /** Set when the call is `expect.soft`'s, as Vitest's matcher state has it. */
+  readonly soft?: true
+  /** Set when the call is a try of `expect.poll`, as Vitest's matcher state has it. */
+  readonly poll?: true
   /** Records a failure instead of throwing it (snapshot matchers). */
   dontThrow(): void
 }

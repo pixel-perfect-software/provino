@@ -640,3 +640,101 @@ describe('a table with chains (ExpectTable.chain, D170)', () => {
     assert.equal(calls.length, 1)
   })
 })
+
+describe('the table hooks and the assertion count (B25b review)', () => {
+  test('matcherReturn: a sync pass returns what the table gives; a failure and Jest`s table do not', () => {
+    const calls: [unknown, MatcherCall][] = []
+    const returned = { chained: true }
+    const table: ExpectTable = {
+      ...testTable(),
+      matcherReturn: (actual, call) => {
+        calls.push([actual, call])
+        return returned
+      },
+    }
+    const { expect } = testEngine({ table })
+    assert.equal(expect(1).toBe(1), returned)
+    assert.deepEqual(calls, [[1, { matcherName: 'toBe', isNot: false, promise: '' }]])
+    assert.throws(() => expect(1).toBe(2))
+    assert.equal(calls.length, 1)
+    assert.equal(testEngine().expect(1).toBe(1), undefined)
+  })
+
+  test('equals: a custom matcher`s this.equals is the table`s when it has one', () => {
+    const seen: unknown[] = []
+    const tableEquals = (): boolean => true
+    const table: ExpectTable = { ...testTable(), equals: tableEquals }
+    for (const engine of [testEngine({ table }), testEngine()]) {
+      engine.expect.extend({
+        toSeeEquals(this: { equals: unknown }) {
+          seen.push(this.equals)
+          return { pass: true, message: () => '' }
+        },
+      })
+      ;(engine.expect(1) as unknown as Loose<'toSeeEquals'>).toSeeEquals()
+    }
+    assert.equal(seen[0], tableEquals)
+    assert.notEqual(seen[1], tableEquals)
+    assert.equal(typeof seen[1], 'function')
+  })
+
+  test('soft: a matcher under expect.soft reads this.soft, a plain call none', () => {
+    const { expect, current } = testEngine({ policy: { soft: true } })
+    current.enter(testTask('t'))
+    const soft = expect.soft as unknown as (actual: unknown) => Loose<'toReadContext'>
+    soft(1).toReadContext()
+    assert.equal(lastContext?.soft, true)
+    ;(expect(1) as unknown as Loose<'toReadContext'>).toReadContext()
+    assert.equal(lastContext?.soft, undefined)
+  })
+
+  test('poll: a try of expect.poll reads this.poll', async () => {
+    const { expect, current } = testEngine({
+      policy: { poll: { enabled: true, intervalMs: 20, timeoutMs: 100 } },
+    })
+    current.enter(testTask('t'))
+    const poll = expect.poll as unknown as (fn: () => unknown) => Loose<'toReadContext'>
+    await poll(() => 1).toReadContext()
+    assert.equal(lastContext?.poll, true)
+  })
+
+  test('per-expect-call counts each expect() call, whatever runs on it', async () => {
+    const { expect, current, source } = testEngine({
+      policy: {
+        assertionCalls: 'per-expect-call',
+        poll: { enabled: true, intervalMs: 20, timeoutMs: 100 },
+      },
+    })
+    current.enter(testTask('t'))
+    expect(1)
+    assert.equal(source.current().assertionCalls, 1, 'a bare expect')
+    const reused = expect(1)
+    reused.toBe(1)
+    reused.toBe(1)
+    assert.equal(source.current().assertionCalls, 2, 'one expect for two matchers')
+    expect.extend({
+      toExplode() {
+        throw new TypeError('blew up')
+      },
+    })
+    assert.throws(() => (expect(1) as unknown as Loose<'toExplode'>).toExplode(), TypeError)
+    assert.equal(source.current().assertionCalls, 3, 'a matcher that throws')
+    const poll = expect.poll as unknown as (fn: () => unknown) => Loose<'toBe'>
+    await poll(() => 1).toBe(1)
+    assert.equal(source.current().assertionCalls, 4, 'a poll')
+    assert.equal(source.current().numPassingAsserts, 3)
+  })
+
+  test('per-matcher-call counts each matcher call that returns a result', () => {
+    const { expect, current, source } = testEngine({
+      policy: { assertionCalls: 'per-matcher-call' },
+    })
+    current.enter(testTask('t'))
+    expect(1)
+    assert.equal(source.current().assertionCalls, 0)
+    const reused = expect(1)
+    reused.toBe(1)
+    reused.toBe(1)
+    assert.equal(source.current().assertionCalls, 2)
+  })
+})
