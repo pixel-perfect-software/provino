@@ -38,13 +38,14 @@ before(async () => {
 })
 after(() => temp.dispose())
 
-function options(native: NativeRuntimeRefs | undefined = NATIVE) {
+/** The resolve options, with `native` (`null`: none). */
+function options(native: NativeRuntimeRefs | null = NATIVE) {
   return {
     configPath,
     dialects: [scoped],
     environments: ENVIRONMENTS,
     ci: false,
-    ...(native === undefined ? {} : { native }),
+    ...(native === null ? {} : { native }),
   }
 }
 
@@ -71,7 +72,7 @@ describe('a project with no dialect', () => {
   })
 
   test('without the refs it keeps the neutral null table and serves nothing', async () => {
-    const resolved = await resolveProject({}, { ...options(), native: undefined })
+    const resolved = await resolveProject({}, options(null))
     assert.equal(resolved.policy.expect.matcherTable, null)
     assert.equal(resolved.config.moduleScope, null)
     assert.equal(resolved.config.loader.scopeModules, undefined)
@@ -92,8 +93,8 @@ describe('a project with no dialect', () => {
 
 describe('a project with a dialect ignores them', () => {
   test('a dialect named in the config keeps its own table, scope and globals', async () => {
-    const resolved = await resolveProject({ dialect: 'scoped' }, options())
-    assert.equal(resolved.dialect?.name, 'scoped')
+    const resolved = await resolveProject({ dialect: 'scoped' as never }, options())
+    assert.equal(resolved.dialect, scoped)
     assert.equal(resolved.policy.expect.matcherTable, null)
     assert.deepEqual(resolved.config.moduleScope, scoped.moduleScope?.factory)
     assert.deepEqual(resolved.config.loader.scopeModules, ['@scoped/globals'])
@@ -112,23 +113,32 @@ describe('a project with a dialect ignores them', () => {
   })
 
   test("and doesn't check them", async () => {
-    const bad = { ...NATIVE, matcherTable: moduleRef('./table.mjs', 'table') }
-    const resolved = await resolveProject({ dialect: 'scoped' }, options(bad))
-    assert.equal(resolved.dialect?.name, 'scoped')
+    const bad: NativeRuntimeRefs = {
+      ...NATIVE,
+      matcherTable: { ...NATIVE.matcherTable, module: './table.mjs' },
+    }
+    const resolved = await resolveProject({ dialect: 'scoped' as never }, options(bad))
+    assert.equal(resolved.dialect, scoped)
   })
 })
 
 describe('bad refs are config errors', () => {
   for (const key of ['matcherTable', 'moduleScope', 'globals'] as const) {
     test(`a relative ${key} ref is CONFIG_INVALID naming native.${key}`, async () => {
-      const bad = { ...NATIVE, [key]: moduleRef('./native.mjs', key) }
+      const bad: NativeRuntimeRefs = {
+        ...NATIVE,
+        [key]: { ...NATIVE[key], module: './native.mjs' },
+      }
       const error = await rejectsWith(resolveProject({}, options(bad)), 'CONFIG_INVALID')
       assert.match(error.message, new RegExp(`^native\\.${key}\\.module must be an absolute path`))
     })
   }
 
   test('a package specifier is refused as well, even for globals a project leaves off', async () => {
-    const bad = { ...NATIVE, globals: moduleRef('@provino/api', 'provinoGlobals') }
+    const bad: NativeRuntimeRefs = {
+      ...NATIVE,
+      globals: { ...NATIVE.globals, module: '@provino/api' },
+    }
     const error = await rejectsWith(resolveProject({}, options(bad)), 'CONFIG_INVALID')
     assert.match(error.message, /^native\.globals\.module/)
   })
