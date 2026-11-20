@@ -114,6 +114,13 @@ export interface FixtureManifest {
    */
   readonly jestTransformJs?: true
   /**
+   * `true`: for this fixture only, the recorder also runs a Vitest reporter that writes each failed
+   * test's errors' `diff` (the text Vitest's runner shows under the message, `processError`),
+   * and the Vitest golden's errors carry it (B25b, T7.6). Vitest only (its JSON has no diff); absent
+   * means off, and the golden is unchanged.
+   */
+  readonly captureDiff?: true
+  /**
    * Jest options a module-mock case needs, for a fixture that lists `jest`: `roots` (directories
    * relative to the fixture, where Jest looks for `__mocks__` and tests; the tests then have to
    * live under one) and `unmockedModulePathPatterns` (regular expression sources that automock
@@ -392,6 +399,7 @@ const KNOWN_KEYS: ReadonlySet<string> = new Set([
   'jestEsm',
   'jestTypeScript',
   'jestTransformJs',
+  'captureDiff',
   'jestConfig',
   'config',
   'files',
@@ -432,7 +440,7 @@ export function parseFixtureManifest(
     if (!KNOWN_KEYS.has(key)) {
       throw new HarnessError(
         'HARNESS_FIXTURE_UNKNOWN_KEY',
-        `${source}: unknown key "${key}" (expected description, runners, env, nodeFlags, nodeMajors, expectCrash, mockCleanup, packages, jestEsm, jestTypeScript, jestTransformJs, jestConfig, config, files, run, scm, before, watch)`,
+        `${source}: unknown key "${key}" (expected description, runners, env, nodeFlags, nodeMajors, expectCrash, mockCleanup, packages, jestEsm, jestTypeScript, jestTransformJs, captureDiff, jestConfig, config, files, run, scm, before, watch)`,
         { path: source },
       )
     }
@@ -449,6 +457,7 @@ export function parseFixtureManifest(
     jestEsm,
     jestTypeScript,
     jestTransformJs,
+    captureDiff,
     jestConfig,
     config,
     files,
@@ -513,6 +522,9 @@ export function parseFixtureManifest(
     ...(jestTransformJs === undefined
       ? {}
       : { jestTransformJs: parseJestTransformJs(jestTransformJs, runners, source) }),
+    ...(captureDiff === undefined
+      ? {}
+      : { captureDiff: parseCaptureDiff(captureDiff, runners, source) }),
     ...(jestConfig === undefined
       ? {}
       : { jestConfig: parseJestConfig(jestConfig, runners, source) }),
@@ -1545,6 +1557,29 @@ function parseJestTransformJs(
     runners,
     source,
   )
+}
+
+/** `captureDiff` is `true` or absent, and only means something for a fixture that runs Vitest. */
+function parseCaptureDiff(
+  captureDiff: unknown,
+  runners: readonly FixtureProfile[],
+  source: string,
+): true {
+  if (captureDiff !== true) {
+    throw new HarnessError(
+      'HARNESS_FIXTURE_BAD_CAPTURE_DIFF',
+      `${source}: "captureDiff" must be true (leave it out for off)`,
+      { path: source },
+    )
+  }
+  if (!runners.includes('vitest')) {
+    throw new HarnessError(
+      'HARNESS_FIXTURE_BAD_CAPTURE_DIFF',
+      `${source}: "captureDiff" is set but "runners" does not list "vitest"`,
+      { path: source },
+    )
+  }
+  return true
 }
 
 /** A package name as npm spells it: `name` or `@scope/name`, lowercase, no path tricks. */

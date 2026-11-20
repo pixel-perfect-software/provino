@@ -550,6 +550,24 @@ test('jestTransformJs is optional, true only, and needs a fixture that runs Jest
   )
 })
 
+test('captureDiff is optional, true only, and needs a fixture that runs Vitest', () => {
+  assert.deepEqual(parseFixtureManifest(JSON.stringify({ ...VALID, captureDiff: true })), {
+    ...VALID,
+    captureDiff: true,
+  })
+  assert.equal('captureDiff' in parseFixtureManifest(JSON.stringify(VALID)), false)
+  for (const captureDiff of [false, 'yes', 1, null]) {
+    assert.throws(
+      () => parseFixtureManifest(JSON.stringify({ ...VALID, captureDiff })),
+      rejects('HARNESS_FIXTURE_BAD_CAPTURE_DIFF'),
+    )
+  }
+  assert.throws(
+    () => parseFixtureManifest(JSON.stringify({ ...VALID, runners: ['jest'], captureDiff: true })),
+    rejects('HARNESS_FIXTURE_BAD_CAPTURE_DIFF'),
+  )
+})
+
 test('packages keeps plain and scoped packages with their files', () => {
   const packages = {
     left: { 'package.json': '{"main":"index.js"}', 'index.js': 'module.exports = 1' },

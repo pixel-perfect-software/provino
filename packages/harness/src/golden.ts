@@ -38,6 +38,8 @@ export interface GoldenError {
   readonly message: string
   readonly matcher?: string
   readonly userFrame?: string
+  /** The runner's diff under the message, for a `captureDiff` fixture's Vitest golden. */
+  readonly diff?: string
 }
 
 /**
@@ -146,6 +148,7 @@ function goldenError(error: NormalizedError): GoldenError {
     message: error.message,
     ...(error.matcher === undefined ? {} : { matcher: error.matcher }),
     ...(error.userFrame === undefined ? {} : { userFrame: error.userFrame }),
+    ...(error.diff === undefined ? {} : { diff: error.diff }),
   }
 }
 
