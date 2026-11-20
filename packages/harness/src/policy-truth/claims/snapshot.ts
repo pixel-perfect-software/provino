@@ -363,6 +363,12 @@ export const snapshotClaims: Claims = {
       'what Vitest does with a snapshot file no test file has is recorded with its reader',
     ),
   ),
+  // D61: no golden yet tells a mismatch held to the end of the test (Jest's `dontThrow`, DV32) from
+  // one thrown at the call (Vitest's). B25b records `snapshot/mismatch-throws-at-call` under both.
+  'snapshot.mismatch': pending(
+    'B25b',
+    'no golden tells a mismatch held to the end of the test from one thrown at the call; B25b records one',
+  ),
   // Provino's own key (B23e, D128): what a matcher finds as `this.snapshotState`, held to what
   // the `ecosystem/image-snapshot-*` and `ecosystem/custom-snapshot-*` recordings show (each
   // `fixture.json` says what). Each claim builds the matcher's `this.snapshotState` under the value

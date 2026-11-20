@@ -557,6 +557,16 @@ export const coreClaims: Claims = {
       ),
     ]),
   ),
+  // B25 Phase 1 adds the keys; Phase 5 (B25e) builds the table's test API and records what each
+  // runner's `test` carries and how Vitest words a fixture error.
+  'core.definitions.extendApi': pending(
+    'B25e',
+    "no golden records whether the runner's `test` has `extend`; B25e's fixtures do",
+  ),
+  'core.definitions.messages': pending(
+    'B25e',
+    "Vitest's fixture errors and Jest's absence of them are recorded with B25e's fixtures",
+  ),
 }
 
 export const lazyClaims: Claims = {

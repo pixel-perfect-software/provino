@@ -156,6 +156,9 @@ export const jestPolicy: PolicyOverrides = {
       retryEnd: 9,
       retryExit: 1,
     },
+    // Jest 30.5 has no `test.extend`: a Jest file that runs here runs under Jest too (B25 open
+    // question 10). Pending in the harness's claims until B25e records each runner's `test`.
+    definitions: { extendApi: 'absent', messages: null },
     // Jest passes `done`, not a context: nothing to call (runtime corpus `done-callback` agrees).
     doneDeprecatedMessage: null,
     // research: track-01 L191 (`none`)
@@ -380,6 +383,10 @@ export const jestPolicy: PolicyOverrides = {
     // Provino's own key (B23d B1, DV96): Jest's `cleanup` after the run
     // (`cli/report-snapshot-obsolete-file`).
     obsoleteFiles: 'report',
+    // jest-snapshot's matchers call `dontThrow()` first, so a mismatch fails the test at its end (DV32,
+    // D61). Pending in the harness's claims: no golden tells it from `throw` until B25b records
+    // `snapshot/mismatch-throws-at-call`.
+    mismatch: 'end-of-test',
     // research: track-01 L220, track-07 L473
     ciUpdate: 'none',
     // research: track-07 L473 (only Vitest has `UPDATE_SNAPSHOT`)
