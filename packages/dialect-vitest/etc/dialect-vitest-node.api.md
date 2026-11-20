@@ -40,7 +40,13 @@ export function loadVitestConfig(source: ConfigSource, options: {
 export function loadVitestEnv(options: LoadEnvOptions): Record<string, string>;
 
 // @public
+export function mergeAlias(a: unknown, b: unknown): unknown;
+
+// @public
 export function mergeConfig(defaults: Rec, overrides: Rec, isRoot?: boolean): Rec;
+
+// @public
+export function normalizeAlias(value: unknown): AliasEntry[];
 
 // @public
 export function parseDotenv(text: string): Record<string, string>;

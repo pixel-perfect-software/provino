@@ -4,7 +4,6 @@ import type { SerializedCoverageConfig } from './coverage.ts'
 import type { EnvironmentResolver } from './environment.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { FileRegistry, ModuleMockRegistry } from './loader.ts'
-import type { SerializedModuleMapper } from './resolve.ts'
 import type {
   GlobalSetupArgs,
   MockPolicy,
@@ -12,6 +11,7 @@ import type {
   PolicyOverrides,
   TimersPolicy,
 } from './policy/index.ts'
+import type { SerializedModuleMapper } from './resolve.ts'
 import type { CliDialect } from './run-request.ts'
 import type { DefaultRetry, DescribeRetry, DescribeRetryResult } from './runtime/context.ts'
 

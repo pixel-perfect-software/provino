@@ -13,14 +13,16 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runProcess } from '@provino/harness'
 import { brief, type KeyDifference } from '../jest-config/compare.ts'
+import {
+  idOf,
+  MIN_READABLE,
+  childEnvironment as sharedChildEnvironment,
+} from '../jest-config/sample-run.ts'
 import { compareTest, TEST_BAR_KEYS } from './compare.ts'
 import type { ProvinoOutcome, ReadOutcome } from './oracle.ts'
 import type { SampleManifest } from './sample-manifest.ts'
 import { MANIFEST_PATH, repoDir, SAMPLE_DIR } from './sample-paths.ts'
 import type { SampleKind } from './sample-select.ts'
-
-/** D28's floor: fewer readable configs than this stops the work. */
-export const MIN_READABLE = 200
 
 /** One config's result. */
 export interface SampleResult {
@@ -45,15 +47,9 @@ const GUARD = pathToFileURL(
 /** Variables std-env reads to tell an agent's shell or a CI provider: both sides run without them. */
 const AGENT_VARIABLE = /^(CLAUDE|AI_AGENT|CURSOR_|CODEX|GEMINI_CLI|OPENCODE|AMP_|GITHUB_ACTIONS)/
 
-/** The child's environment: the parent's, with every proxy variable and NODE_OPTIONS removed. */
+/** The child's environment: the shared one, without what std-env reads to tell an agent or CI. */
 function childEnvironment(): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = {}
-  for (const [key, value] of Object.entries(process.env)) {
-    if (/proxy/i.test(key) || key === 'NODE_OPTIONS' || key === 'NODE_USE_ENV_PROXY') continue
-    // Vitest's defaults follow the agent and CI-provider variables (its reporter becomes `minimal`).
-    if (AGENT_VARIABLE.test(key)) continue
-    env[key] = value
-  }
+  const env = sharedChildEnvironment(AGENT_VARIABLE)
   // Vitest's own start sets it (`process.env.NODE_ENV ??= 'test'`), and a config may spread `process.env`.
   env.NODE_ENV ??= 'test'
   return env
@@ -95,10 +91,6 @@ async function readSide<T extends ReadOutcome>(
     ? `timed out after ${timeoutMs} ms`
     : `exited ${result.exitCode ?? result.signal} with no result: ${result.output.trim().slice(-400)}`
   return { ok: false, error: why, code: result.timedOut ? 'TIMEOUT' : 'NO_RESULT' }
-}
-
-function idOf(repo: string, path: string): string {
-  return `${repo.replace('/', '__')}__${path.replaceAll('/', '__')}`
 }
 
 /** The step. */

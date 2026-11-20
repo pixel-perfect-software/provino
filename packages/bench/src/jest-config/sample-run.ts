@@ -36,11 +36,13 @@ export interface SampleResult {
 const PROBE = fileURLToPath(new URL('sample-probe.ts', import.meta.url))
 const GUARD = pathToFileURL(fileURLToPath(new URL('network-guard.ts', import.meta.url))).href
 
-/** The child's environment: the parent's, with every proxy variable and NODE_OPTIONS removed. */
-function childEnvironment(): NodeJS.ProcessEnv {
+/** The child's environment: the parent's, with every proxy variable and NODE_OPTIONS removed (and the
+ * variables `extraSkip` names). */
+export function childEnvironment(extraSkip?: RegExp): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = {}
   for (const [key, value] of Object.entries(process.env)) {
     if (/proxy/i.test(key) || key === 'NODE_OPTIONS' || key === 'NODE_USE_ENV_PROXY') continue
+    if (extraSkip?.test(key)) continue
     env[key] = value
   }
   return env
@@ -79,7 +81,8 @@ async function readSide(
   return { ok: false, error: why, code: result.timedOut ? 'TIMEOUT' : 'NO_RESULT' }
 }
 
-function idOf(repo: string, path: string): string {
+/** The file name a config's results go under. */
+export function idOf(repo: string, path: string): string {
   return `${repo.replace('/', '__')}__${path.replaceAll('/', '__')}`
 }
 

@@ -14,14 +14,13 @@ import { join } from 'node:path'
 import { promisify } from 'node:util'
 import {
   candidateFormat,
-  emptyTally,
+  emptyTallyFor,
   hasJestObject,
   PER_REPO_CAP,
-  quotasFull,
+  quotasFullFor,
   SAMPLE_QUOTAS,
   type SampleFormat,
-  type Tally,
-  takeConfigs,
+  takeConfigsBy,
 } from './sample-select.ts'
 
 const run = promisify(execFile)
@@ -134,9 +133,11 @@ interface TreeEntry {
   readonly type: string
 }
 
-async function repoCandidates(
+/** The repository's head commit, and its tree's paths that `isCandidate` names. */
+export async function repoCandidates(
   github: GitHub,
   item: SearchItem,
+  isCandidate: (path: string) => boolean,
 ): Promise<{ sha: string; candidates: string[]; truncated: boolean } | undefined> {
   const head = await github.get(
     `repos/${item.full_name}/commits/${encodeURIComponent(item.default_branch)}`,
@@ -148,7 +149,7 @@ async function repoCandidates(
   if (tree.status !== 200) return undefined
   const body = tree.body as { tree?: TreeEntry[]; truncated?: boolean }
   const candidates = (body.tree ?? [])
-    .filter((entry) => entry.type === 'blob' && candidateFormat(entry.path) !== undefined)
+    .filter((entry) => entry.type === 'blob' && isCandidate(entry.path))
     .map((entry) => entry.path)
   return { sha, candidates, truncated: body.truncated === true }
 }
@@ -181,59 +182,81 @@ export async function packageJsonTexts(
   return out
 }
 
-/** Builds the manifest. */
-export async function buildManifest(options: {
-  readonly cacheDir: string
+/** What a scan of the candidate repositories needs to know of one sample. */
+export interface ScanSpec<K extends string> {
+  readonly github: GitHub
   readonly log: (line: string) => void
-}): Promise<SampleManifest> {
-  const github = new GitHub(options.cacheDir)
+  readonly quotas: Readonly<Record<K, number>>
+  readonly classify: (path: string) => K | undefined
+  /** The kind whose configs count only when their text says so, and how many texts to read at most. */
+  readonly textKind: K
+  readonly textLimit: number
+  readonly declares: (text: string) => boolean
+}
+
+/** What a scan found. */
+export interface Scan<K extends string> {
+  readonly picked: readonly {
+    readonly repo: string
+    readonly sha: string
+    readonly stars: number
+    readonly configs: readonly { readonly path: string; readonly kind: K }[]
+  }[]
+  readonly scanned: number
+  readonly truncatedTrees: number
+  readonly errors: number
+}
+
+/** Walks the most-starred repositories, 8 at a time, until every quota is full (or none are left). */
+export async function scanRepos<K extends string>(spec: ScanSpec<K>): Promise<Scan<K>> {
+  const { github, log, quotas, classify } = spec
   const repos = await popularRepos(github)
-  options.log(`${repos.length} candidate repositories (TypeScript and JavaScript, by stars)`)
-  const tally: Tally = emptyTally()
-  const picked: ManifestRepo[] = []
+  log(`${repos.length} candidate repositories (TypeScript and JavaScript, by stars)`)
+  const tally = emptyTallyFor(quotas)
+  const picked: Scan<K>['picked'][number][] = []
   let scanned = 0
   let truncatedTrees = 0
   let errors = 0
   const CONCURRENCY = 8
-  for (let start = 0; start < repos.length && !quotasFull(tally); start += CONCURRENCY) {
+  for (let start = 0; start < repos.length && !quotasFullFor(tally, quotas); start += CONCURRENCY) {
     const batch = repos.slice(start, start + CONCURRENCY)
     const listed = await Promise.all(
       batch.map(async (item) => {
         try {
-          const found = await repoCandidates(github, item)
+          const found = await repoCandidates(github, item, (path) => classify(path) !== undefined)
           if (found === undefined) return { item, found: undefined }
-          const packageJsons = found.candidates
-            .filter((path) => candidateFormat(path) === 'package.json')
+          const needing = found.candidates
+            .filter((path) => classify(path) === spec.textKind)
             .sort((a, b) => a.split('/').length - b.split('/').length || (a < b ? -1 : 1))
-            .slice(0, 120)
+            .slice(0, spec.textLimit)
           const texts =
-            packageJsons.length === 0
+            needing.length === 0
               ? new Map<string, string>()
-              : await packageJsonTexts(github, item.full_name, found.sha, packageJsons)
+              : await packageJsonTexts(github, item.full_name, found.sha, needing)
           return { item, found, texts }
         } catch (error) {
-          options.log(
-            `  ${item.full_name}: ${error instanceof Error ? error.message : String(error)}`,
-          )
+          log(`  ${item.full_name}: ${error instanceof Error ? error.message : String(error)}`)
           return { item, found: undefined, error: true }
         }
       }),
     )
-    // Taken in star order, whatever order the batch answered in.
     for (const entry of listed) {
       scanned++
       if ('error' in entry && entry.error) errors++
-      if (entry.found === undefined || quotasFull(tally)) continue
+      if (entry.found === undefined || quotasFullFor(tally, quotas)) continue
       if (entry.found.truncated) truncatedTrees++
       const texts =
         'texts' in entry ? (entry.texts ?? new Map<string, string>()) : new Map<string, string>()
-      const configs = takeConfigs(
+      const configs = takeConfigsBy(
         entry.found.candidates,
+        classify,
+        spec.textKind,
         (path) => {
           const text = texts.get(path)
-          return text !== undefined && hasJestObject(text)
+          return text !== undefined && spec.declares(text)
         },
         tally,
+        quotas,
       )
       if (configs.length > 0) {
         picked.push({
@@ -244,14 +267,31 @@ export async function buildManifest(options: {
         })
       }
     }
-    const total = Object.values(tally).reduce((sum, count) => sum + count, 0)
-    options.log(
+    const total = Object.values<number>(tally).reduce((sum, count) => sum + count, 0)
+    log(
       `  scanned ${scanned}, picked ${picked.length} repos, ${total} configs (${github.calls} API calls)`,
     )
   }
-  if (!quotasFull(tally)) {
-    options.log(`quotas not full after every candidate: ${JSON.stringify(tally)}`)
+  if (!quotasFullFor(tally, quotas)) {
+    log(`quotas not full after every candidate: ${JSON.stringify(tally)}`)
   }
+  return { picked, scanned, truncatedTrees, errors }
+}
+
+/** Builds the manifest. */
+export async function buildManifest(options: {
+  readonly cacheDir: string
+  readonly log: (line: string) => void
+}): Promise<SampleManifest> {
+  const scan = await scanRepos({
+    github: new GitHub(options.cacheDir),
+    log: options.log,
+    quotas: SAMPLE_QUOTAS,
+    classify: candidateFormat,
+    textKind: 'package.json',
+    textLimit: 120,
+    declares: hasJestObject,
+  })
   return {
     $comment: [
       "T11.6's sample, rebuilt (D28; bundles/B14.md question 2). Written by `pnpm bench:jest-config sample --build-manifest`; never hand-edited.",
@@ -262,7 +302,14 @@ export async function buildManifest(options: {
     generated: new Date().toISOString().slice(0, 10),
     quotas: SAMPLE_QUOTAS,
     perRepoCap: PER_REPO_CAP,
-    scanned: { repos: scanned, truncatedTrees, errors },
-    repos: picked,
+    scanned: {
+      repos: scan.scanned,
+      truncatedTrees: scan.truncatedTrees,
+      errors: scan.errors,
+    },
+    repos: scan.picked.map((repo) => ({
+      ...repo,
+      configs: repo.configs.map(({ path, kind }) => ({ path, format: kind })),
+    })),
   }
 }

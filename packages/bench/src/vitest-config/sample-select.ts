@@ -17,17 +17,19 @@ export const SAMPLE_QUOTAS: Readonly<Record<SampleKind, number>> = {
   'vite.config': 68,
 }
 
-/** F4's cap per repository. */
-export const PER_REPO_CAP = 6
+import {
+  byDepthThenPath,
+  emptyTallyFor,
+  isExcludedPath,
+  type KindTally,
+  PER_REPO_CAP,
+  quotasFullFor,
+  takeConfigsBy,
+} from '../jest-config/sample-select.ts'
+
+export { byDepthThenPath, isExcludedPath, PER_REPO_CAP }
 
 const CONFIG_NAME = /^(vitest|vite)\.config\.(?:ts|mts|cts|js|mjs|cjs)$/
-
-/** Whether a path is left out by F4's filters (a segment in fixtures, templates, e2e or node_modules). */
-export function isExcludedPath(path: string): boolean {
-  return path
-    .split('/')
-    .some((segment) => segment === 'node_modules' || /fixture|template|e2e/i.test(segment))
-}
 
 /** The kind of a candidate path, or `undefined` when it isn't one. */
 export function candidateKind(path: string): SampleKind | undefined {
@@ -36,31 +38,22 @@ export function candidateKind(path: string): SampleKind | undefined {
   return match?.[1] === undefined ? undefined : (`${match[1]}.config` as SampleKind)
 }
 
-/** Shallowest first, then by path (code units). */
-export function byDepthThenPath(left: string, right: string): number {
-  const depth = left.split('/').length - right.split('/').length
-  if (depth !== 0) return depth
-  return left < right ? -1 : left > right ? 1 : 0
-}
-
 /** Whether a `vite.config.*`'s text declares a `test` property (a Vitest project's config). */
 export function declaresTest(text: string): boolean {
   return /(^|[\s,{])test\s*:/m.test(text)
 }
 
 /** Counts per kind so far. */
-export type Tally = Record<SampleKind, number>
+export type Tally = KindTally<SampleKind>
 
 /** An empty tally. */
 export function emptyTally(): Tally {
-  return { 'vitest.config': 0, 'vite.config': 0 }
+  return emptyTallyFor(SAMPLE_QUOTAS)
 }
 
 /** Whether every quota is full. */
 export function quotasFull(tally: Tally): boolean {
-  return (Object.keys(SAMPLE_QUOTAS) as SampleKind[]).every(
-    (kind) => tally[kind] >= SAMPLE_QUOTAS[kind],
-  )
+  return quotasFullFor(tally, SAMPLE_QUOTAS)
 }
 
 /**
@@ -73,14 +66,5 @@ export function takeConfigs(
   isTestConfig: (path: string) => boolean,
   tally: Tally,
 ): { readonly path: string; readonly kind: SampleKind }[] {
-  const taken: { path: string; kind: SampleKind }[] = []
-  for (const path of [...candidates].sort(byDepthThenPath)) {
-    if (taken.length >= PER_REPO_CAP) break
-    const kind = candidateKind(path)
-    if (kind === undefined || tally[kind] >= SAMPLE_QUOTAS[kind]) continue
-    if (kind === 'vite.config' && !isTestConfig(path)) continue
-    taken.push({ path, kind })
-    tally[kind]++
-  }
-  return taken
+  return takeConfigsBy(candidates, candidateKind, 'vite.config', isTestConfig, tally, SAMPLE_QUOTAS)
 }
