@@ -1,6 +1,6 @@
 // The native API's types: what the served `provino` module and `globals: true` hold, typed by the
 // engines they come from, and the host the worker builds them over.
-import type { RuntimeApi, SuiteApi, TestApi } from '@provino/core'
+import type { FixtureTestApi, RuntimeApi, SuiteApi } from '@provino/core'
 import type { createExpect } from '@provino/expect'
 import type {
   Mock,
@@ -93,8 +93,9 @@ export interface ProvinoTimers {
 export type ProvinoApi = {
   readonly describe: SuiteApi
   readonly suite: SuiteApi
-  readonly it: TestApi
-  readonly test: TestApi
+  /** With `extend` and `override`: the neutral policy exposes fixtures (`extendApi: 'expose'`). */
+  readonly it: FixtureTestApi
+  readonly test: FixtureTestApi
   readonly beforeAll: RuntimeApi['beforeAll']
   readonly afterAll: RuntimeApi['afterAll']
   readonly beforeEach: RuntimeApi['beforeEach']

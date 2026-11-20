@@ -4,6 +4,6 @@ Provino's native test API: the `provino` module a test file imports in a project
 
 This package is a building block of [Provino](https://github.com/pixel-perfect-software/provino), a test runner for JavaScript and TypeScript. It is private: the `provino` package inlines it, so you install `provino`, not this package.
 
-**Status:** a scaffold. Every export throws `API_NOT_BUILT` until the native API is built.
+**Status:** built. Until Provino's own matcher table is wired in, a native run needs one named by ref.
 
 [MIT](https://github.com/pixel-perfect-software/provino/blob/main/LICENSE)

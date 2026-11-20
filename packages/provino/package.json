@@ -133,6 +133,7 @@
   "devDependencies": {
     "@babel/preset-react": "catalog:",
     "@babel/preset-typescript": "catalog:",
+    "@provino/api": "workspace:*",
     "@provino/config": "workspace:*",
     "@provino/coverage": "workspace:*",
     "@provino/dialect-jest": "workspace:*",

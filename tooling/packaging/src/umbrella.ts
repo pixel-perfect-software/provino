@@ -37,6 +37,9 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   '@provino/policy/behaviours': 'worker/policy-behaviours',
   '@provino/env-node': 'worker/env-node',
   '@provino/env-jsdom': 'worker/env-jsdom',
+  // The native runtime (B27b, D186): the served `provino` module and its globals, for a project
+  // with no dialect.
+  '@provino/api': 'worker/api',
 }
 
 /** Every `@provino/*` import is bundled from source. */

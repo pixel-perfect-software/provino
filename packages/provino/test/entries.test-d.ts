@@ -11,6 +11,7 @@ import {
   expect,
   it,
   lazy,
+  type ProvinoApi,
   type ProvinoWorkerApiError,
   test,
   type WorkerApi,
@@ -27,15 +28,26 @@ import { jestDialect } from 'provino/jest'
 import { defaultReporter, defineReporter } from 'provino/reporters'
 import { vitestDialect } from 'provino/vitest'
 
-// The entry is the Jest dialect's test-definition globals and the lazy variables, and no more.
+// The entry is the native API (B27b) and the lazy variables, and no more.
 expectTypeOf<keyof typeof import('provino')>().toEqualTypeOf<
   | 'afterAll'
   | 'afterEach'
+  | 'aroundAll'
+  | 'aroundEach'
   | 'beforeAll'
   | 'beforeEach'
   | 'describe'
   | 'evaluatedLazies'
   | 'expect'
+  | 'fn'
+  | 'isMockFunction'
+  | 'mocks'
+  | 'onTestFailed'
+  | 'onTestFinished'
+  | 'replaceProperty'
+  | 'spyOn'
+  | 'suite'
+  | 'timers'
   | 'includeContext'
   | 'includeExamples'
   | 'it'
@@ -47,6 +59,8 @@ expectTypeOf<keyof typeof import('provino')>().toEqualTypeOf<
   | 'test'
   | 'ProvinoWorkerApiError'
 >()
+// `WorkerApi` is the deprecated name of `ProvinoApi`.
+expectTypeOf<WorkerApi>().toEqualTypeOf<ProvinoApi>()
 expectTypeOf(describe).toEqualTypeOf<WorkerApi['describe']>()
 expectTypeOf(it).toEqualTypeOf<WorkerApi['it']>()
 expectTypeOf(test).toEqualTypeOf<WorkerApi['test']>()

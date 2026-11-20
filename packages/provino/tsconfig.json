@@ -3,6 +3,7 @@
   "include": ["src"],
   "references": [
     { "path": "../types" },
+    { "path": "../api" },
     { "path": "../config" },
     { "path": "../reporters" },
     { "path": "../orchestrator" },

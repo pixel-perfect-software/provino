@@ -1483,6 +1483,9 @@ importers:
       '@babel/preset-typescript':
         specifier: 'catalog:'
         version: 7.29.7(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1)
+      '@provino/api':
+        specifier: workspace:*
+        version: link:../api
       '@provino/config':
         specifier: workspace:*
         version: link:../config

@@ -6,6 +6,8 @@
 // Speed (D115): one object per worker, read from the host when the factory runs, so a served
 // import is direct bindings with no Proxy and no per-call lookup; only the registries and the
 // clock, which each file has its own of, are read when a member is called.
+
+import type { FixtureTestApi } from '@provino/core'
 import {
   evaluatedLazies,
   includeContext,
@@ -80,8 +82,9 @@ function built(host: ApiHost): ProvinoApi {
   const made: ProvinoApi = Object.freeze({
     describe: api.describe,
     suite: api.suite,
-    it: api.it,
-    test: api.test,
+    // The neutral policy exposes `extend` (`definitions.extendApi: 'expose'`), which core types apart.
+    it: api.it as FixtureTestApi,
+    test: api.test as FixtureTestApi,
     beforeAll: api.beforeAll,
     afterAll: api.afterAll,
     beforeEach: api.beforeEach,

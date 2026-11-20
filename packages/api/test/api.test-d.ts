@@ -9,7 +9,7 @@ import {
   provinoGlobals,
   provinoModuleScope,
 } from '@provino/api'
-import type { SuiteApi, TestApi } from '@provino/core'
+import type { FixtureTestApi, SuiteApi } from '@provino/core'
 import type { Mock, SpiedMethod } from '@provino/mock'
 import type { GlobalsFactory, ModuleScopeFactory } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
@@ -34,7 +34,7 @@ const code: ApiErrorCode = 'API_UNKNOWN'
 
 declare const api: ProvinoApi
 expectTypeOf(api.describe).toEqualTypeOf<SuiteApi>()
-expectTypeOf(api.test).toEqualTypeOf<TestApi>()
+expectTypeOf(api.test).toEqualTypeOf<FixtureTestApi>()
 
 // `fn` infers its implementation's type.
 const add = api.fn((a: number, b: number) => a + b)
