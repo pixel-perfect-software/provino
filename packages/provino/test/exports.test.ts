@@ -9,14 +9,16 @@ import {
   constants,
   existsSync,
   mkdirSync,
+  mkdtempSync,
   readdirSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { join, posix } from 'node:path'
+import { dirname, join, posix } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runInNewContext } from 'node:vm'
@@ -456,6 +458,102 @@ describe('a built worker (T1.10)', () => {
         )
       }
     }
+  })
+})
+
+/**
+ * The files from `dist` a module and everything it imports statically reach, relative to `dist`:
+ * what a process loads when it imports the module, before any dynamic import.
+ */
+function staticClosure(entries: readonly string[]): string[] {
+  const dist = join(PACKAGE, 'dist')
+  const seen = new Set<string>()
+  const pending = entries.map((entry) => join(dist, entry))
+  for (let file = pending.pop(); file !== undefined; file = pending.pop()) {
+    if (seen.has(file)) continue
+    seen.add(file)
+    const source = readFileSync(file, 'utf8')
+    for (const match of source.matchAll(
+      /^\s*(?:import|export)\s+(?:[^'"]*?\sfrom\s+)?["'](\.[^"']+)["']/gm,
+    )) {
+      pending.push(join(dirname(file), match[1] ?? ''))
+    }
+  }
+  return [...seen].map((file) => file.slice(dist.length + 1)).sort()
+}
+
+/** The files a fresh process loads from `dist`, and every URL it loads, after running `code`. */
+function loadsOf(code: string): { readonly dist: string[]; readonly urls: string[] } {
+  const logs = mkdtempSync(join(tmpdir(), 'provino-loads-'))
+  try {
+    const result = spawnSync(process.execPath, ['--input-type=module', '-e', code], {
+      cwd: PACKAGE,
+      encoding: 'utf8',
+      env: childEnv(['load-recorder'], { PROVINO_LOAD_LOG: logs }),
+      timeout: 60_000,
+    })
+    assert.equal(result.status, 0, result.stderr)
+    const urls = readdirSync(logs)
+      .flatMap((file) => readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean))
+      .map((line) => line.split('\t')[1] ?? '')
+    const dist = `${join(PACKAGE, 'dist')}/`
+    return {
+      urls,
+      dist: urls
+        .filter((url) => url.startsWith('file://'))
+        .map((url) => fileURLToPath(url))
+        .filter((path) => path.startsWith(dist))
+        .map((path) => path.slice(dist.length)),
+    }
+  } finally {
+    rmSync(logs, { recursive: true, force: true })
+  }
+}
+
+// B25b (T1.10, Phase 2's half): `provino vitest` is Phase 7's, so no Vitest worker runs yet. A
+// worker's cold start is the static closure of its entries (`a built worker` above loads exactly
+// the Jest set), and the Vitest dialect's runtime takes `worker/jest-runtime.js`'s place in it.
+describe('a Vitest worker (B25b, T1.10)', () => {
+  const WORKER = [
+    'worker/bootstrap.js',
+    'worker/main.js',
+    'worker/policy-behaviours.js',
+    'worker/env-node.js',
+  ]
+
+  test('starts with at most 10 files from the package, the Jest set with the runtime swapped', () => {
+    const jest = staticClosure([...WORKER, 'worker/jest-runtime.js'])
+    const vitest = staticClosure([...WORKER, 'worker/vitest-runtime.js'])
+    assert.ok(
+      vitest.length <= 10,
+      `a Vitest worker loads ${vitest.length} files: ${vitest.join(', ')}`,
+    )
+    assert.deepEqual(
+      vitest.filter((file) => file !== 'worker/vitest-runtime.js'),
+      jest.filter((file) => file !== 'worker/jest-runtime.js'),
+    )
+    // The static reading holds for the runtime as Node loads it: nothing outside the closure.
+    const loaded = loadsOf(
+      `await import(${JSON.stringify(pathToFileURL(join(PACKAGE, 'dist', 'worker', 'vitest-runtime.js')).href)})`,
+    )
+    assert.ok(loaded.dist.includes('worker/vitest-runtime.js'), loaded.dist.join('\n'))
+    for (const file of loaded.dist)
+      assert.ok(vitest.includes(file), `${file} is outside the closure`)
+  })
+
+  test("import { expect } from 'provino' and the Vitest worker's expect load no Chai", () => {
+    const runtime = pathToFileURL(join(PACKAGE, 'dist', 'worker', 'vitest-runtime.js')).href
+    const { urls } = loadsOf(
+      `const { expect } = await import('provino'); void expect; await import(${JSON.stringify(runtime)})`,
+    )
+    assert.ok(
+      urls.some((url) => url.endsWith('/dist/worker/vitest-runtime.js')),
+      urls.join('\n'),
+    )
+    const isChai = (url: string): boolean => /\/chai\//.test(url)
+    assert.deepEqual(urls.filter(isChai), [])
+    // The control: a process that does load Chai is seen to.
+    assert.ok(loadsOf("await import('chai')").urls.some(isChai))
   })
 })
 
