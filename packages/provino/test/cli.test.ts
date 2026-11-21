@@ -193,7 +193,6 @@ describe('usage errors: the message and the usage text on stderr, exit 2', () =>
   const cases: readonly (readonly [string, readonly string[], RegExp])[] = [
     ['an unknown command', ['walk'], /unknown command "walk"/],
     ['an unknown flag', ['run', '--config', 'x.mjs', '--turbo'], /--turbo/],
-    ['a missing --config', ['run'], /--config <file> is required/],
     ['a --config with no value', ['run', '--config'], /--config/],
     ['a stray argument', ['run', '--config', 'x.mjs', 'tests/a.test.js'], /tests\/a\.test\.js/],
     ['a bad --pool', ['run', '--config', 'x.mjs', '--pool', 'cluster'], /--pool must be one of/],

@@ -24,12 +24,19 @@ const INTERNAL_ERROR_EXIT = 1
 const POOL_KINDS: readonly PoolKind[] = ['forks', 'threads', 'inline']
 
 /**
+ * What `provino run` is asked for: `run()`'s options, with the config file only when the command
+ * line named one (else it is found by walking up from the working directory, D196).
+ * @internal
+ */
+export type ParsedRunOptions = Omit<RunOptions, 'config'> & { readonly config?: string }
+
+/**
  * What a command line asks for.
  * @internal
  */
 export type RunCommand =
   | { readonly type: 'help' }
-  | { readonly type: 'run'; readonly options: RunOptions; readonly forceExit?: true }
+  | { readonly type: 'run'; readonly options: ParsedRunOptions; readonly forceExit?: true }
   | { readonly type: 'jest'; readonly args: readonly string[] }
   | { readonly type: 'vitest'; readonly args: readonly string[] }
   | { readonly type: 'bare'; readonly args: readonly string[] }
@@ -167,8 +174,8 @@ function parseReporters(
 }
 
 /**
- * Parses the arguments after `run`. A flag it doesn't know, a missing or bad value, or a missing
- * `--config` is a `UsageError`.
+ * Parses the arguments after `run`. A flag it doesn't know or a missing or bad value is a
+ * `UsageError`; with no `--config` the file is found later (`runCommand`).
  * @internal
  */
 export function parseRunArgs(
@@ -182,15 +189,14 @@ export function parseRunArgs(
   }
   const { values } = parsed
   if (values.help === true) return { type: 'help' }
-  if (values.config === undefined) throw new UsageError('--config <file> is required')
   if (values.pool !== undefined && !isPoolKind(values.pool)) {
     throw new UsageError(`--pool must be one of ${POOL_KINDS.join(', ')} (got "${values.pool}")`)
   }
   const names = values.reporter ?? []
   const reporters = parseReporters(names, values.outputFile)
   const views = viewsOf(values.tree, values.map)
-  const options: RunOptions = {
-    config: values.config,
+  const options: ParsedRunOptions = {
+    ...(values.config === undefined ? {} : { config: values.config }),
     ...(values.maxWorkers === undefined
       ? {}
       : { maxWorkers: parseWhole(values.maxWorkers, '--maxWorkers') }),
@@ -331,11 +337,24 @@ async function runBare(args: readonly string[], io: CliIo): Promise<number> {
     throw new UsageError(`--dialect must be jest or vitest (got "${dialect}")`)
   }
   const found = await detectProject(cwd, dialect)
-  if (found.kind === 'vitest') return runBareVitest(rest, io)
+  if (found.kind === 'vitest') return runBareVitest(rest, io, found.directory)
   if (found.kind === 'jest') return runBareJest(rest, io)
   const parsed = parseRunArgs(['--config', found.config, ...rest])
   if (parsed.type === 'help') return helpExit(io)
   return runCommand(parsed, io)
+}
+
+/**
+ * The config `provino run` takes with no `--config`: the nearest directory with any config decides
+ * (D200), so a Jest or Vitest config nearer than a `provino.config.*` is an error that says so,
+ * not a reason to run the farther one.
+ */
+async function nearestProvinoConfig(cwd: string): Promise<string> {
+  const found = await detectProject(cwd)
+  if (found.kind === 'provino') return found.config
+  throw new UsageError(
+    `the nearest config is a ${found.kind === 'jest' ? 'Jest' : 'Vitest'} config in ${found.directory}, not a provino.config.*: run provino there, or name the file with --config <file>`,
+  )
 }
 
 /** `provino run`: the run, then the process's exit if `--forceExit` asked for it. */
@@ -343,7 +362,9 @@ async function runCommand(
   parsed: Extract<RunCommand, { readonly type: 'run' }>,
   io: CliIo,
 ): Promise<number> {
-  const { exitCode } = await run({ ...parsed.options, ...ioOptions(io) })
+  const cwd = io.cwd ?? process.cwd()
+  const config = parsed.options.config ?? (await nearestProvinoConfig(cwd))
+  const { exitCode } = await run({ ...parsed.options, config, ...ioOptions(io) })
   if (parsed.forceExit === true) {
     if (parsed.options.detectOpenHandles !== true) {
       ;(io.stderr ?? process.stderr).write(
@@ -371,12 +392,16 @@ function runBareJest(args: readonly string[], io: CliIo): Promise<number> {
  * `provino vitest`, imported only here, so a Jest or `provino run` command loads none of the Vitest
  * dialect's coordinator code (D115, `speed`).
  */
-async function runBareVitest(args: readonly string[], io: CliIo): Promise<number> {
+async function runBareVitest(
+  args: readonly string[],
+  io: CliIo,
+  directory?: string,
+): Promise<number> {
   const { runVitestCommand } = await import('./vitest-command.ts')
   return runVitestCommand(args, {
     stdout: io.stdout ?? process.stdout,
     stderr: io.stderr ?? process.stderr,
-    cwd: io.cwd ?? process.cwd(),
+    cwd: directory ?? io.cwd ?? process.cwd(),
     ...(io.env === undefined ? {} : { env: io.env }),
     ...(io.signal === undefined ? {} : { signal: io.signal }),
     ...(io.forceSignal === undefined ? {} : { forceSignal: io.forceSignal }),

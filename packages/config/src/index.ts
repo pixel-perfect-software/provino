@@ -1,10 +1,21 @@
-// @provino/config: loads a config file and resolves a project from it (T1.4's first part, for
-// B11). Not built yet: `defineConfig`, key-by-key validation of unknown keys, `projects`,
-// `plugins`, `alsoServe`, and the Oxc fallback for a `.ts` file Node can't load (T1.4).
+// @provino/config: loads a config file and resolves its project or projects (T1.4, B27d). Not
+// built yet: `plugins`, `alsoServe`, and the Oxc fallback for a `.ts` file Node can't load (T1.4).
 
 export { hasProvinoTag } from '@provino/transform'
+export { defineConfig } from './define.ts'
+export {
+  findConfigInDirectory,
+  findConfigUpward,
+  PROVINO_CONFIG_EXTENSIONS,
+} from './discover.ts'
 export { ConfigError, type ConfigErrorCode, type ConfigIssue, formatConfigIssue } from './errors.ts'
 export { importConfigModule, interopDefault, loadConfigFile, loadProject } from './load.ts'
+export {
+  loadProjects,
+  type ResolvedConfig,
+  type ResolveProjectsOptions,
+  resolveProjects,
+} from './projects.ts'
 export {
   type ResolvedGlobalSetup,
   type ResolvedProject,

@@ -103,7 +103,8 @@ describe('exit codes through the bin (provino run)', () => {
 
   it('2 for a usage error under provino run, where provino jest gives Jest’s 1 (D76)', async () => {
     const project = await makeProject({ 'tests/a.test.js': passing('a') })
-    const noConfig = await spawnCli(['run'], { cwd: project.dir })
+    // A config that isn't there; `provino run` with no --config finds the project's own (D196).
+    const noConfig = await spawnCli(['run', '--config', 'missing.config.mjs'], { cwd: project.dir })
     const badFlag = await spawnCli(['run', '--config', project.config, '--bogus'], {
       cwd: project.dir,
     })

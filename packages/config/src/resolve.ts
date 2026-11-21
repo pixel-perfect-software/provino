@@ -7,6 +7,8 @@ import {
   serializePolicy,
 } from '@provino/policy'
 import type {
+  ConfigResolve,
+  ConfigTimeouts,
   Dialect,
   EnvironmentRef,
   IsolationTier,
@@ -179,15 +181,69 @@ function projectLayer(
   include: readonly string[] | undefined,
   exclude: readonly string[] | undefined,
   globals: boolean | undefined,
+  timeouts: ConfigTimeouts | undefined,
 ): PolicyOverrides {
   const orchestrator = {
     ...(include === undefined ? {} : { include }),
     ...(exclude === undefined ? {} : { exclude }),
   }
+  const core = {
+    ...(globals === undefined ? {} : { injectGlobals: globals }),
+    ...(timeouts === undefined || Object.keys(timeouts).length === 0 ? {} : { timeouts }),
+  }
   return {
     ...(Object.keys(orchestrator).length === 0 ? {} : { orchestrator }),
-    ...(globals === undefined ? {} : { core: { injectGlobals: globals } }),
+    ...(Object.keys(core).length === 0 ? {} : { core }),
   }
+}
+
+/** A string as a regular expression's source that matches only it. */
+function escapeText(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * `resolve.aliases` as the loader's name-mapping rules, in the order given, with tsconfig `paths`'
+ * wildcard: one `*` anywhere in the key is what the specifier has there, and the one `*` in the
+ * target (which the key then needs) is that text (`'@/*': './src/*'` maps `@/a/b` to
+ * `<root>/src/a/b`). A key without `*` matches only itself. The targets are absolute, against the
+ * project root. More than one `*`, or one in the target alone, is `CONFIG_INVALID`.
+ */
+function aliasesOf(
+  aliases: Readonly<Record<string, string>> | undefined,
+  rootDir: string,
+): readonly NeutralAlias[] {
+  return Object.entries(aliases ?? {}).map(([from, to]) => {
+    const fromParts = from.split('*')
+    const toParts = to.split('*')
+    if (
+      fromParts.length > 2 ||
+      toParts.length > 2 ||
+      (toParts.length === 2 && fromParts.length === 1)
+    ) {
+      throw new ConfigError(
+        'CONFIG_INVALID',
+        `config key "resolve.aliases" has ${JSON.stringify(from)}: ${JSON.stringify(to)}; a key and its target take one "*" each, or the key alone`,
+      )
+    }
+    const [before = '', after = ''] = fromParts
+    const pattern =
+      fromParts.length === 1
+        ? `^${escapeText(from)}$`
+        : `^${escapeText(before)}(.*)${escapeText(after)}$`
+    // The wildcard goes through `resolve` as a character no path holds, then becomes the capture.
+    const target = resolve(rootDir, to.replace('*', '\0')).replace('\0', () => '$1')
+    return { pattern, targets: [target] }
+  })
+}
+
+/** `resolve.tsconfig` as `SerializedLoaderConfig.tsconfig`: a path is made absolute against the root. */
+function tsconfigOf(
+  tsconfig: ConfigResolve['tsconfig'],
+  rootDir: string,
+): SerializedLoaderConfig['tsconfig'] {
+  if (tsconfig === undefined || tsconfig === 'auto' || tsconfig === false) return tsconfig ?? 'auto'
+  return resolve(rootDir, tsconfig)
 }
 
 /**
@@ -241,13 +297,32 @@ export async function resolveProject(
   input: ProvinoConfigInput,
   options: ResolveProjectOptions,
 ): Promise<ResolvedProject> {
+  return resolveProjectInput(input, options, true)
+}
+
+/**
+ * `resolveProject`, for a config that is the whole run's (`topLevel`) or one project of a
+ * `projects` list, which takes no key that belongs to the whole run.
+ * @internal
+ */
+export async function resolveProjectInput(
+  input: ProvinoConfigInput,
+  options: ResolveProjectOptions,
+  topLevel: boolean,
+): Promise<ResolvedProject> {
   if (!isAbsolute(options.configPath)) {
     throw new ConfigError(
       'CONFIG_INVALID',
       `the config path must be absolute (got "${options.configPath}")`,
     )
   }
-  const parsed = parseInput(input)
+  const parsed = parseInput(input, options.dialects, topLevel)
+  if (parsed.projects !== undefined && parsed.projects.length > 0) {
+    throw new ConfigError(
+      'CONFIG_INVALID',
+      'config key "projects" holds several projects: resolve it with resolveProjects',
+    )
+  }
   const rootDir = resolve(dirname(options.configPath), parsed.root ?? '.')
   // The root check and `detect`'s read of the root are independent; a bad root is reported first.
   const [, dialect] = await inParallel(
@@ -266,14 +341,20 @@ export async function resolveProject(
       name: parsed.name ?? '',
       rootDir,
       dialect,
-      layers: [dialectLayer, projectLayer(parsed.include, parsed.exclude, parsed.globals)],
+      layers: [
+        dialectLayer,
+        projectLayer(parsed.include, parsed.exclude, parsed.globals, parsed.timeouts),
+      ],
       environment: parsed.environment,
-      environmentOptions: {},
+      environmentOptions: parsed.environmentOptions ?? {},
       isolation: parsed.isolation,
       setupFiles: [],
       setupFilesAfterEnv: parsed.setupFiles ?? [],
       setupFilesAfterEnvKey: 'setupFiles',
       discovery: null,
+      aliases: aliasesOf(parsed.resolve?.aliases, rootDir),
+      extraConditions: parsed.resolve?.conditions ?? [],
+      tsconfig: tsconfigOf(parsed.resolve?.tsconfig, rootDir),
     },
     options,
   )
@@ -444,6 +525,10 @@ interface ProjectInput {
   /** Which files count toward coverage (B23b); a neutral project's only, `undefined` for off. */
   readonly coverage?: SerializedCoverageConfig | undefined
   readonly randomize?: true | undefined
+  /** Export conditions `resolve.conditions` adds after the environment's (a `provino.config.*` project's only). */
+  readonly extraConditions?: readonly string[] | undefined
+  /** `loader.tsconfig`; `'auto'` when absent. */
+  readonly tsconfig?: SerializedLoaderConfig['tsconfig'] | undefined
 }
 
 /** `record`, or `undefined` when it has no keys: an empty one is no setting. */
@@ -530,10 +615,21 @@ async function finishProject(
     )
   }
 
+  // A package specifier in a setup file resolves as an import of a test would: Node's own
+  // conditions, `provino-source` and the project's `resolve.conditions`.
+  const packageResolution = {
+    conditions: [...new Set(['node', 'provino-source', ...(input.extraConditions ?? [])])],
+    extensions: LOADER_EXTENSIONS,
+  }
   const [[setupFiles, setupFilesAfterEnv], conditions] = await inParallel(
     Promise.all([
-      resolveSetupFiles(input.setupFiles, rootDir, 'setupFiles'),
-      resolveSetupFiles(input.setupFilesAfterEnv, rootDir, input.setupFilesAfterEnvKey),
+      resolveSetupFiles(input.setupFiles, rootDir, 'setupFiles', packageResolution),
+      resolveSetupFiles(
+        input.setupFilesAfterEnv,
+        rootDir,
+        input.setupFilesAfterEnvKey,
+        packageResolution,
+      ),
     ]),
     loaderConditions(policy, environment, input.environmentOptions),
   )
@@ -578,8 +674,8 @@ async function finishProject(
         ? {}
         : { scopeMappable: dialect.moduleScope.mappable }),
       extensions: Object.freeze([...LOADER_EXTENSIONS]),
-      conditions,
-      tsconfig: 'auto',
+      conditions: [...new Set([...conditions, ...(input.extraConditions ?? [])])],
+      tsconfig: input.tsconfig ?? 'auto',
       mappers: [],
       typescript: 'oxc',
       ...(input.transform === undefined ? {} : { transform: input.transform }),

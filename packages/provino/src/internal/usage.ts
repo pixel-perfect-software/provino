@@ -9,14 +9,19 @@ export const USAGE: string = `Usage: provino <command> [options]
 Commands:
   jest     Run a Jest project with Jest's command line: provino jest [--config <file>] [patterns]
   vitest   Run a Vitest project (not available yet)
-  run      Run a project from a provino config file: provino run --config <file> [options]
+  run      Run a project from a provino config file: provino run [--config <file>] [options]
 
-With no command, provino [options] runs provino.config.* if this directory has one, else the Jest
-config found from it; --dialect jest|vitest names the runner and skips that search. provino jest
+With no command, provino [options] walks up from this directory to the nearest one that holds a
+config of any kind and runs it: a provino.config.* (which wins within one directory), else a Jest
+config, else a Vitest config; the walk stops at a directory with .git or pnpm-workspace.yaml.
+provino run takes a provino.config.* only, and says so when the nearest config is another kind.
+--dialect jest|vitest names the runner and skips the search. A config that names no dialect runs
+Provino's own policy; this build still loads the Jest dialect's code at start. provino jest
 takes Jest's own flags; one Provino can't run yet is refused by name, with the task that builds it.
 
 Options of provino run:
-  -c, --config <file>               The config file (required)
+  -c, --config <file>               The config file (default: the provino.config.* found from the
+                                    working directory upward)
       --maxWorkers <n>              Run at most n workers (default: the cores, less one)
       --pool <kind>                 forks, threads or inline (default: the dialect's); inline
                                     runs in this process, so a leaked handle keeps it alive

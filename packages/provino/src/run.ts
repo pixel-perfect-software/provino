@@ -1,8 +1,8 @@
 import { resolve } from 'node:path'
-import { loadProject } from '@provino/config'
-import { jestDialect } from '@provino/dialect-jest'
+import { loadConfigFile, resolveProjects } from '@provino/config'
 import { discoverProject, ExitCode, type RunProjectOptions } from '@provino/orchestrator'
 import { isCi } from '@provino/reporters'
+import type { Dialect, ProvinoConfigInput } from '@provino/types'
 import { ENVIRONMENTS, nativeRuntime } from './internal/built-ins.ts'
 import { usageMessage } from './internal/describe.ts'
 import { executeProject, timingsOf } from './internal/execute.ts'
@@ -39,6 +39,29 @@ function poolOptions(options: RunOptions): NonNullable<RunProjectOptions['pool']
   }
 }
 
+/** Whether a project's own keys name a dialect (`dialect`) or hold the Jest dialect's options (`jest`). */
+function namesDialect(config: unknown): boolean {
+  if (typeof config !== 'object' || config === null) return false
+  return typeof Reflect.get(config, 'dialect') === 'string' || Object.hasOwn(config, 'jest')
+}
+
+/**
+ * The dialects a config may name. `provino` ships the Jest dialect, but a config that names none
+ * is native and loads none (D115, `speed`): the dialect's package is imported only when the config
+ * names a dialect (`dialect`, so an unknown name is reported against the ones there are), has a
+ * `jest` key, at the top or in an inline project, or lists a project directory or glob, whose own
+ * config file isn't read yet to say.
+ */
+async function dialectsFor(input: ProvinoConfigInput): Promise<readonly Dialect[]> {
+  const projects: unknown = Reflect.get(input, 'projects')
+  const entries = Array.isArray(projects) ? projects : []
+  const needsJest =
+    namesDialect(input) || entries.some((entry) => typeof entry === 'string' || namesDialect(entry))
+  if (!needsJest) return []
+  const { jestDialect } = await import('@provino/dialect-jest')
+  return [jestDialect]
+}
+
 async function execute(
   options: RunOptions,
   stdout: NonNullable<RunOptions['stdout']>,
@@ -47,20 +70,35 @@ async function execute(
   if (typeof options.config !== 'string' || options.config === '') {
     throw new UsageError('run() needs the path of a config file')
   }
-  const pool = poolOptions(options)
+  poolOptions(options)
   const cwd = resolve(options.cwd ?? process.cwd())
 
   // The composition root resolves the environment once; everything below reads this.
   const env = options.env ?? process.env
   const native = nativeRuntime(env)
-  const project = await loadProject(resolve(cwd, options.config), {
-    dialects: [jestDialect],
+  const configPath = resolve(cwd, options.config)
+  const input = await loadConfigFile(configPath, { command: 'run', mode: 'test' })
+  const resolved = await resolveProjects(input, {
+    configPath,
+    dialects: await dialectsFor(input),
     environments: ENVIRONMENTS,
     ci: options.ci ?? isCi(env),
     ...(native === undefined ? {} : { native }),
   })
+  const [project, ...others] = resolved.projects
+  if (project === undefined) throw new UsageError('the config has no project to run')
+  // The command line wins over the config's own defaults.
+  const pool = poolOptions({
+    ...options,
+    ...(options.pool === undefined && resolved.pool !== undefined ? { pool: resolved.pool } : {}),
+    ...(options.maxWorkers === undefined && resolved.maxWorkers !== undefined
+      ? { maxWorkers: resolved.maxWorkers }
+      : {}),
+  })
   return executeProject({
     project,
+    ...(others.length === 0 ? {} : { others }),
+    ...(resolved.root === undefined ? {} : { root: resolved.root }),
     cwd,
     stdout,
     stderr,
@@ -71,7 +109,7 @@ async function execute(
     // Jest's single-file rule decides between `provino` and a listing of the one file's tests
     // (`selectsProvino`), so the reporters may need the count before the run: asked only then. A
     // sharded run's count is the shard's, which only the run knows; it is left to the run.
-    ...(options.shard === undefined
+    ...(options.shard === undefined && others.length === 0
       ? { fileCount: async () => (await discoverProject(project)).length }
       : {}),
     pool,

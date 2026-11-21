@@ -584,7 +584,7 @@
     },
     {
       "name": "boundary-config",
-      "comment": "@provino/config (layer 4, runs in coordinator) may import only: @provino/policy, @provino/transform, @provino/types.",
+      "comment": "@provino/config (layer 4, runs in coordinator) may import only: @provino/policy, @provino/resolver, @provino/transform, @provino/types.",
       "severity": "error",
       "from": {
         "path": "^packages/config/"
@@ -598,7 +598,9 @@
           "^packages/policy/",
           "^@provino/policy$",
           "^packages/transform/(?!(?:src/vite|src/v8cache|test)/)",
-          "^@provino/transform$"
+          "^@provino/transform$",
+          "^packages/resolver/",
+          "^@provino/resolver$"
         ]
       }
     },

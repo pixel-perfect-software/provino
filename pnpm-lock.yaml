@@ -744,12 +744,18 @@ importers:
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
+      '@provino/resolver':
+        specifier: workspace:*
+        version: link:../resolver
       '@provino/transform':
         specifier: workspace:*
         version: link:../transform
       '@provino/types':
         specifier: workspace:*
         version: link:../types
+      tinyglobby:
+        specifier: 'catalog:'
+        version: 0.2.17
 
   packages/core:
     dependencies:
