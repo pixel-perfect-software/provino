@@ -15,6 +15,7 @@ import { DTS_ONLY, entriesOf, PRESET } from './preset.ts'
 export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   '@provino/orchestrator/worker/bootstrap': 'worker/bootstrap',
   '@provino/orchestrator/worker/main': 'worker/main',
+  '@provino/expect/table': 'worker/expect-table',
   '@provino/dialect-jest/runtime': 'worker/jest-runtime',
   // Loaded by the coordinator (a failing global hook), through a behaviour ref, as the neutral
   // behaviours are: a leaf of its own, so it never pulls the runtime in.

@@ -368,7 +368,7 @@ describe('dependency-cruiser rules', { concurrency: true }, () => {
           (name, i) => `import type * as T${i} from '${name}'\nexport type U${i} = typeof T${i}\n`,
         ).join(''),
         'packages/api/src/planted.ts': "import 'chai'\n",
-        // expect's one exception is @jest/expect-utils: the rest of the scope is still banned.
+        // The whole @jest scope is banned in expect, @jest/expect-utils too (B27c vendored it).
         'packages/expect/src/planted.ts': "import '@jest/globals'\n",
       })
       for (const name of FAMILIES) await installModule(dir, name, layout)
@@ -387,7 +387,7 @@ describe('dependency-cruiser rules', { concurrency: true }, () => {
     }
   })
 
-  test('the ban list spares tests, type imports, allowed packages and other packages', async () => {
+  test('the ban list spares tests, type imports and other packages', async () => {
     for (const layout of ['flat', 'pnpm'] as const) {
       const dir = await workspace({
         // A test may run the real engines as oracles.
@@ -395,15 +395,13 @@ describe('dependency-cruiser rules', { concurrency: true }, () => {
           "import 'expect'\nimport '@vitest/expect'\nimport 'jest-snapshot'\n",
         'packages/expect/src/ok.ts': [
           "import type { Matchers } from 'expect'",
-          "import { equals } from '@jest/expect-utils'",
           'export type M = Matchers',
-          'export const e = equals',
           '',
         ].join('\n'),
         // A package without a ban list may import them.
         'packages/dialect-jest/src/ok.ts': "import 'expect'\n",
       })
-      for (const name of ['jest-snapshot', 'expect', '@vitest/expect', '@jest/expect-utils']) {
+      for (const name of ['jest-snapshot', 'expect', '@vitest/expect']) {
         await installModule(dir, name, layout)
       }
       const { output } = await depcruise(dir)

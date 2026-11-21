@@ -1,0 +1,15 @@
+{
+  "extends": "../../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": false,
+    "isolatedDeclarations": false,
+    "rootDir": ".",
+    "outDir": "../../../.tsc/src/vendor/expect-utils",
+    "noImplicitOverride": false,
+    "noImplicitReturns": false
+  },
+  "include": [
+    "."
+  ]
+}

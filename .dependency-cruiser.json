@@ -2052,7 +2052,7 @@
     },
     {
       "name": "banned-packages-expect",
-      "comment": "@provino/expect never imports jest-*, @jest/*, expect, pretty-format, chai, @vitest/*, vite, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles. Allowed until its note's owner removes it: @jest/expect-utils.",
+      "comment": "@provino/expect never imports jest-*, @jest/*, expect, pretty-format, chai, @vitest/*, vite, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles.",
       "severity": "error",
       "from": {
         "path": "^packages/expect/(?!(?:src/table|test)/)",
@@ -2060,7 +2060,6 @@
       },
       "to": {
         "path": "(?:^|/)node_modules/(?:jest-[^/]+|@jest/[^/]+|expect|pretty-format|chai|@vitest/[^/]+|vite|@babel/[^/]+)/",
-        "pathNot": "(?:^|/)node_modules/(?:@jest/expect-utils)/",
         "dependencyTypesNot": [
           "type-only"
         ]
@@ -2068,7 +2067,7 @@
     },
     {
       "name": "banned-packages-expect-table",
-      "comment": "@provino/expect/table never imports jest-*, @jest/*, expect, pretty-format, chai, @vitest/*, vite, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles. Allowed until its note's owner removes it: @jest/expect-utils.",
+      "comment": "@provino/expect/table never imports jest-*, @jest/*, expect, pretty-format, chai, @vitest/*, vite, @babel/* at run time (T7.12): the engines are ours, and each of these costs a cold import the worker can't spare. A type import is allowed, and tests may import them as oracles.",
       "severity": "error",
       "from": {
         "path": "^packages/expect/src/table/",
@@ -2076,7 +2075,6 @@
       },
       "to": {
         "path": "(?:^|/)node_modules/(?:jest-[^/]+|@jest/[^/]+|expect|pretty-format|chai|@vitest/[^/]+|vite|@babel/[^/]+)/",
-        "pathNot": "(?:^|/)node_modules/(?:@jest/expect-utils)/",
         "dependencyTypesNot": [
           "type-only"
         ]

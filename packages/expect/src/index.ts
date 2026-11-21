@@ -36,3 +36,13 @@ export {
   type StateSourceOptions,
   type TestRun,
 } from './state.ts'
+// Jest's equality (vendored, B27c): the testers the neutral matcher table composes.
+export {
+  arrayBufferEquality,
+  equals,
+  getPath,
+  iterableEquality,
+  sparseArrayEquality,
+  subsetEquality,
+  typeEquality,
+} from './vendor/expect-utils/index.ts'
