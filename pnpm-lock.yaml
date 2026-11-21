@@ -601,10 +601,28 @@ importers:
 
   packages/api:
     dependencies:
+      '@provino/core':
+        specifier: workspace:*
+        version: link:../core
+      '@provino/expect':
+        specifier: workspace:*
+        version: link:../expect
+      '@provino/lazy':
+        specifier: workspace:*
+        version: link:../lazy
+      '@provino/mock':
+        specifier: workspace:*
+        version: link:../mock
+      '@provino/timers':
+        specifier: workspace:*
+        version: link:../timers
       '@provino/types':
         specifier: workspace:*
         version: link:../types
     devDependencies:
+      '@provino/policy':
+        specifier: workspace:*
+        version: link:../policy
       expect-type:
         specifier: 'catalog:'
         version: 1.4.0
@@ -1047,9 +1065,6 @@ importers:
 
   packages/expect:
     dependencies:
-      '@jest/expect-utils':
-        specifier: 'catalog:'
-        version: 30.5.2
       '@provino/snapshot':
         specifier: workspace:*
         version: link:../snapshot
@@ -1057,6 +1072,9 @@ importers:
         specifier: workspace:*
         version: link:../types
     devDependencies:
+      '@jest/expect-utils':
+        specifier: 'catalog:'
+        version: 30.5.2
       '@provino/policy':
         specifier: workspace:*
         version: link:../policy
@@ -1471,6 +1489,9 @@ importers:
       '@babel/preset-typescript':
         specifier: 'catalog:'
         version: 7.29.7(@babel/core@7.29.7(supports-color@8.1.1))(supports-color@8.1.1)
+      '@provino/api':
+        specifier: workspace:*
+        version: link:../api
       '@provino/config':
         specifier: workspace:*
         version: link:../config

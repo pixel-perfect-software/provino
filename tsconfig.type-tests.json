@@ -74,6 +74,9 @@
       "path": "packages/provino/test"
     },
     {
+      "path": "packages/provino/test/globals-native"
+    },
+    {
       "path": "packages/api/test"
     }
   ]

@@ -2,7 +2,7 @@
 
 Provino includes code copied from the projects below. Each vendor directory has an `UPSTREAM.md` naming the source, the version and every local change.
 
-This file is the license notice for that code. Source files keep the license header they had upstream, but the build does not carry every header into a package's `dist`: it keeps some and drops others, and a few copied files never had one (`natural-compare`'s only says `@license MIT License`; Vitest's `jsdom-keys.ts` and `.each` title code have none). So the published `provino` package, and every other package whose `dist` holds copied code (`@provino/dialect-jest`, `@provino/dialect-vitest`, `@provino/snapshot`, `@provino/env-shared` and `@provino/coverage`), ships this file as `THIRD_PARTY_NOTICES.md`, and `pnpm hygiene` fails a package that holds copied code without it. Each of those copies must equal this file.
+This file is the license notice for that code. Source files keep the license header they had upstream, but the build does not carry every header into a package's `dist`: it keeps some and drops others, and a few copied files never had one (`natural-compare`'s only says `@license MIT License`; Vitest's `jsdom-keys.ts` and `.each` title code have none). So the published `provino` package, and every other package whose `dist` holds copied code (`@provino/dialect-jest`, `@provino/dialect-vitest`, `@provino/snapshot`, `@provino/env-shared`, `@provino/coverage`, `@provino/reporters` and `@provino/expect`), ships this file as `THIRD_PARTY_NOTICES.md`, and `pnpm hygiene` fails a package that holds copied code without it. Each of those copies must equal this file.
 
 ## Jest
 
@@ -20,6 +20,8 @@ Smaller copies from Jest v30.5.x that have no vendor directory, each with its so
 - `packages/dialect-jest/src/node/valid-config.ts` is jest-config's example configs that validation checks against (`ValidConfig.ts`).
 - `packages/dialect-jest/src/node/text.ts` holds message texts from jest-config and jest-validate.
 - `packages/dialect-jest/src/node/docblock.ts` and `packages/orchestrator/src/worker/internal/runtime/pragmas.ts` hold the regular expressions of jest-docblock's `extract` and `parse` (`index.ts`).
+
+`packages/expect/src/vendor/expect-utils/` is copied from Jest v30.5.2 (`@jest/expect-utils`'s `jasmineUtils.ts`, `utils.ts`, `immutableUtils.ts`, `types.ts` and `index.ts`; `isPrimitive` from `@jest/get-type` is inlined).
 
 `packages/harness/src/hoist-corpus/vendor/jest.json` holds test inputs copied from Jest v30.5.2, `packages/babel-plugin-jest-hoist/src/__tests__/hoistPlugin.nodejs18.test.ts`. Same MIT license as below. It is not part of any published package.
 

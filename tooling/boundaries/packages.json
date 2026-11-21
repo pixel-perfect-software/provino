@@ -207,8 +207,7 @@
       "slices": ["expect"],
       "neutral": true,
       "bannedPackages": "native",
-      "allowedPackages": ["@jest/expect-utils"],
-      "note": "allowedPackages: @jest/expect-utils (the engine's equals) until B27c vendors it (D187); manifest.test.ts fails once it leaves package.json's dependencies."
+      "note": "B27c (D187): the engine's equals is vendored (src/vendor/expect-utils); @jest/expect-utils is a devDependency, the oracle of its test."
     },
     "@provino/expect/table": {
       "dir": "packages/expect/src/table",
@@ -217,9 +216,8 @@
       "deps": ["@provino/types", "@provino/policy", "@provino/expect"],
       "slices": ["expect"],
       "neutral": true,
-      "note": "B27 (D186, D188): the neutral matcher table a project with no dialect gets (NativeRuntimeRefs.matcherTable). It imports @provino/expect for AsymmetricMatcher. allowedPackages: @jest/expect-utils (the engine's equals) until B27c vendors it (D187); manifest.test.ts fails once it leaves package.json's dependencies.",
-      "bannedPackages": "native",
-      "allowedPackages": ["@jest/expect-utils"]
+      "note": "B27 (D186, D188): the neutral matcher table a project with no dialect gets (NativeRuntimeRefs.matcherTable). It imports @provino/expect for AsymmetricMatcher.",
+      "bannedPackages": "native"
     },
     "@provino/env-shared": {
       "dir": "packages/env-shared",

@@ -15,6 +15,7 @@ import { DTS_ONLY, entriesOf, PRESET } from './preset.ts'
 export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   '@provino/orchestrator/worker/bootstrap': 'worker/bootstrap',
   '@provino/orchestrator/worker/main': 'worker/main',
+  '@provino/expect/table': 'worker/expect-table',
   '@provino/dialect-jest/runtime': 'worker/jest-runtime',
   // Loaded by the coordinator (a failing global hook), through a behaviour ref, as the neutral
   // behaviours are: a leaf of its own, so it never pulls the runtime in.
@@ -37,6 +38,9 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   '@provino/policy/behaviours': 'worker/policy-behaviours',
   '@provino/env-node': 'worker/env-node',
   '@provino/env-jsdom': 'worker/env-jsdom',
+  // The native runtime (B27b, D186): the served `provino` module and its globals, for a project
+  // with no dialect.
+  '@provino/api': 'worker/api',
 }
 
 /** Every `@provino/*` import is bundled from source. */
@@ -199,8 +203,12 @@ const LIVE = /[\\/]packages[\\/]reporters[\\/]src[\\/]live[\\/](?!.*\.test\.ts$)
  */
 const HTML = /[\\/]packages[\\/]reporters[\\/]src[\\/]html[\\/](?!.*\.test\.ts$)/
 
-/** The three `@provino/lazy` leaves `provino`'s own `lazy` forwarders import (`import 'provino'`). */
-const LAZY_API = /[\\/]packages[\\/]lazy[\\/]src[\\/](?:errors|slot|runtime[\\/]site)\.ts$/
+/**
+ * `@provino/lazy`'s forwarders (`api.ts`) and the three leaves they import: `import 'provino'` and
+ * the native runtime (`worker/api`, which serves them) both use them, and `index.js` must not reach
+ * `shared.js` for them.
+ */
+const LAZY_API = /[\\/]packages[\\/]lazy[\\/]src[\\/](?:api|errors|slot|runtime[\\/]site)\.ts$/
 
 /** A source file of a workspace package. */
 const SHARED = /[\\/]packages[\\/][^\\/]+[\\/]src[\\/]/

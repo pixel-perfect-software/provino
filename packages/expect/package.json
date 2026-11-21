@@ -27,7 +27,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "THIRD_PARTY_NOTICES.md"
   ],
   "engines": {
     "node": "^22.15.0 || >=24"
@@ -37,11 +38,11 @@
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
   },
   "dependencies": {
-    "@jest/expect-utils": "catalog:",
     "@provino/snapshot": "workspace:*",
     "@provino/types": "workspace:*"
   },
   "devDependencies": {
+    "@jest/expect-utils": "catalog:",
     "@provino/policy": "workspace:*",
     "@vitest/expect": "catalog:",
     "expect": "catalog:"

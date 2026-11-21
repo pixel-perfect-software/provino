@@ -1,7 +1,6 @@
 // Test helpers (not a test file). A neutral matcher table and a hand-driven current-test lookup,
 // so the engine is tested without any dialect.
 import { describe, test } from 'node:test'
-import { iterableEquality, subsetEquality } from '@jest/expect-utils'
 import { neutralPolicy } from '@provino/policy'
 import type {
   AsymmetricMatcherLike,
@@ -22,6 +21,7 @@ import { createExpect, type UnawaitedAssertion } from '../expect.ts'
 import type { PollTimers } from '../poll.ts'
 import { createMatcherRegistry, type MatcherRegistry } from '../slot.ts'
 import { createStateSource, type StateSource } from '../state.ts'
+import { iterableEquality, subsetEquality } from '../vendor/expect-utils/index.ts'
 
 /** The neutral policy's `expect` slice with the values B08 builds. */
 export const testPolicy: ExpectPolicy = {

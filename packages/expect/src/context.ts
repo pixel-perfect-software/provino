@@ -1,6 +1,7 @@
 // What a matcher's `this` is (Jest's `MatcherContext`: `MatcherUtils & Readonly<MatcherState>`).
-import type { equals } from '@jest/expect-utils'
+
 import type { EqualityTester, MatcherState, PromiseVoice } from '@provino/types'
+import type { equals } from './vendor/expect-utils/index.ts'
 
 /**
  * A matcher's `this`: the current state (copied, as Jest spreads it), equality, the dialect's
