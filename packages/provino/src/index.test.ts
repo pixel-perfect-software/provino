@@ -1,17 +1,31 @@
 import assert from 'node:assert/strict'
 import { afterEach, describe, test } from 'node:test'
+import { type ApiHost, PROVINO_API_SLOT, provinoModuleScope } from '@provino/api'
 import * as api from './index.ts'
 
 const NAMES = [
   'describe',
+  'suite',
   'it',
   'test',
   'beforeAll',
   'afterAll',
   'beforeEach',
   'afterEach',
+  'aroundEach',
+  'aroundAll',
+  'onTestFinished',
+  'onTestFailed',
   'expect',
+  'fn',
+  'spyOn',
+  'replaceProperty',
+  'isMockFunction',
+  'mocks',
+  'timers',
 ]
+
+const API_SLOT = PROVINO_API_SLOT
 
 /** Provino's stateless extras: the lazy-variable forwarders, and the error the entry throws. */
 const EXTRAS = [
@@ -36,12 +50,19 @@ function install(name: string, value: unknown): void {
   })
 }
 const restores: (() => void)[] = []
+
+/** Installs `api` in the native API's slot for one test. */
+function installSlot(api: object): void {
+  Object.defineProperty(globalThis, API_SLOT, { value: api, configurable: true })
+  restores.push(() => void Reflect.deleteProperty(globalThis, API_SLOT))
+}
 afterEach(() => {
-  for (const restore of restores.splice(0)) restore()
+  // Last installed first, so a name installed twice gets back what it had before both.
+  for (const restore of restores.splice(0).reverse()) restore()
 })
 
 describe('the provino entry binds late to the worker globals (T1.10)', () => {
-  test('exports the Jest dialect test-definition API, and no engine of its own', () => {
+  test('exports the native API and the lazy variables, and no engine of its own', () => {
     assert.deepEqual(Object.keys(api).sort(), [...NAMES, ...EXTRAS].sort())
   })
 
@@ -190,5 +211,112 @@ describe('the provino entry binds late to the worker globals (T1.10)', () => {
   test('a global that is not a function or an object is not installed', () => {
     install('expect', 'not an api')
     assert.throws(() => (api.expect as unknown as () => void)(), api.ProvinoWorkerApiError)
+  })
+})
+
+describe('the provino entry reads the native slot first (B27b, D185)', () => {
+  test('a call goes to the slot when the native runtime installed one', () => {
+    const fromSlot = (): string => 'slot'
+    installSlot({ fn: fromSlot, test: fromSlot })
+    assert.equal((api.fn as unknown as () => string)(), 'slot')
+    assert.equal((api.test as unknown as () => string)(), 'slot')
+  })
+
+  test('the slot wins over a global of the same name, and a name it lacks falls back to the global', () => {
+    installSlot({ expect: (): string => 'slot' })
+    install('expect', (): string => 'global')
+    install('describe', (): string => 'global describe')
+    assert.equal((api.expect as unknown as () => string)(), 'slot')
+    assert.equal((api.describe as unknown as () => string)(), 'global describe')
+  })
+
+  test('statics read through the slot too, so `expect.extend` reaches the native expect', () => {
+    const extend = (): string => 'extend'
+    installSlot({ expect: Object.assign((): void => {}, { extend }) })
+    assert.equal(api.expect.extend, extend)
+  })
+
+  test('with neither, the slot-only names throw PROVINO_NO_WORKER_API too', () => {
+    installSlot({})
+    for (const name of ['fn', 'spyOn', 'timers', 'mocks']) {
+      assert.throws(
+        () => Reflect.get(Reflect.get(api, name) as object, 'x'),
+        (error: unknown) =>
+          error instanceof api.ProvinoWorkerApiError && error.code === 'PROVINO_NO_WORKER_API',
+        name,
+      )
+    }
+  })
+})
+
+describe("a native-only name in a dialect's worker (B27b review)", () => {
+  test('says it is the native API and names the Jest member to use', () => {
+    install('describe', (): void => {})
+    for (const [name, jest] of [
+      ['fn', 'jest.fn'],
+      ['spyOn', 'jest.spyOn'],
+      ['timers', 'jest.useFakeTimers'],
+    ] as const) {
+      assert.throws(
+        () => Reflect.get(Reflect.get(api, name) as object, 'x'),
+        (error: unknown) =>
+          error instanceof api.ProvinoWorkerApiError &&
+          error.code === 'PROVINO_NATIVE_ONLY' &&
+          error.message.includes(`"${name}" is the native API`) &&
+          error.message.includes(jest),
+        name,
+      )
+    }
+    // A name Jest has too still says no worker installed it.
+    assert.throws(
+      () => (api.test as unknown as () => void)(),
+      (error: unknown) =>
+        error instanceof api.ProvinoWorkerApiError && error.code === 'PROVINO_NO_WORKER_API',
+    )
+  })
+
+  test('outside any worker, a native-only name says no worker installed it', () => {
+    assert.throws(
+      () => (api.fn as unknown as () => void)(),
+      (error: unknown) =>
+        error instanceof api.ProvinoWorkerApiError && error.code === 'PROVINO_NO_WORKER_API',
+    )
+  })
+})
+
+describe('the served namespace and the entry agree (B27b review)', () => {
+  test("the served provino module's keys are the entry's runtime exports, but the entry's error", () => {
+    const names = [
+      'describe',
+      'suite',
+      'it',
+      'test',
+      'beforeAll',
+      'afterAll',
+      'beforeEach',
+      'afterEach',
+      'aroundEach',
+      'aroundAll',
+      'onTestFinished',
+      'onTestFailed',
+    ]
+    // Only what the factory reads as it runs; the rest is read when a member is called.
+    const host = {
+      api: Object.fromEntries(names.map((name) => [name, (): void => {}])),
+      expect: (): void => {},
+      timersPolicy: { facadeReturns: 'all' },
+    } as unknown as ApiHost
+    const scope = provinoModuleScope(host)
+    try {
+      const served = scope('/project/a.test.ts').provino as object
+      assert.deepEqual(
+        Object.keys(served).sort(),
+        Object.keys(api)
+          .filter((name) => name !== 'ProvinoWorkerApiError')
+          .sort(),
+      )
+    } finally {
+      scope[Symbol.dispose]()
+    }
   })
 })

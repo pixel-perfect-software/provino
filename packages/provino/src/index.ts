@@ -1,10 +1,13 @@
-// `provino`: what a test file imports. Phase 1 form (T1.10): the Jest dialect's test-definition
-// API, `describe`, `it`, `test`, the hooks and `expect`, bound late to the globals the worker
-// installs (`injectGlobals`, which is on unless a project turns it off), and the lazy variables
-// (`lazy`, the shared examples), which are neutral and never globals: they read the runtime the
-// worker puts in a `Symbol.for` slot, so they work with `injectGlobals` off. `fn`, `spyOn`, `mock`
-// and `timers` of Track 1's table arrive with the neutral API; today they are `jest.fn`,
-// `jest.spyOn`, `jest.mock` and `jest.useFakeTimers`, on the Jest facade.
+// `provino`: what a test file imports. In a project with no dialect, the worker's loader serves this
+// module itself (D185): an import of `provino` never reaches this file, and gets the worker's own
+// `describe`, `expect`, `fn` and the rest (`@provino/api`). This file is what everything else
+// reaches: a module the loader doesn't serve (a `node_modules` helper Node loads itself), a Jest
+// project, code outside a worker. Its exports are forwarders that read, when they are used, the
+// native API's slot (`Symbol.for('provino.api')`, which the native runtime installs as the worker
+// boots), then the globals a dialect installed (`injectGlobals`, on unless a project turns it
+// off), and throw `PROVINO_NO_WORKER_API` when there is neither. The lazy variables (`lazy`, the
+// shared examples) are neutral and never globals: they read the runtime the worker puts in a slot of
+// their own, so they work with `injectGlobals` off.
 //
 // At run time this file imports only the lazy forwarders (a few small functions that read the slot
 // when called) and, through them, `dist/lazy-api.js`: the error class, the call-site marker and the
@@ -12,7 +15,10 @@
 // `import 'provino'` loads no `shared.js`, `loading.js` or coordinator chunk. The worker's engine is
 // in those, and a test file reaching `provino` must not load a second copy: a copy of `expect`
 // would have its own matchers and its own state, not the test's.
+import type { ProvinoApi } from '@provino/api'
 import type { JestGlobals } from '@provino/dialect-jest/runtime'
+
+export type { ProvinoApi, ProvinoMocks, ProvinoSpyOn, ProvinoTimers } from '@provino/api'
 
 export {
   evaluatedLazies,
@@ -28,8 +34,9 @@ export {
 } from '@provino/lazy'
 
 /**
- * What the `provino` entry exports: the Jest dialect's test-definition globals, typed as the
- * dialect builds them.
+ * The worker API's old name: the Jest dialect's test-definition globals, as the Jest dialect
+ * builds them.
+ * @deprecated Use `ProvinoApi` in a project with no dialect; `WorkerApi` goes in the next rc.
  * @public
  */
 export type WorkerApi = Pick<
@@ -38,26 +45,75 @@ export type WorkerApi = Pick<
 >
 
 /**
- * Thrown by every `provino` export used where no worker has installed it: outside a test file
- * Provino is running, or in a project with `injectGlobals` off.
+ * The codes of `ProvinoWorkerApiError`: no worker installed the API (`PROVINO_NO_WORKER_API`), or
+ * a dialect's worker is running and the name is the native API's alone (`PROVINO_NATIVE_ONLY`).
+ * @public
+ */
+export type ProvinoWorkerApiErrorCode = 'PROVINO_NO_WORKER_API' | 'PROVINO_NATIVE_ONLY'
+
+/**
+ * What a Jest project uses in place of each name only the native API has.
+ */
+const JEST_INSTEAD: Readonly<Record<string, string>> = {
+  fn: 'jest.fn',
+  spyOn: 'jest.spyOn',
+  replaceProperty: 'jest.replaceProperty',
+  isMockFunction: 'jest.isMockFunction',
+  mocks: 'jest.clearAllMocks, jest.resetAllMocks and jest.restoreAllMocks',
+  timers: 'jest.useFakeTimers and the other timer members of jest',
+}
+
+/** The names only the native API has (a Jest project's worker installs none of them). */
+const NATIVE_ONLY: ReadonlySet<string> = new Set([
+  ...Object.keys(JEST_INSTEAD),
+  'suite',
+  'aroundEach',
+  'aroundAll',
+  'onTestFinished',
+  'onTestFailed',
+])
+
+/**
+ * Thrown by every `provino` export used where no worker has installed it (outside a test file
+ * Provino is running, or in a dialect's project with `injectGlobals` off), and by a name only the
+ * native API has, used in a dialect's project.
  * @public
  */
 export class ProvinoWorkerApiError extends Error {
-  readonly code = 'PROVINO_NO_WORKER_API'
+  readonly code: ProvinoWorkerApiErrorCode
 
-  constructor(name: string) {
+  constructor(name: string, code: ProvinoWorkerApiErrorCode = 'PROVINO_NO_WORKER_API') {
+    const instead = JEST_INSTEAD[name]
     super(
-      `provino: "${name}" is only available inside a test file that Provino is running, with the Jest globals injected (injectGlobals is on by default).`,
+      code === 'PROVINO_NATIVE_ONLY'
+        ? `provino: "${name}" is the native API, for a project with no dialect; ${instead === undefined ? "the dialect's globals have no such name" : `in a Jest project use ${instead}`}.`
+        : `provino: "${name}" is only available inside a test file that Provino is running: in a project with no dialect, or with a dialect's globals injected (injectGlobals is on by default).`,
     )
     this.name = 'ProvinoWorkerApiError'
+    this.code = code
   }
 }
 
-/** The live value of a global the worker installed, or the error that says there is none. */
+/** Where the native runtime puts its API (`@provino/api`'s `PROVINO_API_SLOT`). */
+const API_SLOT: unique symbol = Symbol.for('provino.api')
+
+/**
+ * The live value of `name`: the native API's, else the global a dialect installed, else the error
+ * that says there is none. A native-only name in a dialect's worker (its `describe` is a global)
+ * says it is the native API's.
+ */
 function live(name: string): object {
-  const value: unknown = Reflect.get(globalThis, name)
+  const api: unknown = Reflect.get(globalThis, API_SLOT)
+  const value: unknown =
+    (typeof api === 'object' && api !== null ? Reflect.get(api, name) : undefined) ??
+    Reflect.get(globalThis, name)
   if ((typeof value === 'function' || typeof value === 'object') && value !== null) return value
-  throw new ProvinoWorkerApiError(name)
+  const dialectWorker =
+    NATIVE_ONLY.has(name) && typeof Reflect.get(globalThis, 'describe') === 'function'
+  throw new ProvinoWorkerApiError(
+    name,
+    dialectWorker ? 'PROVINO_NATIVE_ONLY' : 'PROVINO_NO_WORKER_API',
+  )
 }
 
 /**
@@ -72,7 +128,7 @@ function live(name: string): object {
  * configurable (a non-configurable define is refused), which is what lets the traps answer for the
  * live value and still satisfy the invariants a Proxy checks.
  */
-function bound<K extends keyof WorkerApi>(name: K): WorkerApi[K] {
+function bound<K extends keyof ProvinoApi>(name: K): ProvinoApi[K] {
   const target: object = class {}.bind(null)
   const proxy = new Proxy(target, {
     apply: (_target, thisArg, args: unknown[]) =>
@@ -98,53 +154,119 @@ function bound<K extends keyof WorkerApi>(name: K): WorkerApi[K] {
     },
     getPrototypeOf: () => Reflect.getPrototypeOf(live(name)),
   })
-  return proxy as unknown as WorkerApi[K]
+  return proxy as unknown as ProvinoApi[K]
 }
 
 /**
- * `describe`: groups tests, as the Jest dialect's global does.
+ * `describe`: groups tests.
  * @public
  */
-export const describe: WorkerApi['describe'] = bound('describe')
+export const describe: ProvinoApi['describe'] = bound('describe')
+
+/**
+ * `suite`: `describe`.
+ * @public
+ */
+export const suite: ProvinoApi['suite'] = bound('suite')
 
 /**
  * `it`: defines a test.
  * @public
  */
-export const it: WorkerApi['it'] = bound('it')
+export const it: ProvinoApi['it'] = bound('it')
 
 /**
  * `test`: defines a test.
  * @public
  */
-export const test: WorkerApi['test'] = bound('test')
+export const test: ProvinoApi['test'] = bound('test')
 
 /**
  * `beforeAll`: runs once before the tests of the enclosing `describe`.
  * @public
  */
-export const beforeAll: WorkerApi['beforeAll'] = bound('beforeAll')
+export const beforeAll: ProvinoApi['beforeAll'] = bound('beforeAll')
 
 /**
  * `afterAll`: runs once after the tests of the enclosing `describe`.
  * @public
  */
-export const afterAll: WorkerApi['afterAll'] = bound('afterAll')
+export const afterAll: ProvinoApi['afterAll'] = bound('afterAll')
 
 /**
  * `beforeEach`: runs before each test of the enclosing `describe`.
  * @public
  */
-export const beforeEach: WorkerApi['beforeEach'] = bound('beforeEach')
+export const beforeEach: ProvinoApi['beforeEach'] = bound('beforeEach')
 
 /**
  * `afterEach`: runs after each test of the enclosing `describe`.
  * @public
  */
-export const afterEach: WorkerApi['afterEach'] = bound('afterEach')
+export const afterEach: ProvinoApi['afterEach'] = bound('afterEach')
 
 /**
- * `expect`: the running worker's `expect`, with its matchers, `extend` and asymmetric matchers.
+ * `aroundEach`: wraps each test's hooks and body.
  * @public
  */
-export const expect: WorkerApi['expect'] = bound('expect')
+export const aroundEach: ProvinoApi['aroundEach'] = bound('aroundEach')
+
+/**
+ * `aroundAll`: wraps a suite's hooks and tests.
+ * @public
+ */
+export const aroundAll: ProvinoApi['aroundAll'] = bound('aroundAll')
+
+/**
+ * `onTestFinished`: runs after the current test.
+ * @public
+ */
+export const onTestFinished: ProvinoApi['onTestFinished'] = bound('onTestFinished')
+
+/**
+ * `onTestFailed`: runs after the current test when it failed.
+ * @public
+ */
+export const onTestFailed: ProvinoApi['onTestFailed'] = bound('onTestFailed')
+
+/**
+ * `expect`: the running worker's `expect`, with its matchers, `extend` and asymmetric matchers. A Proxy, so `expect.extend` and the asymmetric statics read through.
+ * @public
+ */
+export const expect: ProvinoApi['expect'] = bound('expect')
+
+/**
+ * `fn`: a mock function, registered with the file running now (native API).
+ * @public
+ */
+export const fn: ProvinoApi['fn'] = bound('fn')
+
+/**
+ * `spyOn`: replaces a method or accessor with a spy that calls through (native API).
+ * @public
+ */
+export const spyOn: ProvinoApi['spyOn'] = bound('spyOn')
+
+/**
+ * `replaceProperty`: replaces a plain value property until it is restored (native API).
+ * @public
+ */
+export const replaceProperty: ProvinoApi['replaceProperty'] = bound('replaceProperty')
+
+/**
+ * `isMockFunction`: whether a value is a mock function (native API).
+ * @public
+ */
+export const isMockFunction: ProvinoApi['isMockFunction'] = bound('isMockFunction')
+
+/**
+ * `mocks`: the file's mock registry: `clearAll`, `resetAll`, `restoreAll` (native API).
+ * @public
+ */
+export const mocks: ProvinoApi['mocks'] = bound('mocks')
+
+/**
+ * `timers`: the file's fake clock (native API).
+ * @public
+ */
+export const timers: ProvinoApi['timers'] = bound('timers')

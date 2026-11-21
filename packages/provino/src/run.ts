@@ -3,7 +3,7 @@ import { loadProject } from '@provino/config'
 import { jestDialect } from '@provino/dialect-jest'
 import { discoverProject, ExitCode, type RunProjectOptions } from '@provino/orchestrator'
 import { isCi } from '@provino/reporters'
-import { ENVIRONMENTS } from './internal/built-ins.ts'
+import { ENVIRONMENTS, nativeRuntime } from './internal/built-ins.ts'
 import { usageMessage } from './internal/describe.ts'
 import { executeProject, timingsOf } from './internal/execute.ts'
 import { UsageError } from './internal/usage-error.ts'
@@ -52,10 +52,12 @@ async function execute(
 
   // The composition root resolves the environment once; everything below reads this.
   const env = options.env ?? process.env
+  const native = nativeRuntime(env)
   const project = await loadProject(resolve(cwd, options.config), {
     dialects: [jestDialect],
     environments: ENVIRONMENTS,
     ci: options.ci ?? isCi(env),
+    ...(native === undefined ? {} : { native }),
   })
   return executeProject({
     project,

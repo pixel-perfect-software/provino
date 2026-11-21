@@ -189,6 +189,11 @@ interface Booted {
   stopProcessErrors: (() => void) | undefined
   /** Takes the lazy runtime out of its slot (`installLazyRuntime`). */
   uninstallLazy: (() => void) | undefined
+  /**
+   * Disposes the module scope's function when the factory made it disposable (the native runtime's
+   * takes its API slot out of the global), so an inline pool leaves nothing for the next run.
+   */
+  disposeModuleScope: (() => void) | undefined
   /** Puts back the `Error.prepareStackTrace` the worker found (`installSourceMappedStacks`). */
   unmapStacks: (() => void) | undefined
   /** What every file's snapshot state is built from: the policy's behaviours, loaded once. */
@@ -884,6 +889,8 @@ export function createRuntimeRunner(): WorkerRunner {
         )
       }
       parts.moduleScope = values as ModuleScopeValues
+      const dispose: unknown = Reflect.get(values, Symbol.dispose)
+      if (typeof dispose === 'function') parts.disposeModuleScope = () => void dispose.call(values)
     }
 
     if (policy.core.injectGlobals && config.globals !== null) {
@@ -1248,6 +1255,7 @@ export function createRuntimeRunner(): WorkerRunner {
         },
         () => torn.unmapStacks?.(),
         () => torn.uninstallLazy?.(),
+        () => torn.disposeModuleScope?.(),
         () => torn.slot?.uninstall(),
         // Last: the worker environment's teardown ran with its signal still live.
         () => workerLifetime.abort(),
