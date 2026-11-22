@@ -5,14 +5,18 @@ import {
   describe,
   expect,
   fn,
+  importActual,
   isMockFunction,
+  mock,
   mocks,
   type ProvinoApi,
+  type ProvinoMockFactory,
   type ProvinoTimers,
   replaceProperty,
   spyOn,
   test,
   timers,
+  unmock,
 } from 'provino'
 
 // `describe.each` spreads an array row into the body's parameters.
@@ -66,3 +70,33 @@ timers.advanceTimersByTime('10ms')
 expectTypeOf(expect).toEqualTypeOf<ProvinoApi['expect']>()
 // @ts-expect-error a test needs a name
 test()
+
+// Module mocks (B27j): `mock` takes a specifier and an optional factory of the module's exports.
+interface Dep {
+  readonly value: () => string
+  readonly count: number
+}
+expectTypeOf(mock('./dep.ts')).toEqualTypeOf<void>()
+mock<Dep>('./dep.ts', () => ({ value: () => 'mocked' }))
+// A factory may be async, and is given the real module.
+mock<Dep>('./dep.ts', async (importOriginal) => {
+  const real = await importOriginal()
+  expectTypeOf(real).toEqualTypeOf<Dep>()
+  return { ...real, count: 2 }
+})
+expectTypeOf<ProvinoMockFactory<Dep>>().parameters.toEqualTypeOf<[() => Promise<Dep>]>()
+// @ts-expect-error the specifier is a string
+mock(1)
+// @ts-expect-error the factory is a function, not the exports themselves
+mock('./dep.ts', { value: () => 'mocked' })
+// @ts-expect-error the factory's exports have the module's types
+mock<Dep>('./dep.ts', () => ({ count: 'two' }))
+// @ts-expect-error a factory returns the exports as an object
+mock<Dep>('./dep.ts', () => 5)
+expectTypeOf(unmock('./dep.ts')).toEqualTypeOf<void>()
+// @ts-expect-error unmock takes one specifier
+unmock()
+expectTypeOf(importActual<Dep>('./dep.ts')).toEqualTypeOf<Promise<Dep>>()
+expectTypeOf(importActual('./dep.ts')).toEqualTypeOf<Promise<Record<string, unknown>>>()
+// @ts-expect-error the specifier is a string
+importActual(['./dep.ts'])

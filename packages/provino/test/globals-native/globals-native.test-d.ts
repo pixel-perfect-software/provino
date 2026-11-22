@@ -20,3 +20,7 @@ withDb('reads it', ({ db }) => {
 globalThis.fn((a: number) => a)('one')
 // @ts-expect-error there is no `jest` global in a project with no dialect
 globalThis.jest
+// @ts-expect-error `mock` is imported from `provino`, never a global: only an import is hoisted
+globalThis.mock
+// @ts-expect-error `importActual` is an import too
+globalThis.importActual

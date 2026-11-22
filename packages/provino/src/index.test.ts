@@ -23,6 +23,9 @@ const NAMES = [
   'isMockFunction',
   'mocks',
   'timers',
+  'mock',
+  'unmock',
+  'importActual',
 ]
 
 const API_SLOT = PROVINO_API_SLOT
@@ -256,6 +259,8 @@ describe("a native-only name in a dialect's worker (B27b review)", () => {
       ['fn', 'jest.fn'],
       ['spyOn', 'jest.spyOn'],
       ['timers', 'jest.useFakeTimers'],
+      ['mock', 'jest.mock'],
+      ['importActual', 'jest.requireActual'],
     ] as const) {
       assert.throws(
         () => Reflect.get(Reflect.get(api, name) as object, 'x'),
