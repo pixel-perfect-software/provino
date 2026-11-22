@@ -212,7 +212,9 @@
     "prettier": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "styled-components": "catalog:"
+    "styled-components": "catalog:",
+    "typescript": "catalog:",
+    "typescript-5.9": "catalog:"
   },
   "peerDependencies": {
     "jsdom": ">=26 <31",

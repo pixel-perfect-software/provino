@@ -71,10 +71,16 @@ export function defineConfig<const Config extends ProvinoConfig>(config: Config)
 export type DialectKeys = { readonly [N in DialectName as N extends ReservedConfigKey ? never : N]?: DialectRegistry[N]; };
 
 // @public
+export interface DialectRegistry {}
+
+// @public
 export function formatConfigIssue(issue: ConfigIssue): string;
 
 // @public
 export type PluginKeys = { readonly [N in keyof PluginRegistry & string as N extends ReservedConfigKey | DialectName ? never : N]?: PluginRegistry[N]; };
+
+// @public
+export interface PluginRegistry {}
 
 // @public
 export interface ProjectConfig extends BaseConfig, ProjectKeys, DialectKeys, PluginKeys {}

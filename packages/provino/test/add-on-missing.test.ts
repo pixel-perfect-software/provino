@@ -6,10 +6,9 @@
 // engines), no `provino` peer at all, and two overlapping `run()` calls on different projects.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { after, describe, test } from 'node:test'
+import { describe, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   childEnv,
@@ -18,6 +17,7 @@ import {
   linkProvino,
   packageCopy,
   runBuilt,
+  scratch,
   withoutNodeNoise,
 } from './support.ts'
 
@@ -27,13 +27,6 @@ const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const VERSION = (
   JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8')) as { version: string }
 ).version
-
-/** A temp directory removed when the file ends, by its real path. */
-function scratch(prefix: string): string {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), prefix)))
-  after(() => rmSync(dir, { recursive: true, force: true }))
-  return dir
-}
 
 /** Writes `files` (with a `package.json` of `type: module`) into `dir`. */
 function writeProject(dir: string, files: Readonly<Record<string, string>>): string {
@@ -185,10 +178,7 @@ describe("the add-on's provino is the one running (B27f, D187)", () => {
   linkDependencies(dialect, root, ['@provino', 'provino'])
   const own = copyBuiltPackage(join(root, 'proj', 'node_modules', 'provino'))
   const addOn = join(root, 'proj', 'node_modules', '@provino', 'dialect-jest')
-  mkdirSync(addOn, { recursive: true })
-  for (const name of ['package.json', 'dist']) {
-    spawnSync('cp', ['-R', join(dialect, name), join(addOn, name)])
-  }
+  copyBuiltPackage(addOn, dialect)
   const global = copyBuiltPackage(join(root, 'global', 'node_modules', 'provino'))
   const proj = writeProject(join(root, 'proj'), {
     'a.test.js': jestTest,
@@ -215,9 +205,7 @@ describe("the add-on's provino is the one running (B27f, D187)", () => {
     const bare = scratch('provino-no-peer-')
     linkDependencies(root, bare)
     const lonely = join(bare, 'proj', 'node_modules', '@provino', 'dialect-jest')
-    mkdirSync(lonely, { recursive: true })
-    for (const name of ['package.json', 'dist'])
-      spawnSync('cp', ['-R', join(dialect, name), join(lonely, name)])
+    copyBuiltPackage(lonely, dialect)
     const where = writeProject(join(bare, 'proj'), { 'a.test.js': jestTest })
     const other = copyBuiltPackage(join(bare, 'global', 'node_modules', 'provino'))
     const run = bin(other, where, ['jest', '--ci'])

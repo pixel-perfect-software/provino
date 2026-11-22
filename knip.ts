@@ -192,6 +192,8 @@ const config: KnipConfig = {
         ),
         // A test symlinks a real jest-environment-jsdom into a project.
         'jest-environment-jsdom',
+        // `built-types.test.ts` runs its `bin/tsc` found by path (`compilerBin`), which knip can't see.
+        'typescript-5.9',
         // Inlined by the build only (`WORKER_ENTRIES`' `worker/vitest-runtime`, B25b): no source of
         // `provino`'s imports it until `provino vitest` exists (T11.16, Phase 7).
         '@provino/dialect-vitest',
