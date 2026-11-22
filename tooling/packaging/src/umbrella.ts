@@ -216,15 +216,16 @@ const JEST_NODE = new RegExp(
 
 /**
  * Watch mode (B23f): the driver, its interrupt latch, the orchestrator's watch session and file
- * watcher, and Jest's watch loop rebuilt in the dialect. `provino jest` imports the driver
- * dynamically under `--watch` and `--watchAll`, so no other run reads them. The plugin error
+ * watcher, and Jest's watch loop rebuilt in the dialect. `provino jest` imports its driver
+ * and `provino run` its own (`native-watch.ts`, B27k) dynamically under `--watch` and
+ * `--watchAll`, so no other run reads them. The plugin error
  * and the terminal constants are the files of the loop the bin names on every run, so they stay out
  * (`plugin-error.ts`, `terminal.ts`).
  */
 const WATCH = new RegExp(
   [
     'orchestrator[\\\\/]src[\\\\/]watch[\\\\/](?!.*\\.test\\.ts$)',
-    'provino[\\\\/]src[\\\\/]internal[\\\\/](?:jest-watch|watch-interrupt)\\.ts$',
+    'provino[\\\\/]src[\\\\/]internal[\\\\/](?:jest-watch|native-watch|watch-interrupt|watch-queue)\\.ts$',
   ]
     .map((alternative) => `[\\\\/]packages[\\\\/]${alternative}`)
     .join('|'),

@@ -69,6 +69,13 @@ export interface WatchSessionOptions extends WatchSessionRunSettings {
    * directory, so a run's own writes don't start another). Default: every path the crawl keeps.
    */
   readonly isRelevant?: (path: string) => boolean
+  /**
+   * The config file's path: a project input to the affected index (under a policy whose
+   * `affected.invalidateAll` is `project-inputs` a change to it, like one to a setup file, the
+   * environment, the root `package.json`, a lockfile or the tsconfig, selects every test) and a
+   * path the watcher reports whatever the crawl keeps.
+   */
+  readonly configFile?: string
   /** Regular expression sources the watcher and the affected index leave out (`watchPathIgnorePatterns`). */
   readonly ignorePatterns?: readonly string[]
   /** One watch per directory (Linux's way, its default) rather than one recursive watch per root. */
@@ -290,6 +297,7 @@ export async function createWatchSession(
             ...(options.ignorePatterns === undefined
               ? {}
               : { ignorePatterns: options.ignorePatterns }),
+            ...(options.configFile === undefined ? {} : { configFile: options.configFile }),
           })
           return { index, loader }
         } catch (error) {
@@ -491,9 +499,12 @@ async function watcherSource(
   )
   const isRelevant = options.isRelevant ?? (() => true)
   // A `package.json` steers resolution even in a project whose crawl lists no `json`.
+  const configFile = options.configFile === undefined ? undefined : resolve(options.configFile)
   const keeps = (path: string): boolean =>
     isRelevant(path) &&
-    (basename(path) === 'package.json' || crawls.some((crawl) => crawl.keeps(path)))
+    (basename(path) === 'package.json' ||
+      path === configFile ||
+      crawls.some((crawl) => crawl.keeps(path)))
   return async (sink) =>
     createWatcher({
       roots,

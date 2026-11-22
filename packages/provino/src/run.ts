@@ -1,116 +1,13 @@
-import { dirname, resolve } from 'node:path'
-import { ConfigError, loadConfigFile, resolveProjects } from '@provino/config'
-import { discoverProject, ExitCode, type RunProjectOptions } from '@provino/orchestrator'
-import { isCi } from '@provino/reporters'
-import { addOnSpecifier, reportAddOnFailure } from './internal/add-on.ts'
-import { builtInDialects, ENVIRONMENTS, NATIVE_RUNTIME } from './internal/built-ins.ts'
-import { usageMessage } from './internal/describe.ts'
-import { executeProject, timingsOf } from './internal/execute.ts'
-import { UsageError } from './internal/usage-error.ts'
+import { executeProject } from './internal/execute.ts'
+import { executeOptionsOf, reportRunError, resolveRun } from './internal/run-setup.ts'
 import type { RunOptions, RunResult } from './types.ts'
-
-/**
- * The pool options a run overrides: only the ones given, so the policy's defaults stand. A limit
- * that makes no sense (`workerMemoryLimit`, `maxFilesPerWorker`, `fileTimeoutMs`, `bail`) is the
- * orchestrator's to refuse (`ORCH_BAD_OPTION`, exit 2); `maxWorkers` it would only round.
- */
-function poolOptions(options: RunOptions): NonNullable<RunProjectOptions['pool']> {
-  if (
-    options.maxWorkers !== undefined &&
-    (!Number.isSafeInteger(options.maxWorkers) || options.maxWorkers < 1)
-  ) {
-    throw new UsageError(
-      `maxWorkers must be a whole number of at least 1 (got ${String(options.maxWorkers)})`,
-    )
-  }
-  const { workerMemoryLimit, maxFilesPerWorker, fileTimeoutMs } = options
-  return {
-    ...(options.pool === undefined ? {} : { kind: options.pool }),
-    ...(options.maxWorkers === undefined ? {} : { maxWorkers: options.maxWorkers }),
-    ...(fileTimeoutMs === undefined ? {} : { fileTimeoutMs }),
-    ...(workerMemoryLimit === undefined && maxFilesPerWorker === undefined
-      ? {}
-      : {
-          recycle: {
-            ...(workerMemoryLimit === undefined ? {} : { memoryLimitBytes: workerMemoryLimit }),
-            ...(maxFilesPerWorker === undefined ? {} : { maxFilesPerWorker }),
-          },
-        }),
-  }
-}
 
 async function execute(
   options: RunOptions,
   stdout: NonNullable<RunOptions['stdout']>,
   stderr: NonNullable<RunOptions['stderr']>,
 ): Promise<RunResult> {
-  if (typeof options.config !== 'string' || options.config === '') {
-    throw new UsageError('run() needs the path of a config file')
-  }
-  poolOptions(options)
-  const cwd = resolve(options.cwd ?? process.cwd())
-
-  // The composition root resolves the environment once; everything below reads this.
-  const env = options.env ?? process.env
-  const configPath = resolve(cwd, options.config)
-  const input = await loadConfigFile(configPath, { command: 'run', mode: 'test' })
-  // The Jest add-on (D187) resolves from the config's directory, for this call only.
-  const root = dirname(configPath)
-  const resolved = await resolveProjects(input, {
-    configPath,
-    dialects: [],
-    loadDialects: () => builtInDialects(root),
-    environments: ENVIRONMENTS,
-    ci: options.ci ?? isCi(env),
-    native: NATIVE_RUNTIME,
-  }).catch(async (error: unknown) => {
-    // A config that names `dialect: 'jest'` or holds a `jest` key, refused because the add-on gave
-    // no dialect: the add-on's own failure (not installed, or of another provino) says why. Any
-    // other error (a typo'd key among them) is the config's own.
-    if (error instanceof ConfigError && error.subject === 'jest') {
-      await import(addOnSpecifier('jest', '', root))
-    }
-    throw error
-  })
-  const [project, ...others] = resolved.projects
-  if (project === undefined) throw new UsageError('the config has no project to run')
-  // The command line wins over the config's own defaults.
-  const pool = poolOptions({
-    ...options,
-    ...(options.pool === undefined && resolved.pool !== undefined ? { pool: resolved.pool } : {}),
-    ...(options.maxWorkers === undefined && resolved.maxWorkers !== undefined
-      ? { maxWorkers: resolved.maxWorkers }
-      : {}),
-  })
-  return executeProject({
-    project,
-    ...(others.length === 0 ? {} : { others }),
-    ...(resolved.root === undefined ? {} : { root: resolved.root }),
-    cwd,
-    stdout,
-    stderr,
-    reporters: options.reporters,
-    env,
-    ...(options.emoji === false ? { display: { emoji: false } } : {}),
-    ...(options.views === undefined ? {} : { views: options.views }),
-    // Jest's single-file rule decides between `provino` and a listing of the one file's tests
-    // (`selectsProvino`), so the reporters may need the count before the run: asked only then. A
-    // sharded run's count is the shard's, which only the run knows; it is left to the run.
-    ...(options.shard === undefined && others.length === 0
-      ? { fileCount: async () => (await discoverProject(project)).length }
-      : {}),
-    pool,
-    ...(options.cache === false ? { cache: false } : {}),
-    testNamePattern: options.testNamePattern,
-    update: options.updateSnapshot,
-    passWithNoTests: options.passWithNoTests,
-    signal: options.signal,
-    forceSignal: options.forceSignal,
-    ...(options.bail === undefined || options.bail === 0 ? {} : { bail: { count: options.bail } }),
-    ...(options.detectOpenHandles === true ? { detectOpenHandles: true } : {}),
-    ...(options.shard === undefined ? {} : { shard: options.shard }),
-    ...timingsOf(options),
-  })
+  return executeProject(executeOptionsOf(options, await resolveRun(options), stdout, stderr))
 }
 
 /**
@@ -134,12 +31,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
   try {
     return await execute(options, stdout, stderr)
   } catch (error) {
-    // Exit 1, as `provino jest` without the add-on: an install to fix, not a command-line mistake.
-    const addOn = reportAddOnFailure(error, stderr)
-    if (addOn !== undefined) return { exitCode: addOn, summary: null }
-    const message = usageMessage(error)
-    if (message === undefined) throw error
-    stderr.write(`${message}\n`)
-    return { exitCode: ExitCode.UsageError, summary: null }
+    const exitCode = reportRunError(error, stderr)
+    if (exitCode === undefined) throw error
+    return { exitCode, summary: null }
   }
 }
