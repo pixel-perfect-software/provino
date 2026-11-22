@@ -29,7 +29,7 @@
   },
   "scripts": {
     "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
-    "test": "node --test --conditions=provino-source \"src/**/*.test.ts\" \"test/**/*.test.ts\"",
+    "test": "node ../../packages/provino/dist/cli.js run --config provino.config.ts && node --test --conditions=provino-source src/api.test.ts src/read.test.ts",
     "typeperf": "node --conditions=provino-source test/support/typeperf-cli.ts"
   },
   "dependencies": {

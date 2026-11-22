@@ -1,7 +1,7 @@
 // Pre-merge review regressions (PR #50): the definition site of the public root, keys named like
 // the runtime's own fields, eager overrides of wider scopes, and where a nested eager runs.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import {
   includeContext as publicIncludeContext,
   includeExamples as publicIncludeExamples,

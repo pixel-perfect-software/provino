@@ -123,6 +123,7 @@ Flow: check `config` and `maxWorkers` → `loadConfigFile`, then `resolveProject
   - `run.test-d.ts`: the types of `run`'s options and result.
 - Test files note their worker's pid in a file under the project (`noting`) so a test can check afterwards that every worker has exited.
 - Workers' own stderr goes to the `stderr` you pass. Some environments (this sandbox) print noise there at every Node start, so assert with patterns, not that stderr is empty.
+- `test/bootstrap/canary.test.ts` (B27g2, D203): stays on node:test (it is in `tooling/provino/bootstrap.json`) and runs the built bin on a fixture of two passing and two failing tests, asserting exit 1, `2 failed, 2 passed, 4 total` and both failing names. This repo's suites run on that same bin, so a runner that reports green wrongly would otherwise pass them all.
 
 ## Not built yet
 

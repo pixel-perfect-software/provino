@@ -1,7 +1,7 @@
 // T6.3: sixty chained `.let`s, three overrides and sixty reads compile with no error and within 150,000
 // type instantiations on TS 7.0.2 and 5.9.3.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { COMPILERS } from './support/tsc.ts'
 import {
   budgetProblems,

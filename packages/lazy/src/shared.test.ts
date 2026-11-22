@@ -2,7 +2,7 @@
 // override; `itBehavesLike` opens a nested describe, `includeExamples` and `includeContext` register
 // into the current one.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { LazyError } from './errors.ts'
 import { createWorld } from './internal/test-support.ts'
 

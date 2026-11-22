@@ -41,3 +41,7 @@ The worker (`packages/orchestrator/src/worker/runtime/runner.ts`) installs it af
 ## Not built yet
 
 The read-cost gate (B24f). T6.9's `fixtures.compile` is not a lazy export: `test.extend` builds its own `DefinitionSet` in core (`packages/core/CLAUDE.md`, Fixtures), and a file mixes the two (`packages/bench/src/lazy/mixed-fixtures.test.ts`); a lazy value does not read a fixture by key, nor a fixture a lazy key (a lazy read is synchronous, a fixture is made by its scope). `bench:lazy reads` after D106 waits for the final pass (D160).
+
+## How its tests run (B27g2, D203)
+
+The package's tests run on Provino, through this checkout's built bin (`pnpm test` → `node ../../packages/provino/dist/cli.js run --config provino.config.ts`, the shared `tooling/provino/base.ts`), then `node --test` over the two files in `tooling/provino/bootstrap.json`: `src/api.test.ts` and `src/read.test.ts`. Their five tests (no runtime installed, `instanceof` across copies, the unhandled-rejection probe) own the process-global slot or rejection handler the runner's worker already holds, so they cannot run inside a worker; they are not edited to pass. `tsconfig.tests.json` is the project of `src/**/*.test.ts`, apart from `tsconfig.json`, because the tests import `provino`, which depends on this package.

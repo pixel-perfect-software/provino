@@ -583,6 +583,9 @@ importers:
       knip:
         specifier: 'catalog:'
         version: 6.44.1
+      provino:
+        specifier: workspace:*
+        version: link:packages/provino
       publint:
         specifier: 'catalog:'
         version: 0.3.25

@@ -4,8 +4,8 @@
 // and nothing else.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { describe, test } from 'provino'
 import { COMPILERS, compileFiles } from './support/tsc.ts'
 import {
   assertNoStraySilencers,
