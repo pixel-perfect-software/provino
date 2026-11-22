@@ -289,6 +289,27 @@ describe('dependency-cruiser rules', { concurrency: true }, () => {
     )
   })
 
+  test('the bare specifier `provino`, through a linked node_modules, passes from a test file and fails from production code', async () => {
+    const dir = await workspace({
+      'packages/core/src/planted.ts': "import 'provino'\n",
+      'packages/core/src/ok.test.ts': "import 'provino'\n",
+      'packages/provino/package.json': JSON.stringify({
+        name: 'provino',
+        type: 'module',
+        exports: { '.': { 'provino-source': './src/index.ts', types: './dist/index.d.ts' } },
+      }),
+      'packages/provino/src/index.ts': 'export {}\n',
+    })
+    await mkdir(join(dir, 'node_modules'), { recursive: true })
+    await symlink(join(dir, 'packages/provino'), join(dir, 'node_modules/provino'), 'dir')
+    const { output } = await depcruise(dir)
+    assert.match(
+      output,
+      /error test-only-entry: packages\/core\/src\/planted\.ts → packages\/provino\/src\/index\.ts/,
+    )
+    assert.doesNotMatch(output, /ok\.test\.ts/, output)
+  })
+
   test('a relative import into another package fails public-entry-only', async () => {
     const dir = await workspace({
       'packages/core/src/planted.ts': "import '../../policy/src/index.ts'\n",

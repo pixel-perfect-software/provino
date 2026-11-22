@@ -14,7 +14,14 @@ import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { bootstrapFiles, CANARY, migratedDirs, testScript } from './dogfood.ts'
+import {
+  bootstrapFiles,
+  CANARY,
+  INCLUDE_GLOBS,
+  isIncludedTestFile,
+  migratedDirs,
+  testScript,
+} from './dogfood.ts'
 import { ROOT, readWorkspacePackages } from './workspace.ts'
 
 /**
@@ -104,6 +111,8 @@ export function shardProblems(
  */
 export interface MigratedPackage {
   readonly name: string
+  /** Repo-relative directory: `packages/lazy`. */
+  readonly dir: string
   /** What its `test` script says, and what `testScript` says it must (one string for every package). */
   readonly script: string
   readonly expectedScript: string
@@ -126,6 +135,19 @@ export function bootstrapProblems(
   if (!bootstrap.includes(CANARY)) problems.push(`the bootstrap set must hold ${CANARY}`)
   for (const file of bootstrap) {
     if (!exists(file)) problems.push(`bootstrap file ${file} does not exist`)
+    // The canary is the one entry outside a migrated package: `provino`'s own suite stays on node:test
+    // until its Phase 8 batch.
+    if (file === CANARY) continue
+    const owner = packages.find((pkg) => file.startsWith(`${pkg.dir}/`))
+    if (owner === undefined) {
+      problems.push(
+        `bootstrap file ${file} is not in a migrated package (one with a provino.config.ts)`,
+      )
+    } else if (!isIncludedTestFile(file.slice(owner.dir.length + 1))) {
+      problems.push(
+        `bootstrap file ${file} is matched by none of ${owner.name}'s include globs (${INCLUDE_GLOBS.join(', ')})`,
+      )
+    }
   }
   for (const pkg of packages) {
     if (pkg.script !== pkg.expectedScript) {
@@ -144,6 +166,7 @@ function migratedPackages(): readonly MigratedPackage[] {
     .filter((pkg) => dirs.includes(pkg.rel))
     .map((pkg) => ({
       name: pkg.manifest.name,
+      dir: pkg.rel,
       script: pkg.manifest.scripts?.test ?? '',
       expectedScript: testScript(ROOT, pkg.rel),
     }))

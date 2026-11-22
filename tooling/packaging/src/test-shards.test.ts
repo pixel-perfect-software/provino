@@ -179,7 +179,12 @@ describe('the file split of a package', () => {
 
 describe('bootstrapProblems (B27g2)', () => {
   const exists = (): boolean => true
-  const pkg = (script: string, expectedScript: string) => ({ name: 'p', script, expectedScript })
+  const pkg = (script: string, expectedScript: string) => ({
+    name: 'p',
+    dir: 'packages/p',
+    script,
+    expectedScript,
+  })
 
   test('a script that is the expected one is fine', () => {
     assert.deepEqual(bootstrapProblems([CANARY], [pkg('run', 'run')], exists), [])
@@ -195,6 +200,20 @@ describe('bootstrapProblems (B27g2)', () => {
     assert.match(
       problems[0] ?? '',
       /test script is "run", expected "run && node --test a\.test\.ts"/,
+    )
+  })
+
+  test('an entry in an unmigrated package, or one no include glob matches, fails', () => {
+    const problems = bootstrapProblems(
+      [CANARY, 'packages/other/src/a.test.ts', 'packages/p/docs/a.test.ts'],
+      [pkg('run', 'run')],
+      exists,
+    ).join('\n')
+    assert.match(problems, /packages\/other\/src\/a\.test\.ts is not in a migrated package/)
+    assert.match(problems, /packages\/p\/docs\/a\.test\.ts is matched by none of p's include globs/)
+    assert.deepEqual(
+      bootstrapProblems([CANARY, 'packages/p/src/a.test.ts'], [pkg('run', 'run')], exists),
+      [],
     )
   })
 
