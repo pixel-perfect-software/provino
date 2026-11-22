@@ -1,11 +1,4 @@
-import { isAbsolute } from 'node:path'
-import type {
-  EnvironmentRef,
-  MatcherTableFactory,
-  ModuleRef,
-  NativeRuntimeRefs,
-} from '@provino/types'
-import { UsageError } from './usage-error.ts'
+import type { Dialect, EnvironmentRef, NativeRuntimeRefs } from '@provino/types'
 
 /** Where a worker finds an environment: an `EnvironmentRef` without the options a project adds. */
 type EnvironmentModule = Omit<EnvironmentRef, 'options'>
@@ -48,47 +41,29 @@ export const JEST_BUILT_INS: Readonly<Record<string, EnvironmentModule>> = {
 }
 
 /**
- * The native runtime's served module and globals (D185, D186), from `@provino/api`: what a project
- * with no dialect gets in place of a dialect's scope and globals. The matcher table is `nativeRuntime`'s.
+ * The native runtime (D185, D186, D188; `ResolveOptions.native`): what a project with no dialect
+ * gets in place of a dialect's scope, globals and matcher table. The served `provino` module and its
+ * globals come from `@provino/api`, the matchers from `@provino/expect/table` (Provino's own table,
+ * B27c). Refs only: the coordinator resolves them and loads neither (D21).
  * @internal
  */
-export const NATIVE_API: Omit<NativeRuntimeRefs, 'matcherTable'> = {
+export const NATIVE_RUNTIME: NativeRuntimeRefs = {
   moduleScope: { module: import.meta.resolve('@provino/api'), export: 'provinoModuleScope' },
   globals: { module: import.meta.resolve('@provino/api'), export: 'provinoGlobals' },
   modules: ['provino'],
+  matcherTable: {
+    module: import.meta.resolve('@provino/expect/table'),
+    export: 'provinoExpectTable',
+  },
 }
 
 /**
- * The variable that names the native runtime's matcher table as `<absolute module>#<export>`, until
- * B27e wires `@provino/expect/table` (B27c builds it) in its place and removes the variable.
+ * The dialects `provino` ships, for a config that names one (`resolveProjects`' `loadDialects`):
+ * imported only then, so a native project, `projects` of native sub-configs included, loads no
+ * dialect code (D115, `speed`).
  * @internal
  */
-export const NATIVE_TABLE_VARIABLE = 'PROVINO_NATIVE_MATCHER_TABLE'
-
-/**
- * The native runtime's refs (`ResolveOptions.native`), or `undefined` while there is no matcher table
- * to give it: today only a table named by `PROVINO_NATIVE_MATCHER_TABLE` (the tests' fixture table).
- * Without one, a project with no dialect resolves as before (`matcherTable: null`).
- * @internal
- */
-export function nativeRuntime(env: NodeJS.ProcessEnv): NativeRuntimeRefs | undefined {
-  const named = env[NATIVE_TABLE_VARIABLE]
-  if (named === undefined || named === '') return undefined
-  const at = named.lastIndexOf('#')
-  const module = at < 0 ? named : named.slice(0, at)
-  const name = at < 0 ? 'default' : named.slice(at + 1)
-  const refuse = (why: string): never => {
-    throw new UsageError(
-      `${NATIVE_TABLE_VARIABLE} must be "<absolute path or file: URL>#<export>"; ${why} (got "${named}")`,
-    )
-  }
-  // D21: a worker imports the ref as it is, so it must not depend on the worker's directory.
-  if (URL.canParse(module)) {
-    if (!module.startsWith('file:')) refuse('the module is a URL that is not file:')
-  } else if (!isAbsolute(module)) {
-    refuse('the module is not an absolute path')
-  }
-  if (name === '') refuse('the export after "#" is empty')
-  const matcherTable: ModuleRef<MatcherTableFactory> = { module, export: name }
-  return { ...NATIVE_API, matcherTable }
+export async function builtInDialects(): Promise<readonly Dialect[]> {
+  const { jestDialect } = await import('@provino/dialect-jest')
+  return [jestDialect]
 }

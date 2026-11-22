@@ -2,6 +2,7 @@ import { basename, dirname, join, resolve } from 'node:path'
 import type { ConfigEnv, PoolKind, ProjectConfig, ProvinoConfigInput } from '@provino/types'
 import { findConfigInDirectory } from './discover.ts'
 import { ConfigError } from './errors.ts'
+import { dialectsFor, loadOnce } from './internal/dialect.ts'
 import { isRecord, parseInput } from './internal/input.ts'
 import { kindOf } from './internal/kind.ts'
 import { isDynamicPattern, matchDirectories } from './internal/project-globs.ts'
@@ -149,9 +150,14 @@ function assertUniqueNames(projects: readonly ResolvedProject[]): void {
  */
 export async function resolveProjects(
   input: ProvinoConfigInput,
-  options: ResolveProjectsOptions,
+  given: ResolveProjectsOptions,
 ): Promise<ResolvedConfig> {
-  const parsed = parseInput(input, options.dialects)
+  const loadDialects = loadOnce(given.loadDialects)
+  const options: ResolveProjectsOptions = {
+    ...given,
+    ...(loadDialects === undefined ? {} : { loadDialects }),
+  }
+  const parsed = parseInput(input, await dialectsFor(input, options.dialects, loadDialects, true))
   const run = {
     ...(parsed.pool === undefined ? {} : { pool: parsed.pool }),
     ...(parsed.maxWorkers === undefined ? {} : { maxWorkers: parsed.maxWorkers }),

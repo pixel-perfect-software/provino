@@ -3,7 +3,14 @@
 import assert from 'node:assert/strict'
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
-import { mkdtempSync, readFileSync, realpathSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  symlinkSync,
+} from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
@@ -467,20 +474,50 @@ export function childEnv(
   }
 }
 
-/** Runs the built bin to the end from `cwd`, with the preloads and `env` of `childEnv`. */
+/**
+ * Runs the built bin (`bin`, default this package's `dist/cli.js`) to the end from `cwd`, with
+ * the preloads and `env` of `childEnv`.
+ */
 export function runBuilt(
   args: readonly string[],
   options: {
     readonly cwd: string
     readonly preloads?: readonly Preload[]
     readonly env?: NodeJS.ProcessEnv
+    readonly bin?: string
   },
 ): { readonly status: number | null; readonly stdout: string; readonly stderr: string } {
-  const result = spawnSync(process.execPath, [BUILT_BIN, ...args], {
+  const result = spawnSync(process.execPath, [options.bin ?? BUILT_BIN, ...args], {
     cwd: options.cwd,
     encoding: 'utf8',
     env: childEnv(options.preloads, options.env),
     timeout: 120_000,
   })
   return { status: result.status, stdout: result.stdout, stderr: result.stderr }
+}
+
+/** One process's record from `load-recorder.ts`: its main module (`argv[1]`) and every URL it loaded, in order. */
+export interface LoadLog {
+  readonly main: string
+  readonly urls: readonly string[]
+}
+
+/** The records `load-recorder.ts` wrote to `dir` (`PROVINO_LOAD_LOG`), one per process. */
+export function readLoadLogs(dir: string): readonly LoadLog[] {
+  return readdirSync(dir).map((file) => {
+    const lines = readFileSync(join(dir, file), 'utf8').split('\n').filter(Boolean)
+    return {
+      main: lines[0]?.split('\t')[0] ?? '',
+      urls: lines.map((line) => line.split('\t')[1] ?? ''),
+    }
+  })
+}
+
+/** Links `pkg` (default this package) as `<dir>/node_modules/provino`, as an install would put it. */
+export function linkProvino(
+  dir: string,
+  pkg: string = fileURLToPath(new URL('..', import.meta.url)),
+): void {
+  mkdirSync(join(dir, 'node_modules'), { recursive: true })
+  symlinkSync(pkg, join(dir, 'node_modules', 'provino'), 'dir')
 }

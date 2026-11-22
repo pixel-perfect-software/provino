@@ -2,9 +2,10 @@ import assert from 'node:assert/strict'
 import { symlink } from 'node:fs/promises'
 import { join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
-import type { ProvinoConfigInput } from '@provino/types'
+import { defineDialect } from '@provino/policy'
+import type { Dialect, ProvinoConfigInput } from '@provino/types'
 import { findConfigInDirectory, findConfigUpward } from './discover.ts'
-import { makeTempDir, rejectsWith, type TempDir } from './internal/test-support.ts'
+import { makeTempDir, pipe, rejectsWith, type TempDir } from './internal/test-support.ts'
 import { loadProjects, type ResolvedConfig, resolveProjects } from './projects.ts'
 
 const ENVIRONMENTS = { node: { module: 'file:///env/node.mjs', export: 'nodeEnvironment' } }
@@ -155,6 +156,190 @@ describe('resolveProjects', () => {
       ['run'],
     )
     assert.equal(config.maxWorkers, 2)
+  })
+})
+
+describe('resolveProjects: loadDialects (B27e)', () => {
+  let temp: TempDir
+  before(async () => {
+    temp = await makeTempDir()
+    await temp.write('package.json', '{"type":"module"}')
+    await temp.write('packages/a/provino.config.mjs', "export default { include: ['*.js'] }\n")
+    await temp.write('packages/b/x.txt', '')
+    await temp.write('named/provino.config.mjs', "export default { dialect: 'pipe' }\n")
+    await temp.write('optioned/provino.config.mjs', 'export default { pipe: {} }\n')
+  })
+  after(() => temp.dispose())
+
+  /** `resolveProjects` with a loader that counts its calls. */
+  async function resolveCounting(
+    input: ProvinoConfigInput,
+    load: () => Promise<readonly Dialect[]> = async () => [pipe],
+  ): Promise<{ readonly config: ResolvedConfig; readonly calls: number }> {
+    let calls = 0
+    const config = await resolveProjects(input, {
+      configPath: join(temp.dir, 'provino.config.mjs'),
+      dialects: [],
+      loadDialects: () => {
+        calls++
+        return load()
+      },
+      environments: ENVIRONMENTS,
+      ci: false,
+    })
+    return { config, calls }
+  }
+
+  test('a config of native projects (directories, a glob, inline) never calls it', async () => {
+    const { config, calls } = await resolveCounting({
+      include: ['top/*.js'],
+      projects: ['packages/*', { name: 'inline', include: ['i/*.js'] }],
+    })
+    assert.equal(calls, 0)
+    assert.deepEqual(
+      config.projects.map((p) => p.dialect),
+      [null, null, null],
+    )
+  })
+
+  test('a project that names a dialect it lacks gets it, and the others stay native', async () => {
+    const { config, calls } = await resolveCounting({ projects: ['packages/a', 'named'] })
+    assert.equal(calls, 1)
+    assert.deepEqual(
+      config.projects.map((p) => p.dialect?.name ?? null),
+      [null, 'pipe'],
+    )
+    assert.equal(config.projects[1]?.policy.report.displaySeparator, ' | ')
+  })
+
+  test("a dialect's options key loads it, and so does a top-level dialect", async () => {
+    assert.equal((await resolveCounting({ projects: ['optioned'] })).calls, 1)
+    const top = await resolveCounting({ dialect: 'pipe' as never })
+    assert.equal(top.calls, 1)
+    assert.equal(top.config.projects[0]?.dialect?.name, 'pipe')
+  })
+
+  test('several projects that need it call it once', async () => {
+    const { calls } = await resolveCounting({
+      projects: ['named', 'optioned', { name: 'i', dialect: 'pipe' as never }],
+    })
+    assert.equal(calls, 1)
+  })
+
+  test("a config's own dialects list never calls it", async () => {
+    const { calls } = await resolveCounting({ dialects: [pipe], dialect: 'pipe' as never })
+    assert.equal(calls, 0)
+  })
+
+  test('a name the loaded dialects lack is still CONFIG_UNKNOWN_DIALECT, a typo CONFIG_UNKNOWN_KEY', async () => {
+    await rejectsWith(resolveCounting({ dialect: 'nope' as never }), 'CONFIG_UNKNOWN_DIALECT')
+    await rejectsWith(resolveCounting({ inclde: [] } as ProvinoConfigInput), 'CONFIG_UNKNOWN_KEY')
+  })
+
+  test('a rejection reached from a sub-config is CONFIG_LOAD_FAILED, the loader called once', async () => {
+    const reason = new Error('not installed')
+    let calls = 0
+    const error = await rejectsWith(
+      resolveProjects(
+        { projects: ['packages/a', 'named', 'optioned'] },
+        {
+          configPath: join(temp.dir, 'provino.config.mjs'),
+          dialects: [],
+          loadDialects: () => {
+            calls++
+            return Promise.reject(reason)
+          },
+          environments: ENVIRONMENTS,
+          ci: false,
+        },
+      ),
+      'CONFIG_LOAD_FAILED',
+    )
+    assert.equal(error.cause, reason)
+    assert.equal(calls, 1)
+  })
+
+  test('a loader that throws synchronously is CONFIG_LOAD_FAILED and is still called once', async () => {
+    const reason = new Error('sync')
+    let calls = 0
+    const error = await rejectsWith(
+      resolveProjects(
+        { projects: ['named', 'optioned'] },
+        {
+          configPath: join(temp.dir, 'provino.config.mjs'),
+          dialects: [],
+          loadDialects: () => {
+            calls++
+            throw reason
+          },
+          environments: ENVIRONMENTS,
+          ci: false,
+        },
+      ),
+      'CONFIG_LOAD_FAILED',
+    )
+    assert.equal(error.cause, reason)
+    assert.equal(calls, 1)
+  })
+
+  test('a loader that resolves something other than an array is CONFIG_LOAD_FAILED', async () => {
+    const error = await rejectsWith(
+      resolveCounting(
+        { dialect: 'pipe' as never },
+        async () => pipe as unknown as readonly Dialect[],
+      ),
+      'CONFIG_LOAD_FAILED',
+    )
+    assert.ok(error.cause instanceof TypeError, String(error.cause))
+  })
+
+  test('a name the caller already gave keeps the eager entry over the loaded one', async () => {
+    const other: Dialect = defineDialect({
+      name: 'pipe',
+      version: '2',
+      policy: { report: { displaySeparator: ' - ' } },
+    })
+    const dash: Dialect = defineDialect({ name: 'dash', version: '1', policy: {} })
+    let calls = 0
+    const config = await resolveProjects(
+      { dialect: 'pipe' as never, dash: {} } as ProvinoConfigInput,
+      {
+        configPath: join(temp.dir, 'provino.config.mjs'),
+        dialects: [pipe],
+        loadDialects: async () => {
+          calls++
+          return [other, dash]
+        },
+        environments: ENVIRONMENTS,
+        ci: false,
+      },
+    )
+    assert.equal(calls, 1)
+    assert.equal(config.projects[0]?.policy.report.displaySeparator, ' | ')
+  })
+
+  test('a dialect only the loader gives is never detected, even with a detect that always fits', async () => {
+    const sniff: Dialect = defineDialect({
+      name: 'sniff',
+      version: '1',
+      policy: { report: { displaySeparator: ' ~ ' } },
+      detect: () => 100,
+    })
+    const { config, calls } = await resolveCounting(
+      { sniff: {} } as ProvinoConfigInput,
+      async () => [sniff],
+    )
+    assert.equal(calls, 1)
+    assert.equal(config.projects[0]?.dialect, null)
+  })
+
+  test('a loader that rejects is CONFIG_LOAD_FAILED with its error as cause', async () => {
+    const reason = new Error('not installed')
+    const error = await rejectsWith(
+      resolveCounting({ dialect: 'pipe' as never }, () => Promise.reject(reason)),
+      'CONFIG_LOAD_FAILED',
+    )
+    assert.equal(error.cause, reason)
   })
 })
 

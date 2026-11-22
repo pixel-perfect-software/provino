@@ -53,6 +53,53 @@ const RESOLVE_KEYS: readonly string[] = Object.keys({
   tsconfig: true,
 } satisfies Record<keyof ConfigResolve, true>)
 
+/** The `name` of each plugin a config lists, for the keys it may carry. */
+function pluginNamesOf(input: Readonly<Record<string, unknown>>): readonly string[] {
+  const plugins: unknown = Reflect.get(input, 'plugins')
+  return Array.isArray(plugins)
+    ? plugins.flatMap((plugin: unknown) =>
+        isRecord(plugin) && typeof plugin.name === 'string' ? [plugin.name] : [],
+      )
+    : []
+}
+
+/**
+ * The keys a config may carry: the project keys, the run's (top level only), the name of each of
+ * `dialects` (a dialect's options) and of each plugin it lists. `parseInput`'s
+ * `CONFIG_UNKNOWN_KEY` and `needsMoreDialects` both read this one list, so the lazy load can't
+ * drift from the check.
+ */
+function knownKeys(
+  input: Readonly<Record<string, unknown>>,
+  dialects: readonly Dialect[],
+  topLevel: boolean,
+): readonly string[] {
+  return [
+    ...PROJECT_KEYS,
+    ...(topLevel ? TOP_LEVEL_KEYS : []),
+    ...dialects.map((dialect) => dialect.name),
+    ...pluginNamesOf(input),
+  ]
+}
+
+/**
+ * Whether `input` may need a dialect that `known` lacks: it names a `dialect` that isn't there,
+ * or has an own key `knownKeys` doesn't hold (a dialect's options key, `jest`). A config with its
+ * own `dialects` never does (they replace the caller's). Read before `parseInput`, so it trusts
+ * nothing: a key that turns out to be wrong is reported by `parseInput` as before.
+ * @internal
+ */
+export function needsMoreDialects(
+  input: ProvinoConfigInput,
+  known: readonly Dialect[],
+  topLevel: boolean,
+): boolean {
+  if (!isRecord(input) || input.dialects !== undefined) return false
+  if (typeof input.dialect === 'string' && !known.some((d) => d.name === input.dialect)) return true
+  const keys = new Set(knownKeys(input, known, topLevel))
+  return Object.keys(input).some((key) => !keys.has(key))
+}
+
 /**
  * The keys of a project's config that `resolveProject` reads, each checked to be what its type
  * says. A file's default export is data from `import()`, so it is parsed here once and trusted
@@ -301,20 +348,9 @@ export function parseInput(
     'an array of dialects (each with a name and a policy)',
     isDialectList,
   )
-  const plugins: unknown = Reflect.get(input, 'plugins')
-  const pluginNames = Array.isArray(plugins)
-    ? plugins.flatMap((plugin: unknown) =>
-        isRecord(plugin) && typeof plugin.name === 'string' ? [plugin.name] : [],
-      )
-    : []
   assertKnownKeys(
     input,
-    [
-      ...PROJECT_KEYS,
-      ...(topLevel ? TOP_LEVEL_KEYS : []),
-      ...(dialects ?? defaultDialects).map((dialect) => dialect.name),
-      ...pluginNames,
-    ],
+    knownKeys(input, dialects ?? defaultDialects, topLevel),
     '',
     topLevel ? [] : TOP_LEVEL_KEYS,
   )

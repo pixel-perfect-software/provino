@@ -1,8 +1,63 @@
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { DetectContext, Dialect, PolicyOverrides } from '@provino/types'
+import type { DetectContext, Dialect, PolicyOverrides, ProvinoConfigInput } from '@provino/types'
 import { ConfigError, type ConfigIssue, formatConfigIssue } from '../errors.ts'
-import { isRecord } from './input.ts'
+import { isRecord, needsMoreDialects } from './input.ts'
+
+/** A dialect loader. */
+type LoadDialects = () => Promise<readonly Dialect[]>
+
+/**
+ * The dialects one config may name: the caller's `dialects`, with what `loadDialects` gives added
+ * only when the config needs one they lack (`needsMoreDialects`). A name already in `dialects`
+ * keeps that entry. A loader that throws, rejects or resolves anything but an array is
+ * `CONFIG_LOAD_FAILED`, with the error as `cause`.
+ * @internal
+ */
+export async function dialectsFor(
+  input: ProvinoConfigInput,
+  dialects: readonly Dialect[],
+  loadDialects: LoadDialects | undefined,
+  topLevel: boolean,
+): Promise<readonly Dialect[]> {
+  if (loadDialects === undefined || !needsMoreDialects(input, dialects, topLevel)) return dialects
+  let loaded: readonly Dialect[]
+  try {
+    const value: unknown = await loadDialects()
+    if (!Array.isArray(value)) {
+      throw new TypeError(`loadDialects resolved ${typeof value}, not an array of dialects`)
+    }
+    loaded = value
+  } catch (cause) {
+    throw new ConfigError('CONFIG_LOAD_FAILED', "the caller's dialects couldn't be loaded", {
+      cause,
+    })
+  }
+  const names = new Set(dialects.map((dialect) => dialect.name))
+  return [...dialects, ...loaded.filter((dialect) => !names.has(dialect.name))]
+}
+
+/** The loaders `loadOnce` made, so wrapping one again returns it as it is. */
+const guarded = new WeakSet<LoadDialects>()
+
+/**
+ * `loadDialects` called at most once, however many projects ask, and however it fails: a
+ * synchronous throw becomes the rejection (`Promise.resolve().then`), and the one rejection is
+ * kept, so each project that needs the dialects sees that same failure (once per caller). A loader
+ * `loadOnce` already made is returned as it is, so `resolveProjects` and the
+ * `resolveProjectInput` calls it makes share one guard.
+ * @internal
+ */
+export function loadOnce(loadDialects: LoadDialects | undefined): LoadDialects | undefined {
+  if (loadDialects === undefined || guarded.has(loadDialects)) return loadDialects
+  let pending: Promise<readonly Dialect[]> | undefined
+  const once: LoadDialects = () => {
+    pending ??= Promise.resolve().then(loadDialects)
+    return pending
+  }
+  guarded.add(once)
+  return once
+}
 
 /** The names of `dialects`, for a message. */
 function namesOf(dialects: readonly Dialect[]): string {
@@ -51,8 +106,9 @@ async function detectContext(rootDir: string): Promise<DetectContext> {
 }
 
 /**
- * Picks the project's dialect. A name picks it from `known`; no name picks the one with the
- * highest `detect` score above zero; a tie is an error rather than a guess, and no match is
+ * Picks the project's dialect. A name picks it from `known`; no name picks the one of
+ * `detectAmong` (default `known`; the caller passes the eager dialects, so one only `loadDialects`
+ * gave is never detected) with the highest `detect` score above zero; a tie is an error rather than a guess, and no match is
  * neutral (`null`).
  * @internal
  */
@@ -60,6 +116,7 @@ export async function selectDialect(
   requested: string | undefined,
   known: readonly Dialect[],
   rootDir: string,
+  detectAmong: readonly Dialect[] = known,
 ): Promise<Dialect | null> {
   if (requested !== undefined) {
     const found = known.find((dialect) => dialect.name === requested)
@@ -71,7 +128,7 @@ export async function selectDialect(
     }
     return found
   }
-  const detecting = known.filter((dialect) => dialect.detect !== undefined)
+  const detecting = detectAmong.filter((dialect) => dialect.detect !== undefined)
   if (detecting.length === 0) return null
   const context = await detectContext(rootDir)
   const scored = await Promise.all(

@@ -4,7 +4,8 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import type { NeutralProject } from '@provino/types'
+import { defineDialect } from '@provino/policy'
+import type { Dialect, NeutralProject } from '@provino/types'
 import { ConfigError, type ConfigErrorCode } from '../errors.ts'
 
 /** A temp directory whose files are written as text at test time. */
@@ -76,3 +77,10 @@ export function neutralProject(
     ...overrides,
   }
 }
+
+/** A dialect that changes one report key, so a test can see its policy was layered in. */
+export const pipe: Dialect = defineDialect({
+  name: 'pipe',
+  version: '1',
+  policy: { report: { displaySeparator: ' | ' } },
+})

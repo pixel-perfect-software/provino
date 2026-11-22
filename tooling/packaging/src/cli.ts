@@ -1,13 +1,13 @@
 // `node tooling/packaging/src/cli.ts <command>`, through the root scripts:
 //   hygiene [--base <ref>] [--update-api] [--only <section>]…   (pnpm hygiene, hygiene:update-api)
 //   pack --out <dir>                                            (pnpm pack:all)
-//   smoke [--keep]                                              (pnpm smoke:install)
+//   smoke [--keep] [--native]                                   (pnpm smoke:install)
 // Every command expects the packages to be built: the root scripts run `turbo run build` first.
 import { resolve } from 'node:path'
 import { parseArgs } from 'node:util'
 import { hygiene, SECTIONS, type Section } from './hygiene.ts'
 import { packAll } from './pack.ts'
-import { installSmoke } from './smoke.ts'
+import { installSmoke, SMOKE_TESTS } from './smoke.ts'
 import { publicPackages, ROOT } from './workspace.ts'
 
 const [command, ...rest] = process.argv.slice(2)
@@ -60,16 +60,25 @@ if (command === 'hygiene') {
 } else if (command === 'smoke') {
   const { values } = parseArgs({
     args: rest,
-    options: { keep: { type: 'boolean', default: false } },
+    options: {
+      keep: { type: 'boolean', default: false },
+      native: { type: 'boolean' },
+    },
   })
-  const result = installSmoke({ root: ROOT, keep: values.keep })
-  for (const { name, ok, output } of result.steps) {
-    console.log(`${ok ? 'ok  ' : 'FAIL'} ${name}`)
-    if (!ok) console.log(output.trim().replaceAll(/^/gm, '       '))
+  const result = installSmoke({
+    root: ROOT,
+    keep: values.keep,
+    ...(values.native === undefined ? {} : { native: values.native }),
+  })
+  for (const { name, ok, output, skipped } of result.steps) {
+    console.log(`${skipped === true ? 'SKIP' : ok ? 'ok  ' : 'FAIL'} ${name}`)
+    if (!ok || skipped === true) console.log(output.trim().replaceAll(/^/gm, '       '))
   }
   if (result.kept !== undefined) console.log(`kept: ${result.kept}`)
   console.log(
-    result.ok ? '\nsmoke: provino installed from its tarball and ran 3 files' : '\nsmoke: failed',
+    result.ok
+      ? `\nsmoke: provino installed from its tarball and ran ${SMOKE_TESTS} files`
+      : '\nsmoke: failed',
   )
   process.exitCode = result.ok ? 0 : 1
 } else {
