@@ -4,7 +4,8 @@ name: Install matrix
 # and Node we support? Each cell installs the tarball into an empty directory with one package
 # manager, then runs `provino --version` and the three-file suite `SMOKE_FILES` holds
 # (tooling/packaging/src/smoke.ts: the injected globals, `import … from 'provino'`, a TypeScript
-# test). `provino` inlines every `@provino/*` package, so it is the only tarball an install needs.
+# test). `provino` inlines every engine package, and the Jest dialect is its add-on (D187), so the
+# `provino` and `@provino/dialect-jest` tarballs are the two an install needs.
 #
 # It runs only when someone starts it by hand (`gh workflow run install-matrix.yml`): no
 # `pull_request`, no `push`, no `schedule` (DECISIONS D168). It is not a merge gate.
@@ -13,7 +14,7 @@ name: Install matrix
 # they are the things under test. The release is pnpm only.
 #
 # Where the runner has Docker (Linux), a cell installs from a Verdaccio registry the job starts
-# with the `provino` tarball published into it and npmjs as the uplink for third-party packages,
+# with the two tarballs published into it and npmjs as the uplink for third-party packages,
 # so the install goes through a registry's metadata and tarball URLs, as a user's does. macOS and
 # Windows runners have no Docker, so their cells install the tarball by path.
 #
@@ -121,13 +122,16 @@ jobs:
           }
 
           # provino_tarball: PROVINO_TGZ and PROVINO_VERSION from the one provino tarball (the other
-          # packages' names have a word after `provino-`, not a version).
+          # packages' names have a word after `provino-`, not a version), and DIALECT_TGZ, the Jest
+          # dialect's add-on (D187), which `provino jest` needs beside it.
           provino_tarball() {
             set -- "$CI_DIR"/tarballs/provino-[0-9]*.tgz
             [ -f "$1" ] || fail "no provino tarball in $CI_DIR/tarballs"
             PROVINO_TGZ=$(basename "$1")
             PROVINO_VERSION=${PROVINO_TGZ#provino-}
             PROVINO_VERSION=${PROVINO_VERSION%.tgz}
+            DIALECT_TGZ="provino-dialect-jest-$PROVINO_VERSION.tgz"
+            [ -f "$CI_DIR/tarballs/$DIALECT_TGZ" ] || fail "no $DIALECT_TGZ in $CI_DIR/tarballs"
           }
 
           # new_app: an empty app/ with the smoke files and the package manager's settings (the registry
@@ -142,9 +146,9 @@ jobs:
                 : > app/yarn.lock
                 printf 'nodeLinker: %s\nenableTelemetry: false\n' "$LINKER" > app/.yarnrc.yml
                 # A tarball is published a minute before it is installed, which is inside Yarn's one-day
-                # minimal age gate (`npmMinimalAgeGate`, 1440 minutes): provino alone is preapproved.
+                # minimal age gate (`npmMinimalAgeGate`, 1440 minutes): provino and its Jest add-on alone are preapproved.
                 if [ -n "$REGISTRY" ]; then
-                  printf 'npmRegistryServer: "%s"\nunsafeHttpWhitelist:\n  - 127.0.0.1\nnpmPreapprovedPackages:\n  - provino\n' "$REGISTRY" >> app/.yarnrc.yml
+                  printf 'npmRegistryServer: "%s"\nunsafeHttpWhitelist:\n  - 127.0.0.1\nnpmPreapprovedPackages:\n  - provino\n  - %s\n' "$REGISTRY" '"@provino/dialect-jest"' >> app/.yarnrc.yml
                 fi
                 ;;
               bun)
@@ -176,17 +180,23 @@ jobs:
             esac
           }
 
-          # install_provino [flags]: from the registry when REGISTRY is set, else from the tarball by path
-          # (relative: a Windows path in `file:` is not something every package manager reads).
+          # install_provino [flags]: provino and the Jest add-on (D187), from the registry when REGISTRY is
+          # set, else from the tarballs by path (relative: a Windows path in `file:` is not something every
+          # package manager reads).
           install_provino() {
             provino_tarball
             ref="provino@$PROVINO_VERSION"
+            dialect="@provino/dialect-jest@$PROVINO_VERSION"
             if [ -z "$REGISTRY" ]; then
               ref="../$CI_DIR/tarballs/$PROVINO_TGZ"
-              if [ "$PM" = yarn ]; then ref="provino@file:$ref"; fi
+              dialect="../$CI_DIR/tarballs/$DIALECT_TGZ"
+              if [ "$PM" = yarn ]; then
+                ref="provino@file:$ref"
+                dialect="@provino/dialect-jest@file:$dialect"
+              fi
             fi
-            echo "::group::$PM add $ref"
-            ( cd app && pm_add "$@" "$ref" ) || fail "$PM could not install provino"
+            echo "::group::$PM add $ref $dialect"
+            ( cd app && pm_add "$@" "$ref" "$dialect" ) || fail "$PM could not install provino"
             echo "::endgroup::"
           }
 
@@ -282,7 +292,8 @@ jobs:
             echo "Verdaccio is up"
           }
 
-          # registry_publish: a user, then the provino tarball, as it is, with npm (a prerelease needs a tag).
+          # registry_publish: a user, then the provino and Jest add-on tarballs, as they are, with npm (a
+          # prerelease needs a tag).
           registry_publish() {
             provino_tarball
             token=$(curl -fsS -X PUT -H 'Content-Type: application/json' \
@@ -291,6 +302,7 @@ jobs:
             [ -n "$token" ] || fail "Verdaccio gave no token"
             printf 'registry=http://127.0.0.1:4873/\n//127.0.0.1:4873/:_authToken=%s\n' "$token" > verdaccio/publish.npmrc
             npm publish "./$CI_DIR/tarballs/$PROVINO_TGZ" --userconfig verdaccio/publish.npmrc --tag ci
+            npm publish "./$CI_DIR/tarballs/$DIALECT_TGZ" --userconfig verdaccio/publish.npmrc --tag ci
           }
 
           # make_linux_lockfile: T10.3 case 1, the Linux half. A package-lock.json for provino made on
@@ -304,8 +316,8 @@ jobs:
             REGISTRY=
             new_app
             provino_tarball
-            cp "$CI_DIR/tarballs/$PROVINO_TGZ" app/
-            ( cd app && npm install --package-lock-only --no-audit --no-fund "./$PROVINO_TGZ" ) || fail "npm could not write the lockfile"
+            cp "$CI_DIR/tarballs/$PROVINO_TGZ" "$CI_DIR/tarballs/$DIALECT_TGZ" app/
+            ( cd app && npm install --package-lock-only --no-audit --no-fund "./$PROVINO_TGZ" "./$DIALECT_TGZ" ) || fail "npm could not write the lockfile"
             node -e '
               const fs = require("node:fs")
               const file = process.argv[1]
@@ -338,7 +350,7 @@ jobs:
             REGISTRY=
             new_app
             provino_tarball
-            cp "$CI_DIR/tarballs/$PROVINO_TGZ" app/
+            cp "$CI_DIR/tarballs/$PROVINO_TGZ" "$CI_DIR/tarballs/$DIALECT_TGZ" app/
             cp "$CI_DIR/linux-lockfile/package.json" "$CI_DIR/linux-lockfile/package-lock.json" app/
             ( cd app && npm ci --no-audit --no-fund ) || fail "npm ci failed"
           }
