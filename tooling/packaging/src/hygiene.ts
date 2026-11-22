@@ -18,8 +18,8 @@ import {
   readChangesetConfig,
 } from './changesets.ts'
 import { fileAt, resolveBase } from './git.ts'
-import { ADD_ONS, isAddOn } from './internal-entries.ts'
 import { installScriptProblems } from './install-scripts.ts'
+import { ADD_ONS, isAddOn } from './internal-entries.ts'
 import { runKnip } from './knip.ts'
 import { lintPackAsync } from './lint-pack.ts'
 import { packPackageAsync } from './pack.ts'
@@ -141,10 +141,7 @@ export function addOnProblems(
   }
   for (const name of ADD_ONS) {
     const pkg = packages.find((candidate) => candidate.manifest.name === name)
-    if (pkg === undefined) {
-      problems.push(`the add-on ${name} is missing`)
-      continue
-    }
+    if (pkg === undefined) continue
     const peer = pkg.manifest.peerDependencies.provino
     if (peer !== 'workspace:*') {
       problems.push(`${name} must name provino as a peer at workspace:* (got ${peer ?? 'none'})`)

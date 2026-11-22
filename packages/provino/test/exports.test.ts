@@ -7,12 +7,12 @@ import { createHash } from 'node:crypto'
 import {
   accessSync,
   constants,
-  realpathSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -21,7 +21,7 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, posix } from 'node:path'
 import { after, describe, test } from 'node:test'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
 import { runInNewContext } from 'node:vm'
 import { childEnv, runBuilt, trackedProjects } from './support.ts'
 

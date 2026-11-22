@@ -30,19 +30,22 @@ function reportStem(pkg: WorkspacePackage, name: string): string {
 
 /**
  * The entry points whose API is reported: every `exports` entry with a source file, of the
- * packages D67 promises semver for.
+ * packages D67 promises semver for, but `provino/internal/*`: the add-ons' engine (D187), which
+ * promises no semver.
  * @internal
  */
 export function apiEntries(packages: readonly WorkspacePackage[]): readonly ApiEntry[] {
   return packages
     .filter((pkg) => SEMVER_PACKAGES.includes(pkg.manifest.name))
     .flatMap((pkg) =>
-      entriesOf(pkg.manifest).map((entry) => ({
-        pkg,
-        name: entry.name,
-        dts: join(pkg.dir, 'dist', `${entry.name}.d.ts`),
-        report: `etc/${reportStem(pkg, entry.name)}.api.md`,
-      })),
+      entriesOf(pkg.manifest)
+        .filter((entry) => !entry.subpath.startsWith('./internal/'))
+        .map((entry) => ({
+          pkg,
+          name: entry.name,
+          dts: join(pkg.dir, 'dist', `${entry.name}.d.ts`),
+          report: `etc/${reportStem(pkg, entry.name)}.api.md`,
+        })),
     )
 }
 

@@ -109,16 +109,8 @@ export function bannedInTree(tree: unknown): readonly string[] {
 }
 
 /**
- * Why the native footprint case is skipped, or `undefined` once it runs. It fails until `provino`
- * stops depending on the Jest and Vitest packages its inlined dialects need: B27f moves them into
- * `@provino/dialect-jest` and `@provino/dialect-vitest` (D187) and clears this.
- * @internal
- */
-export const NATIVE_FOOTPRINT_SKIP: string | undefined =
-  "skipped until B27f (D187): provino still depends on the dialects' Jest and Vitest packages"
-
-/**
- * The native case (acceptance row 9): in its own empty app, install the tarball, run bare
+ * The native case (acceptance row 9, enabled by B27f's install split, D187): in its own empty app,
+ * install `provino`'s tarball alone, run bare
  * `provino` on `NATIVE_SMOKE_FILES` (`Tests: 3 passed`), and read `pnpm ls --depth Infinity
  * --json`: no banned name anywhere in the tree.
  */
@@ -186,10 +178,17 @@ function removeOxcBindings(app: string): readonly string[] {
 }
 
 /**
- * Packs `provino` with `pnpm pack` (it inlines every other package, so it is the only tarball the
- * install needs), installs it from that tarball into an empty directory (outside the repository,
- * so none of its pnpm settings apply), and runs `provino --version` and the three-file smoke
- * suite there. The install reaches the registry for `provino`'s own dependencies; it uses no
+ * The packages the Jest case installs: `provino` (it inlines every engine package) and the Jest
+ * dialect's add-on (D187), which `provino jest` needs beside it.
+ */
+const JEST_INSTALL: readonly string[] = ['provino', '@provino/dialect-jest']
+
+/**
+ * Packs `provino` and `@provino/dialect-jest` with `pnpm pack` (`JEST_INSTALL`: the add-on reaches
+ * the engine through its `provino` peer, so no other tarball is needed), installs both from their
+ * tarballs into an empty directory (outside the repository, so none of its pnpm settings apply), and
+ * runs `provino --version` and the three-file smoke suite there, then the native case with
+ * `provino` alone. The install reaches the registry for `provino`'s own dependencies; it uses no
  * registry copy of Provino. It is the local half of T10.2's install matrix: one cell, run with
  * pnpm.
  * @internal
@@ -206,12 +205,17 @@ export function installSmoke(options: {
     return ok
   }
   try {
-    const provinoPackage = publicPackages(options.root).find(
-      (pkg) => pkg.manifest.name === 'provino',
-    )
-    const provino =
-      provinoPackage === undefined ? undefined : packPackage(provinoPackage, join(work, 'tarballs'))
-    if (!step('pack', provino !== undefined, 'provino') || provino === undefined) {
+    const packages = publicPackages(options.root)
+    const tarballs = JEST_INSTALL.map((name) => {
+      const pkg = packages.find((candidate) => candidate.manifest.name === name)
+      return pkg === undefined ? undefined : packPackage(pkg, join(work, 'tarballs'))
+    })
+    const [provino, dialect] = tarballs
+    if (
+      !step('pack', provino !== undefined && dialect !== undefined, JEST_INSTALL.join('\n')) ||
+      provino === undefined ||
+      dialect === undefined
+    ) {
       return { steps, ok: false, kept: undefined }
     }
     const app = join(work, 'app')
@@ -225,7 +229,13 @@ export function installSmoke(options: {
     const { command, prefix } = pnpm()
     const run = (args: readonly string[]) =>
       runCommand(command, [...prefix, ...args], { cwd: app, timeoutMs: 600_000 })
-    const install = run(['add', '--ignore-workspace', '--prefer-offline', provino.tarball])
+    const install = run([
+      'add',
+      '--ignore-workspace',
+      '--prefer-offline',
+      provino.tarball,
+      dialect.tarball,
+    ])
     if (!step('install', install.status === 0, install.output)) return { steps, ok: false, kept }
     const expected = readManifest(join(app, 'node_modules', 'provino')).version ?? ''
     const printsVersion = (result: CommandResult): boolean =>
@@ -257,9 +267,8 @@ export function installSmoke(options: {
         failed.output,
       )
     }
-    // The native case (B27e, acceptance row 9), skipped until B27f's install split.
-    if (NATIVE_FOOTPRINT_SKIP === undefined) nativeFootprint(work, provino.tarball, step)
-    else step('native: install footprint', true, NATIVE_FOOTPRINT_SKIP)
+    // The native case (B27e, acceptance row 9): `provino` alone, since B27f's install split.
+    nativeFootprint(work, provino.tarball, step)
   } finally {
     if (!options.keep) rmSync(work, { recursive: true, force: true })
   }

@@ -13,6 +13,7 @@ import {
   readChangesetConfig,
 } from './changesets.ts'
 import {
+  addOnProblems,
   hygiene,
   inlinedPackages,
   RELEASE_WORKFLOW,
@@ -465,16 +466,16 @@ describe('the umbrella lists what it bundles (T1.10)', () => {
 
   test("the inlined packages are provino's dev dependencies and what they depend on", () => {
     const names = inlinedPackages(readWorkspacePackages()).map((pkg) => pkg.manifest.name)
-    // B25c: detection imports the Vitest dialect's coordinator half, so it is inlined from here on.
-    for (const name of [
-      '@provino/core',
-      '@provino/dialect-jest',
-      '@provino/dialect-vitest',
-      '@provino/env-jsdom',
-    ]) {
+    for (const name of ['@provino/core', '@provino/env-jsdom']) {
       assert.ok(names.includes(name), name)
     }
-    for (const name of ['@provino/harness', 'provino']) {
+    // B27f (D187): the dialects are add-ons, dev dependencies of provino but not inlined.
+    for (const name of [
+      '@provino/harness',
+      'provino',
+      '@provino/dialect-jest',
+      '@provino/dialect-vitest',
+    ]) {
       assert.ok(!names.includes(name), name)
     }
     const base = [
@@ -489,6 +490,37 @@ describe('the umbrella lists what it bundles (T1.10)', () => {
         .sort(),
       ['@provino/a', '@provino/b'],
     )
+  })
+
+  test('an add-on names provino as its workspace peer, has no engine dependency, and provino lists none (D187)', () => {
+    const umbrella = pkg('provino', { devDependencies: { '@provino/dialect-jest': 'workspace:*' } })
+    const good = pkg('@provino/dialect-jest', {
+      dependencies: { 'pretty-format': '30.0.0' },
+      devDependencies: { '@provino/core': 'workspace:*' },
+      peerDependencies: { provino: 'workspace:*' },
+    })
+    assert.deepEqual(addOnProblems([umbrella, good], umbrella), [])
+    // The real workspace holds to it.
+    const real = readWorkspacePackages()
+    const realUmbrella = real.find((p) => p.manifest.name === 'provino')
+    assert.ok(realUmbrella !== undefined)
+    assert.deepEqual(addOnProblems(real, realUmbrella), [])
+    const planted = [
+      pkg('@provino/dialect-jest', {
+        dependencies: { '@provino/core': 'workspace:*' },
+        peerDependencies: { provino: '^0.1.0' },
+      }),
+      pkg('@provino/dialect-vitest', { dependencies: { chai: '6.0.0' } }),
+      pkg('@provino/stray', { peerDependencies: { provino: 'workspace:*' } }),
+    ]
+    const listing = pkg('provino', { dependencies: { '@provino/dialect-vitest': 'workspace:*' } })
+    assert.deepEqual(addOnProblems([listing, ...planted], listing), [
+      '@provino/stray names provino as a peer but is not an add-on (ADD_ONS)',
+      '@provino/dialect-jest must name provino as a peer at workspace:* (got ^0.1.0)',
+      '@provino/dialect-jest depends on @provino/core at run time: its engine comes from its provino peer',
+      '@provino/dialect-vitest must name provino as a peer at workspace:* (got none)',
+      'provino lists the add-on @provino/dialect-vitest at run time: it is installed beside provino',
+    ])
   })
 
   test('a dependency of an inlined package that the umbrella lacks, and one nothing needs, both fail', () => {

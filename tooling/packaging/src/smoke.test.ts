@@ -2,7 +2,7 @@
 // and that it stays skipped, citing B27f, until the install split lands.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { bannedInTree, NATIVE_FOOTPRINT_SKIP, NATIVE_SMOKE_FILES } from './smoke.ts'
+import { bannedInTree, NATIVE_SMOKE_FILES } from './smoke.ts'
 
 /** A `pnpm ls --json` tree: one project depending on `provino`, which depends on `deps`. */
 const treeOf = (deps: readonly string[]): unknown => [
@@ -61,10 +61,6 @@ describe('bannedInTree', () => {
 })
 
 describe('the native footprint case', () => {
-  test('is skipped until B27f, and says so', () => {
-    assert.match(NATIVE_FOOTPRINT_SKIP ?? '', /B27f \(D187\)/)
-  })
-
   test('its project names no dialect and imports the native API from provino', () => {
     assert.doesNotMatch(NATIVE_SMOKE_FILES['provino.config.ts'] ?? '', /dialect/)
     assert.match(NATIVE_SMOKE_FILES['native.test.ts'] ?? '', /from 'provino'/)
