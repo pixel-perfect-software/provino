@@ -150,8 +150,7 @@ const BIN_LIGHT = new RegExp(
  * `import { expect } from 'provino'` does not. Kept in a chunk of their own, the `expect` runtime's
  * graph (`worker/jest-runtime.js` and the `shared` chunk it imports) loads none of them.
  */
-const LOADING =
-  /[\\/]packages[\\/](?:transform|resolver|loader)[\\/]src[\\/](?!v8cache[\\/](?:index|mode|native)\.ts$|cache[\\/]store\.ts$)/
+const LOADING = /[\\/]packages[\\/](?:transform|resolver|loader)[\\/]src[\\/]/
 
 /**
  * The coverage package (B23b): the Istanbul instrumenter, the collectors and the filter, with the
@@ -357,7 +356,8 @@ export function umbrellaConfig(dir: string): UserConfig[] {
             // before `shared`, whatever number of entries use them.
             {
               name: 'loading',
-              test: LOADING,
+              // The compile cache's files are the bin's (`BIN_LIGHT`, the one list of them).
+              test: (id: string) => LOADING.test(id) && !BIN_LIGHT.test(id),
               priority: 3,
               includeDependenciesRecursively: false,
             },
