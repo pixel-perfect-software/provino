@@ -303,6 +303,12 @@ export const JEST_CONFIG_CANDIDATES: readonly string[];
 export const JEST_CONFIG_EXT_ORDER: readonly string[];
 
 // @public
+export const JEST_ENVIRONMENT_ADAPTER: {
+    readonly module: string;
+    readonly export: "jestEnvironment";
+};
+
+// @public
 export const JEST_NO_SCM_TEXT: string;
 
 // @beta

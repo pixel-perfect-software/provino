@@ -42,6 +42,7 @@ export class ConfigError extends Error {
     constructor(code: ConfigErrorCode, message: string, options?: {
         readonly cause?: unknown;
         readonly issues?: readonly ConfigIssue[];
+        readonly subject?: string;
     });
     // (undocumented)
     readonly code: ConfigErrorCode;
@@ -49,6 +50,7 @@ export class ConfigError extends Error {
     readonly issues: readonly ConfigIssue[];
     // (undocumented)
     override readonly name = "ConfigError";
+    readonly subject: string | undefined;
 }
 
 // @public
