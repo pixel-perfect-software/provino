@@ -4,38 +4,38 @@
 
 ```ts
 
-import { createExpect } from '@provino/expect';
-import { EachTableKind } from '@provino/types';
-import { Environment } from '@provino/types';
-import { EnvironmentConditions } from '@provino/types';
-import { EnvironmentResolver } from '@provino/types';
-import { ExpectTable } from '@provino/types';
-import { FakeClock } from '@provino/timers';
-import { FakeTimersConfig } from '@provino/timers';
-import { FormatMapperMiss } from '@provino/types';
-import { FormatTimeout } from '@provino/types';
-import { FormatValue } from '@provino/types';
-import { GlobalsHost } from '@provino/types';
-import { JsonValue } from '@provino/types';
-import { Mock } from '@provino/mock';
-import { MockRegistry } from '@provino/mock';
-import { MockTarget } from '@provino/mock';
-import { Pragmas } from '@provino/types';
-import { Replaced } from '@provino/mock';
-import { RuntimeApi } from '@provino/core';
-import { ShapeTestError } from '@provino/types';
-import { SnapshotPrinter } from '@provino/types';
-import { SnapshotResolverFactory } from '@provino/types';
-import { SnapshotViewMatchResult } from '@provino/types';
-import { SnapshotViewSource } from '@provino/types';
-import { SpiedGetter } from '@provino/mock';
-import { SpiedMethod } from '@provino/mock';
-import { SpiedSetter } from '@provino/mock';
-import { SpyableKeys } from '@provino/mock';
-import { SuiteApi } from '@provino/core';
-import { TestApi } from '@provino/core';
-import { TimersPolicy } from '@provino/types';
-import { UnknownFunction } from '@provino/mock';
+import { createExpect } from 'provino/internal/jest-runtime';
+import { EachTableKind } from 'provino/internal/types';
+import { Environment } from 'provino/internal/types';
+import { EnvironmentConditions } from 'provino/internal/types';
+import { EnvironmentResolver } from 'provino/internal/types';
+import { ExpectTable } from 'provino/internal/types';
+import { FakeClock } from 'provino/internal/jest-runtime';
+import { FakeTimersConfig } from 'provino/internal/jest-runtime';
+import { FormatMapperMiss } from 'provino/internal/types';
+import { FormatTimeout } from 'provino/internal/types';
+import { FormatValue } from 'provino/internal/types';
+import { GlobalsHost } from 'provino/internal/types';
+import { JsonValue } from 'provino/internal/types';
+import { Mock } from 'provino/internal/jest-runtime';
+import { MockRegistry } from 'provino/internal/jest-runtime';
+import { MockTarget } from 'provino/internal/jest-runtime';
+import { Pragmas } from 'provino/internal/types';
+import { Replaced } from 'provino/internal/jest-runtime';
+import { RuntimeApi } from 'provino/internal/jest-runtime';
+import { ShapeTestError } from 'provino/internal/types';
+import { SnapshotPrinter } from 'provino/internal/types';
+import { SnapshotResolverFactory } from 'provino/internal/types';
+import { SnapshotViewMatchResult } from 'provino/internal/types';
+import { SnapshotViewSource } from 'provino/internal/types';
+import { SpiedGetter } from 'provino/internal/jest-runtime';
+import { SpiedMethod } from 'provino/internal/jest-runtime';
+import { SpiedSetter } from 'provino/internal/jest-runtime';
+import { SpyableKeys } from 'provino/internal/jest-runtime';
+import { SuiteApi } from 'provino/internal/jest-runtime';
+import { TestApi } from 'provino/internal/jest-runtime';
+import { TimersPolicy } from 'provino/internal/types';
+import { UnknownFunction } from 'provino/internal/jest-runtime';
 
 export { EachTableKind }
 

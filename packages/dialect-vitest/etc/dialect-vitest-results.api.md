@@ -4,7 +4,7 @@
 
 ```ts
 
-import { Reporter } from '@provino/types';
+import { Reporter } from 'provino/internal/types';
 
 // @public
 export function createVitestResults(options: VitestResultsOptions): VitestResults;

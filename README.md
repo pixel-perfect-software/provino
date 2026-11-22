@@ -73,11 +73,13 @@ describe('greeting', () => {
 
 ## 🚀 Install
 
-Provino is a release candidate. Add it to your Jest project (with `-w` at a pnpm workspace root):
+Provino is a release candidate. Add it to your Jest project with its Jest dialect (with `-w` at a pnpm workspace root):
 
 ```bash
-pnpm add -D provino@rc
+pnpm add -D provino@rc @provino/dialect-jest@rc
 ```
+
+A project that uses only `provino.config` and `import … from 'provino'` needs `provino` alone, and installs nothing from Jest.
 
 ## 🧭 Getting started
 

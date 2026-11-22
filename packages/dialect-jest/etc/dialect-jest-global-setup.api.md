@@ -4,7 +4,7 @@
 
 ```ts
 
-import { GlobalSetupFailure } from '@provino/types';
+import { GlobalSetupFailure } from 'provino/internal/types';
 
 // @public
 export const globalSetupFailure: GlobalSetupFailure;

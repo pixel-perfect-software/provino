@@ -4,8 +4,8 @@
 
 ```ts
 
-import { ChangedFilesProvider } from '@provino/types';
-import { DependencyExtractorFactory } from '@provino/types';
+import { ChangedFilesProvider } from 'provino/internal/types';
+import { DependencyExtractorFactory } from 'provino/internal/types';
 
 // @public
 export const jestChangedFiles: ChangedFilesProvider;

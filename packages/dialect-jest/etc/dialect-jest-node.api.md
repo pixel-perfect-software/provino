@@ -4,26 +4,26 @@
 
 ```ts
 
-import { CliDialect } from '@provino/types';
-import { ConfigReader } from '@provino/types';
-import { ConfigSource } from '@provino/types';
-import { Diagnostic } from '@provino/types';
-import { Dialect } from '@provino/types';
-import { FileInfo } from '@provino/types';
-import { FileResult } from '@provino/types';
-import { FlagSpec } from '@provino/types';
-import { NeutralProject } from '@provino/types';
-import { Reporter } from '@provino/types';
-import { RunCoverageOptions } from '@provino/types';
-import { RunRequest } from '@provino/types';
-import { SerializedCoverageConfig } from '@provino/types';
-import { SerializedError } from '@provino/types';
-import { SnapshotRunSummary } from '@provino/types';
-import { TaskId } from '@provino/types';
-import { TaskNode } from '@provino/types';
-import { TaskResult } from '@provino/types';
-import { TestTask } from '@provino/types';
-import { TextStyle } from '@provino/types';
+import { CliDialect } from 'provino/internal/types';
+import { ConfigReader } from 'provino/internal/types';
+import { ConfigSource } from 'provino/internal/types';
+import { Diagnostic } from 'provino/internal/types';
+import { Dialect } from 'provino/internal/types';
+import { FileInfo } from 'provino/internal/types';
+import { FileResult } from 'provino/internal/types';
+import { FlagSpec } from 'provino/internal/types';
+import { NeutralProject } from 'provino/internal/types';
+import { Reporter } from 'provino/internal/types';
+import { RunCoverageOptions } from 'provino/internal/types';
+import { RunRequest } from 'provino/internal/types';
+import { SerializedCoverageConfig } from 'provino/internal/types';
+import { SerializedError } from 'provino/internal/types';
+import { SnapshotRunSummary } from 'provino/internal/types';
+import { TaskId } from 'provino/internal/types';
+import { TaskNode } from 'provino/internal/types';
+import { TaskResult } from 'provino/internal/types';
+import { TestTask } from 'provino/internal/types';
+import { TextStyle } from 'provino/internal/types';
 
 // @public
 export function addResult(aggregated: AggregatedResult, testResult: TestResult): void;

@@ -4,15 +4,15 @@
 
 ```ts
 
-import { FileInfo } from '@provino/types';
-import { FileResult } from '@provino/types';
-import { Reporter } from '@provino/types';
-import { SerializedError } from '@provino/types';
-import { SnapshotRunSummary } from '@provino/types';
-import { TaskId } from '@provino/types';
-import { TaskNode } from '@provino/types';
-import { TaskResult } from '@provino/types';
-import { TestTask } from '@provino/types';
+import { FileInfo } from 'provino/internal/types';
+import { FileResult } from 'provino/internal/types';
+import { Reporter } from 'provino/internal/types';
+import { SerializedError } from 'provino/internal/types';
+import { SnapshotRunSummary } from 'provino/internal/types';
+import { TaskId } from 'provino/internal/types';
+import { TaskNode } from 'provino/internal/types';
+import { TaskResult } from 'provino/internal/types';
+import { TestTask } from 'provino/internal/types';
 
 // @public
 export function addResult(aggregated: AggregatedResult, testResult: TestResult): void;
