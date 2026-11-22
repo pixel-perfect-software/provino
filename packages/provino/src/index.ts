@@ -18,7 +18,14 @@
 import type { ProvinoApi } from '@provino/api'
 import type { JestGlobals } from '@provino/dialect-jest/runtime'
 
-export type { ProvinoApi, ProvinoMocks, ProvinoSpyOn, ProvinoTimers } from '@provino/api'
+export type {
+  ProvinoApi,
+  ProvinoMock,
+  ProvinoMockFactory,
+  ProvinoMocks,
+  ProvinoSpyOn,
+  ProvinoTimers,
+} from '@provino/api'
 
 export {
   evaluatedLazies,
@@ -61,6 +68,9 @@ const JEST_INSTEAD: Readonly<Record<string, string>> = {
   isMockFunction: 'jest.isMockFunction',
   mocks: 'jest.clearAllMocks, jest.resetAllMocks and jest.restoreAllMocks',
   timers: 'jest.useFakeTimers and the other timer members of jest',
+  mock: 'jest.mock',
+  unmock: 'jest.unmock',
+  importActual: 'jest.requireActual',
 }
 
 /** The names only the native API has (a Jest project's worker installs none of them). */
@@ -270,3 +280,23 @@ export const mocks: ProvinoApi['mocks'] = bound('mocks')
  * @public
  */
 export const timers: ProvinoApi['timers'] = bound('timers')
+
+/**
+ * `mock`: replaces a module with a factory's exports, or an automock (native API). Imported from
+ * `provino` in a file the worker serves, a top-level call is hoisted above the file's imports and
+ * resolves from that file; through this entry it resolves from the test file running now.
+ * @public
+ */
+export const mock: ProvinoApi['mock'] = bound('mock')
+
+/**
+ * `unmock`: takes a module mock away again (native API; hoisted like `mock`).
+ * @public
+ */
+export const unmock: ProvinoApi['unmock'] = bound('unmock')
+
+/**
+ * `importActual`: the real module, past any mock of it (native API).
+ * @public
+ */
+export const importActual: ProvinoApi['importActual'] = bound('importActual')

@@ -53,6 +53,13 @@ export interface HoistPolicy<Calls extends string = string, Values extends strin
   readonly id: string
   readonly objects: readonly MockObjectMatcher[]
   readonly hoistCalls: { readonly [M in Calls]: HoistArgRule }
+  /**
+   * Named imports that are hoisted calls themselves, with no mock object: `mock('./a')` after
+   * `import { mock } from 'provino'` (under any local name), or `p.mock('./a')` and
+   * `p['mock']('./a')` through `import * as p`. Each is checked as the call `exportName` in
+   * `hoistCalls`. Recognised by binding, never by name. None when absent.
+   */
+  readonly importedCalls?: readonly { readonly module: string; readonly exportName: Calls }[]
   /** `['hoisted']` for Vitest, `[]` for Jest. */
   readonly hoistValues: readonly Values[]
   /**

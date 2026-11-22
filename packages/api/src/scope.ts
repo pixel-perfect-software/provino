@@ -28,7 +28,15 @@ import {
   type UnknownFunction,
 } from '@provino/mock'
 import { createTimerMembers } from '@provino/timers'
-import type { ApiHost, ProvinoApi, ProvinoMocks, ProvinoSpyOn, ProvinoTimers } from './types.ts'
+import { moduleMocksOver, PROVINO_MODULE_MOCK_NAMES } from './module-mocks.ts'
+import type {
+  ApiHost,
+  ProvinoApi,
+  ProvinoGlobalsApi,
+  ProvinoMocks,
+  ProvinoSpyOn,
+  ProvinoTimers,
+} from './types.ts'
 
 /**
  * The key the native API sits under on `globalThis`: the `provino` entry's forwarders read it
@@ -37,8 +45,12 @@ import type { ApiHost, ProvinoApi, ProvinoMocks, ProvinoSpyOn, ProvinoTimers } f
  */
 export const PROVINO_API_SLOT: unique symbol = Symbol.for('provino.api')
 
-/** The specifier the native runtime serves before resolution (`NativeRuntimeRefs.modules`). */
-const SERVED = 'provino'
+/**
+ * The specifier the native runtime serves before resolution: `provino`'s `NATIVE_RUNTIME.modules`
+ * and its hoist policy name the same one (`built-ins.test.ts` holds them equal).
+ * @public
+ */
+export const PROVINO_SERVED_MODULE: 'provino' = 'provino'
 
 /** The lazy variables: `provino`'s own exports, which read the lazy runtime's slot when called. */
 const LAZY_EXPORTS = {
@@ -52,7 +64,13 @@ const LAZY_EXPORTS = {
   sharedExamples,
 } as const
 
-const builtByHost = new WeakMap<ApiHost, ProvinoApi>()
+/** A host's API (in the slot) and the same values without the module-mock names (the globals). */
+interface Built {
+  readonly api: ProvinoApi
+  readonly globals: ProvinoGlobalsApi
+}
+
+const builtByHost = new WeakMap<ApiHost, Built>()
 
 function timersOver(host: ApiHost): ProvinoTimers {
   // `facadeReturns` comes from the host's policy (the neutral one says 'all': every member that
@@ -74,8 +92,8 @@ function mocksOver(host: ApiHost): ProvinoMocks {
   })
 }
 
-/** Builds the API once per host and installs its slot; a second call returns the same object. */
-function built(host: ApiHost): ProvinoApi {
+/** Builds the API once per host and installs its slot; a second call returns the same objects. */
+function built(host: ApiHost): Built {
   const known = builtByHost.get(host)
   if (known !== undefined) return known
   const { api } = host
@@ -111,6 +129,7 @@ function built(host: ApiHost): ProvinoApi {
       isMockFunction(host.mockPolicy, value),
     mocks: mocksOver(host),
     timers: timersOver(host),
+    ...moduleMocksOver(host, null),
   })
   // Configurable, so the worker's teardown (or a test) can take it out again.
   Object.defineProperty(globalThis, PROVINO_API_SLOT, {
@@ -119,27 +138,46 @@ function built(host: ApiHost): ProvinoApi {
     enumerable: false,
     writable: false,
   })
-  builtByHost.set(host, made)
-  return made
+  const globals: ProvinoGlobalsApi = Object.freeze(
+    Object.fromEntries(
+      Object.entries(made).filter(
+        ([name]) => !(PROVINO_MODULE_MOCK_NAMES as readonly string[]).includes(name),
+      ),
+    ) as unknown as ProvinoGlobalsApi,
+  )
+  const result: Built = { api: made, globals }
+  builtByHost.set(host, result)
+  return result
 }
 
 /**
- * The served `provino` module's factory (`NativeRuntimeRefs.moduleScope`), called once per worker:
- * every module that imports `provino` gets the same frozen namespace (the API and the lazy
- * variables), so `expect === expect` across a file's modules. It names no binding: a native file
- * gets the API only by importing it, or as globals under `globals: true`.
+ * The served `provino` module's factory (`NativeRuntimeRefs.moduleScope`), called once per worker.
+ * Each module that imports `provino` gets a frozen namespace of its own, the same one each time it
+ * asks, holding the API and the lazy variables: every value is the worker's one object, so
+ * `expect === expect` across a file's modules, except `mock`, `unmock` and `importActual`,
+ * which resolve a specifier from that module. It names no binding: a native file gets the API only
+ * by importing it, or as globals under `globals: true`.
  * @public
  */
 export function provinoModuleScope(host: ApiHost): ProvinoModuleScope {
-  const api = built(host)
-  const namespace = Object.freeze({ ...api, ...LAZY_EXPORTS })
-  // The keys of the result are the binding names (none); the served module is not one of them.
-  const scope: Readonly<Record<string, unknown>> = Object.freeze(
-    Object.defineProperty({}, SERVED, { value: namespace, enumerable: false }),
-  )
+  const { api } = built(host)
+  // One namespace per importing module, built on its first import: `mock`, `unmock` and
+  // `importActual` resolve from that module; every other value is the worker's one object.
+  const scopes = new Map<string, Readonly<Record<string, unknown>>>()
+  const scopeOf = (from: string): Readonly<Record<string, unknown>> => {
+    const known = scopes.get(from)
+    if (known !== undefined) return known
+    const namespace = Object.freeze({ ...api, ...moduleMocksOver(host, from), ...LAZY_EXPORTS })
+    // The keys of the result are the binding names (none); the served module is not one of them.
+    const scope: Readonly<Record<string, unknown>> = Object.freeze(
+      Object.defineProperty({}, PROVINO_SERVED_MODULE, { value: namespace, enumerable: false }),
+    )
+    scopes.set(from, scope)
+    return scope
+  }
   // The worker disposes a disposable scope when it stops (the runner's `stop`), so the slot goes
   // with the worker: an inline pool shares its process with whatever runs next.
-  return Object.assign(() => scope, { [Symbol.dispose]: () => uninstallProvinoApi(api) })
+  return Object.assign(scopeOf, { [Symbol.dispose]: () => uninstallProvinoApi(api) })
 }
 
 /**
@@ -160,9 +198,10 @@ export function uninstallProvinoApi(api: ProvinoApi): boolean {
 
 /**
  * The native API as globals (`NativeRuntimeRefs.globals`), used under `globals: true`: the same
- * objects the served module holds. The lazy variables are never globals.
+ * objects the served module holds. The lazy variables and the module-mock names
+ * (`ProvinoModuleMockName`) are never globals.
  * @public
  */
-export function provinoGlobals(host: ApiHost): ProvinoApi {
-  return built(host)
+export function provinoGlobals(host: ApiHost): ProvinoGlobalsApi {
+  return built(host).globals
 }

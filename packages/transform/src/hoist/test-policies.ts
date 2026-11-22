@@ -54,6 +54,27 @@ export const blockPolicy: HoistPolicy = {
   messages: MESSAGES,
 }
 
+/** Top-level-only placement over calls that are named imports themselves (`mock` from `runner`). */
+export const importedCallPolicy: HoistPolicy = {
+  id: 'test-imported-call',
+  objects: [],
+  hoistCalls: { mock: 'any', unmock: 'any' },
+  importedCalls: [
+    { module: 'runner', exportName: 'mock' },
+    { module: 'runner', exportName: 'unmock' },
+  ],
+  hoistValues: [],
+  rewriteImportArg: [],
+  chainable: false,
+  placement: 'top-level-only',
+  topLevelGuards: [],
+  factoryReferences: 'allow',
+  runnerModules: ['runner'],
+  reExports: 'in-order',
+  rewrittenCalls: 'detached',
+  messages: MESSAGES,
+}
+
 /** Top-level-only placement, `hoisted` values, `import()` arguments, a guard. */
 export const topLevelPolicy: HoistPolicy = {
   id: 'test-top-level',

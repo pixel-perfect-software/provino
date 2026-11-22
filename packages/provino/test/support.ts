@@ -592,3 +592,47 @@ export function packageCopy(modules: 'all' | 'without-add-ons' = 'all'): string 
   else linkDependencies(PACKAGE_DIR, copy, ['@provino'])
   return copy
 }
+
+/** A native project's config: no dialect, no globals, the TypeScript tests under `tests/`. */
+export const NATIVE_CONFIG: string = "export default { include: ['tests/**/*.test.ts'] }\n"
+
+/**
+ * A project with no dialect in a temp directory, removed after the test file: `package.json`
+ * (`type: module`), `provino.config.mjs` (`config`), `files` and `node_modules/provino` linked to
+ * this package (`linkProvino`).
+ */
+export async function nativeProject(
+  files: Readonly<Record<string, string>>,
+  config: string = NATIVE_CONFIG,
+): Promise<string> {
+  const dir = mkdtempSync(join(tmpdir(), 'provino-native-'))
+  after(() => rm(dir, { recursive: true, force: true }))
+  const all: Record<string, string> = {
+    'package.json': '{"type":"module"}\n',
+    'provino.config.mjs': config,
+    ...files,
+  }
+  for (const [name, text] of Object.entries(all)) {
+    await mkdir(dirname(join(dir, name)), { recursive: true })
+    await writeFile(join(dir, name), text)
+  }
+  linkProvino(dir)
+  return dir
+}
+
+/** `provino run` on a native project's config, one worker of `pool`, normalized JSON to `results.json`. */
+export function nativeRunArgs(pool: string): string[] {
+  return [
+    'run',
+    '--config',
+    'provino.config.mjs',
+    '--pool',
+    pool,
+    '--maxWorkers',
+    '1',
+    '--reporter',
+    'normalized-json',
+    '--outputFile',
+    'results.json',
+  ]
+}

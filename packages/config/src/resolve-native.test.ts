@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { after, before, describe, test } from 'node:test'
-import { defineDialect, moduleRef } from '@provino/policy'
+import { defineDialect, moduleRef, nativeHoistPolicy } from '@provino/policy'
 import type { NativeRuntimeRefs } from '@provino/types'
 import { makeTempDir, neutralProject, rejectsWith, type TempDir } from './internal/test-support.ts'
 import { resolveNeutralProject, resolveProject } from './resolve.ts'
@@ -16,6 +16,7 @@ const NATIVE: NativeRuntimeRefs = {
   moduleScope: moduleRef('file:///native/api.mjs', 'provinoModuleScope'),
   modules: ['provino'],
   globals: moduleRef('file:///native/api.mjs', 'provinoGlobals'),
+  hoist: nativeHoistPolicy('provino'),
 }
 
 const scoped = defineDialect({
@@ -62,6 +63,8 @@ describe('a project with no dialect', () => {
     // Globals are off by default (`injectGlobals: false`), so the globals ref is not used.
     assert.equal(resolved.policy.core.injectGlobals, false)
     assert.equal(resolved.config.globals, null)
+    // The native API's `mock` hoists (B27j).
+    assert.deepEqual(resolved.config.loader.hoist, NATIVE.hoist)
   })
 
   test('globals: true injects the native globals', async () => {
@@ -76,6 +79,7 @@ describe('a project with no dialect', () => {
     assert.equal(resolved.policy.expect.matcherTable, null)
     assert.equal(resolved.config.moduleScope, null)
     assert.equal(resolved.config.loader.scopeModules, undefined)
+    assert.equal(resolved.config.loader.hoist, null)
   })
 
   test('a neutral project a reader produced with no dialect gets them too', async () => {
@@ -99,6 +103,8 @@ describe('a project with a dialect ignores them', () => {
     assert.deepEqual(resolved.config.moduleScope, scoped.moduleScope?.factory)
     assert.deepEqual(resolved.config.loader.scopeModules, ['@scoped/globals'])
     assert.deepEqual(resolved.config.globals, scoped.globals?.factory)
+    // A dialect with no hoist policy of its own gets none: the native one is the native API's.
+    assert.equal(resolved.config.loader.hoist, null)
   })
 
   test("a reader's project with a dialect", async () => {
@@ -123,6 +129,20 @@ describe('a project with a dialect ignores them', () => {
 })
 
 describe('bad refs are config errors', () => {
+  test('native refs with no hoist policy hoist nothing', async () => {
+    const { hoist: _hoist, ...withoutHoist } = NATIVE
+    const resolved = await resolveProject({}, options(withoutHoist))
+    assert.equal(resolved.config.loader.hoist, null)
+  })
+
+  test('a hoist that is not a policy is CONFIG_INVALID naming native.hoist', async () => {
+    const error = await rejectsWith(
+      resolveProject({}, options({ ...NATIVE, hoist: 'mock' as never })),
+      'CONFIG_INVALID',
+    )
+    assert.match(error.message, /^native\.hoist must be a hoist policy/)
+  })
+
   for (const key of ['matcherTable', 'moduleScope', 'globals'] as const) {
     test(`a relative ${key} ref is CONFIG_INVALID naming native.${key}`, async () => {
       const bad: NativeRuntimeRefs = {

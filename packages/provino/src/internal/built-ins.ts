@@ -1,3 +1,4 @@
+import { nativeHoistPolicy } from '@provino/policy'
 import type { Dialect, EnvironmentRef, NativeRuntimeRefs } from '@provino/types'
 import { addOnFailure, addOnSpecifier } from './add-on.ts'
 
@@ -42,14 +43,20 @@ export const JEST_BUILT_INS: Readonly<Record<string, EnvironmentModule>> = {
  * B27c). Refs only: the coordinator resolves them and loads neither (D21).
  * @internal
  */
-export const NATIVE_RUNTIME: NativeRuntimeRefs = {
-  moduleScope: { module: import.meta.resolve('@provino/api'), export: 'provinoModuleScope' },
-  globals: { module: import.meta.resolve('@provino/api'), export: 'provinoGlobals' },
-  modules: ['provino'],
-  matcherTable: {
-    module: import.meta.resolve('@provino/expect/table'),
-    export: 'provinoExpectTable',
-  },
+export const NATIVE_RUNTIME: NativeRuntimeRefs = nativeRuntime('provino')
+
+/** The native refs serving `served`: its scope, globals and table, and its `mock` hoisting (B27j). */
+function nativeRuntime(served: string): NativeRuntimeRefs {
+  return {
+    moduleScope: { module: import.meta.resolve('@provino/api'), export: 'provinoModuleScope' },
+    globals: { module: import.meta.resolve('@provino/api'), export: 'provinoGlobals' },
+    modules: [served],
+    hoist: nativeHoistPolicy(served),
+    matcherTable: {
+      module: import.meta.resolve('@provino/expect/table'),
+      export: 'provinoExpectTable',
+    },
+  }
 }
 
 /**

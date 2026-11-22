@@ -6,14 +6,23 @@
 // `internal/built-ins.ts`).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { join } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { run } from 'provino/node'
-import { BUILT_BIN, Collect, childEnv, QUIET_ENV, spawnCli, viewOfNormalized } from './support.ts'
+import {
+  Collect,
+  childEnv,
+  nativeProject,
+  nativeRunArgs,
+  QUIET_ENV,
+  runBuilt,
+  spawnCli,
+  viewOfNormalized,
+} from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 
@@ -120,38 +129,9 @@ const EXPECTED: ReadonlyMap<string, string> = new Map([
 ])
 
 async function project(): Promise<{ readonly dir: string }> {
-  const dir = await mkdtemp(join(tmpdir(), 'provino-native-'))
-  after(() => rm(dir, { recursive: true, force: true }))
-  const files: Record<string, string> = {
-    'package.json': '{"type":"module"}\n',
-    // No dialect and no globals: the native runtime.
-    'provino.config.mjs': "export default { include: ['tests/**/*.test.ts'] }\n",
-    'tests/native.test.ts': NATIVE,
-    'tests/helper.ts': HELPER,
+  return {
+    dir: await nativeProject({ 'tests/native.test.ts': NATIVE, 'tests/helper.ts': HELPER }),
   }
-  for (const [name, text] of Object.entries(files)) {
-    mkdirSync(dirname(join(dir, name)), { recursive: true })
-    writeFileSync(join(dir, name), text)
-  }
-  mkdirSync(join(dir, 'node_modules'))
-  symlinkSync(PACKAGE, join(dir, 'node_modules', 'provino'), 'dir')
-  return { dir }
-}
-
-function runArgs(pool: string): string[] {
-  return [
-    'run',
-    '--config',
-    'provino.config.mjs',
-    '--pool',
-    pool,
-    '--maxWorkers',
-    '1',
-    '--reporter',
-    'normalized-json',
-    '--outputFile',
-    'results.json',
-  ]
 }
 
 async function assertNativeRun(dir: string, status: number | null, output: string): Promise<void> {
@@ -197,7 +177,7 @@ describe('the native API through provino run (source bin)', () => {
   for (const pool of POOLS) {
     test(`--pool ${pool}`, async () => {
       const { dir } = await project()
-      const run = await spawnCli(runArgs(pool), { cwd: dir })
+      const run = await spawnCli(nativeRunArgs(pool), { cwd: dir })
       await assertNativeRun(dir, run.code, `${run.stdout}\n${run.stderr}`)
     })
   }
@@ -207,12 +187,7 @@ describe('the native API through provino run (built bin)', () => {
   for (const pool of POOLS) {
     test(`--pool ${pool}`, async () => {
       const { dir } = await project()
-      const run = spawnSync(process.execPath, [BUILT_BIN, ...runArgs(pool)], {
-        cwd: dir,
-        encoding: 'utf8',
-        env: childEnv(),
-        timeout: 120_000,
-      })
+      const run = runBuilt(nativeRunArgs(pool), { cwd: dir })
       await assertNativeRun(dir, run.status, `${run.stdout}\n${run.stderr}`)
     })
   }
