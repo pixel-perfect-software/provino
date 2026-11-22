@@ -4,16 +4,17 @@
 // (`nativeHoistPolicy`) moves it above them. Two files share one worker (`--maxWorkers 1`), each
 // with its own mocks, so a mock that leaked from one file into the next fails the other.
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
-import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
-import { mkdtemp, readFile, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
-import { after, describe, test } from 'node:test'
-import { fileURLToPath } from 'node:url'
-import { BUILT_BIN, childEnv, spawnCli, viewOfNormalized } from './support.ts'
-
-const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
+import { describe, test } from 'node:test'
+import {
+  NATIVE_CONFIG,
+  nativeProject,
+  nativeRunArgs,
+  runBuilt,
+  spawnCli,
+  viewOfNormalized,
+} from './support.ts'
 
 const MOCKING = `import { describe, expect, importActual, isMockFunction, it } from 'provino'
 import def, { Greeter, value } from '../src/dep.ts'
@@ -125,6 +126,8 @@ export class Store {
 export const config = { level: 1 }
 `,
   'src/unmocked.ts': "export const kept = 'real'\n",
+  'src/a.ts': "export const a = 'a'\n",
+  'src/b.ts': "export const b = 'b'\n",
 }
 
 /** What each test ends as. */
@@ -145,40 +148,6 @@ const EXPECTED: ReadonlyMap<string, string> = new Map([
   ["another file in the same worker > sees none of the first file's mocks, only its own", 'passed'],
 ])
 
-async function project(tests: Readonly<Record<string, string>>): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'provino-native-mocks-'))
-  after(() => rm(dir, { recursive: true, force: true }))
-  const files: Record<string, string> = {
-    'package.json': '{"type":"module"}\n',
-    'provino.config.mjs': "export default { include: ['tests/**/*.test.ts'] }\n",
-    ...SOURCES,
-    ...tests,
-  }
-  for (const [name, text] of Object.entries(files)) {
-    mkdirSync(dirname(join(dir, name)), { recursive: true })
-    writeFileSync(join(dir, name), text)
-  }
-  mkdirSync(join(dir, 'node_modules'))
-  symlinkSync(PACKAGE, join(dir, 'node_modules', 'provino'), 'dir')
-  return dir
-}
-
-function runArgs(pool: string): string[] {
-  return [
-    'run',
-    '--config',
-    'provino.config.mjs',
-    '--pool',
-    pool,
-    '--maxWorkers',
-    '1',
-    '--reporter',
-    'normalized-json',
-    '--outputFile',
-    'results.json',
-  ]
-}
-
 async function assertMocksRun(dir: string, status: number | null, output: string): Promise<void> {
   const text = await readFile(join(dir, 'results.json'), 'utf8').catch(() => output)
   assert.equal(status, 0, `${output}\n${text}`)
@@ -197,8 +166,8 @@ const TESTS = { 'tests/mocking.test.ts': MOCKING, 'tests/other.test.ts': OTHER }
 describe('native module mocks through provino run (source bin)', () => {
   for (const pool of POOLS) {
     test(`--pool ${pool}`, async () => {
-      const dir = await project(TESTS)
-      const run = await spawnCli(runArgs(pool), { cwd: dir })
+      const dir = await nativeProject({ ...SOURCES, ...TESTS })
+      const run = await spawnCli(nativeRunArgs(pool), { cwd: dir })
       await assertMocksRun(dir, run.code, `${run.stdout}\n${run.stderr}`)
     })
   }
@@ -207,34 +176,139 @@ describe('native module mocks through provino run (source bin)', () => {
 describe('native module mocks through provino run (built bin)', () => {
   for (const pool of POOLS) {
     test(`--pool ${pool}`, async () => {
-      const dir = await project(TESTS)
-      const run = spawnSync(process.execPath, [BUILT_BIN, ...runArgs(pool)], {
-        cwd: dir,
-        encoding: 'utf8',
-        env: childEnv(),
-        timeout: 120_000,
-      })
+      const dir = await nativeProject({ ...SOURCES, ...TESTS })
+      const run = runBuilt(nativeRunArgs(pool), { cwd: dir })
       await assertMocksRun(dir, run.status, `${run.stdout}\n${run.stderr}`)
     })
   }
 })
 
-describe('misplaced mocks', () => {
-  test("a mock inside a test fails its file with the hoister's message", async () => {
-    const dir = await project({
-      'tests/nested.test.ts': `import { expect, it, mock } from 'provino'
+/** Each file's error (or `passed`), by file name, from a run's normalized JSON. */
+async function outcomes(dir: string): Promise<ReadonlyMap<string, string>> {
+  const view = viewOfNormalized(await readFile(join(dir, 'results.json'), 'utf8'))
+  const found = new Map<string, string>()
+  for (const [path, file] of view.files) {
+    const name = path.split('/').at(-1) ?? path
+    const statuses = [...file.tests.values()].map(String)
+    found.set(name, file.fileError ?? statuses.join(','))
+  }
+  return found
+}
+
+/** Test files whose factories read bindings the hoist has moved below them, and a misplaced mock. */
+const PLACEMENT: Readonly<Record<string, string>> = {
+  'tests/nested.test.ts': `import { expect, it, mock } from 'provino'
 
 it('mocks too late', () => {
   mock('../src/dep.ts')
   expect(1).toBe(1)
 })
 `,
-    })
-    const run = await spawnCli(runArgs('forks'), { cwd: dir })
+  // \`b\` has loaded by the time \`a\` (the mocked module) is first imported.
+  'tests/earlier-import.test.ts': `import { b } from '../src/b.ts'
+import { a } from '../src/a.ts'
+import { expect, it, mock } from 'provino'
+
+it('reads an earlier import', () => {
+  expect(a).toBe('b')
+})
+
+mock('../src/a.ts', () => ({ a: b }))
+`,
+  // \`a\` loads first, so its factory runs before \`b\`'s import has.
+  'tests/later-import.test.ts': `import { a } from '../src/a.ts'
+import { b } from '../src/b.ts'
+import { expect, it, mock } from 'provino'
+
+it('never runs', () => {
+  expect(a).toBe(b)
+})
+
+mock('../src/a.ts', () => ({ a: b }))
+`,
+  'tests/top-level.test.ts': `import { a } from '../src/a.ts'
+import { expect, it, mock } from 'provino'
+
+const mine = 'mine'
+
+it('never runs', () => {
+  expect(a).toBe(mine)
+})
+
+mock('../src/a.ts', () => ({ a: mine }))
+`,
+}
+
+describe('factories and placement', () => {
+  test('a factory may read an earlier import; a later import, a top-level binding or a nested mock fail their file by name', async () => {
+    const dir = await nativeProject({ ...SOURCES, ...PLACEMENT })
+    const run = await spawnCli(nativeRunArgs('forks'), { cwd: dir })
     assert.equal(run.code, 1, `${run.stdout}\n${run.stderr}`)
-    const [file] = [
-      ...viewOfNormalized(await readFile(join(dir, 'results.json'), 'utf8')).files.values(),
-    ]
-    assert.match(file?.fileError ?? '', /mock\(\) must be called at the top level of the file/)
+    const found = await outcomes(dir)
+    assert.equal(found.get('earlier-import.test.ts'), 'passed')
+    assert.match(
+      found.get('nested.test.ts') ?? '',
+      /mock\(\) must be called at the top level of the file/,
+    )
+    assert.match(
+      found.get('later-import.test.ts') ?? '',
+      /mock\('\.\.\/src\/a\.ts'\): the factory read the import `b` before it was initialized/,
+    )
+    assert.match(
+      found.get('top-level.test.ts') ?? '',
+      /mock\('\.\.\/src\/a\.ts'\): the factory read `mine` before it was initialized/,
+    )
+  })
+})
+
+/** Two test files that take their mock from a helper module's top level. */
+const SHARED_HELPER: Readonly<Record<string, string>> = {
+  'tests/setup-mock.ts': `import { mock } from 'provino'
+
+mock('../src/dep.ts', () => ({ value: () => 'helped' }))
+`,
+  'tests/first.test.ts': `import './setup-mock.ts'
+import { value } from '../src/dep.ts'
+import { expect, it } from 'provino'
+
+it('first', () => {
+  expect(value()).toBe('helped')
+})
+`,
+  'tests/second.test.ts': `import './setup-mock.ts'
+import { value } from '../src/dep.ts'
+import { expect, it } from 'provino'
+
+it('second', () => {
+  expect(value()).toBe('helped')
+})
+`,
+}
+
+describe('a mock in a helper module', () => {
+  test("applies to every file under isolation 'registry' (the native default)", async () => {
+    const dir = await nativeProject({ ...SOURCES, ...SHARED_HELPER })
+    const run = await spawnCli(nativeRunArgs('forks'), { cwd: dir })
+    assert.equal(run.code, 0, `${run.stdout}\n${run.stderr}`)
+    const found = await outcomes(dir)
+    assert.deepEqual(
+      [found.get('first.test.ts'), found.get('second.test.ts')],
+      ['passed', 'passed'],
+    )
+  })
+
+  test("is refused under isolation 'none', where the helper loads once per worker", async () => {
+    const config = NATIVE_CONFIG.replace('] }', "], isolation: 'none' }")
+    const dir = await nativeProject({ ...SOURCES, ...SHARED_HELPER }, config)
+    const run = await spawnCli(nativeRunArgs('forks'), { cwd: dir })
+    assert.equal(run.code, 1, `${run.stdout}\n${run.stderr}`)
+    const found = await outcomes(dir)
+    // The first file to load the helper fails on the refusal; the next gets no mock, and fails.
+    const texts = [found.get('first.test.ts') ?? '', found.get('second.test.ts') ?? '']
+    assert.ok(
+      texts.some((text) => /isolation 'none' loads once per worker/.test(text)),
+      texts.join('\n'),
+    )
+    assert.ok(!texts.includes('passed'), texts.join('\n'))
   })
 })
