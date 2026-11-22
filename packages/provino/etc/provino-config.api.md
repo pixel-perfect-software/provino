@@ -86,9 +86,6 @@ export interface PluginRegistry {}
 export interface ProjectConfig extends BaseConfig, ProjectKeys, DialectKeys, PluginKeys {}
 
 // @public
-export interface ProvidedContext {}
-
-// @public
 export type ProvinoConfig = ProvinoConfigInput | ((env: ConfigEnv) => ProvinoConfigInput | Promise<ProvinoConfigInput>);
 
 // @public

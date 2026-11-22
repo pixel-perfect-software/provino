@@ -145,32 +145,112 @@ export function internalTarget(specifier: string, own: string): string | undefin
 /** A list of build plugins, which a config can spread into another. */
 export type PluginList = Extract<NonNullable<UserConfig['plugins']>, readonly unknown[]>
 
-/** The module a user's program resolves the registries from: `provino/config` re-exports them. */
+/** The module a user's program resolves the registries from: `provino/config` exports them. */
+export const REGISTRY_MODULE: string = `${UMBRELLA}/config`
+
+/** The registries a program fills by declaration merging, and that `REGISTRY_MODULE` exports. */
+export const REGISTRIES: readonly string[] = ['DialectRegistry', 'PluginRegistry']
+
 const AUGMENTATION_SPECIFIER = /declare module (['"])@provino\/types\1/g
 
 /**
  * Retargets the registry augmentations (`declare module '@provino/types' { interface DialectRegistry … }`)
- * in the built declarations. A user's install has no `@provino/types`, so the specifier resolves
- * to nothing and the registry stays empty (`DialectName` is `never`). `target` is the module that
- * exports the registries, `provino/config` (an add-on names it through its peer, `provino`'s own
- * declarations through the package's name). The sources keep `@provino/types`, the
- * workspace's module. The doc comments that show the augmentation are rewritten with it.
+ * in one built declaration file, keeping the quote style. A user's install has no `@provino/types`,
+ * so the specifier resolves to nothing, the registry stays empty and `DialectName` is `never`.
+ * The doc comments that show the augmentation are rewritten with it.
  * @internal
  */
-export function augmentationTarget(target: string): PluginList {
+export function retargetAugmentations(code: string): string {
+  return code.replace(
+    AUGMENTATION_SPECIFIER,
+    (_match, quote: string) => `declare module ${quote}${REGISTRY_MODULE}${quote}`,
+  )
+}
+
+/**
+ * The build plugin for `retargetAugmentations`: every `.d.ts` of an add-on's build, and of
+ * `provino`'s public declarations, names `REGISTRY_MODULE`. The sources keep `@provino/types`,
+ * the workspace's module.
+ * @internal
+ */
+export function augmentationTarget(): PluginList {
   return [
     {
       name: 'provino-augmentation-target',
       generateBundle(_options, bundle) {
-        for (const [fileName, item] of Object.entries(bundle)) {
-          if (!fileName.endsWith('.d.ts')) continue
-          const replace = (text: string) =>
-            text.replace(
-              AUGMENTATION_SPECIFIER,
-              (_match, quote: string) => `declare module ${quote}${target}${quote}`,
-            )
-          if (item.type === 'chunk') item.code = replace(item.code)
-          else if (typeof item.source === 'string') item.source = replace(item.source)
+        for (const item of Object.values(bundle)) {
+          if (item.type === 'chunk' && item.fileName.endsWith('.d.ts')) {
+            item.code = retargetAugmentations(item.code)
+          }
+        }
+      },
+    },
+  ]
+}
+
+/** An empty registry and its doc comment, from the start of a line. */
+const REGISTRY_DECLARATIONS: ReadonlyMap<string, RegExp> = new Map(
+  REGISTRIES.map((name) => [
+    name,
+    new RegExp(
+      `^(?:/\\*\\*(?:(?!\\*/)[\\s\\S])*?\\*/\\n)?(?:export )?interface ${name} \\{\\}\\n`,
+      'm',
+    ),
+  ]),
+)
+
+/** The directives a declaration file opens with, which only count before any other line. */
+const LEADING_DIRECTIVES = /^(?:\/\/\/[^\n]*\n)*/
+
+/**
+ * Cuts each empty registry (and its doc comment) from one declaration chunk and imports it from
+ * `REGISTRY_MODULE` instead, after the chunk's leading `/// <reference>` lines. `cut` names
+ * what was found.
+ * @internal
+ */
+export function shareRegistries(code: string): { readonly code: string; readonly cut: string[] } {
+  let out = code
+  const cut: string[] = []
+  for (const [name, declaration] of REGISTRY_DECLARATIONS) {
+    const next = out.replace(declaration, '')
+    if (next === out) continue
+    out = next
+    cut.push(name)
+  }
+  if (cut.length === 0) return { code, cut }
+  const directives = LEADING_DIRECTIVES.exec(out)?.[0] ?? ''
+  const rest = out.slice(directives.length)
+  return {
+    code: `${directives}import type { ${cut.join(', ')} } from "${REGISTRY_MODULE}";\n${rest}`,
+    cut,
+  }
+}
+
+/**
+ * The internal declarations name the public registries instead of defining their own: an
+ * augmentation merges into one interface, so a second copy (the chunks of `internal/`) would stay
+ * empty for a program that augments the one `REGISTRY_MODULE` exports and `defineConfig` reads. The
+ * build fails when a registry is found in no chunk, so a change to how they are declared can't
+ * bring the second copy back unseen.
+ * @internal
+ */
+export function sharedRegistries(): PluginList {
+  return [
+    {
+      name: 'provino-shared-registries',
+      generateBundle(_options, bundle) {
+        const found = new Set<string>()
+        for (const item of Object.values(bundle)) {
+          if (item.type !== 'chunk' || !item.fileName.endsWith('.d.ts')) continue
+          const shared = shareRegistries(item.code)
+          item.code = shared.code
+          for (const name of shared.cut) found.add(name)
+        }
+        const missing = REGISTRIES.filter((name) => !found.has(name))
+        if (missing.length > 0) {
+          throw new Error(
+            `the internal declarations hold no empty \`interface ${missing.join(', ')}\` to share with ${REGISTRY_MODULE}: the registries are declared another way, so update shareRegistries`,
+          )
         }
       },
     },

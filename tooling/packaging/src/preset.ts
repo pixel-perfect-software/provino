@@ -115,7 +115,7 @@ export function packageConfig(dir: string): UserConfig {
           plugins: [
             ...internalImports(manifest.name),
             // The registries are `provino/config`'s, the one module a user's install resolves.
-            ...augmentationTarget('provino/config'),
+            ...augmentationTarget(),
           ],
         }
       : {}),

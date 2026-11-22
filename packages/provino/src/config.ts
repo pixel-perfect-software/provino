@@ -14,7 +14,6 @@ export type {
   PluginKeys,
   PluginRegistry,
   ProjectConfig,
-  ProvidedContext,
   ProvinoConfig,
   ProvinoConfigInput,
   ReservedConfigKey,
