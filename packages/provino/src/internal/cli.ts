@@ -195,15 +195,28 @@ export function parseRunArgs(
   }
   const { values } = parsed
   if (values.help === true) return { type: 'help' }
-  if (values.coverage === true) {
-    throw new UsageError(
-      values.watch === true || values.watchAll === true
-        ? '--coverage in watch mode is not supported yet'
-        : '--coverage is not supported by provino run yet',
-    )
-  }
+  const watching = values.watch === true || values.watchAll === true
   if (values.watch === true && values.watchAll === true) {
     throw new UsageError('--watch and --watchAll are one or the other')
+  }
+  if (values.coverage === true && !watching) {
+    throw new UsageError('--coverage is not supported by provino run yet')
+  }
+  if (watching) {
+    // What a watch session can't honour, each named: one list, before anything starts.
+    const refused = [
+      ...(values.coverage === true ? ['--coverage'] : []),
+      ...(values.shard === undefined ? [] : ['--shard']),
+      ...(values.detectOpenHandles === true ? ['--detectOpenHandles'] : []),
+      ...(values.timings === undefined ? [] : ['--timings']),
+      ...(values['update-timings'] === true ? ['--update-timings'] : []),
+      ...(values.forceExit === true ? ['--forceExit'] : []),
+    ]
+    if (refused.length > 0) {
+      throw new UsageError(
+        `${refused.join(', ')} in watch mode ${refused.length === 1 ? 'is' : 'are'} not supported yet`,
+      )
+    }
   }
   if (values.pool !== undefined && !isPoolKind(values.pool)) {
     throw new UsageError(`--pool must be one of ${POOL_KINDS.join(', ')} (got "${values.pool}")`)

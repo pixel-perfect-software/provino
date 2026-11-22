@@ -217,7 +217,7 @@ const JEST_NODE = new RegExp(
 const WATCH = new RegExp(
   [
     'orchestrator[\\\\/]src[\\\\/]watch[\\\\/](?!.*\\.test\\.ts$)',
-    'provino[\\\\/]src[\\\\/]internal[\\\\/](?:jest-watch|native-watch|watch-interrupt)\\.ts$',
+    'provino[\\\\/]src[\\\\/]internal[\\\\/](?:jest-watch|native-watch|watch-interrupt|watch-queue)\\.ts$',
   ]
     .map((alternative) => `[\\\\/]packages[\\\\/]${alternative}`)
     .join('|'),

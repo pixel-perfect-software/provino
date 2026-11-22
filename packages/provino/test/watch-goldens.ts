@@ -420,13 +420,28 @@ export class FakeTerminal extends Writable {
   readonly isTTY: boolean
   readonly columns = 120
   readonly rows = 40
+  private readonly waiters = new Set<() => void>()
   constructor(tty = true) {
     super()
     this.isTTY = tty
   }
   override _write(chunk: Buffer | string, _encoding: string, callback: () => void): void {
     this.text += String(chunk)
+    for (const waiter of [...this.waiters]) waiter()
     callback()
+  }
+  /** Resolves once the text holds `count` matches of `pattern` (a global one); no clock. */
+  waitFor(pattern: RegExp, count: number): Promise<void> {
+    const enough = (): boolean => (this.text.match(pattern)?.length ?? 0) >= count
+    if (enough()) return Promise.resolve()
+    return new Promise((resolve) => {
+      const check = (): void => {
+        if (!enough()) return
+        this.waiters.delete(check)
+        resolve()
+      }
+      this.waiters.add(check)
+    })
   }
 }
 
