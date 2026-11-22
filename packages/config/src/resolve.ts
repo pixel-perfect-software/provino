@@ -30,7 +30,7 @@ import type {
   TransformClaims,
 } from '@provino/types'
 import { ConfigError } from './errors.ts'
-import { dialectPolicy, dialectsFor, selectDialect } from './internal/dialect.ts'
+import { dialectPolicy, dialectsFor, loadOnce, selectDialect } from './internal/dialect.ts'
 import { describe, isStringArray, messageOf, parseInput } from './internal/input.ts'
 import { assertNativeRefs, assertWorkerConfig } from './internal/refs.ts'
 import { resolveSetupFiles } from './internal/setup-files.ts'
@@ -51,8 +51,10 @@ export interface ResolveProjectOptions {
    * `dialect` that isn't there, or has a key no project reads (a dialect's options key). A config
    * that needs none never calls it, so the caller can keep a dialect's code unloaded until a
    * project names it (`provino` passes its built-ins here). What it gives joins `dialects` for
-   * that config (a name already there keeps the `dialects` entry); `resolveProjects` calls it at
-   * most once. A rejection is `CONFIG_LOAD_FAILED`.
+   * that config's names (a name already there keeps the `dialects` entry), but never for
+   * detection: a dialect with `detect` that only this gives is used only when named.
+   * `resolveProjects` calls it at most once. A throw, a rejection or a result that isn't an array
+   * is `CONFIG_LOAD_FAILED`, the same error for each project that needed it.
    */
   readonly loadDialects?: () => Promise<readonly Dialect[]>
   /** Each environment by name, as an absolute ref the worker can import. */
@@ -325,7 +327,12 @@ export async function resolveProjectInput(
       `the config path must be absolute (got "${options.configPath}")`,
     )
   }
-  const dialects = await dialectsFor(input, options.dialects, options.loadDialects)
+  const dialects = await dialectsFor(
+    input,
+    options.dialects,
+    loadOnce(options.loadDialects),
+    topLevel,
+  )
   const parsed = parseInput(input, dialects, topLevel)
   if (parsed.projects !== undefined && parsed.projects.length > 0) {
     throw new ConfigError(
@@ -337,7 +344,13 @@ export async function resolveProjectInput(
   // The root check and `detect`'s read of the root are independent; a bad root is reported first.
   const [, dialect] = await inParallel(
     assertDirectory(rootDir),
-    selectDialect(parsed.dialect, parsed.dialects ?? dialects, rootDir),
+    selectDialect(
+      parsed.dialect,
+      parsed.dialects ?? dialects,
+      rootDir,
+      // Detection reads the eager dialects only: one only `loadDialects` gave is named, never guessed.
+      parsed.dialects ?? options.dialects,
+    ),
   )
   const dialectLayer =
     dialect === null

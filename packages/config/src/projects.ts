@@ -157,7 +157,7 @@ export async function resolveProjects(
     ...given,
     ...(loadDialects === undefined ? {} : { loadDialects }),
   }
-  const parsed = parseInput(input, await dialectsFor(input, options.dialects, loadDialects))
+  const parsed = parseInput(input, await dialectsFor(input, options.dialects, loadDialects, true))
   const run = {
     ...(parsed.pool === undefined ? {} : { pool: parsed.pool }),
     ...(parsed.maxWorkers === undefined ? {} : { maxWorkers: parsed.maxWorkers }),

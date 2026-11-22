@@ -2,26 +2,16 @@
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import { runInNewContext } from 'node:vm'
-import {
-  createExpect,
-  createMatcherRegistry,
-  createStateSource,
-  type ExpectError,
-} from '@provino/expect'
+import type { ExpectError } from '@provino/expect'
 import type { Assertion, ExpectStatic, Matchers } from '@provino/types'
-import { manualCurrentTest, testPolicy, testTask } from '../internal/test-support.ts'
+import { testEngine, testTask } from '../internal/test-support.ts'
 import { provinoExpectTable } from './index.ts'
 import { createMock } from './test-mock.ts'
 
 function engine(): ExpectStatic {
-  const current = manualCurrentTest()
+  const { expect, current } = testEngine({ table: provinoExpectTable() })
   current.enter(testTask('t'))
-  return createExpect({
-    policy: testPolicy,
-    table: provinoExpectTable(),
-    source: createStateSource(current, { nameSeparator: ' > ', expand: false }),
-    registry: createMatcherRegistry(),
-  })
+  return expect
 }
 const expect = engine()
 

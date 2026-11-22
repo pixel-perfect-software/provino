@@ -6,13 +6,16 @@ import {
   formatConfigIssue,
   loadConfigFile,
   loadProject,
+  loadProjects,
   pruneTransformCache,
   type ResolvedGlobalSetup,
   type ResolvedProject,
   type ResolveNeutralProjectOptions,
   type ResolveProjectOptions,
+  type ResolveProjectsOptions,
   resolveNeutralProject,
   resolveProject,
+  resolveProjects,
   type UnseededProjectConfig,
   withTransformCache,
 } from '@provino/config'
@@ -116,6 +119,16 @@ resolveProject({}, { ...complete, loadDialects: [] })
 resolveProject({}, { ...complete, loadDialects: async () => ['jest'] })
 // @ts-expect-error loadDialects takes no argument
 resolveProject({}, { ...complete, loadDialects: async (name: string) => [name] })
+expectTypeOf<ResolveProjectsOptions['loadDialects']>().toEqualTypeOf<
+  (() => Promise<readonly Dialect[]>) | undefined
+>()
+void resolveProjects({}, { ...complete, loadDialects: async () => [] })
+void loadProjects('/a', { dialects: [], environments: {}, ci: false, loadDialects: async () => [] })
+// @ts-expect-error resolveProjects' loadDialects returns a promise, not the list
+void resolveProjects({}, { ...complete, loadDialects: () => [] })
+const nameLoader = { dialects: [], environments: {}, ci: false, loadDialects: async () => ['jest'] }
+// @ts-expect-error loadProjects' loadDialects resolves dialects, not names
+void loadProjects('/a', nameLoader)
 
 expectTypeOf(formatConfigIssue).toEqualTypeOf<(issue: ConfigIssue) => string>()
 // @ts-expect-error an issue is { path, message }, not a string

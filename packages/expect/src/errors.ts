@@ -1,5 +1,7 @@
-// The engine's own errors. A failed assertion is not one of these: it is a `MatcherResultError`
-// (`expect.ts`), whose text the dialect writes.
+// The engine's own errors and their codes. A failed assertion is the table's error: a
+// `MatcherResultError` (`expect.ts`) under `errorShape: 'matcher-result'`, or the error the
+// table's `assertionError` makes under `'assertion-error'` (Provino's own table's carries
+// `EXPECT_ASSERTION_FAILED`, `table/assertion-error.ts`); the dialect writes its text.
 
 /**
  * Stable codes for `ExpectError`.
@@ -18,6 +20,8 @@ export type ExpectErrorCode =
   | 'EXPECT_POLL_UNSUPPORTED'
   /** `expect.poll` given a callback that isn't a function, or an interval or timeout that isn't a time. */
   | 'EXPECT_INVALID_ARGUMENT'
+  /** A failed assertion of Provino's own table (`ProvinoAssertionError`, never an `ExpectError`). */
+  | 'EXPECT_ASSERTION_FAILED'
 
 /**
  * An error from the engine itself, never from an assertion.

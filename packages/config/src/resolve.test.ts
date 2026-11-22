@@ -13,7 +13,7 @@ import type {
   ProvinoConfigInput,
 } from '@provino/types'
 import { ConfigError } from './errors.ts'
-import { makeTempDir, rejectsWith, type TempDir } from './internal/test-support.ts'
+import { makeTempDir, pipe, rejectsWith, type TempDir } from './internal/test-support.ts'
 import {
   type ResolvedProject,
   type ResolveProjectOptions,
@@ -25,12 +25,6 @@ const NODE_ENV = { module: 'file:///env/node.mjs', export: 'nodeEnvironment' }
 const DOM_ENV = { module: 'file:///env/dom.mjs', export: 'domEnvironment' }
 const ENVIRONMENTS = { node: NODE_ENV, dom: DOM_ENV }
 
-/** A dialect that changes one report key, so a test can see its policy was layered in. */
-const pipe = defineDialect({
-  name: 'pipe',
-  version: '1',
-  policy: { report: { displaySeparator: ' | ' } },
-})
 const dash = defineDialect({
   name: 'dash',
   version: '1',

@@ -8,8 +8,6 @@ import { matchers, promiseMatchers } from './matchers.ts'
 import { messages } from './messages.ts'
 import { diffLines, show } from './print.ts'
 
-export { ProvinoAssertionError } from './assertion-error.ts'
-
 /**
  * Returns Provino's own matcher table.
  * @public
