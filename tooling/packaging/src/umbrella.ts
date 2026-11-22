@@ -32,6 +32,34 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   '@provino/api': 'worker/api',
 }
 
+/**
+ * The add-ons' worker modules (D187), which the umbrella built until B27f: entries of the public
+ * declarations pass still, and nothing else. The pass's chunk graph, and with it the names
+ * Rolldown's declaration bundler gives the types its chunks share (the mangled names
+ * `etc/provino.api.md` lists, D67), is then the one it was: without them every one of those
+ * names moved, with no public change. Their own files are not written (`dropDeclarations`):
+ * `provino` ships no such module.
+ */
+const DECLARATION_ONLY_ENTRIES: Readonly<Record<string, string>> = {
+  'worker/jest-runtime': '../dialect-jest/src/runtime/index.ts',
+  'worker/jest-global-setup': '../dialect-jest/src/global-setup/index.ts',
+  'worker/jest-inline-snapshots': '../dialect-jest/src/inline-snapshots/index.ts',
+  'worker/jest-affected': '../dialect-jest/src/affected/index.ts',
+  'worker/vitest-runtime': '../dialect-vitest/src/runtime/index.ts',
+}
+
+/** Drops the declaration files of `DECLARATION_ONLY_ENTRIES` from the output. */
+function dropDeclarations(): NonNullable<UserConfig['plugins']> {
+  return [
+    {
+      name: 'provino-drop-declaration-only-entries',
+      generateBundle(_options, bundle) {
+        for (const name of Object.keys(DECLARATION_ONLY_ENTRIES)) delete bundle[`${name}.d.ts`]
+      },
+    },
+  ]
+}
+
 /** Every `@provino/*` import is bundled from source: what the declarations build inlines. */
 const PROVINO_SCOPE: RegExp[] = [/^@provino\//]
 
@@ -298,11 +326,20 @@ export function workerRefs(): NonNullable<UserConfig['plugins']> {
 export function umbrellaConfig(dir: string): UserConfig[] {
   const manifest = readManifest(dir)
   rmSync(join(dir, 'dist'), { recursive: true, force: true })
+  const entries = umbrellaEntries(dir)
+  const isInternal = (name: string): boolean => name.startsWith('internal/')
+  const publicEntries = {
+    ...Object.fromEntries(Object.entries(entries).filter(([name]) => !isInternal(name))),
+    ...DECLARATION_ONLY_ENTRIES,
+  }
+  const internalEntries = Object.fromEntries(
+    Object.entries(entries).filter(([name]) => isInternal(name)),
+  )
   const common: UserConfig = {
     ...PRESET,
     cwd: dir,
     clean: false,
-    entry: umbrellaEntries(dir),
+    entry: entries,
     inputOptions: {
       resolve: { conditionNames: ['provino-source', 'import', 'node', 'default'] },
     },
@@ -414,10 +451,23 @@ export function umbrellaConfig(dir: string): UserConfig[] {
       },
       plugins: workerRefs(),
     },
+    // The declarations, in two passes: the public entries, then the add-ons' engine
+    // (`internal/*`, D187). One pass would share declaration chunks between them, so the internal
+    // entries would move and rename the public declarations (and their API reports, D67).
     {
       ...common,
+      entry: publicEntries,
       dts: DTS_ONLY,
       deps: { alwaysBundle: PROVINO_SCOPE, dts: { alwaysBundle: PROVINO_SCOPE } },
+      plugins: dropDeclarations(),
+    },
+    {
+      ...common,
+      entry: internalEntries,
+      dts: DTS_ONLY,
+      deps: { alwaysBundle: PROVINO_SCOPE, dts: { alwaysBundle: PROVINO_SCOPE } },
+      // Its shared declaration chunks go under `internal/`, where no public pass writes.
+      outputOptions: { chunkFileNames: 'internal/chunks/[name].d.ts' },
     },
   ]
 }

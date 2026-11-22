@@ -3,6 +3,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { findConfigInDirectory } from '@provino/config'
+import { DialectNotInstalledError, importAddOn } from './add-on.ts'
 import { UsageError } from './usage-error.ts'
 
 /**
@@ -47,11 +48,31 @@ async function hasJestKey(path: string): Promise<boolean> {
   }
 }
 
-/** Whether `directory`'s `vite.config.*` has a `test` key; the reader loads only when there is one. */
-async function declaresTests(directory: string): Promise<boolean> {
+/** A `test` key in a `vite.config.*`'s text: read when the Vitest add-on that would load the file is missing. */
+const TEST_KEY = /\btest\s*:/
+
+/**
+ * Whether `directory`'s `vite.config.*` has a `test` key; the reader loads only when there is one.
+ * Without the Vitest add-on (D187) the file is read as text: a `test` key in it is the install
+ * line (`DialectNotInstalledError`), and none is not a Vitest project.
+ */
+async function declaresTests(directory: string, names: ReadonlySet<string>): Promise<boolean> {
+  let read: (directory: string) => Promise<boolean>
   try {
-    const { viteConfigDeclaresTests } = await import('@provino/dialect-vitest/node')
-    return await viteConfigDeclaresTests(directory)
+    ;({ viteConfigDeclaresTests: read } = await importAddOn(
+      'vitest',
+      () => import('@provino/dialect-vitest/node'),
+    ))
+  } catch (error) {
+    if (!(error instanceof DialectNotInstalledError)) return false
+    for (const name of [...names].filter((candidate) => VITE_CONFIG.test(candidate)).sort()) {
+      const text = await readFile(join(directory, name), 'utf8').catch(() => '')
+      if (TEST_KEY.test(text)) throw error
+    }
+    return false
+  }
+  try {
+    return await read(directory)
   } catch {
     // A `vite.config.*` that doesn't load is not evidence of a Vitest project: a Jest project may
     // carry one for its bundler, and a project with only that one is reported as having no config.
@@ -92,7 +113,7 @@ export async function detectProject(
       [...names].some((name) => VITEST_CONFIG.test(name)) ||
       (!jest &&
         [...names].some((name) => VITE_CONFIG.test(name)) &&
-        (await declaresTests(directory)))
+        (await declaresTests(directory, names)))
     if (jest && vitest) {
       throw new UsageError(
         `found both a Jest config and a Vitest config in ${directory}: say which one to run with --dialect jest or --dialect vitest`,

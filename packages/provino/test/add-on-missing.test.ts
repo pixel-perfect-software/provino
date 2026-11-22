@@ -90,6 +90,20 @@ describe('provino installed without an add-on (B27f, D187)', () => {
     assert.equal(run.stderr, VITEST_LINE)
   })
 
+  test('bare provino on a vite.config with a test key is the Vitest line, exit 1; one without is no config', () => {
+    const vite = project(pkg, {
+      'vite.config.ts': "export default { test: { include: ['*.test.ts'] } }\n",
+    })
+    const run = bin(pkg, vite, [])
+    assert.equal(run.status, 1, run.stderr)
+    assert.equal(run.stderr, VITEST_LINE)
+    // The control: a vite.config for a bundler only is not a Vitest project, with or without the add-on.
+    const bundler = project(pkg, { 'vite.config.ts': 'export default { build: {} }\n' })
+    const plain = bin(pkg, bundler, [])
+    assert.equal(plain.status, 2, plain.stderr)
+    assert.match(plain.stderr, /found no provino\.config\.\*, Jest config or Vitest config/)
+  })
+
   test("a provino.config that names dialect: 'jest' is the Jest line, exit 1", () => {
     const dir = project(pkg, {
       'provino.config.ts': "export default { dialect: 'jest', include: ['*.test.js'] }\n",

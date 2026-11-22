@@ -170,6 +170,21 @@ function forbidden(pkg: string, processes: readonly LoadLog[]): string[] {
   return [...out].sort()
 }
 
+/** The worker-only files of `pkg`'s `dist` the processes loaded: `worker/*` but the behaviours leaf, `internal/*`, `lazy-api.js`. */
+function workerOnly(pkg: string, processes: readonly LoadLog[]): string[] {
+  const dist = join(pkg, 'dist') + sep
+  const out = new Set<string>()
+  for (const log of processes) {
+    for (const path of pathsOf(log)) {
+      if (!path.startsWith(dist)) continue
+      const file = path.slice(dist.length).split(sep).join('/')
+      if (/^(?:worker\/(?!policy-behaviours\.js$)|internal\/|lazy-api\.js$)/.test(file))
+        out.add(file)
+    }
+  }
+  return [...out].sort()
+}
+
 /** A copy of the built package (`dist`, `package.json`, its `node_modules` linked) with `plant` prepended to `file`. */
 function plantedCopy(file: string, plant: string): string {
   // The real path, as the recorder sees it (macOS's `$TMPDIR` is a link).
@@ -259,6 +274,23 @@ describe('a native run loads nothing from Jest or Vitest (B27e, row 8)', () => {
         )
       }
     }
+  })
+
+  test("the coordinator of a native run loads none of the worker's own files", async () => {
+    // B27f's design round: the engine the add-ons import (`internal/*`) must not pull worker-only
+    // code into what the coordinator loads. Its files are the bin's, `coordinator.js`, `shared.js`,
+    // `loading.js` and the behaviours leaf; never `worker/main.js`, the native runtime or `internal/*`.
+    const coordinators = (await runOf(PACKAGE, 'forks')).filter(({ main }) =>
+      main.endsWith(`dist${sep}cli.js`),
+    )
+    assert.equal(coordinators.length, 1)
+    assert.deepEqual(workerOnly(PACKAGE, coordinators), [])
+    // The control: a bin that imports the worker's entry is caught.
+    const copy = plantedCopy('cli.js', "import './worker/main.js'")
+    const planted = (await runOf(copy, 'forks')).filter(({ main }) =>
+      main.endsWith(`dist${sep}cli.js`),
+    )
+    assert.ok(workerOnly(copy, planted).includes('worker/main.js'), 'the plant was not caught')
   })
 
   test("a planted import 'jest-junit' in @provino/api's built entry is caught", async () => {

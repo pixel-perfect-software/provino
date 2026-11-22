@@ -236,6 +236,16 @@ describe('the umbrella exports (T1.10)', () => {
       const missing = [...names].filter((name) => !(got[specifier] ?? []).includes(name))
       assert.deepEqual(missing, [], specifier)
     }
+    // And nothing else: each value an internal entry exports is one an add-on imports. A wider
+    // entry (`export *` of a package) keeps worker-only engine code in the graph, which then lands
+    // in `shared.js`, and the coordinator of every run loads that (B27f's design round).
+    // (An entry only a worker ref names, `env-node` and `vite-alias`, is a module re-exported whole.)
+    for (const [specifier, exported] of Object.entries(got)) {
+      const names = wanted.get(specifier) ?? new Set<string>()
+      if (names.size === 0) continue
+      const unused = exported.filter((name) => !names.has(name))
+      assert.deepEqual(unused, [], specifier)
+    }
   })
 
   test('a path outside exports throws ERR_PACKAGE_PATH_NOT_EXPORTED, built or source', () => {
