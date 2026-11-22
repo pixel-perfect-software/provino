@@ -8,12 +8,9 @@
 // and one whose bin imports the Jest dialect's chunk.
 import assert from 'node:assert/strict'
 import {
-  cpSync,
   mkdtempSync,
   readFileSync,
-  realpathSync,
   rmSync,
-  symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'

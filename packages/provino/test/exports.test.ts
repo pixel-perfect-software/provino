@@ -11,7 +11,6 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
-  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
