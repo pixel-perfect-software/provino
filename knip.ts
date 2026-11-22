@@ -220,7 +220,7 @@ const config: KnipConfig = {
 
 // B27g2: a migrated package's `test` script no longer names its test files (the runner finds them),
 // so knip is told where they are, from the same facts the shared config and `test-shards check` read.
-for (const dir of migratedDirs('.')) {
+for (const dir of migratedDirs(import.meta.dirname)) {
   const own = config.workspaces?.[dir] ?? {}
   config.workspaces = {
     ...config.workspaces,

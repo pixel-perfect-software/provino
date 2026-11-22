@@ -5,7 +5,7 @@
 // package is a path, a workspace name (@provino/core), a directory (packages/core) or a bare name.
 // Exit 0: done; 1: refused sites, or verify found a difference; 2: bad usage or a failed step.
 import { existsSync, realpathSync } from 'node:fs'
-import { join, relative } from 'node:path'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { ROOT } from '../workspace.ts'
@@ -88,9 +88,7 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
         io.out(
           `${sites}, ${report.rewritten.length} rewritten; recorded ${report.baselineTests} baseline test(s)`,
         )
-        for (const path of await scaffoldPackage(root, packageDir)) {
-          io.out(`scaffolded ${relative(root, path)}`)
-        }
+        for (const line of await scaffoldPackage(root, packageDir)) io.out(`scaffolded ${line}`)
       }
       return report.refusals.length > 0 ? 1 : 0
     }

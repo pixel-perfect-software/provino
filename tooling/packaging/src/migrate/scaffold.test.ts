@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
+import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { TEST_RUNNER } from '../dogfood.ts'
@@ -43,6 +43,65 @@ describe('scaffoldPackage', () => {
     assert.equal(
       manifest.scripts.test,
       `${TEST_RUNNER} && node --test --conditions=provino-source src/x.test.ts`,
+    )
+  })
+
+  it("merges into an existing exclude and derives the tests project's references from the dependencies", async () => {
+    const root = scratchDir('scaffold-merge', {
+      'tooling/provino/bootstrap.json': JSON.stringify({ files: {} }),
+      'tsconfig.json': JSON.stringify({ references: [{ path: 'packages/a' }] }),
+      'packages/types/package.json': '{}',
+      'packages/core/package.json': '{}',
+      'packages/a/package.json': JSON.stringify({
+        name: 'a',
+        dependencies: { '@provino/core': 'workspace:*', '@provino/missing': 'workspace:*' },
+      }),
+      'packages/a/tsconfig.json': JSON.stringify({ include: ['src'], exclude: ['src/gen'] }),
+    })
+    const lines = await scaffoldPackage(root, join(root, 'packages/a'))
+    assert.ok(
+      lines.some((line) => line.startsWith('packages/a/tsconfig.json: exclude gained')),
+      lines.join('\n'),
+    )
+    const tsconfig = JSON.parse(await readFile(join(root, 'packages/a/tsconfig.json'), 'utf8'))
+    assert.deepEqual(tsconfig.exclude, ['src/gen', 'src/**/*.test.ts'])
+    const tests = JSON.parse(await readFile(join(root, 'packages/a/tsconfig.tests.json'), 'utf8'))
+    assert.deepEqual(
+      tests.references.map((reference: { path: string }) => reference.path),
+      ['./tsconfig.json', '../provino', '../core', '../../tooling/provino'],
+    )
+    assert.deepEqual(tests.include, ['src/**/*.test.ts', 'provino.config.ts'])
+  })
+
+  it('gives provino no reference to itself', async () => {
+    const root = scratchDir('scaffold-self', {
+      'tooling/provino/bootstrap.json': JSON.stringify({ files: {} }),
+      'tsconfig.json': JSON.stringify({ references: [] }),
+      'packages/provino/package.json': JSON.stringify({ name: 'provino' }),
+      'packages/provino/tsconfig.json': JSON.stringify({ include: ['src'] }),
+    })
+    await scaffoldPackage(root, join(root, 'packages/provino'))
+    const tests = JSON.parse(
+      await readFile(join(root, 'packages/provino/tsconfig.tests.json'), 'utf8'),
+    )
+    assert.deepEqual(
+      tests.references.map((reference: { path: string }) => reference.path),
+      ['./tsconfig.json', '../../tooling/provino'],
+    )
+  })
+
+  it('adds what an existing tests project lacks', async () => {
+    const root = workspace()
+    await scaffoldPackage(root, join(root, 'packages/a'))
+    await writeFile(
+      join(root, 'packages/a/tsconfig.tests.json'),
+      JSON.stringify({ include: ['src/**/*.test.ts'], references: [{ path: './tsconfig.json' }] }),
+    )
+    const lines = await scaffoldPackage(root, join(root, 'packages/a'))
+    assert.equal(lines.length, 1)
+    assert.match(
+      lines[0] ?? '',
+      /tsconfig\.tests\.json: added provino\.config\.ts, \.\.\/provino, \.\.\/\.\.\/tooling\/provino/,
     )
   })
 

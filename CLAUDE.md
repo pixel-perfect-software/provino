@@ -42,7 +42,7 @@ Keep this table current: a wrong command here costs every session. Run everythin
 | --------------------- | ----------------------------------------------------------------------------- |
 | Install               | `pnpm install` (CI: `pnpm install --frozen-lockfile`)                         |
 | Typecheck             | `pnpm typecheck` (`tsc -b`, TS 7)                                             |
-| Unit tests            | `pnpm test` (Turborepo, cached); one package: `pnpm test --filter @provino/x`. `policy` and `lazy` run on this checkout's built bin (B27g2, D203; the rest still on `node:test`); every migrated package in one call: `pnpm build && pnpm test:provino`; the recipe: `pnpm migrate:node-test rewrite <pkg>`, `tooling/packaging/CLAUDE.md` |
+| Unit tests            | `pnpm test` (Turborepo, cached); one package: `pnpm test --filter @provino/x`. `policy` and `lazy` run on this checkout's built bin (B27g2, D203; the rest still on `node:test`); every migrated package's Provino half in one call (it skips the bootstrap set, so it is not the whole suite): `pnpm build && pnpm test:provino`; the recipe: `pnpm migrate:node-test rewrite <pkg>`, `tooling/packaging/CLAUDE.md` |
 | Type tests            | `pnpm test:types` (TS 7.0.2) and `pnpm test:types:ts5.9`                      |
 | Format and lint       | `pnpm format-and-lint` (Biome lint, import order and formatting; Markdown is excluded); fix with `pnpm format-and-lint:fix` |
 | Custom lint rules     | part of `pnpm format-and-lint` (Biome GritQL plugins `neutral-no-dialect-name`, `slice-discipline`; tests are exempt) |
