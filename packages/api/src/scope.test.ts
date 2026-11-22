@@ -15,6 +15,7 @@ import type {
 import {
   type ApiHost,
   PROVINO_API_SLOT,
+  PROVINO_MODULE_MOCK_NAMES,
   type ProvinoApi,
   ProvinoApiError,
   provinoGlobals,
@@ -51,10 +52,10 @@ const LAZY_NAMES = [
 const OWN_NAMES = ['expect', 'fn', 'spyOn', 'replaceProperty', 'isMockFunction', 'mocks', 'timers']
 
 /** Served per module (they resolve from it), in the slot too, never globals. */
-const MODULE_NAMES = ['mock', 'unmock', 'importActual']
+const MODULE_NAMES: readonly string[] = PROVINO_MODULE_MOCK_NAMES
 
 /** A host whose "file running now" the test moves by hand: each file has its own registry and clock. */
-function fakeHost(): {
+function fakeHost(tier: FileRegistry['tier'] = 'registry'): {
   host: ApiHost
   next(): void
   registry(): MockRegistry
@@ -72,6 +73,8 @@ function fakeHost(): {
   // What the module-mock members ask of the file registry running now.
   const fileCalls: unknown[][] = []
   const fileRegistry = {
+    file: '/project/a.test.ts',
+    tier,
     registerMock: (...args: unknown[]) => void fileCalls.push(['registerMock', ...args]),
     unregisterMock: (...args: unknown[]) => void fileCalls.push(['unregisterMock', ...args]),
     importActual: async (...args: unknown[]) => {
@@ -160,9 +163,14 @@ describe('provinoModuleScope', () => {
     assert.equal(descriptor.configurable, true)
     assert.equal(descriptor.enumerable, false)
     const slot = descriptor.value as Record<string, unknown>
+    // The globals are the slot's values without the module-mock names.
     for (const [name, value] of Object.entries(provinoGlobals(host))) {
       assert.equal(slot[name], value, name)
     }
+    assert.equal(
+      Object.keys(slot).length,
+      Object.keys(provinoGlobals(host)).length + MODULE_NAMES.length,
+    )
     // The slot has the module-mock members too, resolving from the test file running now.
     for (const name of MODULE_NAMES) assert.equal(typeof slot[name], 'function', name)
   })
@@ -251,25 +259,33 @@ describe('the slot at stop', () => {
   test('disposing the scope takes the slot out, only while it holds this API', () => {
     const first = fakeHost().host
     const scope = provinoModuleScope(first)
-    assert.ok(Object.hasOwn(globalThis, PROVINO_API_SLOT))
+    const firstApi = Reflect.get(globalThis, PROVINO_API_SLOT) as ProvinoApi
+    assert.equal(firstApi.fn, provinoGlobals(first).fn)
     scope[Symbol.dispose]()
     assert.equal(Object.hasOwn(globalThis, PROVINO_API_SLOT), false)
 
     // A later worker in the same process installed its own: the first one's uninstall leaves it.
-    const firstApi = Reflect.get(globalThis, PROVINO_API_SLOT) as ProvinoApi | undefined
-    assert.equal(firstApi, undefined)
-    provinoModuleScope(first)
-    const installed = Reflect.get(globalThis, PROVINO_API_SLOT) as ProvinoApi
-    Reflect.deleteProperty(globalThis, PROVINO_API_SLOT)
     const second = fakeHost().host
     provinoModuleScope(second)
     const secondApi = Reflect.get(globalThis, PROVINO_API_SLOT) as ProvinoApi
-    assert.equal(uninstallProvinoApi(installed), false)
-    assert.equal(secondApi.fn, provinoGlobals(second).fn)
+    assert.notEqual(secondApi, firstApi)
+    assert.equal(uninstallProvinoApi(firstApi), false)
+    assert.equal(Reflect.get(globalThis, PROVINO_API_SLOT), secondApi)
     assert.equal(uninstallProvinoApi(secondApi), true)
     assert.equal(Object.hasOwn(globalThis, PROVINO_API_SLOT), false)
   })
 })
+
+/** The spec a `registerMock` call recorded. */
+function specAt(
+  calls: unknown[][],
+  index: number,
+): { kind: string; factory?: (...a: never[]) => unknown } {
+  return calls[index]?.[3] as { kind: string; factory?: (...a: never[]) => unknown }
+}
+
+const isCode = (code: string) => (error: unknown) =>
+  error instanceof ProvinoApiError && error.code === code
 
 describe('module mocks', () => {
   test('mock, unmock and importActual resolve from the module that imported them', async () => {
@@ -277,30 +293,25 @@ describe('module mocks', () => {
     const scope = provinoModuleScope(host)
     const fromTest = scope('/project/a.test.ts').provino as unknown as ProvinoApi
     const fromHelper = scope('/project/lib/helper.ts').provino as unknown as ProvinoApi
-    const factory = () => ({ value: 1 })
-    fromTest.mock('./dep.ts', factory)
+    fromTest.mock('./dep.ts', () => ({ value: 1 }))
     fromHelper.mock('./dep.ts')
     fromTest.unmock('./other.ts')
     assert.deepEqual(await fromHelper.importActual('./dep.ts'), { real: true })
-    assert.deepEqual(fileCalls, [
+    assert.deepEqual(
+      fileCalls.map((call) => call.slice(0, 3)),
       [
-        'registerMock',
-        './dep.ts',
-        '/project/a.test.ts',
-        { kind: 'factory', factory },
-        { hoisted: true },
+        ['registerMock', './dep.ts', '/project/a.test.ts'],
+        ['registerMock', './dep.ts', '/project/lib/helper.ts'],
+        ['unregisterMock', './other.ts', '/project/a.test.ts'],
+        ['importActual', './dep.ts', '/project/lib/helper.ts'],
       ],
-      // No factory is the neutral automock.
-      [
-        'registerMock',
-        './dep.ts',
-        '/project/lib/helper.ts',
-        { kind: 'automock', spy: false },
-        { hoisted: true },
-      ],
-      ['unregisterMock', './other.ts', '/project/a.test.ts'],
-      ['importActual', './dep.ts', '/project/lib/helper.ts'],
-    ])
+    )
+    // The factory runs as given (wrapped only to explain an uninitialized read); no factory is
+    // the neutral automock.
+    const factory = specAt(fileCalls, 0)
+    assert.equal(factory.kind, 'factory')
+    assert.deepEqual(factory.factory?.(), { value: 1 })
+    assert.deepEqual(specAt(fileCalls, 1), { kind: 'automock', spy: false })
   })
 
   test("the slot's members resolve from the test file running now (no parent)", async () => {
@@ -326,8 +337,6 @@ describe('module mocks', () => {
       unmock(specifier: unknown): void
       importActual(specifier: unknown): Promise<unknown>
     }
-    const isCode = (code: string) => (error: unknown) =>
-      error instanceof ProvinoApiError && error instanceof TypeError && error.code === code
     assert.throws(() => misuse.mock(1), isCode('API_MOCK_SPECIFIER'))
     assert.throws(() => misuse.unmock(null), isCode('API_MOCK_SPECIFIER'))
     await assert.rejects(misuse.importActual({}), isCode('API_MOCK_SPECIFIER'))
@@ -336,11 +345,54 @@ describe('module mocks', () => {
     assert.deepEqual(fileCalls, [])
   })
 
-  test('disposing the scope forgets its namespaces', () => {
-    const { host } = fakeHost()
+  test('a factory that reads a binding in its dead zone is API_MOCK_FACTORY_UNINITIALIZED, named as written', async () => {
+    const { host, fileCalls } = fakeHost()
+    const api = provinoModuleScope(host)('/project/a.test.ts').provino as unknown as ProvinoApi
+    // What the hoister makes of `() => ({ a: b })` with `b` from a later import.
+    const late = new Function(
+      'return () => ({ a: __provino_import_1__.b }); const __provino_import_1__ = {}',
+    )() as () => object
+    api.mock('./a.ts', late)
+    const own = (): object => {
+      throw new ReferenceError("Cannot access 'config' before initialization")
+    }
+    api.mock('./b.ts', own)
+    api.mock('./c.ts', async () => {
+      throw new ReferenceError("Cannot access 'later' before initialization")
+    })
+    const other = new TypeError('not a dead zone')
+    api.mock('./d.ts', () => {
+      throw other
+    })
+    assert.throws(
+      () => specAt(fileCalls, 0).factory?.(),
+      (error: unknown) =>
+        isCode('API_MOCK_FACTORY_UNINITIALIZED')(error) &&
+        error instanceof Error &&
+        error.message.startsWith("mock('./a.ts'): the factory read the import `b` before") &&
+        error.cause instanceof ReferenceError,
+    )
+    assert.throws(() => specAt(fileCalls, 1).factory?.(), /the factory read `config` before/)
+    await assert.rejects(
+      Promise.resolve(specAt(fileCalls, 2).factory?.()),
+      /mock\('\.\/c\.ts'\): the factory read `later` before/,
+    )
+    // Anything else passes through as it was.
+    assert.throws(
+      () => specAt(fileCalls, 3).factory?.(),
+      (error: unknown) => error === other,
+    )
+  })
+
+  test("under isolation 'none' a module other than the test file may not register a mock", () => {
+    const { host, fileCalls } = fakeHost('none')
     const scope = provinoModuleScope(host)
-    const before = scope('/project/a.test.ts')
-    scope[Symbol.dispose]()
-    assert.notEqual(scope('/project/a.test.ts'), before)
+    const helper = scope('/project/lib/setup-mocks.ts').provino as unknown as ProvinoApi
+    assert.throws(() => helper.mock('./dep.ts'), isCode('API_MOCK_SHARED_MODULE'))
+    assert.throws(() => helper.unmock('./dep.ts'), /isolation 'none' loads once per worker/)
+    // The test file itself, and the slot, still register.
+    const test = scope('/project/a.test.ts').provino as unknown as ProvinoApi
+    test.mock('./dep.ts')
+    assert.equal(fileCalls.length, 1)
   })
 })

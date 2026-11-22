@@ -15,6 +15,7 @@ import type {
 } from '@provino/mock'
 import type { FakeClock, FakeTimersConfig, SystemTime, TimerTickMode } from '@provino/timers'
 import type { GlobalsHost } from '@provino/types'
+import type { ProvinoModuleMockName } from './module-mocks.ts'
 
 /**
  * What `provinoModuleScope` and `provinoGlobals` build from: `GlobalsHost` with the real types of
@@ -148,13 +149,6 @@ export type ProvinoApi = {
     specifier: string,
   ) => Promise<T>
 }
-
-/**
- * The names of `ProvinoApi` that act on module mocks. They resolve a specifier from the module
- * that imported them, so they are served per module and are never globals.
- * @public
- */
-export type ProvinoModuleMockName = 'mock' | 'unmock' | 'importActual'
 
 /**
  * What `globals: true` installs: `ProvinoApi` without the module-mock names (a global `mock` would
