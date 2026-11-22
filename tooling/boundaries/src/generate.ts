@@ -26,6 +26,10 @@ const DIALECT_TARGET = '^packages/dialect-[^/]+/|^@provino/dialect-'
 /** Test files and test-support modules: what `test-support-only-in-tests` lets import support. */
 const TEST_FILE = String.raw`\.test\.ts$|\.test-d\.ts$|(?:^|/)test-support\.ts$`
 const TEST_SUPPORT = String.raw`(?:^|/)test-support\.ts$`
+/** The `provino` entry, which this repo's own tests import as the native API (B27g2). */
+const NATIVE_API_ENTRY = String.raw`^packages/provino/src/index\.ts$`
+/** This repo's own test configuration: each package's `provino.config.ts` and the shared one. */
+const TEST_CONFIG = String.raw`(?:^|/)provino\.config\.ts$|^tooling/provino/`
 const NOT_TESTS: readonly string[] = [
   '!**/*.test.ts',
   '!**/*.test-d.ts',
@@ -163,7 +167,7 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
           comment: spec.comment,
           severity: 'error',
           from: { path: spec.from },
-          to: { path: workspaceTarget, pathNot: [...new Set(spec.allowed)] },
+          to: { path: workspaceTarget, pathNot: [...new Set([...spec.allowed, NATIVE_API_ENTRY])] },
         }
       }),
       ...placed
@@ -186,6 +190,14 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
             dependencyTypesNot: ['type-only'],
           },
         })),
+      {
+        name: 'native-api-only-in-tests',
+        comment:
+          "B27g2: this repo's own tests import the native API as `provino` (the checkout's entry, `packages/provino/src/index.ts`), so every boundary-* rule lets that one file through and this rule keeps it to test files and to `provino` itself. Production code reaches the API as data, through the runtime refs.",
+        severity: 'error',
+        from: { path: `^(?:${rootsPattern})/`, pathNot: [TEST_FILE, '^packages/provino/'] },
+        to: { path: NATIVE_API_ENTRY },
+      },
       {
         name: 'test-support-only-in-tests',
         comment:
@@ -228,10 +240,15 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
       // first (`workspace-exports` checks), so no edge lands in dist/. Neither is generated or
       // scratch output (SKIPPED_DIRS, shared with the workspace walk). node_modules stays in the
       // graph, as edge targets only (`doNotFollow`): `banned-packages-*` (T7.12) needs to see them.
+      // B27g2: nor is this repo's own test configuration (`provino.config.ts` and
+      // `tooling/provino/`), which names the runner and the shared config, not package code.
       exclude: {
-        path: `(^|/)(?:${SKIPPED_DIRS.filter((dir) => dir !== 'node_modules')
-          .map(escapeRegex)
-          .join('|')})/`,
+        path: [
+          `(^|/)(?:${SKIPPED_DIRS.filter((dir) => dir !== 'node_modules')
+            .map(escapeRegex)
+            .join('|')})/`,
+          TEST_CONFIG,
+        ],
       },
       tsPreCompilationDeps: true,
       combinedDependencies: false,
