@@ -15,6 +15,8 @@
     "@arethetypeswrong/cli": "catalog:",
     "@microsoft/api-extractor": "catalog:",
     "knip": "catalog:",
+    "magic-string": "catalog:",
+    "oxc-parser": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:"
   }
