@@ -124,6 +124,7 @@ Flow: check `config` and `maxWorkers` → `loadConfigFile`, then `resolveProject
   - `run.test-d.ts`: the types of `run`'s options and result.
 - Test files note their worker's pid in a file under the project (`noting`) so a test can check afterwards that every worker has exited.
 - Workers' own stderr goes to the `stderr` you pass. Some environments (this sandbox) print noise there at every Node start, so assert with patterns, not that stderr is empty.
+- `test/bootstrap/canary.test.ts` (B27g2, D203): node:test, in the bootstrap set (`tooling/packaging/CLAUDE.md` → "Dogfooding"); runs the built bin on 2 pass / 2 fail and asserts exit 1 and both counts.
 
 ## Not built yet
 

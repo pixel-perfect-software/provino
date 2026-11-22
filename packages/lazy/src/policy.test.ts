@@ -1,6 +1,6 @@
 // `LazyPolicy.readInBeforeAll`: reading a test-scoped value in a suite hook.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { LazyError } from './errors.ts'
 import { createWorld } from './internal/test-support.ts'
 

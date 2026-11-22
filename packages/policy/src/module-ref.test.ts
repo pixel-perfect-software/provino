@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { ModuleRef } from '@provino/types'
+import { describe, test } from 'provino'
 import { forEachModuleRef, isImportableLocation, moduleRef } from './module-ref.ts'
 
 describe('isImportableLocation', () => {

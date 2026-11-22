@@ -38,3 +38,5 @@ Every check runs, then dependency-cruiser does, so one run reports everything.
 - dependency-cruiser rejects nested quantifiers like `(?:-[a-z]+)?` as unsafe regexes.
 - dependency-cruiser 18.7 runs on the TypeScript 6 API through `packageExtensions` in `pnpm-workspace.yaml`.
 - `turbo.json` here turns caching off for `test`: the planted tests read root files (`biome.json`, `generated/`, `.dependency-cruiser.json`) and the tools in `node_modules`, none of which are in this package's Turbo inputs.
+
+- **Own tests import `provino` (B27g2, D203).** The manifest's top-level `testOnlyEntry` (`packages/provino/src/index.ts`) is let through by every `boundary-*` rule, and `test-only-entry` keeps it to test files and its own package; Phase 10 removes the entry and runs `pnpm boundaries:write`. The `provino.config.ts` files and `tooling/provino/{base,all.config}.ts` are left out of the cruise (they name the runner, not package code).

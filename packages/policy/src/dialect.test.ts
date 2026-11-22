@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { HoistPolicy } from '@provino/types'
+import { test } from 'provino'
 import { defineDialect, defineHoistPolicy } from './dialect.ts'
 
 test('defineDialect returns the dialect it is given', () => {

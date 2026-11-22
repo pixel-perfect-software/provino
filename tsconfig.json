@@ -14,10 +14,16 @@
       "path": "packages/policy"
     },
     {
+      "path": "packages/policy/tsconfig.tests.json"
+    },
+    {
       "path": "packages/core"
     },
     {
       "path": "tooling/boundaries"
+    },
+    {
+      "path": "tooling/provino"
     },
     {
       "path": "packages/harness"
@@ -54,6 +60,9 @@
     },
     {
       "path": "packages/lazy"
+    },
+    {
+      "path": "packages/lazy/tsconfig.tests.json"
     },
     {
       "path": "packages/timers"

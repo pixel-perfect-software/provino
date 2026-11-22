@@ -278,6 +278,17 @@ describe('dependency-cruiser rules', { concurrency: true }, () => {
     assert.doesNotMatch(output, /ok\.test\.ts/)
   })
 
+  test('production code importing the native API entry fails test-only-entry', async () => {
+    const dir = await workspace({
+      'packages/core/src/planted.ts': "import '../../provino/src/index.ts'\n",
+      'packages/provino/src/index.ts': 'export {}\n',
+    })
+    assert.match(
+      (await depcruise(dir)).output,
+      /error test-only-entry: packages\/core\/src\/planted\.ts → packages\/provino\/src\/index\.ts/,
+    )
+  })
+
   test('a relative import into another package fails public-entry-only', async () => {
     const dir = await workspace({
       'packages/core/src/planted.ts': "import '../../policy/src/index.ts'\n",
