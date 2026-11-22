@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs'
 import { dirname, join, posix } from 'node:path'
 import type { UserConfig } from 'tsdown/config'
-import { ADD_ONS } from './internal-entries.ts'
+import { ADD_ONS, inPackage, isInternalEntry, rewriteResolveCalls } from './internal-entries.ts'
 import { readManifest, runtimeDependencyNames } from './package-json.ts'
 import { DTS_ONLY, entriesOf, PRESET } from './preset.ts'
 
@@ -41,11 +41,11 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
  * `provino` ships no such module.
  */
 const DECLARATION_ONLY_ENTRIES: Readonly<Record<string, string>> = {
-  'worker/jest-runtime': '../dialect-jest/src/runtime/index.ts',
-  'worker/jest-global-setup': '../dialect-jest/src/global-setup/index.ts',
-  'worker/jest-inline-snapshots': '../dialect-jest/src/inline-snapshots/index.ts',
-  'worker/jest-affected': '../dialect-jest/src/affected/index.ts',
-  'worker/vitest-runtime': '../dialect-vitest/src/runtime/index.ts',
+  '@provino/dialect-jest/runtime': 'worker/jest-runtime',
+  '@provino/dialect-jest/global-setup': 'worker/jest-global-setup',
+  '@provino/dialect-jest/inline-snapshots': 'worker/jest-inline-snapshots',
+  '@provino/dialect-jest/affected': 'worker/jest-affected',
+  '@provino/dialect-vitest/runtime': 'worker/vitest-runtime',
 }
 
 /** Drops the declaration files of `DECLARATION_ONLY_ENTRIES` from the output. */
@@ -54,25 +54,43 @@ function dropDeclarations(): NonNullable<UserConfig['plugins']> {
     {
       name: 'provino-drop-declaration-only-entries',
       generateBundle(_options, bundle) {
-        for (const name of Object.keys(DECLARATION_ONLY_ENTRIES)) delete bundle[`${name}.d.ts`]
+        for (const name of Object.values(DECLARATION_ONLY_ENTRIES)) delete bundle[`${name}.d.ts`]
       },
     },
   ]
 }
 
+/**
+ * The entries `table` names (specifier to entry name), each with the source the `provino-source`
+ * condition of that subpath gives in its package: a subpath that moved fails here, by name.
+ */
+function sourcesOf(dir: string, table: Readonly<Record<string, string>>): Record<string, string> {
+  const entries: Record<string, string> = {}
+  for (const [specifier, name] of Object.entries(table)) {
+    const [, pkg = '', rest] = /^@provino\/([^/]+)(?:\/(.+))?$/.exec(specifier) ?? []
+    const subpath = rest === undefined ? '.' : `./${rest}`
+    const source = entriesOf(readManifest(join(dir, '..', pkg))).find(
+      (entry) => entry.subpath === subpath,
+    )?.source
+    if (source === undefined) {
+      throw new Error(`${specifier}: ${pkg} has no "${subpath}" export with a provino-source file`)
+    }
+    entries[name] = posix.join('..', pkg, source)
+  }
+  return entries
+}
+
 /** Every `@provino/*` import is bundled from source: what the declarations build inlines. */
 const PROVINO_SCOPE: RegExp[] = [/^@provino\//]
 
-/** The add-ons (D187) and their subpaths: external imports, which a dialect's command reaches only by a dynamic import. */
-const ADD_ON_SCOPE: RegExp[] = ADD_ONS.map(
-  (name) => new RegExp(`^${name.replace('/', '\\/')}(?:\\/|$)`),
-)
+/** An add-on (D187) or one of its subpaths: an external import, reached by a dynamic import only. */
+function isAddOnImport(id: string): boolean {
+  return ADD_ONS.some((name) => inPackage(id, name))
+}
 
 /** What the JavaScript build inlines: every `@provino/*` package but the add-ons. */
 function isEngine(id: string): boolean {
-  return (
-    PROVINO_SCOPE.some((scope) => scope.test(id)) && !ADD_ON_SCOPE.some((scope) => scope.test(id))
-  )
+  return PROVINO_SCOPE.some((scope) => scope.test(id)) && !isAddOnImport(id)
 }
 
 /**
@@ -111,28 +129,8 @@ export function umbrellaEntries(dir: string): Readonly<Record<string, string>> {
     }
     entries[name] = source
   }
-  for (const [specifier, name] of Object.entries(WORKER_ENTRIES)) {
-    const [, pkg = '', rest] = /^@provino\/([^/]+)(?:\/(.+))?$/.exec(specifier) ?? []
-    const subpath = rest === undefined ? '.' : `./${rest}`
-    const source = entriesOf(readManifest(join(dir, '..', pkg))).find(
-      (entry) => entry.subpath === subpath,
-    )?.source
-    if (source === undefined) {
-      throw new Error(`${specifier}: ${pkg} has no "${subpath}" export with a provino-source file`)
-    }
-    entries[name] = posix.join('..', pkg, source)
-  }
-  return entries
+  return { ...entries, ...sourcesOf(dir, WORKER_ENTRIES) }
 }
-
-/** `import.meta.resolve` of a specifier the build can name, or of a package (`es-module-lexer`). */
-const RESOLVE_CALL = /import\.meta\.resolve\(\s*(?:"([^"\\]+)"|'([^'\\]+)'|`([^`\\$]+)`)\s*,?\s*\)/g
-
-/** A line of a comment, which may mention a call without making one. */
-const COMMENT_LINE = /^\s*(?:\/\/|\*|\/\*)/
-
-/** A call of `import.meta.resolve` with something between the parentheses. */
-const ARGUMENT_CALL = /import\.meta\.resolve\(\s*[^)\s]/g
 
 const MARK = '__provino_ref__:'
 
@@ -267,38 +265,17 @@ export function workerRefs(): NonNullable<UserConfig['plugins']> {
       transform: {
         filter: { code: 'import.meta.resolve' },
         handler(code, id) {
-          let changed = false
-          const out = code.replace(RESOLVE_CALL, (call, a?: string, b?: string, c?: string) => {
-            const specifier = a ?? b ?? c ?? ''
-            if (!specifier.startsWith('@provino/')) return call
-            if (ADD_ONS.some((name) => specifier === name || specifier.startsWith(`${name}/`))) {
-              throw new Error(
-                `${id}: import.meta.resolve('${specifier}') names an add-on's file (D187): take the ref from the add-on's own value, which resolves its files where it is installed`,
-              )
-            }
+          const out = rewriteResolveCalls(code, id, (specifier) => {
+            if (!specifier.startsWith('@provino/')) return undefined
             const entry = WORKER_ENTRIES[specifier]
             if (entry === undefined) {
               throw new Error(
-                `${id}: import.meta.resolve('${specifier}') names a package the umbrella doesn't bundle as an entry (add it to WORKER_ENTRIES)`,
+                `${id}: import.meta.resolve('${specifier}') names a package the umbrella doesn't bundle as an entry (add it to WORKER_ENTRIES; an add-on's file is the add-on's own to name, D187: take the ref from its value, which resolves its files where it is installed)`,
               )
             }
-            changed = true
             return `new URL(${JSON.stringify(`${MARK}${entry}.js`)}, import.meta.url).href`
           })
-          // What no literal pattern matched, with an argument, is a call whose specifier the build
-          // can't read, so it could name a `@provino/*` package this plugin would never rewrite:
-          // fail the build. (`import.meta.resolve()` in a message has no argument.)
-          const rest = out.replace(RESOLVE_CALL, '')
-          for (const match of rest.matchAll(ARGUMENT_CALL)) {
-            const start = rest.lastIndexOf('\n', match.index) + 1
-            const end = rest.indexOf('\n', match.index)
-            const line = rest.slice(start, end === -1 ? undefined : end).trim()
-            if (COMMENT_LINE.test(line)) continue
-            throw new Error(
-              `${id}: import.meta.resolve needs a string literal, which the umbrella build reads to rewrite a @provino/* specifier (found \`${line}\`)`,
-            )
-          }
-          return changed ? { code: out, map: null } : null
+          return out === undefined ? null : { code: out, map: null }
         },
       },
       renderChunk(code, chunk) {
@@ -327,13 +304,12 @@ export function umbrellaConfig(dir: string): UserConfig[] {
   const manifest = readManifest(dir)
   rmSync(join(dir, 'dist'), { recursive: true, force: true })
   const entries = umbrellaEntries(dir)
-  const isInternal = (name: string): boolean => name.startsWith('internal/')
   const publicEntries = {
-    ...Object.fromEntries(Object.entries(entries).filter(([name]) => !isInternal(name))),
-    ...DECLARATION_ONLY_ENTRIES,
+    ...Object.fromEntries(Object.entries(entries).filter(([name]) => !isInternalEntry(name))),
+    ...sourcesOf(dir, DECLARATION_ONLY_ENTRIES),
   }
   const internalEntries = Object.fromEntries(
-    Object.entries(entries).filter(([name]) => isInternal(name)),
+    Object.entries(entries).filter(([name]) => isInternalEntry(name)),
   )
   const common: UserConfig = {
     ...PRESET,
@@ -350,7 +326,7 @@ export function umbrellaConfig(dir: string): UserConfig[] {
       dts: false,
       deps: {
         alwaysBundle: isEngine,
-        neverBundle: ADD_ON_SCOPE,
+        neverBundle: (id: string) => isAddOnImport(id),
         // Nothing from node_modules is bundled: the `@provino/*` packages are workspace sources.
         onlyBundle: [],
         // The output imports only what `provino` declares, and the add-ons (D187), which a user

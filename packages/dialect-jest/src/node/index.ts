@@ -241,3 +241,17 @@ export const jestNodeDialect: Dialect<'jest'> = {
   cli: jestCli,
   flags: jestFlags,
 }
+
+/**
+ * The ref of the adapter a Jest project's own environment class runs through (D44): `/runtime`'s
+ * `jestEnvironment`, by the file this package is installed as (D21), for `provino jest`'s
+ * environment table.
+ * @public
+ */
+export const JEST_ENVIRONMENT_ADAPTER: {
+  readonly module: string
+  readonly export: 'jestEnvironment'
+} = {
+  module: import.meta.resolve('@provino/dialect-jest/runtime'),
+  export: 'jestEnvironment',
+}

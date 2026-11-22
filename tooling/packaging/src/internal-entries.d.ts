@@ -1,17 +1,17 @@
-import type { UserConfig } from 'tsdown/config';
-import type { PackageManifest } from './package-json.ts';
+import type { UserConfig } from 'tsdown/config'
+import type { PackageManifest } from './package-json.ts'
 /**
  * The add-on installs (D187): the dialects `provino` no longer inlines. Each is built on its own
  * with `provino` as a peer, and `provino` imports it only where a dialect is asked for.
  * @internal
  */
-export declare const ADD_ONS: readonly string[];
+export declare const ADD_ONS: readonly string[]
 /**
  * Whether a package is an add-on: it names `provino` as a peer. Its `@provino/*` engine imports are
  * rewritten by `internalImports`, so it never installs a second copy of the engine.
  * @internal
  */
-export declare function isAddOn(manifest: PackageManifest): boolean;
+export declare function isAddOn(manifest: PackageManifest): boolean
 /**
  * The engine each add-on reaches through `provino` (D187): every `@provino/*` specifier its sources
  * import (or `import.meta.resolve`), and the `provino/internal/<entry>` subpath it becomes in the
@@ -22,13 +22,13 @@ export declare function isAddOn(manifest: PackageManifest): boolean;
  * (`umbrella.test.ts` holds the two equal).
  * @internal
  */
-export declare const INTERNAL_ENTRIES: Readonly<Record<string, Readonly<Record<string, string>>>>;
+export declare const INTERNAL_ENTRIES: Readonly<Record<string, Readonly<Record<string, string>>>>
 /**
  * The internal target of an engine specifier an add-on names, or `undefined` for its own package.
  * A `@provino/*` specifier that is neither fails the build: it would install a second engine.
  * @internal
  */
-export declare function internalTarget(specifier: string, own: string): string | undefined;
+export declare function internalTarget(specifier: string, own: string): string | undefined
 /**
  * The add-on's build plugin (D187): every `@provino/*` engine import, static, dynamic or a type's,
  * resolves to its `provino/internal/<entry>` subpath and stays external, and every
@@ -37,5 +37,5 @@ export declare function internalTarget(specifier: string, own: string): string |
  * as they are. The sources are not edited: in the workspace they import the engine by name.
  * @internal
  */
-export declare function internalImports(own: string): NonNullable<UserConfig['plugins']>;
+export declare function internalImports(own: string): NonNullable<UserConfig['plugins']>
 //# sourceMappingURL=internal-entries.d.ts.map

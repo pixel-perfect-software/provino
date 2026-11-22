@@ -22,7 +22,15 @@ import { join } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runInNewContext } from 'node:vm'
-import { builtSources, chunkFiles, dynamicImports, staticImports } from './dist.ts'
+import {
+  ADD_ON_DISTS,
+  builtSources,
+  chunkFiles,
+  dynamicImports,
+  moduleRequests,
+  staticImports,
+  stringLiterals,
+} from './dist.ts'
 import { childEnv, readLoadLogs, runBuilt, trackedProjects } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
@@ -56,21 +64,13 @@ const SUBPATHS = Object.entries(manifest.exports)
 /** The ones a user imports: all but the add-ons' engine (`./internal/*`, D187). */
 const USER_SUBPATHS = SUBPATHS.filter((subpath) => !subpath.startsWith('./internal/'))
 
-/** The `dist` of each add-on, as its workspace link from this package finds it. */
-const ADD_ON_DISTS: Readonly<Record<string, string>> = {
-  'dialect-jest': join(PACKAGE, 'node_modules', '@provino', 'dialect-jest', 'dist'),
-  'dialect-vitest': join(PACKAGE, 'node_modules', '@provino', 'dialect-vitest', 'dist'),
-}
-
 /**
  * The built files among `urls`, by package: `worker/main.js` for this package's own, and
  * `dialect-jest:runtime/index.js` for an add-on's (each add-on's `dist` through its real path).
  */
 function builtFiles(urls: readonly string[]): string[] {
   const own = `${join(PACKAGE, 'dist')}/`
-  const addOns = Object.entries(ADD_ON_DISTS).map(
-    ([name, dist]) => [name, `${realpathSync(dist)}/`] as const,
-  )
+  const addOns = Object.entries(ADD_ON_DISTS).map(([name, dist]) => [name, `${dist}/`] as const)
   const files: string[] = []
   for (const url of urls) {
     if (!url.startsWith('file://')) continue
@@ -207,19 +207,17 @@ describe('the umbrella exports (T1.10)', () => {
     // What the add-ons' built files import from the engine, subpath by subpath.
     const wanted = new Map<string, Set<string>>()
     for (const dist of Object.values(ADD_ON_DISTS)) {
-      for (const source of builtSources(dist).values()) {
-        for (const match of source.matchAll(
-          /import\s*\{([^}]*)\}\s*from\s*"(provino\/internal\/[^"]+)"/g,
-        )) {
-          const names = wanted.get(match[2] ?? '') ?? new Set<string>()
-          for (const part of (match[1] ?? '').split(',')) {
-            const name = part.trim().split(/\s+as\s+/)[0]
-            if (name !== undefined && name !== '') names.add(name)
-          }
-          wanted.set(match[2] ?? '', names)
+      for (const [path, source] of builtSources(dist)) {
+        for (const request of moduleRequests(path, source)) {
+          if (!request.specifier.startsWith('provino/internal/')) continue
+          const names = wanted.get(request.specifier) ?? new Set<string>()
+          for (const name of request.names) if (name !== '*') names.add(name)
+          wanted.set(request.specifier, names)
         }
-        for (const match of source.matchAll(/["'](provino\/internal\/[^"']+)["']/g))
-          if (!wanted.has(match[1] ?? '')) wanted.set(match[1] ?? '', new Set())
+        for (const literal of stringLiterals(path, source)) {
+          if (literal.startsWith('provino/internal/') && !wanted.has(literal))
+            wanted.set(literal, new Set())
+        }
       }
     }
     assert.ok(wanted.has('provino/internal/jest-runtime'), [...wanted.keys()].join(', '))
@@ -250,6 +248,26 @@ describe('the umbrella exports (T1.10)', () => {
       const unused = exported.filter((name) => !names.has(name) && !policy.has(name))
       assert.deepEqual(unused, [], specifier)
     }
+  })
+
+  test("no add-on's build names a @provino/* package but its own (D187: one engine)", () => {
+    // Every string in the built code, comments aside: an import, a dynamic import, a worker ref.
+    for (const [name, dist] of Object.entries(ADD_ON_DISTS)) {
+      const own = `@provino/${name}`
+      const strays: string[] = []
+      for (const [path, source] of builtSources(dist)) {
+        for (const literal of stringLiterals(path, source)) {
+          if (/^@provino\//.test(literal) && literal !== own && !literal.startsWith(`${own}/`))
+            strays.push(`${path}: ${literal}`)
+        }
+      }
+      assert.deepEqual(strays, [], name)
+    }
+    // The control: the reading sees a planted one.
+    assert.deepEqual(
+      stringLiterals('x.js', "// '@provino/in-a-comment'\nimport.meta.resolve('@provino/core')"),
+      ['@provino/core'],
+    )
   })
 
   test('a path outside exports throws ERR_PACKAGE_PATH_NOT_EXPORTED, built or source', () => {

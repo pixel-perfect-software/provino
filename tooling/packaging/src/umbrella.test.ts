@@ -81,7 +81,7 @@ describe('the worker-ref plugin', () => {
     for (const specifier of ['@provino/dialect-jest/runtime', '@provino/dialect-vitest']) {
       assert.throws(
         () => hooks.transform.handler(`import.meta.resolve('${specifier}')`, '/x/a.ts'),
-        /names an add-on's file \(D187\)/,
+        /an add-on's file is the add-on's own to name, D187/,
       )
     }
   })

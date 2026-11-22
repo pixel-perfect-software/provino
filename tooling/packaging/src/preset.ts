@@ -131,10 +131,16 @@ export function packageConfigs(dir: string): UserConfig[] {
   const config = packageConfig(dir)
   const manifest = readManifest(dir)
   if (!isAddOn(manifest)) return [config]
+  const entries = entriesOf(manifest)
+  for (const subpath of WORKER_SUBPATHS) {
+    if (!entries.some((entry) => entry.subpath === subpath)) {
+      throw new Error(
+        `${manifest.name}: an add-on needs a "${subpath}" export with a provino-source file`,
+      )
+    }
+  }
   const worker = new Set(
-    entriesOf(manifest)
-      .filter((entry) => WORKER_SUBPATHS.has(entry.subpath))
-      .map((entry) => entry.name),
+    entries.filter((entry) => WORKER_SUBPATHS.has(entry.subpath)).map((entry) => entry.name),
   )
   const entry = Object.entries(config.entry ?? {})
   const pick = (inWorker: boolean) =>

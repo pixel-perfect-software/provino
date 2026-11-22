@@ -232,8 +232,23 @@ describe('resolveProjects: loadDialects (B27e)', () => {
   })
 
   test('a name the loaded dialects lack is still CONFIG_UNKNOWN_DIALECT, a typo CONFIG_UNKNOWN_KEY', async () => {
-    await rejectsWith(resolveCounting({ dialect: 'nope' as never }), 'CONFIG_UNKNOWN_DIALECT')
-    await rejectsWith(resolveCounting({ inclde: [] } as ProvinoConfigInput), 'CONFIG_UNKNOWN_KEY')
+    const dialect = await rejectsWith(
+      resolveCounting({ dialect: 'nope' as never }),
+      'CONFIG_UNKNOWN_DIALECT',
+    )
+    const key = await rejectsWith(
+      resolveCounting({ inclde: [] } as ProvinoConfigInput),
+      'CONFIG_UNKNOWN_KEY',
+    )
+    // What each refused, as data (B27f): a caller with lazy dialects reads it, not the message.
+    assert.equal(dialect.subject, 'nope')
+    assert.equal(key.subject, 'inclde')
+    // A nested key is not the config's own: no subject.
+    const nested = await rejectsWith(
+      resolveCounting({ timeouts: { tset: 1 } } as never),
+      'CONFIG_UNKNOWN_KEY',
+    )
+    assert.equal(nested.subject, undefined)
   })
 
   test('a rejection reached from a sub-config is CONFIG_LOAD_FAILED, the loader called once', async () => {

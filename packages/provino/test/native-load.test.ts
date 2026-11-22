@@ -20,7 +20,7 @@ import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { builtSources, chunkFiles } from './dist.ts'
+import { ADD_ON_DISTS, builtSources, chunkFiles, moduleRequests } from './dist.ts'
 import {
   type LoadLog,
   linkProvino,
@@ -90,16 +90,14 @@ const dialectChunks = memoize((dist: string): ReadonlySet<string> => {
     if (/^worker\/(?:jest-|vitest-runtime)/.test(path)) found.add(path)
     // Since B27f (D187) the dialects are add-ons: a chunk that imports one is dialect code too
     // (`provino jest`'s and `provino vitest`'s commands, `provino/jest`, `provino/vitest`).
-    if (/\bfrom\s*["']@provino\/dialect-(?:jest|vitest)(?:\/[^"']*)?["']/.test(source))
+    const requests = moduleRequests(path, source)
+    if (
+      requests.some(({ specifier }) => /^@provino\/dialect-(?:jest|vitest)(?:\/|$)/.test(specifier))
+    )
       found.add(path)
   }
   return found
 })
-
-/** The add-ons' builds (D187), by real path: every file of theirs is dialect code. */
-const ADD_ON_DISTS: readonly string[] = ['dialect-jest', 'dialect-vitest'].map((name) =>
-  realpathSync(join(PACKAGE, 'node_modules', '@provino', name, 'dist')),
-)
 
 /** `fn` with one result per argument, so a test that asks again reads the first run. */
 function memoize<Value>(fn: (key: string) => Value): (key: string) => Value {
@@ -167,7 +165,7 @@ function forbidden(pkg: string, processes: readonly LoadLog[]): string[] {
     for (const path of pathsOf(log)) {
       const posixPath = path.split(sep).join('/')
       if (BANNED.test(posixPath)) out.add(posixPath)
-      for (const addOn of ADD_ON_DISTS)
+      for (const addOn of Object.values(ADD_ON_DISTS))
         if (path.startsWith(addOn + sep)) out.add(`add-on file: ${posixPath}`)
       if (path.startsWith(dist) && chunks.has(path.slice(dist.length).split(sep).join('/'))) {
         out.add(`dialect chunk: ${path.slice(dist.length).split(sep).join('/')}`)
@@ -232,7 +230,7 @@ describe('a native run loads nothing from Jest or Vitest (B27e, row 8)', () => {
     assert.ok(!chunks.has('shared.js'), [...chunks].join(', '))
     for (const [path, source] of builtSources(join(PACKAGE, 'dist')))
       assert.doesNotMatch(source, /\bconst (?:jestDialect|vitestDialect)(?:\$\d+)? =/, path)
-    for (const dist of ADD_ON_DISTS) assert.ok(dialectChunks(dist).size > 0, dist)
+    for (const dist of Object.values(ADD_ON_DISTS)) assert.ok(dialectChunks(dist).size > 0, dist)
   })
 
   for (const pool of ['forks', 'threads'] as const) {

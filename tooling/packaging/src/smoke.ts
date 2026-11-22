@@ -158,12 +158,6 @@ export const NATIVE_FOOTPRINT_SKIP: string =
   'skipped: installSmoke was asked not to run the native case (native: false)'
 
 /**
- * Whether `installSmoke` runs the native footprint case when not told: `true` since B27f (D187).
- * @internal
- */
-export const NATIVE_FOOTPRINT_DEFAULT: boolean = true
-
-/**
  * The Jest app's pnpm settings: no hoisting at all (`hoist=false`, in both places pnpm reads
  * settings from), the strictest layout, where an add-on is reachable only from the project.
  */
@@ -291,7 +285,7 @@ const JEST_INSTALL: readonly string[] = ['provino', '@provino/dialect-jest']
 export function installSmoke(options: {
   readonly root: string
   readonly keep: boolean
-  /** Run the native footprint case (default `NATIVE_FOOTPRINT_DEFAULT`); off, it is a skipped step. */
+  /** Run the native footprint case (the default); off, it is a skipped step. */
   readonly native?: boolean
 }): SmokeResult {
   const work = mkdtempSync(join(tmpdir(), 'provino-smoke-'))
@@ -357,7 +351,7 @@ export function installSmoke(options: {
       )
     }
     // The native case (B27e, acceptance row 9): on by default since B27f's install split.
-    if (options.native ?? NATIVE_FOOTPRINT_DEFAULT) {
+    if (options.native ?? true) {
       nativeFootprint(options.root, work, provino.tarball, step)
     } else {
       skip('native: install footprint', NATIVE_FOOTPRINT_SKIP)

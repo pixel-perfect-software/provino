@@ -2,32 +2,16 @@ import type { UserConfig } from 'tsdown/config'
 import type { PackageManifest } from './package-json.ts'
 
 /**
- * The add-on installs (D187): the dialects `provino` no longer inlines. Each is built on its own
- * with `provino` as a peer, and `provino` imports it only where a dialect is asked for.
- * @internal
- */
-export const ADD_ONS: readonly string[] = ['@provino/dialect-jest', '@provino/dialect-vitest']
-
-/** The peer an add-on names: the one `provino` whose engine it runs on. */
-const UMBRELLA = 'provino'
-
-/**
- * Whether a package is an add-on: it names `provino` as a peer. Its `@provino/*` engine imports are
- * rewritten by `internalImports`, so it never installs a second copy of the engine.
- * @internal
- */
-export function isAddOn(manifest: PackageManifest): boolean {
-  return Object.hasOwn(manifest.peerDependencies, UMBRELLA)
-}
-
-/**
  * The engine each add-on reaches through `provino` (D187): every `@provino/*` specifier its sources
  * import (or `import.meta.resolve`), and the `provino/internal/<entry>` subpath it becomes in the
  * add-on's build. The worker-side packages of one add-on share one entry (`jest-runtime`,
  * `vitest-runtime`), so its worker reads one file of the umbrella for all of them; the Jest one
  * leaves out the resolver, so `expect` under Jest loads no loading stack (T7.12). The umbrella's
  * `exports` list each target as an `@internal` subpath with no semver promise
- * (`umbrella.test.ts` holds the two equal).
+ * (`umbrella.test.ts` holds the two equal). The engine files in `packages/provino/src/internal/engine/`
+ * name, value by value, what the add-ons' builds import, and every type (`export type *`):
+ * `export *` of the packages kept worker-only engine code in the graph, which then lands in
+ * `shared.js`, and the coordinator of every run loaded it (B27f's design round).
  * @internal
  */
 export const INTERNAL_ENTRIES: Readonly<Record<string, Readonly<Record<string, string>>>> = {
@@ -57,21 +41,98 @@ export const INTERNAL_ENTRIES: Readonly<Record<string, Readonly<Record<string, s
   },
 }
 
-/** `import.meta.resolve` of a string literal. */
-const RESOLVE_CALL = /import\.meta\.resolve\(\s*(["'`])(@provino\/[^"'`\\$]+)\1\s*\)/g
+/**
+ * The add-on installs (D187): the dialects `provino` no longer inlines, each built on its own with
+ * `provino` as a peer. They are `INTERNAL_ENTRIES`' keys.
+ * @internal
+ */
+export const ADD_ONS: readonly string[] = Object.keys(INTERNAL_ENTRIES)
 
-/** Whether `specifier` names the package `own` itself (a self-reference, which stays as written). */
-function isOwn(specifier: string, own: string): boolean {
-  return specifier === own || specifier.startsWith(`${own}/`)
+/** The umbrella package: the peer an add-on names, whose engine it runs on. */
+export const UMBRELLA = 'provino'
+
+/**
+ * Whether a package is an add-on: it names `provino` as a peer. Its `@provino/*` engine imports are
+ * rewritten by `internalImports`, so it never installs a second copy of the engine.
+ * @internal
+ */
+export function isAddOn(manifest: PackageManifest): boolean {
+  return Object.hasOwn(manifest.peerDependencies, UMBRELLA)
 }
 
 /**
- * The internal target of an engine specifier an add-on names, or `undefined` for its own package.
- * A `@provino/*` specifier that is neither fails the build: it would install a second engine.
+ * Whether `specifier` is the package `name` or one of its subpaths.
+ * @internal
+ */
+export function inPackage(specifier: string, name: string): boolean {
+  return specifier === name || specifier.startsWith(`${name}/`)
+}
+
+/**
+ * Whether an umbrella subpath (`./internal/jest-runtime`) or entry name (`internal/types`) is one
+ * of the add-ons' engine entries: internal, with no API report and no semver promise.
+ * @internal
+ */
+export function isInternalEntry(subpathOrName: string): boolean {
+  return /^(?:\.\/)?internal\//.test(subpathOrName)
+}
+
+/**
+ * `import.meta.resolve` of a string literal, in any quotes, with a trailing comma (Biome wraps a
+ * long call so): the specifier is the first group of the three. One pattern for the umbrella's
+ * worker refs and the add-ons' engine refs.
+ * @internal
+ */
+export const RESOLVE_CALL: RegExp =
+  /import\.meta\.resolve\(\s*(?:"([^"\\]+)"|'([^'\\]+)'|`([^`\\$]+)`)\s*,?\s*\)/g
+
+/** A line of a comment, which may mention a call without making one. */
+const COMMENT_LINE = /^\s*(?:\/\/|\*|\/\*)/
+
+/** A call of `import.meta.resolve` with something between the parentheses. */
+const ARGUMENT_CALL = /import\.meta\.resolve\(\s*[^)\s]/g
+
+/**
+ * Rewrites each `import.meta.resolve` of a literal in `code` by `rewrite` (its specifier to the new
+ * call text, or `undefined` to keep it), then fails on any call left with an argument that is not a
+ * string literal: its specifier can't be read, so it could name a `@provino/*` package no rewrite
+ * reaches. A comment line is not a call, and `import.meta.resolve()` in a message has no argument.
+ * `undefined` when nothing changed.
+ * @internal
+ */
+export function rewriteResolveCalls(
+  code: string,
+  id: string,
+  rewrite: (specifier: string) => string | undefined,
+): string | undefined {
+  let changed = false
+  const out = code.replace(RESOLVE_CALL, (call, a?: string, b?: string, c?: string) => {
+    const next = rewrite(a ?? b ?? c ?? '')
+    if (next === undefined) return call
+    changed = true
+    return next
+  })
+  const rest = out.replace(RESOLVE_CALL, '')
+  for (const match of rest.matchAll(ARGUMENT_CALL)) {
+    const start = rest.lastIndexOf('\n', match.index) + 1
+    const end = rest.indexOf('\n', match.index)
+    const line = rest.slice(start, end === -1 ? undefined : end).trim()
+    if (COMMENT_LINE.test(line)) continue
+    throw new Error(
+      `${id}: import.meta.resolve needs a string literal, which the build reads to rewrite a @provino/* specifier (found \`${line}\`)`,
+    )
+  }
+  return changed ? out : undefined
+}
+
+/**
+ * The internal target of an engine specifier an add-on names, or `undefined` for its own package
+ * and any specifier outside `@provino/*`. A `@provino/*` specifier the table lacks for this add-on
+ * fails the build: it would install a second engine.
  * @internal
  */
 export function internalTarget(specifier: string, own: string): string | undefined {
-  if (isOwn(specifier, own)) return undefined
+  if (!specifier.startsWith('@provino/') || inPackage(specifier, own)) return undefined
   const target = INTERNAL_ENTRIES[own]?.[specifier]
   if (target === undefined) {
     throw new Error(
@@ -84,9 +145,10 @@ export function internalTarget(specifier: string, own: string): string | undefin
 /**
  * The add-on's build plugin (D187): every `@provino/*` engine import, static, dynamic or a type's,
  * resolves to its `provino/internal/<entry>` subpath and stays external, and every
- * `import.meta.resolve('@provino/…')` of the engine (a worker ref, D21) is rewritten to that subpath,
- * which the add-on resolves through its `provino` peer at run time. The add-on's own subpaths stay
- * as they are. The sources are not edited: in the workspace they import the engine by name.
+ * `import.meta.resolve('@provino/…')` of the engine (a worker ref, D21) is rewritten to that subpath
+ * (`rewriteResolveCalls`, which fails the build on a call it can't read), which the add-on
+ * resolves through its `provino` peer at run time. The add-on's own subpaths stay as they are. The
+ * sources are not edited: in the workspace they import the engine by name.
  * @internal
  */
 export function internalImports(own: string): NonNullable<UserConfig['plugins']> {
@@ -96,22 +158,20 @@ export function internalImports(own: string): NonNullable<UserConfig['plugins']>
       resolveId: {
         order: 'pre',
         handler(source) {
-          if (!source.startsWith('@provino/')) return null
           const target = internalTarget(source, own)
           return target === undefined ? null : { id: target, external: true }
         },
       },
       transform: {
         filter: { code: 'import.meta.resolve' },
-        handler(code) {
-          let changed = false
-          const out = code.replace(RESOLVE_CALL, (call, quote: string, specifier: string) => {
+        handler(code, id) {
+          const out = rewriteResolveCalls(code, id, (specifier) => {
             const target = internalTarget(specifier, own)
-            if (target === undefined) return call
-            changed = true
-            return `import.meta.resolve(${quote}${target}${quote})`
+            return target === undefined
+              ? undefined
+              : `import.meta.resolve(${JSON.stringify(target)})`
           })
-          return changed ? { code: out, map: null } : null
+          return out === undefined ? null : { code: out, map: null }
         },
       },
     },

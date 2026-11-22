@@ -4,8 +4,6 @@ import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
   bannedInTree,
-  NATIVE_FOOTPRINT_DEFAULT,
-  NATIVE_FOOTPRINT_SKIP,
   NATIVE_SMOKE_FILES,
   nativeBanned,
   SMOKE_FILES,
@@ -99,11 +97,6 @@ describe('nativeBanned', () => {
 })
 
 describe('the native footprint case', () => {
-  test('runs by default since B27f (D187), and its skip says who turned it off', () => {
-    assert.equal(NATIVE_FOOTPRINT_DEFAULT, true)
-    assert.match(NATIVE_FOOTPRINT_SKIP, /native: false/)
-  })
-
   test('both suites hold SMOKE_TESTS tests', () => {
     assert.equal(Object.keys(SMOKE_FILES).length, SMOKE_TESTS)
   })

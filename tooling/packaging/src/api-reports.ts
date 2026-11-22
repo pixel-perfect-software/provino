@@ -6,6 +6,7 @@ import {
   ExtractorLogLevel,
   type ExtractorMessage,
 } from '@microsoft/api-extractor'
+import { isInternalEntry } from './internal-entries.ts'
 import { entriesOf } from './preset.ts'
 import { SEMVER_PACKAGES, type WorkspacePackage } from './workspace.ts'
 
@@ -39,7 +40,7 @@ export function apiEntries(packages: readonly WorkspacePackage[]): readonly ApiE
     .filter((pkg) => SEMVER_PACKAGES.includes(pkg.manifest.name))
     .flatMap((pkg) =>
       entriesOf(pkg.manifest)
-        .filter((entry) => !entry.subpath.startsWith('./internal/'))
+        .filter((entry) => !isInternalEntry(entry.subpath))
         .map((entry) => ({
           pkg,
           name: entry.name,
