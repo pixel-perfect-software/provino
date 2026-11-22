@@ -1,8 +1,48 @@
 import { readdir, readFile, stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import type { DetectContext, Dialect, PolicyOverrides } from '@provino/types'
+import type { DetectContext, Dialect, PolicyOverrides, ProvinoConfigInput } from '@provino/types'
 import { ConfigError, type ConfigIssue, formatConfigIssue } from '../errors.ts'
-import { isRecord } from './input.ts'
+import { isRecord, needsMoreDialects } from './input.ts'
+
+/**
+ * The dialects one config may name: the caller's `dialects`, with what `loadDialects` gives added
+ * only when the config needs one they lack (`needsMoreDialects`). A loader that fails is
+ * `CONFIG_LOAD_FAILED`, with its error as `cause`.
+ * @internal
+ */
+export async function dialectsFor(
+  input: ProvinoConfigInput,
+  dialects: readonly Dialect[],
+  loadDialects: (() => Promise<readonly Dialect[]>) | undefined,
+): Promise<readonly Dialect[]> {
+  if (loadDialects === undefined || !needsMoreDialects(input, dialects)) return dialects
+  let loaded: readonly Dialect[]
+  try {
+    loaded = await loadDialects()
+  } catch (cause) {
+    throw new ConfigError('CONFIG_LOAD_FAILED', "the caller's dialects couldn't be loaded", {
+      cause,
+    })
+  }
+  const names = new Set(dialects.map((dialect) => dialect.name))
+  return [...dialects, ...loaded.filter((dialect) => !names.has(dialect.name))]
+}
+
+/**
+ * `loadDialects` called at most once, however many projects ask (a rejection is kept too, so
+ * each project reports the same failure).
+ * @internal
+ */
+export function loadOnce(
+  loadDialects: (() => Promise<readonly Dialect[]>) | undefined,
+): (() => Promise<readonly Dialect[]>) | undefined {
+  if (loadDialects === undefined) return undefined
+  let pending: Promise<readonly Dialect[]> | undefined
+  return () => {
+    pending ??= loadDialects()
+    return pending
+  }
+}
 
 /** The names of `dialects`, for a message. */
 function namesOf(dialects: readonly Dialect[]): string {

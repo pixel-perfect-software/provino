@@ -54,6 +54,27 @@ const RESOLVE_KEYS: readonly string[] = Object.keys({
 } satisfies Record<keyof ConfigResolve, true>)
 
 /**
+ * Whether `input` may need a dialect that `known` lacks: it names a `dialect` that isn't there,
+ * or has an own key no project, run or listed plugin reads (a dialect's options key, `jest`). A
+ * config with its own `dialects` never does (they replace the caller's). Read before `parseInput`,
+ * so it trusts nothing: a key that turns out to be wrong is reported by `parseInput` as before.
+ * @internal
+ */
+export function needsMoreDialects(input: ProvinoConfigInput, known: readonly Dialect[]): boolean {
+  if (!isRecord(input) || input.dialects !== undefined) return false
+  const names = new Set(known.map((dialect) => dialect.name))
+  if (typeof input.dialect === 'string' && !names.has(input.dialect)) return true
+  const plugins: unknown = input.plugins
+  const pluginNames = Array.isArray(plugins)
+    ? plugins.flatMap((plugin: unknown) =>
+        isRecord(plugin) && typeof plugin.name === 'string' ? [plugin.name] : [],
+      )
+    : []
+  const read = new Set([...PROJECT_KEYS, ...TOP_LEVEL_KEYS, ...names, ...pluginNames])
+  return Object.keys(input).some((key) => !read.has(key))
+}
+
+/**
  * The keys of a project's config that `resolveProject` reads, each checked to be what its type
  * says. A file's default export is data from `import()`, so it is parsed here once and trusted
  * after.

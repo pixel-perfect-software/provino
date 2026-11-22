@@ -54,14 +54,20 @@ function dialectChunks(dist: string): Set<string> {
   return found
 }
 
+/** A native project's shape: one config, or `projects` of native sub-configs. */
+type Layout = 'single' | 'projects'
+
 /** One process's record: its entry (`argv[1]`) and every `file:` path it loaded. */
 interface Recorded {
   readonly entry: string
   readonly files: readonly string[]
 }
 
-/** The native project, with `node_modules/provino` linked to `pkg`. */
-function nativeProject(pkg: string): string {
+/**
+ * The native project, with `node_modules/provino` linked to `pkg`: one config, or (`projects`) a
+ * root config of `projects: ['packages/*']` whose two sub-configs name no dialect either.
+ */
+function nativeProject(pkg: string, layout: Layout): string {
   const dir = mkdtempSync(join(tmpdir(), 'provino-native-load-'))
   after(() => rmSync(dir, { recursive: true, force: true }))
   const files: Record<string, string> = {
@@ -79,7 +85,18 @@ function nativeProject(pkg: string): string {
     'tests/b.test.ts':
       "import { test, expect } from 'provino'\ntest('b', () => { expect('x').toMatch(/x/) })\n",
   }
-  for (const [name, text] of Object.entries(files)) {
+  const laid: Record<string, string> =
+    layout === 'single'
+      ? files
+      : {
+          'package.json': files['package.json'] ?? '',
+          'provino.config.ts': "export default { projects: ['packages/*'] }\n",
+          'packages/one/provino.config.ts': files['provino.config.ts'] ?? '',
+          'packages/one/tests/a.test.ts': files['tests/a.test.ts'] ?? '',
+          'packages/two/provino.config.ts': files['provino.config.ts'] ?? '',
+          'packages/two/tests/b.test.ts': files['tests/b.test.ts'] ?? '',
+        }
+  for (const [name, text] of Object.entries(laid)) {
     mkdirSync(join(dir, name, '..'), { recursive: true })
     writeFileSync(join(dir, name), text)
   }
@@ -89,8 +106,12 @@ function nativeProject(pkg: string): string {
 }
 
 /** Runs `pkg`'s built bin (bare `provino`: the config is found) on a native project and reads what each process loaded. */
-function recordedRun(pkg: string, pool: 'forks' | 'threads'): readonly Recorded[] {
-  const dir = nativeProject(pkg)
+function recordedRun(
+  pkg: string,
+  pool: 'forks' | 'threads',
+  layout: Layout = 'single',
+): readonly Recorded[] {
+  const dir = nativeProject(pkg, layout)
   const logs = mkdtempSync(join(tmpdir(), 'provino-native-loads-'))
   after(() => rmSync(logs, { recursive: true, force: true }))
   const run = spawnSync(process.execPath, [join(pkg, 'dist', 'cli.js'), '--pool', pool], {
@@ -156,6 +177,10 @@ describe('a native run loads nothing from Jest or Vitest (B27e, row 8)', () => {
       assert.deepEqual(forbidden(PACKAGE, processes), [])
     })
   }
+
+  test("projects: ['packages/*'] of native sub-configs loads no dialect either", () => {
+    assert.deepEqual(forbidden(PACKAGE, recordedRun(PACKAGE, 'forks', 'projects')), [])
+  })
 
   test('a native worker starts with at most 10 files from the package', () => {
     const dist = join(PACKAGE, 'dist') + sep

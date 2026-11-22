@@ -105,6 +105,18 @@ resolveProject({ isolation: 'vm' }, complete)
 // @ts-expect-error `configPath` is loadProject's first argument, not one of its options
 loadProject('/a', { dialects: [], environments: {}, ci: false, configPath: '/a' })
 
+// B27e: the caller's lazy dialects, loaded only when a config needs one.
+expectTypeOf<ResolveProjectOptions['loadDialects']>().toEqualTypeOf<
+  (() => Promise<readonly Dialect[]>) | undefined
+>()
+resolveProject({}, { ...complete, loadDialects: async () => [] })
+// @ts-expect-error loadDialects is a function that resolves the dialects, not the list itself
+resolveProject({}, { ...complete, loadDialects: [] })
+// @ts-expect-error loadDialects resolves dialects, not dialect names
+resolveProject({}, { ...complete, loadDialects: async () => ['jest'] })
+// @ts-expect-error loadDialects takes no argument
+resolveProject({}, { ...complete, loadDialects: async (name: string) => [name] })
+
 expectTypeOf(formatConfigIssue).toEqualTypeOf<(issue: ConfigIssue) => string>()
 // @ts-expect-error an issue is { path, message }, not a string
 formatConfigIssue('path: message')
