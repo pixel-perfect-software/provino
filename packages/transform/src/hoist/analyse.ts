@@ -221,6 +221,47 @@ export function analyse(
     return { decl: found.importNode, spec: found.node }
   }
 
+  const importedCalls = policy.objects.filter((matcher) => matcher.kind === 'imported-call')
+  /** The calls `importedCall` recognised, by node: the call's name and the callee as written. */
+  const directCalls = new Map<CallExpression, { readonly method: string; readonly text: string }>()
+
+  /**
+   * Whether `call` is an `imported-call` matcher's import called as a function: `mock('./a')`
+   * through a named import (any local name), or `p.mock('./a')` through a namespace import. A
+   * shadowing binding or an optional call is none.
+   */
+  function importedCall(call: CallExpression): { method: string; text: string } | null {
+    if (importedCalls.length === 0 || call.optional) return null
+    const callee = call.callee
+    let found: ReturnType<typeof importOf> = null
+    let name: string | null = null
+    if (callee.type === 'Identifier') {
+      found = importOf(callee.name)
+      if (found?.spec.type !== 'ImportSpecifier') return null
+      name = exportName(found.spec.imported)
+    } else {
+      const member = staticCallee(call)
+      if (member === null || member.object.type !== 'Identifier') return null
+      found = importOf(member.object.name)
+      if (found?.spec.type !== 'ImportNamespaceSpecifier') return null
+      name = member.method
+    }
+    const module = found.decl.source.value
+    if (!importedCalls.some((m) => m.module === module && m.exportName === name)) return null
+    const recognised = { method: name, text: code.slice(callee.start, callee.end) }
+    directCalls.set(call, recognised)
+    return recognised
+  }
+
+  /** The mock call `call` is under the policy (its name and its callee as written), or `null`. */
+  function mockCall(call: CallExpression): { method: string; text: string } | null {
+    const callee = staticCallee(call)
+    if (callee !== null && isMockObject(callee.object)) {
+      return { method: callee.method, text: callTextOf(callee.method, callee.object) }
+    }
+    return importedCall(call)
+  }
+
   function isMockObject(expr: Expression): boolean {
     if (expr.type === 'Identifier') {
       for (const matcher of policy.objects) {
@@ -432,6 +473,8 @@ export function analyse(
 
   /** The calls of `jest.a().b()` when every one hoists, else `null`. */
   function resolveChain(call: CallExpression): CallExpression[] | null {
+    const direct = importedCall(call)
+    if (direct !== null) return argumentsHoistable(call, direct.method, direct.text) ? [call] : null
     const callee = staticCallee(call)
     if (callee === null) return null
     let calls: CallExpression[] = []
@@ -455,10 +498,9 @@ export function analyse(
   }
 
   /** Top-level-only placement: where does the statement for this call sit, and is that allowed? */
-  function topLevelCandidate(call: CallExpression, method: string, object: Expression): void {
+  function topLevelCandidate(call: CallExpression, method: string, callText: string): void {
     const isValue = policy.hoistValues.includes(method)
     if (!isValue && !Object.hasOwn(policy.hoistCalls, method)) return
-    const callText = callTextOf(method, object)
     if (!isValue && !argumentsHoistable(call, method, callText)) return
 
     // `const x = call`, `const x = await call`: the declaration moves, not the call.
@@ -590,14 +632,20 @@ export function analyse(
 
   /** Why `getNodeName` in `hoistMocks.ts` L466-L481 names a call the way it does. */
   function nameWithArgument(call: CallExpression): string {
+    const direct = directCalls.get(call)
     const callee = staticCallee(call)
-    if (callee === null || callee.object.type !== 'Identifier') return '"hoisted method"'
+    const name =
+      direct?.text ??
+      (callee === null || callee.object.type !== 'Identifier'
+        ? null
+        : `${callee.object.name}.${callee.method}`)
+    if (name === null) return '"hoisted method"'
     const argument = call.arguments[0]
     const text =
       argument?.type === 'Literal' || argument?.type === 'ImportExpression'
         ? code.slice(argument.start, argument.end)
         : ''
-    return `${callee.object.name}.${callee.method}(${text})`
+    return `${name}(${text})`
   }
 
   walk(program, {
@@ -609,13 +657,13 @@ export function analyse(
         recordReference(node, parent)
       }
       if (node.type === 'CallExpression') {
-        const callee = staticCallee(node)
-        if (callee !== null && isMockObject(callee.object)) {
-          if (policy.rewriteImportArg.includes(callee.method)) {
+        const recognised = mockCall(node)
+        if (recognised !== null) {
+          if (policy.rewriteImportArg.includes(recognised.method)) {
             rewritesImports = true
             rewriteArgument(node)
           }
-          if (topLevelOnly) topLevelCandidate(node, callee.method, callee.object)
+          if (topLevelOnly) topLevelCandidate(node, recognised.method, recognised.text)
         }
       } else if (!topLevelOnly && node.type === 'ExpressionStatement') {
         const expression = node.expression
@@ -675,15 +723,15 @@ export function analyse(
   const staticMocks: StaticMockCall[] = []
   const positionAt = positionCursor(code)
   for (const call of mockCalls.toSorted((a, b) => a.start - b.start)) {
-    const callee = staticCallee(call)
+    const method = directCalls.get(call)?.method ?? staticCallee(call)?.method
     const specifier = staticSpecifier(call.arguments[0])
-    if (callee === null || specifier === null) continue
-    if (policy.hoistValues.includes(callee.method)) continue
+    if (method === undefined || specifier === null) continue
+    if (policy.hoistValues.includes(method)) continue
     const fn = call.arguments[1]
     const factoryFn = isFactoryFunction(fn) ? fn : null
     const hasFactory = factoryFn !== null
     staticMocks.push({
-      method: callee.method,
+      method,
       specifier,
       hasFactory,
       automock: call.arguments.length === 1,

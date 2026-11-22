@@ -11,7 +11,10 @@ export type HoistArgRule = 'any' | 'one-string' | 'no-args' | 'path-factory-opti
 
 /**
  * How a mock object is recognised: an unshadowed global (`jest`), any binding with a name
- * (`vi`), a named import, or a member of a namespace import.
+ * (`vi`), a named import, or a member of a namespace import. `imported-call` is no object: the
+ * named import is the call itself (`mock('./a')` after `import { mock } from 'provino'`, under
+ * any local name, or `p.mock('./a')` through `import * as p`), checked as the call `exportName`
+ * in `hoistCalls`.
  * @public
  */
 export type MockObjectMatcher =
@@ -19,6 +22,7 @@ export type MockObjectMatcher =
   | { readonly kind: 'name'; readonly name: string }
   | { readonly kind: 'import'; readonly module: string; readonly exportName: string }
   | { readonly kind: 'namespace-member'; readonly module: string; readonly exportName: string }
+  | { readonly kind: 'imported-call'; readonly module: string; readonly exportName: string }
 
 /**
  * Which outside names a hoisted mock factory may reference.

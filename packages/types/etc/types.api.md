@@ -2055,6 +2055,10 @@ export type MockObjectMatcher = {
     readonly kind: "namespace-member";
     readonly module: string;
     readonly exportName: string;
+} | {
+    readonly kind: "imported-call";
+    readonly module: string;
+    readonly exportName: string;
 };
 
 // @public

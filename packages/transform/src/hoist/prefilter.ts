@@ -21,10 +21,16 @@ export function prefilterFor(policy: HoistPolicy): RegExp | null {
     ...policy.hoistValues,
     ...policy.rewriteImportArg,
   ])
+  // A named import called under another name (`import { mock as m }`) is only seen by its `as`.
+  const renamed = policy.objects.flatMap((matcher) =>
+    matcher.kind === 'imported-call' ? [escapeRegex(matcher.exportName)] : [],
+  )
   const regex =
     names.size === 0
       ? null
-      : new RegExp(`\\b(?:${[...names].map(escapeRegex).join('|')})${GAP}\\(|\\\\u`)
+      : new RegExp(
+          `\\b(?:${[...names].map(escapeRegex).join('|')})${GAP}\\(|${renamed.length === 0 ? '' : `\\b(?:${renamed.join('|')})\\s+as\\b|`}\\\\u`,
+        )
   cache.set(policy, regex)
   return regex
 }
