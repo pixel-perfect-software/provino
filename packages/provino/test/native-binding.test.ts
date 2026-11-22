@@ -4,7 +4,7 @@
 // (`block-oxc-bindings.ts`), so it is the install that is wrong and nothing else: `pnpm
 // smoke:install` does the same by deleting the packages from a real tarball install.
 import assert from 'node:assert/strict'
-import { readdirSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
