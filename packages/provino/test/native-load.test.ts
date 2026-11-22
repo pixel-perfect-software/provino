@@ -7,12 +7,7 @@
 // `provino`'s to resolve) planted in `@provino/api`'s built entry,
 // and one whose bin imports the Jest dialect's chunk.
 import assert from 'node:assert/strict'
-import {
-  mkdtempSync,
-  readFileSync,
-  rmSync,
-  writeFileSync,
-} from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import { after, describe, test } from 'node:test'
