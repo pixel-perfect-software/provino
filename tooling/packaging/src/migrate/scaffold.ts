@@ -5,10 +5,10 @@
 // script, so running `rewrite` again after editing `bootstrap.json` refreshes the script. Left to
 // hand: the bootstrap entries themselves, and a `test/` directory's own tsconfig (a reference to
 // `../../provino` when its tests import `provino`).
-import { existsSync } from 'node:fs'
+import { existsSync, readdirSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
-import { testScript } from '../dogfood.ts'
+import { SRC_TEST_GLOB, TEST_ROOTS, testScript } from '../dogfood.ts'
 import { MigrateError } from './errors.ts'
 
 const CONFIG = `import type { ProvinoConfig } from 'provino/config'
@@ -19,14 +19,8 @@ const config: ProvinoConfig = packageConfig(import.meta.dirname)
 export default config
 `
 
-const TEST_EXCLUDE = 'src/**/*.test.ts'
-
-/**
- * The config imports `tooling/provino/base.ts`, another project, by a relative `.ts` path, which
- * `rewriteRelativeImportExtensions` refuses to rewrite across projects (TS2878). This project only
- * emits declarations, so it keeps the path as written.
- */
-const TESTS_OPTIONS = { rewriteRelativeImportExtensions: false, allowImportingTsExtensions: true }
+/** The tests projects' shared base (compiler options every migrated package's tests project needs). */
+const TESTS_BASE = '../../tooling/provino/tsconfig.tests.base.json'
 
 const TURBO = {
   $schema: '../../node_modules/turbo/schema.json',
@@ -134,51 +128,49 @@ export async function scaffoldPackage(
   const references = [
     './tsconfig.json',
     ...(self ? [] : ['../provino']),
-    ...workspaceReferences(root, manifest).filter((path) => path !== '../provino'),
+    ...workspaceReferences(root, manifest),
     '../../tooling/provino',
   ]
+  // One path: seed the file when it is missing, then merge into whatever is there.
   const testsConfig = join(packageDir, 'tsconfig.tests.json')
-  if (existsSync(testsConfig)) {
-    await updateJson(
-      testsConfig,
-      (config) => {
-        const include = addMissing(config.include, [TEST_EXCLUDE, 'provino.config.ts'])
-        const current = ((config.references ?? []) as { path: string }[]).map((ref) => ref.path)
-        const refs = addMissing(current, references)
-        const options = { ...((config.compilerOptions ?? {}) as Json) }
-        const optionsAdded = Object.keys(TESTS_OPTIONS).filter((key) => !(key in options))
-        if (include.added.length === 0 && refs.added.length === 0 && optionsAdded.length === 0) {
-          return undefined
+  await writeIfMissing(testsConfig, json({ extends: TESTS_BASE }), changes)
+  await updateJson(
+    testsConfig,
+    (config) => {
+      const notes: string[] = []
+      if (config.extends !== TESTS_BASE) {
+        config.extends = TESTS_BASE
+        notes.push(`extends ${TESTS_BASE}`)
+      }
+      // The base carries these; a copy in the package would only drift.
+      const options = { ...((config.compilerOptions ?? {}) as Json) }
+      for (const key of ['rewriteRelativeImportExtensions', 'allowImportingTsExtensions']) {
+        if (key in options) {
+          delete options[key]
+          notes.push(`${key} left to the base`)
         }
-        for (const key of optionsAdded)
-          options[key] = TESTS_OPTIONS[key as keyof typeof TESTS_OPTIONS]
-        config.compilerOptions = options
-        config.include = include.list
-        config.references = refs.list.map((path) => ({ path }))
-        return `added ${[...include.added, ...refs.added, ...optionsAdded].join(', ')}`
-      },
-      changes,
-    )
-  } else {
-    await writeFile(
-      testsConfig,
-      json({
-        extends: '../../tsconfig.base.json',
-        compilerOptions: TESTS_OPTIONS,
-        include: [TEST_EXCLUDE, 'provino.config.ts'],
-        references: references.map((path) => ({ path })),
-      }),
-    )
-    changes.add(testsConfig, 'written')
-  }
+      }
+      if (Object.keys(options).length === 0) delete config.compilerOptions
+      else config.compilerOptions = options
+      const include = addMissing(config.include, [SRC_TEST_GLOB, 'provino.config.ts'])
+      const current = ((config.references ?? []) as { path: string }[]).map((ref) => ref.path)
+      const refs = addMissing(current, references)
+      config.include = include.list
+      config.references = refs.list.map((path) => ({ path }))
+      notes.push(...include.added.map((item) => `include ${item}`))
+      notes.push(...refs.added.map((item) => `reference ${item}`))
+      return notes.length === 0 ? undefined : notes.join(', ')
+    },
+    changes,
+  )
 
   await updateJson(
     join(packageDir, 'tsconfig.json'),
     (config) => {
-      const exclude = addMissing(config.exclude, [TEST_EXCLUDE])
+      const exclude = addMissing(config.exclude, [SRC_TEST_GLOB])
       if (exclude.added.length === 0) return undefined
       config.exclude = exclude.list
-      return `exclude gained ${TEST_EXCLUDE}`
+      return `exclude gained ${SRC_TEST_GLOB}`
     },
     changes,
   )
@@ -206,5 +198,22 @@ export async function scaffoldPackage(
     },
     changes,
   )
+  // Tests under test/ or bench/ are in no project of this scaffold's making: say which are in none.
+  for (const root of TEST_ROOTS.filter((name) => name !== 'src')) {
+    const covered = existsSync(join(packageDir, root, 'tsconfig.json'))
+    const count = existsSync(join(packageDir, root)) ? testFilesUnder(join(packageDir, root)) : 0
+    if (count > 0 && !covered) {
+      changes.lines.push(
+        `${dir}/${root}: ${count} test file(s) and no ${root}/tsconfig.json: no tsconfig covers them (add a project that references ../../provino, by hand)`,
+      )
+    }
+  }
   return changes.lines
+}
+
+/** How many `*.test.ts` files sit under `directory` (not in node_modules). */
+function testFilesUnder(directory: string): number {
+  return readdirSync(directory, { recursive: true, encoding: 'utf8' }).filter(
+    (entry) => entry.endsWith('.test.ts') && !entry.split(/[\\/]/).includes('node_modules'),
+  ).length
 }

@@ -1,10 +1,11 @@
 // The bootstrap canary (B27g2, D203): this repo's suites run on this checkout's own built bin, so a
 // runner that reports green wrongly would pass them all. This file stays on node:test (it is in
 // `tooling/provino/bootstrap.json`) and runs the built bin on fixtures that fail in the ways the
-// migrated suites fail: every run must exit 1 and report the counts the fixture is built to have.
+// migrated suites fail: every run must exit 1 and report the counts the fixture is built to have,
+// and one all-passing fixture must exit 0, so the canary cannot pass on a bin that fails everything.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
-import { runBuilt, trackedProjects, withoutNodeNoise } from '../support.ts'
+import { runBuiltAsync, trackedProjects, withoutNodeNoise } from '../support.ts'
 
 const project = trackedProjects()
 
@@ -17,11 +18,29 @@ async function runFixture(
     Object.fromEntries(Object.entries(files).map(([name, text]) => [`tests/${name}`, text])),
     `export default { include: [${JSON.stringify(include)}] }\n`,
   )
-  const ran = runBuilt(['run', '--config', 'provino.config.mjs'], { cwd: dir })
-  return { status: ran.status, output: `${ran.stdout}\n${withoutNodeNoise(ran.stderr)}` }
+  const ran = await runBuiltAsync(['run', '--config', 'provino.config.mjs'], { cwd: dir })
+  const output = `${ran.stdout}\n${withoutNodeNoise(ran.stderr)}`
+  // A bin that crashed or timed out has no status: that is not a result to count.
+  assert.ok(ran.status !== null && Number.isFinite(ran.status), `no exit status: ${output}`)
+  assert.equal(ran.signal, null, `ended by ${String(ran.signal)}: ${output}`)
+  return { status: ran.status, output }
 }
 
-describe('the runner under test reports failures', () => {
+// The cases do not share state, and each boots the bin: run them together.
+describe('the runner under test reports failures', { concurrency: true }, () => {
+  test('all-passing tests end with exit 0 and their counts', async () => {
+    const ran = await runFixture({
+      'green.test.mjs': `import { expect, test } from 'provino'
+
+test('passes: one', () => { expect(1).toBe(1) })
+test('passes: two', () => { expect('a').toBe('a') })
+`,
+    })
+    assert.equal(ran.status, 0, ran.output)
+    assert.match(ran.output, /Tests:\s+2 passed, 2 total/, ran.output)
+    assert.doesNotMatch(ran.output, /failed/, ran.output)
+  })
+
   test('two passing and two failing tests end with exit 1 and both counts', async () => {
     const ran = await runFixture({
       'flat.test.mjs': `import { expect, test } from 'provino'
@@ -103,12 +122,14 @@ test('passes', () => {})
     assert.match(ran.output, /Test Suites:\s+1 failed, 1 passed, 2 total/, ran.output)
   })
 
-  test('a config whose include matches nothing ends non-zero and reports nothing passed', async () => {
+  test('a config whose include matches nothing ends 1 with no test found, never green', async () => {
     const ran = await runFixture(
       { 'present.test.mjs': `import { test } from 'provino'\ntest('passes', () => {})\n` },
       'nowhere/**/*.test.mjs',
     )
-    assert.notEqual(ran.status, 0, ran.output)
+    assert.equal(ran.status, 1, ran.output)
+    assert.match(ran.output, /Test Suites:\s+0 total/, ran.output)
+    assert.match(ran.output, /Tests:\s+0 total/, ran.output)
     assert.doesNotMatch(ran.output, /\d+ passed/, ran.output)
   })
 })

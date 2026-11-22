@@ -27,7 +27,8 @@ describe('scaffoldPackage', () => {
   it('writes the config, tests project, turbo.json, exclude, root reference and script', async () => {
     const root = workspace()
     const written = await scaffoldPackage(root, join(root, 'packages/a'))
-    assert.equal(written.length, 6)
+    // config, tests project (seeded, then merged), turbo.json, exclude, root reference, script
+    assert.equal(written.length, 7)
     assert.match(
       await readFile(join(root, 'packages/a/provino.config.ts'), 'utf8'),
       /packageConfig\(import\.meta\.dirname\)/,
@@ -101,8 +102,34 @@ describe('scaffoldPackage', () => {
     assert.equal(lines.length, 1)
     assert.match(
       lines[0] ?? '',
-      /tsconfig\.tests\.json: added provino\.config\.ts, \.\.\/provino, \.\.\/\.\.\/tooling\/provino/,
+      /tsconfig\.tests\.json: extends \.\.\/\.\.\/tooling\/provino\/tsconfig\.tests\.base\.json, include provino\.config\.ts, reference \.\.\/provino, reference \.\.\/\.\.\/tooling\/provino/,
     )
+  })
+
+  it('reports test files under test/ or bench/ that no tsconfig covers, and drops options the base carries', async () => {
+    const root = scratchDir('scaffold-uncovered', {
+      'tooling/provino/bootstrap.json': JSON.stringify({ files: {} }),
+      'tsconfig.json': JSON.stringify({ references: [] }),
+      'packages/a/package.json': JSON.stringify({ name: 'a' }),
+      'packages/a/tsconfig.json': JSON.stringify({ include: ['src'] }),
+      'packages/a/tsconfig.tests.json': JSON.stringify({
+        compilerOptions: { rewriteRelativeImportExtensions: false, paths: {} },
+      }),
+      'packages/a/test/x.test.ts': '',
+      'packages/a/bench/covered/y.test.ts': '',
+      'packages/a/bench/tsconfig.json': '{}',
+    })
+    const lines = await scaffoldPackage(root, join(root, 'packages/a'))
+    assert.ok(
+      lines.some((line) =>
+        /packages\/a\/test: 1 test file\(s\) and no test\/tsconfig\.json/.test(line),
+      ),
+      lines.join('\n'),
+    )
+    assert.ok(!lines.some((line) => line.includes('packages/a/bench:')), lines.join('\n'))
+    const tests = JSON.parse(await readFile(join(root, 'packages/a/tsconfig.tests.json'), 'utf8'))
+    assert.equal(tests.extends, '../../tooling/provino/tsconfig.tests.base.json')
+    assert.deepEqual(tests.compilerOptions, { paths: {} })
   })
 
   it('is idempotent: a second run writes nothing', async () => {

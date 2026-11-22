@@ -43,21 +43,19 @@ async function workspace(files: Readonly<Record<string, string>>): Promise<strin
 }
 
 /**
- * Adds real workspace packages to a scratch dir, linked into node_modules the way pnpm does,
- * so imports resolve through `exports` and `provino-source` to the package's src/.
+ * Adds workspace packages to a scratch dir, linked into node_modules the way pnpm does, so imports
+ * resolve through `exports` and `provino-source` to the package's src/. A name is the package's
+ * own, scoped or not (`@provino/policy`, `provino`); its directory is the last part.
  */
 async function linkPackages(dir: string, names: readonly string[]): Promise<void> {
   for (const name of names) {
-    const pkgDir = join(dir, 'packages', name)
+    const pkgDir = join(dir, 'packages', name.split('/').pop() ?? name)
     await mkdir(join(pkgDir, 'src'), { recursive: true })
     const exports = { '.': { 'provino-source': './src/index.ts', types: './dist/index.d.ts' } }
-    await writeFile(
-      join(pkgDir, 'package.json'),
-      JSON.stringify({ name: `@provino/${name}`, type: 'module', exports }),
-    )
+    await writeFile(join(pkgDir, 'package.json'), JSON.stringify({ name, type: 'module', exports }))
     await writeFile(join(pkgDir, 'src/index.ts'), 'export const value = 1\n')
-    await mkdir(join(dir, 'node_modules/@provino'), { recursive: true })
-    await symlink(pkgDir, join(dir, 'node_modules/@provino', name), 'dir')
+    await mkdir(dirname(join(dir, 'node_modules', name)), { recursive: true })
+    await symlink(pkgDir, join(dir, 'node_modules', name), 'dir')
   }
 }
 
@@ -201,7 +199,7 @@ describe('dependency-cruiser rules', { concurrency: true }, () => {
     const dir = await workspace({
       'packages/core/src/planted.ts': "import '@provino/dialect-jest'\n",
     })
-    await linkPackages(dir, ['dialect-jest'])
+    await linkPackages(dir, ['@provino/dialect-jest'])
     const { output } = await depcruise(dir)
     const edge = 'packages/core/src/planted\\.ts → packages/dialect-jest/src/index\\.ts'
     assert.match(output, new RegExp(`error neutral-no-dialect: ${edge}`))
@@ -215,7 +213,7 @@ describe('dependency-cruiser rules', { concurrency: true }, () => {
       (await depcruise(dir)).output,
       /error boundary-types: packages\/types\/src\/planted\.ts → @provino\/policy/,
     )
-    await linkPackages(dir, ['policy'])
+    await linkPackages(dir, ['@provino/policy'])
     assert.match(
       (await depcruise(dir)).output,
       /error boundary-types: .* → packages\/policy\/src\/index\.ts/,
@@ -226,7 +224,7 @@ describe('dependency-cruiser rules', { concurrency: true }, () => {
     const dir = await workspace({
       'packages/core/src/planted.ts': "import '@provino/types/src/index.ts'\n",
     })
-    await linkPackages(dir, ['types'])
+    await linkPackages(dir, ['@provino/types'])
     assert.match(
       (await depcruise(dir)).output,
       /error not-to-unresolvable: .* → @provino\/types\/src\/index\.ts/,
@@ -293,15 +291,8 @@ describe('dependency-cruiser rules', { concurrency: true }, () => {
     const dir = await workspace({
       'packages/core/src/planted.ts': "import 'provino'\n",
       'packages/core/src/ok.test.ts': "import 'provino'\n",
-      'packages/provino/package.json': JSON.stringify({
-        name: 'provino',
-        type: 'module',
-        exports: { '.': { 'provino-source': './src/index.ts', types: './dist/index.d.ts' } },
-      }),
-      'packages/provino/src/index.ts': 'export {}\n',
     })
-    await mkdir(join(dir, 'node_modules'), { recursive: true })
-    await symlink(join(dir, 'packages/provino'), join(dir, 'node_modules/provino'), 'dir')
+    await linkPackages(dir, ['provino'])
     const { output } = await depcruise(dir)
     assert.match(
       output,
@@ -478,7 +469,7 @@ describe('dependency-cruiser rules', { concurrency: true }, () => {
         "import './local.ts'\nimport 'node:test'\nimport '@provino/policy'\n",
       'packages/core/src/local.ts': 'export {}\n',
     })
-    await linkPackages(dir, ['policy'])
+    await linkPackages(dir, ['@provino/policy'])
     const { code, output } = await depcruise(dir)
     assert.equal(code, 0, output)
   })

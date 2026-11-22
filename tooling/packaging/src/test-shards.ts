@@ -130,15 +130,27 @@ export function bootstrapProblems(
   bootstrap: readonly string[],
   packages: readonly MigratedPackage[],
   exists: (file: string) => boolean,
+  /** The directories with a `provino.config.ts` (`migratedDirs`): each must be one of `packages`. */
+  dirs: readonly string[],
 ): readonly string[] {
   const problems: string[] = []
+  // A guard that finds nothing to guard must fail: a malformed manifest would otherwise drop a
+  // package from the script and glob checks without a word.
+  if (dirs.length === 0) problems.push('no migrated package (a provino.config.ts) was found')
+  for (const dir of dirs) {
+    if (!packages.some((pkg) => pkg.dir === dir)) {
+      problems.push(
+        `${dir} has a provino.config.ts but is not a readable workspace package (its package.json?)`,
+      )
+    }
+  }
   if (!bootstrap.includes(CANARY)) problems.push(`the bootstrap set must hold ${CANARY}`)
   for (const file of bootstrap) {
     if (!exists(file)) problems.push(`bootstrap file ${file} does not exist`)
-    // The canary is the one entry outside a migrated package: `provino`'s own suite stays on node:test
-    // until its Phase 8 batch.
-    if (file === CANARY) continue
     const owner = packages.find((pkg) => file.startsWith(`${pkg.dir}/`))
+    // The canary is the one entry outside a migrated package, until `provino`'s own suite migrates
+    // (Phase 8): then its package owns it and the checks below apply.
+    if (file === CANARY && owner === undefined) continue
     if (owner === undefined) {
       problems.push(
         `bootstrap file ${file} is not in a migrated package (one with a provino.config.ts)`,
@@ -211,8 +223,11 @@ function check(): number {
   const ran = Array.from({ length: SHARD_COUNT }, (_, index) => plannedPackages(index + 1))
   const problems = [
     ...shardProblems(packagesWithTests(), ran),
-    ...bootstrapProblems(bootstrapFiles(ROOT), migratedPackages(), (file) =>
-      existsSync(join(ROOT, file)),
+    ...bootstrapProblems(
+      bootstrapFiles(ROOT),
+      migratedPackages(),
+      (file) => existsSync(join(ROOT, file)),
+      migratedDirs(ROOT),
     ),
     ...unshardableSplits().map(
       (name) => `${name} is split but its test script does not run through node-test.ts`,

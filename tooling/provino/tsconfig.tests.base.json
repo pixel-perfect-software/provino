@@ -1,0 +1,8 @@
+{
+  "$comment": "The base of every migrated package's tsconfig.tests.json (B27g2). The config imports tooling/provino/base.ts, another project, by a relative .ts path, which rewriteRelativeImportExtensions refuses to rewrite across projects (TS2878); these projects only emit declarations, so they keep the path as written.",
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rewriteRelativeImportExtensions": false,
+    "allowImportingTsExtensions": true
+  }
+}

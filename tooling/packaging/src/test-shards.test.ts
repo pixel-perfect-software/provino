@@ -179,52 +179,64 @@ describe('the file split of a package', () => {
 
 describe('bootstrapProblems (B27g2)', () => {
   const exists = (): boolean => true
-  const pkg = (script: string, expectedScript: string) => ({
+  const pkg = (script: string, expectedScript: string, dir = 'packages/p') => ({
     name: 'p',
-    dir: 'packages/p',
+    dir,
     script,
     expectedScript,
   })
+  const problems = (
+    bootstrap: readonly string[],
+    packages: readonly ReturnType<typeof pkg>[],
+    dirs: readonly string[] = packages.map((one) => one.dir),
+    present: (file: string) => boolean = exists,
+  ): string => bootstrapProblems(bootstrap, packages, present, dirs).join('\n')
 
   test('a script that is the expected one is fine', () => {
-    assert.deepEqual(bootstrapProblems([CANARY], [pkg('run', 'run')], exists), [])
+    assert.equal(problems([CANARY], [pkg('run', 'run')]), '')
   })
 
   test('a script that differs runs a bootstrap file on both runners or on neither', () => {
-    const problems = bootstrapProblems(
-      [CANARY],
-      [pkg('run', 'run && node --test a.test.ts')],
-      exists,
-    )
-    assert.equal(problems.length, 1)
     assert.match(
-      problems[0] ?? '',
+      problems([CANARY], [pkg('run', 'run && node --test a.test.ts')]),
       /test script is "run", expected "run && node --test a\.test\.ts"/,
     )
   })
 
   test('an entry in an unmigrated package, or one no include glob matches, fails', () => {
-    const problems = bootstrapProblems(
+    const found = problems(
       [CANARY, 'packages/other/src/a.test.ts', 'packages/p/docs/a.test.ts'],
       [pkg('run', 'run')],
-      exists,
-    ).join('\n')
-    assert.match(problems, /packages\/other\/src\/a\.test\.ts is not in a migrated package/)
-    assert.match(problems, /packages\/p\/docs\/a\.test\.ts is matched by none of p's include globs/)
-    assert.deepEqual(
-      bootstrapProblems([CANARY, 'packages/p/src/a.test.ts'], [pkg('run', 'run')], exists),
-      [],
     )
+    assert.match(found, /packages\/other\/src\/a\.test\.ts is not in a migrated package/)
+    assert.match(found, /packages\/p\/docs\/a\.test\.ts is matched by none of p's include globs/)
+    assert.equal(problems([CANARY, 'packages/p/src/a.test.ts'], [pkg('run', 'run')]), '')
   })
 
   test('the canary is required, and an entry must exist', () => {
     assert.match(
-      bootstrapProblems([], [], exists).join('\n'),
+      problems([], [pkg('run', 'run')]),
       /must hold packages\/provino\/test\/bootstrap\/canary\.test\.ts/,
     )
     assert.match(
-      bootstrapProblems([CANARY, 'gone.test.ts'], [], (file) => file === CANARY).join('\n'),
+      problems([CANARY, 'gone.test.ts'], [pkg('run', 'run')], undefined, (file) => file === CANARY),
       /gone\.test\.ts does not exist/,
+    )
+  })
+
+  test('no migrated package at all fails, and so does a config dir that is not a package', () => {
+    assert.match(problems([CANARY], [], []), /no migrated package/)
+    assert.match(
+      problems([CANARY], [pkg('run', 'run')], ['packages/p', 'packages/broken']),
+      /packages\/broken has a provino\.config\.ts but is not a readable workspace package/,
+    )
+  })
+
+  test('the canary is held to the include globs once its package migrates', () => {
+    assert.equal(problems([CANARY], [pkg('run', 'run', 'packages/provino')]), '')
+    assert.match(
+      problems([CANARY], [pkg('run', 'run && node --test x', 'packages/provino')]),
+      /expected "run && node --test x"/,
     )
   })
 })

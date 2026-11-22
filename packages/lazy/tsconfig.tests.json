@@ -1,5 +1,5 @@
 {
-  "extends": "../../tsconfig.base.json",
+  "extends": "../../tooling/provino/tsconfig.tests.base.json",
   "include": ["src/**/*.test.ts", "provino.config.ts"],
   "references": [
     {
@@ -14,9 +14,5 @@
     {
       "path": "../../tooling/provino"
     }
-  ],
-  "compilerOptions": {
-    "rewriteRelativeImportExtensions": false,
-    "allowImportingTsExtensions": true
-  }
+  ]
 }

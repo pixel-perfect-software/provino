@@ -124,7 +124,7 @@ Flow: check `config` and `maxWorkers` → `loadConfigFile`, then `resolveProject
   - `run.test-d.ts`: the types of `run`'s options and result.
 - Test files note their worker's pid in a file under the project (`noting`) so a test can check afterwards that every worker has exited.
 - Workers' own stderr goes to the `stderr` you pass. Some environments (this sandbox) print noise there at every Node start, so assert with patterns, not that stderr is empty.
-- `test/bootstrap/canary.test.ts` (B27g2, D203): node:test, in the bootstrap set (`tooling/packaging/CLAUDE.md` → "Dogfooding"); runs the built bin on fixtures that fail the ways the migrated suites do (flat `expect`, `node:assert/strict` in a nested `describe`, an async rejection, a throwing `beforeEach`, a file that throws at import, a config matching nothing) and asserts exit 1 and the counts each is built to have.
+- `test/bootstrap/canary.test.ts` (B27g2, D203): node:test, in the bootstrap set (`tooling/packaging/CLAUDE.md` → "Dogfooding"); runs the built bin (`runBuiltAsync`, the cases together) on fixtures that fail the ways the migrated suites do (flat `expect`, `node:assert/strict` in a nested `describe`, an async rejection, a throwing `beforeEach`, a file that throws at import, a config matching nothing: exit 1 and `0 total`) and on one all-passing fixture (exit 0), each with a finite exit status and no signal and the counts it is built to have.
 
 ## Not built yet
 
