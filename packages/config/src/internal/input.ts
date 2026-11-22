@@ -287,6 +287,7 @@ function assertKnownKeys(
       nearest === undefined
         ? `unknown ${where}; the known keys are ${known.map((name) => `"${name}"`).join(', ')}`
         : `unknown ${where}; did you mean "${nearest}"?`,
+      path === '' ? { subject: key } : undefined,
     )
   }
 }

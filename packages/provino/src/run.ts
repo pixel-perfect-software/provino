@@ -1,8 +1,8 @@
-import { resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { ConfigError, loadConfigFile, resolveProjects } from '@provino/config'
 import { discoverProject, ExitCode, type RunProjectOptions } from '@provino/orchestrator'
 import { isCi } from '@provino/reporters'
-import { addOnFailure, DialectNotInstalledError, resolveAddOnsFrom } from './internal/add-on.ts'
+import { addOnSpecifier, reportAddOnFailure } from './internal/add-on.ts'
 import { builtInDialects, ENVIRONMENTS, NATIVE_RUNTIME } from './internal/built-ins.ts'
 import { usageMessage } from './internal/describe.ts'
 import { executeProject, timingsOf } from './internal/execute.ts'
@@ -39,14 +39,6 @@ function poolOptions(options: RunOptions): NonNullable<RunProjectOptions['pool']
   }
 }
 
-/** Whether `error` is `@provino/config`'s refusal of the Jest dialect by name or of its `jest` key. */
-function namesJestDialect(error: unknown): boolean {
-  if (!(error instanceof ConfigError)) return false
-  if (error.code === 'CONFIG_UNKNOWN_DIALECT')
-    return error.message.startsWith('unknown dialect "jest"')
-  return error.code === 'CONFIG_UNKNOWN_KEY' && /\bkey "jest"/.test(error.message)
-}
-
 async function execute(
   options: RunOptions,
   stdout: NonNullable<RunOptions['stdout']>,
@@ -61,21 +53,23 @@ async function execute(
   // The composition root resolves the environment once; everything below reads this.
   const env = options.env ?? process.env
   const configPath = resolve(cwd, options.config)
-  // The add-ons (D187) resolve from the project: `provino/jest` in a config file included.
-  resolveAddOnsFrom(cwd)
   const input = await loadConfigFile(configPath, { command: 'run', mode: 'test' })
-  const dialects = builtInDialects()
+  // The Jest add-on (D187) resolves from the config's directory, for this call only.
+  const root = dirname(configPath)
   const resolved = await resolveProjects(input, {
     configPath,
     dialects: [],
-    loadDialects: dialects.load,
+    loadDialects: () => builtInDialects(root),
     environments: ENVIRONMENTS,
     ci: options.ci ?? isCi(env),
     native: NATIVE_RUNTIME,
-  }).catch((error: unknown) => {
-    // Without the Jest add-on a config that names `dialect: 'jest'` or holds a `jest` key is the
-    // install line; any other error (a typo'd key among them) is the config's own.
-    if (dialects.missing() && namesJestDialect(error)) throw new DialectNotInstalledError('jest')
+  }).catch(async (error: unknown) => {
+    // A config that names `dialect: 'jest'` or holds a `jest` key, refused because the add-on gave
+    // no dialect: the add-on's own failure (not installed, or of another provino) says why. Any
+    // other error (a typo'd key among them) is the config's own.
+    if (error instanceof ConfigError && error.subject === 'jest') {
+      await import(addOnSpecifier('jest', '', root))
+    }
     throw error
   })
   const [project, ...others] = resolved.projects
@@ -140,12 +134,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
   try {
     return await execute(options, stdout, stderr)
   } catch (error) {
-    const missing = addOnFailure(error)
-    if (missing !== undefined) {
-      stderr.write(`Provino: ${missing.message}\n`)
-      // Exit 1, as `provino jest` without the add-on: an install to fix, not a command-line mistake.
-      return { exitCode: ExitCode.TestFailure, summary: null }
-    }
+    // Exit 1, as `provino jest` without the add-on: an install to fix, not a command-line mistake.
+    const addOn = reportAddOnFailure(error, stderr)
+    if (addOn !== undefined) return { exitCode: addOn, summary: null }
     const message = usageMessage(error)
     if (message === undefined) throw error
     stderr.write(`${message}\n`)

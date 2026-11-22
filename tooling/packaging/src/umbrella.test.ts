@@ -42,7 +42,14 @@ describe('the umbrella names every module a worker is given by file (D21)', () =
       ...new Set(Object.values(INTERNAL_ENTRIES).flatMap((table) => Object.values(table))),
     ].sort()
     assert.deepEqual(targets, exported)
-    assert.deepEqual(Object.keys(INTERNAL_ENTRIES).sort(), [...ADD_ONS].sort())
+  })
+
+  test("the add-ons are provino's own list of them (its DIALECT_ADD_ONS)", async () => {
+    // Read by URL: provino's sources are not this package's to import.
+    const { DIALECT_ADD_ONS } = (await import(
+      new URL('../../../packages/provino/src/internal/add-on.ts', import.meta.url).href
+    )) as { readonly DIALECT_ADD_ONS: Readonly<Record<string, string>> }
+    assert.deepEqual(Object.values(DIALECT_ADD_ONS).sort(), [...ADD_ONS].sort())
   })
 })
 

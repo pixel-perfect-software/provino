@@ -21,7 +21,14 @@ import { join, sep } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { builtSources, chunkFiles } from './dist.ts'
-import { type LoadLog, linkProvino, makeProject, readLoadLogs, runBuilt } from './support.ts'
+import {
+  type LoadLog,
+  linkProvino,
+  makeProject,
+  packageCopy,
+  readLoadLogs,
+  runBuilt,
+} from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 
@@ -187,12 +194,7 @@ function workerOnly(pkg: string, processes: readonly LoadLog[]): string[] {
 
 /** A copy of the built package (`dist`, `package.json`, its `node_modules` linked) with `plant` prepended to `file`. */
 function plantedCopy(file: string, plant: string): string {
-  // The real path, as the recorder sees it (macOS's `$TMPDIR` is a link).
-  const copy = realpathSync(mkdtempSync(join(tmpdir(), 'provino-planted-')))
-  after(() => rmSync(copy, { recursive: true, force: true }))
-  cpSync(join(PACKAGE, 'dist'), join(copy, 'dist'), { recursive: true })
-  cpSync(join(PACKAGE, 'package.json'), join(copy, 'package.json'))
-  symlinkSync(join(PACKAGE, 'node_modules'), join(copy, 'node_modules'), 'dir')
+  const copy = packageCopy()
   const path = join(copy, 'dist', file)
   const source = readFileSync(path, 'utf8')
   // After a shebang line, which must stay first.

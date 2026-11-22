@@ -1,12 +1,12 @@
-// The dialects are add-on installs since B27f (D187): `provino` imports one only where it is asked
-// for, from the project's own install, and checks that it is the add-on of this `provino`'s
-// version. An add-on that isn't there, or is of another version, becomes the one line that says
-// how to install the matching one.
-import { existsSync, readFileSync } from 'node:fs'
+// The dialects are add-on installs since B27f (D187). `provino` imports one only where it is asked
+// for, from the project's own install, and checks before it links that it is the add-on of this
+// `provino`: the same version, and its `provino` peer this very copy (one engine). Every other case
+// is one line that says what to install or run.
+import { existsSync, readFileSync, realpathSync } from 'node:fs'
 import { registerHooks } from 'node:module'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { packageVersion } from './version.ts'
+import { ownManifestPath, packageVersion, versionOf } from './version.ts'
 
 /**
  * The add-on that each dialect command needs, by the name the command line and a config use.
@@ -20,6 +20,27 @@ export const DIALECT_ADD_ONS = {
 /** A dialect `provino` has an add-on for. */
 export type AddOnDialect = keyof typeof DIALECT_ADD_ONS
 
+const DIALECTS = Object.keys(DIALECT_ADD_ONS) as readonly AddOnDialect[]
+
+/** An add-on's specifier, the package or one of its subpaths: its dialect is the first group. */
+const ADD_ON_SPECIFIER = new RegExp(`^@provino/dialect-(${DIALECTS.join('|')})(?:/|$)`)
+
+/**
+ * Codes for `AddOnError`.
+ *
+ * - `PROVINO_DIALECT_NOT_INSTALLED`: the dialect's add-on is not installed.
+ * - `PROVINO_DIALECT_VERSION_MISMATCH`: it is installed at another version than `provino`'s.
+ * - `PROVINO_DIALECT_OTHER_PROVINO`: its `provino` peer is another copy than the one running
+ *   (a global install, `pnpm dlx`): two engines, which share the process's slots.
+ * - `PROVINO_DIALECT_NO_PEER`: its `provino` peer is not installed.
+ * @internal
+ */
+export type AddOnErrorCode =
+  | 'PROVINO_DIALECT_NOT_INSTALLED'
+  | 'PROVINO_DIALECT_VERSION_MISMATCH'
+  | 'PROVINO_DIALECT_OTHER_PROVINO'
+  | 'PROVINO_DIALECT_NO_PEER'
+
 /**
  * The command that installs `dialect`'s add-on at this `provino`'s own version: the two are one
  * release (`provino/internal/*` promises no semver), and the bare name would install npm's
@@ -31,44 +52,29 @@ export function installCommand(dialect: AddOnDialect): string {
 }
 
 /**
- * A dialect's add-on is not installed (`PROVINO_DIALECT_NOT_INSTALLED`). Its message is the one line
- * the bin prints, with the exact install command; it has no cause worth a stack.
+ * An add-on this `provino` can't run with. Its message is the one line the bin prints (`Provino:
+ * <message>`, exit 1, no stack), ending with what to install or run.
  * @internal
  */
-export class DialectNotInstalledError extends Error {
-  readonly code = 'PROVINO_DIALECT_NOT_INSTALLED'
+export class AddOnError extends Error {
+  override readonly name = 'AddOnError'
+  readonly code: AddOnErrorCode
   readonly dialect: AddOnDialect
-  constructor(dialect: AddOnDialect) {
-    super(
-      `the ${dialect} dialect needs ${DIALECT_ADD_ONS[dialect]}, which is not installed: ${installCommand(dialect)}`,
-    )
-    this.name = 'DialectNotInstalledError'
+  constructor(code: AddOnErrorCode, dialect: AddOnDialect, message: string) {
+    super(message)
+    this.code = code
     this.dialect = dialect
   }
 }
 
-/**
- * A dialect's add-on is installed at another version than this `provino`
- * (`PROVINO_DIALECT_VERSION_MISMATCH`): its build imports `provino/internal/*` names of its own
- * release, so it is refused before it links. One line, with the command that installs the match.
- * @internal
- */
-export class DialectVersionMismatchError extends Error {
-  readonly code = 'PROVINO_DIALECT_VERSION_MISMATCH'
-  readonly dialect: AddOnDialect
-  readonly installed: string
-  constructor(dialect: AddOnDialect, installed: string) {
-    super(
-      `${DIALECT_ADD_ONS[dialect]} ${installed} is installed, but provino is ${packageVersion()}: ${installCommand(dialect)}`,
-    )
-    this.name = 'DialectVersionMismatchError'
-    this.dialect = dialect
-    this.installed = installed
-  }
+/** `PROVINO_DIALECT_NOT_INSTALLED` for `dialect`. */
+export function notInstalled(dialect: AddOnDialect): AddOnError {
+  return new AddOnError(
+    'PROVINO_DIALECT_NOT_INSTALLED',
+    dialect,
+    `the ${dialect} dialect needs ${DIALECT_ADD_ONS[dialect]}, which is not installed: ${installCommand(dialect)}`,
+  )
 }
-
-/** What an add-on's absence or mismatch is reported as. */
-type AddOnFailure = DialectNotInstalledError | DialectVersionMismatchError
 
 /**
  * Whether `error` is Node's failure to find the package `name` itself (`ERR_MODULE_NOT_FOUND`,
@@ -84,57 +90,40 @@ export function isPackageNotFound(error: unknown, name: string): boolean {
   )
 }
 
-/** The dialect whose add-on `error` says is missing, if it says so. */
-function missingAddOn(error: unknown): AddOnDialect | undefined {
-  for (const dialect of ['jest', 'vitest'] as const) {
-    if (isPackageNotFound(error, DIALECT_ADD_ONS[dialect])) return dialect
-  }
-  return undefined
-}
-
-/**
- * Runs `load`, the dynamic import of what needs `dialect`'s add-on, and turns a missing add-on
- * into `DialectNotInstalledError`. Anything else it threw (a version mismatch among them) is
- * rethrown as it is.
- * @internal
- */
-export async function importAddOn<T>(dialect: AddOnDialect, load: () => Promise<T>): Promise<T> {
-  try {
-    return await load()
-  } catch (error) {
-    if (isPackageNotFound(error, DIALECT_ADD_ONS[dialect]))
-      throw new DialectNotInstalledError(dialect)
-    throw error
-  }
-}
-
 /**
  * The add-on failure `error` is or was caused by (`@provino/config` wraps what its `loadDialects`
- * threw, and what a config file's own import of `provino/jest` threw), or `undefined`: one of the
- * two errors above, or Node's `ERR_MODULE_NOT_FOUND` for an add-on, as `DialectNotInstalledError`.
+ * threw, and what a config file's own `import 'provino/jest'` threw), or `undefined`: an
+ * `AddOnError`, or Node's `ERR_MODULE_NOT_FOUND` for an add-on, as `PROVINO_DIALECT_NOT_INSTALLED`.
  * @internal
  */
-export function addOnFailure(error: unknown): AddOnFailure | undefined {
+export function addOnFailure(error: unknown): AddOnError | undefined {
   const seen = new Set<unknown>()
   for (let at: unknown = error; at instanceof Error && !seen.has(at); at = at.cause) {
-    if (at instanceof DialectNotInstalledError || at instanceof DialectVersionMismatchError)
-      return at
-    const dialect = missingAddOn(at)
-    if (dialect !== undefined) return new DialectNotInstalledError(dialect)
+    if (at instanceof AddOnError) return at
+    const dialect = DIALECTS.find((candidate) => isPackageNotFound(at, DIALECT_ADD_ONS[candidate]))
+    if (dialect !== undefined) return notInstalled(dialect)
     seen.add(at)
   }
   return undefined
 }
 
-/** An add-on's specifier: the package or one of its subpaths, and which dialect it is. */
-const ADD_ON_SPECIFIER = /^@provino\/dialect-(jest|vitest)(?:\/|$)/
-
-/** The directory `provino` is installed in (its `package.json`'s), as a URL prefix. */
-function ownPackageUrl(): string {
-  return pathToFileURL(dirname(fileURLToPath(import.meta.resolve('provino/package.json')))).href
+/**
+ * Writes `error`'s add-on failure as the one line (`Provino: <message>`) to `stderr` and returns
+ * the exit code, 1, or `undefined` when `error` is no add-on failure. `main` and `run()` both
+ * end here.
+ * @internal
+ */
+export function reportAddOnFailure(
+  error: unknown,
+  stderr: { write(text: string): unknown },
+): 1 | undefined {
+  const failure = addOnFailure(error)
+  if (failure === undefined) return undefined
+  stderr.write(`Provino: ${failure.message}\n`)
+  return 1
 }
 
-/** The `version` of the package `name` whose file `url` is, read from its `package.json`. */
+/** The `version` of the package `name` that the file `url` belongs to. */
 function installedVersion(url: string, name: string): string | undefined {
   for (let dir = dirname(fileURLToPath(url)); ; dir = dirname(dir)) {
     const path = join(dir, 'package.json')
@@ -145,67 +134,141 @@ function installedVersion(url: string, name: string): string | undefined {
         manifest !== null &&
         Reflect.get(manifest, 'name') === name
       ) {
-        const version = Reflect.get(manifest, 'version')
-        return typeof version === 'string' ? version : undefined
+        return versionOf(path)
       }
     }
     if (dirname(dir) === dir) return undefined
   }
 }
 
-/** Where the add-ons resolve from, and whether the hook is in (one per process: Node's own module cache is too). */
-const resolution: { root: string | undefined; hooked: boolean } = { root: undefined, hooked: false }
+/** The scheme of the specifiers `addOnSpecifier` makes. */
+const SCHEME = 'provino-add-on:'
 
-/**
- * Makes `provino`'s own imports of an add-on (`provino jest`'s files, `run()`'s `jestDialect`,
- * `provino/jest`, `provino/vitest`) resolve from the project root `root` (plan task 3): the
- * project's own install, which pnpm with `hoist=false` and a workspace with two `provino`
- * versions both need, where provino's folder in the store finds it only through a hoist. A root
- * that has none falls back to Node's resolution from `provino` itself. The add-on found is held
- * to this `provino`'s version (`DialectVersionMismatchError`) before it links. One sync resolve
- * hook for the process, which tests only the add-ons' names and only from `provino`'s own files
- * (speed, D115: one resolution per add-on entry, a regular expression per other import). Node
- * keeps one module per URL, so the first root an add-on is resolved from is the one it comes from.
- * @internal
- */
-export function resolveAddOnsFrom(root: string): void {
-  resolution.root = root
-  if (resolution.hooked) return
-  resolution.hooked = true
-  const own = ownPackageUrl()
+/** Where `provino`'s own static imports of an add-on resolve from (the CLI's project), if set. */
+const state: { root: string | undefined; hooked: boolean } = { root: undefined, hooked: false }
+
+/** The resolve hook below, registered on first use; one for the process. */
+function ensureHook(): void {
+  if (state.hooked) return
+  state.hooked = true
+  const ownManifest = ownManifestPath()
+  const own = pathToFileURL(dirname(ownManifest)).href
+  const ownReal = realpathSync(ownManifest)
   const checked = new Set<string>()
   registerHooks({
     resolve(specifier, context, nextResolve) {
-      const match = ADD_ON_SPECIFIER.exec(specifier)
-      const parent = context.parentURL
-      if (match === null || parent === undefined || !parent.startsWith(`${own}/`)) {
-        return nextResolve(specifier, context)
+      let root: string | undefined
+      let target = specifier
+      if (specifier.startsWith(SCHEME)) {
+        const at = specifier.indexOf('::')
+        root = decodeURIComponent(specifier.slice(SCHEME.length, at))
+        target = specifier.slice(at + 2)
+      } else {
+        const parent = context.parentURL
+        if (
+          !ADD_ON_SPECIFIER.test(specifier) ||
+          parent === undefined ||
+          !parent.startsWith(`${own}/`)
+        ) {
+          return nextResolve(specifier, context)
+        }
+        root = state.root
       }
-      const dialect = match[1] === 'jest' ? 'jest' : 'vitest'
+      const match = ADD_ON_SPECIFIER.exec(target)
+      if (match === null) return nextResolve(specifier, context)
+      const dialect = DIALECTS.find((candidate) => candidate === match[1]) ?? 'jest'
       const name = DIALECT_ADD_ONS[dialect]
-      const from = resolution.root
+      const from = (base: string) => ({
+        conditions: context.conditions,
+        importAttributes: context.importAttributes,
+        parentURL: pathToFileURL(join(base, 'package.json')).href,
+      })
       let resolved: ReturnType<typeof nextResolve> | undefined
-      if (from !== undefined) {
+      if (root !== undefined) {
         try {
-          resolved = nextResolve(specifier, {
-            conditions: context.conditions,
-            importAttributes: context.importAttributes,
-            parentURL: pathToFileURL(join(from, 'package.json')).href,
-          })
+          resolved = nextResolve(target, from(root))
         } catch (error) {
           if (!isPackageNotFound(error, name)) throw error
         }
       }
-      // Node's chain may write to the context it was handed, so the fallback names its parent again.
-      resolved ??= nextResolve(specifier, { ...context, parentURL: parent })
+      // A root without the add-on: Node's resolution from `provino` itself.
+      resolved ??= nextResolve(target, from(dirname(ownManifest)))
       if (!checked.has(resolved.url)) {
-        const installed = installedVersion(resolved.url, name)
-        if (installed !== undefined && installed !== packageVersion()) {
-          throw new DialectVersionMismatchError(dialect, installed)
-        }
+        checkAddOn(dialect, resolved.url, (peer) =>
+          nextResolve(peer, { ...from(dirname(ownManifest)), parentURL: resolved?.url }),
+        )
         checked.add(resolved.url)
       }
       return resolved
     },
   })
+
+  /**
+   * Holds the add-on at `url` to this `provino`: its version, then the `provino` its own imports
+   * reach (`resolvePeer`, from the add-on's file), which must be this copy.
+   */
+  function checkAddOn(
+    dialect: AddOnDialect,
+    url: string,
+    resolvePeer: (specifier: string) => { readonly url: string },
+  ): void {
+    const name = DIALECT_ADD_ONS[dialect]
+    const installed = installedVersion(url, name)
+    if (installed !== undefined && installed !== packageVersion()) {
+      throw new AddOnError(
+        'PROVINO_DIALECT_VERSION_MISMATCH',
+        dialect,
+        `${name} ${installed} is installed, but provino is ${packageVersion()}: ${installCommand(dialect)}`,
+      )
+    }
+    let peer: string
+    try {
+      peer = realpathSync(fileURLToPath(resolvePeer('provino/package.json').url))
+    } catch (error) {
+      if (!isPackageNotFound(error, 'provino')) throw error
+      throw new AddOnError(
+        'PROVINO_DIALECT_NO_PEER',
+        dialect,
+        `${name} is installed without its provino peer: pnpm add -D provino@${packageVersion()}`,
+      )
+    }
+    if (peer !== ownReal) {
+      throw new AddOnError(
+        'PROVINO_DIALECT_OTHER_PROVINO',
+        dialect,
+        `${name} runs on the provino in ${dirname(peer)}, not this one in ${dirname(ownReal)}: run the project's own (pnpm exec provino …)`,
+      )
+    }
+  }
+}
+
+/**
+ * The specifier that imports `subpath` of `dialect`'s add-on (`''` for the package, `'/node'`)
+ * resolved from the project root `root`, else from `provino` itself, held to this `provino`
+ * (`AddOnError`) before it links. `run()`, `detect.ts` and the CLI's dynamic imports name their
+ * root per call this way, so calls on different projects that overlap each get their own (speed,
+ * D115: one resolution per add-on entry; the hook tests nothing else).
+ * @internal
+ */
+export function addOnSpecifier(
+  dialect: AddOnDialect,
+  subpath: '' | `/${string}`,
+  root: string,
+): string {
+  ensureHook()
+  return `${SCHEME}${encodeURIComponent(root)}::${DIALECT_ADD_ONS[dialect]}${subpath}`
+}
+
+/**
+ * The root `provino`'s own static imports of an add-on resolve from: `provino jest`'s and
+ * `provino vitest`'s files, and `provino/jest` or `provino/vitest` in a config file. The CLI
+ * sets it once, from the project it runs (`main`); `run()` never does, so under a library caller
+ * those imports resolve from `provino` itself, and each `run()` resolves its own `jestDialect` by
+ * `addOnSpecifier`. Node keeps one module per URL: the first root an add-on comes from is the one
+ * the process keeps.
+ * @internal
+ */
+export function setAddOnRoot(root: string): void {
+  ensureHook()
+  state.root = root
 }

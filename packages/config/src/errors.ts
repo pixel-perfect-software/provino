@@ -51,14 +51,25 @@ export class ConfigError extends Error {
   override readonly name = 'ConfigError'
   readonly code: ConfigErrorCode
   readonly issues: readonly ConfigIssue[]
+  /**
+   * What the error is about, as data: the dialect `CONFIG_UNKNOWN_DIALECT` was asked for, or the
+   * top-level key `CONFIG_UNKNOWN_KEY` refused. A caller that supplies dialects lazily reads it to
+   * tell "not installed" from a typo without parsing the message.
+   */
+  readonly subject: string | undefined
 
   constructor(
     code: ConfigErrorCode,
     message: string,
-    options?: { readonly cause?: unknown; readonly issues?: readonly ConfigIssue[] },
+    options?: {
+      readonly cause?: unknown
+      readonly issues?: readonly ConfigIssue[]
+      readonly subject?: string
+    },
   ) {
     super(message, options?.cause === undefined ? undefined : { cause: options.cause })
     this.code = code
     this.issues = options?.issues ?? []
+    this.subject = options?.subject
   }
 }

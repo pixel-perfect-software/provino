@@ -1,5 +1,5 @@
 import type { Dialect, EnvironmentRef, NativeRuntimeRefs } from '@provino/types'
-import { DialectNotInstalledError, importAddOn } from './add-on.ts'
+import { addOnFailure, addOnSpecifier } from './add-on.ts'
 
 /**
  * Where a worker finds an environment: an `EnvironmentRef` without the options a project adds.
@@ -55,28 +55,19 @@ export const NATIVE_RUNTIME: NativeRuntimeRefs = {
 /**
  * The dialects `provino` ships, for a config that names one (`resolveProjects`' `loadDialects`):
  * imported only then, so a native project, `projects` of native sub-configs included, loads no
- * dialect code (D115, `speed`). The Jest dialect is an add-on since B27f (D187): when it isn't
- * installed `load` gives none, so a config that only looked like it might need one (a typo'd key)
- * gets `@provino/config`'s own error, and `missing` says the add-on was asked for and absent
- * (`run()` turns an error about `jest` into the install line then).
+ * dialect code (D115, `speed`). The Jest dialect is an add-on (D187), resolved from `root` (the
+ * config's directory) for this call; when it isn't installed there are none, so a config that only
+ * looked like it might name one (a typo'd key) gets `@provino/config`'s own error.
  * @internal
  */
-export function builtInDialects(): {
-  readonly load: () => Promise<readonly Dialect[]>
-  readonly missing: () => boolean
-} {
-  let absent = false
-  return {
-    async load() {
-      try {
-        const { jestDialect } = await importAddOn('jest', () => import('@provino/dialect-jest'))
-        return [jestDialect]
-      } catch (error) {
-        if (!(error instanceof DialectNotInstalledError)) throw error
-        absent = true
-        return []
-      }
-    },
-    missing: () => absent,
+export async function builtInDialects(root: string): Promise<readonly Dialect[]> {
+  try {
+    const { jestDialect }: typeof import('@provino/dialect-jest') = await import(
+      addOnSpecifier('jest', '', root)
+    )
+    return [jestDialect]
+  } catch (error) {
+    if (addOnFailure(error)?.code === 'PROVINO_DIALECT_NOT_INSTALLED') return []
+    throw error
   }
 }
