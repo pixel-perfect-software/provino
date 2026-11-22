@@ -1,4 +1,4 @@
-// `imported-call` matchers (B27j): the call is a named import itself (`mock('./a')` after
+// `HoistPolicy.importedCalls` (B27j): the call is a named import itself (`mock('./a')` after
 // `import { mock } from 'runner'`), the shape of the native API's `mock` (`nativeHoistPolicy` in
 // `@provino/policy`). Recognition is by binding, never by name.
 import assert from 'node:assert/strict'
@@ -58,9 +58,44 @@ test('imported call: a renamed import hoists under its own name, and the prefilt
   )
 })
 
-test("imported call: a namespace import's member hoists", () => {
+test("imported call: a namespace import's member hoists, computed too", () => {
   const result = hoist("import * as r from 'runner'\nfoo()\nr.mock('./a')\n", policy)
   assertOrder(result.code, "r.mock('./a')", 'foo()')
+  const computed = "import * as r from 'runner'\nfoo()\nr['mock']('./a')\n"
+  assert.ok(prefilterFor(policy)?.test(computed))
+  assertOrder(hoist(computed, policy).code, "r['mock']('./a')", 'foo()')
+  // A namespace member that is not one of the calls stays.
+  const other = "import * as r from 'runner'\nfoo()\nr['fn']('./a')\n"
+  assertUntouched(other, hoist(other, policy))
+})
+
+test('imported call: a string export name and a comment before `as` still hoist', () => {
+  for (const code of [
+    "import { 'mock' as m } from 'runner'\nfoo()\nm('./a')\n",
+    "import { mock /* c */ as m } from 'runner'\nfoo()\nm('./a')\n",
+    "import { mock//\nas m } from 'runner'\nfoo()\nm('./a')\n",
+  ]) {
+    assert.ok(prefilterFor(policy)?.test(code), code)
+    assertOrder(hoist(code, policy).code, "m('./a')", 'foo()')
+  }
+})
+
+test('imported call: a file that never names the module is not parsed', () => {
+  // `sinon.mock(` and an ANSI escape would pass a dialect's prefilter; without 'runner' this doesn't.
+  const code = `const s = sinon.mock(api)\nmock('./a')\nconst red = '@@u001b[31m'\n`.replaceAll(
+    '@@',
+    String.fromCharCode(92),
+  )
+  assert.equal(prefilterFor(policy)?.test(code), false)
+  assertUntouched(code, hoist(code, policy))
+  // With the module named but no call's name anywhere, it isn't parsed either.
+  assert.equal(prefilterFor(policy)?.test("import { expect } from 'runner'\nexpect(1)\n"), false)
+})
+
+test('imported call: a file that names the module but imports no call is left as it was', () => {
+  const code = "import { expect } from 'runner'\n// mock('./a')\nfoo()\n"
+  assert.ok(prefilterFor(policy)?.test(code))
+  assertUntouched(code, hoist(code, policy))
 })
 
 test('imported call: a mock of another module, a local mock and an unimported mock stay', () => {
@@ -104,7 +139,7 @@ test('imported call: exporting the result is HOIST_EXPORTED', () => {
 test('imported call: under enclosing-block placement the call moves to its block', () => {
   const block = {
     ...blockPolicy,
-    objects: [...blockPolicy.objects, policy.objects[0]].filter((m) => m !== undefined),
+    importedCalls: [{ module: 'runner', exportName: 'mock' }],
     runnerModules: ['runner'],
   }
   const result = hoist(

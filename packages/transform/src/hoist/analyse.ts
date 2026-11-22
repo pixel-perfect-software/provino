@@ -133,6 +133,46 @@ function rewritableImports(program: Program, policy: HoistPolicy): ReadonlySet<I
   return found
 }
 
+/** A recognised mock call: its name in `hoistCalls`, and its callee as the code writes it. */
+interface Recognised {
+  readonly method: string
+  readonly text: string
+}
+
+/**
+ * The local names the file binds to `importedCalls`' modules: named imports (any export; the
+ * export is checked when called) and namespace imports. Read from the program's top-level imports,
+ * so most calls are ruled out by one `Set` lookup before any scope lookup.
+ */
+function importedCallLocals(
+  program: Program,
+  modules: ReadonlySet<string>,
+): { readonly named: ReadonlySet<string>; readonly namespaces: ReadonlySet<string> } {
+  const named = new Set<string>()
+  const namespaces = new Set<string>()
+  for (const node of program.body) {
+    if (!isImportDeclaration(node) || !modules.has(node.source.value)) continue
+    for (const spec of node.specifiers) {
+      if (spec.type === 'ImportSpecifier') named.add(spec.local.name)
+      else if (spec.type === 'ImportNamespaceSpecifier') namespaces.add(spec.local.name)
+    }
+  }
+  return { named, namespaces }
+}
+
+/** Nothing to hoist, rewrite or report. */
+function emptyAnalysis(): Analysis {
+  return {
+    units: [],
+    staticMocks: [],
+    diagnostics: [],
+    argEdits: [],
+    refs: [],
+    rewritable: new Set(),
+    rewritesImports: false,
+  }
+}
+
 interface Candidate {
   readonly call: CallExpression
   readonly callText: string
@@ -148,6 +188,16 @@ export function analyse(
   policy: HoistPolicy,
   original?: string,
 ): Analysis {
+  const importedCalls = policy.importedCalls ?? []
+  const { named: importedLocals, namespaces: namespaceLocals } = importedCallLocals(
+    program,
+    new Set(importedCalls.map((call) => call.module)),
+  )
+  // A policy of imported calls alone (the native one) has nothing to find in a file that imports
+  // none of them: no walk at all.
+  if (policy.objects.length === 0 && importedLocals.size === 0 && namespaceLocals.size === 0) {
+    return emptyAnalysis()
+  }
   const rewritable = rewritableImports(program, policy)
   const tracker = new HoistScopes()
   // The names something writes. Most files never ask, and most names aren't here, so which binding
@@ -221,40 +271,65 @@ export function analyse(
     return { decl: found.importNode, spec: found.node }
   }
 
-  const importedCalls = policy.objects.filter((matcher) => matcher.kind === 'imported-call')
-  /** The calls `importedCall` recognised, by node: the call's name and the callee as written. */
-  const directCalls = new Map<CallExpression, { readonly method: string; readonly text: string }>()
+  /** `import { exportName as name } from module` in scope here, else `null`. */
+  function namedImport(name: string): { module: string; exportName: string } | null {
+    const found = importOf(name)
+    if (found?.spec.type !== 'ImportSpecifier') return null
+    return { module: found.decl.source.value, exportName: exportName(found.spec.imported) }
+  }
+
+  /** The module `name` is a namespace import of in scope here (`import * as name`), else `null`. */
+  function namespaceImport(name: string): string | null {
+    const found = importOf(name)
+    return found?.spec.type === 'ImportNamespaceSpecifier' ? found.decl.source.value : null
+  }
+
+  /** `G.x` and `G['x']` alike, as Babel's `referencesImport` reads them. */
+  function memberName(computed: boolean, property: Node): string | null {
+    if (computed) return stringLiteral(property)
+    return property.type === 'Identifier' ? property.name : null
+  }
+
+  /** The calls `importedCall` has looked at, by node: what it found (`null`: not one). */
+  const directCalls = new Map<CallExpression, Recognised | null>()
 
   /**
-   * Whether `call` is an `imported-call` matcher's import called as a function: `mock('./a')`
-   * through a named import (any local name), or `p.mock('./a')` through a namespace import. A
-   * shadowing binding or an optional call is none.
+   * Whether `call` is one of `policy.importedCalls` called as a function: `mock('./a')` through
+   * a named import (any local name), or `p.mock('./a')`/`p['mock']('./a')` through a namespace
+   * import. A shadowing binding or an optional call is none. Worked out once per node.
    */
-  function importedCall(call: CallExpression): { method: string; text: string } | null {
-    if (importedCalls.length === 0 || call.optional) return null
+  function importedCall(call: CallExpression): Recognised | null {
+    const known = directCalls.get(call)
+    if (known !== undefined) return known
+    let recognised: Recognised | null = null
     const callee = call.callee
-    let found: ReturnType<typeof importOf> = null
-    let name: string | null = null
-    if (callee.type === 'Identifier') {
-      found = importOf(callee.name)
-      if (found?.spec.type !== 'ImportSpecifier') return null
-      name = exportName(found.spec.imported)
-    } else {
-      const member = staticCallee(call)
-      if (member === null || member.object.type !== 'Identifier') return null
-      found = importOf(member.object.name)
-      if (found?.spec.type !== 'ImportNamespaceSpecifier') return null
-      name = member.method
+    if (importedCalls.length > 0 && !call.optional) {
+      let found: { module: string; exportName: string } | null = null
+      if (callee.type === 'Identifier') {
+        if (importedLocals.has(callee.name)) found = namedImport(callee.name)
+      } else if (
+        callee.type === 'MemberExpression' &&
+        !callee.optional &&
+        callee.object.type === 'Identifier' &&
+        namespaceLocals.has(callee.object.name)
+      ) {
+        const module = namespaceImport(callee.object.name)
+        const name = memberName(callee.computed, callee.property)
+        if (module !== null && name !== null) found = { module, exportName: name }
+      }
+      if (
+        found !== null &&
+        importedCalls.some((m) => m.module === found.module && m.exportName === found.exportName)
+      ) {
+        recognised = { method: found.exportName, text: code.slice(callee.start, callee.end) }
+      }
     }
-    const module = found.decl.source.value
-    if (!importedCalls.some((m) => m.module === module && m.exportName === name)) return null
-    const recognised = { method: name, text: code.slice(callee.start, callee.end) }
     directCalls.set(call, recognised)
     return recognised
   }
 
   /** The mock call `call` is under the policy (its name and its callee as written), or `null`. */
-  function mockCall(call: CallExpression): { method: string; text: string } | null {
+  function mockCall(call: CallExpression): Recognised | null {
     const callee = staticCallee(call)
     if (callee !== null && isMockObject(callee.object)) {
       return { method: callee.method, text: callTextOf(callee.method, callee.object) }
@@ -276,13 +351,8 @@ export function analyse(
         } else if (matcher.kind === 'name') {
           if (matcher.name === expr.name) return true
         } else if (matcher.kind === 'import') {
-          const found = importOf(expr.name)
-          if (
-            found !== null &&
-            found.decl.source.value === matcher.module &&
-            found.spec.type === 'ImportSpecifier' &&
-            exportName(found.spec.imported) === matcher.exportName
-          ) {
+          const found = namedImport(expr.name)
+          if (found?.module === matcher.module && found.exportName === matcher.exportName) {
             return true
           }
         }
@@ -290,22 +360,10 @@ export function analyse(
       return false
     }
     if (expr.type === 'MemberExpression' && expr.object.type === 'Identifier') {
-      // `G.jest` and `G['jest']` alike, as Babel's `referencesImport` reads them.
-      const property = expr.computed
-        ? stringLiteral(expr.property)
-        : expr.property.type === 'Identifier'
-          ? expr.property.name
-          : null
+      const property = memberName(expr.computed, expr.property)
       for (const matcher of policy.objects) {
         if (matcher.kind !== 'namespace-member' || matcher.exportName !== property) continue
-        const found = importOf(expr.object.name)
-        if (
-          found !== null &&
-          found.decl.source.value === matcher.module &&
-          found.spec.type === 'ImportNamespaceSpecifier'
-        ) {
-          return true
-        }
+        if (namespaceImport(expr.object.name) === matcher.module) return true
       }
     }
     return false
@@ -400,19 +458,17 @@ export function analyse(
       ) {
         continue
       }
-      if (found?.type === 'Import' && found.scope === scopeKey) {
-        const spec = found.node
-        if (
-          spec.type === 'ImportSpecifier' &&
-          policy.objects.some(
-            (matcher) =>
-              matcher.kind === 'import' &&
-              matcher.module === found.importNode.source.value &&
-              matcher.exportName === exportName(spec.imported),
-          )
-        ) {
-          continue
-        }
+      const named = found?.type === 'Import' && found.scope === scopeKey ? namedImport(name) : null
+      if (
+        named !== null &&
+        policy.objects.some(
+          (matcher) =>
+            matcher.kind === 'import' &&
+            matcher.module === named.module &&
+            matcher.exportName === named.exportName,
+        )
+      ) {
+        continue
       }
       report('HOIST_FACTORY_OUT_OF_SCOPE', firstReference(fn, name), { call: callText, name })
       return false
@@ -632,7 +688,7 @@ export function analyse(
 
   /** Why `getNodeName` in `hoistMocks.ts` L466-L481 names a call the way it does. */
   function nameWithArgument(call: CallExpression): string {
-    const direct = directCalls.get(call)
+    const direct = directCalls.get(call) ?? null
     const callee = staticCallee(call)
     const name =
       direct?.text ??

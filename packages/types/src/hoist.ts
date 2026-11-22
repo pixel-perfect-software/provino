@@ -11,10 +11,7 @@ export type HoistArgRule = 'any' | 'one-string' | 'no-args' | 'path-factory-opti
 
 /**
  * How a mock object is recognised: an unshadowed global (`jest`), any binding with a name
- * (`vi`), a named import, or a member of a namespace import. `imported-call` is no object: the
- * named import is the call itself (`mock('./a')` after `import { mock } from 'provino'`, under
- * any local name, or `p.mock('./a')` through `import * as p`), checked as the call `exportName`
- * in `hoistCalls`.
+ * (`vi`), a named import, or a member of a namespace import.
  * @public
  */
 export type MockObjectMatcher =
@@ -22,7 +19,6 @@ export type MockObjectMatcher =
   | { readonly kind: 'name'; readonly name: string }
   | { readonly kind: 'import'; readonly module: string; readonly exportName: string }
   | { readonly kind: 'namespace-member'; readonly module: string; readonly exportName: string }
-  | { readonly kind: 'imported-call'; readonly module: string; readonly exportName: string }
 
 /**
  * Which outside names a hoisted mock factory may reference.
@@ -57,6 +53,13 @@ export interface HoistPolicy<Calls extends string = string, Values extends strin
   readonly id: string
   readonly objects: readonly MockObjectMatcher[]
   readonly hoistCalls: { readonly [M in Calls]: HoistArgRule }
+  /**
+   * Named imports that are hoisted calls themselves, with no mock object: `mock('./a')` after
+   * `import { mock } from 'provino'` (under any local name), or `p.mock('./a')` and
+   * `p['mock']('./a')` through `import * as p`. Each is checked as the call `exportName` in
+   * `hoistCalls`. Recognised by binding, never by name. None when absent.
+   */
+  readonly importedCalls?: readonly { readonly module: string; readonly exportName: Calls }[]
   /** `['hoisted']` for Vitest, `[]` for Jest. */
   readonly hoistValues: readonly Values[]
   /**
