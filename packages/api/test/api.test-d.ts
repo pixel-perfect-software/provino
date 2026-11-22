@@ -3,6 +3,9 @@ import {
   type ApiHost,
   PROVINO_API_SLOT,
   type ProvinoApi,
+  ProvinoApiError,
+  type ProvinoApiErrorCode,
+  type ProvinoGlobalsApi,
   type ProvinoModuleScope,
   type ProvinoTimers,
   provinoGlobals,
@@ -29,7 +32,13 @@ expectTypeOf(provinoModuleScope(host)('/a.test.ts')).toEqualTypeOf<
 expectTypeOf(uninstallProvinoApi).toEqualTypeOf<(api: ProvinoApi) => boolean>()
 // @ts-expect-error it takes the API it installed
 uninstallProvinoApi()
-expectTypeOf(provinoGlobals(host)).toEqualTypeOf<ProvinoApi>()
+expectTypeOf(provinoGlobals(host)).toEqualTypeOf<ProvinoGlobalsApi>()
+// The module-mock names are served per module, never globals.
+expectTypeOf<ProvinoGlobalsApi>().not.toHaveProperty('mock')
+expectTypeOf<ProvinoApi>().toHaveProperty('mock')
+expectTypeOf(new ProvinoApiError('API_MOCK_FACTORY', 'm').code).toEqualTypeOf<ProvinoApiErrorCode>()
+// @ts-expect-error the code is one of ProvinoApiErrorCode
+new ProvinoApiError('API_OTHER', 'm')
 // @ts-expect-error the factories take the worker's host
 provinoModuleScope()
 // @ts-expect-error a factory takes the host and nothing else
