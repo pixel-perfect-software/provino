@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { runBuilt, trackedProjects } from './support.ts'
+import { readLoadLogs, runBuilt, trackedProjects } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const DIST = `${join(PACKAGE, 'dist')}/`
@@ -68,9 +68,8 @@ async function distLoads(args: readonly string[]): Promise<readonly Load[]> {
   })
   assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
   const loads: Load[] = []
-  for (const log of readdirSync(logs)) {
-    for (const line of readFileSync(join(logs, log), 'utf8').split('\n')) {
-      const [main = '', url = ''] = line.split('\t')
+  for (const { main, urls } of readLoadLogs(logs)) {
+    for (const url of urls) {
       if (!url.startsWith('file://')) continue
       const path = fileURLToPath(url)
       if (path.startsWith(DIST)) loads.push([main, path.slice(DIST.length)])

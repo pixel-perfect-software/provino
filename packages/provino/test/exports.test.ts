@@ -22,7 +22,8 @@ import { join, posix } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runInNewContext } from 'node:vm'
-import { childEnv, runBuilt, trackedProjects } from './support.ts'
+import { builtSources, chunkFiles, dynamicImports, staticImports } from './dist.ts'
+import { childEnv, readLoadLogs, runBuilt, trackedProjects } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const manifest = JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8')) as {
@@ -279,35 +280,6 @@ describe('the worker-side expect (T7.12)', () => {
   })
 })
 
-/** Every built file (the chunks, the entries and the worker's), by path relative to `dist/`. */
-function builtSources(): Map<string, string> {
-  const dist = join(PACKAGE, 'dist')
-  const sources = new Map<string, string>()
-  for (const dir of ['', 'worker']) {
-    for (const file of readdirSync(join(dist, dir)).filter((name) => name.endsWith('.js'))) {
-      const path = dir === '' ? file : `${dir}/${file}`
-      sources.set(path, readFileSync(join(dist, path), 'utf8'))
-    }
-  }
-  return sources
-}
-
-/** The built files `source` (at `from`) imports with a static `import`/`export … from`, multiline included. */
-function staticImports(from: string, source: string): string[] {
-  const targets = [
-    ...source.matchAll(/\bfrom\s*["'](\.{1,2}\/[^"']+)["']/g),
-    ...source.matchAll(/\bimport\s*["'](\.{1,2}\/[^"']+)["']/g),
-  ].map((match) => match[1] ?? '')
-  return targets.map((target) => posix.normalize(posix.join(posix.dirname(from), target)))
-}
-
-/** The built files `source` reaches with a dynamic `import("./…")`. */
-function dynamicImports(from: string, source: string): string[] {
-  return [...source.matchAll(/\bimport\(\s*["'](\.{1,2}\/[^"']+)["']\s*\)/g)].map((match) =>
-    posix.normalize(posix.join(posix.dirname(from), match[1] ?? '')),
-  )
-}
-
 /**
  * The built files that are watch mode, found by what they hold, not by what Rolldown named them:
  * the files with Jest's watch loop (`startJestWatch`) or Node's file watcher (`watch` imported from
@@ -403,18 +375,13 @@ describe('a built worker (T1.10)', () => {
 
     const dist = `${join(PACKAGE, 'dist')}/`
     // A run without --watch, in the bin and in every worker, loads no watch chunk (B23f).
-    const everything = readdirSync(logs).flatMap((file) =>
-      readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean),
-    )
-    assert.deepEqual(everything.map((line) => line.split('\t')[1] ?? '').filter(isWatchFile), [])
-    const workers = readdirSync(logs)
-      .map((file) => readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean))
-      .filter((lines) => lines[0]?.split('\t')[0]?.endsWith('worker/bootstrap.js'))
+    const recorded = readLoadLogs(logs)
+    assert.deepEqual(recorded.flatMap(({ urls }) => urls).filter(isWatchFile), [])
+    const workers = recorded.filter(({ main }) => main.endsWith('worker/bootstrap.js'))
     assert.ok(workers.length >= 1, 'no worker process was recorded')
-    for (const lines of workers) {
+    for (const { urls } of workers) {
       const files = new Set(
-        lines
-          .map((line) => line.split('\t')[1] ?? '')
+        urls
           .filter((url) => url.startsWith('file://'))
           .map((url) => fileURLToPath(url))
           .filter((path) => path.startsWith(dist)),
@@ -468,9 +435,7 @@ function loadsOf(code: string): { readonly dist: string[]; readonly urls: string
       timeout: 60_000,
     })
     assert.equal(result.status, 0, result.stderr)
-    const urls = readdirSync(logs)
-      .flatMap((file) => readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean))
-      .map((line) => line.split('\t')[1] ?? '')
+    const urls = readLoadLogs(logs).flatMap((log) => log.urls)
     const dist = `${join(PACKAGE, 'dist')}/`
     return {
       urls,
@@ -550,11 +515,9 @@ describe('the coordinator without coverage (T1.10, T7.12)', () => {
       },
     )
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`)
-    return readdirSync(logs)
-      .flatMap((file) => readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean))
-      .map((line) => line.split('\t'))
-      .filter(([main]) => main === bin)
-      .map(([, url]) => url ?? '')
+    return readLoadLogs(logs)
+      .filter(({ main }) => main === bin)
+      .flatMap(({ urls }) => urls)
       .filter((url) => url.includes('/packages/coverage/src/'))
   }
 
@@ -583,25 +546,6 @@ function liveFiles(sources: ReadonlyMap<string, string>): Set<string> {
 /** The HTML report's built files (B26 Phase 5): the file that defines `htmlReporter`, and its facade. */
 function htmlFiles(sources: ReadonlyMap<string, string>): Set<string> {
   return chunkFiles(sources, /\bfunction htmlReporter\(/)
-}
-
-/** The files that define something `defines` finds, then any file that imports only files already in the set. */
-function chunkFiles(sources: ReadonlyMap<string, string>, defines: RegExp): Set<string> {
-  const found = new Set<string>()
-  for (const [path, source] of sources) {
-    if (defines.test(source)) found.add(path)
-  }
-  for (let grew = true; grew; ) {
-    grew = false
-    for (const [path, source] of sources) {
-      const imports = staticImports(path, source)
-      if (!found.has(path) && imports.length > 0 && imports.every((file) => found.has(file))) {
-        found.add(path)
-        grew = true
-      }
-    }
-  }
-  return found
 }
 
 /** The `provino` reporter's files and the HTML report's among `loaded` URLs. */
@@ -661,10 +605,9 @@ describe('the provino reporter is its own chunk (B26)', () => {
       let workers = 0
       let coordinatorLive = 0
       let coordinatorHtml = 0
-      for (const file of readdirSync(logs)) {
-        const lines = readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean)
-        const found = reporterChunksIn(lines.map((line) => line.split('\t')[1] ?? ''))
-        if (lines[0]?.split('\t')[0]?.endsWith('worker/bootstrap.js')) {
+      for (const { main, urls } of readLoadLogs(logs)) {
+        const found = reporterChunksIn(urls)
+        if (main.endsWith('worker/bootstrap.js')) {
           workers++
           assert.deepEqual(found.live, [], `a worker loaded ${found.live.join(', ')}`)
           assert.deepEqual(found.html, [], `a worker loaded ${found.html.join(', ')}`)

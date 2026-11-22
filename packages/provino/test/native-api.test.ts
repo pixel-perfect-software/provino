@@ -167,9 +167,26 @@ async function assertNativeRun(dir: string, status: number | null, output: strin
   assert.equal(file.fileError, undefined, file.fileError)
   assert.deepEqual(new Map(file.tests), EXPECTED)
   // Provino's own table (`@provino/expect/table`): its error and its words.
-  assert.match(
+  const results = JSON.parse(text) as {
+    readonly files: readonly {
+      readonly tests: readonly {
+        readonly id: { readonly path: readonly string[] }
+        readonly errors: readonly { readonly name: string; readonly message: string }[]
+      }[]
+    }[]
+  }
+  const failed = results.files[0]?.tests.find(
+    (entry) => entry.id.path.at(-1) === "fails with the matcher table's message",
+  )
+  assert.deepEqual(
+    failed?.errors.map(({ name, message }) => ({ name, message })),
+    [
+      {
+        name: 'AssertionError',
+        message: 'expect(received).toBe(expected)\n\nExpected: 2\nReceived: 1',
+      },
+    ],
     text,
-    /"name": "AssertionError",\s*"message": "expect\(received\)\.toBe\(expected\)\\n\\nExpected: 2\\nReceived: 1"/,
   )
   assert.doesNotMatch(text, /hook order:/)
 }

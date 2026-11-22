@@ -1,4 +1,4 @@
-import type { EnvironmentRef, NativeRuntimeRefs } from '@provino/types'
+import type { Dialect, EnvironmentRef, NativeRuntimeRefs } from '@provino/types'
 
 /** Where a worker finds an environment: an `EnvironmentRef` without the options a project adds. */
 type EnvironmentModule = Omit<EnvironmentRef, 'options'>
@@ -55,4 +55,15 @@ export const NATIVE_RUNTIME: NativeRuntimeRefs = {
     module: import.meta.resolve('@provino/expect/table'),
     export: 'provinoExpectTable',
   },
+}
+
+/**
+ * The dialects `provino` ships, for a config that names one (`resolveProjects`' `loadDialects`):
+ * imported only then, so a native project, `projects` of native sub-configs included, loads no
+ * dialect code (D115, `speed`).
+ * @internal
+ */
+export async function builtInDialects(): Promise<readonly Dialect[]> {
+  const { jestDialect } = await import('@provino/dialect-jest')
+  return [jestDialect]
 }
