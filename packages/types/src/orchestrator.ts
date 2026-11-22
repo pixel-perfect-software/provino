@@ -780,8 +780,8 @@ export interface ReporterBus {
 }
 
 /**
- * Values global setup provides to tests. Augmented by users:
- * `declare module '@provino/types' { interface ProvidedContext { dbUrl: string } }`.
+ * Values global setup provides to tests. Users add keys by declaration merging, in the module
+ * that exports it (`interface ProvidedContext { dbUrl: string }`).
  * @public
  */
 // biome-ignore lint/suspicious/noEmptyInterface: augmented by users (declaration merging).

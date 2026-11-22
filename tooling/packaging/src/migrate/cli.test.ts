@@ -80,7 +80,7 @@ describe('migrate:node-test', () => {
     assert.equal(ended.code, 2)
     assert.equal(
       ended.err,
-      `MIGRATE_USAGE no runner at ${missing}: install the provino-runner rc (B27g2) or pass --runner <cli.js>`,
+      `MIGRATE_USAGE no runner at ${missing}: run pnpm build or pass --runner <cli.js>`,
     )
   })
 

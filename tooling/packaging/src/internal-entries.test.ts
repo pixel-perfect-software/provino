@@ -8,7 +8,11 @@ import {
   internalTarget,
   isAddOn,
   isInternalEntry,
+  REGISTRY_MODULE,
+  retargetAugmentations,
   rewriteResolveCalls,
+  sharedRegistries,
+  shareRegistries,
 } from './internal-entries.ts'
 import { readManifest } from './package-json.ts'
 import { ROOT } from './workspace.ts'
@@ -94,5 +98,83 @@ describe("an add-on's build reaches the engine through provino/internal/* (D187)
       rewriteResolveCalls('// import.meta.resolve(name)\nimport.meta.resolve()', 'a.ts', rewrite),
       undefined,
     )
+  })
+})
+
+/** A plugin's `generateBundle` hook, called on a fake bundle. */
+type Generate = (options: unknown, bundle: Record<string, unknown>) => void
+
+describe('the registries are one module to a user (REGISTRY_MODULE)', () => {
+  test('an augmentation of @provino/types is retargeted, in either quote style and in the doc comment', () => {
+    const code = [
+      "/** `declare module '@provino/types' { interface DialectRegistry { jest: A } }`. */",
+      'declare module "@provino/types" {',
+      '  interface DialectRegistry { jest: A }',
+      '}',
+      "declare module '@provino/types' {}",
+      "declare module '@provino/other' {}",
+      'import type { X } from "@provino/types"',
+    ].join('\n')
+    assert.equal(
+      retargetAugmentations(code),
+      code
+        .replaceAll("declare module '@provino/types'", `declare module '${REGISTRY_MODULE}'`)
+        .replace('declare module "@provino/types"', `declare module "${REGISTRY_MODULE}"`),
+    )
+    assert.equal(REGISTRY_MODULE, 'provino/config')
+  })
+
+  test('each empty registry and only its own doc comment are cut, and imported after the directives', () => {
+    const code = [
+      '/// <reference types="node" />',
+      '/// <reference lib="esnext" />',
+      '/** Another type. */',
+      'interface Kept {}',
+      '/**',
+      ' * Dialects by name.',
+      ' */',
+      'interface DialectRegistry {}',
+      'interface Between {}',
+      '/** Plugins by name. */',
+      'export interface PluginRegistry {}',
+      'interface DialectRegistryTwo {}',
+      '',
+    ].join('\n')
+    const shared = shareRegistries(code)
+    assert.deepEqual(shared.cut, ['DialectRegistry', 'PluginRegistry'])
+    assert.equal(
+      shared.code,
+      [
+        '/// <reference types="node" />',
+        '/// <reference lib="esnext" />',
+        `import type { DialectRegistry, PluginRegistry } from "${REGISTRY_MODULE}";`,
+        '/** Another type. */',
+        'interface Kept {}',
+        'interface Between {}',
+        'interface DialectRegistryTwo {}',
+        '',
+      ].join('\n'),
+    )
+  })
+
+  test('a chunk with no registry is returned as it is; one with members is not a registry to cut', () => {
+    const plain = 'interface Kept {}\n'
+    assert.deepEqual(shareRegistries(plain), { code: plain, cut: [] })
+    const merged = 'interface DialectRegistry { jest: A }\n'
+    assert.deepEqual(shareRegistries(merged), { code: merged, cut: [] })
+  })
+
+  test('the build fails when a registry is in no chunk', () => {
+    const [plugin] = sharedRegistries()
+    const generate = (plugin as unknown as { generateBundle: Generate }).generateBundle
+    const chunk = (code: string) => ({ type: 'chunk', fileName: 'index.d.ts', code })
+    const only = { 'index.d.ts': chunk('interface DialectRegistry {}\n') }
+    assert.throws(() => generate({}, only), /PluginRegistry.*update shareRegistries/)
+    const both = {
+      'a.d.ts': chunk('interface DialectRegistry {}\n'),
+      'b.d.ts': { ...chunk('interface PluginRegistry {}\n'), fileName: 'b.d.ts' },
+    }
+    generate({}, both)
+    assert.match(String(Object.values(both)[0]?.code), /^import type \{ DialectRegistry \} from/)
   })
 })

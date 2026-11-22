@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { TEST_RUNNER } from '../dogfood.ts'
 import { runCommandAsync } from '../exec.ts'
 import { MigrateError } from './errors.ts'
 import {
@@ -96,6 +97,12 @@ const LOOKS_LIKE_PATH = /[*/]|\.[cm]?[jt]sx?$/
 export function parseTestScript(script: string | undefined): TestScript {
   if (script === undefined || script.trim() === '') {
     throw new MigrateError('MIGRATE_SCRIPT', 'the package has no test script')
+  }
+  // An already-migrated package (B27g2): `<runner> [&& node --test <bootstrap files>]`. Its Provino
+  // part has nothing for the codemod to rewrite; the node:test part is read as any other script.
+  if (script === TEST_RUNNER) return { flags: [], globs: [] }
+  if (script.startsWith(`${TEST_RUNNER} && `)) {
+    return parseTestScript(script.slice(TEST_RUNNER.length + 4))
   }
   const tokens = words(script)
   if (tokens[0] !== 'node') throw scriptError(script, 'it does not start with node')

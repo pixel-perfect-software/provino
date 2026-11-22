@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { SnapshotKey } from '@provino/types'
+import { test } from 'provino'
 import { diffPolicy, formatPolicyDiff } from './diff.ts'
 import { moduleRef } from './module-ref.ts'
 import { neutralPolicy } from './neutral.ts'

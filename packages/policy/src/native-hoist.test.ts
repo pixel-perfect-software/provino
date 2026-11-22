@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { NATIVE_HOISTED_CALLS, nativeHoistPolicy } from './native-hoist.ts'
 
 // Provino's own values (no ground truth applies). What the hoister does under them is held by

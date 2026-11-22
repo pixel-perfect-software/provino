@@ -1,7 +1,7 @@
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import type { UserConfig } from 'tsdown/config'
-import { internalImports, isAddOn } from './internal-entries.ts'
+import { augmentationTarget, internalImports, isAddOn } from './internal-entries.ts'
 import { type PackageManifest, readManifest, runtimeDependencyNames } from './package-json.ts'
 
 /**
@@ -110,7 +110,15 @@ export function packageConfig(dir: string): UserConfig {
       onlyImport: [manifest.name, ...runtimeDependencyNames(manifest)],
     },
     // An add-on (D187) reaches the engine through its `provino` peer, never a copy of its own.
-    ...(isAddOn(manifest) ? { plugins: internalImports(manifest.name) } : {}),
+    ...(isAddOn(manifest)
+      ? {
+          plugins: [
+            ...internalImports(manifest.name),
+            // The registries are `provino/config`'s, the one module a user's install resolves.
+            ...augmentationTarget(),
+          ],
+        }
+      : {}),
   }
 }
 

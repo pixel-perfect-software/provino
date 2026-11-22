@@ -1,7 +1,15 @@
 import { rmSync } from 'node:fs'
 import { dirname, join, posix } from 'node:path'
 import type { UserConfig } from 'tsdown/config'
-import { ADD_ONS, inPackage, isInternalEntry, rewriteResolveCalls } from './internal-entries.ts'
+import {
+  ADD_ONS,
+  augmentationTarget,
+  inPackage,
+  isInternalEntry,
+  type PluginList,
+  rewriteResolveCalls,
+  sharedRegistries,
+} from './internal-entries.ts'
 import { readManifest, runtimeDependencyNames } from './package-json.ts'
 import { DTS_ONLY, entriesOf, PRESET } from './preset.ts'
 
@@ -49,7 +57,7 @@ const DECLARATION_ONLY_ENTRIES: Readonly<Record<string, string>> = {
 }
 
 /** Drops the declaration files of `DECLARATION_ONLY_ENTRIES` from the output. */
-function dropDeclarations(): NonNullable<UserConfig['plugins']> {
+function dropDeclarations(): PluginList {
   return [
     {
       name: 'provino-drop-declaration-only-entries',
@@ -208,15 +216,16 @@ const JEST_NODE = new RegExp(
 
 /**
  * Watch mode (B23f): the driver, its interrupt latch, the orchestrator's watch session and file
- * watcher, and Jest's watch loop rebuilt in the dialect. `provino jest` imports the driver
- * dynamically under `--watch` and `--watchAll`, so no other run reads them. The plugin error
+ * watcher, and Jest's watch loop rebuilt in the dialect. `provino jest` imports its driver
+ * and `provino run` its own (`native-watch.ts`, B27k) dynamically under `--watch` and
+ * `--watchAll`, so no other run reads them. The plugin error
  * and the terminal constants are the files of the loop the bin names on every run, so they stay out
  * (`plugin-error.ts`, `terminal.ts`).
  */
 const WATCH = new RegExp(
   [
     'orchestrator[\\\\/]src[\\\\/]watch[\\\\/](?!.*\\.test\\.ts$)',
-    'provino[\\\\/]src[\\\\/]internal[\\\\/](?:jest-watch|watch-interrupt)\\.ts$',
+    'provino[\\\\/]src[\\\\/]internal[\\\\/](?:jest-watch|native-watch|watch-interrupt|watch-queue)\\.ts$',
   ]
     .map((alternative) => `[\\\\/]packages[\\\\/]${alternative}`)
     .join('|'),
@@ -258,7 +267,7 @@ const SHARED = /[\\/]packages[\\/][^\\/]+[\\/]src[\\/]/
  * doesn't know fails the build: it would resolve to a package the umbrella doesn't install.
  * @internal
  */
-export function workerRefs(): NonNullable<UserConfig['plugins']> {
+export function workerRefs(): PluginList {
   return [
     {
       name: 'provino-worker-refs',
@@ -435,7 +444,8 @@ export function umbrellaConfig(dir: string): UserConfig[] {
       entry: publicEntries,
       dts: DTS_ONLY,
       deps: { alwaysBundle: PROVINO_SCOPE, dts: { alwaysBundle: PROVINO_SCOPE } },
-      plugins: dropDeclarations(),
+      // `jest.d.ts` and `vitest.d.ts` register their dialect on the registry `config.d.ts` exports.
+      plugins: [...dropDeclarations(), ...augmentationTarget()],
     },
     {
       ...common,
@@ -444,6 +454,7 @@ export function umbrellaConfig(dir: string): UserConfig[] {
       deps: { alwaysBundle: PROVINO_SCOPE, dts: { alwaysBundle: PROVINO_SCOPE } },
       // Its shared declaration chunks go under `internal/`, where no public pass writes.
       outputOptions: { chunkFileNames: 'internal/chunks/[name].d.ts' },
+      plugins: sharedRegistries(),
     },
   ]
 }

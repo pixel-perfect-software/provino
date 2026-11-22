@@ -583,6 +583,9 @@ importers:
       knip:
         specifier: 'catalog:'
         version: 6.44.1
+      provino:
+        specifier: workspace:*
+        version: link:packages/provino
       publint:
         specifier: 'catalog:'
         version: 0.3.25
@@ -1591,6 +1594,12 @@ importers:
       styled-components:
         specifier: 'catalog:'
         version: 6.6.0(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      typescript:
+        specifier: 'catalog:'
+        version: 7.0.2
+      typescript-5.9:
+        specifier: 'catalog:'
+        version: typescript@5.9.3
 
   packages/reporters:
     dependencies:

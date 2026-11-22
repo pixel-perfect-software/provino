@@ -1,7 +1,7 @@
 // The handle's own surface: how it prints and serializes without evaluating anything.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import { inspect } from 'node:util'
+import { describe, test } from 'provino'
 import { createWorld, type FileOutcome } from './internal/test-support.ts'
 
 function passed(outcome: FileOutcome): void {

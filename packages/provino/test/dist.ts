@@ -12,13 +12,14 @@ export const DIST: string = fileURLToPath(new URL('../dist', import.meta.url))
  * Every built file (the chunks, the entries, the worker's and `internal/`'s, B27f), by path relative
  * to `dist/`, through every directory: an add-on's `dist` (D187) has one per subpath.
  */
-export function builtSources(dist: string = DIST): Map<string, string> {
+export function builtSources(dist: string = DIST, extension = '.js'): Map<string, string> {
   const sources = new Map<string, string>()
   const walk = (dir: string): void => {
     for (const entry of readdirSync(join(dist, dir), { withFileTypes: true })) {
       const path = dir === '' ? entry.name : `${dir}/${entry.name}`
       if (entry.isDirectory()) walk(path)
-      else if (entry.name.endsWith('.js')) sources.set(path, readFileSync(join(dist, path), 'utf8'))
+      else if (entry.name.endsWith(extension))
+        sources.set(path, readFileSync(join(dist, path), 'utf8'))
     }
   }
   walk('')

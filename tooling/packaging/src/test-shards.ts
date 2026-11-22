@@ -11,8 +11,10 @@
 //   node tooling/packaging/src/test-shards.ts check
 //   node tooling/packaging/src/test-shards.ts run <1|2> [turbo run flags…]
 import { spawn, spawnSync } from 'node:child_process'
-import { realpathSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { bootstrapFiles, CANARY, migratedDirs, testScript } from './dogfood.ts'
 import { ROOT, readWorkspacePackages } from './workspace.ts'
 
 /**
@@ -96,6 +98,57 @@ export function shardProblems(
   return problems
 }
 
+/**
+ * One package that runs on Provino (it has a `provino.config.ts`), as `check` sees it.
+ * @internal
+ */
+export interface MigratedPackage {
+  readonly name: string
+  /** What its `test` script says, and what `testScript` says it must (one string for every package). */
+  readonly script: string
+  readonly expectedScript: string
+}
+
+/**
+ * What is wrong with the bootstrap set (`tooling/provino/bootstrap.json`) and the migrated packages'
+ * scripts. A migrated package's script is the runner, then `node --test` over exactly its bootstrap
+ * files, so each test file runs on exactly one runner: the shared config excludes the set from
+ * Provino's `include`, and the script runs the set on node:test. The set must hold the canary, and
+ * every entry must exist and, if it is in a migrated package, be named by that script.
+ * @internal
+ */
+export function bootstrapProblems(
+  bootstrap: readonly string[],
+  packages: readonly MigratedPackage[],
+  exists: (file: string) => boolean,
+): readonly string[] {
+  const problems: string[] = []
+  if (!bootstrap.includes(CANARY)) problems.push(`the bootstrap set must hold ${CANARY}`)
+  for (const file of bootstrap) {
+    if (!exists(file)) problems.push(`bootstrap file ${file} does not exist`)
+  }
+  for (const pkg of packages) {
+    if (pkg.script !== pkg.expectedScript) {
+      problems.push(
+        `${pkg.name}'s test script is "${pkg.script}", expected "${pkg.expectedScript}": a file of the bootstrap set must run on node:test only, every other on Provino only`,
+      )
+    }
+  }
+  return problems
+}
+
+/** The packages with a `provino.config.ts`, read from disk; the root config's projects are these. */
+function migratedPackages(): readonly MigratedPackage[] {
+  const dirs = migratedDirs(ROOT)
+  return readWorkspacePackages()
+    .filter((pkg) => dirs.includes(pkg.rel))
+    .map((pkg) => ({
+      name: pkg.manifest.name,
+      script: pkg.manifest.scripts?.test ?? '',
+      expectedScript: testScript(ROOT, pkg.rel),
+    }))
+}
+
 /** The workspace packages (not the root) that have a `test` script. */
 function packagesWithTests(): readonly string[] {
   return readWorkspacePackages()
@@ -135,6 +188,9 @@ function check(): number {
   const ran = Array.from({ length: SHARD_COUNT }, (_, index) => plannedPackages(index + 1))
   const problems = [
     ...shardProblems(packagesWithTests(), ran),
+    ...bootstrapProblems(bootstrapFiles(ROOT), migratedPackages(), (file) =>
+      existsSync(join(ROOT, file)),
+    ),
     ...unshardableSplits().map(
       (name) => `${name} is split but its test script does not run through node-test.ts`,
     ),

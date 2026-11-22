@@ -21,6 +21,9 @@ CLAUDE.local.md
 # build output: tsc -b declarations, Turborepo cache
 .tsc/
 .turbo/
+# a stray `tsc` run beside the sources (outDir is .tsc/): none of these is source
+tooling/packaging/src/*.d.ts
+tooling/packaging/src/*.d.ts.map
 
 # generated bench suites and local bench records (packages/bench), recorder work dirs (packages/harness)
 packages/bench/.suites/

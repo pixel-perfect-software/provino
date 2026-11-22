@@ -26,6 +26,9 @@ const DIALECT_TARGET = '^packages/dialect-[^/]+/|^@provino/dialect-'
 /** Test files and test-support modules: what `test-support-only-in-tests` lets import support. */
 const TEST_FILE = String.raw`\.test\.ts$|\.test-d\.ts$|(?:^|/)test-support\.ts$`
 const TEST_SUPPORT = String.raw`(?:^|/)test-support\.ts$`
+
+/** This repo's own test configuration files (B27g2): each package's, the shared one and the all-packages one. */
+const TEST_CONFIG = String.raw`(?:^|/)provino\.config\.ts$|^tooling/provino/(?:base|all\.config)\.ts$`
 const NOT_TESTS: readonly string[] = [
   '!**/*.test.ts',
   '!**/*.test-d.ts',
@@ -143,6 +146,12 @@ interface RuleSpec {
 function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown {
   const placed = manifest.nodes.filter((node) => node.dir !== null)
   const rootsPattern = roots.map(escapeRegex).join('|')
+  const testOnlyEntry =
+    manifest.testOnlyEntry === undefined ? undefined : `^${escapeRegex(manifest.testOnlyEntry)}$`
+  const testOnlyOwner =
+    manifest.testOnlyEntry === undefined
+      ? undefined
+      : `^${escapeRegex(manifest.testOnlyEntry.split('/').slice(0, 2).join('/'))}/`
   const workspaceTarget = `^(?:${rootsPattern})/|^@provino/|^provino(?:-|/|$)`
   return {
     $schema:
@@ -163,7 +172,15 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
           comment: spec.comment,
           severity: 'error',
           from: { path: spec.from },
-          to: { path: workspaceTarget, pathNot: [...new Set(spec.allowed)] },
+          to: {
+            path: workspaceTarget,
+            pathNot: [
+              ...new Set([
+                ...spec.allowed,
+                ...(testOnlyEntry === undefined ? [] : [testOnlyEntry]),
+              ]),
+            ],
+          },
         }
       }),
       ...placed
@@ -186,6 +203,17 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
             dependencyTypesNot: ['type-only'],
           },
         })),
+      ...(testOnlyEntry === undefined || testOnlyOwner === undefined
+        ? []
+        : [
+            {
+              name: 'test-only-entry',
+              comment: `B27g2 (D203): this repo's own tests import the native API as \`provino\`, so every boundary-* rule lets ${manifest.testOnlyEntry} through and this rule keeps it to test files and to its own package. Production code reaches the API as data, through the runtime refs.`,
+              severity: 'error',
+              from: { path: `^(?:${rootsPattern})/`, pathNot: [TEST_FILE, testOnlyOwner] },
+              to: { path: testOnlyEntry },
+            },
+          ]),
       {
         name: 'test-support-only-in-tests',
         comment:
@@ -228,10 +256,15 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
       // first (`workspace-exports` checks), so no edge lands in dist/. Neither is generated or
       // scratch output (SKIPPED_DIRS, shared with the workspace walk). node_modules stays in the
       // graph, as edge targets only (`doNotFollow`): `banned-packages-*` (T7.12) needs to see them.
+      // B27g2: nor is this repo's own test configuration (`provino.config.ts` and
+      // `tooling/provino/`), which names the runner and the shared config, not package code.
       exclude: {
-        path: `(^|/)(?:${SKIPPED_DIRS.filter((dir) => dir !== 'node_modules')
-          .map(escapeRegex)
-          .join('|')})/`,
+        path: [
+          `(^|/)(?:${SKIPPED_DIRS.filter((dir) => dir !== 'node_modules')
+            .map(escapeRegex)
+            .join('|')})/`,
+          TEST_CONFIG,
+        ],
       },
       tsPreCompilationDeps: true,
       combinedDependencies: false,

@@ -1,7 +1,7 @@
 // Scopes and cleanup: file and worker values over two files, scope violations, `onCleanup` order
 // and `LetOptions.timeout`.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { LazyError } from './errors.ts'
 import { createWorld, type FileOutcome } from './internal/test-support.ts'
 

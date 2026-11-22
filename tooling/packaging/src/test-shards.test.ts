@@ -5,8 +5,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { CANARY } from './dogfood.ts'
 import { nodeTestArgs } from './node-test.ts'
 import {
+  bootstrapProblems,
   SHARD_COUNT,
   SHARD_ONE,
   SPLIT_PACKAGES,
@@ -172,5 +174,38 @@ describe('the file split of a package', () => {
     assert.equal(all.length, 7)
     assert.deepEqual(halves.flat().sort(), all)
     assert.ok(halves.every((half) => half.length > 0 && half.length < all.length))
+  })
+})
+
+describe('bootstrapProblems (B27g2)', () => {
+  const exists = (): boolean => true
+  const pkg = (script: string, expectedScript: string) => ({ name: 'p', script, expectedScript })
+
+  test('a script that is the expected one is fine', () => {
+    assert.deepEqual(bootstrapProblems([CANARY], [pkg('run', 'run')], exists), [])
+  })
+
+  test('a script that differs runs a bootstrap file on both runners or on neither', () => {
+    const problems = bootstrapProblems(
+      [CANARY],
+      [pkg('run', 'run && node --test a.test.ts')],
+      exists,
+    )
+    assert.equal(problems.length, 1)
+    assert.match(
+      problems[0] ?? '',
+      /test script is "run", expected "run && node --test a\.test\.ts"/,
+    )
+  })
+
+  test('the canary is required, and an entry must exist', () => {
+    assert.match(
+      bootstrapProblems([], [], exists).join('\n'),
+      /must hold packages\/provino\/test\/bootstrap\/canary\.test\.ts/,
+    )
+    assert.match(
+      bootstrapProblems([CANARY, 'gone.test.ts'], [], (file) => file === CANARY).join('\n'),
+      /gone\.test\.ts does not exist/,
+    )
   })
 })

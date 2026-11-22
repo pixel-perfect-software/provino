@@ -529,14 +529,38 @@ export function linkProvino(
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 
 /**
- * Copies the built package (`dist` and `package.json`) into `target`, a `provino` of its own at
- * that path. Its dependencies are whatever `target`'s parents hold.
+ * Copies a built package (`dist` and `package.json`: this one's, or the package at `from`) into
+ * `target`, as an install of its own at that path. Its dependencies are whatever `target`'s parents
+ * hold. A package that is not built fails here, by name, instead of as a missing file later.
  */
-export function copyBuiltPackage(target: string): string {
+export function copyBuiltPackage(target: string, from: string = PACKAGE_DIR): string {
+  if (!existsSync(join(from, 'dist'))) {
+    throw new Error(`${from} has no dist/: run \`pnpm build\` first`)
+  }
   mkdirSync(target, { recursive: true })
-  cpSync(join(PACKAGE_DIR, 'dist'), join(target, 'dist'), { recursive: true })
-  cpSync(join(PACKAGE_DIR, 'package.json'), join(target, 'package.json'))
+  cpSync(join(from, 'dist'), join(target, 'dist'), { recursive: true })
+  cpSync(join(from, 'package.json'), join(target, 'package.json'))
   return target
+}
+
+/** A temp directory (by its real path: macOS's `$TMPDIR` is a link) removed when the file ends. */
+export function scratch(prefix: string): string {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), prefix)))
+  after(() => rmSync(dir, { recursive: true, force: true }))
+  return dir
+}
+
+/** The two compilers a type check runs on, as the package names of the workspace's catalog. */
+export const COMPILERS: readonly ('typescript' | 'typescript-5.9')[] = [
+  'typescript',
+  'typescript-5.9',
+]
+
+/** The `bin/tsc` of a compiler this package declares (devDependencies): no transitive shim. */
+export function compilerBin(compiler: (typeof COMPILERS)[number]): string {
+  const bin = join(PACKAGE_DIR, 'node_modules', compiler, 'bin', 'tsc')
+  if (!existsSync(bin)) throw new Error(`${compiler} is not installed: ${bin} is missing`)
+  return bin
 }
 
 /**

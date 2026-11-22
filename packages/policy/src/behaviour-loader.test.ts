@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import type { EnvironmentConditions, ModuleRef, SnapshotKey } from '@provino/types'
+import { describe, test } from 'provino'
 import { callBehaviour, createBehaviourLoader, type ModuleImporter } from './behaviour-loader.ts'
 import { PolicyError } from './errors.ts'
 import { moduleRef } from './module-ref.ts'

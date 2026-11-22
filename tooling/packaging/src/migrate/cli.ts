@@ -5,7 +5,7 @@
 // package is a path, a workspace name (@provino/core), a directory (packages/core) or a bare name.
 // Exit 0: done; 1: refused sites, or verify found a difference; 2: bad usage or a failed step.
 import { existsSync, realpathSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { ROOT } from '../workspace.ts'
@@ -13,9 +13,10 @@ import { MigrateError } from './errors.ts'
 import { formatDifference, isEmptyDifference } from './node-test-compare.ts'
 import { findPackage, rewritePackage, verifyPackage } from './node-test-migrate.ts'
 import { formatRefusal } from './node-test-rewrite.ts'
+import { scaffoldPackage } from './scaffold.ts'
 
-/** The pinned runner B27g2 installs (D191): never this checkout's own source, which is under test. */
-const DEFAULT_RUNNER = join(ROOT, 'node_modules/provino-runner/dist/cli.js')
+/** This checkout's built bin (D203, until the one release moves it to a pinned rc, D191): `pnpm build` first. */
+const DEFAULT_RUNNER = join(ROOT, 'packages/provino/dist/cli.js')
 const USAGE =
   'usage: migrate:node-test rewrite <package> [--dry-run]\n' +
   '       migrate:node-test verify <package> [--runner <cli.js>] [--config <file>]'
@@ -87,6 +88,9 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
         io.out(
           `${sites}, ${report.rewritten.length} rewritten; recorded ${report.baselineTests} baseline test(s)`,
         )
+        for (const path of await scaffoldPackage(root, packageDir)) {
+          io.out(`scaffolded ${relative(root, path)}`)
+        }
       }
       return report.refusals.length > 0 ? 1 : 0
     }
@@ -95,7 +99,7 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
     if (!existsSync(runnerPath)) {
       throw new MigrateError(
         'MIGRATE_USAGE',
-        `no runner at ${runnerPath}: install the provino-runner rc (B27g2) or pass --runner <cli.js>`,
+        `no runner at ${runnerPath}: run pnpm build or pass --runner <cli.js>`,
       )
     }
     const report = await verifyPackage({ packageDir, root, cacheDir, runner: runnerPath, config })

@@ -124,6 +124,24 @@ export function findPackage(name: string, root: string = ROOT): string {
   return found.dir
 }
 
+/**
+ * The files that stay on node:test (B27g2: `tooling/provino/bootstrap.json`), relative to the
+ * package; `rewrite` leaves them alone, so the baseline and the files agree on what is migrated.
+ */
+async function bootstrapFiles(root: string, packageDir: string): Promise<ReadonlySet<string>> {
+  let text: string
+  try {
+    text = await readFile(join(root, 'tooling/provino/bootstrap.json'), 'utf8')
+  } catch (cause) {
+    if ((cause as { code?: string }).code === 'ENOENT') return new Set()
+    throw new MigrateError('MIGRATE_BASELINE', 'cannot read tooling/provino/bootstrap.json', {
+      cause,
+    })
+  }
+  const files = (JSON.parse(text) as { files?: Record<string, string> }).files ?? {}
+  return new Set(Object.keys(files).map((file) => relative(packageDir, join(root, file))))
+}
+
 /** The package's test files: what its script's globs match, sorted, once each. */
 async function testFiles(packageDir: string, globs: readonly string[]): Promise<string[]> {
   const found = await Promise.all(
@@ -167,7 +185,8 @@ export async function rewritePackage(options: {
     realpath(options.packageDir),
   ])
   const script = parseTestScript(readManifest(packageDir).scripts.test)
-  const files = await testFiles(packageDir, script.globs)
+  const staying = await bootstrapFiles(root, packageDir)
+  const files = (await testFiles(packageDir, script.globs)).filter((file) => !staying.has(file))
   const results = await Promise.all(
     files.map(async (file) => {
       const source = await readFile(join(packageDir, file), 'utf8')

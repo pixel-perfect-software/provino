@@ -1,6 +1,6 @@
 // T6.6: `eager` runs as a hook at its declaration position and awaits its value.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { LAZY_CHAIN, LazyError } from './errors.ts'
 import { createWorld, type FileOutcome } from './internal/test-support.ts'
 

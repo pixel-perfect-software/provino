@@ -7,6 +7,7 @@
 // `ignoreDependencies` below holds only what a static read of the imports can't see: packages
 // that are loaded by name at run time, run as tools, or bundled into `provino`. Each says why.
 import type { KnipConfig } from 'knip'
+import { INCLUDE_GLOBS, migratedDirs } from './tooling/packaging/src/dogfood.ts'
 import { readManifest } from './tooling/packaging/src/package-json.ts'
 
 /**
@@ -55,6 +56,8 @@ const config: KnipConfig = {
   ],
   workspaces: {
     '.': {
+      // `pnpm test:provino` runs it by path.
+      entry: ['tooling/provino/all.config.ts'],
       ignoreDependencies: [
         // Run as tools by `tooling/packaging` (`node <bin>`) and by root scripts.
         '@arethetypeswrong/cli',
@@ -192,6 +195,8 @@ const config: KnipConfig = {
         ),
         // A test symlinks a real jest-environment-jsdom into a project.
         'jest-environment-jsdom',
+        // `built-types.test.ts` runs its `bin/tsc` found by path (`compilerBin`), which knip can't see.
+        'typescript-5.9',
         // Inlined by the build only (`WORKER_ENTRIES`' `worker/vitest-runtime`, B25b): no source of
         // `provino`'s imports it until `provino vitest` exists (T11.16, Phase 7).
         '@provino/dialect-vitest',
@@ -213,6 +218,16 @@ const config: KnipConfig = {
       ],
     },
   },
+}
+
+// B27g2: a migrated package's `test` script no longer names its test files (the runner finds them),
+// so knip is told where they are, from the same facts the shared config and `test-shards check` read.
+for (const dir of migratedDirs('.')) {
+  const own = config.workspaces?.[dir] ?? {}
+  config.workspaces = {
+    ...config.workspaces,
+    [dir]: { ...own, entry: [...INCLUDE_GLOBS, 'provino.config.ts', 'test/**/*.test-d.ts'] },
+  }
 }
 
 export default config

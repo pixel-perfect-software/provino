@@ -51,6 +51,11 @@ export interface Manifest {
   readonly wholePolicyTypes: readonly string[]
   /** `@provino/policy` exports that hand out the whole policy (`neutralPolicy`, `resolvePolicy`). */
   readonly wholePolicyValues: readonly string[]
+  /**
+   * The one file every `boundary-*` rule lets through and only tests may import (B27g2, D203: this
+   * repo's tests import the native API as `provino`; Phase 10 removes it). Absent: no allowance.
+   */
+  readonly testOnlyEntry: string | undefined
   readonly nodes: readonly ManifestNode[]
 }
 
@@ -135,6 +140,8 @@ export function parseManifest(json: unknown): Manifest {
     ),
     wholePolicyTypes: texts(root.wholePolicyTypes, 'wholePolicyTypes'),
     wholePolicyValues: texts(root.wholePolicyValues, 'wholePolicyValues'),
+    testOnlyEntry:
+      root.testOnlyEntry === undefined ? undefined : text(root.testOnlyEntry, 'testOnlyEntry'),
     nodes: Object.entries(raw).map(([name, value]) => parseNode(name, value, names, sets)),
   }
 }

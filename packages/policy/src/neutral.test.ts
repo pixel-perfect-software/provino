@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { isModuleRef } from './module-ref.ts'
 import { neutralPolicy } from './neutral.ts'
 

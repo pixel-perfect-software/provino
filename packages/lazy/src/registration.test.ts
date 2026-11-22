@@ -1,7 +1,7 @@
 // T6.4: registration and collection-time validation. Each misuse throws a `LazyError` with the
 // right code and the `file:line:column` of the call that made it.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { LazyError } from './errors.ts'
 import { createWorld } from './internal/test-support.ts'
 
