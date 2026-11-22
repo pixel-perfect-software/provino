@@ -2,15 +2,14 @@
 // project with no dialect (`provino.config.ts`, a test file that imports from `provino`) with
 // `load-recorder.ts` preloaded in the coordinator and every worker, over forks and threads, and no
 // process loads a file of a banned package or a dialect chunk. A native worker starts with at most
-// 10 files from the package, counted as `exports.test.ts` counts. A copy of the built package with
-// `import 'pretty-format'` planted in `@provino/api`'s built entry must fail the same check.
+// 10 files from the package, counted as `exports.test.ts` counts. Each half has a failing control:
+// a copy of the built package with `import 'jest-junit'` (B27f: `pretty-format` is no longer
+// `provino`'s to resolve) planted in `@provino/api`'s built entry,
+// and one whose bin imports the Jest dialect's chunk.
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import {
   cpSync,
-  mkdirSync,
   mkdtempSync,
-  readdirSync,
   readFileSync,
   realpathSync,
   rmSync,
@@ -21,198 +20,232 @@ import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { childEnv } from './support.ts'
+import { builtSources, chunkFiles } from './dist.ts'
+import { type LoadLog, linkProvino, makeProject, readLoadLogs, runBuilt } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 
-/**
- * Acceptance row 8's names (the manifest's `native` set, `tooling/boundaries/packages.json`):
- * `jest-*`, `@jest/*`, `expect`, `pretty-format`, `chai`, `@vitest/*`, `vite`, `@babel/*`
- * (`jest-snapshot` is a `jest-*`).
- */
-const BANNED =
-  /(?:^|\/)node_modules\/(?:jest-[^/]+|@jest\/[^/]+|expect|pretty-format|chai|@vitest\/[^/]+|vite|@babel\/[^/]+)\//
+/** The boundaries manifest, whose `bannedPackageSets.native` is acceptance rows 8 and 9's list. */
+const MANIFEST = join(PACKAGE, '..', '..', 'tooling', 'boundaries', 'packages.json')
 
-/** The add-ons (D187): every file of theirs is dialect code, wherever it is installed. */
-const ADD_ON_DISTS: readonly string[] = ['dialect-jest', 'dialect-vitest'].map((name) =>
-  realpathSync(join(PACKAGE, 'node_modules', '@provino', name, 'dist')),
-)
-
-/** Every `.js` file under `dir`, by path relative to it. */
-function builtFiles(dir: string, prefix = ''): string[] {
-  return readdirSync(join(dir, prefix), { withFileTypes: true }).flatMap((entry) => {
-    const path = prefix === '' ? entry.name : `${prefix}/${entry.name}`
-    if (entry.isDirectory()) return builtFiles(dir, path)
-    return entry.name.endsWith('.js') ? [path] : []
-  })
+/** The manifest's `native` ban list (`jest-*`, `@jest/*`, `expect`, …) as a test of a loaded path. */
+function bannedPaths(): RegExp {
+  const parsed = JSON.parse(readFileSync(MANIFEST, 'utf8')) as {
+    readonly bannedPackageSets?: { readonly native?: readonly string[] }
+  }
+  const names = parsed.bannedPackageSets?.native ?? []
+  assert.ok(names.length > 0, `${MANIFEST} has no bannedPackageSets.native`)
+  const alternatives = names.map((name) =>
+    name
+      .split('*')
+      .map((part) => part.replace(/[.+?^${}()|[\]\\/]/g, '\\$&'))
+      .join('[^/]+'),
+  )
+  return new RegExp(`(?:^|/)node_modules/(?:${alternatives.join('|')})/`)
 }
 
-/**
- * The dialect chunks of a build in `dist`, found by what they hold, not by what Rolldown named
- * them: every chunk that defines a dialect's value or its config reader, and (since B27f, D187)
- * every chunk that imports an add-on (`provino jest`'s and `provino vitest`'s commands,
- * `provino/jest`, `provino/vitest`).
- */
-function dialectChunks(dist: string): Set<string> {
-  const found = new Set<string>()
-  for (const path of builtFiles(dist)) {
-    const source = readFileSync(join(dist, path), 'utf8')
-    if (
-      /\bconst (?:jestDialect|vitestDialect|jestNodeDialect|vitestNodeDialect) =/.test(source) ||
-      /\bfrom\s*["']@provino\/dialect-(?:jest|vitest)(?:\/[^"']*)?["']/.test(source)
-    ) {
-      found.add(path)
-    }
-  }
-  return found
+const BANNED = bannedPaths()
+
+/** What the test file of the native project declares: three tests, all passing. */
+const TESTS = 3
+
+/** The native project's own files, as `single` (one config) or `projects` lays them out. */
+const NATIVE_FILES = {
+  config: "export default { include: ['tests/**/*.test.ts'] }\n",
+  a: [
+    "import { describe, expect, fn, it, lazy } from 'provino'",
+    "const $ = lazy.let('n', () => 2)",
+    "describe('native', () => {",
+    "  it('adds', () => { expect($.n + 1).toBe(3) })",
+    "  it('mocks', () => { const f = fn(); f(1); expect(f.mock.calls).toEqual([[1]]) })",
+    '})',
+    '',
+  ].join('\n'),
+  b: "import { test, expect } from 'provino'\ntest('b', () => { expect('x').toMatch(/x/) })\n",
 }
 
 /** A native project's shape: one config, or `projects` of native sub-configs. */
 type Layout = 'single' | 'projects'
 
-/** One process's record: its entry (`argv[1]`) and every `file:` path it loaded. */
-interface Recorded {
-  readonly entry: string
-  readonly files: readonly string[]
+/**
+ * The dialect chunks of a build in `dist`, found by what they hold, not by what Rolldown named
+ * them: the Jest and Vitest runtimes and leaves (`worker/jest-*.js`, `worker/vitest-runtime.js`),
+ * every chunk that defines a dialect's value or its config reader (a `$N` suffix allowed, which
+ * Rolldown adds when two modules of a chunk share a name), and the facades that import only those.
+ */
+const dialectChunks = memoize((dist: string): ReadonlySet<string> => {
+  const sources = builtSources(dist)
+  const found = chunkFiles(
+    sources,
+    /\bconst (?:jestDialect|vitestDialect|jestNodeDialect|vitestNodeDialect)(?:\$\d+)? =/,
+  )
+  for (const [path, source] of sources) {
+    if (/^worker\/(?:jest-|vitest-runtime)/.test(path)) found.add(path)
+    // Since B27f (D187) the dialects are add-ons: a chunk that imports one is dialect code too
+    // (`provino jest`'s and `provino vitest`'s commands, `provino/jest`, `provino/vitest`).
+    if (/\bfrom\s*["']@provino\/dialect-(?:jest|vitest)(?:\/[^"']*)?["']/.test(source))
+      found.add(path)
+  }
+  return found
+})
+
+/** The add-ons' builds (D187), by real path: every file of theirs is dialect code. */
+const ADD_ON_DISTS: readonly string[] = ['dialect-jest', 'dialect-vitest'].map((name) =>
+  realpathSync(join(PACKAGE, 'node_modules', '@provino', name, 'dist')),
+)
+
+/** `fn` with one result per argument, so a test that asks again reads the first run. */
+function memoize<Value>(fn: (key: string) => Value): (key: string) => Value {
+  const seen = new Map<string, Value>()
+  return (key) => {
+    if (!seen.has(key)) seen.set(key, fn(key))
+    return seen.get(key) as Value
+  }
 }
 
-/**
- * The native project, with `node_modules/provino` linked to `pkg`: one config, or (`projects`) a
- * root config of `projects: ['packages/*']` whose two sub-configs name no dialect either.
- */
-function nativeProject(pkg: string, layout: Layout): string {
-  const dir = mkdtempSync(join(tmpdir(), 'provino-native-load-'))
-  after(() => rmSync(dir, { recursive: true, force: true }))
-  const files: Record<string, string> = {
-    'package.json': '{"type":"module"}\n',
-    'provino.config.ts': "export default { include: ['tests/**/*.test.ts'] }\n",
-    'tests/a.test.ts': [
-      "import { describe, expect, fn, it, lazy } from 'provino'",
-      "const $ = lazy.let('n', () => 2)",
-      "describe('native', () => {",
-      "  it('adds', () => { expect($.n + 1).toBe(3) })",
-      "  it('mocks', () => { const f = fn(); f(1); expect(f.mock.calls).toEqual([[1]]) })",
-      '})',
-      '',
-    ].join('\n'),
-    'tests/b.test.ts':
-      "import { test, expect } from 'provino'\ntest('b', () => { expect('x').toMatch(/x/) })\n",
-  }
-  const laid: Record<string, string> =
+/** The native project laid out as `layout`, with `node_modules/provino` linked to `pkg`. */
+async function nativeProject(pkg: string, layout: Layout): Promise<string> {
+  const files =
     layout === 'single'
-      ? files
+      ? { 'tests/a.test.ts': NATIVE_FILES.a, 'tests/b.test.ts': NATIVE_FILES.b }
       : {
-          'package.json': files['package.json'] ?? '',
-          'provino.config.ts': "export default { projects: ['packages/*'] }\n",
-          'packages/one/provino.config.ts': files['provino.config.ts'] ?? '',
-          'packages/one/tests/a.test.ts': files['tests/a.test.ts'] ?? '',
-          'packages/two/provino.config.ts': files['provino.config.ts'] ?? '',
-          'packages/two/tests/b.test.ts': files['tests/b.test.ts'] ?? '',
+          'packages/one/provino.config.ts': NATIVE_FILES.config,
+          'packages/one/tests/a.test.ts': NATIVE_FILES.a,
+          'packages/two/provino.config.ts': NATIVE_FILES.config,
+          'packages/two/tests/b.test.ts': NATIVE_FILES.b,
         }
-  for (const [name, text] of Object.entries(laid)) {
-    mkdirSync(join(dir, name, '..'), { recursive: true })
-    writeFileSync(join(dir, name), text)
-  }
-  mkdirSync(join(dir, 'node_modules'))
-  symlinkSync(pkg, join(dir, 'node_modules', 'provino'), 'dir')
-  return dir
+  const project = await makeProject(
+    { 'package.json': '{"type":"module"}\n', ...files },
+    layout === 'single' ? NATIVE_FILES.config : "export default { projects: ['packages/*'] }\n",
+  )
+  after(() => project.cleanup())
+  // Bare `provino` finds the config by name; makeProject writes `provino.config.mjs`.
+  linkProvino(project.dir, pkg)
+  return project.dir
 }
 
 /** Runs `pkg`'s built bin (bare `provino`: the config is found) on a native project and reads what each process loaded. */
-function recordedRun(
-  pkg: string,
-  pool: 'forks' | 'threads',
-  layout: Layout = 'single',
-): readonly Recorded[] {
-  const dir = nativeProject(pkg, layout)
-  const logs = mkdtempSync(join(tmpdir(), 'provino-native-loads-'))
-  after(() => rmSync(logs, { recursive: true, force: true }))
-  const run = spawnSync(process.execPath, [join(pkg, 'dist', 'cli.js'), '--pool', pool], {
-    cwd: dir,
-    encoding: 'utf8',
-    env: childEnv(['load-recorder'], { PROVINO_LOAD_LOG: logs }),
-    timeout: 120_000,
-  })
-  assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
-  assert.match(run.stderr, /Tests:\s+3 passed, 3 total/)
-  return readdirSync(logs).map((file) => {
-    const lines = readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean)
-    return {
-      entry: lines[0]?.split('\t')[0] ?? '',
-      files: lines
-        .map((line) => line.split('\t')[1] ?? '')
-        .filter((url) => url.startsWith('file:'))
-        .map((url) => fileURLToPath(url)),
-    }
-  })
-}
+const recordedRun = memoize((key: string): Promise<readonly LoadLog[]> => {
+  const [pkg = '', pool = 'forks', layout = 'single'] = key.split('|')
+  return (async () => {
+    const dir = await nativeProject(pkg, layout as Layout)
+    const logs = mkdtempSync(join(tmpdir(), 'provino-native-loads-'))
+    after(() => rmSync(logs, { recursive: true, force: true }))
+    const run = runBuilt(['--pool', pool], {
+      cwd: dir,
+      bin: join(pkg, 'dist', 'cli.js'),
+      preloads: ['load-recorder'],
+      env: { PROVINO_LOAD_LOG: logs },
+    })
+    assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
+    assert.match(run.stderr, new RegExp(`Tests:\\s+${TESTS} passed, ${TESTS} total`))
+    return readLoadLogs(logs)
+  })()
+})
+
+/** The run of `pkg` with `pool` and `layout` (one per combination for the whole file). */
+const runOf = (pkg: string, pool: 'forks' | 'threads', layout: Layout = 'single') =>
+  recordedRun([pkg, pool, layout].join('|'))
+
+/** The `file:` paths a process loaded. */
+const pathsOf = ({ urls }: LoadLog): readonly string[] =>
+  urls.filter((url) => url.startsWith('file:')).map((url) => fileURLToPath(url))
 
 /** What a run loaded that row 8 forbids: banned packages' files and dialect chunks of `pkg`. */
-function forbidden(pkg: string, processes: readonly Recorded[]): string[] {
+function forbidden(pkg: string, processes: readonly LoadLog[]): string[] {
   const dist = join(pkg, 'dist') + sep
   const chunks = dialectChunks(join(pkg, 'dist'))
   const out = new Set<string>()
-  for (const { files } of processes) {
-    for (const path of files) {
+  for (const log of processes) {
+    for (const path of pathsOf(log)) {
       const posixPath = path.split(sep).join('/')
       if (BANNED.test(posixPath)) out.add(posixPath)
       for (const addOn of ADD_ON_DISTS)
         if (path.startsWith(addOn + sep)) out.add(`add-on file: ${posixPath}`)
       if (path.startsWith(dist) && chunks.has(path.slice(dist.length).split(sep).join('/'))) {
-        out.add(`dialect chunk: ${path.slice(dist.length)}`)
+        out.add(`dialect chunk: ${path.slice(dist.length).split(sep).join('/')}`)
       }
     }
   }
   return [...out].sort()
 }
 
+/** A copy of the built package (`dist`, `package.json`, its `node_modules` linked) with `plant` prepended to `file`. */
+function plantedCopy(file: string, plant: string): string {
+  // The real path, as the recorder sees it (macOS's `$TMPDIR` is a link).
+  const copy = realpathSync(mkdtempSync(join(tmpdir(), 'provino-planted-')))
+  after(() => rmSync(copy, { recursive: true, force: true }))
+  cpSync(join(PACKAGE, 'dist'), join(copy, 'dist'), { recursive: true })
+  cpSync(join(PACKAGE, 'package.json'), join(copy, 'package.json'))
+  symlinkSync(join(PACKAGE, 'node_modules'), join(copy, 'node_modules'), 'dir')
+  const path = join(copy, 'dist', file)
+  const source = readFileSync(path, 'utf8')
+  // After a shebang line, which must stay first.
+  const at = source.startsWith('#!') ? source.indexOf('\n') + 1 : 0
+  writeFileSync(path, `${source.slice(0, at)}${plant}\n${source.slice(at)}`)
+  return copy
+}
+
 describe('a native run loads nothing from Jest or Vitest (B27e, row 8)', () => {
+  test('the ban list is the manifest native set, every family in it', () => {
+    for (const path of [
+      'node_modules/jest-util/x.js',
+      'node_modules/@jest/get-type/x.js',
+      'node_modules/expect/x.js',
+      'node_modules/pretty-format/x.js',
+      'node_modules/chai/x.js',
+      'node_modules/@vitest/expect/x.js',
+      'node_modules/vite/x.js',
+      'node_modules/@babel/core/x.js',
+    ]) {
+      assert.match(path, BANNED)
+    }
+    assert.doesNotMatch('node_modules/expect-type/x.js', BANNED)
+  })
+
   test('the dialect chunks are found in the build', () => {
     const chunks = dialectChunks(join(PACKAGE, 'dist'))
-    // The chunks that import an add-on: the two commands and the two re-exports.
+    // The chunks that import an add-on (B27f, D187): the two commands and the two re-exports.
     for (const wanted of ['jest.js', 'vitest.js', 'jest-node.js', 'vitest-node.js']) {
       assert.ok(chunks.has(wanted), `${wanted}: ${[...chunks].join(', ')}`)
     }
-    // The coordinator's own chunk holds no dialect value (`jest-node` in umbrella.ts), and the
-    // build inlines no dialect value at all: each is its add-on's.
+    // The coordinator's own chunk holds no dialect value, and no chunk inlines one: each is its
+    // add-on's, whose own build defines it (the control).
     assert.ok(!chunks.has('coordinator.js'), [...chunks].join(', '))
     assert.ok(!chunks.has('shared.js'), [...chunks].join(', '))
-    for (const chunk of chunks) {
-      const source = readFileSync(join(PACKAGE, 'dist', chunk), 'utf8')
-      assert.doesNotMatch(source, /\bconst (?:jestDialect|vitestDialect) =/, chunk)
-    }
-    // The control: each add-on's own build defines its dialect's value.
+    for (const [path, source] of builtSources(join(PACKAGE, 'dist')))
+      assert.doesNotMatch(source, /\bconst (?:jestDialect|vitestDialect)(?:\$\d+)? =/, path)
     for (const dist of ADD_ON_DISTS) assert.ok(dialectChunks(dist).size > 0, dist)
   })
 
   for (const pool of ['forks', 'threads'] as const) {
-    test(`--pool ${pool}: no banned package or dialect chunk in the coordinator or any worker`, () => {
-      const processes = recordedRun(PACKAGE, pool)
+    test(`--pool ${pool}: no banned package or dialect chunk in the coordinator or any worker`, async () => {
+      const processes = await runOf(PACKAGE, pool)
       assert.ok(
-        processes.some(({ entry }) => entry.endsWith(`dist${sep}cli.js`)),
+        processes.some(({ main }) => main.endsWith(`dist${sep}cli.js`)),
         'the coordinator was not recorded',
       )
       // Threads run in the coordinator's process: its record holds the workers' loads too.
       assert.ok(
-        processes.some(({ files }) => files.some((path) => path.endsWith(`worker${sep}api.js`))),
+        processes.some((log) => pathsOf(log).some((path) => path.endsWith(`worker${sep}api.js`))),
         'no process loaded the native runtime (worker/api.js)',
       )
       assert.deepEqual(forbidden(PACKAGE, processes), [])
     })
   }
 
-  test("projects: ['packages/*'] of native sub-configs loads no dialect either", () => {
-    assert.deepEqual(forbidden(PACKAGE, recordedRun(PACKAGE, 'forks', 'projects')), [])
+  test("projects: ['packages/*'] of native sub-configs loads no dialect either", async () => {
+    assert.deepEqual(forbidden(PACKAGE, await runOf(PACKAGE, 'forks', 'projects')), [])
   })
 
-  test('a native worker starts with at most 10 files from the package', () => {
+  test('a native worker starts with at most 10 files from the package', async () => {
     const dist = join(PACKAGE, 'dist') + sep
-    const workers = recordedRun(PACKAGE, 'forks').filter(({ entry }) =>
-      entry.endsWith(`worker${sep}bootstrap.js`),
+    const workers = (await runOf(PACKAGE, 'forks')).filter(({ main }) =>
+      main.endsWith(`worker${sep}bootstrap.js`),
     )
     assert.ok(workers.length >= 1, 'no worker process was recorded')
-    for (const { files } of workers) {
-      const own = new Set(files.filter((path) => path.startsWith(dist)))
+    for (const log of workers) {
+      const own = new Set(pathsOf(log).filter((path) => path.startsWith(dist)))
       assert.ok(own.size <= 10, `a native worker loaded ${own.size} files: ${[...own].join(', ')}`)
       for (const wanted of [
         'worker/bootstrap.js',
@@ -228,19 +261,24 @@ describe('a native run loads nothing from Jest or Vitest (B27e, row 8)', () => {
     }
   })
 
-  test("a planted import 'pretty-format' in @provino/api's built entry fails the check", () => {
-    // A copy of the built package: `dist` and `package.json`, with the package's own
-    // `node_modules` linked, so the externals resolve as they do for the real one.
-    const copy = mkdtempSync(join(tmpdir(), 'provino-planted-'))
-    after(() => rmSync(copy, { recursive: true, force: true }))
-    cpSync(join(PACKAGE, 'dist'), join(copy, 'dist'), { recursive: true })
-    cpSync(join(PACKAGE, 'package.json'), join(copy, 'package.json'))
-    symlinkSync(join(PACKAGE, 'node_modules'), join(copy, 'node_modules'), 'dir')
-    const api = join(copy, 'dist', 'worker', 'api.js')
-    writeFileSync(api, `import 'pretty-format'\n${readFileSync(api, 'utf8')}`)
-    const found = forbidden(copy, recordedRun(copy, 'forks'))
+  test("a planted import 'jest-junit' in @provino/api's built entry is caught", async () => {
+    // `jest-junit` (a dev dependency here): since B27f no runtime dependency of `provino` is on the
+    // list, so the plant names one its linked `node_modules` still resolves.
+    const copy = plantedCopy(join('worker', 'api.js'), "import 'jest-junit'")
+    const found = forbidden(copy, await runOf(copy, 'forks'))
     assert.ok(
-      found.some((path) => /\/node_modules\/pretty-format\//.test(path)),
+      found.some((path) => /\/node_modules\/jest-junit\//.test(path)),
+      `the plant was not caught: ${found.join(', ')}`,
+    )
+  })
+
+  test("a planted import of the Jest dialect's chunk in the bin is caught as a dialect chunk", async () => {
+    // In the bin's entry, not `coordinator.js`: `jest-node.js` imports `coordinator.js`, so a
+    // static import there is a cycle that fails the run before anything is recorded.
+    const copy = plantedCopy('cli.js', "import './jest-node.js'")
+    const found = forbidden(copy, await runOf(copy, 'forks'))
+    assert.ok(
+      found.includes('dialect chunk: jest-node.js'),
       `the plant was not caught: ${found.join(', ')}`,
     )
   })

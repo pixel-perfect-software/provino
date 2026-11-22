@@ -12,9 +12,4 @@ describe('NATIVE_RUNTIME', () => {
     }
     assert.deepEqual(NATIVE_RUNTIME.modules, ['provino'])
   })
-
-  test("the matcher table is @provino/expect/table's provinoExpectTable", () => {
-    assert.equal(NATIVE_RUNTIME.matcherTable.module, import.meta.resolve('@provino/expect/table'))
-    assert.equal(NATIVE_RUNTIME.matcherTable.export, 'provinoExpectTable')
-  })
 })

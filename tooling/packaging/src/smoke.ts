@@ -1,4 +1,12 @@
-import { mkdirSync, mkdtempSync, readdirSync, renameSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { type CommandResult, runCommand } from './exec.ts'
@@ -6,12 +14,23 @@ import { packPackage, pnpm } from './pack.ts'
 import { readManifest } from './package-json.ts'
 import { publicPackages } from './workspace.ts'
 
-/** One step of the smoke and what it printed. */
-interface SmokeStep {
+/** One step of the smoke and what it printed; a skipped step is `ok` and says why in `output`. */
+export interface SmokeStep {
   readonly name: string
   readonly ok: boolean
   readonly output: string
+  readonly skipped?: true
 }
+
+/**
+ * How many tests each smoke suite holds and must pass: the three files of `SMOKE_FILES` (a test
+ * each) and the three tests of `NATIVE_SMOKE_FILES`.
+ * @internal
+ */
+export const SMOKE_TESTS = 3
+
+/** The totals line of a run whose `SMOKE_TESTS` tests all passed. */
+const ALL_PASSED = new RegExp(`Tests:\\s+${SMOKE_TESTS} passed, ${SMOKE_TESTS} total`)
 
 /**
  * The three test files of the smoke suite: the injected globals in a CommonJS-style file, a
@@ -75,11 +94,32 @@ export const NATIVE_SMOKE_FILES: Readonly<Record<string, string>> = {
 }
 
 /**
- * Acceptance row 9's names (the boundaries manifest's `native` set): a native install holds none.
+ * Acceptance row 9's names, read from the boundaries manifest's `bannedPackageSets.native` under
+ * `root` (`jest-*`, `@jest/*`, `expect`, …; `*` is one path segment), as a test of a package
+ * name: a native install holds none. The manifest is the one list, so rows 8 and 9 can't drift
+ * from the static ban.
  * @internal
  */
-export const NATIVE_BANNED: RegExp =
-  /^(?:jest-.+|@jest\/.+|expect|pretty-format|chai|@vitest\/.+|vite|@babel\/.+)$/
+export function nativeBanned(root: string): RegExp {
+  const path = join(root, 'tooling', 'boundaries', 'packages.json')
+  const parsed: unknown = JSON.parse(readFileSync(path, 'utf8'))
+  const sets: unknown =
+    typeof parsed === 'object' && parsed !== null
+      ? Reflect.get(parsed, 'bannedPackageSets')
+      : undefined
+  const names: unknown =
+    typeof sets === 'object' && sets !== null ? Reflect.get(sets, 'native') : undefined
+  if (!Array.isArray(names) || names.length === 0 || !names.every((n) => typeof n === 'string')) {
+    throw new Error(`${path}: bannedPackageSets.native is not a list of package names`)
+  }
+  const alternatives = names.map((name: string) =>
+    name
+      .split('*')
+      .map((part) => part.replace(/[.+?^${}()|[\]\\/]/g, '\\$&'))
+      .join('[^/]+'),
+  )
+  return new RegExp(`^(?:${alternatives.join('|')})$`)
+}
 
 /**
  * The banned package names anywhere in a `pnpm ls --depth Infinity --json` tree (an array of
@@ -87,7 +127,7 @@ export const NATIVE_BANNED: RegExp =
  * sorted and once each. Anything that isn't that shape is skipped, not trusted.
  * @internal
  */
-export function bannedInTree(tree: unknown): readonly string[] {
+export function bannedInTree(tree: unknown, banned: RegExp): readonly string[] {
   const found = new Set<string>()
   const walk = (node: unknown): void => {
     if (typeof node !== 'object' || node === null) return
@@ -99,7 +139,7 @@ export function bannedInTree(tree: unknown): readonly string[] {
       const deps: unknown = Reflect.get(node, key)
       if (typeof deps !== 'object' || deps === null) continue
       for (const [name, child] of Object.entries(deps)) {
-        if (NATIVE_BANNED.test(name)) found.add(name)
+        if (banned.test(name)) found.add(name)
         walk(child)
       }
     }
@@ -109,47 +149,92 @@ export function bannedInTree(tree: unknown): readonly string[] {
 }
 
 /**
- * The native case (acceptance row 9, enabled by B27f's install split, D187): in its own empty app,
+ * What the skipped native footprint case says: only `installSmoke({ native: false })` skips it
+ * since B27f's install split (D187) moved the Jest and Vitest packages into the dialects' add-ons.
+ * @internal
+ */
+export const NATIVE_FOOTPRINT_SKIP: string =
+  'skipped: installSmoke was asked not to run the native case (native: false)'
+
+/**
+ * Whether `installSmoke` runs the native footprint case when not told: `true` since B27f (D187).
+ * @internal
+ */
+export const NATIVE_FOOTPRINT_DEFAULT: boolean = true
+
+/** A command in an app directory, with pnpm. */
+type Run = (args: readonly string[]) => CommandResult
+
+/**
+ * A new app `dir` under `work` (a private `type: module` package of that name), `files` written
+ * into it, and `tarballs` installed with pnpm in one command, outside any workspace. Returns the app, a runner of
+ * pnpm commands in it, and the install's result.
+ */
+function installApp(
+  work: string,
+  dir: string,
+  files: Readonly<Record<string, string>>,
+  tarballs: readonly string[],
+): { readonly app: string; readonly run: Run; readonly install: CommandResult } {
+  const app = join(work, dir)
+  mkdirSync(app, { recursive: true })
+  writeFileSync(
+    join(app, 'package.json'),
+    `${JSON.stringify({ name: `provino-${dir}`, private: true, type: 'module' }, null, 2)}\n`,
+  )
+  for (const [file, text] of Object.entries(files)) writeFileSync(join(app, file), text)
+  const { command, prefix } = pnpm()
+  const run: Run = (args) =>
+    runCommand(command, [...prefix, ...args], { cwd: app, timeoutMs: 600_000 })
+  const install = run(['add', '--ignore-workspace', '--prefer-offline', ...tarballs])
+  return { app, run, install }
+}
+
+/**
+ * The native case (acceptance row 9, run since B27f's install split, D187): in its own empty app,
  * install `provino`'s tarball alone, run bare
- * `provino` on `NATIVE_SMOKE_FILES` (`Tests: 3 passed`), and read `pnpm ls --depth Infinity
+ * `provino` on `NATIVE_SMOKE_FILES` (`SMOKE_TESTS` passed), and read `pnpm ls --depth Infinity
  * --json`: no banned name anywhere in the tree.
  */
 function nativeFootprint(
+  root: string,
   work: string,
   tarball: string,
   step: (name: string, ok: boolean, output: string) => boolean,
 ): void {
-  const app = join(work, 'native-app')
-  mkdirSync(app, { recursive: true })
-  writeFileSync(
-    join(app, 'package.json'),
-    `${JSON.stringify({ name: 'provino-native-smoke', private: true, type: 'module' }, null, 2)}\n`,
-  )
-  for (const [file, text] of Object.entries(NATIVE_SMOKE_FILES))
-    writeFileSync(join(app, file), text)
-  const { command, prefix } = pnpm()
-  const run = (args: readonly string[]) =>
-    runCommand(command, [...prefix, ...args], { cwd: app, timeoutMs: 600_000 })
-  const install = run(['add', '--ignore-workspace', '--prefer-offline', tarball])
+  const { run, install } = installApp(work, 'native-app', NATIVE_SMOKE_FILES, [tarball])
   if (!step('native: install', install.status === 0, install.output)) return
   const suite = run(['exec', 'provino'])
   step(
-    'native: bare provino (3 tests)',
-    suite.status === 0 && /Tests:\s+3 passed, 3 total/.test(suite.output),
+    `native: bare provino (${SMOKE_TESTS} tests)`,
+    suite.status === 0 && ALL_PASSED.test(suite.output),
     suite.output,
   )
   const listed = run(['ls', '--depth', 'Infinity', '--json'])
-  let banned: readonly string[] = ['(pnpm ls printed no JSON)']
-  try {
-    banned = bannedInTree(JSON.parse(listed.output.slice(listed.output.indexOf('['))))
-  } catch {
-    // The placeholder above stands: the step fails with the output.
+  const name = 'native: no Jest or Vitest package in the install'
+  if (listed.status !== 0) {
+    step(name, false, listed.output)
+    return
   }
-  step(
-    'native: no Jest or Vitest package in the install',
-    listed.status === 0 && banned.length === 0,
-    banned.length === 0 ? 'none' : banned.join('\n'),
-  )
+  let banned: readonly string[]
+  try {
+    // stdout only: pnpm's and Node's warnings go to stderr.
+    banned = bannedInTree(JSON.parse(listed.stdout), nativeBanned(root))
+  } catch (error) {
+    failStep(step, name, error, listed.stdout)
+    return
+  }
+  step(name, banned.length === 0, banned.length === 0 ? 'none' : banned.join('\n'))
+}
+
+/** Fails `name` with `error` and the text it was reading. */
+function failStep(
+  step: (name: string, ok: boolean, output: string) => boolean,
+  name: string,
+  error: unknown,
+  text: string,
+): void {
+  step(name, false, `${error instanceof Error ? error.message : String(error)}\n${text}`)
 }
 
 /** What `installSmoke` took and found. */
@@ -196,6 +281,8 @@ const JEST_INSTALL: readonly string[] = ['provino', '@provino/dialect-jest']
 export function installSmoke(options: {
   readonly root: string
   readonly keep: boolean
+  /** Run the native footprint case (default `NATIVE_FOOTPRINT_DEFAULT`); off, it is a skipped step. */
+  readonly native?: boolean
 }): SmokeResult {
   const work = mkdtempSync(join(tmpdir(), 'provino-smoke-'))
   const kept = options.keep ? work : undefined
@@ -204,13 +291,15 @@ export function installSmoke(options: {
     steps.push({ name, ok, output })
     return ok
   }
+  const skip = (name: string, why: string): void => {
+    steps.push({ name, ok: true, output: why, skipped: true })
+  }
   try {
     const packages = publicPackages(options.root)
-    const tarballs = JEST_INSTALL.map((name) => {
+    const [provino, dialect] = JEST_INSTALL.map((name) => {
       const pkg = packages.find((candidate) => candidate.manifest.name === name)
       return pkg === undefined ? undefined : packPackage(pkg, join(work, 'tarballs'))
     })
-    const [provino, dialect] = tarballs
     if (
       !step('pack', provino !== undefined && dialect !== undefined, JEST_INSTALL.join('\n')) ||
       provino === undefined ||
@@ -218,21 +307,7 @@ export function installSmoke(options: {
     ) {
       return { steps, ok: false, kept: undefined }
     }
-    const app = join(work, 'app')
-    mkdirSync(app, { recursive: true })
-    writeFileSync(
-      join(app, 'package.json'),
-      `${JSON.stringify({ name: 'provino-smoke', private: true, type: 'module' }, null, 2)}\n`,
-    )
-    for (const [file, text] of Object.entries(SMOKE_FILES)) writeFileSync(join(app, file), text)
-
-    const { command, prefix } = pnpm()
-    const run = (args: readonly string[]) =>
-      runCommand(command, [...prefix, ...args], { cwd: app, timeoutMs: 600_000 })
-    const install = run([
-      'add',
-      '--ignore-workspace',
-      '--prefer-offline',
+    const { app, run, install } = installApp(work, 'smoke', SMOKE_FILES, [
       provino.tarball,
       dialect.tarball,
     ])
@@ -244,8 +319,8 @@ export function installSmoke(options: {
     step('provino --version', printsVersion(version), version.output)
     const suite = run(['exec', 'provino', 'jest', '--ci'])
     step(
-      'smoke suite (3 files)',
-      suite.status === 0 && /Tests:\s+3 passed, 3 total/.test(suite.output),
+      `smoke suite (${SMOKE_TESTS} files)`,
+      suite.status === 0 && ALL_PASSED.test(suite.output),
       suite.output,
     )
     if (suite.status === 0) {
@@ -267,8 +342,12 @@ export function installSmoke(options: {
         failed.output,
       )
     }
-    // The native case (B27e, acceptance row 9): `provino` alone, since B27f's install split.
-    nativeFootprint(work, provino.tarball, step)
+    // The native case (B27e, acceptance row 9): on by default since B27f's install split.
+    if (options.native ?? NATIVE_FOOTPRINT_DEFAULT) {
+      nativeFootprint(options.root, work, provino.tarball, step)
+    } else {
+      skip('native: install footprint', NATIVE_FOOTPRINT_SKIP)
+    }
   } finally {
     if (!options.keep) rmSync(work, { recursive: true, force: true })
   }

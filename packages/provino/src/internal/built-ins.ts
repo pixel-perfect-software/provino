@@ -1,4 +1,5 @@
-import type { EnvironmentRef, NativeRuntimeRefs } from '@provino/types'
+import type { Dialect, EnvironmentRef, NativeRuntimeRefs } from '@provino/types'
+import { importAddOn } from './add-on.ts'
 
 /**
  * Where a worker finds an environment: an `EnvironmentRef` without the options a project adds.
@@ -49,4 +50,16 @@ export const NATIVE_RUNTIME: NativeRuntimeRefs = {
     module: import.meta.resolve('@provino/expect/table'),
     export: 'provinoExpectTable',
   },
+}
+
+/**
+ * The dialects `provino` ships, for a config that names one (`resolveProjects`' `loadDialects`):
+ * imported only then, so a native project, `projects` of native sub-configs included, loads no
+ * dialect code (D115, `speed`).
+ * @internal
+ */
+export async function builtInDialects(): Promise<readonly Dialect[]> {
+  // An add-on since B27f (D187): a config that names Jest without it installed is the install line.
+  const { jestDialect } = await importAddOn('jest', () => import('@provino/dialect-jest'))
+  return [jestDialect]
 }

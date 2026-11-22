@@ -2,9 +2,8 @@ import { resolve } from 'node:path'
 import { loadConfigFile, resolveProjects } from '@provino/config'
 import { discoverProject, ExitCode, type RunProjectOptions } from '@provino/orchestrator'
 import { isCi } from '@provino/reporters'
-import type { Dialect } from '@provino/types'
-import { dialectNotInstalled, importAddOn } from './internal/add-on.ts'
-import { ENVIRONMENTS, NATIVE_RUNTIME } from './internal/built-ins.ts'
+import { dialectNotInstalled } from './internal/add-on.ts'
+import { builtInDialects, ENVIRONMENTS, NATIVE_RUNTIME } from './internal/built-ins.ts'
 import { usageMessage } from './internal/describe.ts'
 import { executeProject, timingsOf } from './internal/execute.ts'
 import { UsageError } from './internal/usage-error.ts'
@@ -38,17 +37,6 @@ function poolOptions(options: RunOptions): NonNullable<RunProjectOptions['pool']
           },
         }),
   }
-}
-
-/**
- * The dialects `provino` ships, for a config that names one (`resolveProjects`' `loadDialects`):
- * imported only then, so a native project, `projects` of native sub-configs included, loads no
- * dialect code (D115, `speed`).
- */
-async function builtInDialects(): Promise<readonly Dialect[]> {
-  // An add-on since B27f (D187): a config that names Jest without it installed is the install line.
-  const { jestDialect } = await importAddOn('jest', () => import('@provino/dialect-jest'))
-  return [jestDialect]
 }
 
 async function execute(

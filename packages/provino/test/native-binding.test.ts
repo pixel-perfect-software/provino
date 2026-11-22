@@ -4,13 +4,13 @@
 // (`block-oxc-bindings.ts`), so it is the install that is wrong and nothing else: `pnpm
 // smoke:install` does the same by deleting the packages from a real tarball install.
 import assert from 'node:assert/strict'
-import { readdirSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { runBuilt, trackedProjects } from './support.ts'
+import { readLoadLogs, runBuilt, trackedProjects } from './support.ts'
 
 /** `bindingTriple`, loaded by URL: the type-test project includes this directory but not the package's source. */
 const { bindingTriple } = (await import(
@@ -54,12 +54,10 @@ describe('a missing Oxc binding (T10.3)', () => {
         result.stdout,
       )
     }
-    const loaded = readdirSync(logs).flatMap((file) =>
-      readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean),
-    )
+    const loaded = readLoadLogs(logs).flatMap(({ urls }) => urls)
     assert.ok(loaded.length > 0)
     assert.ok(
-      loaded.every((line) => !/oxc|\/shared\.js|\/coordinator\.js/.test(line.split('\t')[1] ?? '')),
+      loaded.every((url) => !/oxc|\/shared\.js|\/coordinator\.js/.test(url)),
       loaded.join('\n'),
     )
   })
