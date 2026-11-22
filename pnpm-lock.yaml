@@ -1510,6 +1510,9 @@ importers:
       '@provino/env-node':
         specifier: workspace:*
         version: link:../env-node
+      '@provino/expect':
+        specifier: workspace:*
+        version: link:../expect
       '@provino/lazy':
         specifier: workspace:*
         version: link:../lazy

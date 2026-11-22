@@ -3,7 +3,7 @@ import { loadConfigFile, resolveProjects } from '@provino/config'
 import { discoverProject, ExitCode, type RunProjectOptions } from '@provino/orchestrator'
 import { isCi } from '@provino/reporters'
 import type { Dialect, ProvinoConfigInput } from '@provino/types'
-import { ENVIRONMENTS, nativeRuntime } from './internal/built-ins.ts'
+import { ENVIRONMENTS, NATIVE_RUNTIME } from './internal/built-ins.ts'
 import { usageMessage } from './internal/describe.ts'
 import { executeProject, timingsOf } from './internal/execute.ts'
 import { UsageError } from './internal/usage-error.ts'
@@ -75,7 +75,6 @@ async function execute(
 
   // The composition root resolves the environment once; everything below reads this.
   const env = options.env ?? process.env
-  const native = nativeRuntime(env)
   const configPath = resolve(cwd, options.config)
   const input = await loadConfigFile(configPath, { command: 'run', mode: 'test' })
   const resolved = await resolveProjects(input, {
@@ -83,7 +82,7 @@ async function execute(
     dialects: await dialectsFor(input),
     environments: ENVIRONMENTS,
     ci: options.ci ?? isCi(env),
-    ...(native === undefined ? {} : { native }),
+    native: NATIVE_RUNTIME,
   })
   const [project, ...others] = resolved.projects
   if (project === undefined) throw new UsageError('the config has no project to run')

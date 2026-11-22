@@ -1,9 +1,9 @@
 // The native test API end to end (B27b, D185, acceptance rows 1 and 2): a project with no dialect
 // and no globals, whose TypeScript test files `import { … } from 'provino'`, runs through
 // `provino run` over the source bin and the built one, in forks, threads and inline. The served
-// module gives every module of a file the worker's own objects (`expect === expect`). Until B27c's
-// table is wired (B27e), the matcher table is a fixture the run names by ref
-// (`PROVINO_NATIVE_MATCHER_TABLE`, `internal/built-ins.ts`).
+// module gives every module of a file the worker's own objects (`expect === expect`), and the
+// matchers are Provino's own table (`@provino/expect/table`, B27c; `NATIVE_RUNTIME` in
+// `internal/built-ins.ts`).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
@@ -16,59 +16,6 @@ import { run } from 'provino/node'
 import { BUILT_BIN, Collect, childEnv, QUIET_ENV, spawnCli, viewOfNormalized } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
-
-/** A small matcher table: `toBe` and `toEqual`, with messages a test can find. */
-const TABLE = `const describeCall = ({ matcherName, isNot, promise }) =>
-  \`\${promise}\${isNot ? '.not' : ''}.\${matcherName}\`
-
-export function table() {
-  return {
-    matchers: {
-      toBe(received, expected) {
-        return {
-          pass: Object.is(received, expected),
-          message: () => \`native-fixture toBe: \${String(received)} vs \${String(expected)}\`,
-        }
-      },
-      toEqual(received, expected) {
-        return {
-          pass: this.equals(received, expected),
-          message: () => 'native-fixture toEqual',
-        }
-      },
-    },
-    promiseMatchers: {},
-    asymmetric: {},
-    asymmetricNot: {},
-    utils: {},
-    messages: {
-      tooManyArguments: () => 'too many arguments',
-      noMessage: () => 'no message',
-      invalidResult: (result) => \`invalid result: \${typeof result}\`,
-      notAPromise: (call) => \`not a promise: \${describeCall(call)}\`,
-      rejectedInsteadOfResolved: (call) => \`rejected instead of resolved: \${describeCall(call)}\`,
-      resolvedInsteadOfRejected: (call) => \`resolved instead of rejected: \${describeCall(call)}\`,
-      invalidMatcher: (name) => \`invalid matcher: \${name}\`,
-      invalidTesters: () => 'invalid testers',
-      ensureNoExpected: (expected, name) => {
-        if (expected !== undefined) throw new Error(\`\${name} takes no argument\`)
-      },
-      assertionCount: (expected, actual) => \`expected \${expected} assertions, made \${actual}\`,
-      noAssertions: () => 'expected an assertion, made none',
-      requiredAssertions: () => 'every test must make an assertion',
-      unawaited: ({ call }) => \`\${describeCall(call)} was not awaited\`,
-      pollTimeout: (stage) => \`poll \${stage} timed out\`,
-      pollUnsupported: (name) => \`poll cannot use \${name}\`,
-      outsideTest: (name) => \`\${name} needs a running test\`,
-      unreachable: (message) => \`unreachable\${message === undefined ? '' : \`: \${message}\`}\`,
-    },
-    assertionError: (_result, message) => Object.assign(new Error(message), { name: 'AssertionError' }),
-    customAsymmetric: () => () => {
-      throw new Error('the fixture table has no custom asymmetric matchers')
-    },
-  }
-}
-`
 
 /** A helper module of the test file: it gets the same served namespace. */
 const HELPER = `import { expect, fn } from 'provino'
@@ -172,14 +119,13 @@ const EXPECTED: ReadonlyMap<string, string> = new Map([
   ['mocks and timers > drives fake timers', 'passed'],
 ])
 
-async function project(): Promise<{ readonly dir: string; readonly env: Record<string, string> }> {
+async function project(): Promise<{ readonly dir: string }> {
   const dir = await mkdtemp(join(tmpdir(), 'provino-native-'))
   after(() => rm(dir, { recursive: true, force: true }))
   const files: Record<string, string> = {
     'package.json': '{"type":"module"}\n',
     // No dialect and no globals: the native runtime.
     'provino.config.mjs': "export default { include: ['tests/**/*.test.ts'] }\n",
-    'table.mjs': TABLE,
     'tests/native.test.ts': NATIVE,
     'tests/helper.ts': HELPER,
   }
@@ -189,10 +135,7 @@ async function project(): Promise<{ readonly dir: string; readonly env: Record<s
   }
   mkdirSync(join(dir, 'node_modules'))
   symlinkSync(PACKAGE, join(dir, 'node_modules', 'provino'), 'dir')
-  return {
-    dir,
-    env: { PROVINO_NATIVE_MATCHER_TABLE: `${pathToFileURL(join(dir, 'table.mjs')).href}#table` },
-  }
+  return { dir }
 }
 
 function runArgs(pool: string): string[] {
@@ -223,7 +166,11 @@ async function assertNativeRun(dir: string, status: number | null, output: strin
   assert.ok(file !== undefined, text)
   assert.equal(file.fileError, undefined, file.fileError)
   assert.deepEqual(new Map(file.tests), EXPECTED)
-  assert.match(text, /native-fixture toBe: 1 vs 2/)
+  // Provino's own table (`@provino/expect/table`): its error and its words.
+  assert.match(
+    text,
+    /"name": "AssertionError",\s*"message": "expect\(received\)\.toBe\(expected\)\\n\\nExpected: 2\\nReceived: 1"/,
+  )
   assert.doesNotMatch(text, /hook order:/)
 }
 
@@ -232,8 +179,8 @@ const POOLS = ['forks', 'threads', 'inline'] as const
 describe('the native API through provino run (source bin)', () => {
   for (const pool of POOLS) {
     test(`--pool ${pool}`, async () => {
-      const { dir, env } = await project()
-      const run = await spawnCli(runArgs(pool), { cwd: dir, env })
+      const { dir } = await project()
+      const run = await spawnCli(runArgs(pool), { cwd: dir })
       await assertNativeRun(dir, run.code, `${run.stdout}\n${run.stderr}`)
     })
   }
@@ -242,11 +189,11 @@ describe('the native API through provino run (source bin)', () => {
 describe('the native API through provino run (built bin)', () => {
   for (const pool of POOLS) {
     test(`--pool ${pool}`, async () => {
-      const { dir, env } = await project()
+      const { dir } = await project()
       const run = spawnSync(process.execPath, [BUILT_BIN, ...runArgs(pool)], {
         cwd: dir,
         encoding: 'utf8',
-        env: childEnv([], env),
+        env: childEnv(),
         timeout: 120_000,
       })
       await assertNativeRun(dir, run.status, `${run.stdout}\n${run.stderr}`)
@@ -289,7 +236,7 @@ describe('the native API slot in one process (inline pool)', () => {
       pool: 'inline',
       stdout: new Collect(),
       stderr: new Collect(),
-      env: { ...QUIET_ENV, ...native.env },
+      env: QUIET_ENV,
       reporters: [['normalized-json', { outputFile: 'results.json' }]],
     })
     await assertNativeRun(native.dir, first.exitCode, 'the inline native run')

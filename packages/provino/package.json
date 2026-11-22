@@ -146,6 +146,7 @@
     "@provino/dialect-vitest": "workspace:*",
     "@provino/env-jsdom": "workspace:*",
     "@provino/env-node": "workspace:*",
+    "@provino/expect": "workspace:*",
     "@provino/lazy": "workspace:*",
     "@provino/orchestrator": "workspace:*",
     "@provino/reporters": "workspace:*",

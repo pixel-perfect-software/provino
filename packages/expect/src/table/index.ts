@@ -2,10 +2,13 @@
 // gets through `NativeRuntimeRefs.matcherTable`. Its equality is the vendored `equals` (compat),
 // its printing Node's `inspect` and `util.diff` (speed), its words Provino's own.
 import type { MatcherTableFactory } from '@provino/types'
+import { assertionError } from './assertion-error.ts'
 import { asymmetric, asymmetricNot, customAsymmetric } from './asymmetric.ts'
 import { matchers, promiseMatchers } from './matchers.ts'
 import { messages } from './messages.ts'
 import { diffLines, show } from './print.ts'
+
+export { ProvinoAssertionError } from './assertion-error.ts'
 
 /**
  * Returns Provino's own matcher table.
@@ -19,4 +22,6 @@ export const provinoExpectTable: MatcherTableFactory = () => ({
   utils: { stringify: show, diff: diffLines },
   messages,
   customAsymmetric,
+  // The neutral `errorShape: 'assertion-error'`: a failure throws the table's own error.
+  assertionError,
 })
