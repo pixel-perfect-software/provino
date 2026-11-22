@@ -3,7 +3,6 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { findConfigInDirectory } from '@provino/config'
-import { JEST_CONFIG_CANDIDATES } from '@provino/dialect-jest/node'
 import { UsageError } from './usage-error.ts'
 
 /**
@@ -17,6 +16,23 @@ export type DetectedProject =
 
 const VITEST_CONFIG = /^vitest\.(config|workspace)\.(ts|mts|cts|js|mjs|cjs|json)$/
 const VITE_CONFIG = /^vite\.config\.(ts|mts|cts|js|mjs|cjs)$/
+
+/**
+ * The Jest config files a directory may hold besides `package.json`: jest-config 30.5.2's
+ * `JEST_CONFIG_EXT_ORDER` after `jest.config`. A copy of `@provino/dialect-jest/node`'s
+ * `JEST_CONFIG_CANDIDATES` (`detect.test.ts` holds them equal), so the walk loads no Jest dialect
+ * code on a native project (D115, `speed`; B27f installs the dialect apart).
+ * @internal
+ */
+export const JEST_CONFIG_FILES: readonly string[] = [
+  'jest.config.js',
+  'jest.config.ts',
+  'jest.config.mjs',
+  'jest.config.mts',
+  'jest.config.cjs',
+  'jest.config.cts',
+  'jest.config.json',
+]
 
 /** What ends the walk up (D196): a directory holding one of these is the top of a project or workspace. */
 const ROOT_MARKERS: readonly string[] = ['.git', 'pnpm-workspace.yaml']
@@ -45,7 +61,7 @@ async function declaresTests(directory: string): Promise<boolean> {
 
 /** Whether `directory` itself holds a Jest config (a `package.json` counts only with a `jest` key). */
 async function holdsJest(directory: string, names: ReadonlySet<string>): Promise<boolean> {
-  if (JEST_CONFIG_CANDIDATES.some((name) => name !== 'package.json' && names.has(name))) return true
+  if (JEST_CONFIG_FILES.some((name) => names.has(name))) return true
   return names.has('package.json') && (await hasJestKey(join(directory, 'package.json')))
 }
 
@@ -56,8 +72,8 @@ async function holdsJest(directory: string, names: ReadonlySet<string>): Promise
  * else its `vitest.config.*`/`vitest.workspace.*`, or a `vite.config.*` with a `test` key (read
  * once, by importing it, with no Vite: B25c). A Jest and a Vitest config in one directory is an
  * error, and a `provino.config.*` beside either wins. The walk stops after a directory with
- * `.git` or `pnpm-workspace.yaml` (D196), and none found is an error. The Jest dialect's code
- * is still imported by this file whatever the answer (B27e makes that lazy).
+ * `.git` or `pnpm-workspace.yaml` (D196), and none found is an error. No dialect code loads
+ * for the walk; the Vitest reader loads only for a `vite.config.*` that must be read.
  * @internal
  */
 export async function detectProject(

@@ -123,10 +123,9 @@ const COORDINATOR = new RegExp(
     // provino's own files, but not the bin's light ones.
     `provino[\\/]src[\\/](?!internal[\\/](?:${BIN_LIGHT_FILES.join('|')})\\.ts)`,
     'policy[\\/]src[\\/]dialect\\.ts',
-    'dialect-jest[\\/]src[\\/](?:dialect|expect-policy|hoist-policy|mock-policy)\\.ts',
-    // The Vitest dialect's value: `defineDialect` is the coordinator's, so in `shared` it made every
-    // worker import `coordinator.js`.
-    'dialect-vitest[\\/]src[\\/]dialect\\.ts',
+    // The policy slices the Jest worker's runtime imports too; `dialect.ts`, which builds
+    // `jestDialect` from them, is `JEST_NODE`'s.
+    'dialect-jest[\\/]src[\\/](?:expect-policy|hoist-policy|mock-policy)\\.ts',
   ]
     .map((alternative) => `[\\/]packages[\\/]${alternative}`)
     .join('|'),
@@ -137,8 +136,10 @@ const BIN_LIGHT = new RegExp(
   [
     `[\\\\/]packages[\\\\/]provino[\\\\/]src[\\\\/]internal[\\\\/](?:${BIN_LIGHT_FILES.join('|')})\\.ts$`,
     // The compile cache the bin turns on first (T3.7): a leaf that imports only `node:` modules, and
-    // the one file of the transform it shares (the `CACHEDIR.TAG` writer).
-    `[\\\\/]packages[\\\\/]transform[\\\\/]src[\\\\/](?:v8cache[\\\\/]|cache[\\\\/]store\\.ts$)`,
+    // the one file of the transform it shares (the `CACHEDIR.TAG` writer). The V8 code cache's
+    // `cache.ts` and `pack.ts`, which only the loader uses, are `LOADING`'s (B27e): as a chunk of
+    // their own they were one more file in every worker's cold start.
+    `[\\\\/]packages[\\\\/]transform[\\\\/]src[\\\\/](?:v8cache[\\\\/](?:index|mode|native)\\.ts$|cache[\\\\/]store\\.ts$)`,
   ].join('|'),
 )
 
@@ -150,7 +151,7 @@ const BIN_LIGHT = new RegExp(
  * graph (`worker/jest-runtime.js` and the `shared` chunk it imports) loads none of them.
  */
 const LOADING =
-  /[\\/]packages[\\/](?:transform|resolver|loader)[\\/]src[\\/](?!v8cache[\\/]|cache[\\/]store\.ts$)/
+  /[\\/]packages[\\/](?:transform|resolver|loader)[\\/]src[\\/](?!v8cache[\\/](?:index|mode|native)\.ts$|cache[\\/]store\.ts$)/
 
 /**
  * The coverage package (B23b): the Istanbul instrumenter, the collectors and the filter, with the
@@ -166,6 +167,37 @@ const COVERAGE = /[\\/]packages[\\/]coverage[\\/]src[\\/]/
  * left to `shared`, every command and worker would read it. `exports-vitest.test.ts` checks the bytes.
  */
 const VITEST_NODE = /[\\/]packages[\\/]dialect-vitest[\\/]src[\\/](?:node|results)[\\/]/
+
+/**
+ * The Vitest dialect's value (`vitestDialect`, B27e): `provino/vitest` and the config reader import
+ * it. In `shared` it made every worker import `coordinator.js` (`defineDialect` is the
+ * coordinator's), and in `coordinator.js` every run evaluated it, a native one too: a leaf of its
+ * own, which imports `coordinator.js`.
+ */
+const VITEST_DIALECT = /[\\/]packages[\\/]dialect-vitest[\\/]src[\\/]dialect\.ts$/
+
+/**
+ * The Jest dialect's coordinator code (B27e): its value (`jestDialect`: `dialect.ts` and the
+ * package's index), the config reader and the command line (`/node`), the results (`/results`),
+ * and `provino jest` itself (`jest-command.ts` and the files only it imports). `cli.ts` imports
+ * `jest-command.ts` and `run()` the dialect by a dynamic import, so `provino run` on a native
+ * project loads none of it (`packages/provino/test/native-load.test.ts`). One chunk on purpose: left
+ * to `shared`, `/node` (which `jest-command` and the watch driver both import) lands in
+ * `shared.js` while `jestDialect` sat in `coordinator.js`, which imports `shared.js`, so
+ * `shared.js` evaluated `jestNodeDialect` before `jestDialect` existed (B27d's
+ * `ReferenceError`). Here what reads `jestDialect` is in the chunk that defines it, and the chunk
+ * imports `coordinator.js` and `shared.js`, never the other way. Watch's own files stay
+ * `WATCH`'s (priority 5, taken first).
+ */
+const JEST_NODE = new RegExp(
+  [
+    'dialect-jest[\\/]src[\\/](?:dialect|index)\\.ts$',
+    'dialect-jest[\\/]src[\\/](?:node|results)[\\/](?!.*\\.test\\.ts$)',
+    'provino[\\/]src[\\/]internal[\\/](?:jest-command|jest-reporters|jest-selection|jest-root-hint|provino-flags|select-projects)\\.ts$',
+  ]
+    .map((alternative) => `[\\\\/]packages[\\\\/]${alternative}`)
+    .join('|'),
+)
 
 /**
  * Watch mode (B23f): the driver, its interrupt latch, the orchestrator's watch session and file
@@ -347,6 +379,20 @@ export function umbrellaConfig(dir: string): UserConfig[] {
             {
               name: 'watch',
               test: WATCH,
+              priority: 5,
+              includeDependenciesRecursively: false,
+            },
+            // The Jest dialect's coordinator code: `provino jest` and a config that names it only.
+            {
+              name: 'jest-node',
+              test: JEST_NODE,
+              priority: 4,
+              includeDependenciesRecursively: false,
+            },
+            // The Vitest dialect's value: `provino/vitest` and `provino vitest` only.
+            {
+              name: 'vitest-dialect',
+              test: VITEST_DIALECT,
               priority: 5,
               includeDependenciesRecursively: false,
             },

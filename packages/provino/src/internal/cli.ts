@@ -5,7 +5,6 @@ import type { PoolKind } from '@provino/types'
 import { run } from '../run.ts'
 import type { ReporterChoice, RunOptions } from '../types.ts'
 import { detectProject } from './detect.ts'
-import { runJestCommand } from './jest-command.ts'
 import { quickAnswer } from './quick.ts'
 import {
   BUILT_IN_REPORTERS,
@@ -376,7 +375,12 @@ async function runCommand(
   return exitCode
 }
 
-function runBareJest(args: readonly string[], io: CliIo): Promise<number> {
+/**
+ * `provino jest`, imported only here, so `provino run` and a native project load none of the Jest
+ * dialect's coordinator code (D115, `speed`).
+ */
+async function runBareJest(args: readonly string[], io: CliIo): Promise<number> {
+  const { runJestCommand } = await import('./jest-command.ts')
   return runJestCommand(args, {
     stdout: io.stdout ?? process.stdout,
     stderr: io.stderr ?? process.stderr,
