@@ -9,6 +9,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readdirSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -44,7 +45,7 @@ function project(pkg: string, files: Readonly<Record<string, string>>): string {
     mkdirSync(join(dir, name, '..'), { recursive: true })
     writeFileSync(join(dir, name), text)
   }
-  mkdirSync(join(dir, 'node_modules'))
+  mkdirSync(join(dir, 'node_modules'), { recursive: true })
   symlinkSync(pkg, join(dir, 'node_modules', 'provino'), 'dir')
   return dir
 }
@@ -59,10 +60,13 @@ function bin(pkg: string, cwd: string, args: readonly string[]) {
   return { status: result.status, stdout: result.stdout, stderr: result.stderr }
 }
 
-const JEST_LINE =
-  'Provino: the jest dialect needs @provino/dialect-jest, which is not installed: pnpm add -D @provino/dialect-jest\n'
-const VITEST_LINE =
-  'Provino: the vitest dialect needs @provino/dialect-vitest, which is not installed: pnpm add -D @provino/dialect-vitest\n'
+/** This package's version: the one the install line pins the add-on to. */
+const VERSION = (
+  JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8')) as { version: string }
+).version
+
+const JEST_LINE = `Provino: the jest dialect needs @provino/dialect-jest, which is not installed: pnpm add -D @provino/dialect-jest@${VERSION}\n`
+const VITEST_LINE = `Provino: the vitest dialect needs @provino/dialect-vitest, which is not installed: pnpm add -D @provino/dialect-vitest@${VERSION}\n`
 
 describe('provino installed without an add-on (B27f, D187)', () => {
   const pkg = provinoAlone()
@@ -112,6 +116,53 @@ describe('provino installed without an add-on (B27f, D187)', () => {
     const run = bin(pkg, dir, ['run'])
     assert.equal(run.status, 1, run.stderr)
     assert.equal(run.stderr, JEST_LINE)
+  })
+
+  test("a config that imports provino/jest is the Jest line, exit 1 (Node's ERR_MODULE_NOT_FOUND mapped)", () => {
+    const dir = project(pkg, {
+      'provino.config.ts':
+        "import { jestDialect } from 'provino/jest'\nvoid jestDialect\nexport default { include: ['*.test.js'] }\n",
+      'a.test.js': jestTest,
+    })
+    const run = bin(pkg, dir, ['run'])
+    assert.equal(run.status, 1, run.stderr)
+    assert.equal(run.stderr, JEST_LINE)
+  })
+
+  test("a native config with a typo'd key is the config's own error, not the install line", () => {
+    const dir = project(pkg, { 'provino.config.ts': "export default { inclde: ['*.test.ts'] }\n" })
+    const run = bin(pkg, dir, ['run'])
+    assert.equal(run.status, 2, run.stderr)
+    assert.match(run.stderr, /inclde/)
+    assert.doesNotMatch(run.stderr, /dialect-jest/)
+  })
+
+  test("dialect: 'vitest' in a provino config is the config's refusal, not the Jest line", () => {
+    const dir = project(pkg, { 'provino.config.ts': "export default { dialect: 'vitest' }\n" })
+    const run = bin(pkg, dir, ['run'])
+    assert.notEqual(run.status, 0, run.stderr)
+    assert.doesNotMatch(run.stderr, /dialect-jest/)
+    assert.match(run.stderr, /vitest/)
+  })
+
+  test('an add-on of another version is refused before it links: one line, the pinned install, exit 1', () => {
+    // A stand-in add-on in the project (its version not provino's) that would fail if it loaded.
+    const dir = project(pkg, {
+      'a.test.js': jestTest,
+      'node_modules/@provino/dialect-jest/package.json': JSON.stringify({
+        name: '@provino/dialect-jest',
+        version: '0.0.1',
+        type: 'module',
+        exports: { '.': { import: './index.js' }, './node': { import: './index.js' } },
+      }),
+      'node_modules/@provino/dialect-jest/index.js': "throw new Error('the old add-on loaded')\n",
+    })
+    const run = bin(pkg, dir, ['jest', '--ci'])
+    assert.equal(run.status, 1, run.stderr)
+    assert.equal(
+      run.stderr,
+      `Provino: @provino/dialect-jest 0.0.1 is installed, but provino is ${VERSION}: pnpm add -D @provino/dialect-jest@${VERSION}\n`,
+    )
   })
 
   test('the control: a native project runs with no add-on installed', () => {

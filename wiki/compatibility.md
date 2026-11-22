@@ -2,7 +2,7 @@
 
 What `provino jest` does and doesn't do today. Provino matches the behaviour of Jest 30.5.
 
-`provino jest` needs the Jest dialect installed beside `provino`: `pnpm add -D provino @provino/dialect-jest`. Without it the command prints that line and exits 1, with no stack. The dialect carries the Jest packages its matchers use, so a project that runs only `provino.config` installs none of them.
+`provino jest` needs the Jest dialect installed beside `provino`, at `provino`'s own version: `pnpm add -D @provino/dialect-jest@<the provino version>` (for a release candidate, `pnpm add -D provino@rc @provino/dialect-jest@rc`). Without it, or with an add-on of another version, the command prints that install line with the version filled in and exits 1, with no stack. The add-on is found from the project's own install. The dialect carries the Jest packages its matchers use, so a project that runs only `provino.config` installs none of them.
 
 ## What works
 

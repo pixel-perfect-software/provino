@@ -1,4 +1,5 @@
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -162,6 +163,15 @@ export const NATIVE_FOOTPRINT_SKIP: string =
  */
 export const NATIVE_FOOTPRINT_DEFAULT: boolean = true
 
+/**
+ * The Jest app's pnpm settings: no hoisting at all (`hoist=false`, in both places pnpm reads
+ * settings from), the strictest layout, where an add-on is reachable only from the project.
+ */
+const NO_HOIST: Readonly<Record<string, string>> = {
+  '.npmrc': 'hoist=false\n',
+  'pnpm-workspace.yaml': 'hoist: false\n',
+}
+
 /** A command in an app directory, with pnpm. */
 type Run = (args: readonly string[]) => CommandResult
 
@@ -307,11 +317,15 @@ export function installSmoke(options: {
     ) {
       return { steps, ok: false, kept: undefined }
     }
-    const { app, run, install } = installApp(work, 'smoke', SMOKE_FILES, [
+    // `hoist=false`: nothing is hoisted into `node_modules/.pnpm/node_modules`, so `provino`, from its
+    // folder in the store, could reach the add-on only by resolving it from the project (D187).
+    const { app, run, install } = installApp(work, 'smoke', { ...SMOKE_FILES, ...NO_HOIST }, [
       provino.tarball,
       dialect.tarball,
     ])
     if (!step('install', install.status === 0, install.output)) return { steps, ok: false, kept }
+    const hoisted = join(app, 'node_modules', '.pnpm', 'node_modules', '@provino', 'dialect-jest')
+    step('install: hoist=false, so no hoisted @provino/dialect-jest', !existsSync(hoisted), hoisted)
     const expected = readManifest(join(app, 'node_modules', 'provino')).version ?? ''
     const printsVersion = (result: CommandResult): boolean =>
       result.status === 0 && result.output.trim().split('\n').at(-1) === expected

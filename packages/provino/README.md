@@ -10,7 +10,7 @@
 
 `provino jest` runs a Jest project as it is: the same `jest.config` and Jest's flags, matchers and mocks. It writes snapshot files byte for byte as Jest does, and exits with Jest's exit codes. There's nothing to migrate: you change the command. [Why Provino →](https://github.com/pixel-perfect-software/provino/blob/main/wiki/why-provino.md)
 
-This package is the one you install. It holds Provino's engine in one bundle, with the `provino` command. `provino jest` also needs the Jest dialect, [`@provino/dialect-jest`](https://www.npmjs.com/package/@provino/dialect-jest), installed beside it.
+This package is the one you install. It holds Provino's engine in one bundle, with the `provino` command. `provino jest` also needs the Jest dialect, [`@provino/dialect-jest`](https://www.npmjs.com/package/@provino/dialect-jest), installed beside it at the same version.
 
 ## 🚀 Install
 
@@ -20,7 +20,7 @@ A release candidate. Add it to your Jest project with its Jest dialect (with `-w
 pnpm add -D provino@rc @provino/dialect-jest@rc
 ```
 
-Without the dialect, `provino jest` prints the command to install it and exits 1. A project with only a `provino.config` needs `provino` alone.
+Without the dialect, or with one of another version, `provino jest` prints the command that installs the matching one and exits 1. A project with only a `provino.config` needs `provino` alone.
 
 ## 🧭 Getting started
 

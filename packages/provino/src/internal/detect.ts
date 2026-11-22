@@ -64,7 +64,8 @@ async function declaresTests(directory: string, names: ReadonlySet<string>): Pro
       () => import('@provino/dialect-vitest/node'),
     ))
   } catch (error) {
-    if (!(error instanceof DialectNotInstalledError)) return false
+    // A version mismatch, or anything else the add-on's import threw, is for the user to see.
+    if (!(error instanceof DialectNotInstalledError)) throw error
     for (const name of [...names].filter((candidate) => VITE_CONFIG.test(candidate)).sort()) {
       const text = await readFile(join(directory, name), 'utf8').catch(() => '')
       if (TEST_KEY.test(text)) throw error

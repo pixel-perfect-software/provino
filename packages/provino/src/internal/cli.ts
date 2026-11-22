@@ -4,7 +4,7 @@ import type { TextSink } from '@provino/reporters'
 import type { PoolKind } from '@provino/types'
 import { run } from '../run.ts'
 import type { ReporterChoice, RunOptions } from '../types.ts'
-import { dialectNotInstalled, importAddOn } from './add-on.ts'
+import { addOnFailure, importAddOn, resolveAddOnsFrom } from './add-on.ts'
 import { detectProject } from './detect.ts'
 import { quickAnswer } from './quick.ts'
 import {
@@ -447,6 +447,8 @@ export async function main(argv: readonly string[], io: CliIo = {}): Promise<num
       await (io.stdout ?? process.stdout).write(quick)
       return ExitCode.Pass
     }
+    // The add-ons (D187) resolve from the project, not from provino's own install folder.
+    resolveAddOnsFrom(io.cwd ?? process.cwd())
     const [command, ...args] = argv
     const parsed = parseCommand(command, args)
     if (parsed.type === 'help') return await helpExit(io)
@@ -460,7 +462,7 @@ export async function main(argv: readonly string[], io: CliIo = {}): Promise<num
       return ExitCode.UsageError
     }
     // A dialect's add-on that isn't installed (D187): one line with the install command, no stack.
-    const missing = dialectNotInstalled(error)
+    const missing = addOnFailure(error)
     if (missing !== undefined) {
       stderr.write(`Provino: ${missing.message}\n`)
       return INTERNAL_ERROR_EXIT
