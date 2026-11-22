@@ -292,6 +292,26 @@ test('the workspace walk files each entry under its own directory, however deep'
   assert.equal(pkg?.unitTests, 2)
 })
 
+test("an add-on's provino peer is not a dependency the manifest must allow; a provino dependency is (D187)", async () => {
+  const dir = await scratchDir('add-on-peer', {
+    'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
+    'tsconfig.json': '{ "references": [] }\n',
+    'tsconfig.type-tests.json': '{ "references": [] }\n',
+    'packages/dialect-jest/package.json': JSON.stringify({
+      name: '@provino/dialect-jest',
+      peerDependencies: { provino: 'workspace:*', other: '1' },
+      devDependencies: { '@provino/core': 'workspace:*' },
+    }),
+    'packages/dialect-vitest/package.json': JSON.stringify({
+      name: '@provino/dialect-vitest',
+      devDependencies: { provino: 'workspace:*' },
+    }),
+  })
+  const byName = new Map((await readWorkspace(dir)).packages.map((pkg) => [pkg.name, pkg.deps]))
+  assert.deepEqual(byName.get('@provino/dialect-jest'), ['@provino/core', 'other'])
+  assert.deepEqual(byName.get('@provino/dialect-vitest'), ['provino'])
+})
+
 test('matches: `*` is one path segment', () => {
   assert.ok(matches('packages/native-*', 'packages/native-darwin-arm64'))
   assert.ok(!matches('packages/native-*', 'packages/native-a/b'))
