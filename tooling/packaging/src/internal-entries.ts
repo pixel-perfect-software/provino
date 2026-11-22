@@ -142,6 +142,41 @@ export function internalTarget(specifier: string, own: string): string | undefin
   return target
 }
 
+/** A list of build plugins, which a config can spread into another. */
+export type PluginList = Extract<NonNullable<UserConfig['plugins']>, readonly unknown[]>
+
+/** The module a user's program resolves the registries from: `provino/config` re-exports them. */
+const AUGMENTATION_SPECIFIER = /declare module (['"])@provino\/types\1/g
+
+/**
+ * Retargets the registry augmentations (`declare module '@provino/types' { interface DialectRegistry … }`)
+ * in the built declarations. A user's install has no `@provino/types`, so the specifier resolves
+ * to nothing and the registry stays empty (`DialectName` is `never`). `target` is the module that
+ * exports the registries, `provino/config` (an add-on names it through its peer, `provino`'s own
+ * declarations through the package's name). The sources keep `@provino/types`, the
+ * workspace's module. The doc comments that show the augmentation are rewritten with it.
+ * @internal
+ */
+export function augmentationTarget(target: string): PluginList {
+  return [
+    {
+      name: 'provino-augmentation-target',
+      generateBundle(_options, bundle) {
+        for (const [fileName, item] of Object.entries(bundle)) {
+          if (!fileName.endsWith('.d.ts')) continue
+          const replace = (text: string) =>
+            text.replace(
+              AUGMENTATION_SPECIFIER,
+              (_match, quote: string) => `declare module ${quote}${target}${quote}`,
+            )
+          if (item.type === 'chunk') item.code = replace(item.code)
+          else if (typeof item.source === 'string') item.source = replace(item.source)
+        }
+      },
+    },
+  ]
+}
+
 /**
  * The add-on's build plugin (D187): every `@provino/*` engine import, static, dynamic or a type's,
  * resolves to its `provino/internal/<entry>` subpath and stays external, and every
@@ -151,7 +186,7 @@ export function internalTarget(specifier: string, own: string): string | undefin
  * sources are not edited: in the workspace they import the engine by name.
  * @internal
  */
-export function internalImports(own: string): NonNullable<UserConfig['plugins']> {
+export function internalImports(own: string): PluginList {
   return [
     {
       name: 'provino-internal-imports',

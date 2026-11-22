@@ -1,7 +1,14 @@
 import { rmSync } from 'node:fs'
 import { dirname, join, posix } from 'node:path'
 import type { UserConfig } from 'tsdown/config'
-import { ADD_ONS, inPackage, isInternalEntry, rewriteResolveCalls } from './internal-entries.ts'
+import {
+  ADD_ONS,
+  augmentationTarget,
+  inPackage,
+  isInternalEntry,
+  type PluginList,
+  rewriteResolveCalls,
+} from './internal-entries.ts'
 import { readManifest, runtimeDependencyNames } from './package-json.ts'
 import { DTS_ONLY, entriesOf, PRESET } from './preset.ts'
 
@@ -48,8 +55,53 @@ const DECLARATION_ONLY_ENTRIES: Readonly<Record<string, string>> = {
   '@provino/dialect-vitest/runtime': 'worker/vitest-runtime',
 }
 
+/** The registries a program fills by declaration merging, which `provino/config` exports. */
+const REGISTRIES = ['DialectRegistry', 'PluginRegistry', 'ProvidedContext'] as const
+
+/**
+ * The internal declarations name the public registries instead of defining their own. An
+ * augmentation merges into one interface, so a second copy (the chunks of `internal/`) would stay
+ * empty for a program that augments the one `provino/config` exports and `defineConfig` reads.
+ * Each registry's declaration (and its doc comment) is cut from the chunk that holds it and
+ * imported from `provino/config` instead; the build fails when a registry is not found, so a
+ * change to how they are declared can't bring the second copy back unseen.
+ */
+function sharedRegistries(): PluginList {
+  return [
+    {
+      name: 'provino-shared-registries',
+      generateBundle(_options, bundle) {
+        const found = new Set<string>()
+        for (const item of Object.values(bundle)) {
+          if (item.type !== 'chunk' || !item.fileName.endsWith('.d.ts')) continue
+          let code = item.code
+          const cut: string[] = []
+          for (const name of REGISTRIES) {
+            const declaration = new RegExp(
+              `(?:/\\*\\*(?:(?!\\*/)[\\s\\S])*?\\*/\\n)?interface ${name} \\{\\}\\n`,
+            )
+            if (!declaration.test(code)) continue
+            code = code.replace(declaration, '')
+            cut.push(name)
+            found.add(name)
+          }
+          if (cut.length > 0) {
+            item.code = `import type { ${cut.join(', ')} } from "provino/config";\n${code}`
+          }
+        }
+        const missing = REGISTRIES.filter((name) => !found.has(name))
+        if (missing.length > 0) {
+          throw new Error(
+            `the internal declarations hold no empty \`interface ${missing.join(', ')}\` to share with provino/config: the registries are declared another way, so update sharedRegistries`,
+          )
+        }
+      },
+    },
+  ]
+}
+
 /** Drops the declaration files of `DECLARATION_ONLY_ENTRIES` from the output. */
-function dropDeclarations(): NonNullable<UserConfig['plugins']> {
+function dropDeclarations(): PluginList {
   return [
     {
       name: 'provino-drop-declaration-only-entries',
@@ -435,7 +487,8 @@ export function umbrellaConfig(dir: string): UserConfig[] {
       entry: publicEntries,
       dts: DTS_ONLY,
       deps: { alwaysBundle: PROVINO_SCOPE, dts: { alwaysBundle: PROVINO_SCOPE } },
-      plugins: dropDeclarations(),
+      // `jest.d.ts` and `vitest.d.ts` register their dialect on the registry `config.d.ts` exports.
+      plugins: [...dropDeclarations(), ...augmentationTarget('provino/config')],
     },
     {
       ...common,
@@ -444,6 +497,7 @@ export function umbrellaConfig(dir: string): UserConfig[] {
       deps: { alwaysBundle: PROVINO_SCOPE, dts: { alwaysBundle: PROVINO_SCOPE } },
       // Its shared declaration chunks go under `internal/`, where no public pass writes.
       outputOptions: { chunkFileNames: 'internal/chunks/[name].d.ts' },
+      plugins: sharedRegistries(),
     },
   ]
 }
