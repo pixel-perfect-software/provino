@@ -17,6 +17,7 @@
     "knip": "catalog:",
     "magic-string": "catalog:",
     "oxc-parser": "catalog:",
+    "oxc-walker": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:"
   }

@@ -219,3 +219,86 @@ describe('refusals', () => {
     })
   })
 })
+
+describe('scope', () => {
+  it('leaves a name a nested var, a loop head or a catch parameter declares', () => {
+    for (const shadow of [
+      "{ var it = api.it }; it('x', { retry: 1 }, () => {})",
+      "for (const it of list) { it('x', { retry: 1 }, () => {}) }",
+      "try { run() } catch (it) { it('x', { retry: 1 }, () => {}) }",
+      "function describe() {}; describe('x', { retry: 1 }, () => {})",
+    ]) {
+      const source = HEAD + "it('a', () => { " + shadow + ' })\n'
+      assert.deepEqual(rewriteNodeTest('a.test.ts', source).refusals, [], shadow)
+    }
+  })
+
+  it('does not take a parameter default that mentions it for a declaration of it', () => {
+    const source = HEAD + "const f = (x = it) => { it('a', { concurrency: true }, () => {}) }\n"
+    assert.equal(rewriteNodeTest('a.test.ts', source).refusals.length, 1)
+  })
+
+  it('resolves a test context to its own parameter, not an outer one of the same name', () => {
+    const out = rewritten(HEAD + "it('a', (t) => { [1].forEach((t) => t.name); t.name })\n")
+    assert.match(out, /forEach\(\(t\) => t\.name\); t\.task\.name/)
+  })
+})
+
+describe('falsy literals and hook options', () => {
+  it('drops skip, todo and only with any falsy literal', () => {
+    for (const falsy of ['false', 'null', '0', "''"]) {
+      const out = rewritten(
+        HEAD +
+          "it('a', { skip: " +
+          falsy +
+          ', todo: ' +
+          falsy +
+          ', only: ' +
+          falsy +
+          ' }, () => {})\n',
+      )
+      assert.match(out, /it\('a', \(\) => \{\}\)/, falsy)
+    }
+  })
+
+  it('refuses a hook option that is not exactly { timeout }, once per site', () => {
+    const forms = [
+      'before(() => {}, { skip: true })',
+      'before(() => {}, { timeout: 5, skip: true })',
+      'before(() => {}, opts)',
+    ]
+    for (const form of forms) {
+      const found = refusedAt("import { before } from 'node:test'\n" + form + '\n')
+      assert.equal(found.length, 1, form)
+    }
+  })
+})
+
+describe('other ways to reach node:test', () => {
+  it('refuses import(), require(), a re-export and a side-effect import, with the line', () => {
+    assert.deepEqual(refusedAt("const { it } = await import('node:test')\n"), [
+      "MIGRATE_UNSUPPORTED a.test.ts:1 dynamic import('node:test') has no codemod",
+    ])
+    assert.deepEqual(refusedAt("const { it } = require('node:test')\n"), [
+      "MIGRATE_UNSUPPORTED a.test.ts:1 require('node:test') has no codemod",
+    ])
+    assert.deepEqual(refusedAt("export { it } from 'node:test'\n"), [
+      'MIGRATE_UNSUPPORTED a.test.ts:1 re-export from node:test has no codemod',
+    ])
+    assert.deepEqual(refusedAt("import 'node:test'\n"), [
+      'MIGRATE_UNSUPPORTED a.test.ts:1 side-effect import of node:test',
+    ])
+  })
+
+  it('refuses a type import (written by hand), and a mixed file reports the dynamic site too', () => {
+    assert.deepEqual(refusedAt("import type { TestContext } from 'node:test'\n"), [
+      'MIGRATE_UNSUPPORTED a.test.ts:1 type import from node:test: write the type by hand',
+    ])
+    assert.equal(refusedAt(HEAD + "await import('node:test')\n").length, 1)
+  })
+
+  it('writes no empty import when only mock was imported and never used', () => {
+    const out = rewritten("import { mock } from 'node:test'\nconsole.log(1)\n")
+    assert.equal(out, 'console.log(1)\n')
+  })
+})

@@ -6,10 +6,11 @@ export type MigrateErrorCode =
   | 'MIGRATE_PARSE'
   | 'MIGRATE_UNSUPPORTED'
   | 'MIGRATE_USAGE'
+  | 'MIGRATE_SCRIPT'
   | 'MIGRATE_BASELINE'
   | 'MIGRATE_NO_BASELINE'
+  | 'MIGRATE_WRITE'
   | 'MIGRATE_RUN'
-  | 'MIGRATE_MISMATCH'
 
 /**
  * A migration step that cannot go on.

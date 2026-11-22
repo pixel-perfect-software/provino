@@ -1,8 +1,10 @@
 // The node:test -> provino rewrite (B27g1). Pure: source text in, source text and refusals out.
 // Rewrites only what the native API runs the same way; every other form is refused per site
-// (MIGRATE_UNSUPPORTED, file:line) for a hand edit.
+// (MIGRATE_UNSUPPORTED, file:line) for a hand edit. Names are resolved by scope (oxc-walker's
+// ScopeTracker), so a local variable that happens to be called it or describe is left alone.
 import MagicString from 'magic-string'
 import { parseSync } from 'oxc-parser'
+import { ScopeTracker, walk } from 'oxc-walker'
 import { MigrateError } from './errors.ts'
 
 /**
@@ -18,7 +20,15 @@ export interface Refusal {
 }
 
 /**
- * What \`rewriteNodeTest\` found in one file.
+ * A refusal as one line: `MIGRATE_UNSUPPORTED file:line:column message`.
+ * @internal
+ */
+export function formatRefusal(refusal: Refusal): string {
+  return `${refusal.code} ${refusal.file}:${refusal.line}:${refusal.column} ${refusal.message}`
+}
+
+/**
+ * What `rewriteNodeTest` found in one file.
  * @internal
  */
 export interface RewriteResult {
@@ -47,12 +57,16 @@ const nodeOf = (node: AstNode, key: string): AstNode | null => {
   const value = get(node, key)
   return isNode(value) ? value : null
 }
-const listOf = (node: AstNode, key: string): readonly unknown[] => {
+const listOf = (node: AstNode, key: string): readonly AstNode[] => {
   const value = get(node, key)
-  return Array.isArray(value) ? value : []
+  return Array.isArray(value) ? value.filter(isNode) : []
 }
-const nameOf = (node: AstNode | null): string | null =>
-  node !== null && node.type === 'Identifier' ? String(get(node, 'name')) : null
+const nameOf = (node: AstNode | null | undefined): string | null =>
+  node?.type === 'Identifier' ? String(get(node, 'name')) : null
+const stringValue = (node: AstNode | null | undefined): string | null =>
+  node?.type === 'Literal' && typeof get(node, 'value') === 'string'
+    ? String(get(node, 'value'))
+    : null
 
 const SUITES = new Set(['describe', 'suite'])
 const TESTS = new Set(['it', 'test'])
@@ -66,54 +80,79 @@ const MODIFIERS = new Set(['skip', 'todo', 'only'])
 /** Members of the test context the native one has, as written. */
 const CONTEXT_SAME = new Set(['skip', 'signal', 'task'])
 const KNOWN_IMPORTS = new Set([...SUITES, ...TESTS, ...Object.keys(HOOKS)])
+const FUNCTIONS = new Set(['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration'])
+const NON_PROMISE = new Set(['Literal', 'ArrayExpression', 'ObjectExpression', 'TemplateLiteral'])
 
-const isFunctionType = (type: string): boolean =>
-  type === 'ArrowFunctionExpression' || type === 'FunctionExpression'
+/** An inline callback: an arrow function or a function expression. */
+const isCallback = (node: AstNode | null | undefined): node is AstNode =>
+  node?.type === 'ArrowFunctionExpression' || node?.type === 'FunctionExpression'
 
-function isFunction(node: AstNode | null): node is AstNode {
-  return (
-    node !== null && (node.type === 'ArrowFunctionExpression' || node.type === 'FunctionExpression')
-  )
-}
-
-function patternNames(node: unknown, into: Set<string>): void {
-  if (!isNode(node)) return
-  if (node.type === 'Identifier') into.add(String(get(node, 'name')))
-  for (const value of Object.values(node as unknown as Props)) {
-    if (Array.isArray(value)) for (const item of value) patternNames(item, into)
-    else if (isNode(value) && value.type !== 'TSTypeAnnotation') patternNames(value, into)
+/** What a function returns directly (a concise body, or each `return` outside nested functions). */
+function returnsOf(fn: AstNode): AstNode[] {
+  const body = nodeOf(fn, 'body')
+  if (body === null) return []
+  if (body.type !== 'BlockStatement') return [body]
+  const found: AstNode[] = []
+  const visit = (node: unknown): void => {
+    if (!isNode(node) || FUNCTIONS.has(node.type)) return
+    if (node.type === 'ReturnStatement') {
+      const argument = nodeOf(node, 'argument')
+      if (argument !== null) found.push(argument)
+      return
+    }
+    for (const value of Object.values(node as unknown as Props)) {
+      if (Array.isArray(value)) value.forEach(visit)
+      else visit(value)
+    }
   }
+  visit(body)
+  return found
 }
 
-interface Mod {
-  readonly kind: 'skip' | 'todo' | 'only' | 'skipIf'
-  readonly condition?: string
+type Mod =
+  | { readonly kind: 'skip' | 'todo' | 'only' }
+  | { readonly kind: 'skipIf'; readonly condition: string }
+
+/** A name the file imports from node:test: what it was exported as, and what it is called here. */
+interface Imported {
+  readonly imported: string
+  readonly local: string
+}
+
+/** A call that registers a suite, a test or a hook. */
+interface Registration {
+  readonly role: 'suite' | 'test' | 'hook'
+  readonly imported: string
+  /** The identifier naming it (`it` in `it.skip(…)`). */
+  readonly base: AstNode
+  /** Already `.skip`, `.todo` or `.only`. */
+  readonly modified: boolean
 }
 
 /**
- * Rewrites one test file from \`node:test\` to \`provino\`. A file with any refusal is returned
+ * Rewrites one test file from `node:test` to `provino`. A file with any refusal is returned
  * unchanged, so a caller that writes the result never writes half a migration.
  * @internal
  */
 export function rewriteNodeTest(file: string, source: string): RewriteResult {
+  const unchanged: RewriteResult = { text: source, changed: false, refusals: [] }
+  if (!source.includes('node:test')) return unchanged
   const parsed = parseSync(file, source)
   if (parsed.errors.length > 0) {
-    const first = parsed.errors[0]
-    throw new MigrateError('MIGRATE_PARSE', file + ': ' + (first?.message ?? 'syntax error'))
+    throw new MigrateError(
+      'MIGRATE_PARSE',
+      `${file}: ${parsed.errors[0]?.message ?? 'syntax error'}`,
+    )
   }
   const program = parsed.program as unknown as AstNode
-  const body = listOf(program, 'body').filter(isNode)
-  const imports = body.filter(
-    (node) =>
-      node.type === 'ImportDeclaration' &&
-      get(nodeOf(node, 'source') ?? node, 'value') === 'node:test',
-  )
-  if (imports.length === 0) return { text: source, changed: false, refusals: [] }
 
-  const lineStarts = [0]
-  for (let i = 0; i < source.length; i++) if (source[i] === '\n') lineStarts.push(i + 1)
   const refusals: Refusal[] = []
+  let lineStarts: number[] | undefined
   const refuse = (at: AstNode, message: string): void => {
+    if (lineStarts === undefined) {
+      lineStarts = [0]
+      for (let i = 0; i < source.length; i++) if (source[i] === '\n') lineStarts.push(i + 1)
+    }
     let line = lineStarts.length - 1
     while ((lineStarts[line] ?? 0) > at.start) line--
     refusals.push({
@@ -126,415 +165,322 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
   }
   const text = (node: AstNode): string => source.slice(node.start, node.end)
 
-  const [declaration] = imports
-  if (declaration === undefined) return { text: source, changed: false, refusals: [] }
-  if (imports.length > 1) refuse(imports[1] ?? declaration, 'more than one import from node:test')
-  if (
-    body.some(
-      (node) =>
-        node.type === 'ImportDeclaration' &&
-        get(nodeOf(node, 'source') ?? node, 'value') === 'provino',
-    )
-  ) {
+  // The import declaration, and the names it brings in.
+  const imports = listOf(program, 'body').filter(
+    (node) =>
+      node.type === 'ImportDeclaration' && stringValue(nodeOf(node, 'source')) === 'node:test',
+  )
+  const declaration = imports[0]
+  if (imports.length > 1) refuse(imports[1] ?? program, 'more than one import from node:test')
+  const locals = new Map<string, Imported>()
+  const providerImports = listOf(program, 'body').filter(
+    (node) =>
+      node.type === 'ImportDeclaration' && stringValue(nodeOf(node, 'source')) === 'provino',
+  )
+  if (declaration !== undefined && providerImports.length > 0) {
     refuse(declaration, "the file already imports from 'provino'")
   }
-
-  // local name -> imported name
-  const locals = new Map<string, string>()
-  for (const specifier of listOf(declaration, 'specifiers').filter(isNode)) {
-    const local = nameOf(nodeOf(specifier, 'local'))
-    if (specifier.type === 'ImportNamespaceSpecifier') {
-      refuse(specifier, 'namespace import of node:test')
-    } else if (specifier.type === 'ImportDefaultSpecifier' && local !== null) {
-      locals.set(local, 'test')
-    } else if (local !== null) {
-      const imported = nodeOf(specifier, 'imported')
-      const importedName = nameOf(imported) ?? String(get(imported ?? specifier, 'value'))
-      if (importedName === 'mock') {
-        locals.set(local, 'mock')
-      } else if (KNOWN_IMPORTS.has(importedName)) {
-        locals.set(local, importedName)
+  if (declaration !== undefined && get(declaration, 'importKind') === 'type') {
+    refuse(declaration, 'type import from node:test: write the type by hand')
+  } else if (declaration !== undefined) {
+    const specifiers = listOf(declaration, 'specifiers')
+    if (specifiers.length === 0) refuse(declaration, 'side-effect import of node:test')
+    for (const specifier of specifiers) {
+      const local = nameOf(nodeOf(specifier, 'local'))
+      if (specifier.type === 'ImportNamespaceSpecifier' || local === null) {
+        refuse(specifier, 'namespace import of node:test')
+        continue
+      }
+      const importedNode = nodeOf(specifier, 'imported')
+      const imported =
+        specifier.type === 'ImportDefaultSpecifier'
+          ? 'test'
+          : (nameOf(importedNode) ?? stringValue(importedNode) ?? '')
+      if (imported === 'mock' || KNOWN_IMPORTS.has(imported)) {
+        locals.set(local, { imported, local })
       } else {
-        refuse(specifier, 'node:test export ' + importedName + ' has no native equivalent')
+        refuse(specifier, `node:test export ${imported} has no native equivalent`)
       }
     }
-  }
-  const shadows: Set<string>[] = []
-  const importedOf = (name: string | null): string | undefined =>
-    name === null || shadows.some((scope) => scope.has(name)) ? undefined : locals.get(name)
-
-  /** Names a statement list declares in its own scope (var, let, const, function, class). */
-  function declaredIn(statements: readonly unknown[]): Set<string> {
-    const names = new Set<string>()
-    for (const statement of statements.filter(isNode)) {
-      if (statement.type === 'VariableDeclaration') {
-        for (const declarator of listOf(statement, 'declarations').filter(isNode)) {
-          patternNames(nodeOf(declarator, 'id'), names)
-        }
-      } else if (
-        statement.type === 'FunctionDeclaration' ||
-        statement.type === 'ClassDeclaration'
-      ) {
-        const id = nameOf(nodeOf(statement, 'id'))
-        if (id !== null) names.add(id)
-      }
-    }
-    return names
-  }
-
-  /** Visits a function body with its parameters and own declarations shadowing the imports. */
-  function visitBody(fn: AstNode, ctx: string | null): void {
-    const names = new Set<string>()
-    for (const param of listOf(fn, 'params')) patternNames(param, names)
-    const fnBody = nodeOf(fn, 'body')
-    if (fnBody !== null && fnBody.type === 'BlockStatement') {
-      for (const name of declaredIn(listOf(fnBody, 'body'))) names.add(name)
-    }
-    shadows.push(names)
-    visit(fnBody, fn, ctx)
-    shadows.pop()
   }
 
   const edited = new MagicString(source)
   const needed = new Set<string>()
-  const handled = new WeakSet<AstNode>()
+  const tracker = new ScopeTracker()
+  /** Where each test context parameter starts: the binding a `t.name` must resolve to. */
+  const contextParameters = new Set<number>()
 
-  /** A function's own parameters shadow the test context name. */
-  function shadowed(fn: AstNode, ctx: string | null): boolean {
-    if (ctx === null) return false
-    const names = new Set<string>()
-    for (const param of listOf(fn, 'params')) patternNames(param, names)
-    return names.has(ctx)
+  /** The import a name stands for here: not a local that shadows it. */
+  const importOf = (name: string | null): Imported | undefined => {
+    const found = name === null ? undefined : locals.get(name)
+    return found !== undefined && tracker.getDeclaration(found.local)?.type === 'Import'
+      ? found
+      : undefined
   }
 
-  /** The first parameter of a test or beforeEach/afterEach callback: its context name. */
-  function contextParameter(fn: AstNode, what: string, allowContext: boolean): string | null {
-    const params = listOf(fn, 'params').filter(isNode)
-    if (params.length === 0) return null
+  function classify(call: AstNode): Registration | null {
+    const callee = nodeOf(call, 'callee')
+    if (callee === null) return null
+    let base = callee
+    let modified = false
+    if (callee.type === 'MemberExpression' && get(callee, 'computed') !== true) {
+      const property = nameOf(nodeOf(callee, 'property'))
+      const object = nodeOf(callee, 'object')
+      if (property !== null && MODIFIERS.has(property) && object !== null) {
+        base = object
+        modified = true
+      }
+    }
+    const found = importOf(nameOf(base))
+    if (found === undefined) return null
+    const { imported } = found
+    if (SUITES.has(imported)) return { role: 'suite', imported, base, modified }
+    if (TESTS.has(imported)) return { role: 'test', imported, base, modified }
+    if (imported in HOOKS && !modified) return { role: 'hook', imported, base, modified }
+    return null
+  }
+
+  /** beforeAll and afterAll: the call site is renamed when the local name was the imported one. */
+  function renameCallee(reg: Registration): void {
+    const native = HOOKS[reg.imported]
+    if (native !== undefined && native !== reg.imported && nameOf(reg.base) === reg.imported) {
+      edited.overwrite(reg.base.start, reg.base.end, native)
+    }
+  }
+
+  /** The test context a callback names as its first parameter; refuses the forms that cannot work. */
+  function contextOf(fn: AstNode, what: string): void {
+    const params = listOf(fn, 'params')
     const [first] = params
-    if (!allowContext) {
-      refuse(first ?? fn, what + ' callback takes a parameter (a node:test suite context)')
-      return null
-    }
-    if (params.length > 1) refuse(params[1] ?? fn, what + ' callback uses the done callback')
-    const name = nameOf(first ?? null)
-    if (name === null) refuse(first ?? fn, what + ' callback destructures the test context')
-    return name
+    if (first === undefined) return
+    if (params.length > 1) refuse(params[1] ?? fn, `${what} callback uses the done callback`)
+    if (first.type === 'Identifier') contextParameters.add(first.start)
+    else refuse(first, `${what} callback destructures the test context`)
   }
 
-  function returnsOf(fn: AstNode): AstNode[] {
-    const found: AstNode[] = []
-    const walk = (node: unknown): void => {
-      if (!isNode(node)) return
-      const kind: string = node.type
-      if (
-        kind === 'ArrowFunctionExpression' ||
-        kind === 'FunctionExpression' ||
-        kind === 'FunctionDeclaration'
-      )
-        return
-      if (node.type === 'ReturnStatement') {
-        const argument = nodeOf(node, 'argument')
-        if (argument !== null) found.push(argument)
-        return
-      }
-      for (const value of Object.values(node as unknown as Props)) {
-        if (Array.isArray(value)) for (const item of value) walk(item)
-        else walk(value)
-      }
-    }
-    const fnBody = nodeOf(fn, 'body')
-    if (fnBody === null) return found
-    if (fnBody.type === 'BlockStatement') walk(fnBody)
-    else found.push(fnBody)
-    return found
-  }
-
-  function checkReturns(fn: AstNode, isHook: boolean): void {
+  function checkReturns(fn: AstNode, hook: boolean): void {
     for (const value of returnsOf(fn)) {
-      if (isHook && isFunction(value)) {
+      if (hook && isCallback(value)) {
         refuse(value, 'hook returns a function (a node:test hook cleanup is not run by provino)')
-      } else if (
-        !isHook &&
-        ['Literal', 'ArrayExpression', 'ObjectExpression', 'TemplateLiteral'].includes(value.type)
-      ) {
+      } else if (!hook && NON_PROMISE.has(value.type)) {
         refuse(value, 'test returns a non-promise value (provino fails it)')
       }
     }
   }
 
+  /** `{ skip, todo, only, timeout }` of a test or suite: the one modifier and the timeout text. */
   function optionsPlan(
     options: AstNode,
-    existingModifier: boolean,
-    allowed: readonly string[],
-  ): { mods: Mod[]; keep: string[] } {
+    modified: boolean,
+  ): { mod: Mod | undefined; timeout: string | undefined } {
     const mods: Mod[] = []
-    const keep: string[] = []
-    for (const prop of listOf(options, 'properties').filter(isNode)) {
+    let timeout: string | undefined
+    for (const prop of listOf(options, 'properties')) {
       const key = nodeOf(prop, 'key')
-      const keyName =
-        get(prop, 'computed') === true
-          ? null
-          : (nameOf(key) ?? (key === null ? null : String(get(key, 'value'))))
-      if (prop.type !== 'Property' || keyName === null || get(prop, 'method') === true) {
+      const keyName = get(prop, 'computed') === true ? null : (nameOf(key) ?? stringValue(key))
+      const value = nodeOf(prop, 'value')
+      if (
+        prop.type !== 'Property' ||
+        keyName === null ||
+        value === null ||
+        get(prop, 'method') === true
+      ) {
         refuse(prop, 'option that is not a plain key: value')
         continue
       }
-      const value = nodeOf(prop, 'value')
-      if (value === null) continue
-      const literal = value.type === 'Literal' ? get(value, 'value') : undefined
-      if (keyName === 'timeout' && allowed.includes('timeout')) {
-        keep.push(text(prop))
+      const literal = value.type === 'Literal'
+      if (keyName === 'timeout') {
+        timeout = text(value)
       } else if (keyName === 'skip') {
-        if (literal === false) continue
-        if (value.type === 'Literal') mods.push({ kind: 'skip' })
-        else mods.push({ kind: 'skipIf', condition: text(value) })
+        if (literal && !get(value, 'value')) continue
+        mods.push(literal ? { kind: 'skip' } : { kind: 'skipIf', condition: text(value) })
       } else if (keyName === 'todo' || keyName === 'only') {
-        if (literal === false) continue
-        if (value.type === 'Literal') mods.push({ kind: keyName })
-        else
-          refuse(
-            prop,
-            '{ ' +
-              keyName +
-              ': <expression> } has no native form (use ' +
-              keyName +
-              ' on a literal)',
-          )
+        if (literal && !get(value, 'value')) continue
+        if (literal) mods.push({ kind: keyName })
+        else refuse(prop, `{ ${keyName}: <expression> } has no native form (use a literal)`)
       } else {
-        refuse(prop, 'option ' + keyName + ' has no native equivalent')
+        refuse(prop, `option ${keyName} has no native equivalent`)
       }
     }
-    if (mods.length > 1 || (mods.length > 0 && existingModifier)) {
+    if (mods.length > 1 || (mods.length > 0 && modified)) {
       refuse(options, 'more than one skip, todo or only on one test')
     }
-    return { mods, keep }
+    return { mod: mods[0], timeout }
   }
 
-  function classify(call: AstNode): {
-    name: string
-    role: 'suite' | 'test' | 'hook'
-    existing: boolean
-    calleeEnd: number
-    calleeNode: AstNode
-  } | null {
-    const callee = nodeOf(call, 'callee')
-    if (callee === null) return null
-    let base = nameOf(callee)
-    let existing = false
-    let calleeNode = callee
-    if (base === null && callee.type === 'MemberExpression') {
-      const object = nodeOf(callee, 'object')
-      const property = nodeOf(callee, 'property')
-      const propName = nameOf(property)
-      if (get(callee, 'computed') !== true && propName !== null && MODIFIERS.has(propName)) {
-        base = nameOf(object)
-        existing = true
-        calleeNode = object ?? callee
-      }
-    }
-    const imported = importedOf(base)
-    if (base === null || imported === undefined) return null
-    if (SUITES.has(imported))
-      return { name: base, role: 'suite', existing, calleeEnd: callee.end, calleeNode }
-    if (TESTS.has(imported))
-      return { name: base, role: 'test', existing, calleeEnd: callee.end, calleeNode }
-    if (imported in HOOKS && !existing)
-      return { name: base, role: 'hook', existing, calleeEnd: callee.end, calleeNode }
-    return null
-  }
-
-  function registration(
-    call: AstNode,
-    info: NonNullable<ReturnType<typeof classify>>,
-    ctx: string | null,
-  ): void {
-    const args = listOf(call, 'arguments').filter(isNode)
-    const imported = importedOf(info.name) ?? ''
-    handled.add(info.calleeNode)
-    if (info.role === 'hook') {
-      const target = HOOKS[imported] ?? imported
-      const fn = args[0] ?? null
-      const second = args[1] ?? null
-      if (!isFunction(fn)) {
-        refuse(call, 'hook with a callback that is not an inline function')
-        return
-      }
-      if (target !== imported && info.name === imported)
-        edited.overwrite(info.calleeNode.start, info.calleeNode.end, target)
-      else if (target !== imported) needed.add(target + ' as ' + info.name)
-      if (second !== null) {
-        const plan =
-          second.type === 'ObjectExpression' ? optionsPlan(second, true, ['timeout']) : null
-        const timeout = plan?.keep[0]
-        if (
-          plan !== null &&
-          plan.mods.length === 0 &&
-          plan.keep.length === 1 &&
-          timeout !== undefined
-        ) {
-          const value = timeout.slice(timeout.indexOf(':') + 1).trim()
-          edited.overwrite(second.start, second.end, value)
-        } else if (plan === null) {
-          refuse(second, 'hook options that are not an object literal')
-        } else if (plan.keep.length > 0 || plan.mods.length > 0) {
-          refuse(second, 'hook options other than { timeout }')
-        }
-      }
-      const isSuiteHook = imported === 'before' || imported === 'after'
-      const childCtx = contextParameter(fn, imported, !isSuiteHook)
-      checkReturns(fn, true)
-      visitBody(fn, shadowed(fn, ctx) ? null : childCtx)
-      for (const arg of args.slice(1)) visit(arg, call, ctx)
+  function registerHook(call: AstNode, reg: Registration): void {
+    const [fn, options] = listOf(call, 'arguments')
+    if (!isCallback(fn)) {
+      refuse(call, 'hook with a callback that is not an inline function')
       return
     }
-
-    // describe / it: (name, options?, fn?)
-    const name = args[0]
-    const rest = args.slice(1)
-    const fn =
-      rest.length > 0 && isFunction(rest[rest.length - 1] ?? null)
-        ? (rest[rest.length - 1] ?? null)
-        : null
-    const middle = fn === null ? rest : rest.slice(0, -1)
-    if (name !== undefined) visit(name, call, ctx)
-    let options: AstNode | null = null
-    const [candidate] = middle
-    if (candidate !== undefined) {
-      if (candidate.type === 'ObjectExpression') options = candidate
-      else refuse(candidate, 'options that are not an object literal')
-      if (middle.length > 1) refuse(middle[1] ?? call, 'unexpected extra argument')
-    }
-    if (options !== null) {
-      const plan = optionsPlan(options, info.existing, ['timeout'])
-      const [mod] = plan.mods
-      if (mod !== undefined) {
-        const suffix =
-          mod.kind === 'skipIf' ? '.skipIf(' + (mod.condition ?? '') + ')' : '.' + mod.kind
-        edited.appendLeft(info.calleeNode.end, suffix)
+    renameCallee(reg)
+    if (options !== undefined) {
+      const props = options.type === 'ObjectExpression' ? listOf(options, 'properties') : []
+      const only = props.length === 1 ? props[0] : undefined
+      const timeout = only === undefined ? null : nodeOf(only, 'value')
+      if (only !== undefined && timeout !== null && nameOf(nodeOf(only, 'key')) === 'timeout') {
+        edited.overwrite(options.start, options.end, text(timeout))
+      } else {
+        refuse(options, 'hook options other than { timeout }')
       }
-      const before = name ?? call
-      if (plan.keep.length > 0)
-        edited.overwrite(options.start, options.end, '{ ' + plan.keep.join(', ') + ' }')
-      else edited.remove(before.end, options.end)
     }
+    if (reg.imported === 'beforeEach' || reg.imported === 'afterEach') contextOf(fn, reg.imported)
+    else if (listOf(fn, 'params').length > 0) {
+      refuse(fn, `${reg.imported} callback takes a parameter (a node:test suite context)`)
+    }
+    checkReturns(fn, true)
+  }
+
+  function registerTest(call: AstNode, reg: Registration): void {
+    const [name, ...rest] = listOf(call, 'arguments')
+    const last = rest.at(-1)
+    const fn = isCallback(last) ? last : null
+    const [options, ...extra] = fn === null ? rest : rest.slice(0, -1)
+    if (options !== undefined && name !== undefined) {
+      if (options.type === 'ObjectExpression') {
+        const { mod, timeout } = optionsPlan(options, reg.modified)
+        if (mod !== undefined) {
+          edited.appendLeft(
+            reg.base.end,
+            mod.kind === 'skipIf' ? `.skipIf(${mod.condition})` : `.${mod.kind}`,
+          )
+        }
+        if (timeout === undefined) edited.remove(name.end, options.end)
+        else edited.overwrite(options.start, options.end, `{ timeout: ${timeout} }`)
+      } else {
+        refuse(options, 'options that are not an object literal')
+      }
+    }
+    if (extra[0] !== undefined) refuse(extra[0], 'unexpected extra argument')
     if (fn === null) return
-    if (info.role === 'suite') {
+    if (reg.role === 'suite') {
       if (get(fn, 'async') === true) refuse(fn, 'async describe callback')
-      if (listOf(fn, 'params').length > 0)
+      if (listOf(fn, 'params').length > 0) {
         refuse(fn, 'describe callback takes a parameter (a node:test suite context)')
-      visitBody(fn, null)
-      return
+      }
+    } else {
+      contextOf(fn, 'test')
+      checkReturns(fn, false)
     }
-    const childCtx = contextParameter(fn, 'test', true)
-    checkReturns(fn, false)
-    visitBody(fn, childCtx)
   }
 
-  function visit(node: unknown, parent: AstNode | null, ctx: string | null): void {
-    if (!isNode(node)) return
-    if (node.type === 'CallExpression') {
-      const info = classify(node)
-      if (info !== null) {
-        registration(node, info, ctx)
-        return
-      }
-      const callee = nodeOf(node, 'callee')
-      if (
-        ctx !== null &&
-        callee !== null &&
-        callee.type === 'MemberExpression' &&
-        nameOf(nodeOf(callee, 'object')) === ctx &&
-        nameOf(nodeOf(callee, 'property')) === 'after' &&
-        get(callee, 'computed') !== true
-      ) {
-        const args = listOf(node, 'arguments')
-        if (args.length !== 1) {
-          refuse(node, 't.after with options has no native equivalent')
-        } else {
-          edited.overwrite(callee.start, callee.end, 'onTestFinished')
-          needed.add('onTestFinished')
-        }
-        for (const arg of args) visit(arg, node, ctx)
-        return
-      }
-    }
+  /** `t.name`, `t.after` and the members with no native form, on a test context parameter. */
+  function contextMember(node: AstNode, parent: AstNode | null): void {
+    const object = nodeOf(node, 'object')
+    const objectName = nameOf(object)
+    if (objectName === null) return
+    const declared = tracker.getDeclaration(objectName)
     if (
-      node.type === 'MemberExpression' &&
-      ctx !== null &&
-      nameOf(nodeOf(node, 'object')) === ctx
+      declared?.type !== 'FunctionParam' ||
+      !contextParameters.has((declared.node as AstNode).start)
     ) {
-      const property = nodeOf(node, 'property')
-      const propName = nameOf(property)
-      if (get(node, 'computed') === true || propName === null) {
-        refuse(node, 'computed access on the test context')
-      } else if (propName === 'name') {
-        edited.overwrite(node.start, node.end, ctx + '.task.name')
-      } else if (!CONTEXT_SAME.has(propName)) {
-        refuse(node, ctx + '.' + propName + ' has no native equivalent')
+      return
+    }
+    const property = get(node, 'computed') === true ? null : nameOf(nodeOf(node, 'property'))
+    if (property === null) {
+      refuse(node, 'computed access on the test context')
+    } else if (property === 'name') {
+      edited.overwrite(node.start, node.end, `${objectName}.task.name`)
+    } else if (property === 'after') {
+      const call =
+        parent?.type === 'CallExpression' && nodeOf(parent, 'callee') === node ? parent : null
+      if (call === null || listOf(call, 'arguments').length !== 1) {
+        refuse(node, `${objectName}.after with options, or not called, has no native equivalent`)
+      } else {
+        edited.overwrite(node.start, node.end, 'onTestFinished')
+        needed.add('onTestFinished')
       }
-      return
-    }
-    if (node.type === 'Identifier') {
-      const imported = importedOf(String(get(node, 'name')))
-      const isMember =
-        parent !== null &&
-        parent.type === 'MemberExpression' &&
-        nodeOf(parent, 'property') === node &&
-        get(parent, 'computed') !== true
-      const isKey =
-        parent !== null &&
-        parent.type === 'Property' &&
-        nodeOf(parent, 'key') === node &&
-        get(parent, 'computed') !== true
-      if (imported === 'mock' && !isMember && !isKey)
-        refuse(node, 'node:test mock (mock.fn, mock.method, mock.timers) has no codemod')
-      else if (
-        (imported === 'before' || imported === 'after') &&
-        !handled.has(node) &&
-        !isMember &&
-        !isKey &&
-        parent?.type !== 'ImportSpecifier'
-      ) {
-        refuse(node, 'node:test ' + imported + ' used as a value')
-      }
-      return
-    }
-    if (isFunctionType(node.type)) {
-      visitBody(node, shadowed(node, ctx) ? null : ctx)
-      return
-    }
-    if (node.type === 'BlockStatement') {
-      shadows.push(declaredIn(listOf(node, 'body')))
-      for (const statement of listOf(node, 'body')) visit(statement, node, ctx)
-      shadows.pop()
-      return
-    }
-    for (const [key, value] of Object.entries(node as unknown as Props)) {
-      if (key === 'type' || key === 'start' || key === 'end') continue
-      if (Array.isArray(value)) for (const item of value) visit(item, node, ctx)
-      else visit(value, node, ctx)
+    } else if (!CONTEXT_SAME.has(property)) {
+      refuse(node, `${objectName}.${property} has no native equivalent`)
     }
   }
 
-  for (const node of body) if (node !== declaration) visit(node, program, null)
+  /** An imported name used other than as a call: only `mock`, `before` and `after` cannot be left. */
+  function valueUse(node: AstNode, parent: AstNode | null): void {
+    const found = importOf(nameOf(node))
+    if (
+      found === undefined ||
+      (found.imported !== 'mock' && found.imported !== 'before' && found.imported !== 'after')
+    ) {
+      return
+    }
+    if (parent === null) return
+    const callee = parent.type === 'CallExpression' && nodeOf(parent, 'callee') === node
+    const member =
+      parent.type === 'MemberExpression' &&
+      nodeOf(parent, 'property') === node &&
+      get(parent, 'computed') !== true
+    const key =
+      parent.type === 'Property' &&
+      nodeOf(parent, 'key') === node &&
+      get(parent, 'shorthand') !== true
+    const importName = parent.type === 'ImportSpecifier' || parent.type === 'ImportDefaultSpecifier'
+    if (found.imported === 'mock' && !member && !key && !importName) {
+      refuse(node, 'node:test mock (mock.fn, mock.method, mock.timers) has no codemod')
+    } else if (found.imported !== 'mock' && !callee && !member && !key && !importName) {
+      refuse(node, `node:test ${found.imported} used as a value`)
+    }
+  }
+
+  /** The other ways to reach node:test: import(), require() and re-exports. */
+  function otherReach(node: AstNode): void {
+    const fromNodeTest = (value: AstNode | null): boolean => stringValue(value) === 'node:test'
+    if (node.type === 'ImportExpression' && fromNodeTest(nodeOf(node, 'source'))) {
+      refuse(node, "dynamic import('node:test') has no codemod")
+    } else if (
+      node.type === 'CallExpression' &&
+      nameOf(nodeOf(node, 'callee')) === 'require' &&
+      fromNodeTest(listOf(node, 'arguments')[0] ?? null)
+    ) {
+      refuse(node, "require('node:test') has no codemod")
+    } else if (
+      (node.type === 'ExportNamedDeclaration' || node.type === 'ExportAllDeclaration') &&
+      fromNodeTest(nodeOf(node, 'source'))
+    ) {
+      refuse(node, 're-export from node:test has no codemod')
+    }
+  }
+
+  walk(program as never, {
+    scopeTracker: tracker,
+    enter(node, parent) {
+      const at = node as unknown as AstNode
+      const above = parent as unknown as AstNode | null
+      otherReach(at)
+      if (at.type === 'CallExpression') {
+        const reg = classify(at)
+        if (reg === null) return
+        if (reg.role === 'hook') registerHook(at, reg)
+        else registerTest(at, reg)
+      } else if (at.type === 'MemberExpression') {
+        contextMember(at, above)
+      } else if (at.type === 'Identifier') {
+        valueUse(at, above)
+      }
+    },
+  })
 
   if (refusals.length > 0) return { text: source, changed: false, refusals }
+  if (declaration === undefined) return unchanged
 
-  const specifiers = new Set<string>()
-  for (const [local, imported] of locals) {
+  const specifiers = new Set(needed)
+  for (const { imported, local } of locals.values()) {
     if (imported === 'mock') continue
-    const target = HOOKS[imported] ?? imported
-    if (target !== imported && local !== imported) specifiers.add(target + ' as ' + local)
-    else if (target !== imported) specifiers.add(target)
-    else specifiers.add(local === imported ? imported : imported + ' as ' + local)
+    const native = HOOKS[imported] ?? imported
+    const now = local === imported ? native : local
+    specifiers.add(now === native ? native : `${native} as ${now}`)
   }
-  for (const extra of needed) specifiers.add(extra)
-  const sorted = [...specifiers].sort((a, b) => a.localeCompare(b))
-  edited.overwrite(
-    declaration.start,
-    declaration.end,
-    'import { ' + sorted.join(', ') + " } from 'provino'",
-  )
+  if (specifiers.size === 0) {
+    const newline = source[declaration.end] === '\n' ? 1 : 0
+    edited.remove(declaration.start, declaration.end + newline)
+  } else {
+    const sorted = [...specifiers].sort((a, b) => a.localeCompare(b))
+    edited.overwrite(
+      declaration.start,
+      declaration.end,
+      `import { ${sorted.join(', ')} } from 'provino'`,
+    )
+  }
   return { text: edited.toString(), changed: true, refusals }
 }

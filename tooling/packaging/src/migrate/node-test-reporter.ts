@@ -1,5 +1,7 @@
-// A `node --test` reporter: one JSON line per finished test or suite, which `record.ts` turns
-// into the baseline. Written to the file `--test-reporter-destination` names.
+// A `node --test` reporter: one JSON line (a `ReporterLine`) per finished test or suite, which
+// `recordsFromReporter` turns into the baseline. Written to the file `--test-reporter-destination`
+// names.
+import type { ReporterLine } from './node-test-compare.ts'
 
 /** The fields of a Node test event this reporter reads. */
 interface EventData {
@@ -18,7 +20,7 @@ export default async function* reporter(
   for await (const event of source) {
     if (event.type !== 'test:pass' && event.type !== 'test:fail') continue
     const data = event.data as EventData
-    yield `${JSON.stringify({
+    const line: ReporterLine = {
       pass: event.type === 'test:pass',
       nesting: data.nesting ?? 0,
       name: data.name ?? '',
@@ -26,6 +28,7 @@ export default async function* reporter(
       suite: data.details?.type === 'suite',
       skip: Boolean(data.skip),
       todo: Boolean(data.todo),
-    })}\n`
+    }
+    yield `${JSON.stringify(line)}\n`
   }
 }
