@@ -1,6 +1,7 @@
 import { rmSync } from 'node:fs'
 import { dirname, join, posix } from 'node:path'
 import type { UserConfig } from 'tsdown/config'
+import { ADD_ONS } from './internal-entries.ts'
 import { readManifest, runtimeDependencyNames } from './package-json.ts'
 import { DTS_ONLY, entriesOf, PRESET } from './preset.ts'
 
@@ -16,21 +17,9 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   '@provino/orchestrator/worker/bootstrap': 'worker/bootstrap',
   '@provino/orchestrator/worker/main': 'worker/main',
   '@provino/expect/table': 'worker/expect-table',
-  '@provino/dialect-jest/runtime': 'worker/jest-runtime',
-  // Loaded by the coordinator (a failing global hook), through a behaviour ref, as the neutral
-  // behaviours are: a leaf of its own, so it never pulls the runtime in.
-  '@provino/dialect-jest/global-setup': 'worker/jest-global-setup',
-  // Loaded by the coordinator when a run writes an inline snapshot (B23d B1): Babel and the
-  // project's Prettier load inside it then, never in a run that writes none.
-  '@provino/dialect-jest/inline-snapshots': 'worker/jest-inline-snapshots',
-  // Loaded by the coordinator (changed files, the dependency extractor) through behaviour refs
-  // (B23c, D118): a leaf of its own, so it never pulls the runtime in.
-  '@provino/dialect-jest/affected': 'worker/jest-affected',
-  // The Vitest dialect's worker half (B25c: the coordinator's detection imports the dialect, whose
-  // value names this ref): its matcher table (B25b, `vitestExpectTable`; Chai stays a dependency,
-  // loaded on a failure or a Chai assertion). The Jest worker never loads it.
-  '@provino/dialect-vitest/runtime': 'worker/vitest-runtime',
-  // Vite's alias rule as a mapper, loaded by the worker's loader when a Vitest project has aliases.
+  // The dialects' own worker modules (`/runtime`, `/global-setup`, `/inline-snapshots`,
+  // `/affected`) are not here since B27f (D187): each add-on ships them, and its refs name its
+  // own files. Vite's alias rule as a mapper, loaded by the worker's loader when a Vitest project has aliases.
   '@provino/resolver/vite-alias': 'worker/vite-alias',
   // The Vite plugin host (B25d, T3.9), created by a worker whose project has plugins: no run
   // without them imports it, and it never imports Vite (the project's plugins do).
@@ -43,8 +32,20 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   '@provino/api': 'worker/api',
 }
 
-/** Every `@provino/*` import is bundled from source. */
+/** Every `@provino/*` import is bundled from source: what the declarations build inlines. */
 const PROVINO_SCOPE: RegExp[] = [/^@provino\//]
+
+/** The add-ons (D187) and their subpaths: external imports, which a dialect's command reaches only by a dynamic import. */
+const ADD_ON_SCOPE: RegExp[] = ADD_ONS.map(
+  (name) => new RegExp(`^${name.replace('/', '\\/')}(?:\\/|$)`),
+)
+
+/** What the JavaScript build inlines: every `@provino/*` package but the add-ons. */
+function isEngine(id: string): boolean {
+  return (
+    PROVINO_SCOPE.some((scope) => scope.test(id)) && !ADD_ON_SCOPE.some((scope) => scope.test(id))
+  )
+}
 
 /**
  * The files the bin answers `--version` and `--help` from before it imports the rest (`usage` lists
@@ -120,12 +121,9 @@ const COORDINATOR = new RegExp(
     'reporters[\\/]src[\\/](?!live[\\/]|html[\\/])',
     'config[\\/]src[\\/]',
     'snapshot[\\/]src[\\/]node[\\/]',
-    // provino's own files, but not the bin's light ones.
-    `provino[\\/]src[\\/](?!internal[\\/](?:${BIN_LIGHT_FILES.join('|')})\\.ts)`,
-    'policy[\\/]src[\\/]dialect\\.ts',
-    // The policy slices the Jest worker's runtime imports too; `dialect.ts`, which builds
-    // `jestDialect` from them, is `JEST_NODE`'s.
-    'dialect-jest[\\/]src[\\/](?:expect-policy|hoist-policy|mock-policy)\\.ts',
+    // provino's own files, but not the bin's light ones, nor the engine entries an add-on imports
+    // (`internal/engine/`: a worker reads `internal/runtime`, so it must not import this chunk).
+    `provino[\\/]src[\\/](?!internal[\\/](?:(?:${BIN_LIGHT_FILES.join('|')})\\.ts|engine[\\/]))`,
   ]
     .map((alternative) => `[\\/]packages[\\/]${alternative}`)
     .join('|'),
@@ -161,38 +159,22 @@ const LOADING =
 const COVERAGE = /[\\/]packages[\\/]coverage[\\/]src[\\/]/
 
 /**
- * The Vitest dialect's coordinator code (B25g): the config reader, the command line (its table of
- * Vitest's options and the rebuild of cac's parser) and the json results. Only `provino vitest`
- * imports it (`cli.ts` loads `vitest-command.ts` by a dynamic import), so it is a chunk of its own;
- * left to `shared`, every command and worker would read it. `exports-vitest.test.ts` checks the bytes.
+ * `provino vitest`'s own file (`vitest-command.ts`, B25g): it imports the Vitest dialect's `/node`,
+ * which is the add-on's (D187) and external here, so it is a chunk only `cli.ts`'s dynamic import
+ * reaches: in `coordinator.js` every command would need `@provino/dialect-vitest` installed.
  */
-const VITEST_NODE = /[\\/]packages[\\/]dialect-vitest[\\/]src[\\/](?:node|results)[\\/]/
+const VITEST_NODE = /[\\/]packages[\\/]provino[\\/]src[\\/]internal[\\/]vitest-command\.ts$/
 
 /**
- * The Vitest dialect's value (`vitestDialect`, B27e): `provino/vitest` and the config reader import
- * it. In `shared` it made every worker import `coordinator.js` (`defineDialect` is the
- * coordinator's), and in `coordinator.js` every run evaluated it, a native one too: a leaf of its
- * own, which imports `coordinator.js`.
- */
-const VITEST_DIALECT = /[\\/]packages[\\/]dialect-vitest[\\/]src[\\/]dialect\.ts$/
-
-/**
- * The Jest dialect's coordinator code (B27e): its value (`jestDialect`: `dialect.ts` and the
- * package's index), the config reader and the command line (`/node`), the results (`/results`),
- * and `provino jest` itself (`jest-command.ts` and the files only it imports). `cli.ts` imports
- * `jest-command.ts` and `run()` the dialect by a dynamic import, so `provino run` on a native
- * project loads none of it (`packages/provino/test/native-load.test.ts`). One chunk on purpose: left
- * to `shared`, `/node` (which `jest-command` and the watch driver both import) lands in
- * `shared.js` while `jestDialect` sat in `coordinator.js`, which imports `shared.js`, so
- * `shared.js` evaluated `jestNodeDialect` before `jestDialect` existed (B27d's
- * `ReferenceError`). Here what reads `jestDialect` is in the chunk that defines it, and the chunk
- * imports `coordinator.js` and `shared.js`, never the other way. Watch's own files stay
- * `WATCH`'s (priority 5, taken first).
+ * `provino jest`'s own files (B27e): `jest-command.ts` and the files only it imports. They import
+ * the Jest dialect's `/node`, which is the add-on's since B27f (D187) and stays an external import,
+ * so they are a chunk that only `cli.ts`'s dynamic import reaches: `provino run` on a native
+ * project loads none of it (`packages/provino/test/native-load.test.ts`), and a missing add-on is
+ * found at that import (the install line). The chunk imports `coordinator.js` and `shared.js`,
+ * never the other way. Watch's own files stay `WATCH`'s (priority 5, taken first).
  */
 const JEST_NODE = new RegExp(
   [
-    'dialect-jest[\\/]src[\\/](?:dialect|index)\\.ts$',
-    'dialect-jest[\\/]src[\\/](?:node|results)[\\/](?!.*\\.test\\.ts$)',
     'provino[\\/]src[\\/]internal[\\/](?:jest-command|jest-reporters|jest-selection|jest-root-hint|provino-flags|select-projects)\\.ts$',
   ]
     .map((alternative) => `[\\\\/]packages[\\\\/]${alternative}`)
@@ -209,7 +191,6 @@ const JEST_NODE = new RegExp(
 const WATCH = new RegExp(
   [
     'orchestrator[\\\\/]src[\\\\/]watch[\\\\/](?!.*\\.test\\.ts$)',
-    'dialect-jest[\\\\/]src[\\\\/]node[\\\\/]watch[\\\\/](?!plugin-error\\.ts$|terminal\\.ts$|.*\\.test\\.ts$)',
     'provino[\\\\/]src[\\\\/]internal[\\\\/](?:jest-watch|watch-interrupt)\\.ts$',
   ]
     .map((alternative) => `[\\\\/]packages[\\\\/]${alternative}`)
@@ -263,6 +244,11 @@ export function workerRefs(): NonNullable<UserConfig['plugins']> {
           const out = code.replace(RESOLVE_CALL, (call, a?: string, b?: string, c?: string) => {
             const specifier = a ?? b ?? c ?? ''
             if (!specifier.startsWith('@provino/')) return call
+            if (ADD_ONS.some((name) => specifier === name || specifier.startsWith(`${name}/`))) {
+              throw new Error(
+                `${id}: import.meta.resolve('${specifier}') names an add-on's file (D187): take the ref from the add-on's own value, which resolves its files where it is installed`,
+              )
+            }
             const entry = WORKER_ENTRIES[specifier]
             if (entry === undefined) {
               throw new Error(
@@ -327,12 +313,14 @@ export function umbrellaConfig(dir: string): UserConfig[] {
       ...common,
       dts: false,
       deps: {
-        alwaysBundle: PROVINO_SCOPE,
+        alwaysBundle: isEngine,
+        neverBundle: ADD_ON_SCOPE,
         // Nothing from node_modules is bundled: the `@provino/*` packages are workspace sources.
         onlyBundle: [],
-        // The output imports only what `provino` declares: a third-party package a bundled
-        // `@provino/*` needs and the umbrella doesn't list is caught here, not by a user's install.
-        onlyImport: [...runtimeDependencyNames(manifest)],
+        // The output imports only what `provino` declares, and the add-ons (D187), which a user
+        // installs beside it: a third-party package a bundled `@provino/*` needs and the umbrella
+        // doesn't list is caught here, not by a user's install.
+        onlyImport: [...runtimeDependencyNames(manifest), ...ADD_ONS],
       },
       outputOptions: {
         // T1.10: three chunks instead of a dozen small ones, so a worker's cold start loads a
@@ -382,21 +370,14 @@ export function umbrellaConfig(dir: string): UserConfig[] {
               priority: 5,
               includeDependenciesRecursively: false,
             },
-            // The Jest dialect's coordinator code: `provino jest` and a config that names it only.
+            // `provino jest`'s command: reached by `cli.ts`'s dynamic import only.
             {
               name: 'jest-node',
               test: JEST_NODE,
               priority: 4,
               includeDependenciesRecursively: false,
             },
-            // The Vitest dialect's value: `provino/vitest` and `provino vitest` only.
-            {
-              name: 'vitest-dialect',
-              test: VITEST_DIALECT,
-              priority: 5,
-              includeDependenciesRecursively: false,
-            },
-            // The Vitest dialect's coordinator code: `provino vitest` only.
+            // `provino vitest`'s command: reached by `cli.ts`'s dynamic import only.
             {
               name: 'vitest-node',
               test: VITEST_NODE,

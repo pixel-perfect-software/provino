@@ -18,6 +18,7 @@ import {
   readChangesetConfig,
 } from './changesets.ts'
 import { fileAt, resolveBase } from './git.ts'
+import { ADD_ONS, isAddOn } from './internal-entries.ts'
 import { installScriptProblems } from './install-scripts.ts'
 import { runKnip } from './knip.ts'
 import { lintPackAsync } from './lint-pack.ts'
@@ -66,7 +67,8 @@ export const RELEASE_WORKFLOW = '.github/workflows/release.yml'
 
 /**
  * The `@provino/*` packages `provino` inlines: the ones it lists as workspace dev dependencies and,
- * closed over their runtime dependencies, the ones those need.
+ * closed over their runtime dependencies, the ones those need. An add-on (D187: a package that
+ * names `provino` as a peer) is not inlined: it is a dev dependency for `provino`'s own tests.
  * @internal
  */
 export function inlinedPackages(
@@ -79,7 +81,7 @@ export function inlinedPackages(
   )
   for (let name = queue.pop(); name !== undefined; name = queue.pop()) {
     const pkg = byName.get(name)
-    if (pkg === undefined || inlined.has(name)) continue
+    if (pkg === undefined || inlined.has(name) || isAddOn(pkg.manifest)) continue
     inlined.set(name, pkg)
     for (const dependency of runtimeDependencyNames(pkg.manifest)) {
       if (dependency.startsWith('@provino/')) queue.push(dependency)
@@ -107,6 +109,7 @@ export function umbrellaDependencyProblems(
   )
   const declared = new Set(runtimeDependencyNames(umbrella.manifest))
   return [
+    ...addOnProblems(packages, umbrella),
     ...[...needed]
       .filter((name) => !declared.has(name))
       .map((name) => `provino inlines packages that need ${name}, but does not list it`),
@@ -114,6 +117,53 @@ export function umbrellaDependencyProblems(
       .filter((name) => !needed.has(name))
       .map((name) => `provino lists ${name}, but no package it inlines needs it`),
   ]
+}
+
+/**
+ * The add-ons' side of the split (D187): each of `ADD_ONS` is a package that names `provino` as its
+ * peer, at `workspace:*` (one version: the engine's internal entries promise no semver), and has
+ * no `@provino/*` package among its runtime dependencies (its build reaches the engine through
+ * `provino/internal/*`, so a dependency would install a second copy); a package that names the
+ * peer is one of them; and `provino` lists none of them at run time (an add-on is installed
+ * beside it, never by it).
+ * @internal
+ */
+export function addOnProblems(
+  packages: readonly WorkspacePackage[],
+  umbrella: WorkspacePackage,
+): readonly string[] {
+  const problems: string[] = []
+  for (const pkg of packages) {
+    const { name } = pkg.manifest
+    if (isAddOn(pkg.manifest) && !ADD_ONS.includes(name)) {
+      problems.push(`${name} names provino as a peer but is not an add-on (ADD_ONS)`)
+    }
+  }
+  for (const name of ADD_ONS) {
+    const pkg = packages.find((candidate) => candidate.manifest.name === name)
+    if (pkg === undefined) {
+      problems.push(`the add-on ${name} is missing`)
+      continue
+    }
+    const peer = pkg.manifest.peerDependencies.provino
+    if (peer !== 'workspace:*') {
+      problems.push(`${name} must name provino as a peer at workspace:* (got ${peer ?? 'none'})`)
+    }
+    for (const dependency of [
+      ...Object.keys(pkg.manifest.dependencies),
+      ...Object.keys(pkg.manifest.optionalDependencies),
+    ]) {
+      if (dependency.startsWith('@provino/') || dependency === 'provino') {
+        problems.push(
+          `${name} depends on ${dependency} at run time: its engine comes from its provino peer`,
+        )
+      }
+    }
+    if (runtimeDependencyNames(umbrella.manifest).includes(name)) {
+      problems.push(`provino lists the add-on ${name} at run time: it is installed beside provino`)
+    }
+  }
+  return problems
 }
 
 /** What a section found, before it is named. */

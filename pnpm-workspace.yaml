@@ -2,6 +2,11 @@ packages:
   - packages/*
   - tooling/*
 
+# The add-on dialects name `provino` as a peer (D187) and `provino` lists them as dev dependencies
+# for its own tests, a cycle by design: the build order is Turborepo's (it orders `provino` after
+# them), and `pnpm -r` may take the two in any order.
+ignoreWorkspaceCycles: true
+
 # Install only versions published at least 7 days ago (10080 minutes).
 minimumReleaseAge: 10080
 # autd is our own package, so all its versions skip the wait (DECISIONS D14).

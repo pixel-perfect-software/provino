@@ -1,4 +1,7 @@
+import { rmSync } from 'node:fs'
+import { join } from 'node:path'
 import type { UserConfig } from 'tsdown/config'
+import { internalImports, isAddOn } from './internal-entries.ts'
 import { type PackageManifest, readManifest, runtimeDependencyNames } from './package-json.ts'
 
 /**
@@ -106,5 +109,39 @@ export function packageConfig(dir: string): UserConfig {
       // A subpath entry may import its own package by name (a self-reference, which keeps one copy).
       onlyImport: [manifest.name, ...runtimeDependencyNames(manifest)],
     },
+    // An add-on (D187) reaches the engine through its `provino` peer, never a copy of its own.
+    ...(isAddOn(manifest) ? { plugins: internalImports(manifest.name) } : {}),
   }
+}
+
+/**
+ * An add-on's subpath a worker imports (D187): built on its own, so it shares no chunk with the
+ * coordinator's entries and a worker reads one file of the add-on (a small module both sides use,
+ * such as `jest-require.ts`, is then in both outputs; neither holds state another reads).
+ */
+const WORKER_SUBPATHS: ReadonlySet<string> = new Set(['./runtime'])
+
+/**
+ * The tsdown configs of the package in `dir`: `packageConfig` for every package but an add-on
+ * (D187), whose worker subpaths are a second build of their own (`WORKER_SUBPATHS`). `dist` is
+ * emptied here once, as the builds run together.
+ * @internal
+ */
+export function packageConfigs(dir: string): UserConfig[] {
+  const config = packageConfig(dir)
+  const manifest = readManifest(dir)
+  if (!isAddOn(manifest)) return [config]
+  const worker = new Set(
+    entriesOf(manifest)
+      .filter((entry) => WORKER_SUBPATHS.has(entry.subpath))
+      .map((entry) => entry.name),
+  )
+  const entry = Object.entries(config.entry ?? {})
+  const pick = (inWorker: boolean) =>
+    Object.fromEntries(entry.filter(([name]) => worker.has(name) === inWorker))
+  rmSync(join(dir, 'dist'), { recursive: true, force: true })
+  return [
+    { ...config, clean: false, entry: pick(false) },
+    { ...config, clean: false, entry: pick(true) },
+  ]
 }
