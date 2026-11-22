@@ -1,6 +1,6 @@
 {
-  "extends": "../../tsconfig.base.json",
-  "include": ["src/**/*.test.ts"],
+  "extends": "../../tooling/provino/tsconfig.tests.base.json",
+  "include": ["src/**/*.test.ts", "provino.config.ts"],
   "references": [
     {
       "path": "./tsconfig.json"
@@ -10,6 +10,9 @@
     },
     {
       "path": "../types"
+    },
+    {
+      "path": "../../tooling/provino"
     }
   ]
 }

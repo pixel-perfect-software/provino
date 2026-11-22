@@ -1,3 +1,6 @@
+import type { ProvinoConfig } from 'provino/config'
 import { packageConfig } from '../../tooling/provino/base.ts'
 
-export default packageConfig(import.meta.dirname)
+const config: ProvinoConfig = packageConfig(import.meta.dirname)
+
+export default config

@@ -3,21 +3,26 @@
 // packages that are migrated. One module with no dependencies of its own, so the shared config
 // (`tooling/provino/base.ts`, run by the runner), `test-shards.ts`, the migrate code and `knip.ts`
 // all read the same facts. Phase 10 (the move to the pinned runner) changes `TEST_RUNNER` here.
-import { existsSync, globSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-/** The runner a migrated package's `test` script runs: this checkout's built bin (D203). */
-export const TEST_RUNNER = 'node ../../packages/provino/dist/cli.js run'
+/** This checkout's built bin, repo-relative (D203; Phase 10 swaps it for the pinned runner). */
+export const RUNNER_BIN = 'packages/provino/dist/cli.js'
+
+/** The runner a migrated package's `test` script runs, from a package directory. */
+export const TEST_RUNNER: string = `node ../../${RUNNER_BIN} run`
 
 /** Where the bootstrap set is listed: repo-relative file → why it stays on node:test. */
 export const BOOTSTRAP_FILE = 'tooling/provino/bootstrap.json'
 
+/** The directories of a migrated package whose `*.test.ts` files its config includes: the one rule. */
+export const TEST_ROOTS: readonly string[] = ['src', 'test', 'bench']
+
 /** The test files a migrated package's config includes, relative to the package. */
-export const INCLUDE_GLOBS: readonly string[] = [
-  'src/**/*.test.ts',
-  'test/**/*.test.ts',
-  'bench/**/*.test.ts',
-]
+export const INCLUDE_GLOBS: readonly string[] = TEST_ROOTS.map((root) => `${root}/**/*.test.ts`)
+
+/** The `src` glob: the tests that sit in the package's own project, and the tests project's include. */
+export const SRC_TEST_GLOB: string = INCLUDE_GLOBS[0] ?? 'src/**/*.test.ts'
 
 /** The one file the bootstrap set must always hold: the runner's canary. */
 export const CANARY = 'packages/provino/test/bootstrap/canary.test.ts'
@@ -30,18 +35,32 @@ export function bootstrapFiles(root: string): readonly string[] {
   return Object.keys(parsed.files).sort()
 }
 
-/** The repo-relative directories with a `provino.config.ts` of their own, sorted. */
+/**
+ * The repo-relative directories with a `provino.config.ts` of their own, sorted, found under the
+ * `root` given (never the working directory). Plain `readdirSync`: `fs.globSync` is experimental on
+ * Node 22.15 and prints a warning into every run that imports this module.
+ */
 export function migratedDirs(root: string): readonly string[] {
   return ['packages', 'tooling']
-    .flatMap((base) => globSync(`${base}/*/provino.config.ts`, { cwd: root }))
-    .map((file) =>
-      file
-        .split('\\')
-        .join('/')
-        .replace(/\/provino\.config\.ts$/, ''),
+    .flatMap((base) =>
+      readdirSync(join(root, base), { withFileTypes: true })
+        .filter((entry) => entry.isDirectory())
+        .map((entry) => `${base}/${entry.name}`),
     )
-    .filter((dir) => existsSync(join(root, dir, 'package.json')))
+    .filter(
+      (dir) =>
+        existsSync(join(root, dir, 'provino.config.ts')) &&
+        existsSync(join(root, dir, 'package.json')),
+    )
     .sort()
+}
+
+/** Whether a package-relative path is one a migrated package's config includes (`TEST_ROOTS`). */
+export function isIncludedTestFile(relative: string): boolean {
+  return (
+    relative.endsWith('.test.ts') &&
+    TEST_ROOTS.some((root) => relative.startsWith(`${root}/`) && relative.length > root.length + 9)
+  )
 }
 
 /**

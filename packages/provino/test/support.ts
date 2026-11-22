@@ -499,6 +499,41 @@ export function runBuilt(
   return { status: result.status, stdout: result.stdout, stderr: result.stderr }
 }
 
+/**
+ * `runBuilt` without blocking: the bin runs beside whatever else the caller starts, so cases that
+ * each boot it can run together. Resolves with the exit status and the signal that ended it (one of
+ * the two is null), never rejects for a failing run; a run that does not end in 120 s is killed and
+ * reports its signal.
+ */
+export function runBuiltAsync(
+  args: readonly string[],
+  options: {
+    readonly cwd: string
+    readonly preloads?: readonly Preload[]
+    readonly env?: NodeJS.ProcessEnv
+    readonly bin?: string
+  },
+): Promise<{
+  readonly status: number | null
+  readonly signal: NodeJS.Signals | null
+  readonly stdout: string
+  readonly stderr: string
+}> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(process.execPath, [options.bin ?? BUILT_BIN, ...args], {
+      cwd: options.cwd,
+      env: childEnv(options.preloads, options.env),
+      timeout: 120_000,
+    })
+    let stdout = ''
+    let stderr = ''
+    child.stdout.setEncoding('utf8').on('data', (chunk: string) => (stdout += chunk))
+    child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk))
+    child.on('error', reject)
+    child.on('close', (status, signal) => resolve({ status, signal, stdout, stderr }))
+  })
+}
+
 /** One process's record from `load-recorder.ts`: its main module (`argv[1]`) and every URL it loaded, in order. */
 export interface LoadLog {
   readonly main: string
