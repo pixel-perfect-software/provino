@@ -55,6 +55,8 @@ const config: KnipConfig = {
   ],
   workspaces: {
     '.': {
+      // Provino runs its own tests (B27g2): the one-call config, which names the migrated packages.
+      entry: ['provino.config.ts'],
       ignoreDependencies: [
         // Run as tools by `tooling/packaging` (`node <bin>`) and by root scripts.
         '@arethetypeswrong/cli',
@@ -63,6 +65,11 @@ const config: KnipConfig = {
         '@typescript/typescript6',
         'dependency-cruiser',
       ],
+    },
+    // Packages whose tests run on Provino (B27g2): their `test` script no longer names the files,
+    // so knip is told where they are, and which config runs them.
+    'packages/policy': {
+      entry: ['provino.config.ts', 'src/**/*.test.ts', 'test/**/*.test-d.ts'],
     },
     'tooling/boundaries': {
       // Declared by the package map (its manifest node lists them); not imported by a source file.
@@ -148,6 +155,7 @@ const config: KnipConfig = {
       ignoreDependencies: ['natural-compare'],
     },
     'packages/lazy': {
+      entry: ['provino.config.ts', 'src/**/*.test.ts', 'test/**/*.test.ts', 'test/**/*.test-d.ts'],
       // The type-check tests run its `bin/tsc` found by path (`test/support/tsc.ts`), which knip can't see.
       ignoreDependencies: ['typescript-5.9'],
     },

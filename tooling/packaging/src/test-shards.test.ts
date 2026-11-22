@@ -7,6 +7,8 @@ import { after, describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { nodeTestArgs } from './node-test.ts'
 import {
+  bootstrapProblems,
+  CANARY,
   SHARD_COUNT,
   SHARD_ONE,
   SPLIT_PACKAGES,
@@ -172,5 +174,55 @@ describe('the file split of a package', () => {
     assert.equal(all.length, 7)
     assert.deepEqual(halves.flat().sort(), all)
     assert.ok(halves.every((half) => half.length > 0 && half.length < all.length))
+  })
+})
+
+describe('bootstrapProblems (B27g2)', () => {
+  const pkg = (files: readonly string[], nodeTestFiles: readonly string[]) => ({
+    name: 'p',
+    files,
+    nodeTestFiles,
+  })
+  const exists = (): boolean => true
+
+  test('a file on exactly one runner is fine', () => {
+    assert.deepEqual(
+      bootstrapProblems(
+        [CANARY, 'p/a.test.ts'],
+        [pkg(['p/a.test.ts', 'p/b.test.ts'], ['p/a.test.ts'])],
+        exists,
+      ),
+      [],
+    )
+  })
+
+  test('a file in the bootstrap set that no node:test step runs runs on neither runner', () => {
+    const problems = bootstrapProblems([CANARY, 'p/a.test.ts'], [pkg(['p/a.test.ts'], [])], exists)
+    assert.equal(problems.length, 1)
+    assert.match(problems[0] ?? '', /runs on neither runner/)
+  })
+
+  test('a file node:test runs that is not in the set runs on both runners', () => {
+    const problems = bootstrapProblems([CANARY], [pkg(['p/a.test.ts'], ['p/a.test.ts'])], exists)
+    assert.equal(problems.length, 1)
+    assert.match(problems[0] ?? '', /runs on both runners/)
+  })
+
+  test('the canary is required, and an entry must exist', () => {
+    assert.match(
+      bootstrapProblems([], [], exists).join('\n'),
+      /must hold packages\/provino\/test\/bootstrap\/canary\.test\.ts/,
+    )
+    assert.match(
+      bootstrapProblems([CANARY, 'gone.test.ts'], [], (file) => file === CANARY).join('\n'),
+      /gone\.test\.ts does not exist/,
+    )
+  })
+
+  test('a script that names a file the package does not have is reported', () => {
+    assert.match(
+      bootstrapProblems([CANARY], [pkg([], ['p/x.test.ts'])], exists).join('\n'),
+      /not one of its test files/,
+    )
   })
 })

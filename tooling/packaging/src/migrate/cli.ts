@@ -14,8 +14,8 @@ import { formatDifference, isEmptyDifference } from './node-test-compare.ts'
 import { findPackage, rewritePackage, verifyPackage } from './node-test-migrate.ts'
 import { formatRefusal } from './node-test-rewrite.ts'
 
-/** The pinned runner B27g2 installs (D191): never this checkout's own source, which is under test. */
-const DEFAULT_RUNNER = join(ROOT, 'node_modules/provino-runner/dist/cli.js')
+/** This checkout's built bin (D203, until the one release moves it to a pinned rc, D191): `pnpm build` first. */
+const DEFAULT_RUNNER = join(ROOT, 'packages/provino/dist/cli.js')
 const USAGE =
   'usage: migrate:node-test rewrite <package> [--dry-run]\n' +
   '       migrate:node-test verify <package> [--runner <cli.js>] [--config <file>]'
@@ -95,7 +95,7 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
     if (!existsSync(runnerPath)) {
       throw new MigrateError(
         'MIGRATE_USAGE',
-        `no runner at ${runnerPath}: install the provino-runner rc (B27g2) or pass --runner <cli.js>`,
+        `no runner at ${runnerPath}: run pnpm build or pass --runner <cli.js>`,
       )
     }
     const report = await verifyPackage({ packageDir, root, cacheDir, runner: runnerPath, config })

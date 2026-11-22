@@ -11,7 +11,8 @@
 //   node tooling/packaging/src/test-shards.ts check
 //   node tooling/packaging/src/test-shards.ts run <1|2> [turbo run flags…]
 import { spawn, spawnSync } from 'node:child_process'
-import { realpathSync } from 'node:fs'
+import { existsSync, globSync, readFileSync, realpathSync } from 'node:fs'
+import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { ROOT, readWorkspacePackages } from './workspace.ts'
 
@@ -96,6 +97,98 @@ export function shardProblems(
   return problems
 }
 
+/** Where the files that stay on node:test are listed (B27g2, D203). */
+const BOOTSTRAP_FILE = 'tooling/provino/bootstrap.json'
+
+/** The one file the bootstrap set must always hold: the runner's canary. */
+export const CANARY = 'packages/provino/test/bootstrap/canary.test.ts'
+
+/**
+ * One package that runs on Provino (it has a `provino.config.ts`): its test files (repo-relative)
+ * and the ones its `test` script still hands to `node --test`.
+ * @internal
+ */
+export interface MigratedPackage {
+  readonly name: string
+  readonly files: readonly string[]
+  readonly nodeTestFiles: readonly string[]
+}
+
+/**
+ * What is wrong with the bootstrap set (`tooling/provino/bootstrap.json`): a file Provino skips
+ * must be run by the package's node:test step, and one node:test runs must be on the list, so each
+ * test file of a migrated package runs on exactly one runner. Also: an entry that is not a file, and
+ * a set without the canary.
+ * @internal
+ */
+export function bootstrapProblems(
+  bootstrap: readonly string[],
+  packages: readonly MigratedPackage[],
+  exists: (file: string) => boolean,
+): readonly string[] {
+  const problems: string[] = []
+  const listed = new Set(bootstrap)
+  if (!listed.has(CANARY)) problems.push(`the bootstrap set must hold ${CANARY}`)
+  for (const file of bootstrap) {
+    if (!exists(file)) problems.push(`bootstrap file ${file} does not exist`)
+  }
+  for (const pkg of packages) {
+    const viaNodeTest = new Set(pkg.nodeTestFiles)
+    for (const file of pkg.files) {
+      const skipped = listed.has(file)
+      const named = viaNodeTest.has(file)
+      if (skipped && !named)
+        problems.push(
+          `${file} is in the bootstrap set but ${pkg.name}'s test script does not run it: it runs on neither runner`,
+        )
+      if (!skipped && named)
+        problems.push(
+          `${file} is run by node --test in ${pkg.name}'s test script but is not in the bootstrap set: it runs on both runners`,
+        )
+    }
+    for (const file of pkg.nodeTestFiles) {
+      if (!pkg.files.includes(file))
+        problems.push(`${pkg.name}'s test script names ${file}, which is not one of its test files`)
+    }
+  }
+  return problems
+}
+
+/** The test files a migrated package's config includes, as `tooling/provino/base.ts` names them. */
+const INCLUDE_GLOBS = ['src/**/*.test.ts', 'test/**/*.test.ts', 'bench/**/*.test.ts']
+
+/** The packages with a `provino.config.ts`, read from disk. */
+function migratedPackages(): readonly MigratedPackage[] {
+  return readWorkspacePackages()
+    .filter((pkg) => pkg.rel !== '.' && existsSync(join(pkg.dir, 'provino.config.ts')))
+    .map((pkg) => {
+      const rel = (file: string): string => `${pkg.rel}/${file.split('\\').join('/')}`
+      const script = pkg.manifest.scripts?.test ?? ''
+      const nodeTest = script.includes('node --test')
+        ? script.slice(script.indexOf('node --test'))
+        : ''
+      return {
+        name: pkg.manifest.name,
+        files: INCLUDE_GLOBS.flatMap((pattern) =>
+          globSync(pattern, { cwd: pkg.dir, exclude: (name) => name === 'node_modules' }),
+        )
+          .map(rel)
+          .sort(),
+        nodeTestFiles: nodeTest
+          .split(/\s+/)
+          .filter((word) => /\.test\.ts$/.test(word))
+          .map((word) => rel(word.replaceAll(/^["']|["']$/g, ''))),
+      }
+    })
+}
+
+function bootstrapFiles(): readonly string[] {
+  const parsed = JSON.parse(readFileSync(join(ROOT, BOOTSTRAP_FILE), 'utf8')) as {
+    readonly files: Readonly<Record<string, string>>
+  }
+  return Object.keys(parsed.files)
+}
+
 /** The workspace packages (not the root) that have a `test` script. */
 function packagesWithTests(): readonly string[] {
   return readWorkspacePackages()
@@ -135,6 +228,9 @@ function check(): number {
   const ran = Array.from({ length: SHARD_COUNT }, (_, index) => plannedPackages(index + 1))
   const problems = [
     ...shardProblems(packagesWithTests(), ran),
+    ...bootstrapProblems(bootstrapFiles(), migratedPackages(), (file) =>
+      existsSync(join(ROOT, file)),
+    ),
     ...unshardableSplits().map(
       (name) => `${name} is split but its test script does not run through node-test.ts`,
     ),
