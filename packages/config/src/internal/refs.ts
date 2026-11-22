@@ -54,6 +54,13 @@ export function assertNativeRefs(native: NativeRuntimeRefs): void {
   checkRef(native.matcherTable, 'native.matcherTable')
   checkRef(native.moduleScope, 'native.moduleScope')
   checkRef(native.globals, 'native.globals')
+  const hoist: unknown = native.hoist
+  if (hoist !== undefined && (!isRecord(hoist) || typeof hoist.id !== 'string')) {
+    throw new ConfigError(
+      'CONFIG_INVALID',
+      `native.hoist must be a hoist policy (got ${describe(hoist)})`,
+    )
+  }
   if (!isStringArray(native.modules) || native.modules.includes('')) {
     throw new ConfigError(
       'CONFIG_INVALID',

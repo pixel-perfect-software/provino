@@ -1325,6 +1325,10 @@ export interface HoistPolicy<Calls extends string = string, Values extends strin
     readonly hoistCalls: { readonly [M in Calls]: HoistArgRule; };
     readonly hoistValues: readonly Values[];
     readonly id: string;
+    readonly importedCalls?: readonly {
+        readonly module: string;
+        readonly exportName: Calls;
+    }[];
     readonly messages: { readonly [Code in HoistErrorCode]: string; } & {
         readonly HOIST_EXPORTED_VALUE: string;
     };
@@ -2055,10 +2059,6 @@ export type MockObjectMatcher = {
     readonly kind: "namespace-member";
     readonly module: string;
     readonly exportName: string;
-} | {
-    readonly kind: "imported-call";
-    readonly module: string;
-    readonly exportName: string;
 };
 
 // @public
@@ -2243,6 +2243,7 @@ export interface ModuleTransformer {
 // @public
 export interface NativeRuntimeRefs {
     readonly globals: ModuleRef<GlobalsFactory>;
+    readonly hoist?: HoistPolicy;
     readonly matcherTable: ModuleRef<MatcherTableFactory>;
     readonly modules: readonly string[];
     readonly moduleScope: ModuleRef<ModuleScopeFactory>;

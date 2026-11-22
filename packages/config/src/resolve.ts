@@ -3,7 +3,6 @@ import { dirname, isAbsolute, resolve } from 'node:path'
 import {
   callBehaviour,
   createBehaviourLoader,
-  nativeHoistPolicy,
   resolvePolicy,
   serializePolicy,
 } from '@provino/policy'
@@ -689,7 +688,7 @@ async function finishProject(
     loader: {
       // The dialect's hoist policy crosses by value: data, with `RegExp` and `Set` leaves (B13c Gap 12).
       // With no dialect, the native runtime's (B27j): `mock`/`unmock` imported from its served module.
-      hoist: dialect?.loader?.hoist ?? (native === undefined ? null : nativeHoistPolicy),
+      hoist: dialect?.loader?.hoist ?? native?.hoist ?? null,
       // A module's own bindings (Jest's `jest`) are part of what `injectGlobals` injects: off, the
       // wrapper declares none, so a module that names one gets a `ReferenceError` as in jest-runtime
       // (and `typeof jest` is 'undefined').

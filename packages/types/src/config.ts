@@ -161,6 +161,11 @@ export interface NativeRuntimeRefs {
   readonly modules: readonly string[]
   /** The same values as globals, used only under `globals: true`. */
   readonly globals: ModuleRef<GlobalsFactory>
+  /**
+   * The served module's mock hoisting (B27j: `mock` imported from it), by value as
+   * `SerializedLoaderConfig.hoist`. None: nothing hoists.
+   */
+  readonly hoist?: HoistPolicy
 }
 
 /**
