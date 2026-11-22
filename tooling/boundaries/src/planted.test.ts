@@ -6,7 +6,8 @@ import { spawn } from 'node:child_process'
 import { cp, mkdir, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { describe, test } from 'node:test'
-import { BIOME_BIN, DEPCRUISE_BIN, ROOT } from './paths.ts'
+import { loadManifest } from './manifest.ts'
+import { BIOME_BIN, DEPCRUISE_BIN, MANIFEST_PATH, ROOT } from './paths.ts'
 import { scratchDir, writeFiles } from './test-support.ts'
 
 interface Result {
@@ -384,6 +385,36 @@ describe('dependency-cruiser rules', { concurrency: true }, () => {
       assert.doesNotMatch(output, /packages\/core\/src\/typed\.ts/, `${layout}: ${output}`)
       assert.match(output, /error banned-packages-api: packages\/api\/src\/planted\.ts → /)
       assert.match(output, /error banned-packages-expect: packages\/expect\/src\/planted\.ts → /)
+    }
+  })
+
+  test('B27e: a runtime import of pretty-format fails in every neutral node the native list covers', async () => {
+    const manifest = await loadManifest(MANIFEST_PATH)
+    const nodes = manifest.nodes.filter(
+      (node) => node.neutral && node.dir !== null && node.bannedPackages.includes('pretty-format'),
+    )
+    // NN1's neutral packages, at least: a node that drops the list fails here, not in a native run.
+    for (const name of ['@provino/core', '@provino/expect', '@provino/config', '@provino/api']) {
+      assert.ok(
+        nodes.some((node) => node.name === name),
+        `${name} is not neutral with the native list`,
+      )
+    }
+    const plantOf = (dir: string): string =>
+      dir.includes('/src/') ? `${dir}/planted-native.ts` : `${dir}/src/planted-native.ts`
+    const dir = await workspace(
+      Object.fromEntries(
+        nodes.map((node) => [plantOf(node.dir ?? ''), "import 'pretty-format'\n"]),
+      ),
+    )
+    await installModule(dir, 'pretty-format', 'pnpm')
+    const { code, output } = await depcruise(dir)
+    assert.notEqual(code, 0, output)
+    for (const node of nodes) {
+      const path = plantOf(node.dir ?? '')
+        .replaceAll('/', '\\/')
+        .replaceAll('.', '\\.')
+      assert.match(output, new RegExp(`error banned-packages-[\\w-]+: ${path} → `), node.name)
     }
   })
 
