@@ -4,5 +4,6 @@
 // add-ons only.
 // Only what the add-on uses: the whole package here would split the transform's cache store out of
 // the bin's light files into a chunk of its own, one more file in every worker's cold start.
-export { ConfigError, importConfigModule } from '@provino/config'
+
 export type * from '@provino/config'
+export { ConfigError, importConfigModule } from '@provino/config'

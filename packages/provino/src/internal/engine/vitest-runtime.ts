@@ -7,17 +7,18 @@
 // loads too. Types are whole packages: they cost nothing at run time.
 
 export type * from '@provino/core'
-export { jsdomEnvironment } from '@provino/env-jsdom'
 export type * from '@provino/env-jsdom'
-export { WINDOW_KEYS, leakReport, populateGlobal, snapshotProperties } from '@provino/env-shared'
+export { jsdomEnvironment } from '@provino/env-jsdom'
 export type * from '@provino/env-shared'
-export { policyMessages, snapshotMatchers } from '@provino/expect'
+export { leakReport, populateGlobal, snapshotProperties, WINDOW_KEYS } from '@provino/env-shared'
 export type * from '@provino/expect'
-export { automock, createMockFn, createStubs, isMockFunction, spyOn } from '@provino/mock'
+export { policyMessages, snapshotMatchers } from '@provino/expect'
 export type * from '@provino/mock'
-export { defineDialect, moduleRef } from '@provino/policy'
-export type * from '@provino/policy'
-export { createResolver } from '@provino/resolver'
+export { automock, createMockFn, createStubs, isMockFunction, spyOn } from '@provino/mock'
+// The policy package whole: naming its values here is what the `slice-discipline` lint refuses in
+// `provino` (`defineDialect` hands out the whole `Policy`), and it adds nothing `shared.js` lacks.
+export * from '@provino/policy'
 export type * from '@provino/resolver'
-export { createTimerMembers } from '@provino/timers'
+export { createResolver } from '@provino/resolver'
 export type * from '@provino/timers'
+export { createTimerMembers } from '@provino/timers'

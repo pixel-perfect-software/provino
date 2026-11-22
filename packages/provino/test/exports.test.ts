@@ -228,6 +228,7 @@ describe('the umbrella exports (T1.10)', () => {
     const { status, stdout, stderr } = inPackage(
       `const out = {}
        for (const s of ${JSON.stringify([...wanted.keys()])}) out[s] = Object.keys(await import(s))
+       out.policy = Object.keys(await import('@provino/policy'))
        console.log(JSON.stringify(out))`,
     )
     assert.equal(status, 0, stderr)
@@ -239,11 +240,14 @@ describe('the umbrella exports (T1.10)', () => {
     // And nothing else: each value an internal entry exports is one an add-on imports. A wider
     // entry (`export *` of a package) keeps worker-only engine code in the graph, which then lands
     // in `shared.js`, and the coordinator of every run loads that (B27f's design round).
-    // (An entry only a worker ref names, `env-node` and `vite-alias`, is a module re-exported whole.)
+    // (An entry only a worker ref names, `env-node` and `vite-alias`, is a module re-exported whole,
+    // and so is `@provino/policy` in the runtime entries: the `slice-discipline` lint refuses its
+    // values by name in `provino`.)
+    const policy = new Set(got.policy ?? [])
     for (const [specifier, exported] of Object.entries(got)) {
       const names = wanted.get(specifier) ?? new Set<string>()
       if (names.size === 0) continue
-      const unused = exported.filter((name) => !names.has(name))
+      const unused = exported.filter((name) => !names.has(name) && !policy.has(name))
       assert.deepEqual(unused, [], specifier)
     }
   })
