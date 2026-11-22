@@ -7,6 +7,7 @@
 // `ignoreDependencies` below holds only what a static read of the imports can't see: packages
 // that are loaded by name at run time, run as tools, or bundled into `provino`. Each says why.
 import type { KnipConfig } from 'knip'
+import { INCLUDE_GLOBS, migratedDirs } from './tooling/packaging/src/dogfood.ts'
 import { readManifest } from './tooling/packaging/src/package-json.ts'
 
 /**
@@ -55,8 +56,8 @@ const config: KnipConfig = {
   ],
   workspaces: {
     '.': {
-      // Provino runs its own tests (B27g2): the one-call config, which names the migrated packages.
-      entry: ['provino.config.ts'],
+      // `pnpm test:provino` runs it by path.
+      entry: ['tooling/provino/all.config.ts'],
       ignoreDependencies: [
         // Run as tools by `tooling/packaging` (`node <bin>`) and by root scripts.
         '@arethetypeswrong/cli',
@@ -65,11 +66,6 @@ const config: KnipConfig = {
         '@typescript/typescript6',
         'dependency-cruiser',
       ],
-    },
-    // Packages whose tests run on Provino (B27g2): their `test` script no longer names the files,
-    // so knip is told where they are, and which config runs them.
-    'packages/policy': {
-      entry: ['provino.config.ts', 'src/**/*.test.ts', 'test/**/*.test-d.ts'],
     },
     'tooling/boundaries': {
       // Declared by the package map (its manifest node lists them); not imported by a source file.
@@ -155,7 +151,6 @@ const config: KnipConfig = {
       ignoreDependencies: ['natural-compare'],
     },
     'packages/lazy': {
-      entry: ['provino.config.ts', 'src/**/*.test.ts', 'test/**/*.test.ts', 'test/**/*.test-d.ts'],
       // The type-check tests run its `bin/tsc` found by path (`test/support/tsc.ts`), which knip can't see.
       ignoreDependencies: ['typescript-5.9'],
     },
@@ -221,6 +216,16 @@ const config: KnipConfig = {
       ],
     },
   },
+}
+
+// B27g2: a migrated package's `test` script no longer names its test files (the runner finds them),
+// so knip is told where they are, from the same facts the shared config and `test-shards check` read.
+for (const dir of migratedDirs('.')) {
+  const own = config.workspaces?.[dir] ?? {}
+  config.workspaces = {
+    ...config.workspaces,
+    [dir]: { ...own, entry: [...INCLUDE_GLOBS, 'provino.config.ts', 'test/**/*.test-d.ts'] },
+  }
 }
 
 export default config

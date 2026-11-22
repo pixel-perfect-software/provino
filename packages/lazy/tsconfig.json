@@ -1,8 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
   "include": ["src"],
-  // The tests import the native API as `provino`, which depends on this package: they are a project
-  // of their own (tsconfig.tests.json) so the references stay acyclic.
   "exclude": ["src/**/*.test.ts"],
   "references": [
     {

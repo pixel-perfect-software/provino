@@ -6,9 +6,8 @@
       "dependsOn": ["transit", "provino#build"],
       "inputs": [
         "$TURBO_DEFAULT$",
-        "$TURBO_ROOT$/provino.config.ts",
         "$TURBO_ROOT$/tooling/provino/**",
-        "$TURBO_ROOT$/packages/provino/dist/**"
+        "$TURBO_ROOT$/tooling/packaging/src/dogfood.ts"
       ]
     }
   }

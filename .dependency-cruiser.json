@@ -2345,8 +2345,8 @@
       }
     },
     {
-      "name": "native-api-only-in-tests",
-      "comment": "B27g2: this repo's own tests import the native API as `provino` (the checkout's entry, `packages/provino/src/index.ts`), so every boundary-* rule lets that one file through and this rule keeps it to test files and to `provino` itself. Production code reaches the API as data, through the runtime refs.",
+      "name": "test-only-entry",
+      "comment": "B27g2 (D203): this repo's own tests import the native API as `provino`, so every boundary-* rule lets packages/provino/src/index.ts through and this rule keeps it to test files and to its own package. Production code reaches the API as data, through the runtime refs.",
       "severity": "error",
       "from": {
         "path": "^(?:packages|tooling)/",
@@ -2420,7 +2420,7 @@
     "exclude": {
       "path": [
         "(^|/)(?:dist|\\.tsc|\\.turbo|\\.suites|\\.results|\\.record|\\.instructions)/",
-        "(?:^|/)provino\\.config\\.ts$|^tooling/provino/"
+        "(?:^|/)provino\\.config\\.ts$|^tooling/provino/(?:base|all\\.config)\\.ts$"
       ]
     },
     "tsPreCompilationDeps": true,
