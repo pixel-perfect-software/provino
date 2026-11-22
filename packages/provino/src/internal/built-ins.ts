@@ -1,16 +1,10 @@
 import type { EnvironmentRef, NativeRuntimeRefs } from '@provino/types'
 
-/** Where a worker finds an environment: an `EnvironmentRef` without the options a project adds. */
-type EnvironmentModule = Omit<EnvironmentRef, 'options'>
-
 /**
- * The adapter a Jest project's own environment class (D44) runs through; its options name the class.
+ * Where a worker finds an environment: an `EnvironmentRef` without the options a project adds.
  * @internal
  */
-export const JEST_ENVIRONMENT: EnvironmentModule = {
-  module: import.meta.resolve('@provino/dialect-jest/runtime'),
-  export: 'jestEnvironment',
-}
+export type EnvironmentModule = Omit<EnvironmentRef, 'options'>
 
 /**
  * The Node environment, which every project may name.

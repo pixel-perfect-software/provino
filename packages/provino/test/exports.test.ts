@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto'
 import {
   accessSync,
   constants,
+  realpathSync,
   existsSync,
   mkdirSync,
   mkdtempSync,
@@ -47,10 +48,39 @@ function inPackage(
   return { status: result.status, stdout: result.stdout, stderr: result.stderr }
 }
 
-/** The subpaths a user imports: the ones with a built `import` target. */
+/** The subpaths with a built `import` target. */
 const SUBPATHS = Object.entries(manifest.exports)
   .filter(([, conditions]) => conditions.import !== undefined)
   .map(([subpath]) => subpath)
+
+/** The ones a user imports: all but the add-ons' engine (`./internal/*`, D187). */
+const USER_SUBPATHS = SUBPATHS.filter((subpath) => !subpath.startsWith('./internal/'))
+
+/** The `dist` of each add-on, as its workspace link from this package finds it. */
+const ADD_ON_DISTS: Readonly<Record<string, string>> = {
+  'dialect-jest': join(PACKAGE, 'node_modules', '@provino', 'dialect-jest', 'dist'),
+  'dialect-vitest': join(PACKAGE, 'node_modules', '@provino', 'dialect-vitest', 'dist'),
+}
+
+/**
+ * The built files among `urls`, by package: `worker/main.js` for this package's own, and
+ * `dialect-jest:runtime/index.js` for an add-on's (each add-on's `dist` through its real path).
+ */
+function builtFiles(urls: readonly string[]): string[] {
+  const own = `${join(PACKAGE, 'dist')}/`
+  const addOns = Object.entries(ADD_ON_DISTS).map(
+    ([name, dist]) => [name, `${realpathSync(dist)}/`] as const,
+  )
+  const files: string[] = []
+  for (const url of urls) {
+    if (!url.startsWith('file://')) continue
+    const path = fileURLToPath(url)
+    if (path.startsWith(own)) files.push(path.slice(own.length))
+    for (const [name, dist] of addOns)
+      if (path.startsWith(dist)) files.push(`${name}:${path.slice(dist.length)}`)
+  }
+  return [...new Set(files)]
+}
 
 /** What each subpath of `SUBPATHS` exports, by the specifier a user imports it with. */
 const EXPORTED_NAMES: Readonly<Record<string, readonly string[]>> = {
@@ -120,7 +150,7 @@ const EXPORTED_NAMES: Readonly<Record<string, readonly string[]>> = {
 function assertExports(loadExpr: string, inputType: 'module' | 'commonjs'): void {
   assert.deepEqual(
     Object.keys(EXPORTED_NAMES).toSorted(),
-    SUBPATHS.map((subpath) => `provino${subpath.slice(1)}`).toSorted(),
+    USER_SUBPATHS.map((subpath) => `provino${subpath.slice(1)}`).toSorted(),
     'the table names every subpath a user imports',
   )
   const { status, stdout, stderr } = inPackage(
@@ -171,6 +201,50 @@ describe('the umbrella exports (T1.10)', () => {
     // `default` sends a CommonJS lookup to the ES module, which Node loads with `require(esm)`; a
     // top-level await anywhere in an entry's graph would throw ERR_REQUIRE_ASYNC_MODULE here.
     assertExports('require(s)', 'commonjs')
+  })
+
+  test("each add-on's build imports only names its provino/internal/* subpaths export (D187)", () => {
+    // What the add-ons' built files import from the engine, subpath by subpath.
+    const wanted = new Map<string, Set<string>>()
+    const walk = (dir: string): string[] =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) =>
+        entry.isDirectory()
+          ? walk(join(dir, entry.name))
+          : entry.name.endsWith('.js')
+            ? [join(dir, entry.name)]
+            : [],
+      )
+    for (const dist of Object.values(ADD_ON_DISTS)) {
+      for (const path of walk(dist)) {
+        const source = readFileSync(path, 'utf8')
+        for (const match of source.matchAll(
+          /import\s*\{([^}]*)\}\s*from\s*"(provino\/internal\/[^"]+)"/g,
+        )) {
+          const names = wanted.get(match[2] ?? '') ?? new Set<string>()
+          for (const part of (match[1] ?? '').split(',')) {
+            const name = part.trim().split(/\s+as\s+/)[0]
+            if (name !== undefined && name !== '') names.add(name)
+          }
+          wanted.set(match[2] ?? '', names)
+        }
+        for (const match of source.matchAll(/["'](provino\/internal\/[^"']+)["']/g))
+          if (!wanted.has(match[1] ?? '')) wanted.set(match[1] ?? '', new Set())
+      }
+    }
+    assert.ok(wanted.has('provino/internal/jest-runtime'), [...wanted.keys()].join(', '))
+    for (const specifier of wanted.keys())
+      assert.ok(SUBPATHS.includes(`.${specifier.slice('provino'.length)}`), specifier)
+    const { status, stdout, stderr } = inPackage(
+      `const out = {}
+       for (const s of ${JSON.stringify([...wanted.keys()])}) out[s] = Object.keys(await import(s))
+       console.log(JSON.stringify(out))`,
+    )
+    assert.equal(status, 0, stderr)
+    const got = JSON.parse(stdout) as Record<string, string[]>
+    for (const [specifier, names] of wanted) {
+      const missing = [...names].filter((name) => !(got[specifier] ?? []).includes(name))
+      assert.deepEqual(missing, [], specifier)
+    }
   })
 
   test('a path outside exports throws ERR_PACKAGE_PATH_NOT_EXPORTED, built or source', () => {
@@ -261,12 +335,13 @@ describe("`import 'provino'` alone", () => {
 describe('the worker-side expect (T7.12)', () => {
   test('imports no transform, resolver, loader, Oxc package or coordinator code', () => {
     // What `bench:expect-import` imports: the entry, then the runtime it forwards to.
-    const runtime = pathToFileURL(join(PACKAGE, 'dist', 'worker', 'jest-runtime.js')).href
-    const loaded = loadsOf(`await import('provino'); await import(${JSON.stringify(runtime)})`).urls
-    assert.ok(
-      loaded.some((url) => url.endsWith('/dist/worker/jest-runtime.js')),
-      loaded.join('\n'),
-    )
+    // The Jest dialect's runtime is the add-on's own file since B27f (D187), and it reaches the
+    // engine through `provino/internal/jest-runtime`.
+    const loaded = loadsOf(
+      "await import('provino'); await import('@provino/dialect-jest/runtime')",
+    ).urls
+    assert.ok(builtFiles(loaded).includes('dialect-jest:runtime/index.js'), loaded.join('\n'))
+    assert.ok(builtFiles(loaded).includes('internal/jest-runtime.js'), loaded.join('\n'))
     // The engine is there; the loading stack (`loading.js`, which holds `transform`, `resolver`
     // and `loader`, and the natives and `magic-string` they import) and the coordinator are not.
     assert.ok(loaded.some((url) => url.endsWith('/dist/shared.js')))
@@ -401,7 +476,6 @@ describe('a built worker (T1.10)', () => {
     assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
     assert.match(run.stderr, /Tests:\s+3 passed, 3 total/)
 
-    const dist = `${join(PACKAGE, 'dist')}/`
     // A run without --watch, in the bin and in every worker, loads no watch chunk (B23f).
     const everything = readdirSync(logs).flatMap((file) =>
       readFileSync(join(logs, file), 'utf8').split('\n').filter(Boolean),
@@ -412,22 +486,19 @@ describe('a built worker (T1.10)', () => {
       .filter((lines) => lines[0]?.split('\t')[0]?.endsWith('worker/bootstrap.js'))
     assert.ok(workers.length >= 1, 'no worker process was recorded')
     for (const lines of workers) {
-      const files = new Set(
-        lines
-          .map((line) => line.split('\t')[1] ?? '')
-          .filter((url) => url.startsWith('file://'))
-          .map((url) => fileURLToPath(url))
-          .filter((path) => path.startsWith(dist)),
-      )
+      // Counted over the two packages a Jest project installs since B27f (D187): `provino` and
+      // `@provino/dialect-jest`, whose runtime is the add-on's own file.
+      const files = new Set(builtFiles(lines.map((line) => line.split('\t')[1] ?? '')))
       assert.ok(
         files.size <= 10,
-        `a worker loaded ${files.size} files from provino: ${[...files].join(', ')}`,
+        `a worker loaded ${files.size} files from provino and its dialect: ${[...files].join(', ')}`,
       )
       // The worker's whole path is there: its entry, the engine, the dialect and the environment.
       for (const wanted of [
         'worker/bootstrap.js',
         'worker/main.js',
-        'worker/jest-runtime.js',
+        'internal/jest-runtime.js',
+        'dialect-jest:runtime/index.js',
         'worker/env-node.js',
       ]) {
         assert.ok(
@@ -485,9 +556,10 @@ function loadsOf(code: string): { readonly dist: string[]; readonly urls: string
   }
 }
 
-// B25b (T1.10, Phase 2's half): `provino vitest` is Phase 7's, so no Vitest worker runs yet. A
-// worker's cold start is the static closure of its entries (`a built worker` above loads exactly
-// the Jest set), and the Vitest dialect's runtime takes `worker/jest-runtime.js`'s place in it.
+// B25b (T1.10, Phase 2's half): a worker's cold start is its entries and the dialect's runtime, as
+// `a built worker` above loads them. Since B27f (D187) each dialect's runtime is its add-on's own
+// file, which reaches the engine through one `provino/internal/*` entry of its own: the Vitest
+// worker's set is the Jest one with those two files swapped.
 describe('a Vitest worker (B25b, T1.10)', () => {
   const WORKER = [
     'worker/bootstrap.js',
@@ -495,36 +567,41 @@ describe('a Vitest worker (B25b, T1.10)', () => {
     'worker/policy-behaviours.js',
     'worker/env-node.js',
   ]
+  /**
+   * The worker's files from both packages: the static closure of its entries in this package (a
+   * process can't import `worker/bootstrap.js` outside a worker), with what importing `runtime`
+   * loads from either.
+   */
+  const workerSet = (runtime: string): string[] =>
+    [
+      ...new Set([
+        ...staticClosure(WORKER),
+        ...builtFiles(loadsOf(`await import(${JSON.stringify(runtime)})`).urls),
+      ]),
+    ].sort()
 
-  test('starts with at most 10 files from the package, the Jest set with the runtime swapped', () => {
-    const jest = staticClosure([...WORKER, 'worker/jest-runtime.js'])
-    const vitest = staticClosure([...WORKER, 'worker/vitest-runtime.js'])
+  test('starts with at most 10 files from the two packages, the Jest set with the runtime swapped', () => {
+    const jest = workerSet('@provino/dialect-jest/runtime')
+    const vitest = workerSet('@provino/dialect-vitest/runtime')
     assert.ok(
       vitest.length <= 10,
       `a Vitest worker loads ${vitest.length} files: ${vitest.join(', ')}`,
     )
+    const vitestOwn = ['dialect-vitest:runtime/index.js', 'internal/vitest-runtime.js']
+    const jestOwn = ['dialect-jest:runtime/index.js', 'internal/jest-runtime.js']
+    for (const file of vitestOwn) assert.ok(vitest.includes(file), vitest.join(', '))
+    for (const file of jestOwn) assert.ok(jest.includes(file), jest.join(', '))
     assert.deepEqual(
-      vitest.filter((file) => file !== 'worker/vitest-runtime.js'),
-      jest.filter((file) => file !== 'worker/jest-runtime.js'),
+      vitest.filter((file) => !vitestOwn.includes(file)),
+      jest.filter((file) => !jestOwn.includes(file)),
     )
-    // The static reading holds for the runtime as Node loads it: nothing outside the closure.
-    const loaded = loadsOf(
-      `await import(${JSON.stringify(pathToFileURL(join(PACKAGE, 'dist', 'worker', 'vitest-runtime.js')).href)})`,
-    )
-    assert.ok(loaded.dist.includes('worker/vitest-runtime.js'), loaded.dist.join('\n'))
-    for (const file of loaded.dist)
-      assert.ok(vitest.includes(file), `${file} is outside the closure`)
   })
 
   test("import { expect } from 'provino' and the Vitest worker's expect load no Chai", () => {
-    const runtime = pathToFileURL(join(PACKAGE, 'dist', 'worker', 'vitest-runtime.js')).href
     const { urls } = loadsOf(
-      `const { expect } = await import('provino'); void expect; await import(${JSON.stringify(runtime)})`,
+      "const { expect } = await import('provino'); void expect; await import('@provino/dialect-vitest/runtime')",
     )
-    assert.ok(
-      urls.some((url) => url.endsWith('/dist/worker/vitest-runtime.js')),
-      urls.join('\n'),
-    )
+    assert.ok(builtFiles(urls).includes('dialect-vitest:runtime/index.js'), urls.join('\n'))
     const isChai = (url: string): boolean => /\/chai\//.test(url)
     assert.deepEqual(urls.filter(isChai), [])
     // The control: a process that does load Chai is seen to.

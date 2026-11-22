@@ -4,6 +4,7 @@ import type { TextSink } from '@provino/reporters'
 import type { PoolKind } from '@provino/types'
 import { run } from '../run.ts'
 import type { ReporterChoice, RunOptions } from '../types.ts'
+import { dialectNotInstalled, importAddOn } from './add-on.ts'
 import { detectProject } from './detect.ts'
 import { quickAnswer } from './quick.ts'
 import {
@@ -380,7 +381,7 @@ async function runCommand(
  * dialect's coordinator code (D115, `speed`).
  */
 async function runBareJest(args: readonly string[], io: CliIo): Promise<number> {
-  const { runJestCommand } = await import('./jest-command.ts')
+  const { runJestCommand } = await importAddOn('jest', () => import('./jest-command.ts'))
   return runJestCommand(args, {
     stdout: io.stdout ?? process.stdout,
     stderr: io.stderr ?? process.stderr,
@@ -401,7 +402,7 @@ async function runBareVitest(
   io: CliIo,
   directory?: string,
 ): Promise<number> {
-  const { runVitestCommand } = await import('./vitest-command.ts')
+  const { runVitestCommand } = await importAddOn('vitest', () => import('./vitest-command.ts'))
   return runVitestCommand(args, {
     stdout: io.stdout ?? process.stdout,
     stderr: io.stderr ?? process.stderr,
@@ -457,6 +458,12 @@ export async function main(argv: readonly string[], io: CliIo = {}): Promise<num
     if (error instanceof UsageError) {
       stderr.write(`Provino: ${error.message}\n\n${USAGE}`)
       return ExitCode.UsageError
+    }
+    // A dialect's add-on that isn't installed (D187): one line with the install command, no stack.
+    const missing = dialectNotInstalled(error)
+    if (missing !== undefined) {
+      stderr.write(`Provino: ${missing.message}\n`)
+      return INTERNAL_ERROR_EXIT
     }
     stderr.write(
       `Provino: unexpected error: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,

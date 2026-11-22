@@ -3,6 +3,7 @@ import { loadConfigFile, resolveProjects } from '@provino/config'
 import { discoverProject, ExitCode, type RunProjectOptions } from '@provino/orchestrator'
 import { isCi } from '@provino/reporters'
 import type { Dialect } from '@provino/types'
+import { dialectNotInstalled, importAddOn } from './internal/add-on.ts'
 import { ENVIRONMENTS, NATIVE_RUNTIME } from './internal/built-ins.ts'
 import { usageMessage } from './internal/describe.ts'
 import { executeProject, timingsOf } from './internal/execute.ts'
@@ -45,7 +46,8 @@ function poolOptions(options: RunOptions): NonNullable<RunProjectOptions['pool']
  * dialect code (D115, `speed`).
  */
 async function builtInDialects(): Promise<readonly Dialect[]> {
-  const { jestDialect } = await import('@provino/dialect-jest')
+  // An add-on since B27f (D187): a config that names Jest without it installed is the install line.
+  const { jestDialect } = await importAddOn('jest', () => import('@provino/dialect-jest'))
   return [jestDialect]
 }
 
@@ -134,6 +136,12 @@ export async function run(options: RunOptions): Promise<RunResult> {
   try {
     return await execute(options, stdout, stderr)
   } catch (error) {
+    const missing = dialectNotInstalled(error)
+    if (missing !== undefined) {
+      stderr.write(`Provino: ${missing.message}\n`)
+      // Exit 1, as `provino jest` without the add-on: an install to fix, not a command-line mistake.
+      return { exitCode: ExitCode.TestFailure, summary: null }
+    }
     const message = usageMessage(error)
     if (message === undefined) throw error
     stderr.write(`${message}\n`)

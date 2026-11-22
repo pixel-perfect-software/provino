@@ -12,6 +12,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -32,23 +33,35 @@ const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const BANNED =
   /(?:^|\/)node_modules\/(?:jest-[^/]+|@jest\/[^/]+|expect|pretty-format|chai|@vitest\/[^/]+|vite|@babel\/[^/]+)\//
 
+/** The add-ons (D187): every file of theirs is dialect code, wherever it is installed. */
+const ADD_ON_DISTS: readonly string[] = ['dialect-jest', 'dialect-vitest'].map((name) =>
+  realpathSync(join(PACKAGE, 'node_modules', '@provino', name, 'dist')),
+)
+
+/** Every `.js` file under `dir`, by path relative to it. */
+function builtFiles(dir: string, prefix = ''): string[] {
+  return readdirSync(join(dir, prefix), { withFileTypes: true }).flatMap((entry) => {
+    const path = prefix === '' ? entry.name : `${prefix}/${entry.name}`
+    if (entry.isDirectory()) return builtFiles(dir, path)
+    return entry.name.endsWith('.js') ? [path] : []
+  })
+}
+
 /**
  * The dialect chunks of a build in `dist`, found by what they hold, not by what Rolldown named
- * them: the Jest and Vitest runtimes and leaves (`worker/jest-*.js`, `worker/vitest-runtime.js`),
- * and every chunk that defines a dialect's value or its config reader.
+ * them: every chunk that defines a dialect's value or its config reader, and (since B27f, D187)
+ * every chunk that imports an add-on (`provino jest`'s and `provino vitest`'s commands,
+ * `provino/jest`, `provino/vitest`).
  */
 function dialectChunks(dist: string): Set<string> {
   const found = new Set<string>()
-  for (const dir of ['', 'worker']) {
-    for (const name of readdirSync(join(dist, dir)).filter((file) => file.endsWith('.js'))) {
-      const path = dir === '' ? name : `${dir}/${name}`
-      const source = readFileSync(join(dist, path), 'utf8')
-      if (
-        /^worker\/(?:jest-|vitest-runtime)/.test(path) ||
-        /\bconst (?:jestDialect|vitestDialect|jestNodeDialect|vitestNodeDialect) =/.test(source)
-      ) {
-        found.add(path)
-      }
+  for (const path of builtFiles(dist)) {
+    const source = readFileSync(join(dist, path), 'utf8')
+    if (
+      /\bconst (?:jestDialect|vitestDialect|jestNodeDialect|vitestNodeDialect) =/.test(source) ||
+      /\bfrom\s*["']@provino\/dialect-(?:jest|vitest)(?:\/[^"']*)?["']/.test(source)
+    ) {
+      found.add(path)
     }
   }
   return found
@@ -143,6 +156,8 @@ function forbidden(pkg: string, processes: readonly Recorded[]): string[] {
     for (const path of files) {
       const posixPath = path.split(sep).join('/')
       if (BANNED.test(posixPath)) out.add(posixPath)
+      for (const addOn of ADD_ON_DISTS)
+        if (path.startsWith(addOn + sep)) out.add(`add-on file: ${posixPath}`)
       if (path.startsWith(dist) && chunks.has(path.slice(dist.length).split(sep).join('/'))) {
         out.add(`dialect chunk: ${path.slice(dist.length)}`)
       }
@@ -154,12 +169,20 @@ function forbidden(pkg: string, processes: readonly Recorded[]): string[] {
 describe('a native run loads nothing from Jest or Vitest (B27e, row 8)', () => {
   test('the dialect chunks are found in the build', () => {
     const chunks = dialectChunks(join(PACKAGE, 'dist'))
-    for (const wanted of ['worker/jest-runtime.js', 'worker/vitest-runtime.js']) {
+    // The chunks that import an add-on: the two commands and the two re-exports.
+    for (const wanted of ['jest.js', 'vitest.js', 'jest-node.js', 'vitest-node.js']) {
       assert.ok(chunks.has(wanted), `${wanted}: ${[...chunks].join(', ')}`)
     }
-    // The coordinator's own chunk holds no dialect value (`jest-node`, `vitest-dialect` in umbrella.ts).
+    // The coordinator's own chunk holds no dialect value (`jest-node` in umbrella.ts), and the
+    // build inlines no dialect value at all: each is its add-on's.
     assert.ok(!chunks.has('coordinator.js'), [...chunks].join(', '))
     assert.ok(!chunks.has('shared.js'), [...chunks].join(', '))
+    for (const chunk of chunks) {
+      const source = readFileSync(join(PACKAGE, 'dist', chunk), 'utf8')
+      assert.doesNotMatch(source, /\bconst (?:jestDialect|vitestDialect) =/, chunk)
+    }
+    // The control: each add-on's own build defines its dialect's value.
+    for (const dist of ADD_ON_DISTS) assert.ok(dialectChunks(dist).size > 0, dist)
   })
 
   for (const pool of ['forks', 'threads'] as const) {

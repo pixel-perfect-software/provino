@@ -49,7 +49,7 @@ import {
 import type { TextSink } from '@provino/reporters'
 import type { ConfigSource, Diagnostic, NeutralProject, RunRequest } from '@provino/types'
 import type { ReporterChoice } from '../types.ts'
-import { JEST_BUILT_INS, JEST_ENVIRONMENT, NODE_ENVIRONMENT } from './built-ins.ts'
+import { type EnvironmentModule, JEST_BUILT_INS, NODE_ENVIRONMENT } from './built-ins.ts'
 import type { CoverageReporter } from './coverage-reporter.ts'
 import { usageMessage } from './describe.ts'
 import { type ExecuteOptions, executeProject, timingsOf } from './execute.ts'
@@ -127,6 +127,18 @@ function jestExitCode(key: 'usage' | 'noTests', fallback: number): number {
 }
 
 /**
+ * The adapter a Jest project's own environment class (D44) runs through; its options name the class.
+ * It is the dialect's `/runtime`, the file its own globals ref names: the add-on resolves its files
+ * where it is installed (D21, D187), and `provino` holds no copy of them.
+ */
+function jestEnvironmentAdapter(): EnvironmentModule {
+  const module = jestNodeDialect.globals?.factory.module
+  if (module === undefined)
+    throw new Error('the Jest dialect has no globals ref to find its runtime by')
+  return { module, export: 'jestEnvironment' }
+}
+
+/**
  * The environments a project may name. A run needs a built-in one, so a project whose
  * environment isn't (jsdom, a custom one) is refused before anything starts. Listing the files and
  * clearing the cache start no worker, so they accept any name, as Jest's `--listTests` does.
@@ -136,7 +148,7 @@ function environmentsFor(request: RunRequest, project: NeutralProject): typeof J
   if (Object.hasOwn(JEST_BUILT_INS, name)) return JEST_BUILT_INS
   // Any other environment is the project's own Jest class (D44), run through the adapter.
   if (typeof project.environment.options.module === 'string')
-    return { ...JEST_BUILT_INS, [name]: JEST_ENVIRONMENT }
+    return { ...JEST_BUILT_INS, [name]: jestEnvironmentAdapter() }
   if (request.mode === 'run') return JEST_BUILT_INS
   return { ...JEST_BUILT_INS, [name]: NODE_ENVIRONMENT }
 }
