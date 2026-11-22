@@ -17,6 +17,12 @@
     { "path": "../dialect-vitest" },
     { "path": "../env-jsdom" },
     { "path": "../env-node" },
-    { "path": "../lazy" }
+    { "path": "../lazy" },
+    { "path": "../core" },
+    { "path": "../env-shared" },
+    { "path": "../mock" },
+    { "path": "../policy" },
+    { "path": "../timers" },
+    { "path": "../resolver" }
   ]
 }

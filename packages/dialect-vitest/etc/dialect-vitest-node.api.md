@@ -4,16 +4,16 @@
 
 ```ts
 
-import { CliDialect } from '@provino/types';
-import { ConfigReader } from '@provino/types';
-import { ConfigSource } from '@provino/types';
-import { Diagnostic } from '@provino/types';
-import { Dialect } from '@provino/types';
-import { EnvironmentRef } from '@provino/types';
-import { FlagSpec } from '@provino/types';
-import { JsonValue } from '@provino/types';
-import { NeutralProject } from '@provino/types';
-import { RunRequest } from '@provino/types';
+import { CliDialect } from 'provino/internal/types';
+import { ConfigReader } from 'provino/internal/types';
+import { ConfigSource } from 'provino/internal/types';
+import { Diagnostic } from 'provino/internal/types';
+import { Dialect } from 'provino/internal/types';
+import { EnvironmentRef } from 'provino/internal/types';
+import { FlagSpec } from 'provino/internal/types';
+import { JsonValue } from 'provino/internal/types';
+import { NeutralProject } from 'provino/internal/types';
+import { RunRequest } from 'provino/internal/types';
 
 // @public
 export function createVitestConfigReader(options?: VitestReadOptions): ConfigReader<VitestRawConfig, VitestResolvedConfig>;

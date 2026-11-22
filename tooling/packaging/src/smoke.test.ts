@@ -1,11 +1,9 @@
 // The native case of `pnpm smoke:install` (B27e, acceptance row 9): its tree check, its project,
-// and that it stays skipped, citing B27f, until the install split lands.
+// and that it runs by default since B27f's install split (D187).
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
 import {
   bannedInTree,
-  NATIVE_FOOTPRINT_DEFAULT,
-  NATIVE_FOOTPRINT_SKIP,
   NATIVE_SMOKE_FILES,
   nativeBanned,
   SMOKE_FILES,
@@ -99,11 +97,6 @@ describe('nativeBanned', () => {
 })
 
 describe('the native footprint case', () => {
-  test('is off by default until B27f, and its skip says so', () => {
-    assert.equal(NATIVE_FOOTPRINT_DEFAULT, false)
-    assert.match(NATIVE_FOOTPRINT_SKIP, /B27f \(D187\)/)
-  })
-
   test('both suites hold SMOKE_TESTS tests', () => {
     assert.equal(Object.keys(SMOKE_FILES).length, SMOKE_TESTS)
   })

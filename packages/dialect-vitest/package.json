@@ -53,6 +53,14 @@
     "test": "node --test --conditions=provino-source \"src/**/*.test.ts\""
   },
   "dependencies": {
+    "chai": "catalog:",
+    "oxc-parser": "catalog:",
+    "oxc-transform": "catalog:",
+    "picomatch": "catalog:",
+    "tinyglobby": "catalog:"
+  },
+  "devDependencies": {
+    "@edge-runtime/vm": "catalog:",
     "@provino/config": "workspace:*",
     "@provino/core": "workspace:*",
     "@provino/env-jsdom": "workspace:*",
@@ -64,17 +72,12 @@
     "@provino/resolver": "workspace:*",
     "@provino/timers": "workspace:*",
     "@provino/types": "workspace:*",
-    "chai": "catalog:",
-    "oxc-parser": "catalog:",
-    "oxc-transform": "catalog:",
-    "picomatch": "catalog:",
-    "tinyglobby": "catalog:"
-  },
-  "devDependencies": {
-    "@edge-runtime/vm": "catalog:",
     "@types/picomatch": "catalog:",
     "happy-dom": "catalog:",
     "jsdom": "catalog:",
     "vitest": "catalog:"
+  },
+  "peerDependencies": {
+    "provino": "workspace:*"
   }
 }

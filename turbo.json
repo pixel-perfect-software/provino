@@ -15,6 +15,7 @@
         "$TURBO_ROOT$/tooling/packaging/package.json",
         "$TURBO_ROOT$/tooling/packaging/tsdown.config.ts",
         "$TURBO_ROOT$/tooling/packaging/tsdown.umbrella.config.ts",
+        "$TURBO_ROOT$/tooling/packaging/src/internal-entries.ts",
         "$TURBO_ROOT$/tooling/packaging/src/package-json.ts",
         "$TURBO_ROOT$/tooling/packaging/src/preset.ts",
         "$TURBO_ROOT$/tooling/packaging/src/umbrella.ts"

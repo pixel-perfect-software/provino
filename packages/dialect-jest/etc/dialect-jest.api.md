@@ -4,11 +4,11 @@
 
 ```ts
 
-import { Dialect } from '@provino/types';
-import { ExpectPolicy } from '@provino/types';
-import { HoistPolicy } from '@provino/types';
-import { MockPolicy } from '@provino/types';
-import { PolicyOverrides } from '@provino/types';
+import { Dialect } from 'provino/internal/types';
+import { ExpectPolicy } from 'provino/internal/types';
+import { HoistPolicy } from 'provino/internal/types';
+import { MockPolicy } from 'provino/internal/types';
+import { PolicyOverrides } from 'provino/internal/types';
 
 // @public
 export const jestDialect: Dialect<"jest">;

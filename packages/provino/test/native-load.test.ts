@@ -3,24 +3,24 @@
 // `load-recorder.ts` preloaded in the coordinator and every worker, over forks and threads, and no
 // process loads a file of a banned package or a dialect chunk. A native worker starts with at most
 // 10 files from the package, counted as `exports.test.ts` counts. Each half has a failing control:
-// a copy of the built package with `import 'pretty-format'` planted in `@provino/api`'s built entry,
+// a copy of the built package with `import 'jest-junit'` (B27f: `pretty-format` is no longer
+// `provino`'s to resolve) planted in `@provino/api`'s built entry,
 // and one whose bin imports the Jest dialect's chunk.
 import assert from 'node:assert/strict'
-import {
-  cpSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  symlinkSync,
-  writeFileSync,
-} from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
 import { after, describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { builtSources, chunkFiles } from './dist.ts'
-import { type LoadLog, linkProvino, makeProject, readLoadLogs, runBuilt } from './support.ts'
+import { ADD_ON_DISTS, builtSources, chunkFiles, moduleRequests } from './dist.ts'
+import {
+  type LoadLog,
+  linkProvino,
+  makeProject,
+  packageCopy,
+  readLoadLogs,
+  runBuilt,
+} from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 
@@ -78,8 +78,15 @@ const dialectChunks = memoize((dist: string): ReadonlySet<string> => {
     sources,
     /\bconst (?:jestDialect|vitestDialect|jestNodeDialect|vitestNodeDialect)(?:\$\d+)? =/,
   )
-  for (const path of sources.keys()) {
+  for (const [path, source] of sources) {
     if (/^worker\/(?:jest-|vitest-runtime)/.test(path)) found.add(path)
+    // Since B27f (D187) the dialects are add-ons: a chunk that imports one is dialect code too
+    // (`provino jest`'s and `provino vitest`'s commands, `provino/jest`, `provino/vitest`).
+    const requests = moduleRequests(path, source)
+    if (
+      requests.some(({ specifier }) => /^@provino\/dialect-(?:jest|vitest)(?:\/|$)/.test(specifier))
+    )
+      found.add(path)
   }
   return found
 })
@@ -150,6 +157,8 @@ function forbidden(pkg: string, processes: readonly LoadLog[]): string[] {
     for (const path of pathsOf(log)) {
       const posixPath = path.split(sep).join('/')
       if (BANNED.test(posixPath)) out.add(posixPath)
+      for (const addOn of Object.values(ADD_ON_DISTS))
+        if (path.startsWith(addOn + sep)) out.add(`add-on file: ${posixPath}`)
       if (path.startsWith(dist) && chunks.has(path.slice(dist.length).split(sep).join('/'))) {
         out.add(`dialect chunk: ${path.slice(dist.length).split(sep).join('/')}`)
       }
@@ -158,14 +167,24 @@ function forbidden(pkg: string, processes: readonly LoadLog[]): string[] {
   return [...out].sort()
 }
 
+/** The worker-only files of `pkg`'s `dist` the processes loaded: `worker/*` but the behaviours leaf, `internal/*`, `lazy-api.js`. */
+function workerOnly(pkg: string, processes: readonly LoadLog[]): string[] {
+  const dist = join(pkg, 'dist') + sep
+  const out = new Set<string>()
+  for (const log of processes) {
+    for (const path of pathsOf(log)) {
+      if (!path.startsWith(dist)) continue
+      const file = path.slice(dist.length).split(sep).join('/')
+      if (/^(?:worker\/(?!policy-behaviours\.js$)|internal\/|lazy-api\.js$)/.test(file))
+        out.add(file)
+    }
+  }
+  return [...out].sort()
+}
+
 /** A copy of the built package (`dist`, `package.json`, its `node_modules` linked) with `plant` prepended to `file`. */
 function plantedCopy(file: string, plant: string): string {
-  // The real path, as the recorder sees it (macOS's `$TMPDIR` is a link).
-  const copy = realpathSync(mkdtempSync(join(tmpdir(), 'provino-planted-')))
-  after(() => rmSync(copy, { recursive: true, force: true }))
-  cpSync(join(PACKAGE, 'dist'), join(copy, 'dist'), { recursive: true })
-  cpSync(join(PACKAGE, 'package.json'), join(copy, 'package.json'))
-  symlinkSync(join(PACKAGE, 'node_modules'), join(copy, 'node_modules'), 'dir')
+  const copy = packageCopy()
   const path = join(copy, 'dist', file)
   const source = readFileSync(path, 'utf8')
   // After a shebang line, which must stay first.
@@ -193,18 +212,17 @@ describe('a native run loads nothing from Jest or Vitest (B27e, row 8)', () => {
 
   test('the dialect chunks are found in the build', () => {
     const chunks = dialectChunks(join(PACKAGE, 'dist'))
-    for (const wanted of [
-      'worker/jest-runtime.js',
-      'worker/vitest-runtime.js',
-      'jest-node.js',
-      'vitest-dialect.js',
-      'vitest-node.js',
-    ]) {
+    // The chunks that import an add-on (B27f, D187): the two commands and the two re-exports.
+    for (const wanted of ['jest.js', 'vitest.js', 'jest-node.js', 'vitest-node.js']) {
       assert.ok(chunks.has(wanted), `${wanted}: ${[...chunks].join(', ')}`)
     }
-    // The coordinator's own chunk holds no dialect value (`jest-node`, `vitest-dialect` in umbrella.ts).
+    // The coordinator's own chunk holds no dialect value, and no chunk inlines one: each is its
+    // add-on's, whose own build defines it (the control).
     assert.ok(!chunks.has('coordinator.js'), [...chunks].join(', '))
     assert.ok(!chunks.has('shared.js'), [...chunks].join(', '))
+    for (const [path, source] of builtSources(join(PACKAGE, 'dist')))
+      assert.doesNotMatch(source, /\bconst (?:jestDialect|vitestDialect)(?:\$\d+)? =/, path)
+    for (const dist of Object.values(ADD_ON_DISTS)) assert.ok(dialectChunks(dist).size > 0, dist)
   })
 
   for (const pool of ['forks', 'threads'] as const) {
@@ -250,11 +268,30 @@ describe('a native run loads nothing from Jest or Vitest (B27e, row 8)', () => {
     }
   })
 
-  test("a planted import 'pretty-format' in @provino/api's built entry is caught", async () => {
-    const copy = plantedCopy(join('worker', 'api.js'), "import 'pretty-format'")
+  test("the coordinator of a native run loads none of the worker's own files", async () => {
+    // B27f's design round: the engine the add-ons import (`internal/*`) must not pull worker-only
+    // code into what the coordinator loads. Its files are the bin's, `coordinator.js`, `shared.js`,
+    // `loading.js` and the behaviours leaf; never `worker/main.js`, the native runtime or `internal/*`.
+    const coordinators = (await runOf(PACKAGE, 'forks')).filter(({ main }) =>
+      main.endsWith(`dist${sep}cli.js`),
+    )
+    assert.equal(coordinators.length, 1)
+    assert.deepEqual(workerOnly(PACKAGE, coordinators), [])
+    // The control: a bin that imports the worker's entry is caught.
+    const copy = plantedCopy('cli.js', "import './worker/main.js'")
+    const planted = (await runOf(copy, 'forks')).filter(({ main }) =>
+      main.endsWith(`dist${sep}cli.js`),
+    )
+    assert.ok(workerOnly(copy, planted).includes('worker/main.js'), 'the plant was not caught')
+  })
+
+  test("a planted import 'jest-junit' in @provino/api's built entry is caught", async () => {
+    // `jest-junit` (a dev dependency here): since B27f no runtime dependency of `provino` is on the
+    // list, so the plant names one its linked `node_modules` still resolves.
+    const copy = plantedCopy(join('worker', 'api.js'), "import 'jest-junit'")
     const found = forbidden(copy, await runOf(copy, 'forks'))
     assert.ok(
-      found.some((path) => /\/node_modules\/pretty-format\//.test(path)),
+      found.some((path) => /\/node_modules\/jest-junit\//.test(path)),
       `the plant was not caught: ${found.join(', ')}`,
     )
   })

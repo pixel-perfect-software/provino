@@ -1,9 +1,11 @@
+import { dirname, resolve } from 'node:path'
 import { type ParseArgsOptionsConfig, parseArgs } from 'node:util'
 import { ExitCode } from '@provino/orchestrator'
 import type { TextSink } from '@provino/reporters'
 import type { PoolKind } from '@provino/types'
 import { run } from '../run.ts'
 import type { ReporterChoice, RunOptions } from '../types.ts'
+import { reportAddOnFailure, setAddOnRoot } from './add-on.ts'
 import { detectProject } from './detect.ts'
 import { quickAnswer } from './quick.ts'
 import {
@@ -336,11 +338,30 @@ async function runBare(args: readonly string[], io: CliIo): Promise<number> {
     throw new UsageError(`--dialect must be jest or vitest (got "${dialect}")`)
   }
   const found = await detectProject(cwd, dialect)
+  // The add-ons resolve from the project's directory, the one whose config decided (D187).
+  if (found.kind !== 'provino') setAddOnRoot(found.directory)
   if (found.kind === 'vitest') return runBareVitest(rest, io, found.directory)
   if (found.kind === 'jest') return runBareJest(rest, io)
   const parsed = parseRunArgs(['--config', found.config, ...rest])
   if (parsed.type === 'help') return helpExit(io)
   return runCommand(parsed, io)
+}
+
+/**
+ * The directory of a `-c`/`--config` file on a `provino jest` or `provino vitest` command line,
+ * as the add-ons' root (D187); with none, the root `main` or the detection set stays.
+ */
+function setAddOnRootFromConfigFlag(args: readonly string[], cwd: string): void {
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index] ?? ''
+    if (arg === '--') return
+    const inline = /^(?:--config|-c)=(.+)$/.exec(arg)?.[1]
+    const value = inline ?? (arg === '--config' || arg === '-c' ? args[index + 1] : undefined)
+    if (value !== undefined && value !== '' && !value.startsWith('{')) {
+      setAddOnRoot(dirname(resolve(cwd, value)))
+      return
+    }
+  }
 }
 
 /**
@@ -363,6 +384,8 @@ async function runCommand(
 ): Promise<number> {
   const cwd = io.cwd ?? process.cwd()
   const config = parsed.options.config ?? (await nearestProvinoConfig(cwd))
+  // A config's `provino/jest` resolves from the config's directory (D187).
+  setAddOnRoot(dirname(resolve(cwd, config)))
   const { exitCode } = await run({ ...parsed.options, config, ...ioOptions(io) })
   if (parsed.forceExit === true) {
     if (parsed.options.detectOpenHandles !== true) {
@@ -380,6 +403,8 @@ async function runCommand(
  * dialect's coordinator code (D115, `speed`).
  */
 async function runBareJest(args: readonly string[], io: CliIo): Promise<number> {
+  setAddOnRootFromConfigFlag(args, io.cwd ?? process.cwd())
+  // An add-on that isn't there fails this import with Node's error, which `main` reports.
   const { runJestCommand } = await import('./jest-command.ts')
   return runJestCommand(args, {
     stdout: io.stdout ?? process.stdout,
@@ -401,6 +426,7 @@ async function runBareVitest(
   io: CliIo,
   directory?: string,
 ): Promise<number> {
+  setAddOnRootFromConfigFlag(args, directory ?? io.cwd ?? process.cwd())
   const { runVitestCommand } = await import('./vitest-command.ts')
   return runVitestCommand(args, {
     stdout: io.stdout ?? process.stdout,
@@ -446,6 +472,8 @@ export async function main(argv: readonly string[], io: CliIo = {}): Promise<num
       await (io.stdout ?? process.stdout).write(quick)
       return ExitCode.Pass
     }
+    // The add-ons (D187) resolve from the project, not from provino's own install folder.
+    setAddOnRoot(io.cwd ?? process.cwd())
     const [command, ...args] = argv
     const parsed = parseCommand(command, args)
     if (parsed.type === 'help') return await helpExit(io)
@@ -458,6 +486,9 @@ export async function main(argv: readonly string[], io: CliIo = {}): Promise<num
       stderr.write(`Provino: ${error.message}\n\n${USAGE}`)
       return ExitCode.UsageError
     }
+    // A dialect's add-on that isn't installed (D187): one line with the install command, no stack.
+    const addOn = reportAddOnFailure(error, stderr)
+    if (addOn !== undefined) return addOn
     stderr.write(
       `Provino: unexpected error: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}\n`,
     )

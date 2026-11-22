@@ -2,6 +2,10 @@
 
 The Jest 30.5 dialect. B08 built its `expect` part: the `ExpectPolicy` slice and the matcher table. B10 added the `Dialect` value (`jestDialect`, with `jestPolicy`) and the globals (`jestGlobals`). B14a backed every value with recorded ground truth: the evidence is in `@provino/harness`'s `src/policy-truth/claims/`, and `policy-truth.test.ts` fails when a value and its evidence disagree (a few are `pending` with an owner). B14b added the config reader, the `/node` entry (see "The config reader"). B14c added the command-line parser (T11.7, see "The command line"). Still to come: the full `jest` object and the `@jest/globals` facade (T11.10, B13, B17). Follow `.claude/rules/dialects.md` and `.claude/rules/vendored-upstream.md`.
 
+## An add-on install (B27f, D187)
+
+This package is installed beside `provino`, not inlined into it: `provino` is its peer (`workspace:*`), its third-party packages (`@jest/expect-utils`, `@jest/get-type`, `jest-matcher-utils`, `jest-message-util`, `jest-util`, `pretty-format`, the four `@babel/*`, `babel-preset-current-node-syntax`, `pure-rand`) are its own `dependencies`, and the `@provino/*` packages are dev dependencies only. The sources import the engine by name; the build (`tooling/packaging`'s `internalImports`) rewrites those imports to `provino/internal/jest-runtime` (core, env-shared, expect, mock, policy, timers), `provino/internal/resolver` and `provino/internal/types`, so the installed `provino` holds the one engine. `./runtime` is built on its own, so a worker reads one file of this package. Its refs (`import.meta.resolve('@provino/dialect-jest/runtime')` and the leaves) name this package's own installed files. Without it, `provino jest` prints `pnpm add -D @provino/dialect-jest@<provino's version>` and exits 1; an install of another version, or whose `provino` peer is another copy than the one running, is refused the same way. `/node` exports `JEST_ENVIRONMENT_ADAPTER`, the ref `provino jest` runs a project's own environment class through.
+
 ## Layout
 
 | Path | Entry | Role |

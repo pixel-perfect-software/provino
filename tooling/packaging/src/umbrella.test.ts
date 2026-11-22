@@ -3,6 +3,8 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, test } from 'node:test'
 import { binScript, runCommand } from './exec.ts'
+import { ADD_ONS, INTERNAL_ENTRIES } from './internal-entries.ts'
+import { readManifest } from './package-json.ts'
 import { scratchDir } from './test-support.ts'
 import { umbrellaEntries, WORKER_ENTRIES, workerRefs } from './umbrella.ts'
 import { ROOT } from './workspace.ts'
@@ -24,7 +26,30 @@ describe('the umbrella names every module a worker is given by file (D21)', () =
     assert.equal(entries.index, 'src/index.ts')
     assert.equal(entries.jest, 'src/jest.ts')
     assert.equal(entries.cli, 'src/cli.ts')
-    assert.equal(entries['worker/jest-runtime'], '../dialect-jest/src/runtime/index.ts')
+    // The add-ons' engine (D187) is the umbrella's; their own files are not (B27f).
+    assert.equal(entries['internal/jest-runtime'], 'src/internal/engine/jest-runtime.ts')
+    assert.equal(entries['worker/jest-runtime'], undefined)
+    assert.ok(!Object.values(entries).some((source) => /dialect-(?:jest|vitest)/.test(source)))
+  })
+
+  test('every provino/internal/* target an add-on is built against is one of its exports, and back', () => {
+    const manifest = readManifest(join(ROOT, 'packages', 'provino'))
+    const exported = Object.keys(manifest.exports)
+      .filter((subpath) => subpath.startsWith('./internal/'))
+      .map((subpath) => `provino${subpath.slice(1)}`)
+      .sort()
+    const targets = [
+      ...new Set(Object.values(INTERNAL_ENTRIES).flatMap((table) => Object.values(table))),
+    ].sort()
+    assert.deepEqual(targets, exported)
+  })
+
+  test("the add-ons are provino's own list of them (its DIALECT_ADD_ONS)", async () => {
+    // Read by URL: provino's sources are not this package's to import.
+    const { DIALECT_ADD_ONS } = (await import(
+      new URL('../../../packages/provino/src/internal/add-on.ts', import.meta.url).href
+    )) as { readonly DIALECT_ADD_ONS: Readonly<Record<string, string>> }
+    assert.deepEqual(Object.values(DIALECT_ADD_ONS).sort(), [...ADD_ONS].sort())
   })
 })
 
@@ -37,7 +62,7 @@ describe('the worker-ref plugin', () => {
   test('writes each resolve as a path to that entry, relative to the chunk that holds it', () => {
     const source = [
       "const a = import.meta.resolve('@provino/orchestrator/worker/main')",
-      'const b = import.meta.resolve(\n  "@provino/dialect-jest/runtime",\n)',
+      'const b = import.meta.resolve(\n  "@provino/expect/table",\n)',
       "const c = import.meta.resolve('es-module-lexer')",
       '',
     ].join('\n')
@@ -46,10 +71,19 @@ describe('the worker-ref plugin', () => {
     assert.match(marked.code, /es-module-lexer/, 'a third-party resolve is left alone')
     const inRoot = hooks.renderChunk(marked.code, { fileName: 'shared.js' })
     assert.match(inRoot?.code ?? '', /new URL\("\.\/worker\/main\.js", import\.meta\.url\)\.href/)
-    assert.match(inRoot?.code ?? '', /new URL\("\.\/worker\/jest-runtime\.js", import\.meta\.url\)/)
-    const inWorker = hooks.renderChunk(marked.code, { fileName: 'worker/jest-runtime.js' })
+    assert.match(inRoot?.code ?? '', /new URL\("\.\/worker\/expect-table\.js", import\.meta\.url\)/)
+    const inWorker = hooks.renderChunk(marked.code, { fileName: 'worker/expect-table.js' })
     assert.match(inWorker?.code ?? '', /new URL\("\.\/main\.js", import\.meta\.url\)\.href/)
-    assert.match(inWorker?.code ?? '', /new URL\("\.\/jest-runtime\.js", import\.meta\.url\)/)
+    assert.match(inWorker?.code ?? '', /new URL\("\.\/expect-table\.js", import\.meta\.url\)/)
+  })
+
+  test("an add-on's file fails the build: its refs are the add-on's own (D187)", () => {
+    for (const specifier of ['@provino/dialect-jest/runtime', '@provino/dialect-vitest']) {
+      assert.throws(
+        () => hooks.transform.handler(`import.meta.resolve('${specifier}')`, '/x/a.ts'),
+        /an add-on's file is the add-on's own to name, D187/,
+      )
+    }
   })
 
   test('a @provino specifier the table does not know fails the build', () => {

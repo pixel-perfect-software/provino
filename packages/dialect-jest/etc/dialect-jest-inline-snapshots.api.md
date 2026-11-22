@@ -4,7 +4,7 @@
 
 ```ts
 
-import { InlineSnapshotWriterFactory } from '@provino/types';
+import { InlineSnapshotWriterFactory } from 'provino/internal/types';
 
 // @public
 export const jestInlineSnapshotWriter: InlineSnapshotWriterFactory;

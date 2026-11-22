@@ -124,6 +124,7 @@ export async function selectDialect(
       throw new ConfigError(
         'CONFIG_UNKNOWN_DIALECT',
         `unknown dialect "${requested}"; the known dialects are ${namesOf(known)}`,
+        { subject: requested },
       )
     }
     return found

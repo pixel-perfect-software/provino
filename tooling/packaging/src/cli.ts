@@ -1,7 +1,7 @@
 // `node tooling/packaging/src/cli.ts <command>`, through the root scripts:
 //   hygiene [--base <ref>] [--update-api] [--only <section>]…   (pnpm hygiene, hygiene:update-api)
 //   pack --out <dir>                                            (pnpm pack:all)
-//   smoke [--keep] [--native]                                   (pnpm smoke:install)
+//   smoke [--keep] [--no-native]                                (pnpm smoke:install)
 // Every command expects the packages to be built: the root scripts run `turbo run build` first.
 import { resolve } from 'node:path'
 import { parseArgs } from 'node:util'
@@ -62,13 +62,13 @@ if (command === 'hygiene') {
     args: rest,
     options: {
       keep: { type: 'boolean', default: false },
-      native: { type: 'boolean' },
+      'no-native': { type: 'boolean' },
     },
   })
   const result = installSmoke({
     root: ROOT,
     keep: values.keep,
-    ...(values.native === undefined ? {} : { native: values.native }),
+    ...(values['no-native'] === true ? { native: false } : {}),
   })
   for (const { name, ok, output, skipped } of result.steps) {
     console.log(`${skipped === true ? 'SKIP' : ok ? 'ok  ' : 'FAIL'} ${name}`)

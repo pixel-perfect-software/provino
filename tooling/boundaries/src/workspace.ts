@@ -104,7 +104,13 @@ async function readPackage(
   }
   const scripts = asRecord(json.scripts)
   const files = await listFiles(join(root, dir))
-  const deps = DEP_FIELDS.flatMap((field) => Object.keys(asRecord(json[field])))
+  // An add-on's `provino` peer (D187) says what it installs beside, not what it imports: its
+  // sources import the engine packages by name, which the manifest and the cruiser check.
+  const deps = DEP_FIELDS.flatMap((field) =>
+    Object.keys(asRecord(json[field])).filter(
+      (dep) => !(field === 'peerDependencies' && dep === 'provino'),
+    ),
+  )
   return {
     dir,
     name: String(json.name),

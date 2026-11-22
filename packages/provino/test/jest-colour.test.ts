@@ -30,8 +30,10 @@ const { outputFor } = (await import(
   }) => { colour: boolean }
 }
 
+// jest-message-util is the Jest add-on's dependency since B27f (D187), so it is reached through it.
 const here = createRequire(import.meta.url)
-const fromMessageUtil = createRequire(here.resolve('jest-message-util/package.json'))
+const dialect = createRequire(here.resolve('@provino/dialect-jest/node'))
+const fromMessageUtil = createRequire(dialect.resolve('jest-message-util/package.json'))
 const fromChalk = createRequire(fromMessageUtil.resolve('chalk/package.json'))
 const SUPPORTS_COLOR = fromChalk.resolve('supports-color')
 

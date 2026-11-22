@@ -69,14 +69,6 @@
     "@babel/plugin-syntax-typescript": "catalog:",
     "@jest/expect-utils": "catalog:",
     "@jest/get-type": "catalog:",
-    "@provino/core": "workspace:*",
-    "@provino/env-shared": "workspace:*",
-    "@provino/expect": "workspace:*",
-    "@provino/mock": "workspace:*",
-    "@provino/policy": "workspace:*",
-    "@provino/resolver": "workspace:*",
-    "@provino/timers": "workspace:*",
-    "@provino/types": "workspace:*",
     "babel-preset-current-node-syntax": "catalog:",
     "jest-matcher-utils": "catalog:",
     "jest-message-util": "catalog:",
@@ -88,6 +80,14 @@
     "@edge-runtime/jest-environment": "catalog:",
     "@jest/test-result": "catalog:",
     "@provino/config": "workspace:*",
+    "@provino/core": "workspace:*",
+    "@provino/env-shared": "workspace:*",
+    "@provino/expect": "workspace:*",
+    "@provino/mock": "workspace:*",
+    "@provino/policy": "workspace:*",
+    "@provino/resolver": "workspace:*",
+    "@provino/timers": "workspace:*",
+    "@provino/types": "workspace:*",
     "expect": "catalog:",
     "jest-cli": "catalog:",
     "jest-config": "catalog:",
@@ -96,5 +96,8 @@
     "jest-environment-node": "catalog:",
     "jest-fixed-jsdom": "catalog:",
     "jest-mock": "catalog:"
+  },
+  "peerDependencies": {
+    "provino": "workspace:*"
   }
 }

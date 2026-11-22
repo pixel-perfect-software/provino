@@ -78,6 +78,48 @@
       "import": "./dist/vitest.js",
       "default": "./dist/vitest.js"
     },
+    "./internal/jest-runtime": {
+      "provino-source": "./src/internal/engine/jest-runtime.ts",
+      "types": "./dist/internal/jest-runtime.d.ts",
+      "import": "./dist/internal/jest-runtime.js",
+      "default": "./dist/internal/jest-runtime.js"
+    },
+    "./internal/vitest-runtime": {
+      "provino-source": "./src/internal/engine/vitest-runtime.ts",
+      "types": "./dist/internal/vitest-runtime.d.ts",
+      "import": "./dist/internal/vitest-runtime.js",
+      "default": "./dist/internal/vitest-runtime.js"
+    },
+    "./internal/config": {
+      "provino-source": "./src/internal/engine/config.ts",
+      "types": "./dist/internal/config.d.ts",
+      "import": "./dist/internal/config.js",
+      "default": "./dist/internal/config.js"
+    },
+    "./internal/resolver": {
+      "provino-source": "./src/internal/engine/resolver.ts",
+      "types": "./dist/internal/resolver.d.ts",
+      "import": "./dist/internal/resolver.js",
+      "default": "./dist/internal/resolver.js"
+    },
+    "./internal/env-node": {
+      "provino-source": "./src/internal/engine/env-node.ts",
+      "types": "./dist/internal/env-node.d.ts",
+      "import": "./dist/internal/env-node.js",
+      "default": "./dist/internal/env-node.js"
+    },
+    "./internal/vite-alias": {
+      "provino-source": "./src/internal/engine/vite-alias.ts",
+      "types": "./dist/internal/vite-alias.d.ts",
+      "import": "./dist/internal/vite-alias.js",
+      "default": "./dist/internal/vite-alias.js"
+    },
+    "./internal/types": {
+      "provino-source": "./src/internal/engine/types.ts",
+      "types": "./dist/internal/types.d.ts",
+      "import": "./dist/internal/types.js",
+      "default": "./dist/internal/types.js"
+    },
     "./package.json": {
       "provino-source": "./package.json",
       "default": "./package.json"
@@ -98,36 +140,23 @@
     "test": "node ../../tooling/packaging/src/node-test.ts --conditions=provino-source \"src/**/*.test.ts\" \"test/**/*.test.ts\""
   },
   "dependencies": {
-    "@babel/core": "catalog:",
-    "@babel/generator": "catalog:",
-    "@babel/plugin-syntax-jsx": "catalog:",
-    "@babel/plugin-syntax-typescript": "catalog:",
     "@bcoe/v8-coverage": "catalog:",
     "@istanbuljs/schema": "catalog:",
-    "@jest/expect-utils": "catalog:",
-    "@jest/get-type": "catalog:",
     "@jridgewell/remapping": "catalog:",
     "@jridgewell/trace-mapping": "catalog:",
     "@sinonjs/fake-timers": "catalog:",
     "@standard-schema/spec": "catalog:",
-    "babel-preset-current-node-syntax": "catalog:",
-    "chai": "catalog:",
     "es-module-lexer": "catalog:",
     "istanbul-lib-coverage": "catalog:",
     "istanbul-lib-report": "catalog:",
     "istanbul-lib-source-maps": "catalog:",
     "istanbul-reports": "catalog:",
-    "jest-matcher-utils": "catalog:",
-    "jest-message-util": "catalog:",
-    "jest-util": "catalog:",
     "magic-string": "catalog:",
     "oxc-parser": "catalog:",
     "oxc-resolver": "catalog:",
     "oxc-transform": "catalog:",
     "oxc-walker": "catalog:",
     "picomatch": "catalog:",
-    "pretty-format": "catalog:",
-    "pure-rand": "catalog:",
     "tinyglobby": "catalog:",
     "v8-to-istanbul": "catalog:"
   },
@@ -141,15 +170,21 @@
     "@babel/preset-typescript": "catalog:",
     "@provino/api": "workspace:*",
     "@provino/config": "workspace:*",
+    "@provino/core": "workspace:*",
     "@provino/coverage": "workspace:*",
     "@provino/dialect-jest": "workspace:*",
     "@provino/dialect-vitest": "workspace:*",
     "@provino/env-jsdom": "workspace:*",
     "@provino/env-node": "workspace:*",
+    "@provino/env-shared": "workspace:*",
     "@provino/expect": "workspace:*",
     "@provino/lazy": "workspace:*",
+    "@provino/mock": "workspace:*",
     "@provino/orchestrator": "workspace:*",
+    "@provino/policy": "workspace:*",
     "@provino/reporters": "workspace:*",
+    "@provino/resolver": "workspace:*",
+    "@provino/timers": "workspace:*",
     "@provino/transform": "workspace:*",
     "@provino/types": "workspace:*",
     "@testing-library/dom": "catalog:",

@@ -3,6 +3,7 @@
 import { readdir, readFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { findConfigInDirectory } from '@provino/config'
+import { addOnFailure, addOnSpecifier, installCommand } from './add-on.ts'
 import { UsageError } from './usage-error.ts'
 
 /**
@@ -47,15 +48,31 @@ async function hasJestKey(path: string): Promise<boolean> {
   }
 }
 
-/** Whether `directory`'s `vite.config.*` has a `test` key; the reader loads only when there is one. */
-async function declaresTests(directory: string): Promise<boolean> {
+/** What a `vite.config.*` is: it declares tests, it doesn't, or the Vitest add-on that reads it is missing. */
+type ViteConfigKind = 'tests' | 'none' | 'no-add-on'
+
+/**
+ * Whether `directory`'s `vite.config.*` has a `test` key; the reader loads only when there is one.
+ * Without the Vitest add-on (D187) it can't be read, which the caller turns into a hint on its
+ * no-config error. Anything else the add-on's import threw (another version, another `provino`)
+ * is for the user to see; only the reader's own failure to load the file is swallowed.
+ */
+async function viteConfigKind(directory: string): Promise<ViteConfigKind> {
+  let read: (directory: string) => Promise<boolean>
   try {
-    const { viteConfigDeclaresTests } = await import('@provino/dialect-vitest/node')
-    return await viteConfigDeclaresTests(directory)
+    ;({ viteConfigDeclaresTests: read } = await import(
+      addOnSpecifier('vitest', '/node', directory)
+    ))
+  } catch (error) {
+    if (addOnFailure(error)?.code === 'PROVINO_DIALECT_NOT_INSTALLED') return 'no-add-on'
+    throw error
+  }
+  try {
+    return (await read(directory)) ? 'tests' : 'none'
   } catch {
     // A `vite.config.*` that doesn't load is not evidence of a Vitest project: a Jest project may
     // carry one for its bundler, and a project with only that one is reported as having no config.
-    return false
+    return 'none'
   }
 }
 
@@ -82,17 +99,20 @@ export async function detectProject(
 ): Promise<DetectedProject> {
   if (forced !== undefined) return { kind: forced, directory: cwd }
   let directory = cwd
+  // A `vite.config.*` the walk could not read for want of the Vitest add-on: the hint below.
+  let unread = false
   for (;;) {
     const config = await findConfigInDirectory(directory)
     if (config !== undefined) return { kind: 'provino', config, directory }
     const names = new Set(await readdir(directory).catch(() => [] as string[]))
     const jest = await holdsJest(directory, names)
     // A Jest config settles it: `vite.config.*` is read only when nothing else says what this is.
-    const vitest =
-      [...names].some((name) => VITEST_CONFIG.test(name)) ||
-      (!jest &&
-        [...names].some((name) => VITE_CONFIG.test(name)) &&
-        (await declaresTests(directory)))
+    let vitest = [...names].some((name) => VITEST_CONFIG.test(name))
+    if (!vitest && !jest && [...names].some((name) => VITE_CONFIG.test(name))) {
+      const kind = await viteConfigKind(directory)
+      vitest = kind === 'tests'
+      unread ||= kind === 'no-add-on'
+    }
     if (jest && vitest) {
       throw new UsageError(
         `found both a Jest config and a Vitest config in ${directory}: say which one to run with --dialect jest or --dialect vitest`,
@@ -105,6 +125,10 @@ export async function detectProject(
     directory = parent
   }
   throw new UsageError(
-    `found no provino.config.*, Jest config or Vitest config in ${cwd} or a parent directory (provino jest runs a Jest project with Jest's defaults)`,
+    `found no provino.config.*, Jest config or Vitest config in ${cwd} or a parent directory (provino jest runs a Jest project with Jest's defaults)${
+      unread
+        ? `\na vite.config.* was found, and whether it declares tests takes the Vitest dialect to read: ${installCommand('vitest')}`
+        : ''
+    }`,
   )
 }

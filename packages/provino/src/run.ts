@@ -1,7 +1,8 @@
-import { resolve } from 'node:path'
-import { loadConfigFile, resolveProjects } from '@provino/config'
+import { dirname, resolve } from 'node:path'
+import { ConfigError, loadConfigFile, resolveProjects } from '@provino/config'
 import { discoverProject, ExitCode, type RunProjectOptions } from '@provino/orchestrator'
 import { isCi } from '@provino/reporters'
+import { addOnSpecifier, reportAddOnFailure } from './internal/add-on.ts'
 import { builtInDialects, ENVIRONMENTS, NATIVE_RUNTIME } from './internal/built-ins.ts'
 import { usageMessage } from './internal/describe.ts'
 import { executeProject, timingsOf } from './internal/execute.ts'
@@ -53,13 +54,23 @@ async function execute(
   const env = options.env ?? process.env
   const configPath = resolve(cwd, options.config)
   const input = await loadConfigFile(configPath, { command: 'run', mode: 'test' })
+  // The Jest add-on (D187) resolves from the config's directory, for this call only.
+  const root = dirname(configPath)
   const resolved = await resolveProjects(input, {
     configPath,
     dialects: [],
-    loadDialects: builtInDialects,
+    loadDialects: () => builtInDialects(root),
     environments: ENVIRONMENTS,
     ci: options.ci ?? isCi(env),
     native: NATIVE_RUNTIME,
+  }).catch(async (error: unknown) => {
+    // A config that names `dialect: 'jest'` or holds a `jest` key, refused because the add-on gave
+    // no dialect: the add-on's own failure (not installed, or of another provino) says why. Any
+    // other error (a typo'd key among them) is the config's own.
+    if (error instanceof ConfigError && error.subject === 'jest') {
+      await import(addOnSpecifier('jest', '', root))
+    }
+    throw error
   })
   const [project, ...others] = resolved.projects
   if (project === undefined) throw new UsageError('the config has no project to run')
@@ -123,6 +134,9 @@ export async function run(options: RunOptions): Promise<RunResult> {
   try {
     return await execute(options, stdout, stderr)
   } catch (error) {
+    // Exit 1, as `provino jest` without the add-on: an install to fix, not a command-line mistake.
+    const addOn = reportAddOnFailure(error, stderr)
+    if (addOn !== undefined) return { exitCode: addOn, summary: null }
     const message = usageMessage(error)
     if (message === undefined) throw error
     stderr.write(`${message}\n`)

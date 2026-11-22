@@ -4,11 +4,14 @@ import assert from 'node:assert/strict'
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import {
+  cpSync,
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
   realpathSync,
+  rmSync,
   symlinkSync,
 } from 'node:fs'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
@@ -520,4 +523,48 @@ export function linkProvino(
 ): void {
   mkdirSync(join(dir, 'node_modules'), { recursive: true })
   symlinkSync(pkg, join(dir, 'node_modules', 'provino'), 'dir')
+}
+
+/** This package's directory: the built package the copies below are made of. */
+const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
+
+/**
+ * Copies the built package (`dist` and `package.json`) into `target`, a `provino` of its own at
+ * that path. Its dependencies are whatever `target`'s parents hold.
+ */
+export function copyBuiltPackage(target: string): string {
+  mkdirSync(target, { recursive: true })
+  cpSync(join(PACKAGE_DIR, 'dist'), join(target, 'dist'), { recursive: true })
+  cpSync(join(PACKAGE_DIR, 'package.json'), join(target, 'package.json'))
+  return target
+}
+
+/**
+ * Links every entry of `from`'s `node_modules` but `except` (and `.bin`) into `to`'s, so a copy
+ * resolves the same third-party packages.
+ */
+export function linkDependencies(from: string, to: string, except: readonly string[] = []): void {
+  mkdirSync(join(to, 'node_modules'), { recursive: true })
+  for (const name of readdirSync(join(from, 'node_modules'))) {
+    if (name === '.bin' || except.includes(name)) continue
+    const link = join(to, 'node_modules', name)
+    if (existsSync(link)) continue
+    symlinkSync(join(from, 'node_modules', name), link, 'dir')
+  }
+}
+
+/**
+ * A copy of the built package in a temp directory removed when the test file ends (by its real
+ * path, as a load recorder sees it: macOS's `$TMPDIR` is a link): with the package's own
+ * `node_modules` linked (`'all'`), or every dependency but the `@provino/*` workspace links, so
+ * no add-on (`'without-add-ons'`, `provino` installed alone).
+ */
+export function packageCopy(modules: 'all' | 'without-add-ons' = 'all'): string {
+  const copy = realpathSync(mkdtempSync(join(tmpdir(), 'provino-copy-')))
+  after(() => rmSync(copy, { recursive: true, force: true }))
+  copyBuiltPackage(copy)
+  if (modules === 'all')
+    symlinkSync(join(PACKAGE_DIR, 'node_modules'), join(copy, 'node_modules'), 'dir')
+  else linkDependencies(PACKAGE_DIR, copy, ['@provino'])
+  return copy
 }

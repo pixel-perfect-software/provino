@@ -9,6 +9,7 @@ import {
   createJestConfigReader,
   createJestResults,
   JEST_CLEAR_LINE,
+  JEST_ENVIRONMENT_ADAPTER,
   JEST_NO_SCM_TEXT,
   type JestArgv,
   JestCliError,
@@ -49,7 +50,7 @@ import {
 import type { TextSink } from '@provino/reporters'
 import type { ConfigSource, Diagnostic, NeutralProject, RunRequest } from '@provino/types'
 import type { ReporterChoice } from '../types.ts'
-import { JEST_BUILT_INS, JEST_ENVIRONMENT, NODE_ENVIRONMENT } from './built-ins.ts'
+import { JEST_BUILT_INS, NODE_ENVIRONMENT } from './built-ins.ts'
 import type { CoverageReporter } from './coverage-reporter.ts'
 import { usageMessage } from './describe.ts'
 import { type ExecuteOptions, executeProject, timingsOf } from './execute.ts'
@@ -136,7 +137,7 @@ function environmentsFor(request: RunRequest, project: NeutralProject): typeof J
   if (Object.hasOwn(JEST_BUILT_INS, name)) return JEST_BUILT_INS
   // Any other environment is the project's own Jest class (D44), run through the adapter.
   if (typeof project.environment.options.module === 'string')
-    return { ...JEST_BUILT_INS, [name]: JEST_ENVIRONMENT }
+    return { ...JEST_BUILT_INS, [name]: JEST_ENVIRONMENT_ADAPTER }
   if (request.mode === 'run') return JEST_BUILT_INS
   return { ...JEST_BUILT_INS, [name]: NODE_ENVIRONMENT }
 }

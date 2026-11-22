@@ -1,4 +1,5 @@
 import {
+  existsSync,
   mkdirSync,
   mkdtempSync,
   readdirSync,
@@ -149,34 +150,35 @@ export function bannedInTree(tree: unknown, banned: RegExp): readonly string[] {
 }
 
 /**
- * Why the native footprint case is off by default. It fails until `provino` stops depending on
- * the Jest and Vitest packages its inlined dialects need: B27f moves them into
- * `@provino/dialect-jest` and `@provino/dialect-vitest` (D187) and flips `NATIVE_FOOTPRINT_DEFAULT`.
- * `installSmoke({ native: true })` (`pnpm smoke:install --native`) runs it now.
+ * What the skipped native footprint case says: only `installSmoke({ native: false })` skips it
+ * since B27f's install split (D187) moved the Jest and Vitest packages into the dialects' add-ons.
  * @internal
  */
 export const NATIVE_FOOTPRINT_SKIP: string =
-  "skipped until B27f (D187): provino still depends on the dialects' Jest and Vitest packages (run it with --native)"
+  'skipped: installSmoke was asked not to run the native case (native: false)'
 
 /**
- * Whether `installSmoke` runs the native footprint case when not told: `false` until B27f.
- * @internal
+ * The Jest app's pnpm settings: no hoisting at all (`hoist=false`, in both places pnpm reads
+ * settings from), the strictest layout, where an add-on is reachable only from the project.
  */
-export const NATIVE_FOOTPRINT_DEFAULT: boolean = false
+const NO_HOIST: Readonly<Record<string, string>> = {
+  '.npmrc': 'hoist=false\n',
+  'pnpm-workspace.yaml': 'hoist: false\n',
+}
 
 /** A command in an app directory, with pnpm. */
 type Run = (args: readonly string[]) => CommandResult
 
 /**
  * A new app `dir` under `work` (a private `type: module` package of that name), `files` written
- * into it, and `tarball` installed with pnpm, outside any workspace. Returns the app, a runner of
+ * into it, and `tarballs` installed with pnpm in one command, outside any workspace. Returns the app, a runner of
  * pnpm commands in it, and the install's result.
  */
 function installApp(
   work: string,
   dir: string,
   files: Readonly<Record<string, string>>,
-  tarball: string,
+  tarballs: readonly string[],
 ): { readonly app: string; readonly run: Run; readonly install: CommandResult } {
   const app = join(work, dir)
   mkdirSync(app, { recursive: true })
@@ -188,12 +190,13 @@ function installApp(
   const { command, prefix } = pnpm()
   const run: Run = (args) =>
     runCommand(command, [...prefix, ...args], { cwd: app, timeoutMs: 600_000 })
-  const install = run(['add', '--ignore-workspace', '--prefer-offline', tarball])
+  const install = run(['add', '--ignore-workspace', '--prefer-offline', ...tarballs])
   return { app, run, install }
 }
 
 /**
- * The native case (acceptance row 9): in its own empty app, install the tarball, run bare
+ * The native case (acceptance row 9, run since B27f's install split, D187): in its own empty app,
+ * install `provino`'s tarball alone, run bare
  * `provino` on `NATIVE_SMOKE_FILES` (`SMOKE_TESTS` passed), and read `pnpm ls --depth Infinity
  * --json`: no banned name anywhere in the tree.
  */
@@ -203,7 +206,7 @@ function nativeFootprint(
   tarball: string,
   step: (name: string, ok: boolean, output: string) => boolean,
 ): void {
-  const { run, install } = installApp(work, 'native-app', NATIVE_SMOKE_FILES, tarball)
+  const { run, install } = installApp(work, 'native-app', NATIVE_SMOKE_FILES, [tarball])
   if (!step('native: install', install.status === 0, install.output)) return
   const suite = run(['exec', 'provino'])
   step(
@@ -264,10 +267,17 @@ function removeOxcBindings(app: string): readonly string[] {
 }
 
 /**
- * Packs `provino` with `pnpm pack` (it inlines every other package, so it is the only tarball the
- * install needs), installs it from that tarball into an empty directory (outside the repository,
- * so none of its pnpm settings apply), and runs `provino --version` and the three-file smoke
- * suite there. The install reaches the registry for `provino`'s own dependencies; it uses no
+ * The packages the Jest case installs: `provino` (it inlines every engine package) and the Jest
+ * dialect's add-on (D187), which `provino jest` needs beside it.
+ */
+const JEST_INSTALL: readonly string[] = ['provino', '@provino/dialect-jest']
+
+/**
+ * Packs `provino` and `@provino/dialect-jest` with `pnpm pack` (`JEST_INSTALL`: the add-on reaches
+ * the engine through its `provino` peer, so no other tarball is needed), installs both from their
+ * tarballs into an empty directory (outside the repository, so none of its pnpm settings apply), and
+ * runs `provino --version` and the three-file smoke suite there, then the native case with
+ * `provino` alone. The install reaches the registry for `provino`'s own dependencies; it uses no
  * registry copy of Provino. It is the local half of T10.2's install matrix: one cell, run with
  * pnpm.
  * @internal
@@ -275,7 +285,7 @@ function removeOxcBindings(app: string): readonly string[] {
 export function installSmoke(options: {
   readonly root: string
   readonly keep: boolean
-  /** Run the native footprint case (default `NATIVE_FOOTPRINT_DEFAULT`); off, it is a skipped step. */
+  /** Run the native footprint case (the default); off, it is a skipped step. */
   readonly native?: boolean
 }): SmokeResult {
   const work = mkdtempSync(join(tmpdir(), 'provino-smoke-'))
@@ -289,16 +299,27 @@ export function installSmoke(options: {
     steps.push({ name, ok: true, output: why, skipped: true })
   }
   try {
-    const provinoPackage = publicPackages(options.root).find(
-      (pkg) => pkg.manifest.name === 'provino',
-    )
-    const provino =
-      provinoPackage === undefined ? undefined : packPackage(provinoPackage, join(work, 'tarballs'))
-    if (!step('pack', provino !== undefined, 'provino') || provino === undefined) {
+    const packages = publicPackages(options.root)
+    const [provino, dialect] = JEST_INSTALL.map((name) => {
+      const pkg = packages.find((candidate) => candidate.manifest.name === name)
+      return pkg === undefined ? undefined : packPackage(pkg, join(work, 'tarballs'))
+    })
+    if (
+      !step('pack', provino !== undefined && dialect !== undefined, JEST_INSTALL.join('\n')) ||
+      provino === undefined ||
+      dialect === undefined
+    ) {
       return { steps, ok: false, kept: undefined }
     }
-    const { app, run, install } = installApp(work, 'smoke', SMOKE_FILES, provino.tarball)
+    // `hoist=false`: nothing is hoisted into `node_modules/.pnpm/node_modules`, so `provino`, from its
+    // folder in the store, could reach the add-on only by resolving it from the project (D187).
+    const { app, run, install } = installApp(work, 'smoke', { ...SMOKE_FILES, ...NO_HOIST }, [
+      provino.tarball,
+      dialect.tarball,
+    ])
     if (!step('install', install.status === 0, install.output)) return { steps, ok: false, kept }
+    const hoisted = join(app, 'node_modules', '.pnpm', 'node_modules', '@provino', 'dialect-jest')
+    step('install: hoist=false, so no hoisted @provino/dialect-jest', !existsSync(hoisted), hoisted)
     const expected = readManifest(join(app, 'node_modules', 'provino')).version ?? ''
     const printsVersion = (result: CommandResult): boolean =>
       result.status === 0 && result.output.trim().split('\n').at(-1) === expected
@@ -329,8 +350,8 @@ export function installSmoke(options: {
         failed.output,
       )
     }
-    // The native case (B27e, acceptance row 9): off by default until B27f's install split.
-    if (options.native ?? NATIVE_FOOTPRINT_DEFAULT) {
+    // The native case (B27e, acceptance row 9): on by default since B27f's install split.
+    if (options.native ?? true) {
       nativeFootprint(options.root, work, provino.tarball, step)
     } else {
       skip('native: install footprint', NATIVE_FOOTPRINT_SKIP)

@@ -42,6 +42,7 @@ describe('the build task hashes exactly what the tsdown configs read (turbo.json
 
   test('the closure is what we think: the preset, the manifest reader and the umbrella', () => {
     assert.deepEqual(importClosure(CONFIGS), [
+      'src/internal-entries.ts',
       'src/package-json.ts',
       'src/preset.ts',
       'src/umbrella.ts',

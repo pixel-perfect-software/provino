@@ -1,16 +1,11 @@
 import type { Dialect, EnvironmentRef, NativeRuntimeRefs } from '@provino/types'
-
-/** Where a worker finds an environment: an `EnvironmentRef` without the options a project adds. */
-type EnvironmentModule = Omit<EnvironmentRef, 'options'>
+import { addOnFailure, addOnSpecifier } from './add-on.ts'
 
 /**
- * The adapter a Jest project's own environment class (D44) runs through; its options name the class.
+ * Where a worker finds an environment: an `EnvironmentRef` without the options a project adds.
  * @internal
  */
-export const JEST_ENVIRONMENT: EnvironmentModule = {
-  module: import.meta.resolve('@provino/dialect-jest/runtime'),
-  export: 'jestEnvironment',
-}
+export type EnvironmentModule = Omit<EnvironmentRef, 'options'>
 
 /**
  * The Node environment, which every project may name.
@@ -60,10 +55,19 @@ export const NATIVE_RUNTIME: NativeRuntimeRefs = {
 /**
  * The dialects `provino` ships, for a config that names one (`resolveProjects`' `loadDialects`):
  * imported only then, so a native project, `projects` of native sub-configs included, loads no
- * dialect code (D115, `speed`).
+ * dialect code (D115, `speed`). The Jest dialect is an add-on (D187), resolved from `root` (the
+ * config's directory) for this call; when it isn't installed there are none, so a config that only
+ * looked like it might name one (a typo'd key) gets `@provino/config`'s own error.
  * @internal
  */
-export async function builtInDialects(): Promise<readonly Dialect[]> {
-  const { jestDialect } = await import('@provino/dialect-jest')
-  return [jestDialect]
+export async function builtInDialects(root: string): Promise<readonly Dialect[]> {
+  try {
+    const { jestDialect }: typeof import('@provino/dialect-jest') = await import(
+      addOnSpecifier('jest', '', root)
+    )
+    return [jestDialect]
+  } catch (error) {
+    if (addOnFailure(error)?.code === 'PROVINO_DIALECT_NOT_INSTALLED') return []
+    throw error
+  }
 }

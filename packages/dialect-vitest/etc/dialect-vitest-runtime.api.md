@@ -4,31 +4,31 @@
 
 ```ts
 
-import { createExpect } from '@provino/expect';
-import { Environment } from '@provino/types';
-import { EnvironmentConditions } from '@provino/types';
-import { EnvironmentResolver } from '@provino/types';
-import { ExpectTable } from '@provino/types';
-import { FakeClock } from '@provino/timers';
-import { FakeTimersConfig } from '@provino/timers';
-import { FormatDefinitionError } from '@provino/types';
-import { FormatEachTitle } from '@provino/types';
-import { GlobalsHost } from '@provino/types';
-import { JsonValue } from '@provino/types';
-import { Mock } from '@provino/mock';
-import { MockFactory } from '@provino/types';
-import { MockRegistry } from '@provino/mock';
-import { MockTarget } from '@provino/mock';
-import { RuntimeApi } from '@provino/core';
-import { SnapshotPrinter } from '@provino/types';
-import { SpiedGetter } from '@provino/mock';
-import { SpiedMethod } from '@provino/mock';
-import { SpiedSetter } from '@provino/mock';
-import { SpyableKeys } from '@provino/mock';
-import { SuiteApi } from '@provino/core';
-import { TestApi } from '@provino/core';
-import { TimersPolicy } from '@provino/types';
-import { UnknownFunction } from '@provino/mock';
+import { createExpect } from 'provino/internal/vitest-runtime';
+import { Environment } from 'provino/internal/types';
+import { EnvironmentConditions } from 'provino/internal/types';
+import { EnvironmentResolver } from 'provino/internal/types';
+import { ExpectTable } from 'provino/internal/types';
+import { FakeClock } from 'provino/internal/vitest-runtime';
+import { FakeTimersConfig } from 'provino/internal/vitest-runtime';
+import { FormatDefinitionError } from 'provino/internal/types';
+import { FormatEachTitle } from 'provino/internal/types';
+import { GlobalsHost } from 'provino/internal/types';
+import { JsonValue } from 'provino/internal/types';
+import { Mock } from 'provino/internal/vitest-runtime';
+import { MockFactory } from 'provino/internal/types';
+import { MockRegistry } from 'provino/internal/vitest-runtime';
+import { MockTarget } from 'provino/internal/vitest-runtime';
+import { RuntimeApi } from 'provino/internal/vitest-runtime';
+import { SnapshotPrinter } from 'provino/internal/types';
+import { SpiedGetter } from 'provino/internal/vitest-runtime';
+import { SpiedMethod } from 'provino/internal/vitest-runtime';
+import { SpiedSetter } from 'provino/internal/vitest-runtime';
+import { SpyableKeys } from 'provino/internal/vitest-runtime';
+import { SuiteApi } from 'provino/internal/vitest-runtime';
+import { TestApi } from 'provino/internal/vitest-runtime';
+import { TimersPolicy } from 'provino/internal/types';
+import { UnknownFunction } from 'provino/internal/vitest-runtime';
 
 // @public
 export function expectTypeOf(_value?: unknown): Record<string, unknown>;
