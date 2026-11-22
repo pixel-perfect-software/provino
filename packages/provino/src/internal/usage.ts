@@ -61,6 +61,12 @@ Options of provino run:
                                     an error (provino jest takes it too)
       --map                         After the end card, print one cell per file, a row per folder
                                     (the same rules as --tree)
+      --watch                       Run, then rerun the test files a change reaches (every file for
+                                    a change to a package.json, provino.config.* or tsconfig).
+                                    On a terminal: a runs all, f runs the failed, Enter reruns the
+                                    last, q quits (Ctrl+C too); off a terminal it reruns on change
+                                    with no keys. Not with --coverage, --shard or --detectOpenHandles
+      --watchAll                    As --watch, and every file reruns on any change
   -h, --help                        Print this text
       --version                     Print the version of provino
 

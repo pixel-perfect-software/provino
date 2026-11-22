@@ -1,5 +1,5 @@
 import { dirname, resolve } from 'node:path'
-import { ConfigError, loadConfigFile, resolveProjects } from '@provino/config'
+import { ConfigError, loadConfigFile, type ResolvedProject, resolveProjects } from '@provino/config'
 import { discoverProject, ExitCode, type RunProjectOptions } from '@provino/orchestrator'
 import { isCi } from '@provino/reporters'
 import { addOnSpecifier, reportAddOnFailure } from './internal/add-on.ts'
@@ -39,11 +39,27 @@ function poolOptions(options: RunOptions): NonNullable<RunProjectOptions['pool']
   }
 }
 
-async function execute(
-  options: RunOptions,
-  stdout: NonNullable<RunOptions['stdout']>,
-  stderr: NonNullable<RunOptions['stderr']>,
-): Promise<RunResult> {
+/**
+ * What a run needs of its config before it starts: the resolved projects, the pool the command line
+ * and the config ask for, and the environment. `run()` and the native watch session
+ * (`internal/native-watch.ts`) share it.
+ * @internal
+ */
+export interface ResolvedRun {
+  readonly project: ResolvedProject
+  readonly others: readonly ResolvedProject[]
+  readonly root: string | undefined
+  readonly cwd: string
+  readonly env: NonNullable<RunOptions['env']>
+  readonly pool: NonNullable<RunProjectOptions['pool']>
+}
+
+/**
+ * Loads `options.config` and resolves its projects. Bad input is a `UsageError` or a
+ * `ConfigError`, which `reportRunError` says.
+ * @internal
+ */
+export async function resolveRun(options: RunOptions): Promise<ResolvedRun> {
   if (typeof options.config !== 'string' || options.config === '') {
     throw new UsageError('run() needs the path of a config file')
   }
@@ -82,10 +98,19 @@ async function execute(
       ? { maxWorkers: resolved.maxWorkers }
       : {}),
   })
+  return { project, others, root: resolved.root, cwd, env, pool }
+}
+
+async function execute(
+  options: RunOptions,
+  stdout: NonNullable<RunOptions['stdout']>,
+  stderr: NonNullable<RunOptions['stderr']>,
+): Promise<RunResult> {
+  const { project, others, root, cwd, env, pool } = await resolveRun(options)
   return executeProject({
     project,
     ...(others.length === 0 ? {} : { others }),
-    ...(resolved.root === undefined ? {} : { root: resolved.root }),
+    ...(root === undefined ? {} : { root }),
     cwd,
     stdout,
     stderr,
@@ -114,6 +139,21 @@ async function execute(
 }
 
 /**
+ * Says what a failed run was: the exit code for an add-on that is not there (1) or bad input
+ * (2), after printing the message to `stderr`; `undefined` for any other error, which is a bug.
+ * @internal
+ */
+export function reportRunError(error: unknown, stderr: NodeJS.WritableStream): number | undefined {
+  // Exit 1, as `provino jest` without the add-on: an install to fix, not a command-line mistake.
+  const addOn = reportAddOnFailure(error, stderr)
+  if (addOn !== undefined) return addOn
+  const message = usageMessage(error)
+  if (message === undefined) return undefined
+  stderr.write(`${message}\n`)
+  return ExitCode.UsageError
+}
+
+/**
  * Runs a project's tests, as `provino run` does, and resolves with the exit code the run calls for
  * and its summary. Nothing here exits the process or keeps state between calls: the worker pool
  * and the results cache belong to one call, so calls can follow each other or overlap (on
@@ -134,12 +174,8 @@ export async function run(options: RunOptions): Promise<RunResult> {
   try {
     return await execute(options, stdout, stderr)
   } catch (error) {
-    // Exit 1, as `provino jest` without the add-on: an install to fix, not a command-line mistake.
-    const addOn = reportAddOnFailure(error, stderr)
-    if (addOn !== undefined) return { exitCode: addOn, summary: null }
-    const message = usageMessage(error)
-    if (message === undefined) throw error
-    stderr.write(`${message}\n`)
-    return { exitCode: ExitCode.UsageError, summary: null }
+    const exitCode = reportRunError(error, stderr)
+    if (exitCode === undefined) throw error
+    return { exitCode, summary: null }
   }
 }

@@ -7,6 +7,7 @@ import { run } from '../run.ts'
 import type { ReporterChoice, RunOptions } from '../types.ts'
 import { reportAddOnFailure, setAddOnRoot } from './add-on.ts'
 import { detectProject } from './detect.ts'
+import type { NativeWatchIo, WatchMode } from './native-watch.ts'
 import { quickAnswer } from './quick.ts'
 import {
   BUILT_IN_REPORTERS,
@@ -29,7 +30,11 @@ const POOL_KINDS: readonly PoolKind[] = ['forks', 'threads', 'inline']
  * line named one (else it is found by walking up from the working directory, D196).
  * @internal
  */
-export type ParsedRunOptions = Omit<RunOptions, 'config'> & { readonly config?: string }
+export type ParsedRunOptions = Omit<RunOptions, 'config'> & {
+  readonly config?: string
+  /** `--watch` (the files a change reaches) or `--watchAll` (every file): see `native-watch.ts`. */
+  readonly watch?: WatchMode
+}
 
 /**
  * What a command line asks for.
@@ -190,6 +195,16 @@ export function parseRunArgs(
   }
   const { values } = parsed
   if (values.help === true) return { type: 'help' }
+  if (values.coverage === true) {
+    throw new UsageError(
+      values.watch === true || values.watchAll === true
+        ? '--coverage in watch mode is not supported yet'
+        : '--coverage is not supported by provino run yet',
+    )
+  }
+  if (values.watch === true && values.watchAll === true) {
+    throw new UsageError('--watch and --watchAll are one or the other')
+  }
   if (values.pool !== undefined && !isPoolKind(values.pool)) {
     throw new UsageError(`--pool must be one of ${POOL_KINDS.join(', ')} (got "${values.pool}")`)
   }
@@ -224,6 +239,11 @@ export function parseRunArgs(
     ...(values.timings === undefined ? {} : { timingsFile: values.timings }),
     ...(values['update-timings'] === true ? { updateTimings: true } : {}),
     ...(values['no-emoji'] === true ? { emoji: false as const } : {}),
+    ...(values.watchAll === true
+      ? { watch: 'all' as const }
+      : values.watch === true
+        ? { watch: 'changed' as const }
+        : {}),
   }
   return {
     type: 'run',
@@ -255,6 +275,9 @@ const OPTIONS = {
   'no-emoji': { type: 'boolean' },
   tree: { type: 'boolean' },
   map: { type: 'boolean' },
+  watch: { type: 'boolean' },
+  watchAll: { type: 'boolean' },
+  coverage: { type: 'boolean' },
   help: { type: 'boolean', short: 'h' },
 } as const satisfies ParseArgsOptionsConfig
 
@@ -302,6 +325,8 @@ export interface CliIo {
    * module never calls `process.exit`.
    */
   readonly onForceExit?: () => void
+  /** What `--watch` reads keys, changes and time from, in place of the process's (a test's). */
+  readonly watchIo?: NativeWatchIo
 }
 
 /** What `command` and its `args` ask for. */
@@ -386,7 +411,13 @@ async function runCommand(
   const config = parsed.options.config ?? (await nearestProvinoConfig(cwd))
   // A config's `provino/jest` resolves from the config's directory (D187).
   setAddOnRoot(dirname(resolve(cwd, config)))
-  const { exitCode } = await run({ ...parsed.options, config, ...ioOptions(io) })
+  const { watch, ...options } = parsed.options
+  if (watch !== undefined) {
+    // Imported only here, so a run without watch loads none of it.
+    const { runNativeWatch } = await import('./native-watch.ts')
+    return runNativeWatch({ ...options, config, ...ioOptions(io) }, watch, io.watchIo)
+  }
+  const { exitCode } = await run({ ...options, config, ...ioOptions(io) })
   if (parsed.forceExit === true) {
     if (parsed.options.detectOpenHandles !== true) {
       ;(io.stderr ?? process.stderr).write(

@@ -432,7 +432,7 @@ describe('watch mode is its own chunk (B23f)', () => {
     }
   })
 
-  test('exactly one dynamic import reaches it, and it is in a file the bin loads', () => {
+  test('only two dynamic imports reach it (provino jest and provino run), each in a file the bin loads', () => {
     const sources = builtSources()
     const watch = watchFiles(sources)
     const reaching = [...sources]
@@ -442,7 +442,8 @@ describe('watch mode is its own chunk (B23f)', () => {
           .filter((file) => watch.has(file))
           .map(() => path),
       )
-    assert.equal(reaching.length, 1, reaching.join(', '))
+    // `provino jest`'s driver (in `jest-node.js`) and `provino run`'s (B27k, in the CLI's chunk).
+    assert.equal(reaching.length, 2, reaching.join(', '))
     // The bin's graph without watch mode: `cli.js` and what it imports, statically or dynamically
     // (the light bin imports the rest of itself dynamically), however many hops.
     const bin = new Set(['cli.js'])
@@ -452,7 +453,7 @@ describe('watch mode is its own chunk (B23f)', () => {
         if (!watch.has(next)) bin.add(next)
       }
     }
-    assert.ok(bin.has(reaching[0] ?? ''), `${reaching[0]} is not reached from the bin`)
+    for (const file of reaching) assert.ok(bin.has(file), `${file} is not reached from the bin`)
   })
 })
 
