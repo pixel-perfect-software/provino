@@ -190,6 +190,62 @@ test('durations: replaces the measured times runners print', () => {
   )
 })
 
+test('durations: a slow file header and a plain one normalize to the same text', () => {
+  const durations = rule('durations')
+  // Jest, and Provino's copy of its reporter, add the runtime to a PASS/FAIL header only when the
+  // file is slow (over `slowTestThreshold`, 5 s), so whether it is there depends on the load.
+  assert.equal(durations('FAIL ./default.test.ts (5.2 s)'), 'FAIL ./default.test.ts')
+  assert.equal(durations('FAIL ./default.test.ts (5.2 s)'), durations('FAIL ./default.test.ts'))
+  assert.equal(
+    durations('PASS ./a.test.ts (12 s)\nPASS ./b.test.ts'),
+    'PASS ./a.test.ts\nPASS ./b.test.ts',
+  )
+  assert.equal(durations('PASS my-project ./a.test.ts (5.2 s)'), 'PASS my-project ./a.test.ts')
+  assert.equal(durations('  PASS ./a.test.ts (7 s)  '), '  PASS ./a.test.ts')
+})
+
+test('createNormalizer: a slow file header and a plain one record the same text', () => {
+  const normalizer = createNormalizer(ctx)
+  const run = (header: string): string =>
+    normalizer.text(
+      `${header}\n  ● it fails (12 ms)\nTests:       1 failed, 1 total\nTime:        6.1 s`,
+    )
+  assert.equal(run('FAIL ./default.test.ts (6.1 s)'), run('FAIL ./default.test.ts'))
+  assert.equal(
+    run('FAIL ./default.test.ts'),
+    'FAIL ./default.test.ts\n  ● it fails (<dur>)\nTests:       1 failed, 1 total\nTime:        <dur>',
+  )
+})
+
+test('durations: a slow header keeps its heap size, with or without a time', () => {
+  const durations = rule('durations')
+  assert.equal(
+    durations('PASS ./a.test.ts (5.2 s, 45 MB heap size)'),
+    'PASS ./a.test.ts (45 MB heap size)',
+  )
+  assert.equal(
+    durations('PASS ./a.test.ts (45 MB heap size)'),
+    'PASS ./a.test.ts (45 MB heap size)',
+  )
+  assert.equal(
+    durations('PASS ./a.test.ts (5.2 s, 45 MB heap size)'),
+    durations('PASS ./a.test.ts (45 MB heap size)'),
+  )
+})
+
+test('durations: a time anywhere but a PASS/FAIL header stays a time', () => {
+  const durations = rule('durations')
+  for (const [text, expected] of [
+    ['✓ passes (12 ms)', '✓ passes (<dur>)'],
+    ['  ✕ FAIL looks like a header (12 ms)', '  ✕ FAIL looks like a header (<dur>)'],
+    ['PASS ./a.test.ts (5.2 s) retried', 'PASS ./a.test.ts (<dur>) retried'],
+    ['see PASS ./a.test.ts (5.2 s)', 'see PASS ./a.test.ts (<dur>)'],
+    ['FAIL ./a.test.ts (<dur>)', 'FAIL ./a.test.ts (<dur>)'],
+  ] as const) {
+    assert.equal(durations(text), expected, text)
+  }
+})
+
 test('durations: leaves configured values and user strings alone', () => {
   const durations = rule('durations')
   for (const text of [

@@ -6,14 +6,16 @@
 import assert from 'node:assert/strict'
 import { cpSync, existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import { basename, join, resolve } from 'node:path'
-import { test } from 'node:test'
+import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { resolvePolicy } from '@provino/policy'
 import type { ModuleMapper, ModuleMapperFactory, NeutralProject, Policy } from '@provino/types'
 import { vitestPolicy } from '../dialect.ts'
 import { globToRegexSource } from './glob.ts'
 import { readVitestConfig } from './index.ts'
-import { writeTree } from './test-support.ts'
+import { removeTrees, writeTree } from './test-support.ts'
+
+after(removeTrees)
 
 const FIXTURES = fileURLToPath(new URL('../../../harness/fixtures/', import.meta.url))
 

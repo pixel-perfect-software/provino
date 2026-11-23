@@ -7,7 +7,6 @@ import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
-import { after } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
 import {
   connectWorker,
@@ -141,17 +140,25 @@ export async function makeProject(files: Readonly<Record<string, string>>): Prom
   return {
     dir,
     path: (name) => join(dir, name),
-    cleanup: () => rm(dir, { recursive: true, force: true }),
+    // `affected.test.ts` keeps its results cache beside the project, as `<dir>.cache`.
+    cleanup: async () => {
+      await rm(dir, { recursive: true, force: true })
+      await rm(`${dir}.cache`, { recursive: true, force: true })
+    },
   }
 }
 
 /**
  * A maker of projects for one test file: each project it makes is removed once the file's tests
- * are done. It registers its own `after`, so call it once, at the top of the file.
+ * are done. The files that import this run on node:test (the bootstrap set) and on Provino, so it
+ * imports neither runner: the caller passes its own after-all hook (`after` from node:test,
+ * `afterAll` from provino). Call it once, at the top of the file.
  */
-export function trackedProjects(): (files: Readonly<Record<string, string>>) => Promise<Project> {
+export function trackedProjects(
+  afterFile: (cleanup: () => Promise<void>) => void,
+): (files: Readonly<Record<string, string>>) => Promise<Project> {
   const made: Project[] = []
-  after(async () => {
+  afterFile(async () => {
     await Promise.all(made.map((project) => project.cleanup()))
   })
   return async (files) => {

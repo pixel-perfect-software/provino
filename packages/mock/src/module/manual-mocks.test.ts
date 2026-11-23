@@ -4,9 +4,10 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, test } from 'provino'
 import { findManualMock, findRootMock, isCoreSpecifier } from './manual-mocks.ts'
-import { tempTree } from './test-support.ts'
+import { deferredTree } from './test-support.ts'
 
-const { dir, write } = tempTree('provino-manual-')
+// Named here, made in a `beforeAll` (see `deferredTree`).
+const { dir, write } = deferredTree('provino-manual-')
 
 const pkg = write('__mocks__/pkg.js')
 const scoped = write('__mocks__/@scope/lib.ts')

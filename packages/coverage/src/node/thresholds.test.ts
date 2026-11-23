@@ -4,23 +4,21 @@
 // the bin to the same lines. The policy here is the Jest dialect's coverage slice written out (the
 // neutral package imports no dialect); the equality with Jest's text is what the oracle proves.
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
+import { mkdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { CoverageReporter } from '@jest/reporters'
 import type { CoverageThresholdGroup, IstanbulFileCoverageData } from '@provino/types'
 import libCoverage from 'istanbul-lib-coverage'
-import { afterAll, test } from 'provino'
+import { afterAll, beforeAll, test } from 'provino'
 import { CoverageError } from '../errors.ts'
 import { checkThresholds, type ThresholdPolicy } from './thresholds.ts'
 
-const root = realpathSync(mkdtempSync(join(tmpdir(), 'provino-thresholds-')))
+// The path is only named here: the directory, its files and the change of directory are made in
+// `beforeAll`, which a listing of the file (every test skipped) never runs.
+const root = join(realpathSync(tmpdir()), `provino-thresholds-${randomBytes(6).toString('hex')}`)
 const previousCwd = process.cwd()
-process.chdir(root)
-afterAll(() => {
-  process.chdir(previousCwd)
-  rmSync(root, { recursive: true, force: true })
-})
 
 const policy: ThresholdPolicy = {
   thresholdGrouping: 'every-match',
@@ -65,10 +63,18 @@ const paths = {
   d: join(root, 'lib', 'd.ts'),
   hidden: join(root, 'src', '.hidden', 'h.ts'),
 }
-for (const path of Object.values(paths)) {
-  mkdirSync(join(path, '..'), { recursive: true })
-  writeFileSync(path, '')
-}
+beforeAll(() => {
+  mkdirSync(root)
+  for (const path of Object.values(paths)) {
+    mkdirSync(join(path, '..'), { recursive: true })
+    writeFileSync(path, '')
+  }
+  process.chdir(root)
+})
+afterAll(() => {
+  process.chdir(previousCwd)
+  rmSync(root, { recursive: true, force: true })
+})
 
 const data = [
   fileData(paths.a, 10, 9),

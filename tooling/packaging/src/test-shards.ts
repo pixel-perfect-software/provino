@@ -27,6 +27,7 @@ import {
   SPLIT_TEST_RUNNER,
   testScript,
 } from './dogfood.ts'
+import { importProblems } from './node-test-imports.ts'
 import { ROOT, readWorkspacePackages } from './workspace.ts'
 
 /**
@@ -240,6 +241,7 @@ function check(): number {
       (file) => existsSync(join(ROOT, file)),
       migratedDirs(ROOT),
     ),
+    ...importProblems(ROOT),
     ...unshardableSplits().map(
       (name) =>
         `${name} is split but its test script does not take a shard (runner-shard.ts, node-test.ts)`,

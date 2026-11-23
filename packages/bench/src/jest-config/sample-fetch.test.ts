@@ -7,11 +7,15 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, test } from 'provino'
+import { onTestFinished, test } from 'provino'
 import { pipeProcesses, prepareRepoDir } from './sample-fetch.ts'
 
-const dir = mkdtempSync(join(tmpdir(), 'provino-sample-fetch-'))
-afterAll(() => rmSync(dir, { recursive: true, force: true }))
+/** A fresh directory for the calling test, removed when it finishes (importing the file makes none). */
+function scratch(): string {
+  const dir = mkdtempSync(join(tmpdir(), 'provino-sample-fetch-'))
+  onTestFinished(() => rmSync(dir, { recursive: true, force: true }))
+  return dir
+}
 
 const node = (script: string) => ({ command: process.execPath, args: ['-e', script] })
 
@@ -31,7 +35,7 @@ test('both exit codes are read after both processes end', async () => {
   // Explicit signals, not a timer: the consumer writes its pid to a flag file at end of input and
   // exits; the producer, its output already ended, exits only once that pid is gone. So the
   // producer ends after the consumer, by itself (it isn't stopped: its output had ended).
-  const flag = join(dir, 'consumer-pid')
+  const flag = join(scratch(), 'consumer-pid')
   const outcome = await pipeProcesses(
     node(
       `const fs = require('node:fs'); process.stdout.end('x'); const gone = (pid) => { try { process.kill(pid, 0); return false } catch { return true } }; const wait = () => { const text = fs.existsSync(${JSON.stringify(flag)}) ? fs.readFileSync(${JSON.stringify(flag)}, 'utf8') : ''; if (text !== '' && gone(Number(text))) process.exit(5); else setImmediate(wait) }; wait()`,
@@ -54,7 +58,7 @@ test('a successful pipe reports 0 and 0', async () => {
 })
 
 test("another commit's tree is removed before the new one goes in", () => {
-  const dest = join(dir, 'repo')
+  const dest = join(scratch(), 'repo')
   mkdirSync(join(dest, 'src'), { recursive: true })
   writeFileSync(join(dest, '.provino-fetched'), 'old-sha\n')
   writeFileSync(join(dest, 'src', 'deleted-in-new.js'), '')
@@ -64,7 +68,7 @@ test("another commit's tree is removed before the new one goes in", () => {
 })
 
 test('a tree of this commit is kept as it is', () => {
-  const dest = join(dir, 'same')
+  const dest = join(scratch(), 'same')
   mkdirSync(dest, { recursive: true })
   writeFileSync(join(dest, '.provino-fetched'), 'sha\n')
   writeFileSync(join(dest, 'kept.js'), 'x')

@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { after, describe, it } from 'node:test'
 import {
   createResultsCache,
   defaultCacheDir,
@@ -32,7 +32,7 @@ import {
   trackedProjects,
 } from './support.ts'
 
-const makeProject = trackedProjects()
+const makeProject = trackedProjects(after)
 
 /** The names of the events of one file, in order. */
 const namesOf = (seen: readonly Seen[], fileId: TaskId): string[] =>

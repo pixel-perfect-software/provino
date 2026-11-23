@@ -101,6 +101,9 @@ function parseJson(
 
 const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`
 
+/** The path from `from` to `to` with `/` separators, as a tsconfig and the root's keys write it. */
+const posixRelative = (from: string, to: string): string => relative(from, to).split('\\').join('/')
+
 /**
  * What the scaffold will do: each file's new text with a `<path>: <what>` line for the command to
  * print, and each edit it leaves to hand. Nothing is written until `commit`, which writes every
@@ -178,10 +181,19 @@ async function updateJson(
   changes.write(path, json(value), what)
 }
 
-/** Adds each of `wanted` that `list` lacks; returns the ones added. */
-function addMissing(list: unknown, wanted: readonly string[]): { list: string[]; added: string[] } {
+/**
+ * Adds each of `wanted` that `list` lacks; returns the ones added. Two items are the same when
+ * `key` gives them the same string (the item itself by default; a reference's resolved path, so `../x`
+ * and `../../packages/x` from another directory are not both written).
+ */
+function addMissing(
+  list: unknown,
+  wanted: readonly string[],
+  key: (item: string) => string = (item) => item,
+): { list: string[]; added: string[] } {
   const current = Array.isArray(list) ? (list as string[]) : []
-  const added = wanted.filter((item) => !current.includes(item))
+  const have = new Set(current.map(key))
+  const added = wanted.filter((item) => !have.has(key(item)))
   return { list: [...current, ...added], added }
 }
 
@@ -251,7 +263,7 @@ async function referenceTestProjects(
         if (added.length === 0) return undefined
         config.references = [
           ...refs,
-          ...added.map((dir) => ({ path: relative(dirname(project), dir).split('\\').join('/') })),
+          ...added.map((dir) => ({ path: posixRelative(dirname(project), dir) })),
         ]
         return `reference ${added.map((dir) => relative(dirname(project), dir)).join(', reference ')}`
       },
@@ -269,7 +281,7 @@ export async function scaffoldPackage(
   root: string,
   packageDir: string,
 ): Promise<readonly string[]> {
-  const dir = relative(root, packageDir).split('\\').join('/')
+  const dir = posixRelative(root, packageDir)
   if (dir.startsWith('..')) return []
   const changes = new Changes(root)
   const manifestPath = join(packageDir, 'package.json')
@@ -280,15 +292,18 @@ export async function scaffoldPackage(
 
   // The tests project: `provino` depends on most packages, so the tests cannot sit in the package's
   // own project (a cycle). It references the package's project, `provino` (not itself), the
-  // `@provino/*` packages the package depends on, and the shared config's project.
+  // `@provino/*` packages the package depends on, and the shared config's project. Each path is
+  // relative to the package's own directory: `../core` under `packages/`, `../../packages/core`
+  // under `tooling/`.
   const packages = [
     ...(manifest.name === 'provino' ? [] : ['provino']),
     ...workspacePackages(root, manifest),
   ]
+  const referenceTo = (target: string): string => posixRelative(packageDir, join(root, target))
   const references = [
     './tsconfig.json',
-    ...packages.map((name) => `../${name}`),
-    '../../tooling/provino',
+    ...packages.map((name) => referenceTo(`packages/${name}`)),
+    referenceTo('tooling/provino'),
   ]
   // One path: seed the file when it is missing, then merge into whatever is there.
   const testsConfig = join(packageDir, 'tsconfig.tests.json')
@@ -315,6 +330,7 @@ export async function scaffoldPackage(
       const refs = addMissing(
         referencesOf(config).map((ref) => ref.path),
         references,
+        (path) => resolve(packageDir, path),
       )
       config.include = include.list
       config.references = refs.list.map((path) => ({ path }))

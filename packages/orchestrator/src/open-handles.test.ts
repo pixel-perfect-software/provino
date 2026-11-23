@@ -5,7 +5,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { afterAll, describe, it } from 'provino'
+import { afterAll, beforeAll, describe, it } from 'provino'
 import { codeFrame, collectOpenHandles } from './open-handles.ts'
 
 describe('codeFrame', () => {
@@ -62,7 +62,10 @@ describe('codeFrame', () => {
 })
 
 describe('collectOpenHandles', () => {
-  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'provino-handles-')))
+  let dir: string
+  beforeAll(() => {
+    dir = realpathSync(mkdtempSync(join(tmpdir(), 'provino-handles-')))
+  })
   afterAll(() => rmSync(dir, { recursive: true, force: true }))
 
   /** A module of the "project": its functions make resources, and return them to be cleaned up. */

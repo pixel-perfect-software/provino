@@ -75,6 +75,74 @@ describe('scaffoldPackage', () => {
     assert.deepEqual(tests.include, ['src/**/*.test.ts', 'provino.config.ts'])
   })
 
+  it("writes each reference relative to the package's own directory, under packages/ and under tooling/", async () => {
+    const paths = async (root: string, dir: string): Promise<string[]> =>
+      JSON.parse(await readFile(join(root, dir, 'tsconfig.tests.json'), 'utf8')).references.map(
+        (reference: { path: string }) => reference.path,
+      )
+    const files = (dir: string) => ({
+      'tooling/provino/bootstrap.json': JSON.stringify({ files: {} }),
+      'tsconfig.json': JSON.stringify({ references: [] }),
+      'packages/core/package.json': '{}',
+      'packages/types/package.json': '{}',
+      [`${dir}/package.json`]: JSON.stringify({
+        name: '@provino/under-test',
+        dependencies: { '@provino/core': 'workspace:*' },
+        devDependencies: { '@provino/types': 'workspace:*' },
+      }),
+      [`${dir}/tsconfig.json`]: JSON.stringify({ include: ['src'] }),
+    })
+
+    const inPackages = scratchDir('scaffold-under-packages', files('packages/x'))
+    await scaffoldPackage(inPackages, join(inPackages, 'packages/x'))
+    assert.deepEqual(await paths(inPackages, 'packages/x'), [
+      './tsconfig.json',
+      '../provino',
+      '../core',
+      '../types',
+      '../../tooling/provino',
+    ])
+
+    // `../core` from tooling/x is tooling/core, which does not exist: the packages are two levels up.
+    const inTooling = scratchDir('scaffold-under-tooling', files('tooling/x'))
+    await scaffoldPackage(inTooling, join(inTooling, 'tooling/x'))
+    assert.deepEqual(await paths(inTooling, 'tooling/x'), [
+      './tsconfig.json',
+      '../../packages/provino',
+      '../../packages/core',
+      '../../packages/types',
+      '../provino',
+    ])
+  })
+
+  it('proposes nothing for a tooling package whose references were written by hand', async () => {
+    const root = scratchDir('scaffold-tooling-by-hand', {
+      'tooling/provino/bootstrap.json': JSON.stringify({ files: {} }),
+      'tsconfig.json': JSON.stringify({ references: [] }),
+      'packages/core/package.json': '{}',
+      'tooling/x/package.json': JSON.stringify({
+        name: '@provino/x',
+        dependencies: { '@provino/core': 'workspace:*' },
+      }),
+      'tooling/x/tsconfig.json': JSON.stringify({ include: ['src'] }),
+    })
+    await scaffoldPackage(root, join(root, 'tooling/x'))
+    await writeFile(
+      join(root, 'tooling/x/tsconfig.tests.json'),
+      JSON.stringify({
+        extends: '../../tooling/provino/tsconfig.tests.base.json',
+        include: ['src/**/*.test.ts', 'provino.config.ts'],
+        references: [
+          { path: './tsconfig.json' },
+          { path: '../../packages/provino' },
+          { path: '../../packages/core' },
+          { path: '../../tooling/provino' },
+        ],
+      }),
+    )
+    assert.deepEqual(await scaffoldPackage(root, join(root, 'tooling/x')), [])
+  })
+
   it('gives provino no reference to itself', async () => {
     const root = scratchDir('scaffold-self', {
       'tooling/provino/bootstrap.json': JSON.stringify({ files: {} }),

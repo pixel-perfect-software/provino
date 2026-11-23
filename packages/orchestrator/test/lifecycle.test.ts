@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { after, describe, it } from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
 import type { ResolvedProject } from '@provino/config'
 import {
@@ -31,7 +31,7 @@ import {
   trackedProjects,
 } from './support.ts'
 
-const makeProject = trackedProjects()
+const makeProject = trackedProjects(after)
 
 interface Run {
   readonly summary: RunSummary

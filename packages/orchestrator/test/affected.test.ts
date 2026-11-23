@@ -15,10 +15,10 @@ import {
   openRecordedGraph,
 } from '@provino/orchestrator'
 import type { DependencyExtractor } from '@provino/types'
-import { afterEach, describe, it } from 'provino'
+import { afterAll, afterEach, describe, it } from 'provino'
 import { type Project, runtimeProject, trackedProjects } from './support.ts'
 
-const makeProject = trackedProjects()
+const makeProject = trackedProjects(afterAll)
 
 const disposals: Disposable[] = []
 afterEach(() => {

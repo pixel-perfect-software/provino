@@ -8,11 +8,11 @@ import { pathToFileURL } from 'node:url'
 import type { ResolvedProject } from '@provino/config'
 import { loadFinishCoverage } from '@provino/orchestrator'
 import type { RawCoverage, SerializedCoverageConfig } from '@provino/types'
-import { describe, it } from 'provino'
+import { afterAll, describe, it } from 'provino'
 import { run, runtimeProject, trackedProjects } from './support.ts'
 
 const { finishCoverage } = await loadFinishCoverage()
-const project = trackedProjects()
+const project = trackedProjects(afterAll)
 
 const PRICING = [
   'export function price(quantity: number, unit = 2): number {',

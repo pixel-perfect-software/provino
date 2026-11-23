@@ -1,13 +1,16 @@
-// Test helpers for the reader's tests: a temp tree written from data.
+// Test helpers for the reader's tests: a temp tree written from data. Three of the files that import
+// this run on node:test (`tooling/provino/bootstrap.json`) and two on Provino, so it imports neither
+// runner: each test file registers `removeTrees` itself (`after` or `afterAll`).
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after } from 'node:test'
 
 const roots: string[] = []
-after(() => {
-  for (const root of roots) rmSync(root, { recursive: true, force: true })
-})
+
+/** Removes every tree `writeTree` made; a test file runs it when its tests are done. */
+export function removeTrees(): void {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+}
 
 /** Writes `files` (path to text) into a fresh temp directory and returns its real path. */
 export function writeTree(files: Readonly<Record<string, string>>): string {

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdtempSync, readdirSync, realpathSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { basename, join } from 'node:path'
-import { describe, it } from 'node:test'
+import { after, describe, it } from 'node:test'
 import { loadCoverageStore } from '@provino/orchestrator'
 import type {
   IstanbulFileCoverageData,
@@ -15,7 +15,7 @@ import type {
 } from '@provino/types'
 import { eventsOf, KINDS, runJobs, runtimeConfig, runtimeJob, trackedProjects } from './support.ts'
 
-const project = trackedProjects()
+const project = trackedProjects(after)
 
 const PRICING = [
   'export function price(quantity: number): number {',
