@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { groupByFolder } from '../../internal/views/folders.ts'
 import { createStyle } from '../../style.ts'
 import type { OpenFile, TreeFile, TreeNode } from '../model/tree-store.ts'

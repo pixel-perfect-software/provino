@@ -1,8 +1,8 @@
 // An error's text never says `undefined` and never dumps an object: a cause or an error with no
 // message is its name, or nothing at all when it holds nothing.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { SerializedError } from '@provino/types'
+import { test } from 'provino'
 import { error } from '../internal/test-support.ts'
 import { formatError, header } from './format.ts'
 

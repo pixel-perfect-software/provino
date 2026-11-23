@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { Reporter, ReporterEvents } from '@provino/types'
+import { test } from 'provino'
 import { createReporterBus } from '../bus.ts'
 import {
   buildFile,

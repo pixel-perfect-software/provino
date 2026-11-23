@@ -1,7 +1,7 @@
 // T2.3, Track 2 F3 rows: `require(esm)`, `__esModule` interop under both `interopDefault`
 // policies, and JSON. Each fixture runs through native Node and through Provino's loader.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { expectDivergence, expectSame, type Fixture, TRACE } from '../internal/test-support.ts'
 
 test('require-esm-namespace: require() of an ES module with no default export gives its namespace, evaluated once', async () => {

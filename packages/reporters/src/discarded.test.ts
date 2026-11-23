@@ -2,8 +2,8 @@
 // `--detectLeaks`, an inline snapshot that could not be written) counts none of its tests, in every
 // reporter that totals them: the text summary, `json` and `junit` must agree with the file's state.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { NormalizedRun } from '@provino/types'
+import { describe, test } from 'provino'
 import { createReporterBus } from './bus.ts'
 import { defaultReporter } from './default/reporter.ts'
 import {

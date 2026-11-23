@@ -2,10 +2,10 @@
 // send a file's maps once, and the coordinator's `expandIstanbulData` puts them back; V8's take
 // keeps the scripts the loader compiled and the filter counts.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
 import { runInThisContext } from 'node:vm'
 import type { IstanbulFileCoverageData } from '@provino/types'
+import { test } from 'provino'
 import { createIstanbulCollector } from './istanbul-collector.ts'
 import { createV8Collector } from './v8-collector.ts'
 

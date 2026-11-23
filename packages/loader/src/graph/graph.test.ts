@@ -16,8 +16,8 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, before, describe, test } from 'node:test'
 import { createResolver } from '@provino/resolver'
+import { afterAll, beforeAll, describe, test } from 'provino'
 import {
   buildThirdPartyGraph,
   esmSyntaxOf,
@@ -29,7 +29,7 @@ import {
 } from './index.ts'
 
 const roots: string[] = []
-after(() => {
+afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true })
 })
 
@@ -60,7 +60,7 @@ function resolverFor(root: string) {
 }
 
 describe('scanSource', () => {
-  before(async () => {
+  beforeAll(async () => {
     await initLexer()
   })
 
@@ -134,7 +134,7 @@ describe('scanSource', () => {
 })
 
 describe('scanSource: what it must not lose', () => {
-  before(async () => {
+  beforeAll(async () => {
     await initLexer()
   })
 

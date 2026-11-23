@@ -4,7 +4,7 @@
 // to a target; and a positive verdict is kept, for its file and for a walk that meets it.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { claimedReach, createInlineState, type InlineState } from './inline.ts'
 import { loaderOptionsFor, writeTree } from './test-support.ts'
 

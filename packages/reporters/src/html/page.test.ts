@@ -6,8 +6,8 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
 import { type DOMWindow, JSDOM, requestInterceptor, VirtualConsole } from 'jsdom'
+import { beforeAll, describe, it } from 'provino'
 import { createReporterBus } from '../bus.ts'
 import { htmlReporter } from './reporter.ts'
 import { playSample, type SampleState, sampleClock } from './sample.ts'
@@ -166,8 +166,11 @@ function applyRange(page: Page, from: string, to: string): void {
   )
 }
 
-describe('the report page, on the fixture run', async () => {
-  const { html } = await reportFor()
+describe('the report page, on the fixture run', () => {
+  let html = ''
+  beforeAll(async () => {
+    ;({ html } = await reportFor())
+  })
 
   it('draws the verdict bar in one row: the headline, then the fixed fields, with the run’s place', () => {
     const page = load(html)
@@ -927,9 +930,12 @@ function submit(page: Page): void {
   ;(one(page, '#range-form') as unknown as HTMLFormElement).requestSubmit()
 }
 
-describe('the report page, the range form and the status messages', async () => {
+describe('the report page, the range form and the status messages', () => {
   // A run long enough for the form's own bounds (whole tenths of a second) to hold a range.
-  const long = await sampleHtml('failures')
+  let long = ''
+  beforeAll(async () => {
+    long = await sampleHtml('failures')
+  })
 
   it('applies a corrected range after an invalid one: the error is cleared as the value is corrected', () => {
     const page = load(long)
@@ -1026,8 +1032,11 @@ describe('the report page, the range form and the status messages', async () => 
   })
 })
 
-describe('the report page, focus and names', async () => {
-  const { html } = await reportFor()
+describe('the report page, focus and names', () => {
+  let html = ''
+  beforeAll(async () => {
+    ;({ html } = await reportFor())
+  })
 
   it('scrolls the row of the focused tree item, nearest, never the item with its children', () => {
     const page = load(html)
@@ -1218,8 +1227,11 @@ describe('the report page, focus and names', async () => {
   })
 })
 
-describe('the report page, redrawing and the tree’s keys', async () => {
-  const { html } = await reportFor()
+describe('the report page, redrawing and the tree’s keys', () => {
+  let html = ''
+  beforeAll(async () => {
+    ;({ html } = await reportFor())
+  })
 
   it('draws one timeline after a resize on another tab: the stale one is cleared, not added to', () => {
     const page = load(html)
@@ -1356,8 +1368,11 @@ describe('the report page, with more failures than the report keeps the text of'
   })
 })
 
-describe('the report page, building only what is shown', async () => {
-  const { html } = await reportFor()
+describe('the report page, building only what is shown', () => {
+  let html = ''
+  beforeAll(async () => {
+    ;({ html } = await reportFor())
+  })
 
   it('builds a failure’s body when its row is first opened, and not again', () => {
     const page = load(html)

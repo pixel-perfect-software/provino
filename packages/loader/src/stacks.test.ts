@@ -8,16 +8,16 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
-import { after, test } from 'node:test'
 import { pathToFileURL } from 'node:url'
 import { runInThisContext } from 'node:vm'
 import { neutralPolicy } from '@provino/policy'
 import type { Loader, SerializedLoaderConfig, SourceMapV3 } from '@provino/types'
+import { afterAll, test } from 'provino'
 import { createProjectLoader } from './project.ts'
 import { installSourceMappedStacks } from './stacks.ts'
 
 const roots: string[] = []
-after(() => {
+afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true })
 })
 

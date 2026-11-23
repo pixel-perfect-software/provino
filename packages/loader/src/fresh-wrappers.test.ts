@@ -13,14 +13,14 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, type TestContext, test } from 'node:test'
 import { Script } from 'node:vm'
 import type { CompiledModuleEvent, Loader } from '@provino/types'
+import { afterAll, onTestFinished, test } from 'provino'
 import { loaderOptionsFor } from './internal/test-support.ts'
 import { createLoader } from './loader.ts'
 
 const roots: string[] = []
-after(() => {
+afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true })
 })
 
@@ -58,14 +58,24 @@ function reported(root: string, events: readonly CompiledModuleEvent[]): Record<
   return counts
 }
 
-/** Counts the runs of each `vm.Script` from here on, for the rest of the test. */
-function countRuns(t: TestContext): () => number[] {
-  const runs = t.mock.method(Script.prototype, 'runInThisContext')
-  return () => {
-    const byScript = new Map<unknown, number>()
-    for (const call of runs.mock.calls) byScript.set(call.this, (byScript.get(call.this) ?? 0) + 1)
-    return [...byScript.values()]
+/**
+ * Counts the runs of each `vm.Script` from here on. The patch is undone when the test finishes,
+ * whether or not it threw: the worker serves later files too.
+ */
+function countRuns(): () => number[] {
+  const original = Script.prototype.runInThisContext
+  const counts = new Map<Script, number>()
+  Script.prototype.runInThisContext = function (
+    this: Script,
+    ...args: Parameters<Script['runInThisContext']>
+  ) {
+    counts.set(this, (counts.get(this) ?? 0) + 1)
+    return original.apply(this, args)
   }
+  onTestFinished(() => {
+    Script.prototype.runInThisContext = original
+  })
+  return () => [...counts.values()]
 }
 
 type Wrapper = { readonly wrapper: unknown }
@@ -104,9 +114,9 @@ test('none: the shared registry calls the one wrapper again; the script is compi
 
 for (const tier of ['registry', 'none'] as const) {
   const runs = tier === 'registry' ? 'runs each script once per file' : 'runs each script once'
-  test(`${tier}: an ES module's sync, async and scoped wrappers: each script compiled and reported once, and ${runs}`, async (t) => {
+  test(`${tier}: an ES module's sync, async and scoped wrappers: each script compiled and reported once, and ${runs}`, async () => {
     const { root, loader, events } = setup()
-    const runsByScript = countRuns(t)
+    const runsByScript = countRuns()
     for (const name of ['a.test.ts', 'b.test.ts']) {
       const registry = loader.createFileRegistry(join(root, name), { tier })
       assert.equal(registry.require<{ value: number }>(join(root, 'sync.ts')).value, 1)

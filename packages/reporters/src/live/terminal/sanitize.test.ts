@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { copyFlat } from '../model/bound.ts'
 import { cleanText, oneLine } from './sanitize.ts'
 

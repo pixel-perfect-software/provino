@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { SourceLocation } from '@provino/types'
+import { test } from 'provino'
 import { createReporterBus } from '../../bus.ts'
 import { buildFile, error, playRun, resultOf, testEndEvent } from '../../internal/test-support.ts'
 import { createStyle } from '../../style.ts'

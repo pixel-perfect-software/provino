@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type {
   FileInfo,
   ReportPolicy,
@@ -7,6 +6,7 @@ import type {
   SerializedError,
   TaskId,
 } from '@provino/types'
+import { describe, test } from 'provino'
 import { createReporterBus } from '../bus.ts'
 import {
   buildFile,

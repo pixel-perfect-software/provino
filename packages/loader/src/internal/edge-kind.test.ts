@@ -8,9 +8,9 @@ import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { findPackageJSON } from 'node:module'
 import { dirname, join, sep } from 'node:path'
-import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
 import type { ModulePolicy } from '@provino/types'
+import { test } from 'provino'
 import {
   createEdgeKindState,
   type EdgeKindOptions,

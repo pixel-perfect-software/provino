@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { renderReport } from './page/main.ts'
 import type { ReportData } from './page/model.ts'
 import { contentSecurityPolicy, DATA_ID, escapeHtml, pageScript, renderDocument } from './render.ts'

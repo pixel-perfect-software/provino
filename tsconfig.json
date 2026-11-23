@@ -74,6 +74,9 @@
       "path": "packages/loader"
     },
     {
+      "path": "packages/loader/tsconfig.tests.json"
+    },
+    {
       "path": "packages/snapshot"
     },
     {
@@ -81,6 +84,9 @@
     },
     {
       "path": "packages/coverage"
+    },
+    {
+      "path": "packages/coverage/tsconfig.tests.json"
     },
     {
       "path": "packages/expect"
@@ -141,6 +147,9 @@
     },
     {
       "path": "packages/reporters"
+    },
+    {
+      "path": "packages/reporters/tsconfig.tests.json"
     },
     {
       "path": "packages/provino"
