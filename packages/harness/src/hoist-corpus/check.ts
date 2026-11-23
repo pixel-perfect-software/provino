@@ -1,8 +1,7 @@
 // One case through the real hoister and through ours, and everything compared. The test file says
 // what is compared and why; this is how.
-import { existsSync, readFileSync } from 'node:fs'
-import { createRequire, stripTypeScriptTypes } from 'node:module'
-import { dirname, join } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { createRequire, findPackageJSON, stripTypeScriptTypes } from 'node:module'
 import { createPipeline, type HoistOutput, hoistMocks, toModuleRunner } from '@provino/transform'
 import type { HoistPolicy, StaticMockCall, TransformRecord } from '@provino/types'
 import { hoistMocks as hoistMockAndResolve } from '@vitest/mocker/node'
@@ -210,20 +209,14 @@ export function realJestBabel(upstream: HoistCase): JestBabelOutput {
   return { hoisted, commonjs: result.code }
 }
 
-/** The version of an installed package, from the `package.json` above its main file. */
+/** The version of an installed package, from its own `package.json`. */
 function packageVersion(name: string): string {
-  let dir = dirname(nodeRequire.resolve(name))
-  for (;;) {
-    const path = join(dir, 'package.json')
-    const manifest: unknown = existsSync(path) ? JSON.parse(readFileSync(path, 'utf8')) : undefined
-    if (isRecord(manifest) && prop(manifest, 'name') === name) {
-      const version = prop(manifest, 'version')
-      if (typeof version === 'string') return version
-    }
-    const parent = dirname(dir)
-    if (parent === dir) throw new Error(`no package.json names ${name}`)
-    dir = parent
-  }
+  const path = findPackageJSON(name, import.meta.url)
+  if (path === undefined) throw new Error(`${name} is not installed`)
+  const manifest: unknown = JSON.parse(readFileSync(path, 'utf8'))
+  const version = isRecord(manifest) ? prop(manifest, 'version') : undefined
+  if (typeof version !== 'string') throw new Error(`${path} has no version`)
+  return version
 }
 
 /**
@@ -564,7 +557,7 @@ export interface CaseOptions {
   /** Log lines left out on both sides, for a known defect in the real hoister (named by the caller). */
   readonly ignoreLog?: RegExp
   /** Real Babel's output for a Jest case, recorded; without it Babel runs now. */
-  readonly jestBabel?: JestBabelOutput
+  readonly jestBabel?: JestBabelOutput | undefined
 }
 
 /** What the real hoister did with the case. */
@@ -572,8 +565,11 @@ export function referenceOutcome(
   runner: RunnerName,
   upstream: HoistCase,
   record: TransformRecord = stripped(upstream),
+  jestBabel?: JestBabelOutput,
 ): Outcome {
-  return runner === 'jest' ? referenceJest(upstream, record) : referenceVitest(upstream, record)
+  return runner === 'jest'
+    ? referenceJest(upstream, record, jestBabel)
+    : referenceVitest(upstream, record)
 }
 
 /** What differs between the real hoister and ours, or `undefined` when they agree. */
@@ -583,10 +579,7 @@ export async function problem(
   options: CaseOptions,
 ): Promise<string | undefined> {
   const record = stripped(upstream)
-  const reference =
-    runner === 'jest' && options.jestBabel !== undefined
-      ? referenceJest(upstream, record, options.jestBabel)
-      : referenceOutcome(runner, upstream, record)
+  const reference = referenceOutcome(runner, upstream, record, options.jestBabel)
   const got = ours(
     options.hoist ?? hoistMocks,
     runner,

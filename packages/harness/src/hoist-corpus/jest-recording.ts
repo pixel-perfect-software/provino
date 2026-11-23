@@ -10,7 +10,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { gunzipSync, gzipSync } from 'node:zlib'
-import { isRecord, prop } from '../internal/guards.ts'
+import { isNotFound, isRecord, prop } from '../internal/guards.ts'
 import type { HoistCase, JestBabelOutput } from './check.ts'
 
 /** Where the recording is. */
@@ -57,12 +57,13 @@ function isBabelOutput(value: unknown): value is JestBabelOutput {
 }
 
 /** Reads the recording, checking its shape; `undefined` when there is none. */
-export function readRecording(path: string = JEST_RECORDING_PATH): JestRecording | undefined {
+export function readRecording(): JestRecording | undefined {
   let packed: Buffer
   try {
-    packed = readFileSync(path)
-  } catch {
-    return undefined
+    packed = readFileSync(JEST_RECORDING_PATH)
+  } catch (cause) {
+    if (isNotFound(cause)) return undefined
+    throw cause
   }
   const json: unknown = JSON.parse(gunzipSync(packed).toString('utf8'))
   const fingerprint = isRecord(json) ? prop(json, 'fingerprint') : undefined
@@ -74,7 +75,7 @@ export function readRecording(path: string = JEST_RECORDING_PATH): JestRecording
     !Array.isArray(outputs) ||
     !outputs.every(isBabelOutput)
   ) {
-    throw new TypeError(`${path} is not a recording of the Jest layouts`)
+    throw new TypeError(`${JEST_RECORDING_PATH} is not a recording of the Jest layouts`)
   }
   return { fingerprint, layouts, outputs }
 }
