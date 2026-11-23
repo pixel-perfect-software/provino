@@ -1,6 +1,6 @@
 // The pure half of row 12: the baseline from node:test's events, Provino's report, and the diff.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import {
   diffRecords,
   formatDifference,

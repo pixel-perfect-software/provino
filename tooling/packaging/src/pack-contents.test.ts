@@ -3,7 +3,7 @@
 // same file as the repository's.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { packPackage } from './pack.ts'
 import {
   NOTICES_FILE,

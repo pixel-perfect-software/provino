@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { NOTICES_FILE } from './pack-contents.ts'
 import { type PackageManifest, readManifest } from './package-json.ts'
 import { entriesOf, PRESET, packageConfig } from './preset.ts'

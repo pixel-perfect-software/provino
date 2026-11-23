@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { TEST_RUNNER } from '../dogfood.ts'
 import { writeFiles } from '../test-support.ts'
 import { formatDifference, isEmptyDifference } from './node-test-compare.ts'

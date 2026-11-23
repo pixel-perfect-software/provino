@@ -1,12 +1,12 @@
-// Helpers shared by the tests. Not a test file: `node --test` runs only `*.test.ts`.
+// Helpers shared by the tests. Not a test file: the runner discovers only `*.test.ts`.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after } from 'node:test'
+import { afterAll } from 'provino'
 
 const scratch: string[] = []
-after(() => {
+afterAll(() => {
   for (const dir of scratch) rmSync(dir, { recursive: true, force: true })
 })
 
@@ -31,6 +31,20 @@ export function scratchDir(prefix: string, files: Readonly<Record<string, string
   scratch.push(dir)
   writeFiles(dir, files)
   return dir
+}
+
+/**
+ * `scratchDir(prefix)`, made by the first call of the returned function and the same one after:
+ * for a directory a whole file shares, which must not be made while the file is only imported (a
+ * `-t` listing imports every file and runs none, so the directory would be made and never removed).
+ * @internal
+ */
+export function lazyScratchDir(prefix: string): () => string {
+  let dir: string | undefined
+  return () => {
+    dir ??= scratchDir(prefix)
+    return dir
+  }
 }
 
 /** A scratch git repository and the git command in it. */

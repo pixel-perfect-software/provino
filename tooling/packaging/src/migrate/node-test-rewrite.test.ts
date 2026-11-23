@@ -1,7 +1,7 @@
 // The node:test -> provino rewrite: each form it rewrites, each it refuses (with file:line), and
 // that running it twice changes nothing.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { rewriteNodeTest } from './node-test-rewrite.ts'
 
 const HEAD = "import { describe, it } from 'node:test'\n"

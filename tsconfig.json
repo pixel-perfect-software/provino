@@ -158,6 +158,9 @@
       "path": "tooling/packaging"
     },
     {
+      "path": "tooling/packaging/tsconfig.tests.json"
+    },
+    {
       "path": "packages/api"
     },
     {
