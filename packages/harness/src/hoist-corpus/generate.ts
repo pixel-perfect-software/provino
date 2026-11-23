@@ -144,6 +144,17 @@ function generate(rnd: Sequence, runner: RunnerName): string {
   return `${code}\n`
 }
 
+/**
+ * How many layouts each runner gets, and the seed of each. Fixed, so a failure names a case that
+ * reproduces; `hoist-corpus.test.ts` pins the counts, and the Jest recording is of these.
+ */
+export const GENERATED: Readonly<
+  Record<RunnerName, { readonly count: number; readonly seed: number }>
+> = {
+  jest: { count: 3000, seed: 20261106 },
+  vitest: { count: 3000, seed: 20261107 },
+}
+
 /** `count` layouts for `runner`, the same ones every run. */
 export function generateLayouts(
   runner: RunnerName,

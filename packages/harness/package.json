@@ -39,7 +39,8 @@
   },
   "scripts": {
     "test": "node ../../packages/provino/dist/cli.js run && node --test --conditions=provino-source src/equality-corpus.test.ts src/expect-corpus.test.ts src/internal/observe-setup.test.ts src/mock-corpus.test.ts src/mod-corpus.test.ts src/mod-corpus/shared-dep-e2e.test.ts src/policy-truth/policy-truth.test.ts src/runtime-corpus.test.ts src/runtime-corpus/suite-hook-frames.test.ts src/snapshot-corpus.test.ts",
-    "record": "node --conditions=provino-source src/cli.ts record"
+    "record": "node --conditions=provino-source src/cli.ts record",
+    "record:hoist": "node --conditions=provino-source src/hoist-corpus/record-jest.ts"
   },
   "dependencies": {
     "@provino/types": "workspace:*"
