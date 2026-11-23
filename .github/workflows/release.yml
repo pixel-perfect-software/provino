@@ -109,7 +109,7 @@ jobs:
           node-version-file: .tool-versions
           package-manager-cache: false
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
+      - run: pnpm check-types
       - run: pnpm format-and-lint
       - run: pnpm boundaries
       - run: pnpm test:types

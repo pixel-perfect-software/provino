@@ -103,7 +103,7 @@ describe('release workflow lint (T10.4, D162, D163)', () => {
   const replaceTypecheck =
     (...commands: string[]) =>
     (t: string) =>
-      t.replace('      - run: pnpm typecheck', runStep(...commands))
+      t.replace('      - run: pnpm check-types', runStep(...commands))
 
   test('the real workflow passes, and names its publish command only on that line', () => {
     assert.deepEqual(lintReleaseWorkflow(workflow), [])
@@ -243,15 +243,19 @@ describe('release workflow lint (T10.4, D162, D163)', () => {
     ...(
       [
         ['npx, yarn and bun in one line', ['npx tsdown && yarn build && bun x y'], NPM],
-        ['a block-form npx', ['pnpm typecheck', 'npx tsdown'], /install-matrix\.yml: npx tsdown$/],
+        [
+          'a block-form npx',
+          ['pnpm check-types', 'npx tsdown'],
+          /install-matrix\.yml: npx tsdown$/,
+        ],
         [
           'a block-form yarn, after &&',
-          ['pnpm typecheck', 'cd packages/x && yarn build'],
+          ['pnpm check-types', 'cd packages/x && yarn build'],
           /install-matrix\.yml: cd packages\/x && yarn build$/,
         ],
         [
           'a block-form npm in a subshell',
-          ['v=$(npm --version)', 'pnpm typecheck'],
+          ['v=$(npm --version)', 'pnpm check-types'],
           /install-matrix\.yml: v=\$\(npm --version\)$/,
         ],
       ] as const
@@ -293,8 +297,8 @@ describe('release workflow lint (T10.4, D162, D163)', () => {
     )
     assert.deepEqual(lintReleaseWorkflow(input(workflow)), [])
     const named = workflow.replace(
-      '      - run: pnpm typecheck',
-      '      - name: npm is not run here\n        run: pnpm typecheck',
+      '      - run: pnpm check-types',
+      '      - name: npm is not run here\n        run: pnpm check-types',
     )
     assert.deepEqual(lintReleaseWorkflow(named), [])
   })
