@@ -2,6 +2,8 @@
 // between the two runners. The completeness test runs the built bin (turbo builds `provino` first,
 // `tooling/packaging/turbo.json`; with no build it fails, it does not skip) with a name filter that
 // matches no test, so every file Provino discovers is imported and reported as skipped, none runs.
+// B27h3: it is one test per package, and each listing runs with a temp dir of its own that must be
+// empty afterwards: a test file does no work when it is imported (`.claude/rules/tests.md`).
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
@@ -17,7 +19,6 @@ import {
   TEST_RUNNER,
   testScript,
 } from './dogfood.ts'
-import { mapPool } from './pool.ts'
 import { scratchDir } from './test-support.ts'
 import { ROOT } from './workspace.ts'
 
@@ -28,6 +29,29 @@ const BIN = join(ROOT, RUNNER_BIN)
  * together on a busy runner leaves an idle worker unable to stop in time (a run error).
  */
 const DISCOVERY_LANES = Math.max(2, Math.min(4, Math.floor(availableParallelism() / 2)))
+
+/**
+ * Runs each task once one of `limit` lanes is free, and hands the lane to the next waiting task as
+ * a task ends. The packages' tests start together (each has its own deadline: a package that is slow
+ * to list fails alone); this keeps at most `limit` listings in flight, as the pool did.
+ */
+function lanes(limit: number): <T>(task: () => Promise<T>) => Promise<T> {
+  let busy = 0
+  const waiting: (() => void)[] = []
+  return async (task) => {
+    if (busy >= limit) await new Promise<void>((resolve) => waiting.push(resolve))
+    else busy++
+    try {
+      return await task()
+    } finally {
+      const next = waiting.shift()
+      if (next === undefined) busy--
+      else next()
+    }
+  }
+}
+
+const inLane = lanes(DISCOVERY_LANES)
 
 /** Every `*.test.ts` under a migrated package's include roots, relative to the package, sorted. */
 function testFilesOf(packageDir: string): string[] {
@@ -41,25 +65,39 @@ function testFilesOf(packageDir: string): string[] {
     .sort()
 }
 
-/** The built bin over the package with a name filter nothing matches; what it exited with and wrote. */
+/**
+ * The built bin over the package with a name filter nothing matches; what it exited with and wrote,
+ * and what it left in the temp dir. The listing gets a temp dir of its own (`TMPDIR`, `TMP` and
+ * `TEMP`), empty, and the report goes elsewhere: a test file that makes a temp dir when it is only
+ * imported (module scope, a `describe` body) leaves it there, since no test runs to remove it. The
+ * runner itself writes nothing there (measured over every package, B27h3), so nothing is excluded.
+ */
 function listDiscovered(packageDir: string): Promise<{
   status: number | null
   signal: NodeJS.Signals | null
   stderr: string
   report: string
+  left: string[]
 }> {
   const report = join(scratchDir('listing'), 'report.json')
+  const tmp = scratchDir('listing-tmp')
   return new Promise((resolve, reject) => {
     const child = spawn(
       process.execPath,
       [BIN, 'run', '--reporter', 'json', '--outputFile', report, '-t', 'NO TEST HAS THIS NAME'],
-      { cwd: packageDir, timeout: 120_000 },
+      {
+        cwd: packageDir,
+        timeout: 120_000,
+        env: { ...process.env, TMPDIR: tmp, TMP: tmp, TEMP: tmp },
+      },
     )
     let stderr = ''
     child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk))
     child.stdout.resume()
     child.on('error', reject)
-    child.on('close', (status, signal) => resolve({ status, signal, stderr, report }))
+    child.on('close', (status, signal) =>
+      resolve({ status, signal, stderr, report, left: readdirSync(tmp).sort() }),
+    )
   })
 }
 
@@ -182,13 +220,20 @@ describe('testScript', () => {
   })
 })
 
-describe('every test file of a migrated package runs on exactly one runner', () => {
-  it('what Provino discovers is every test file minus the bootstrap set, and each file has tests', async () => {
-    assert.ok(existsSync(BIN), `${BIN} is missing: run pnpm build`)
-    const staying = bootstrapFiles(ROOT)
-    const dirs = migratedDirs(ROOT)
+// One test per package, each with its own deadline, and the packages are read when the file loads (a
+// directory listing: cheap, and the one thing the test names come from). They start together;
+// `inLane` keeps at most DISCOVERY_LANES listings running.
+describe.concurrent('every test file of a migrated package runs on exactly one runner', () => {
+  const staying = bootstrapFiles(ROOT)
+  const dirs = migratedDirs(ROOT)
+
+  it('there is a migrated package', () => {
     assert.ok(dirs.length > 0, 'no migrated package found')
-    await mapPool(dirs, DISCOVERY_LANES, async (dir) => {
+  })
+
+  for (const dir of dirs) {
+    it(`${dir}: what Provino discovers is every test file minus the bootstrap set, each file has tests, and importing them leaves no temp dir`, async () => {
+      assert.ok(existsSync(BIN), `${BIN} is missing: run pnpm build`)
       const packageDir = join(ROOT, dir)
       const own = staying
         .filter((file) => file.startsWith(`${dir}/`))
@@ -196,7 +241,7 @@ describe('every test file of a migrated package runs on exactly one runner', () 
       const expected = testFilesOf(packageDir).filter((file) => !own.includes(file))
       assert.ok(expected.length > 0, `${dir}: no test file is left for Provino`)
 
-      const ran = await listDiscovered(packageDir)
+      const ran = await inLane(() => listDiscovered(packageDir))
       // Exit 0 is "every test skipped"; a crash, a timeout or a signal is none of the three.
       assert.equal(
         ran.signal,
@@ -205,6 +250,11 @@ describe('every test file of a migrated package runs on exactly one runner', () 
       )
       assert.equal(ran.status, 0, `${dir}: exit ${String(ran.status)}: ${failureDetail(ran)}`)
       assert.ok(existsSync(ran.report), `${dir}: the run wrote no report: ${ran.stderr}`)
+      assert.equal(
+        ran.left.length,
+        0,
+        `${dir}: importing its test files left ${ran.left.length} entr${ran.left.length === 1 ? 'y' : 'ies'} in the temp dir (${ran.left.join(', ')}): a test file does no work when it is imported, so a temp dir made at module scope or in a describe body belongs in the first test that needs it or in a beforeAll (.claude/rules/tests.md); grep the package for the name's prefix`,
+      )
       const parsed = JSON.parse(readFileSync(ran.report, 'utf8')) as {
         files: { file: string; tests: unknown[] }[]
       }
@@ -217,5 +267,5 @@ describe('every test file of a migrated package runs on exactly one runner', () 
         assert.ok(entry.tests.length > 0, `${dir}: ${entry.file} registered no test`)
       }
     })
-  })
+  }
 })
