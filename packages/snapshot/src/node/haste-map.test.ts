@@ -8,43 +8,62 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, describe, test } from 'node:test'
+import { afterAll, afterEach, describe, test } from 'provino'
 import { cleanObsoleteSnapshotFiles } from './obsolete-files.ts'
 
-const harness = createRequire(new URL('../../../harness/package.json', import.meta.url))
-const jestRequire = createRequire(harness.resolve('jest/package.json'))
-const configRequire = createRequire(
-  createRequire(jestRequire.resolve('jest-cli/package.json')).resolve('jest-config/package.json'),
-)
-const { normalize } = configRequire('jest-config') as {
+interface JestPieces {
   normalize(
     options: Record<string, unknown>,
     argv: Record<string, unknown>,
   ): Promise<{ options: object }>
-}
-const Runtime = (
-  createRequire(configRequire.resolve('jest-runtime/package.json'))('jest-runtime') as {
-    default: {
-      createHasteMap(
-        config: object,
-        options: { watchman: boolean },
-      ): Promise<{
-        build(): Promise<{ hasteFS: { matchFiles(pattern: string): string[] } }>
-      }>
-    }
+  Runtime: {
+    createHasteMap(
+      config: object,
+      options: { watchman: boolean },
+    ): Promise<{
+      build(): Promise<{ hasteFS: { matchFiles(pattern: string): string[] } }>
+    }>
   }
-).default
+}
+
+// Jest's `normalize` and `Runtime`, loaded by the first test that reads Jest's map: a listing of
+// this file (`-t`, which imports it) loads no Jest.
+let jestPieces: JestPieces | undefined
+function jest(): JestPieces {
+  if (jestPieces !== undefined) return jestPieces
+  const harness = createRequire(new URL('../../../harness/package.json', import.meta.url))
+  const jestRequire = createRequire(harness.resolve('jest/package.json'))
+  const configRequire = createRequire(
+    createRequire(jestRequire.resolve('jest-cli/package.json')).resolve('jest-config/package.json'),
+  )
+  const { normalize } = configRequire('jest-config') as Pick<JestPieces, 'normalize'>
+  const Runtime = (
+    createRequire(configRequire.resolve('jest-runtime/package.json'))('jest-runtime') as {
+      default: JestPieces['Runtime']
+    }
+  ).default
+  jestPieces = { normalize, Runtime }
+  return jestPieces
+}
 
 /**
  * Where the haste map persists itself. jest-cli creates `cacheDirectory` before it builds the map;
- * `createHasteMap` alone does not, and Jest's default (`/tmp/jest_<x>`) need not exist (CI).
+ * `createHasteMap` alone does not, and Jest's default (`/tmp/jest_<x>`) need not exist (CI). Made
+ * by the first test that needs it.
  */
-const CACHE = mkdtempSync(join(tmpdir(), 'provino-haste-cache-'))
-after(() => rmSync(CACHE, { recursive: true, force: true }))
+let cache: string | undefined
+function cacheDirectory(): string {
+  cache ??= mkdtempSync(join(tmpdir(), 'provino-haste-cache-'))
+  return cache
+}
+afterAll(() => {
+  if (cache !== undefined) rmSync(cache, { recursive: true, force: true })
+})
 
 /** The `.snap` files Jest's haste map has for `config`, sorted. */
 async function hasteSnapFiles(config: Record<string, unknown>): Promise<string[]> {
-  const { options } = await normalize({ cacheDirectory: CACHE, ...config }, {})
+  const { normalize, Runtime } = jest()
+  const { options } = await normalize({ cacheDirectory: cacheDirectory(), ...config }, {})
   const map = await Runtime.createHasteMap(options, { watchman: false })
   const { hasteFS } = await map.build()
   return hasteFS.matchFiles('\\.snap$').sort()
@@ -63,9 +82,15 @@ function crawledSnapFiles(roots: readonly string[], ignorePatterns: readonly str
   })
 }
 
+// The trees `tree` made in a test go when it ends (`tree` is only called from test bodies).
+const made: string[] = []
+afterEach(() => {
+  for (const root of made.splice(0)) rmSync(root, { recursive: true, force: true })
+})
+
 function tree(files: readonly string[]): string {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'provino-haste-')))
-  after(() => rmSync(root, { recursive: true, force: true }))
+  made.push(root)
   for (const file of files) {
     mkdirSync(dirname(join(root, file)), { recursive: true })
     writeFileSync(join(root, file), '')
