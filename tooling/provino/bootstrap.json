@@ -55,7 +55,6 @@
     "packages/orchestrator/test/shard-tier.test.ts": "Runs shards through runProjects over the inline pool, whose workers install the process-global slots the runner's worker already holds (B27h).",
     "packages/provino/test/bootstrap/canary.test.ts": "The canary: it runs the built runner on a fixture with known failures and asserts they are reported, so a runner that reports green wrongly is caught (D203). It must not depend on the runner it checks.",
     "packages/snapshot/src/node/haste-map.test.ts": "Runner bug (B27h): a test helper calls node:test's `after` inside a running test (a test-scoped cleanup); the codemod turns it into `afterAll`, which Provino refuses inside a test (CoreError).",
-    "packages/snapshot/src/node/obsolete-files.test.ts": "Runner bug (B27h): a test helper calls node:test's `after` inside a running test (a test-scoped cleanup); the codemod turns it into `afterAll`, which Provino refuses inside a test (CoreError).",
-    "packages/transform/src/pipeline.test.ts": "Runner bug (B27h): the worker installs its own Error.prepareStackTrace, so process.setSourceMapsEnabled(true) no longer maps a stack to the original .ts line, and two tests expecting `boom.ts:6:9` get the generated .mjs position."
+    "packages/snapshot/src/node/obsolete-files.test.ts": "Runner bug (B27h): a test helper calls node:test's `after` inside a running test (a test-scoped cleanup); the codemod turns it into `afterAll`, which Provino refuses inside a test (CoreError)."
   }
 }
