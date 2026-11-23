@@ -114,25 +114,17 @@ async function watched(root: string, perDirectory: boolean) {
   return { watcher, events, errors, next }
 }
 
-// The probe is awaited once here, at module level, so the describe callback below is synchronous.
-const watcherSkips = new Map<boolean, string | false>()
-for (const perDirectory of [false, true]) {
-  watcherSkips.set(
-    perDirectory,
-    !perDirectory && process.platform === 'linux'
-      ? 'recursive mode is not used on Linux: the watcher watches per directory there (see "the default mode")'
-      : await skipReason(!perDirectory),
-  )
-}
-
 for (const perDirectory of [false, true]) {
   const mode = perDirectory ? 'one watch per directory' : 'one recursive watch per root'
+  // Each OS holds the mode it runs in production: per directory on Linux (where Node 22's
+  // recursive `fs.watch` is a JavaScript fallback, not what the watcher uses), recursive on
+  // macOS and Windows; per directory is forced there too, as the option allows. The fake-watch
+  // tests below run both modes everywhere.
+  const skip =
+    !perDirectory && process.platform === 'linux'
+      ? 'recursive mode is not used on Linux: the watcher watches per directory there (see "the default mode")'
+      : await skipReason(!perDirectory)
   describe(`the watcher, ${mode}`, () => {
-    // Each OS holds the mode it runs in production: per directory on Linux (where Node 22's
-    // recursive `fs.watch` is a JavaScript fallback, not what the watcher uses), recursive on
-    // macOS and Windows; per directory is forced there too, as the option allows. The fake-watch
-    // tests below run both modes everywhere.
-    const skip = watcherSkips.get(perDirectory) ?? false
     test.skipIf(skip)(
       'knows the files the walk found, and leaves out node_modules and files it does not keep',
       async () => {
