@@ -1,7 +1,7 @@
 // The worker-wide half of the engine (Track 2 R1 steps 1–2): each user module is transformed and
 // compiled once per worker, its static deps are resolved once, and shared externals are loaded
 // natively. Records never hold per-file state; that lives in a registry's instances.
-import { readFileSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import { relative, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Script } from 'node:vm'
@@ -82,6 +82,7 @@ export interface WrapperScript {
 /** One user module, as every registry in the worker shares it. */
 export interface ModuleRecord {
   readonly id: ModuleId
+  /** The file it reads: the id less a query or fragment (`fileOf`); the id itself otherwise. */
   readonly path: string
   readonly format: UserFormat
   /** The wrapper source, or the JSON text. */
@@ -140,6 +141,31 @@ const CJS_GLOBALS: readonly string[] = ['require', '__filename', '__dirname']
 
 export function toModuleId(path: string): ModuleId {
   return path as ModuleId
+}
+
+/** Where a module id's query or fragment starts (`./x.ts?v`, `./x.ts#f`), in its last segment. */
+function suffixStart(id: string): number {
+  const segment = Math.max(id.lastIndexOf('/'), id.lastIndexOf('\\')) + 1
+  const at = id.slice(segment).search(/[?#]/)
+  return at === -1 ? -1 : segment + at
+}
+
+/**
+ * The file a module id reads. The resolver keeps a specifier's query or fragment on the path it
+ * finds (`import('./x.ts?v')`), so, as in Node, two URLs of one file are two modules, each
+ * evaluated once, that read the same file. A file whose name holds the `?` or `#` is that file.
+ * Only an id with either character pays for the `stat` (speed).
+ */
+export function fileOf(id: string): string {
+  const at = suffixStart(id)
+  if (at === -1 || statSync(id, { throwIfNoEntry: false }) !== undefined) return id
+  return id.slice(0, at)
+}
+
+/** A module id's `file:` URL, its query or fragment kept as written (Node's `import.meta.url`). */
+export function urlOf(id: string): string {
+  const path = fileOf(id)
+  return pathToFileURL(path).href + id.slice(path.length)
 }
 
 /**
@@ -459,7 +485,7 @@ export function externalKey(target: Target): string {
 export function recordFor(state: Records, id: ModuleId, isTest: boolean): ModuleRecord {
   const existing = state.records.get(id)
   if (existing !== undefined) return existing
-  const path: string = id
+  const path = fileOf(id)
   const text = readFileSync(path, 'utf8')
   // A node_modules file only gets here when a mock made it inline (T2.6), a transform takes it
   // (B23e), or `inline` names it.
@@ -467,7 +493,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
   let record: ModuleRecord
   let transformKeyOf = ''
   if (path.endsWith('.json')) {
-    record = makeRecord(id, 'json', text, () => null, [], [], false, false)
+    record = makeRecord(id, path, 'json', text, () => null, [], [], false, false)
   } else if (/\.(?:wasm|node)$/.test(path)) {
     throw new LoaderError('LOADER_UNSUPPORTED_MODULE', `cannot load ${path} as a user module`)
   } else {
@@ -514,6 +540,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
       const runner = toModuleRunner(path, transformed)
       record = makeRecord(
         id,
+        path,
         'esm',
         runner.code,
         () => runner.map,
@@ -535,6 +562,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
         : transformed
       record = makeRecord(
         id,
+        path,
         'cjs',
         source.code,
         () => source.map,
@@ -557,6 +585,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
 
 function makeRecord(
   id: ModuleId,
+  path: string,
   format: UserFormat,
   source: string,
   mapOf: () => SourceMapV3 | null,
@@ -568,7 +597,7 @@ function makeRecord(
 ): ModuleRecord {
   return {
     id,
-    path: id,
+    path,
     format,
     source,
     get map() {
@@ -815,7 +844,8 @@ function wrapperScript(
   // The wrapper opens on the body's first line; the offset takes it back out of that line's
   // columns, so every frame is a position in the body, which is what the record's map reads.
   const code = `${prefix}${body}${suffix}`
-  const options = { filename: record.path, columnOffset: -prefix.length }
+  // The id, not the file: two URLs of one file are two scripts, each with its own coverage and map.
+  const options = { filename: record.id, columnOffset: -prefix.length }
   const wrapper: WrapperScript = {
     // With a code cache, from V8's data for exactly this text when an earlier worker left it
     // (the key is a hash of the text, the filename and the offset).
@@ -829,7 +859,7 @@ function wrapperScript(
   for (const listener of state.listeners) {
     listener({
       id: record.id,
-      scriptUrl: record.path,
+      scriptUrl: record.id,
       wrapperColumnOffset: prefix.length,
       get map() {
         return record.map

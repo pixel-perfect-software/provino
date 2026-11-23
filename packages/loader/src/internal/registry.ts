@@ -51,9 +51,16 @@ import {
   type Target,
   targetOfId,
   toModuleId,
+  urlOf,
 } from './records.ts'
 import { watchedLoad } from './reevaluate.ts'
 import { requireEsmError } from './require-esm.ts'
+
+/**
+ * A URL with a scheme other than `file:` and `node:` (whose misses keep the dialect's not-found
+ * text). Two letters at least, so a Windows drive (`C:\\`) is no scheme.
+ */
+const NATIVE_URL = /^(?!file:|node:)[a-z][a-z\d+.-]+:/i
 
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
 type Style = 'esm' | 'cjs'
@@ -452,7 +459,18 @@ export class Registry {
   /** An `import()` from `importer`, through the mock decision. */
   async importFrom(specifier: string, importer: string): Promise<object> {
     const target = resolveOrMissing(this.#state, specifier, importer, 'import')
-    const mocked = this.#mockOf(target, specifier, importer, 'esm')
+    let mocked: unknown
+    try {
+      mocked = this.#mockOf(target, specifier, importer, 'esm')
+    } catch (error) {
+      // A URL the resolver can't find and no mock answers (`data:`, or a scheme a
+      // `module.registerHooks` hook serves) is Node's to load, as an `import()` outside the
+      // loader would be: its own module, evaluated once per URL (compat).
+      if (target.kind === 'missing' && NATIVE_URL.test(specifier)) {
+        return (await import(specifier)) as object
+      }
+      throw error
+    }
     if (mocked !== REAL) return (await this.#settleFor(mocked, specifier, 'async')) as object
     const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#externalAsync(found)
@@ -1028,7 +1046,7 @@ export class Registry {
   #importMeta(record: ModuleRecord): object {
     // Node's `import.meta` has no prototype.
     return Object.assign(Object.create(null), {
-      url: pathToFileURL(record.path).href,
+      url: urlOf(record.id),
       filename: record.path,
       dirname: dirname(record.path),
       main: false,
@@ -1042,7 +1060,9 @@ export class Registry {
         if (target.kind === 'missing' || target.kind === 'served') throw target.error
         return target.kind === 'builtin'
           ? target.id
-          : pathToFileURL(target.kind === 'user' ? target.id : target.path).href
+          : target.kind === 'user'
+            ? urlOf(target.id)
+            : pathToFileURL(target.path).href
       },
     })
   }
