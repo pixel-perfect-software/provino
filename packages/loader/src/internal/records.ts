@@ -1,7 +1,7 @@
 // The worker-wide half of the engine (Track 2 R1 steps 1–2): each user module is transformed and
 // compiled once per worker, its static deps are resolved once, and shared externals are loaded
 // natively. Records never hold per-file state; that lives in a registry's instances.
-import { readFileSync, statSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Script } from 'node:vm'
@@ -36,8 +36,9 @@ import {
   type UserEdges,
 } from './inline.ts'
 import { loaderMessage } from './messages.ts'
+import { DATA, fileOf, HOOKED_URL } from './module-id.ts'
 import { createReevaluateState, type ReevaluateState } from './reevaluate.ts'
-import { blankHashbang, CJS_PARAMS } from './source.ts'
+import { blankHashbang, CJS_PARAMS, dataSource } from './source.ts'
 import { type InlineRules, isEvaluableExternal, isThirdParty, NO_RULES } from './third-party.ts'
 
 /**
@@ -141,56 +142,6 @@ const CJS_GLOBALS: readonly string[] = ['require', '__filename', '__dirname']
 
 export function toModuleId(path: string): ModuleId {
   return path as ModuleId
-}
-
-const DATA = 'data:'
-
-/** Node's reading of a `data:` URL (`internal/modules/esm/load`): its MIME type, base64 or not, and body. */
-const DATA_URL = /^([^/]+\/[^;,]+)(?:[^,]*?)(;base64)?,([\s\S]*)$/
-
-/**
- * The source of a `data:` module, decoded as Node decodes it, and whether it is JSON. Only the
- * types Node's default loader takes as source: `text/javascript` and `application/json`.
- */
-function dataSource(id: string): { readonly json: boolean; readonly text: string } {
-  const match = DATA_URL.exec(new URL(id).pathname)
-  const mime = match?.[1]
-  if (match === null || (mime !== 'text/javascript' && mime !== 'application/json')) {
-    throw new LoaderError(
-      'LOADER_UNSUPPORTED_MODULE',
-      `cannot load a data: URL of type ${mime ?? 'unknown'} as a module`,
-    )
-  }
-  const body = decodeURIComponent(match[3] ?? '')
-  const text = Buffer.from(body, match[2] === undefined ? 'utf8' : 'base64').toString('utf8')
-  return { json: mime === 'application/json', text }
-}
-
-/** Where a module id's query or fragment starts (`./x.ts?v`, `./x.ts#f`), in its last segment. */
-function suffixStart(id: string): number {
-  const segment = Math.max(id.lastIndexOf('/'), id.lastIndexOf('\\')) + 1
-  const at = id.slice(segment).search(/[?#]/)
-  return at === -1 ? -1 : segment + at
-}
-
-/**
- * The file a module id reads. The resolver keeps a specifier's query or fragment on the path it
- * finds (`import('./x.ts?v')`), so, as in Node, two URLs of one file are two modules, each
- * evaluated once, that read the same file. A file whose name holds the `?` or `#` is that file.
- * Only an id with either character pays for the `stat` (speed).
- */
-export function fileOf(id: string): string {
-  if (id.startsWith(DATA)) return id
-  const at = suffixStart(id)
-  if (at === -1 || statSync(id, { throwIfNoEntry: false }) !== undefined) return id
-  return id.slice(0, at)
-}
-
-/** A module id's `file:` URL, its query or fragment kept as written (Node's `import.meta.url`). */
-export function urlOf(id: string): string {
-  if (id.startsWith(DATA)) return id
-  const path = fileOf(id)
-  return pathToFileURL(path).href + id.slice(path.length)
 }
 
 /**
@@ -649,6 +600,22 @@ function makeRecord(
     scope: null,
     transformKey: '',
     wrapperLength: null,
+  }
+}
+
+/**
+ * An `import()` of a URL the resolver missed and no mock answered: a scheme a `module.registerHooks`
+ * hook may serve is Node's to load, as an `import()` outside the loader would be (compat). Anything
+ * else, and a scheme Node refuses or finds nothing behind, throws `notFound`, the loader's own error.
+ */
+export async function importServedByHooks(specifier: string, notFound: unknown): Promise<object> {
+  if (!HOOKED_URL.test(specifier)) throw notFound
+  try {
+    return (await import(specifier)) as object
+  } catch (error) {
+    const code = (error as { code?: unknown } | null)?.code
+    if (code === 'ERR_UNSUPPORTED_ESM_URL_SCHEME' || code === 'ERR_MODULE_NOT_FOUND') throw notFound
+    throw error
   }
 }
 

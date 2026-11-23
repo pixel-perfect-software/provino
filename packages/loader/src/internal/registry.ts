@@ -32,12 +32,14 @@ import {
   servedReach,
 } from './inline.ts'
 import { actualView, cjsNamespace, createInteropCache, esmExports } from './interop.ts'
+import { urlOf } from './module-id.ts'
 import { withNodeLoader } from './node-loader.ts'
 import {
   type Compiled,
   compile,
   externalKey,
   type Found,
+  importServedByHooks,
   linkAsync,
   linkSync,
   type ModuleRecord,
@@ -51,17 +53,9 @@ import {
   type Target,
   targetOfId,
   toModuleId,
-  urlOf,
 } from './records.ts'
 import { watchedLoad } from './reevaluate.ts'
 import { requireEsmError } from './require-esm.ts'
-
-/**
- * A URL a `module.registerHooks` hook may serve: any scheme but `file:` and `node:` (whose misses
- * keep the dialect's not-found text) and `data:` (a user module, `recordFor`). Two letters at
- * least, so a Windows drive (`C:\\`) is no scheme.
- */
-const NATIVE_URL = /^(?!file:|node:|data:)[a-z][a-z\d+.-]+:/i
 
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
 type Style = 'esm' | 'cjs'
@@ -464,19 +458,8 @@ export class Registry {
     try {
       mocked = this.#mockOf(target, specifier, importer, 'esm')
     } catch (error) {
-      // A URL the resolver can't find and no mock answers may be a scheme a
-      // `module.registerHooks` hook serves: Node's to load, as an `import()` outside the loader
-      // would be (compat). A scheme nothing serves keeps the not-found error it had.
-      if (target.kind !== 'missing' || !NATIVE_URL.test(specifier)) throw error
-      try {
-        return (await import(specifier)) as object
-      } catch (native) {
-        const code = (native as { code?: unknown } | null)?.code
-        if (code === 'ERR_UNSUPPORTED_ESM_URL_SCHEME' || code === 'ERR_MODULE_NOT_FOUND') {
-          throw error
-        }
-        throw native
-      }
+      if (target.kind === 'missing') return importServedByHooks(specifier, error)
+      throw error
     }
     if (mocked !== REAL) return (await this.#settleFor(mocked, specifier, 'async')) as object
     const found = this.#maybeInline(target as Found)
@@ -1053,7 +1036,7 @@ export class Registry {
   #importMeta(record: ModuleRecord): object {
     // Node's `import.meta` has no prototype.
     return Object.assign(Object.create(null), {
-      url: urlOf(record.id),
+      url: urlOf(record.id, record.path),
       filename: record.path,
       dirname: dirname(record.path),
       main: false,
