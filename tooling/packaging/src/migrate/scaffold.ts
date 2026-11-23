@@ -44,15 +44,53 @@ type Reference = { path: string }
 /** The `references` of a tsconfig, `[]` when it has none. */
 const referencesOf = (config: Json): Reference[] => (config.references ?? []) as Reference[]
 
-async function readJson(path: string): Promise<Json> {
+/**
+ * JSON text as tsc reads a tsconfig: `//` and `/* *\/` comments and trailing commas dropped,
+ * strings kept as written (a glob's `/*` or a URL's `//` inside one is text). `comments` says
+ * whether there were any: writing the file back would lose them.
+ */
+function stripJsonComments(text: string): { readonly json: string; readonly comments: boolean } {
+  let json = ''
+  let comments = false
+  for (let at = 0; at < text.length; at++) {
+    const char = text[at]
+    if (char === '"') {
+      const start = at
+      for (at++; at < text.length && text[at] !== '"'; at++) if (text[at] === '\\') at++
+      json += text.slice(start, at + 1)
+    } else if (char === '/' && text[at + 1] === '/') {
+      comments = true
+      while (at < text.length && text[at] !== '\n') at++
+      json += '\n'
+    } else if (char === '/' && text[at + 1] === '*') {
+      comments = true
+      const end = text.indexOf('*/', at + 2)
+      at = end < 0 ? text.length : end + 1
+      json += ' '
+    } else {
+      // A comma before the closing bracket is a trailing one: it is outside any string, since
+      // only whitespace follows it in what is kept.
+      if (char === ']' || char === '}') json = json.replace(/,(\s*)$/, '$1')
+      json += char
+    }
+  }
+  return { json, comments }
+}
+
+/**
+ * A JSON file, which may have comments (a tsconfig): its value, and whether it has any. A file with
+ * comments is never written back (`updateJson` refuses, naming the edit), so none is lost.
+ */
+async function readJson(
+  path: string,
+): Promise<{ readonly value: Json; readonly comments: boolean }> {
+  const { json, comments } = stripJsonComments(await readFile(path, 'utf8'))
   try {
-    return JSON.parse(await readFile(path, 'utf8')) as Json
+    return { value: JSON.parse(json) as Json, comments }
   } catch (cause) {
-    throw new MigrateError(
-      'MIGRATE_WRITE',
-      `cannot read ${path} as JSON (comments in it? edit by hand)`,
-      { cause },
-    )
+    throw new MigrateError('MIGRATE_WRITE', `cannot read ${path} as JSON: edit it by hand`, {
+      cause,
+    })
   }
 }
 
@@ -82,9 +120,23 @@ async function updateJson(
   change: (value: Json) => string | undefined,
   changes: Changes,
 ): Promise<void> {
-  const value = await readJson(path)
+  const { value, comments } = await readJson(path)
+  const before = structuredClone(value)
   const what = change(value)
   if (what === undefined) return
+  if (comments) {
+    // Rewritten, the file would lose its comments: name the edit instead, key by key.
+    const keys = [...new Set([...Object.keys(before), ...Object.keys(value)])].filter(
+      (key) => JSON.stringify(before[key]) !== JSON.stringify(value[key]),
+    )
+    const edits = keys.map((key) =>
+      key in value ? `"${key}": ${JSON.stringify(value[key])}` : `no "${key}"`,
+    )
+    throw new MigrateError(
+      'MIGRATE_WRITE',
+      `${relative(changes.root, path)} has comments, which rewriting it would drop: make the change by hand (${what}: ${edits.join(', ')}), then run rewrite again`,
+    )
+  }
   await writeFile(path, json(value))
   changes.add(path, what)
 }
@@ -183,7 +235,7 @@ export async function scaffoldPackage(
   const dir = relative(root, packageDir).split('\\').join('/')
   if (dir.startsWith('..')) return []
   const changes = new Changes(root)
-  const manifest = await readJson(join(packageDir, 'package.json'))
+  const { value: manifest } = await readJson(join(packageDir, 'package.json'))
 
   await writeIfMissing(join(packageDir, PACKAGE_CONFIG), CONFIG, changes)
   await writeIfMissing(join(packageDir, 'turbo.json'), json(TURBO), changes)
