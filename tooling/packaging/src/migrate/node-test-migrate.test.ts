@@ -176,6 +176,27 @@ describe('rewrite then verify', () => {
     assert.deepEqual(again.rewritten, [])
   })
 
+  it('a dry run names the files whose tests a helper module declares, and records nothing (B27h3)', async () => {
+    const fixture = await fixturePackage({
+      'src/helper.ts':
+        "import { it } from 'node:test'\nexport function one(): void {\n  it('from the helper', () => {})\n}\n",
+      'src/a.test.ts': "import { it } from 'node:test'\nit('own', () => {})\n",
+      'src/b.test.ts': "import { one } from './helper.ts'\none()\n",
+    })
+    const report = await rewritePackage({
+      packageDir: fixture.pkg,
+      root: fixture.root,
+      cacheDir: fixture.cache,
+      dryRun: true,
+    })
+    assert.deepEqual(report.helperOnly, ['src/b.test.ts'])
+    assert.deepEqual(report.rewritten, [])
+    assert.equal(
+      await readBaseline(baselinePath(fixture.cache, fixture.pkg, fixture.root)),
+      undefined,
+    )
+  })
+
   it('verifies a skipped suite and a [slug].test.ts, which node:test and Provino list differently', async () => {
     const source =
       "import { describe, it } from 'node:test'\ndescribe.skip('s', () => { it('c', () => {}) })\nit('x', () => {})\n"

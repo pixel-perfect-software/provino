@@ -180,9 +180,11 @@ export interface RewriteReport {
   /** With no node:test file (`candidates` is 0): a baseline exists and was left as it is. */
   readonly baselineKept: boolean
   /**
-   * Files recorded now that import no runner (neither node:test nor `provino`): a helper module
-   * declares their tests (`describeRecorded`), so the codemod has nothing to rewrite in them, but
-   * they run on node:test as they are and the baseline must hold them too.
+   * Files recorded now (under `dryRun`, the ones that would be) that import no runner (neither
+   * node:test nor `provino`): a helper module declares their tests (`describeRecorded`), so the
+   * codemod has nothing to rewrite in them, but they run on node:test as they are and the baseline
+   * must hold them too. Placing a helper's test under its file needs Node's `entryFile` (24.22 has
+   * it, 22.15 not: there rewrite stops with `MIGRATE_BASELINE`).
    */
   readonly helperOnly: readonly string[]
 }
@@ -219,7 +221,8 @@ export async function rewritePackage(options: {
   const changed = results.filter((result) => result.changed)
   const candidates = results.filter((result) => result.changed || result.refusals.length > 0).length
   const target = baselinePath(options.cacheDir, packageDir, root)
-  const previous = (await readBaseline(target))?.files ?? {}
+  const baseline = await readBaseline(target)
+  const previous = baseline?.files ?? {}
   // Recorded once: a later rewrite finds them in the baseline.
   const helperOnly = results
     .filter(
@@ -236,8 +239,9 @@ export async function rewritePackage(options: {
       refusals,
       rewritten: [],
       baselineTests: 0,
-      baselineKept: candidates === 0 && (await readBaseline(target)) !== undefined,
-      helperOnly: [],
+      baselineKept: candidates === 0 && baseline !== undefined,
+      // A dry run says which it would record; a refused run records none.
+      helperOnly: options.dryRun ? helperOnly : [],
     }
   }
 
