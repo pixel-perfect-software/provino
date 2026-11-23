@@ -237,7 +237,8 @@ for (const runner of RUNNERS) {
     })
   }
 
-  test(`${runner}: every generated layout agrees`, async () => {
+  // D194 exception (Tyler, 2026-11-23): a whole-repo or whole-corpus test that had no timeout under node:test; 120 s is too tight on a loaded CI runner
+  test(`${runner}: every generated layout agrees`, { timeout: 600_000 }, async () => {
     const layouts = generateLayouts(runner, EXPECTED_COUNTS.generated[runner], SEEDS[runner])
     const failures: string[] = []
     for (const layout of layouts) {
