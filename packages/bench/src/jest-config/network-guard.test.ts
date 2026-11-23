@@ -9,11 +9,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { afterAll, test } from 'provino'
+import { onTestFinished, test } from 'provino'
 
 const GUARD = pathToFileURL(fileURLToPath(new URL('network-guard.ts', import.meta.url))).href
-const dir = mkdtempSync(join(tmpdir(), 'provino-network-guard-'))
-afterAll(() => rmSync(dir, { recursive: true, force: true }))
 
 // Generated at test time as data (D13): the attempts, by named import and through the defaults.
 const PROBE = `import { request as httpRequest, get as httpGet } from 'node:http'
@@ -82,6 +80,8 @@ process.exit(0)
 `
 
 test('the guard refuses every network API, by named import too', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'provino-network-guard-'))
+  onTestFinished(() => rmSync(dir, { recursive: true, force: true }))
   const probe = join(dir, 'probe.mjs')
   writeFileSync(probe, PROBE)
   const output = execFileSync(process.execPath, ['--import', GUARD, probe], {

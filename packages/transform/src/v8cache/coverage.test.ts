@@ -17,8 +17,14 @@ const FUNCTIONS = 300
 const RUNS = 5
 const KEY = 'c0ffee0123456789'
 
-const { dir, remove } = tempDir()
-afterAll(() => remove())
+// One directory for the file's tests (the first one fills it, the next read it), made by the first
+// test that asks: importing the file makes none.
+let scratch: ReturnType<typeof tempDir> | undefined
+afterAll(() => scratch?.remove())
+function cacheDir(): string {
+  scratch ??= tempDir()
+  return scratch.dir
+}
 
 interface Counts {
   readonly functions: number
@@ -28,7 +34,13 @@ interface Counts {
   readonly cachedDataRejected: boolean | null
 }
 function measure(how: 'plain' | 'cache', mode: 'on' | 'off'): Counts {
-  return runChild('coverage', { dir, key: KEY, functions: FUNCTIONS, how, mode }) as Counts
+  return runChild('coverage', {
+    dir: cacheDir(),
+    key: KEY,
+    functions: FUNCTIONS,
+    how,
+    mode,
+  }) as Counts
 }
 const shape = (counts: Counts): object => ({
   functions: counts.functions,
@@ -43,7 +55,7 @@ test('cacheModeFor: off when coverage is on, on otherwise', () => {
 
 test('with coverage on, the cache mode leaves the script to compile as it does with no cache at all', () => {
   // A warm entry, made by a run with the cache on and no coverage.
-  const warm = runChild('load', { dir, key: KEY, functions: FUNCTIONS }) as {
+  const warm = runChild('load', { dir: cacheDir(), key: KEY, functions: FUNCTIONS }) as {
     readonly stats: { readonly written: number }
   }
   assert.equal(warm.stats.written, 1)
