@@ -8,6 +8,7 @@ import { CANARY } from './dogfood.ts'
 import { nodeTestArgs } from './node-test.ts'
 import {
   bootstrapProblems,
+  nodeTestImportProblems,
   SHARD_COUNT,
   SHARD_ONE,
   SPLIT_PACKAGES,
@@ -235,5 +236,124 @@ describe('bootstrapProblems (B27g2)', () => {
       problems([CANARY], [pkg('run', 'run && node --test x', 'packages/provino')]),
       /expected "run && node --test x"/,
     )
+  })
+})
+
+describe('nodeTestImportProblems (B27h3)', () => {
+  const TEST = 'packages/p/src/a.test.ts'
+  /** The problems for `files` (path to text) when `tests` are the test files Provino runs. */
+  const problems = (files: Readonly<Record<string, string>>, tests: readonly string[] = [TEST]) =>
+    nodeTestImportProblems(
+      tests,
+      (file) => files[file],
+      (file) => file.startsWith('packages/p/src/'),
+    ).join('\n')
+
+  test('a helper that imports node:test and a Provino test that imports the helper fail, by name', () => {
+    const found = problems({
+      [TEST]: "import { tempDir } from './helper.ts'\n",
+      'packages/p/src/helper.ts': "import { after } from 'node:test'\nafter(() => {})\n",
+    })
+    assert.match(
+      found,
+      /packages\/p\/src\/helper\.ts imports node:test, and packages\/p\/src\/a\.test\.ts/,
+    )
+    assert.match(found, /never run in a Provino worker/)
+  })
+
+  test('every value form counts: default, namespace, side effect, a named value beside a type, a re-export, import()', () => {
+    for (const line of [
+      "import test from 'node:test'",
+      "import * as nodeTest from 'node:test'",
+      "import 'node:test'",
+      "import { type TestContext, after } from 'node:test'",
+      "export { after } from 'node:test'",
+      "export * from 'node:test'",
+      "const nodeTest = await import('node:test')",
+    ]) {
+      const found = problems({
+        [TEST]: "import './helper.ts'\n",
+        'packages/p/src/helper.ts': `${line}\n`,
+      })
+      assert.match(found, /helper\.ts imports node:test/, line)
+    }
+  })
+
+  test('a type import is erased: it loads nothing', () => {
+    for (const line of [
+      "import type { TestContext } from 'node:test'",
+      "import { type TestContext } from 'node:test'",
+      "export type { TestContext } from 'node:test'",
+    ]) {
+      const files = {
+        [TEST]: "import './helper.ts'\n",
+        'packages/p/src/helper.ts': `${line}\n`,
+      }
+      assert.equal(problems(files), '', line)
+    }
+  })
+
+  test('a file only the bootstrap set imports may use node:test', () => {
+    // The helper is reached by no Provino test: the bootstrap test that imports it is not in `tests`.
+    assert.equal(
+      problems({
+        [TEST]: "import './other.ts'\n",
+        'packages/p/src/other.ts': '',
+        'packages/p/src/boot.test.ts': "import './helper.ts'\n",
+        'packages/p/src/helper.ts': "import { after } from 'node:test'\n",
+      }),
+      '',
+    )
+  })
+
+  test('the file is found through other files, and through a re-export', () => {
+    const found = problems({
+      [TEST]: "import { b } from './a.ts'\n",
+      'packages/p/src/a.ts': "export { b } from './deep/b.ts'\n",
+      'packages/p/src/deep/b.ts': "import { describe } from 'node:test'\n",
+    })
+    assert.match(
+      found,
+      /packages\/p\/src\/deep\/b\.ts imports node:test, and packages\/p\/src\/a\.test\.ts/,
+    )
+  })
+
+  test('a Provino test that imports node:test itself fails, and an import cycle ends', () => {
+    assert.match(
+      problems({ [TEST]: "import { test } from 'node:test'\n" }),
+      /packages\/p\/src\/a\.test\.ts is a test file Provino runs and imports node:test/,
+    )
+    assert.equal(
+      problems({
+        [TEST]: "import './x.ts'\n",
+        'packages/p/src/x.ts': "import './y.ts'\n",
+        'packages/p/src/y.ts': "import './x.ts'\n",
+      }),
+      '',
+    )
+  })
+
+  test('a string that holds an import is no import, and a file outside the roots is not followed', () => {
+    assert.equal(
+      problems({
+        [TEST]:
+          "const text = \"import { test } from 'node:test'\"\nimport '../../q/src/outside.ts'\n",
+        'packages/q/src/outside.ts': "import { after } from 'node:test'\n",
+      }),
+      '',
+    )
+  })
+
+  test('each file is named once however many tests reach it', () => {
+    const found = problems(
+      {
+        'packages/p/src/a.test.ts': "import './helper.ts'\n",
+        'packages/p/src/b.test.ts': "import './helper.ts'\n",
+        'packages/p/src/helper.ts': "import { after } from 'node:test'\n",
+      },
+      ['packages/p/src/a.test.ts', 'packages/p/src/b.test.ts'],
+    )
+    assert.match(found, /helper\.ts imports node:test/)
+    assert.equal(found.split('\n').length, 1)
   })
 })

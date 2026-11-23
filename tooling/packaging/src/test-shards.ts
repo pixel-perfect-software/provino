@@ -11,9 +11,10 @@
 //   node tooling/packaging/src/test-shards.ts check
 //   node tooling/packaging/src/test-shards.ts run <1|2> [turbo run flags…]
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, realpathSync } from 'node:fs'
-import { join } from 'node:path'
+import { existsSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
+import { join, posix } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parseSync } from 'oxc-parser'
 import {
   bootstrapFiles,
   CANARY,
@@ -21,6 +22,7 @@ import {
   isIncludedTestFile,
   migratedDirs,
   PACKAGE_CONFIG,
+  TEST_ROOTS,
   testScript,
 } from './dogfood.ts'
 import { ROOT, readWorkspacePackages } from './workspace.ts'
@@ -172,6 +174,118 @@ export function bootstrapProblems(
   return problems
 }
 
+/** What a source file imports: the relative specifiers it loads, and whether it loads `node:test`. */
+interface FileImports {
+  readonly relative: readonly string[]
+  readonly nodeTest: boolean
+}
+
+/**
+ * The imports of one TypeScript file that load something at run time, read from its syntax tree (so
+ * a string that holds `import … from 'node:test'` is no import): static imports and re-exports, and
+ * `import()` with a literal. A type import or re-export, or one whose every specifier is `type`, is
+ * erased and loads nothing.
+ */
+function importsOf(file: string, text: string): FileImports {
+  const { module } = parseSync(file, text)
+  const relative: string[] = []
+  let nodeTest = false
+  const note = (request: string): void => {
+    if (request === 'node:test') nodeTest = true
+    else if (request.startsWith('.')) relative.push(request)
+  }
+  for (const statement of module.staticImports) {
+    if (statement.entries.length > 0 && statement.entries.every((entry) => entry.isType)) continue
+    note(statement.moduleRequest.value)
+  }
+  for (const statement of module.staticExports) {
+    for (const entry of statement.entries) {
+      if (entry.moduleRequest !== null && !entry.isType) note(entry.moduleRequest.value)
+    }
+  }
+  for (const call of module.dynamicImports) {
+    const literal = /^(['"])(.*)\1$/s.exec(
+      text.slice(call.moduleRequest.start, call.moduleRequest.end),
+    )
+    if (literal?.[2] !== undefined) note(literal[2])
+  }
+  return { relative, nodeTest }
+}
+
+/**
+ * Files that load `node:test` and that a test file Provino runs reaches through relative imports
+ * (static imports and re-exports, and `import()` with a literal, followed through every file under
+ * `within`). A `node:test` hook or registration does nothing in a Provino worker: the file's `after`
+ * is never called (a temp dir it was to remove stays), a `test` or `describe` it makes never runs.
+ * A type import is fine, and so is a file only the bootstrap set imports (a node:test file may use
+ * node:test). `tests` are the test files Provino runs (the include globs minus the bootstrap set);
+ * `read` gives a file's text, or `undefined` when there is no such file.
+ * @internal
+ */
+export function nodeTestImportProblems(
+  tests: readonly string[],
+  read: (file: string) => string | undefined,
+  within: (file: string) => boolean,
+): readonly string[] {
+  /** Each file reached, and the test file it was first reached from. */
+  const reachedFrom = new Map<string, string>()
+  const problems: string[] = []
+  for (const test of tests) {
+    const queue = [test]
+    while (queue.length > 0) {
+      const file = queue.shift() as string
+      if (reachedFrom.has(file)) continue
+      reachedFrom.set(file, test)
+      const text = read(file)
+      if (text === undefined || !/\.[cm]?tsx?$/.test(file)) continue
+      const imports = importsOf(file, text)
+      if (imports.nodeTest) {
+        problems.push(
+          file === test
+            ? `${file} is a test file Provino runs and imports node:test: rewrite it (pnpm migrate:node-test rewrite) or add it to the bootstrap set`
+            : `${file} imports node:test, and ${test} (a test file Provino runs) imports it${reachedFrom.get(file) === test ? '' : ' (through another file)'}: node:test's hooks and tests never run in a Provino worker, so take the hook as a parameter (the caller passes \`after\` or \`afterAll\`), or register it from provino when only Provino tests import this file, or keep it out of the files a Provino test imports (a file only the bootstrap set imports may use node:test)`,
+        )
+      }
+      for (const request of imports.relative) {
+        const target = posix.normalize(posix.join(posix.dirname(file), request))
+        const found = [target, `${target}.ts`, `${target}/index.ts`].find(
+          (candidate) => within(candidate) && read(candidate) !== undefined,
+        )
+        if (found !== undefined) queue.push(found)
+      }
+    }
+  }
+  return problems.sort()
+}
+
+/** Every file under each migrated package's include roots can be read by this; the rest is not a source. */
+function readSource(file: string): string | undefined {
+  try {
+    return readFileSync(join(ROOT, file), 'utf8')
+  } catch {
+    return undefined
+  }
+}
+
+/** The test files Provino runs: every included `*.test.ts` of a migrated package but the bootstrap set. */
+function provinoTestFiles(
+  dirs: readonly string[],
+  bootstrap: readonly string[],
+): readonly string[] {
+  return dirs.flatMap((dir) =>
+    TEST_ROOTS.flatMap((root) => {
+      if (!existsSync(join(ROOT, dir, root))) return []
+      return readdirSync(join(ROOT, dir, root), { recursive: true, encoding: 'utf8' })
+        .map((entry) => `${dir}/${root}/${entry.split('\\').join('/')}`)
+        .filter(
+          (file) =>
+            !file.includes('/node_modules/') && isIncludedTestFile(file.slice(dir.length + 1)),
+        )
+        .filter((file) => !bootstrap.includes(file))
+    }),
+  )
+}
+
 /** The packages with a `provino.config.ts`, read from disk; the root config's projects are these. */
 function migratedPackages(): readonly MigratedPackage[] {
   const dirs = migratedDirs(ROOT)
@@ -221,14 +335,22 @@ function unshardableSplits(): readonly string[] {
 }
 
 function check(): number {
+  const dirs = migratedDirs(ROOT)
+  const bootstrap = bootstrapFiles(ROOT)
+  const roots = dirs.flatMap((dir) => TEST_ROOTS.map((root) => `${dir}/${root}/`))
   const ran = Array.from({ length: SHARD_COUNT }, (_, index) => plannedPackages(index + 1))
   const problems = [
     ...shardProblems(packagesWithTests(), ran),
     ...bootstrapProblems(
-      bootstrapFiles(ROOT),
+      bootstrap,
       migratedPackages(),
       (file) => existsSync(join(ROOT, file)),
-      migratedDirs(ROOT),
+      dirs,
+    ),
+    ...nodeTestImportProblems(
+      provinoTestFiles(dirs, bootstrap),
+      readSource,
+      (file) => roots.some((root) => file.startsWith(root)) && !file.includes('/node_modules/'),
     ),
     ...unshardableSplits().map(
       (name) => `${name} is split but its test script does not run through node-test.ts`,
