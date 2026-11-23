@@ -9,6 +9,7 @@ export type MigrateErrorCode =
   | 'MIGRATE_SCRIPT'
   | 'MIGRATE_BASELINE'
   | 'MIGRATE_NO_BASELINE'
+  | 'MIGRATE_ALL_BOOTSTRAPPED'
   | 'MIGRATE_WRITE'
   | 'MIGRATE_RUN'
 
