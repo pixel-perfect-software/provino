@@ -95,6 +95,9 @@
       "path": "packages/config"
     },
     {
+      "path": "packages/config/tsconfig.tests.json"
+    },
+    {
       "path": "packages/reporters"
     },
     {
