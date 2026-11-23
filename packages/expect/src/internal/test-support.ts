@@ -1,6 +1,5 @@
 // Test helpers (not a test file). A neutral matcher table and a hand-driven current-test lookup,
 // so the engine is tested without any dialect.
-import { describe, test } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
 import type {
   AsymmetricMatcherLike,
@@ -286,6 +285,16 @@ export function interopEngine(expect: (received: unknown) => AssertionLike): Int
   }
 }
 
+/**
+ * The node:test functions `defineInteropSuite` registers with. The caller passes them: this file is
+ * shared with test files that run on Provino, where a node:test registration never runs, so it
+ * imports no node:test (`test-shards.ts check`).
+ */
+export interface InteropRunner {
+  describe(name: string, body: () => void): unknown
+  test(name: string, body: () => void): unknown
+}
+
 /** An asymmetric matcher with a value it matches and one it doesn't. */
 export interface InteropSubject {
   readonly name: string
@@ -298,12 +307,13 @@ export interface InteropSubject {
 
 /** One `describe` per subject, one test per spike C case. */
 export function defineInteropSuite(
+  runner: InteropRunner,
   engine: InteropEngine,
   subjects: readonly InteropSubject[],
 ): void {
   for (const subject of subjects) {
-    describe(subject.name, () => {
-      for (const [name, run] of interopCases(engine, subject)) test(name, run)
+    runner.describe(subject.name, () => {
+      for (const [name, run] of interopCases(engine, subject)) runner.test(name, run)
     })
   }
 }

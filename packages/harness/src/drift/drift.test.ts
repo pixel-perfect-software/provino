@@ -25,9 +25,13 @@ const UPSTREAM = `# Vendored upstream
 | \`not-a-source.ts\` | x |
 `
 
-const root = mkdtempSync(join(tmpdir(), 'provino-drift-test-'))
+let root: string
+beforeAll(() => {
+  root = mkdtempSync(join(tmpdir(), 'provino-drift-test-'))
+})
 afterAll(() => rmSync(root, { recursive: true, force: true }))
 
+/** Writes a tree under the temp dir (call it from a hook or a test: a describe body runs on a listing). */
 function tree(name: string, files: Record<string, string>): string {
   const dir = join(root, name)
   for (const [path, text] of Object.entries(files)) {
@@ -58,19 +62,21 @@ describe('parseUpstream', () => {
 })
 
 describe('driftBetween', () => {
-  const from = tree('from', {
-    'packages/expect/src/matchers.ts': 'a',
-    'packages/expect/src/print.ts': 'same',
-    'packages/jest-circus/src/format.ts': 'old',
-    'packages/expect/src/index.ts': 'not vendored',
-  })
-  const to = tree('to', {
-    'packages/expect/src/matchers.ts': 'b',
-    'packages/expect/src/print.ts': 'same',
-    'packages/expect/src/index.ts': 'not vendored, changed',
-  })
+  let from: string
+  let to: string
   let report: DriftReport
   beforeAll(async () => {
+    from = tree('from', {
+      'packages/expect/src/matchers.ts': 'a',
+      'packages/expect/src/print.ts': 'same',
+      'packages/jest-circus/src/format.ts': 'old',
+      'packages/expect/src/index.ts': 'not vendored',
+    })
+    to = tree('to', {
+      'packages/expect/src/matchers.ts': 'b',
+      'packages/expect/src/print.ts': 'same',
+      'packages/expect/src/index.ts': 'not vendored, changed',
+    })
     report = await driftBetween('jest', { from: 'v1', to: 'v2' }, { from, to }, [
       parseUpstream('x/UPSTREAM.md', UPSTREAM),
     ])
@@ -132,8 +138,12 @@ const TWO = `# Vendored upstream
 
 describe('an UPSTREAM.md that names two repositories', () => {
   const upstream = parseUpstream('two/UPSTREAM.md', TWO)
-  const vitestTree = tree('two-vitest', { 'packages/expect/src/own.ts': 'v' })
-  const jestTree = tree('two-jest', { 'packages/diff-sequences/src/index.ts': 'j' })
+  let vitestTree: string
+  let jestTree: string
+  beforeAll(() => {
+    vitestTree = tree('two-vitest', { 'packages/expect/src/own.ts': 'v' })
+    jestTree = tree('two-jest', { 'packages/diff-sequences/src/index.ts': 'j' })
+  })
 
   test('each source goes to the repository whose URL is nearest it', () => {
     assert.deepEqual(

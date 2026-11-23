@@ -3,11 +3,13 @@ import { spawn } from 'node:child_process'
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after } from 'node:test'
+import { afterAll } from 'provino'
 import { type Manifest, parseManifest } from './manifest.ts'
 
 const scratch: string[] = []
-after(() => Promise.all(scratch.map((dir) => rm(dir, { recursive: true, force: true }))))
+afterAll(async () => {
+  await Promise.all(scratch.map((dir) => rm(dir, { recursive: true, force: true })))
+})
 
 /**
  * A fresh directory under the OS temp dir holding `files` (path → content), removed after the

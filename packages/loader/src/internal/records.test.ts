@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import { neutralPolicy } from '@provino/policy'
 import type { TransformClaims } from '@provino/types'
-import { test } from 'provino'
+import { beforeAll, test } from 'provino'
 import { LoaderError, RequireEsmError } from '../errors.ts'
 import type { RuntimeCapabilities } from './edge-kind.ts'
 import { createRecords, type Records } from './records.ts'
@@ -41,11 +41,16 @@ const PACKAGES = {
   'src/esm.js': "import { a } from './a'\nexport const b = a\n",
 }
 
-const root = writeTree(PACKAGES)
-const records = createRecords(
-  loaderOptionsFor(root, { policy: { messages: { 'require-esm': TEXT } } }),
-  NO_SYNC_EVALUATE,
-)
+// Written and built in `beforeAll`, which a listing of the file (every test skipped) never runs.
+let root: string
+let records: Records
+beforeAll(() => {
+  root = writeTree(PACKAGES)
+  records = createRecords(
+    loaderOptionsFor(root, { policy: { messages: { 'require-esm': TEXT } } }),
+    NO_SYNC_EVALUATE,
+  )
+})
 
 const nodeError = Object.assign(new Error("Cannot find module './a'"), {
   code: 'ERR_MODULE_NOT_FOUND',

@@ -1,7 +1,7 @@
 // Spike C, both ways, against Jest 30.5.2's own `expect` (T7.4). Its own process (`node --test`
 // runs each file in one): Jest's `expect` defines the realm's slot when it loads, non-configurable,
 // so our slot is never installed here, and our engine runs without one.
-import { describe } from 'node:test'
+import { describe, test } from 'node:test'
 import { expect as jestExpect } from 'expect'
 import {
   defineInteropSuite,
@@ -38,7 +38,7 @@ describe('ours inside Jest`s expect', () => {
       printed: 'IsFortyTwo',
     },
   ]
-  defineInteropSuite(jest, subjects)
+  defineInteropSuite({ describe, test }, jest, subjects)
 })
 
 describe('Jest`s inside our expect', () => {
@@ -84,5 +84,5 @@ describe('Jest`s inside our expect', () => {
     },
     { name: 'a custom matcher`s asymmetric form', matcher: toBeEven(), good: 2, bad: 3 },
   ]
-  defineInteropSuite(ours, subjects)
+  defineInteropSuite({ describe, test }, ours, subjects)
 })

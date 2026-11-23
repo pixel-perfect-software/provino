@@ -3,8 +3,8 @@
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after } from 'node:test'
 import type { SnapshotPlugin, SnapshotPrinter } from '@provino/types'
+import { afterAll } from 'provino'
 import { SnapshotState, type SnapshotStateOptions } from './state.ts'
 
 export const HEADER = '// Test Snapshot v1'
@@ -37,10 +37,15 @@ export const policy: SnapshotStateOptions['policy'] = {
   format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null, extra: {} },
 }
 
+const dirs: string[] = []
+afterAll(() => {
+  for (const dir of dirs) rmSync(dir, { recursive: true, force: true })
+})
+
 /** A temp directory, removed when the test file ends. */
 export function tempDir(): string {
   const dir = mkdtempSync(join(tmpdir(), 'provino-snapshot-'))
-  after(() => rmSync(dir, { recursive: true, force: true }))
+  dirs.push(dir)
   return dir
 }
 

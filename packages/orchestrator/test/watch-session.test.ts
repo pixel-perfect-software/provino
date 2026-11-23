@@ -11,12 +11,12 @@ import { readFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { describe, it } from 'provino'
+import { afterAll, describe, it } from 'provino'
 import type { Output, SessionSetup, Step } from './fixtures/watch-steps.ts'
 import { assertWorkersGone, fixture, takeWorkerPids, trackedProjects } from './support.ts'
 import { assertGroupEmpty, killGroup } from './sweep.ts'
 
-const makeProject = trackedProjects()
+const makeProject = trackedProjects(afterAll)
 
 /** A test file that notes, outside the project, which process ran it and what `src/value.js` held. */
 function valueTest(name: string, log: string): string {

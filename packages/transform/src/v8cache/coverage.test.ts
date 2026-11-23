@@ -9,7 +9,7 @@
 // script from a warm entry reports 302 functions, 302 ranges and none with block coverage. (The
 // research's 229 against 542 are another script's numbers; the direction is the same.)
 import assert from 'node:assert/strict'
-import { afterAll, test } from 'provino'
+import { afterAll, beforeAll, test } from 'provino'
 import { cacheModeFor } from './index.ts'
 import { runChild, tempDir } from './test-helpers.ts'
 
@@ -17,7 +17,13 @@ const FUNCTIONS = 300
 const RUNS = 5
 const KEY = 'c0ffee0123456789'
 
-const { dir, remove } = tempDir()
+// The directory the file's tests share (the first fills it, the next read it), made in `beforeAll`,
+// which a listing of the file (every test skipped) never runs.
+let dir: string
+let remove: () => void
+beforeAll(() => {
+  ;({ dir, remove } = tempDir())
+})
 afterAll(() => remove())
 
 interface Counts {
