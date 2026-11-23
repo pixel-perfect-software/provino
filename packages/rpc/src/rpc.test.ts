@@ -70,7 +70,7 @@ function manualPort(): {
 }
 
 describe('createRpc over a MessageChannel', () => {
-  it('round-trips calls both ways, keeping clone-safe values', async (t) => {
+  it('round-trips calls both ways, keeping clone-safe values', async () => {
     const { left, right } = channel()
     onTestFinished(() => left.close())
     const toRight = createRpc<Left, Right>(left, leftHandlers)
@@ -82,7 +82,7 @@ describe('createRpc over a MessageChannel', () => {
     assert.deepEqual(await toLeft.echo(value), value)
   })
 
-  it('answers many concurrent calls by id', async (t) => {
+  it('answers many concurrent calls by id', async () => {
     const { left, right } = channel()
     onTestFinished(() => left.close())
     createRpc<Left, Right>(left, leftHandlers)
@@ -94,7 +94,7 @@ describe('createRpc over a MessageChannel', () => {
     )
   })
 
-  it("rejects with the remote error's name, message, code and cause", async (t) => {
+  it("rejects with the remote error's name, message, code and cause", async () => {
     const { left, right } = channel()
     onTestFinished(() => left.close())
     createRpc<Left, Right>(left, leftHandlers)
@@ -112,7 +112,7 @@ describe('createRpc over a MessageChannel', () => {
     assert.match(error.remote?.stack ?? '', /TypeError: nope/)
   })
 
-  it('answers a method that is not served', async (t) => {
+  it('answers a method that is not served', async () => {
     const { left, right } = channel()
     onTestFinished(() => left.close())
     createRpc<Left, Right>(left, leftHandlers)
@@ -144,7 +144,7 @@ describe('createRpc over a MessageChannel', () => {
     )
   })
 
-  it("rejects a call whose arguments can't be cloned, without sending it", async (t) => {
+  it("rejects a call whose arguments can't be cloned, without sending it", async () => {
     const { left, right } = channel()
     onTestFinished(() => left.close())
     createRpc<Left, Right>(left, leftHandlers)
@@ -159,7 +159,7 @@ describe('createRpc over a MessageChannel', () => {
     assert.equal(await toLeft.add(1, 1), 2)
   })
 
-  it("answers with an error when a result can't be cloned", async (t) => {
+  it("answers with an error when a result can't be cloned", async () => {
     const { left, right } = channel()
     onTestFinished(() => left.close())
     createRpc<Right, Left>(right, {
@@ -191,7 +191,7 @@ describe('createRpc over a MessageChannel', () => {
 })
 
 describe('createRpc when a reply can’t be built or sent', () => {
-  it('answers with a fixed error when the serializer throws, so the caller isn’t left waiting', async (t) => {
+  it('answers with a fixed error when the serializer throws, so the caller isn’t left waiting', async () => {
     const unhandled: unknown[] = []
     const onUnhandled = (reason: unknown): void => void unhandled.push(reason)
     process.on('unhandledRejection', onUnhandled)
@@ -214,7 +214,7 @@ describe('createRpc when a reply can’t be built or sent', () => {
     assert.deepEqual(unhandled, [])
   })
 
-  it('answers with a fixed error when the serialized error itself can’t be sent', async (t) => {
+  it('answers with a fixed error when the serialized error itself can’t be sent', async () => {
     const { left, right } = channel()
     onTestFinished(() => left.close())
     createRpc<Left, Right>(left, leftHandlers, {
