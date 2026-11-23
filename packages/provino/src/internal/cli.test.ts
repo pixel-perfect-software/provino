@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict'
+import { mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
 import { Writable } from 'node:stream'
-import { describe, it } from 'provino'
+import { describe, it, onTestFinished } from 'provino'
 import { main, parseRunArgs } from './cli.ts'
 import { USAGE } from './usage.ts'
 import { UsageError } from './usage-error.ts'
@@ -340,11 +343,15 @@ describe('main', () => {
 
   it('is exit code 2 with the message and the usage text on stderr for bad usage', async () => {
     // `jest` and `vitest` are commands now (`provino vitest` ends 1 on its errors, as Vitest does),
-    // and a bare `provino` in a directory with nothing to run is bad usage.
+    // and a bare `provino` in a directory with nothing to run is bad usage. That directory is an
+    // empty one: this package has a provino.config.ts of its own since its tests run on Provino
+    // (B27h3), so from the working directory `provino run` would find it and run this suite.
+    const cwd = mkdtempSync(join(tmpdir(), 'provino-cli-usage-'))
+    onTestFinished(() => rmSync(cwd, { recursive: true, force: true }))
     for (const argv of [['walk'], ['run'], ['run', '--config', 'c.mjs', '--bad']]) {
       const stdout = new Sink()
       const stderr = new Sink()
-      assert.equal(await main(argv, { stdout, stderr }), 2, argv.join(' '))
+      assert.equal(await main(argv, { stdout, stderr, cwd }), 2, argv.join(' '))
       assert.equal(stdout.text, '')
       assert.ok(stderr.text.startsWith('Provino: '), stderr.text)
       assert.ok(stderr.text.endsWith(USAGE), 'the usage text follows the message')
