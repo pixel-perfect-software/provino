@@ -9,18 +9,14 @@ import {
   constants,
   existsSync,
   mkdirSync,
-  mkdtempSync,
   readFileSync,
-  rmSync,
   symlinkSync,
   writeFileSync,
 } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runInNewContext } from 'node:vm'
-import { describe, onTestFinished, test } from 'provino'
+import { describe, test } from 'provino'
 import {
   ADD_ON_DISTS,
   builtSources,
@@ -30,7 +26,7 @@ import {
   staticImports,
   stringLiterals,
 } from './dist.ts'
-import { childEnv, readLoadLogs, runBuilt, trackedProjects, whenFileEnds } from './support.ts'
+import { childEnv, readLoadLogs, runBuilt, scratch, trackedProjects } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const manifest = JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8')) as {
@@ -464,8 +460,7 @@ describe('watch mode is its own chunk (B23f)', () => {
 describe('a built worker (T1.10)', () => {
   test('runs a project whose test imports `provino`, and starts with at most 10 files from the package', async () => {
     const dir = await builtProject()
-    const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
-    onTestFinished(() => rm(logs, { recursive: true, force: true }))
+    const logs = scratch('provino-loads-')
     const run = runBuilt(['jest', '--ci'], {
       cwd: dir,
       preloads: ['load-recorder'],
@@ -524,27 +519,23 @@ function staticClosure(entries: readonly string[]): string[] {
 
 /** The files a fresh process loads from `dist`, and every URL it loads, after running `code`. */
 function loadsOf(code: string): { readonly dist: string[]; readonly urls: string[] } {
-  const logs = mkdtempSync(join(tmpdir(), 'provino-loads-'))
-  try {
-    const result = spawnSync(process.execPath, ['--input-type=module', '-e', code], {
-      cwd: PACKAGE,
-      encoding: 'utf8',
-      env: childEnv(['load-recorder'], { PROVINO_LOAD_LOG: logs }),
-      timeout: 60_000,
-    })
-    assert.equal(result.status, 0, result.stderr)
-    const urls = readLoadLogs(logs).flatMap((log) => log.urls)
-    const dist = `${join(PACKAGE, 'dist')}/`
-    return {
-      urls,
-      dist: urls
-        .filter((url) => url.startsWith('file://'))
-        .map((url) => fileURLToPath(url))
-        .filter((path) => path.startsWith(dist))
-        .map((path) => path.slice(dist.length)),
-    }
-  } finally {
-    rmSync(logs, { recursive: true, force: true })
+  const logs = scratch('provino-loads-')
+  const result = spawnSync(process.execPath, ['--input-type=module', '-e', code], {
+    cwd: PACKAGE,
+    encoding: 'utf8',
+    env: childEnv(['load-recorder'], { PROVINO_LOAD_LOG: logs }),
+    timeout: 60_000,
+  })
+  assert.equal(result.status, 0, result.stderr)
+  const urls = readLoadLogs(logs).flatMap((log) => log.urls)
+  const dist = `${join(PACKAGE, 'dist')}/`
+  return {
+    urls,
+    dist: urls
+      .filter((url) => url.startsWith('file://'))
+      .map((url) => fileURLToPath(url))
+      .filter((path) => path.startsWith(dist))
+      .map((path) => path.slice(dist.length)),
   }
 }
 
@@ -614,8 +605,7 @@ describe('the coordinator without coverage (T1.10, T7.12)', () => {
   /** The `@provino/coverage` source files the coordinator process of a source run loaded. */
   async function coverageLoaded(args: readonly string[]): Promise<readonly string[]> {
     const dir = await builtProject()
-    const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
-    whenFileEnds(() => rm(logs, { recursive: true, force: true }))
+    const logs = scratch('provino-loads-')
     const bin = join(PACKAGE, 'src', 'cli.ts')
     const result = spawnSync(
       process.execPath,
@@ -708,8 +698,7 @@ describe('the provino reporter is its own chunk (B26)', () => {
       ['provino', true, false],
       ['html', false, true],
     ] as const) {
-      const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
-      onTestFinished(() => rm(logs, { recursive: true, force: true }))
+      const logs = scratch('provino-loads-')
       const run = runBuilt(
         ['run', '--config', 'provino.config.mjs', '--reporter', reporter, '--no-cache'],
         { cwd: dir, preloads: ['load-recorder'], env: { PROVINO_LOAD_LOG: logs } },

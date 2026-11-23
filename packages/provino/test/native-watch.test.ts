@@ -7,7 +7,7 @@ import { writeFile } from 'node:fs/promises'
 import type { Writable } from 'node:stream'
 import { describe, it } from 'provino'
 import { Collect, makeProject, startCli, trackedProjects } from './support.ts'
-import { FakeStdin, FakeTerminal, watcherSkip } from './watch-goldens.ts'
+import { FakeStdin, FakeTerminal, skipped } from './watch-goldens.ts'
 
 interface WatchIo {
   readonly stdin?: unknown
@@ -380,8 +380,7 @@ describe('the bin under --watch', () => {
   it('reruns on a real file change, and SIGINT ends it with 130', {
     timeout: 120_000,
   }, async (t) => {
-    const skip = await watcherSkip()
-    if (skip !== false) return t.skip(skip)
+    if (await skipped(t, false)) return
     const project = await makeWatchProject(FILES, CONFIG)
     const cli = startCli(['run', '--config', project.config, '--watch'], {
       cwd: project.dir,

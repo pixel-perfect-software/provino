@@ -17,7 +17,7 @@ import {
   RESULTS_WRITTEN,
   runJestCommand,
   SESSION_MS,
-  terminalSkip,
+  skipped,
 } from './watch-goldens.ts'
 
 /** The goldens this file holds `provino jest` to (the plugin, `u` and `i` ones are `jest-watch-plugins.test.ts`'s). */
@@ -112,8 +112,7 @@ describe('provino jest --watch in this process, against the watch/* goldens of J
 describe('provino jest --watch on a terminal, against the watch/* goldens of Jest 30.5.2', () => {
   for (const name of TERMINAL_IDS) {
     it(`watch/${name}`, { timeout: SESSION_MS + 30_000 }, async (t) => {
-      const skip = await terminalSkip()
-      if (skip !== false) return t.skip(skip)
+      if (await skipped(t, true)) return
       await playOnTerminal(await loadFixture(`watch/${name}`))
     })
   }

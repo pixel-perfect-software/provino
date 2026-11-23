@@ -2,7 +2,7 @@
 // committed, D13), a collecting stream, and a deadline for child processes.
 import assert from 'node:assert/strict'
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
-import { once } from 'node:events'
+import { once as nextEvent } from 'node:events'
 import {
   cpSync,
   existsSync,
@@ -53,12 +53,32 @@ export function testRunner(): TestRunner {
  */
 const madeForFile: (() => unknown)[] = []
 testRunner().afterAll(async () => {
-  await Promise.all(madeForFile.splice(0).map((cleanup) => cleanup()))
+  // Every cleanup runs, whatever another's fate: one that fails must not leave the rest behind.
+  const settled = await Promise.allSettled(madeForFile.splice(0).map(async (cleanup) => cleanup()))
+  const failed = settled.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+  if (failed.length > 0) {
+    throw new AggregateError(
+      failed,
+      `${failed.length} cleanup(s) of this file failed: ${failed.map((reason) => (reason instanceof Error ? reason.message : String(reason))).join('; ')}`,
+    )
+  }
 })
 
 /** Runs `cleanup` when the importing file's tests are done (see `madeForFile`). */
 export function whenFileEnds(cleanup: () => unknown): void {
   madeForFile.push(cleanup)
+}
+
+/**
+ * `make`, called by the first caller and its value kept for the rest: a resource a file's tests
+ * share is made by the first test that needs it, never as the file loads (a listing imports it).
+ */
+export function once<T>(make: () => T): () => T {
+  let made: { readonly value: T } | undefined
+  return () => {
+    made ??= { value: make() }
+    return made.value
+  }
 }
 
 // What picks the reporters, and whether the text is coloured, comes from the environment: an agent
@@ -392,7 +412,7 @@ export function startCli(args: readonly string[], options: CliOptions = {}): Liv
     if (detached) killGroup(pgid)
     else child.kill('SIGKILL')
   }, deadlineMs)
-  const exited = once(child, 'exit').then(([code, signal]) => {
+  const exited = nextEvent(child, 'exit').then(([code, signal]) => {
     clearTimeout(deadline)
     return { code: code as number | null, signal: signal as NodeJS.Signals | null }
   })

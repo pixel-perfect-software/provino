@@ -6,13 +6,11 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
 import { createRequire } from 'node:module'
-import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, test } from 'provino'
-import { childEnv, runBuilt, viewOfNormalized, whenFileEnds } from './support.ts'
+import { childEnv, runBuilt, scratch, viewOfNormalized } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const require = createRequire(
@@ -265,8 +263,7 @@ const TEST_COUNT = 7 + 2 + 2 + 2 + 1
 const SUITE_COUNT = 6
 
 async function project(files: Readonly<Record<string, string>>, extra = ''): Promise<string> {
-  const dir = await mkdtemp(join(tmpdir(), 'provino-lazy-'))
-  whenFileEnds(() => rm(dir, { recursive: true, force: true }))
+  const dir = scratch('provino-lazy-')
   const all: Record<string, string> = {
     'package.json': `{"type":"module","jest":{"testMatch":["**/tests/**/*.test.ts"]${extra}}}\n`,
     'provino.config.mjs': "export default { dialect: 'jest', include: ['tests/**/*.test.ts'] }\n",

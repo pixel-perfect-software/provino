@@ -11,7 +11,14 @@ import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { isCi } from '@provino/reporters'
 import { describe, it } from 'provino'
-import { BUILT_BIN, interactiveEnv, jestConfigJson, passing, trackedProjects } from './support.ts'
+import {
+  BUILT_BIN,
+  interactiveEnv,
+  jestConfigJson,
+  once,
+  passing,
+  trackedProjects,
+} from './support.ts'
 
 /** The harness's terminal pieces, loaded by path: `provino` may not import `@provino/harness`. */
 const HARNESS = new URL('../../harness/src/', import.meta.url)
@@ -63,15 +70,21 @@ async function terminalSkip(): Promise<string | false> {
 /**
  * `terminalSkip`, probed once by the first test that asks (a probe at import would run on every
  * listing of this file). Where the sandbox has no terminal, it says so in the output, not only in
- * the skip.
+ * the skip. A probe of its own, not `watch-goldens.ts`'s: it also needs the built bin.
  */
-let probed: Promise<string | false> | undefined
-function skipHere(): Promise<string | false> {
-  probed ??= terminalSkip().then((reason) => {
+const probe = once(() =>
+  terminalSkip().then((reason) => {
     if (reason !== false) process.stderr.write(`provino-reporter-terminal: skipped: ${reason}\n`)
     return reason
-  })
-  return probed
+  }),
+)
+
+/** Whether this test can't run here: it then skips itself (`t.skip(reason)`) and the caller returns. */
+async function skipped(t: { skip(note: string): unknown }): Promise<boolean> {
+  const reason = await probe()
+  if (reason === false) return false
+  t.skip(reason)
+  return true
 }
 const makeProject = trackedProjects()
 
@@ -113,8 +126,7 @@ function assertRestored(output: string): void {
 
 describe('the provino reporter restores the terminal (B26 Phase 3)', () => {
   it('a normal end: hidden once before the first footer, shown once after the end card', async (t) => {
-    const skip = await skipHere()
-    if (skip !== false) return t.skip(skip)
+    if (await skipped(t)) return
     const project = await makeProject({
       'tests/a.test.js': passing('a'),
       'tests/b.test.js': passing('b'),
@@ -134,8 +146,7 @@ describe('the provino reporter restores the terminal (B26 Phase 3)', () => {
   })
 
   it('a reporter that throws: exit 1, its error above the footer, the cursor shown', async (t) => {
-    const skip = await skipHere()
-    if (skip !== false) return t.skip(skip)
+    if (await skipped(t)) return
     const project = await makeProject({
       'tests/a.test.js': passing('a'),
       'tests/b.test.js': passing('b'),
@@ -165,8 +176,7 @@ describe('the provino reporter restores the terminal (B26 Phase 3)', () => {
     ['SIGQUIT', 131],
   ] as const) {
     it(`${signal} mid-run: exit ${code}, the cursor shown, no footer left`, async (t) => {
-      const skip = await skipHere()
-      if (skip !== false) return t.skip(skip)
+      if (await skipped(t)) return
       const project = await makeProject({
         'tests/hang.test.js': HANGING,
         'tests/hang2.test.js': HANGING,
@@ -188,8 +198,7 @@ describe('the provino reporter restores the terminal (B26 Phase 3)', () => {
   }
 
   it('a second signal within 1 s (the force path, process.exit): the cursor is still shown', async (t) => {
-    const skip = await skipHere()
-    if (skip !== false) return t.skip(skip)
+    if (await skipped(t)) return
     const project = await makeProject({
       'tests/hang.test.js': HANGING,
       'tests/hang2.test.js': HANGING,

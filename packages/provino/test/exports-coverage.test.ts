@@ -3,12 +3,10 @@
 // (the control, which must load every one of them). `exports.test.ts` holds the worker's file count.
 import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, test } from 'provino'
-import { readLoadLogs, runBuilt, trackedProjects, whenFileEnds } from './support.ts'
+import { readLoadLogs, runBuilt, scratch, trackedProjects } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const DIST = `${join(PACKAGE, 'dist')}/`
@@ -59,8 +57,7 @@ type Load = readonly [main: string, file: string]
 /** The `dist/` files each recorded process loaded, with the main module of that process. */
 async function distLoads(args: readonly string[]): Promise<readonly Load[]> {
   const dir = await builtProject()
-  const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
-  whenFileEnds(() => rm(logs, { recursive: true, force: true }))
+  const logs = scratch('provino-loads-')
   const run = runBuilt(['jest', '--ci', ...args], {
     cwd: dir,
     preloads: ['load-recorder'],

@@ -7,8 +7,7 @@
 // `provino`'s to resolve) planted in `@provino/api`'s built entry,
 // and one whose bin imports the Jest dialect's chunk.
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, test } from 'provino'
@@ -16,12 +15,14 @@ import { ADD_ON_DISTS, builtSources, chunkFiles, moduleRequests } from './dist.t
 import {
   type LoadLog,
   linkProvino,
-  makeProject,
   packageCopy,
   readLoadLogs,
   runBuilt,
-  whenFileEnds,
+  scratch,
+  trackedProjects,
 } from './support.ts'
+
+const makeProject = trackedProjects()
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 
@@ -116,7 +117,6 @@ async function nativeProject(pkg: string, layout: Layout): Promise<string> {
     { 'package.json': '{"type":"module"}\n', ...files },
     layout === 'single' ? NATIVE_FILES.config : "export default { projects: ['packages/*'] }\n",
   )
-  whenFileEnds(project.cleanup)
   // Bare `provino` finds the config by name; makeProject writes `provino.config.mjs`.
   linkProvino(project.dir, pkg)
   return project.dir
@@ -127,8 +127,7 @@ const recordedRun = memoize((key: string): Promise<readonly LoadLog[]> => {
   const [pkg = '', pool = 'forks', layout = 'single'] = key.split('|')
   return (async () => {
     const dir = await nativeProject(pkg, layout as Layout)
-    const logs = mkdtempSync(join(tmpdir(), 'provino-native-loads-'))
-    whenFileEnds(() => rmSync(logs, { recursive: true, force: true }))
+    const logs = scratch('provino-native-loads-')
     const run = runBuilt(['--pool', pool], {
       cwd: dir,
       bin: join(pkg, 'dist', 'cli.js'),

@@ -15,6 +15,7 @@ import {
   copyBuiltPackage,
   linkDependencies,
   linkProvino,
+  once,
   packageCopy,
   runBuilt,
   scratch,
@@ -56,11 +57,7 @@ const jestTest = "test('adds', () => { expect(1 + 1).toBe(2) })\n"
 
 describe('provino installed without an add-on (B27f, D187)', () => {
   // The copy is made by the first test that needs it, not as the file loads (a listing imports it).
-  let copy: string | undefined
-  const alone = (): string => {
-    copy ??= packageCopy('without-add-ons')
-    return copy
-  }
+  const alone = once(() => packageCopy('without-add-ons'))
 
   test('provino jest prints the install line, exit 1, no stack', () => {
     const pkg = alone()
@@ -188,11 +185,7 @@ describe("the add-on's provino is the one running (B27f, D187)", () => {
   // `root/global` the other. Third-party packages are linked at `root`, so both copies and the
   // add-on find them by walking up.
   // Built by the first test that needs it, not as the file loads (a listing imports it).
-  let built:
-    | { root: string; dialect: string; own: string; global: string; proj: string }
-    | undefined
-  const copies = (): NonNullable<typeof built> => {
-    if (built !== undefined) return built
+  const copies = once(() => {
     const root = scratch('provino-two-copies-')
     linkDependencies(PACKAGE, root, ['@provino'])
     const dialect = realpathSync(join(PACKAGE, 'node_modules', '@provino', 'dialect-jest'))
@@ -205,9 +198,8 @@ describe("the add-on's provino is the one running (B27f, D187)", () => {
       'a.test.js': jestTest,
       'b.test.js': "test('equal', () => { expect({ a: 1 }).toEqual({ a: 1 }) })\n",
     })
-    built = { root, dialect, own, global, proj }
-    return built
-  }
+    return { root, dialect, own, global, proj }
+  })
 
   test("the project's own provino runs it (the control)", () => {
     const { own, proj } = copies()

@@ -10,7 +10,7 @@ import { describe, it } from 'provino'
 import type { Json } from './mask.ts'
 import { loadFixture } from './recorded.ts'
 import { assertMatchesGolden, provinoOn, type RecordedRun } from './recorded-run.ts'
-import { playPiped, RESULTS_WRITTEN, watcherSkip } from './watch-goldens.ts'
+import { playPiped, RESULTS_WRITTEN, skipped } from './watch-goldens.ts'
 
 const OUT = '.harness-out/jest_runner_ws_0.json'
 const REPORTER = 'vscode-jest-reporter.js'
@@ -239,8 +239,7 @@ describe('vscode-jest watch replays (T11.12, B23e Phase 4)', () => {
     it(`${request}: the run log, the results file after each run and the reporter lines`, {
       timeout: 150_000,
     }, async (t) => {
-      const skip = await watcherSkip()
-      if (skip !== false) return t.skip(skip)
+      if (await skipped(t, false)) return
       const id = `ide/vscode-jest-${request}`
       // `playPiped` holds the run log, the kept reporter lines and each captured results file to
       // the golden's (the same keys, one per run); `assertFields` names the field of a results

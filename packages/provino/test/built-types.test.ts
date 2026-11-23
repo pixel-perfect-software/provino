@@ -12,7 +12,14 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, test } from 'provino'
 import { builtSources } from './dist.ts'
-import { COMPILERS, compilerBin, copyBuiltPackage, linkDependencies, scratch } from './support.ts'
+import {
+  COMPILERS,
+  compilerBin,
+  copyBuiltPackage,
+  linkDependencies,
+  once,
+  scratch,
+} from './support.ts'
 
 const PACKAGES = fileURLToPath(new URL('../..', import.meta.url))
 const ROOT = join(PACKAGES, '..')
@@ -64,11 +71,10 @@ function compile(compiler: (typeof COMPILERS)[number], dir: string) {
 describe('the built declarations, as a user compiles them', () => {
   // Each consumer is installed by the first test that compiles it, not as the file loads (a
   // listing imports the file), and reused by the other compiler's test.
-  const consumers: { withAddOns?: string; alone?: string } = {}
   // One program: the add-ons imported, and one augmentation of each registry that every public
   // type reading it must see. `provino/internal/types` is the add-ons' own copy of those types.
-  const withAddOns = (): string =>
-    (consumers.withAddOns ??= consumer(
+  const withAddOns = once(() =>
+    consumer(
       {
         'config.ts': [
           "import { jestDialect } from '@provino/dialect-jest'",
@@ -99,10 +105,11 @@ describe('the built declarations, as a user compiles them', () => {
         ].join('\n'),
       },
       true,
-    ))
+    ),
+  )
   // `provino` alone: `provino/jest` and `provino/vitest` carry the declarations of their dialect.
-  const alone = (): string =>
-    (consumers.alone ??= consumer(
+  const alone = once(() =>
+    consumer(
       {
         'config.ts': [
           "import 'provino/jest'",
@@ -116,7 +123,8 @@ describe('the built declarations, as a user compiles them', () => {
         ].join('\n'),
       },
       false,
-    ))
+    ),
+  )
 
   for (const compiler of COMPILERS) {
     test(`the add-ons' names and a user's augmentation reach every registry reader (${compiler})`, () => {
