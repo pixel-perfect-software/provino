@@ -95,6 +95,9 @@
       "path": "packages/env-shared"
     },
     {
+      "path": "packages/env-shared/tsconfig.tests.json"
+    },
+    {
       "path": "packages/config"
     },
     {
