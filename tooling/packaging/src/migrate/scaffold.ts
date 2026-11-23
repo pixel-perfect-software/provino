@@ -58,6 +58,9 @@ async function readJson(path: string): Promise<Json> {
 
 const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`
 
+/** The path from `from` to `to` with `/` separators, as a tsconfig and the root's keys write it. */
+const posixRelative = (from: string, to: string): string => relative(from, to).split('\\').join('/')
+
 /** What the scaffold did, as `<path>: <what>` lines, for the command to print. */
 class Changes {
   readonly lines: string[] = []
@@ -171,7 +174,7 @@ async function referenceTestProjects(
         if (added.length === 0) return undefined
         config.references = [
           ...refs,
-          ...added.map((dir) => ({ path: relative(dirname(project), dir).split('\\').join('/') })),
+          ...added.map((dir) => ({ path: posixRelative(dirname(project), dir) })),
         ]
         return `reference ${added.map((dir) => relative(dirname(project), dir)).join(', reference ')}`
       },
@@ -189,7 +192,7 @@ export async function scaffoldPackage(
   root: string,
   packageDir: string,
 ): Promise<readonly string[]> {
-  const dir = relative(root, packageDir).split('\\').join('/')
+  const dir = posixRelative(root, packageDir)
   if (dir.startsWith('..')) return []
   const changes = new Changes(root)
   const manifest = await readJson(join(packageDir, 'package.json'))
@@ -206,8 +209,7 @@ export async function scaffoldPackage(
     ...(manifest.name === 'provino' ? [] : ['provino']),
     ...workspacePackages(root, manifest),
   ]
-  const referenceTo = (target: string): string =>
-    relative(packageDir, join(root, target)).split('\\').join('/')
+  const referenceTo = (target: string): string => posixRelative(packageDir, join(root, target))
   const references = [
     './tsconfig.json',
     ...packages.map((name) => referenceTo(`packages/${name}`)),
