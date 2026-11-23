@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { loadFixture } from './recorded.ts'
 import {
   FakeStdin,

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { outputFilesOf } from './native-watch.ts'
 
 describe('the files a run writes itself', () => {

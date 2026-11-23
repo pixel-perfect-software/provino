@@ -137,7 +137,7 @@
   },
   "scripts": {
     "build": "tsdown --config ../../tooling/packaging/tsdown.umbrella.config.ts",
-    "test": "node ../../tooling/packaging/src/node-test.ts --conditions=provino-source \"src/**/*.test.ts\" \"test/**/*.test.ts\""
+    "test": "node ../../tooling/packaging/src/runner-shard.ts && node ../../tooling/packaging/src/node-test.ts --conditions=provino-source src/index.test.ts test/bootstrap/canary.test.ts test/cache-directory.test.ts test/inline.test.ts test/jest-colour.test.ts test/jest-coverage-changed.test.ts test/jest-dom.test.ts test/jest-environments.test.ts test/jest-facade.test.ts test/jest-github-actions-colour.test.ts test/jest-in-band.test.ts test/jest-object.test.ts test/jest-process.test.ts test/jest-resolve.test.ts test/mocks.test.ts test/native-api.test.ts test/native-config.test.ts test/projects.test.ts test/reporters.test.ts test/run.test.ts test/transformers.test.ts test/vitest-in-band.test.ts"
   },
   "dependencies": {
     "@bcoe/v8-coverage": "catalog:",

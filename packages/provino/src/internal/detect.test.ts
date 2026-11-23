@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { JEST_CONFIG_CANDIDATES } from '@provino/dialect-jest/node'
 import { JEST_CONFIG_FILES } from './detect.ts'
 

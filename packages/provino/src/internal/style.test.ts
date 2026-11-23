@@ -1,7 +1,7 @@
 // `styleFor`: the colours of text written outside a reporter. Jest's chalk 4 follows the terminal
 // of the stream it writes to by default (stdout), never stderr's.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { styleFor } from './reporters.ts'
 
 const terminal = { isTTY: true, columns: 80 }

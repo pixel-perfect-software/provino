@@ -1,6 +1,6 @@
 // The interrupt latch over a fake session: no process and no wait.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import type { WatchRunOptions, WatchSession } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
 import { latchInterrupts } from './watch-interrupt.ts'

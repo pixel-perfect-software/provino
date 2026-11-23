@@ -2,7 +2,7 @@
 // config) run in one invocation, each with its own include, setup files and timeouts. The test
 // files use the Jest dialect's globals: the native API is B27b's.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { run } from 'provino/node'
 import { Collect, QUIET_ENV, trackedProjects } from './support.ts'
 

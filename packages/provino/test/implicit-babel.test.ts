@@ -11,7 +11,7 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import { fileURLToPath } from 'node:url'
 import { viewOfNormalized } from './support.ts'
 
@@ -35,7 +35,7 @@ const { runJestCommand } = (await import(
 }
 
 const made: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

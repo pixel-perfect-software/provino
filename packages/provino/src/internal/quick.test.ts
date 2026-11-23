@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { Writable } from 'node:stream'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { main } from './cli.ts'
 import { quickAnswer } from './quick.ts'
 import { USAGE } from './usage.ts'

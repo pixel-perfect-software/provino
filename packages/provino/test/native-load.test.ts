@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { fileURLToPath } from 'node:url'
 import { ADD_ON_DISTS, builtSources, chunkFiles, moduleRequests } from './dist.ts'
 import {

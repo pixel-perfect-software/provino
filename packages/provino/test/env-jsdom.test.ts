@@ -3,7 +3,7 @@
 // instead; this is the Provino-config path). Real forked workers, under the `registry` tier (the
 // default for jsdom is `realm`, which waits for T2.8).
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { run } from 'provino/node'
 import { Collect, QUIET_ENV, trackedProjects } from './support.ts'
 

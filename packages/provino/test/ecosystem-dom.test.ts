@@ -4,7 +4,7 @@
 // files on one worker, so a package loaded once per worker is seen by the second file too.
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { after, before } from 'node:test'
+import { afterAll, beforeAll } from 'provino'
 import { describeRecorded, linkEnvironments, WORK } from './recorded-run.ts'
 
 /**
@@ -60,8 +60,8 @@ const PHASE_2A: ReadonlySet<string> = new Set([
   'ecosystem/user-event-fake-timers',
 ])
 
-before(() => linkEnvironments(PARENT))
-after(async () => {
+beforeAll(() => linkEnvironments(PARENT))
+afterAll(async () => {
   await rm(PARENT, { recursive: true, force: true })
 })
 

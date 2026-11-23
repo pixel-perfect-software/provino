@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import { JEST, noColorEnv } from './live-jest.ts'
 import { outputFree, spawnCli } from './support.ts'
 
@@ -35,7 +35,7 @@ function runJest(
 const LEAK = "require('node:fs').__leaked = () => require('node:os')\n"
 
 const made: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

@@ -8,7 +8,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import type { Reporter } from '@provino/types'
 import type { Json } from './mask.ts'
 import { loadFixture, materialize } from './recorded.ts'
@@ -16,7 +16,7 @@ import { assertMatchesGolden, provinoOn, RESULTS } from './recorded-run.ts'
 import { jestConfigJson, passing, spawnCli } from './support.ts'
 
 const made: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

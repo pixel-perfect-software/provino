@@ -7,7 +7,7 @@
 // held to what Jest recorded for it (`cli/transform-node-modules-*`: the exit code and the kept
 // stderr lines), with Provino's Oxc path standing in for the default `babel-jest` entry, or the
 // recorder's own transform when the fixture's Babel config makes it explicit (`-cjs-jsx`).
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { assertMatchesGolden, provinoOn } from './recorded-run.ts'
 
 const FIXTURES = [

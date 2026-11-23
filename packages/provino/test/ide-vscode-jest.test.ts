@@ -6,7 +6,7 @@
 // and the same `.snap`. The fields vscode-jest reads from the file are asserted by name besides, so
 // a regression names the field. No editor runs: the replays are data (D125).
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import type { Json } from './mask.ts'
 import { loadFixture } from './recorded.ts'
 import { assertMatchesGolden, provinoOn, type RecordedRun } from './recorded-run.ts'
@@ -236,9 +236,7 @@ describe('vscode-jest replays (T11.12)', () => {
  */
 describe('vscode-jest watch replays (T11.12, B23e Phase 4)', () => {
   for (const request of WATCH_REQUESTS) {
-    it(`${request}: the run log, the results file after each run and the reporter lines`, {
-      timeout: 150_000,
-    }, async (t) => {
+    it(`${request}: the run log, the results file after each run and the reporter lines`, { timeout: 150_000 }, async (t) => {
       const skip = await watcherSkip()
       if (skip !== false) return t.skip(skip)
       const id = `ide/vscode-jest-${request}`

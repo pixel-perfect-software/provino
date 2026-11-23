@@ -6,14 +6,14 @@
 // to the run Jest 30.5.2 recorded for it, through `provino jest` with one worker.
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { after, before, describe, it } from 'node:test'
+import { afterAll, beforeAll, describe, it } from 'provino'
 import { assertMatchesGolden, linkEnvironments, provinoOn, WORK } from './recorded-run.ts'
 
 /** Where the projects go: a directory of this file's own under `.work/`, with the environments. */
 const PARENT = join(WORK, 'jest-window-timers')
 
-before(() => linkEnvironments(PARENT))
-after(async () => {
+beforeAll(() => linkEnvironments(PARENT))
+afterAll(async () => {
   await rm(PARENT, { recursive: true, force: true })
 })
 

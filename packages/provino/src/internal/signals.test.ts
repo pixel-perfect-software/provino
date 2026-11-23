@@ -2,7 +2,7 @@
 // `process`.
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { RUN_SIGNALS } from '@provino/orchestrator'
 import { type HandledSignal, handleSignals, type SignalTarget } from './signals.ts'
 

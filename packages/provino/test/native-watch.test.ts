@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { writeFile } from 'node:fs/promises'
 import type { Writable } from 'node:stream'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { Collect, makeProject, startCli, trackedProjects } from './support.ts'
 import { FakeStdin, FakeTerminal, watcherSkip } from './watch-goldens.ts'
 
@@ -377,9 +377,7 @@ function seen(stream: NodeJS.ReadableStream | null, pattern: RegExp, count: numb
 }
 
 describe('the bin under --watch', () => {
-  it('reruns on a real file change, and SIGINT ends it with 130', {
-    timeout: 120_000,
-  }, async (t) => {
+  it('reruns on a real file change, and SIGINT ends it with 130', { timeout: 120_000 }, async (t) => {
     const skip = await watcherSkip()
     if (skip !== false) return t.skip(skip)
     const project = await makeWatchProject(FILES, CONFIG)

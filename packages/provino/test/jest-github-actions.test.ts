@@ -5,7 +5,7 @@
 // so a runner that sets it itself changes neither side.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { observedText } from './mask.ts'
 import { loadFixture, materialize } from './recorded.ts'
 import { spawnCli, withoutNodeNoise } from './support.ts'

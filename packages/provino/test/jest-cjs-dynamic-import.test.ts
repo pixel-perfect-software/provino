@@ -5,7 +5,7 @@
 // that awaits the call fails there, so the only suites that differ are ones that failed under Jest.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { loadFixture, materialize } from './recorded.ts'
 import { spawnCli } from './support.ts'
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { ConfigError } from '@provino/config'
 import { OrchestratorError } from '@provino/orchestrator'
 import { usageMessage } from './describe.ts'

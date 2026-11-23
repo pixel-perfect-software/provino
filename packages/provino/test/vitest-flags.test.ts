@@ -1,7 +1,7 @@
 // B25g (D183): the Vitest flags `provino vitest` applies, each held to a `cli/vitest-*` golden
 // recorded from Vitest 5.0.5. The bin is a child process.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { spawnCli } from './support.ts'
 import { keptLines, provinoVitest, reportedFiles, withVitestFixture } from './vitest-recorded.ts'
 

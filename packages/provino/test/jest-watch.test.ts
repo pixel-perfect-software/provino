@@ -3,7 +3,7 @@
 // plugin, `u` and `i` goldens are `jest-watch-plugins.test.ts`'s.
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { loadFixture } from './recorded.ts'
 import { failing, jestConfigJson, makeProject, passing } from './support.ts'
 import {

@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, test } from 'node:test'
+import { describe, onTestFinished, test } from 'provino'
 import { fileURLToPath } from 'node:url'
 import { readLoadLogs, runBuilt, trackedProjects } from './support.ts'
 
@@ -38,7 +38,7 @@ describe('a missing Oxc binding (T10.3)', () => {
   test('--version and --help answer without loading any Oxc package', async () => {
     const { dir } = await project({})
     const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
-    after(() => rm(logs, { recursive: true, force: true }))
+    onTestFinished(() => rm(logs, { recursive: true, force: true }))
     for (const args of [['--version'], ['--help'], ['-h']]) {
       const result = runBuilt(args, {
         cwd: dir,

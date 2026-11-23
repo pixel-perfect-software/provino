@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { run } from 'provino/node'
 import {
   Collect,
@@ -56,7 +56,7 @@ function assertCrashedInJson(text: string): void {
   }
 }
 
-describe('a test that segfaults its worker', { skip: process.platform === 'win32' }, () => {
+describe.skipIf(process.platform === 'win32')('a test that segfaults its worker', () => {
   it('through run(): that file fails with the cause, every other file passes, every worker has exited', async () => {
     const project = await crashingProject()
     const outputFile = project.path('run.json')

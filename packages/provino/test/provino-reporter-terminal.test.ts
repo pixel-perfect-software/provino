@@ -9,7 +9,7 @@
 // build` (turbo's `test` builds first).
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { isCi } from '@provino/reporters'
 import { BUILT_BIN, interactiveEnv, jestConfigJson, passing, trackedProjects } from './support.ts'
 

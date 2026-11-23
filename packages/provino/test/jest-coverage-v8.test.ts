@@ -12,7 +12,7 @@ import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import { type Json, normalizedJson, observedText } from './mask.ts'
 import { loadFixture, materialize, type RecordedFixture } from './recorded.ts'
 import { spawnCli } from './support.ts'
@@ -112,7 +112,7 @@ interface Ran {
 }
 
 const disposers: (() => Promise<void>)[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(disposers.map((dispose) => dispose()))
 })
 

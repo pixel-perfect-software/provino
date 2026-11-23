@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { totalmem } from 'node:os'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
 import { createJestConfigReader, jestCli } from '@provino/dialect-jest/node'

@@ -1,7 +1,7 @@
 // The hoister under the native runtime's own policy (`NATIVE_RUNTIME.hoist`, B27j): what a native
 // test file becomes. The factories' reads are run end to end in `test/native-mocks.test.ts`.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { hoistMocks } from '@provino/transform'
 import type { HoistPolicy } from '@provino/types'
 import { NATIVE_RUNTIME } from './built-ins.ts'

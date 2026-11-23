@@ -3,7 +3,7 @@
 // Next.js patches it (its require hook, which next/jest's config and transformer load in the process
 // that runs the tests); here a `globalSetup` does, in band: an installed package's own `require`s,
 // which Provino has Node load, still find what Jest's runtime finds.
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { assertMatchesGolden, provinoOn } from './recorded-run.ts'
 
 describe('provino jest: a patch of Node’s loader made outside the test files', () => {

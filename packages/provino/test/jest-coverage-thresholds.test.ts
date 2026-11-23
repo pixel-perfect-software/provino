@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process'
 import { existsSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join, sep } from 'node:path'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import { fileURLToPath } from 'node:url'
 import { JEST } from './live-jest.ts'
 import { type Json, observedText } from './mask.ts'
@@ -18,7 +18,7 @@ import { outputFree, spawnCli } from './support.ts'
 const RECORDER_ENV = { CI: '1', NO_COLOR: '1', COLUMNS: '', GITHUB_ACTIONS: '' }
 
 const disposers: (() => Promise<void>)[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(disposers.map((dispose) => dispose()))
 })
 

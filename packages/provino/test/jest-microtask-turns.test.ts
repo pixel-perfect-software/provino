@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import { runJest } from './live-jest.ts'
 import { loadFixture, materialize } from './recorded.ts'
 import { linkEnvironments } from './recorded-run.ts'
@@ -109,7 +109,7 @@ test('the next test sees it cleared again', () => {
 `
 
 const made: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

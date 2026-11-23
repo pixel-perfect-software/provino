@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import { JEST, noColorEnv } from './live-jest.ts'
 import { FIXTURES, loadFixture, materialize } from './recorded.ts'
 import { outputFree, spawnCli, withoutNodeNoise } from './support.ts'
@@ -15,7 +15,7 @@ import { outputFree, spawnCli, withoutNodeNoise } from './support.ts'
 const PARENT = join(FIXTURES, '..', '.record')
 
 const made: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

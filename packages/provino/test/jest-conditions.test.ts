@@ -7,7 +7,7 @@
 // loader's `edge-kind.test.ts`). Each test's title names the entry it got.
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { after, before, describe, it } from 'node:test'
+import { afterAll, beforeAll, describe, it } from 'provino'
 import { assertMatchesGolden, linkEnvironments, provinoOn, WORK } from './recorded-run.ts'
 
 /** The projects' parent, whose `node_modules` holds the environment packages the harness installs. */
@@ -21,8 +21,8 @@ const FIXTURE_IDS = [
   ['env/conditions-import-module-sync', "an ES module's edges take a `module-sync` entry"],
 ] as const
 
-before(() => linkEnvironments(PARENT))
-after(async () => {
+beforeAll(() => linkEnvironments(PARENT))
+afterAll(async () => {
   await rm(PARENT, { recursive: true, force: true })
 })
 
