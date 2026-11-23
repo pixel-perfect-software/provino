@@ -105,7 +105,7 @@ function harness(runner: WorkerRunner, options: StartWorkerOptions = {}) {
 }
 
 describe('startWorker', () => {
-  it('still sends fileDone when the thrown value breaks plain serialization', async (t) => {
+  it('still sends fileDone when the thrown value breaks plain serialization', async () => {
     const getterError = new Error('x')
     Object.defineProperty(getterError, 'message', {
       get() {
@@ -135,7 +135,7 @@ describe('startWorker', () => {
     )
   })
 
-  it('charges a runner that throws with the origin runner, so a result builder can tell it from an error of the file', async (t) => {
+  it('charges a runner that throws with the origin runner, so a result builder can tell it from an error of the file', async () => {
     const h = harness({
       runFile: async () => {
         throw new Error('Tearing down a.test.js failed')
@@ -154,7 +154,7 @@ describe('startWorker', () => {
     )
   })
 
-  it('sends output emitted just after runFile returns before fileDone', async (t) => {
+  it('sends output emitted just after runFile returns before fileDone', async () => {
     const h = harness({
       runFile: async ({ job, sink }) => {
         sink.emit(note(job, 'during'))
@@ -177,7 +177,7 @@ describe('startWorker', () => {
     assert.deepEqual(before, ['during', 'late'])
   })
 
-  it('aborts a file that a cancel reached while it was still queued, but not later ones', async (t) => {
+  it('aborts a file that a cancel reached while it was still queued, but not later ones', async () => {
     const starting = Promise.withResolvers<void>()
     const aborted: string[] = []
     const h = harness({
@@ -198,7 +198,7 @@ describe('startWorker', () => {
     assert.deepEqual(aborted, ['queued:true', 'after:false'])
   })
 
-  it('never starts files still queued when the coordinator goes away', async (t) => {
+  it('never starts files still queued when the coordinator goes away', async () => {
     const first = Promise.withResolvers<void>()
     const running = Promise.withResolvers<void>()
     const gone = Promise.withResolvers<void>()
@@ -227,7 +227,7 @@ describe('startWorker', () => {
     assert.deepEqual(started, ['a'])
   })
 
-  it('gives each file a fresh console: no open group or count carries over', async (t) => {
+  it('gives each file a fresh console: no open group or count carries over', async () => {
     const h = harness({
       runFile: async ({ job, console }) => {
         if (job.file === 'one') {
@@ -274,7 +274,7 @@ describe('startWorker', () => {
       return done.memoryBytes
     }
 
-    it('is the heap after one collection when the init’s memoryLimitBytes was passed: garbage a file left is not reported', async (t) => {
+    it('is the heap after one collection when the init’s memoryLimitBytes was passed: garbage a file left is not reported', async () => {
       // The limit is far under what the garbage holds and far over what the process lives on, so
       // only a collection puts the reported heap under it.
       const limit = limitAboveLiveHeap()
@@ -292,7 +292,7 @@ describe('startWorker', () => {
       assert.ok(reported <= limit, `reported ${reported} bytes, over the limit of ${limit}`)
     })
 
-    it('is the heap after the collection, not before it: what the file still holds is reported', async (t) => {
+    it('is the heap after the collection, not before it: what the file still holds is reported', async () => {
       const held: unknown[] = []
       onTestFinished(() => {
         held.length = 0
@@ -317,7 +317,7 @@ describe('startWorker', () => {
   })
 
   describe('fileDone.leakedGlobals', () => {
-    it('carries the keys the runner reports for the file, and is empty for a clean one', async (t) => {
+    it('carries the keys the runner reports for the file, and is empty for a clean one', async () => {
       const h = harness({
         runFile: async ({ job }) => (job.file === 'leaky' ? { leakedGlobals: ['a', 'b'] } : {}),
       })
@@ -334,7 +334,7 @@ describe('startWorker', () => {
       )
     })
 
-    it('is empty for a file whose runner threw: the file is charged, and the field is still there', async (t) => {
+    it('is empty for a file whose runner threw: the file is charged, and the field is still there', async () => {
       const h = harness({
         runFile: async () => {
           throw new Error('boom')
@@ -511,7 +511,7 @@ describe('startWorker', () => {
   describe('stop', () => {
     const stopped = (message: WorkerToCoordinator): boolean => message.t === 'stopped'
 
-    it('calls runner.stop after the queued files and before stopped, and what it emits arrives first', async (t) => {
+    it('calls runner.stop after the queued files and before stopped, and what it emits arrives first', async () => {
       const steps: string[] = []
       let seen: WorkerInit | undefined
       const h = harness({
@@ -545,7 +545,7 @@ describe('startWorker', () => {
       assert.ok(emitted !== -1 && emitted < stoppedAt, 'what stop emitted was sent before stopped')
     })
 
-    it('awaits an async stop before sending stopped', async (t) => {
+    it('awaits an async stop before sending stopped', async () => {
       const gate = Promise.withResolvers<void>()
       const reached = Promise.withResolvers<void>()
       const h = harness({
@@ -566,7 +566,7 @@ describe('startWorker', () => {
       await h.done
     })
 
-    it('reports a throwing stop as an unhandled error with no owner, and still sends stopped', async (t) => {
+    it('reports a throwing stop as an unhandled error with no owner, and still sends stopped', async () => {
       const h = harness({
         runFile: async () => undefined,
         stop: () => {
@@ -591,7 +591,7 @@ describe('startWorker', () => {
       assert.ok(reportedAt < h.received.findIndex(stopped), 'reported before stopped')
     })
 
-    it('still calls stop when start threw, so a half-built worker is torn down', async (t) => {
+    it('still calls stop when start threw, so a half-built worker is torn down', async () => {
       const steps: string[] = []
       const h = harness({
         start: () => {
@@ -610,7 +610,7 @@ describe('startWorker', () => {
       assert.deepEqual(steps, ['stop'])
     })
 
-    it('does not call stop for a worker that never started, and works without a stop', async (t) => {
+    it('does not call stop for a worker that never started, and works without a stop', async () => {
       const steps: string[] = []
       const never = harness({
         runFile: async () => undefined,
