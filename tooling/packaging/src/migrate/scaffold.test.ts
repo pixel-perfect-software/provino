@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'provino'
@@ -245,6 +246,32 @@ describe('scaffoldPackage', () => {
     )
     const lines = await scaffoldPackage(root, join(root, 'packages/a'))
     assert.ok(!lines.some((line) => line.startsWith('packages/a/tsconfig.json')), lines.join('\n'))
+  })
+
+  it('finds every by-hand edit before it writes anything, and names them together (B27h3)', async () => {
+    const root = workspace()
+    const files = {
+      'packages/a/tsconfig.json': '{\n  // a\n  "include": ["src"]\n}\n',
+      'tsconfig.json': '{\n  // the root\n  "references": [{ "path": "packages/a" }]\n}\n',
+    }
+    for (const [name, text] of Object.entries(files)) await writeFile(join(root, name), text)
+    const manifest = await readFile(join(root, 'packages/a/package.json'), 'utf8')
+    await assert.rejects(scaffoldPackage(root, join(root, 'packages/a')), (error: unknown) => {
+      assert.equal((error as { code?: unknown }).code, 'MIGRATE_WRITE')
+      const message = (error as Error).message
+      assert.match(message, /packages\/a\/tsconfig\.json has comments/)
+      assert.match(message, /^tsconfig\.json has comments/m)
+      assert.match(message, /nothing was written/)
+      return true
+    })
+    // The config, turbo.json and the tests project are not written, and the script is unchanged.
+    for (const name of ['provino.config.ts', 'turbo.json', 'tsconfig.tests.json']) {
+      assert.equal(existsSync(join(root, 'packages/a', name)), false, name)
+    }
+    assert.equal(await readFile(join(root, 'packages/a/package.json'), 'utf8'), manifest)
+    for (const [name, text] of Object.entries(files)) {
+      assert.equal(await readFile(join(root, name), 'utf8'), text, name)
+    }
   })
 
   it('stops with a coded error, writing nothing, on a file that is not JSON even without comments', async () => {
