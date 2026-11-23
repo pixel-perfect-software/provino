@@ -320,9 +320,13 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
    * owner depends on the caller (a helper function).
    */
   function hookPlace(): 'suite' | 'test' | 'unknown' {
-    if (functionKinds.includes('test')) return 'test'
-    const nearest = functionKinds.at(-1)
-    return nearest === undefined || nearest === 'suite' ? 'suite' : 'unknown'
+    // The nearest registered callback owns the hook; a helper function between it and the call
+    // leaves the owner to the caller, except inside a test body, where the running test owns it.
+    const at = functionKinds.findLastIndex((kind) => kind !== 'other')
+    if (at < 0) return functionKinds.length === 0 ? 'suite' : 'unknown'
+    const kind = functionKinds[at]
+    if (kind === 'test') return 'test'
+    return kind === 'suite' && at === functionKinds.length - 1 ? 'suite' : 'unknown'
   }
 
   function registerHook(call: AstNode, reg: Registration): void {
@@ -350,7 +354,7 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
           call,
           `${reg.imported} called inside a test body has no native meaning. Hand edit: do the work inline in the test, or move the hook to the suite`,
         )
-      } else if (options !== undefined || listOf(call, 'arguments').length !== 1) {
+      } else if (options !== undefined) {
         refuse(
           call,
           'after inside a test body, with options, has no native equivalent (onTestFinished takes the callback only)',

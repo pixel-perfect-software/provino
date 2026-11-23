@@ -43,6 +43,16 @@ describe('migrate:node-test', () => {
     assert.equal((await run(['verify', f.pkg, '--runner', runner], f.cache)).code, 0)
   })
 
+  it('rewrite with no node:test file and no baseline says so and scaffolds nothing', async () => {
+    const f = await fixturePackage({
+      'src/a.test.ts': "import { it } from 'provino'\nit('a', () => {})\n",
+    })
+    const ended = await run(['rewrite', f.pkg], f.cache)
+    assert.equal(ended.code, 0)
+    assert.match(ended.out, /no node:test files found/)
+    assert.doesNotMatch(ended.out, /scaffolded|baseline is kept/)
+  })
+
   it('is 1 with every refused site listed, and 1 when verify finds a difference', async () => {
     const refused = await fixturePackage({
       'src/a.test.ts': `${THREE_TESTS}describe('x', async () => {})\nit('y', { concurrency: 2 }, () => {})\n`,

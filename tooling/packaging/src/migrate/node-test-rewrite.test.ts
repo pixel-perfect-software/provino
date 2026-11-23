@@ -341,4 +341,21 @@ describe('hooks called inside a function (B27h2)', () => {
     )
     assert.match(found[0] ?? '', /inside a test body has no native meaning/)
   })
+  it('refuses after used as a value even when every call of it is in a test body', () => {
+    const found = refusedAt(
+      "import { after, it } from 'node:test'\nit('a', () => {\n  after(() => {})\n})\nconst keep = after\n",
+    )
+    assert.match(found.join('\n'), /after used as a value/)
+  })
+
+  it('classifies a hook by its nearest registered callback', () => {
+    const out = rewritten(
+      "import { before, describe, it } from 'node:test'\nit('a', () => {\n  describe('s', () => {\n    before(() => {})\n  })\n})\n",
+    )
+    assert.match(out, /beforeAll\(/)
+    const found = refusedAt(
+      "import { before, describe } from 'node:test'\ndescribe('s', () => {\n  const f = () => { before(() => {}) }\n})\n",
+    )
+    assert.match(found[0] ?? '', /called inside a function/)
+  })
 })

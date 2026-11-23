@@ -171,8 +171,10 @@ export interface RewriteReport {
   readonly rewritten: readonly string[]
   /** Tests recorded into the baseline for the files rewritten now. */
   readonly baselineTests: number
-  /** No file imports node:test any more: the baseline, if any, was left as it is. */
+  /** No file imports node:test any more. */
   readonly nothingToMigrate: boolean
+  /** A baseline exists (and was left as it is). */
+  readonly baselineKept: boolean
 }
 
 /** @internal */
@@ -211,6 +213,8 @@ export async function rewritePackage(options: {
       rewritten: [],
       baselineTests: 0,
       nothingToMigrate: candidates === 0,
+      baselineKept:
+        (await readBaseline(baselinePath(options.cacheDir, packageDir, root))) !== undefined,
     }
   }
 
@@ -252,6 +256,7 @@ export async function rewritePackage(options: {
     rewritten: names,
     baselineTests: records.length,
     nothingToMigrate: false,
+    baselineKept: true,
   }
 }
 
@@ -296,8 +301,8 @@ export async function verifyPackage(options: {
   const before = files.flatMap((file) => baseline.files[file] ?? [])
   if (before.length === 0) {
     throw new MigrateError(
-      'MIGRATE_NO_BASELINE',
-      `the baseline at ${target} holds no test outside the bootstrap set (${left.length} file(s) left out): nothing to verify`,
+      'MIGRATE_ALL_BOOTSTRAPPED',
+      `every migrated file is in the bootstrap set (${left.length} file(s) in the baseline at ${target}); nothing runs on Provino`,
     )
   }
   // The package's own config (its timeouts, D194) when it has one: it runs the whole package, so

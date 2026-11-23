@@ -202,6 +202,14 @@ describe('scaffoldPackage', () => {
     assert.deepEqual(await scaffoldPackage(root, join(root, 'packages/a')), [])
   })
 
+  it('stops with a coded error, writing nothing, on a tsconfig with comments', async () => {
+    const root = workspace()
+    const text = '{ // note\n "include": ["src"] }\n'
+    await writeFile(join(root, 'packages/a/tsconfig.json'), text)
+    await assert.rejects(scaffoldPackage(root, join(root, 'packages/a')), { code: 'MIGRATE_WRITE' })
+    assert.equal(await readFile(join(root, 'packages/a/tsconfig.json'), 'utf8'), text)
+  })
+
   it('is idempotent: a second run writes nothing', async () => {
     const root = workspace()
     await scaffoldPackage(root, join(root, 'packages/a'))

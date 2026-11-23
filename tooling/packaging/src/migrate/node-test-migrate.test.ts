@@ -258,6 +258,13 @@ describe('an already-migrated package, bootstrap entries and verify config (B27h
     assert.ok(isEmptyDifference(verified.difference), formatDifference(verified.difference))
   })
 
+  it('verify with every baseline file in the bootstrap set is MIGRATE_ALL_BOOTSTRAPPED', async () => {
+    const f = await fixturePackage({ 'src/a.test.ts': OLD })
+    await rewritePackage(options(f))
+    await bootstrap(f, ['pkg/src/a.test.ts'])
+    await assert.rejects(verify(f, 'x.ts'), { code: 'MIGRATE_ALL_BOOTSTRAPPED' })
+  })
+
   it("verify runs the package's own config when it has one, else the shared timeouts", async () => {
     const f = await fixturePackage({ 'src/a.test.ts': THREE_TESTS })
     await rewritePackage(options(f))
