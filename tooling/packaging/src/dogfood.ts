@@ -12,6 +12,24 @@ export const RUNNER_BIN = 'packages/provino/dist/cli.js'
 /** The runner a migrated package's `test` script runs, from a package directory. */
 export const TEST_RUNNER: string = `node ../../${RUNNER_BIN} run`
 
+/**
+ * The packages whose test files CI splits across its shards (`test-shards.ts`): `provino`'s
+ * end-to-end tests are more than half the workspace's test time, so each shard runs half its files.
+ */
+export const SPLIT_PACKAGES: readonly string[] = ['provino']
+
+/** Where a split package's script reads its shard: `<n>/<of>`, set by `test-shards.ts run`; unset, every file. */
+export const SHARD_VARIABLE = 'PROVINO_TEST_SHARD'
+
+/**
+ * The runner a split package's `test` script runs: `TEST_RUNNER` with `--shard` from
+ * `SHARD_VARIABLE` (`runner-shard.ts`), as its node:test half runs through `node-test.ts`.
+ */
+export const SPLIT_TEST_RUNNER = 'node ../../tooling/packaging/src/runner-shard.ts'
+
+/** `node --test` with `--test-shard` from `SHARD_VARIABLE` ahead of the files (`node-test.ts`). */
+export const SPLIT_NODE_TEST = 'node ../../tooling/packaging/src/node-test.ts'
+
 /** Where the bootstrap set is listed: repo-relative file → why it stays on node:test. */
 export const BOOTSTRAP_FILE = 'tooling/provino/bootstrap.json'
 
@@ -45,9 +63,22 @@ export const PACKAGE_CONFIG = 'provino.config.ts'
 /** Joins the runner and the `node --test` part of a migrated package's `test` script. */
 export const SCRIPT_JOIN = ' && '
 
-/** Whether a `test` script is `testScript`'s shape: the runner, then optionally its bootstrap files. */
+/** The two runners a migrated package's script starts with: `TEST_RUNNER`, or a split package's. */
+export const MIGRATED_RUNNERS: readonly string[] = [TEST_RUNNER, SPLIT_TEST_RUNNER]
+
+/** Whether a `test` script is `testScript`'s shape: a runner, then optionally its bootstrap files. */
 export function isMigratedScript(script: string | undefined): boolean {
-  return script === TEST_RUNNER || script?.startsWith(`${TEST_RUNNER}${SCRIPT_JOIN}`) === true
+  return MIGRATED_RUNNERS.some(
+    (runner) => script === runner || script?.startsWith(`${runner}${SCRIPT_JOIN}`) === true,
+  )
+}
+
+/** Whether the package at `dir` (its `package.json` name) is one of `SPLIT_PACKAGES`. */
+function isSplit(root: string, dir: string): boolean {
+  const manifest = join(root, dir, 'package.json')
+  if (!existsSync(manifest)) return false
+  const { name } = JSON.parse(readFileSync(manifest, 'utf8')) as { readonly name?: unknown }
+  return typeof name === 'string' && SPLIT_PACKAGES.includes(name)
 }
 
 /** The one file the bootstrap set must always hold: the runner's canary. */
@@ -90,13 +121,18 @@ export function isIncludedTestFile(relative: string): boolean {
 
 /**
  * The `test` script of the migrated package at `dir`: the runner, then `node --test` over the
- * package's bootstrap files when it has any.
+ * package's bootstrap files when it has any. A split package (`SPLIT_PACKAGES`) runs both halves
+ * through the shard wrappers, so each CI shard takes its share of the Provino files and of the
+ * bootstrap files, and every file is in exactly one shard.
  */
 export function testScript(root: string, dir: string): string {
   const own = bootstrapFiles(root)
     .filter((file) => file.startsWith(`${dir}/`))
     .map((file) => file.slice(dir.length + 1))
+  const split = isSplit(root, dir)
+  const runner = split ? SPLIT_TEST_RUNNER : TEST_RUNNER
+  const nodeTest = split ? SPLIT_NODE_TEST : 'node --test'
   return own.length === 0
-    ? TEST_RUNNER
-    : `${TEST_RUNNER}${SCRIPT_JOIN}node --test ${CONDITIONS_FLAG} ${own.join(' ')}`
+    ? runner
+    : `${runner}${SCRIPT_JOIN}${nodeTest} ${CONDITIONS_FLAG} ${own.join(' ')}`
 }

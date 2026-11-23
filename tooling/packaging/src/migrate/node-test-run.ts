@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { CONDITIONS_FLAG, SCRIPT_JOIN, SHARED_CONFIG_VALUES, TEST_RUNNER } from '../dogfood.ts'
+import { CONDITIONS_FLAG, MIGRATED_RUNNERS, SCRIPT_JOIN, SHARED_CONFIG_VALUES } from '../dogfood.ts'
 import { runCommandAsync } from '../exec.ts'
 import { MigrateError } from './errors.ts'
 import {
@@ -100,9 +100,11 @@ export function parseTestScript(script: string | undefined): TestScript {
   }
   // An already-migrated package (B27g2): `<runner> [&& node --test <bootstrap files>]`. Its Provino
   // part has nothing for the codemod to rewrite; the node:test part is read as any other script.
-  if (script === TEST_RUNNER) return { flags: [], globs: [] }
-  if (script.startsWith(`${TEST_RUNNER}${SCRIPT_JOIN}`)) {
-    return parseTestScript(script.slice(TEST_RUNNER.length + SCRIPT_JOIN.length))
+  for (const runner of MIGRATED_RUNNERS) {
+    if (script === runner) return { flags: [], globs: [] }
+    if (script.startsWith(`${runner}${SCRIPT_JOIN}`)) {
+      return parseTestScript(script.slice(runner.length + SCRIPT_JOIN.length))
+    }
   }
   const tokens = words(script)
   if (tokens[0] !== 'node') throw scriptError(script, 'it does not start with node')

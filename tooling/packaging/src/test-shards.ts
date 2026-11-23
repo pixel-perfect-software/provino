@@ -1,8 +1,9 @@
 // CI runs the workspace's tests as two shards per Node version (the `test` job in ci.yml). `provino`
 // (the end-to-end tests through the bin) is more than half the workspace's test time, so no whole-
-// package split can balance it: it runs in both shards, each taking half its files through Node's
-// own `--test-shard=<n>/2`, which `packages/provino`'s test script reaches through `node-test.ts` and the
-// `PROVINO_TEST_SHARD` variable (Node ignores the flag after the script's globs). Shard 1 also names the other packages it runs; shard 2 is every
+// package split can balance it: it runs in both shards, each taking its share of the files from the
+// `PROVINO_TEST_SHARD` variable: the Provino half through `runner-shard.ts` (`provino run --shard`)
+// and the bootstrap files through `node-test.ts` (Node's `--test-shard`, which Node ignores after
+// the script's globs), the two halves of its `testScript`. Shard 1 also names the other packages it runs; shard 2 is every
 // remaining package, so a new package lands in shard 2 without an edit. `check` proves that, from
 // Turborepo's own dry run: each package with a `test` script is in exactly one shard (a split
 // package in every shard), and a name listed here that no longer exists fails rather than shrinking
@@ -19,18 +20,34 @@ import {
   CANARY,
   INCLUDE_GLOBS,
   isIncludedTestFile,
+  isMigratedScript,
   migratedDirs,
   PACKAGE_CONFIG,
+  SPLIT_PACKAGES,
+  SPLIT_TEST_RUNNER,
   testScript,
 } from './dogfood.ts'
 import { ROOT, readWorkspacePackages } from './workspace.ts'
 
 /**
- * Packages whose test files are split across the shards: each shard runs them with
- * `PROVINO_TEST_SHARD=<n>/SHARD_COUNT`, and their test script must run through `node-test.ts`.
+ * Packages whose test files are split across the shards (`dogfood.ts`, which builds their script):
+ * each shard runs them with `PROVINO_TEST_SHARD=<n>/SHARD_COUNT`.
  * @internal
  */
-export const SPLIT_PACKAGES: readonly string[] = ['provino']
+export { SPLIT_PACKAGES }
+
+/**
+ * Whether a split package's `test` script takes its share of a shard: a migrated one's runs its
+ * Provino half through `runner-shard.ts` (`SPLIT_TEST_RUNNER`; `bootstrapProblems` holds the rest to
+ * `testScript`, which runs the bootstrap half through `node-test.ts`), an unmigrated one's runs
+ * `node --test` through `node-test.ts`. Any other runs every file in every shard.
+ * @internal
+ */
+export function shardableScript(script: string): boolean {
+  return isMigratedScript(script)
+    ? script.startsWith(SPLIT_TEST_RUNNER)
+    : script.includes('/node-test.ts ')
+}
 
 /**
  * The whole packages shard 1 runs besides its half of the split ones. Every other package is in
@@ -212,11 +229,11 @@ function plannedPackages(shard: number): readonly string[] {
   return plan.tasks.filter((task) => task.task === 'test').map((task) => task.package)
 }
 
-/** The split packages whose `test` script does not run through `node-test.ts`. */
+/** The split packages whose `test` script runs every file whatever the shard. */
 function unshardableSplits(): readonly string[] {
   return readWorkspacePackages()
     .filter((pkg) => SPLIT_PACKAGES.includes(pkg.manifest.name))
-    .filter((pkg) => !(pkg.manifest.scripts?.test ?? '').includes('/node-test.ts '))
+    .filter((pkg) => !shardableScript(pkg.manifest.scripts?.test ?? ''))
     .map((pkg) => pkg.manifest.name)
 }
 
@@ -231,7 +248,8 @@ function check(): number {
       migratedDirs(ROOT),
     ),
     ...unshardableSplits().map(
-      (name) => `${name} is split but its test script does not run through node-test.ts`,
+      (name) =>
+        `${name} is split but its test script does not take a shard (runner-shard.ts, node-test.ts)`,
     ),
   ]
   if (problems.length > 0) {
