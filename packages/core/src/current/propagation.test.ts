@@ -5,12 +5,12 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { EventEmitter, EventEmitterAsyncResource } from 'node:events'
-import { test } from 'node:test'
 import { promisify } from 'node:util'
 import vm from 'node:vm'
 import type { Frame, TaskId } from '@provino/types'
 import FakeTimers from '@sinonjs/fake-timers'
 import { JSDOM } from 'jsdom'
+import { test } from 'provino'
 import { currentTest } from './current-test.ts'
 
 const A = frame('A')

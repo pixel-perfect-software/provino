@@ -1,9 +1,9 @@
 // One case per matcher (D188): it passes, it fails with Provino's message, and `.not` flips both.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import { runInNewContext } from 'node:vm'
 import type { ExpectError } from '@provino/expect'
 import type { Assertion, ExpectStatic, Matchers } from '@provino/types'
+import { describe, test } from 'provino'
 import { testEngine, testTask } from '../internal/test-support.ts'
 import { provinoExpectTable } from './index.ts'
 import { createMock } from './test-mock.ts'

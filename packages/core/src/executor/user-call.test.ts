@@ -2,8 +2,8 @@
 // first of core's frames outward from it, which a stack reader (the Jest dialect's window timers)
 // tells apart from the rest of Provino's code by its name.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { TestContext } from '@provino/types'
+import { test } from 'provino'
 import { USER_CALL_FRAME } from '../index.ts'
 import { runScript } from '../internal/test-support.ts'
 

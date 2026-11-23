@@ -1,9 +1,9 @@
 // `createRuntime` and `runFile`: how a file is reported, what happens when collection fails or
 // two files overlap, and the file's own teardowns.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import { createBehaviourLoader } from '@provino/policy'
 import type { RuntimeEvent, TaskId } from '@provino/types'
+import { describe, test } from 'provino'
 import { fileIdOf } from './collector/finalize.ts'
 import { policyWith, reached, runScript } from './internal/test-support.ts'
 import { createRuntime, type RunFileOptions, type Runtime, type RuntimeOptions } from './runtime.ts'

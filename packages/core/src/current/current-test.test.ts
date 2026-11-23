@@ -1,8 +1,8 @@
 // The current-test service: `run`/`get`/`bind`, the executor's sync `running()` pointer, and the
 // AsyncContextFrame check. The 23 propagation cases are in `propagation.test.ts`.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { Frame, TaskId } from '@provino/types'
+import { describe, test } from 'provino'
 import { runScript } from '../internal/test-support.ts'
 import { currentTest, usesAsyncContextFrame } from './current-test.ts'
 

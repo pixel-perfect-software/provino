@@ -1,8 +1,8 @@
 // `onTestFinished` and `onTestFailed`: the order they run in, ctx and global forms, and where they
 // may be called from.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { TestContext } from '@provino/types'
+import { describe, test } from 'provino'
 import { eventLog, runScript, type Script, type ScriptRun } from '../internal/test-support.ts'
 
 /** The code of the first error of a test. */

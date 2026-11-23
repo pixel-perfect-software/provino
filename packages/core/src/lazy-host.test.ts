@@ -1,8 +1,8 @@
 // The executor's side of `LazyHost`: the four guarantees in `lazy-host.ts`'s header, and the rest
 // of the host (`collecting`, `addHook`, `onCollected`, `runOf`, worker teardowns and slots).
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { LazyFrame, SuiteHandle, TestContext, TestRunHandle } from '@provino/types'
+import { describe, test } from 'provino'
 import { eventsOf, runScript, settle } from './internal/test-support.ts'
 
 /** The frame of a test, or a failed assertion. */

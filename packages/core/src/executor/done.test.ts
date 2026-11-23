@@ -2,7 +2,7 @@
 // `callAsyncCircusFn`), and the callable context under `firstArg: 'context'`. Against the real
 // runners: `@provino/harness`'s runtime corpus (`done-*`, `context-shape`).
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { eventsOf, runScript } from '../internal/test-support.ts'
 
 type Done = (reason?: unknown) => void

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { ExpectTable, Matcher, MatcherCall } from '@provino/types'
+import { describe, test } from 'provino'
 import { ExpectError } from './errors.ts'
 import { createExpect, MatcherResultError } from './expect.ts'
 import {

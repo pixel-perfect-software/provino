@@ -2,7 +2,7 @@
 // call itself, so the clock counts from where jest-circus's turns do; with none, a microtask later,
 // as it always did, so the neutral path and Vitest's are unchanged.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { policyWith } from '../internal/test-support.ts'
 import { type InvokeEnv, invoke } from './invoke.ts'
 

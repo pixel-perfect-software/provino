@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { naturalCompare } from './vendor/natural-compare.ts'
 
 // The original package, as the oracle: the vendored port must order every pair the same way.

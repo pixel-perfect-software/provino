@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
 import type { RuntimeEvent, TaskNode, TestTask } from '@provino/types'
+import { describe, test } from 'provino'
 import { trackSnapshots } from './lifecycle.ts'
 import { put, snapText, stateIn, tempDir } from './test-support.ts'
 
