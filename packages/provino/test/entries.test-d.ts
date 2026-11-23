@@ -3,10 +3,7 @@
 import type { Dialect, Environment, Reporter } from '@provino/types'
 import { expectTypeOf } from 'expect-type'
 import {
-  afterAll,
-  afterEach,
   beforeAll,
-  beforeEach,
   describe,
   expect,
   it,

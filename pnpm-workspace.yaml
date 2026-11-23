@@ -47,7 +47,7 @@ catalog:
   "@babel/preset-typescript": 7.29.7
   # T1.6: package correctness. attw checks how each pack resolves under every module system.
   "@arethetypeswrong/cli": 0.18.5
-  "@biomejs/biome": 2.6.5
+  "@biomejs/biome": 2.6.8
   # T1.6: changesets 3 version the public packages; `pnpm hygiene` checks a changeset exists.
   "@changesets/cli": 3.0.3
   # The Jest dialect's expect (B08): the leaves the vendored matchers import, at exactly the
@@ -122,7 +122,7 @@ catalog:
   date-fns: 4.4.0
   dependency-cruiser: 18.7.2
   # The Spike A loader fixture's shared node_modules (Track 2): ESM, CJS, ESM + wasm, and expect.
-  es-module-lexer: 3.0.4
+  es-module-lexer: 3.0.5
   expect: 30.5.2
   expect-type: 1.4.0
   jest: 30.5.2
@@ -193,7 +193,7 @@ catalog:
   istanbul-lib-source-maps: 5.0.6
   istanbul-reports: 3.2.0
   # T1.6: unused files, exports and dependencies.
-  knip: 6.44.1
+  knip: 6.45.1
   # T8.2's second window: happy-dom's `GlobalWindow`, populated and restored by env-shared.
   happy-dom: 21.0.4
   lodash: 4.18.1
@@ -204,10 +204,10 @@ catalog:
   # Oxc (Track 3): the resolver, and the transform pipeline with its parser.
   # `@oxc-project/types` moves with oxc-parser: it is oxc-walker's optional peer, and without it
   # oxc-walker takes rolldown's older copy, so its AST types differ from the parser's.
-  "@oxc-project/types": 0.157.0
-  oxc-parser: 0.157.0
+  "@oxc-project/types": 0.159.0
+  oxc-parser: 0.159.0
   oxc-resolver: 11.24.2
-  oxc-transform: 0.157.0
+  oxc-transform: 0.159.0
   # The hoister's AST walk and scope tracking (Track 3 R2).
   oxc-walker: 1.1.1
   # Discovery matches `testMatch` on absolute paths with ordered negation, as Jest's
@@ -216,7 +216,7 @@ catalog:
   pretty-format: 30.5.1
   # Inline snapshots under the Jest dialect (B23d B1, D113): Jest formats the edit with the
   # project's own Prettier 3 when it finds one. Recording and tests only, never a runtime dependency.
-  prettier: 3.9.8
+  prettier: 3.10.1
   # Jest's shuffle (D112): jest-circus 30.5.2's own xoroshiro128+ and uniform int distribution, so a seed gives Jest's order.
   pure-rand: 7.0.1
   # T1.6: package.json `exports` and file-layout lint, run on every `pnpm pack`.

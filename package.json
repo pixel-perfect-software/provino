@@ -19,7 +19,7 @@
     "pnpm": ">=12.0.0"
   },
   "scripts": {
-    "typecheck": "tsc -b",
+    "check-types": "tsc -b",
     "build": "turbo run build",
     "test": "PROVINO_NODE=$(node -p process.version) turbo run test",
     "migrate:node-test": "node tooling/packaging/src/migrate/cli.ts",
@@ -59,8 +59,8 @@
     "bench:jest-config": "node --conditions=provino-source packages/bench/src/jest-config/cli.ts",
     "bench:vitest-config": "node --conditions=provino-source packages/bench/src/vitest-config/cli.ts",
     "hoist:extract": "node --conditions=provino-source packages/harness/src/hoist-corpus/extract-upstream.ts",
-    "deps:check": "autd check",
-    "deps:update": "autd update",
+    "check-deps": "autd check",
+    "update-deps": "autd update",
     "hygiene": "pnpm build && node tooling/packaging/src/cli.ts hygiene",
     "hygiene:update-api": "pnpm build && node tooling/packaging/src/cli.ts hygiene --update-api",
     "pack:all": "pnpm build && node tooling/packaging/src/cli.ts pack",
