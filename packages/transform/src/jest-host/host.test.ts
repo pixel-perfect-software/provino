@@ -257,8 +257,11 @@ describe('routing', () => {
 
   /**
    * A factory reading `window` and a module-scope `suffix`, through a real transformer that hoists
-   * by itself and checks nothing. ts-jest reads the file from disk, so it is written beside the
-   * fixture's own test (and removed after the file's tests).
+   * by itself and checks nothing. ts-jest reads the file from disk, so it is written to a temp
+   * directory (removed after the file's tests), never into the checked-in fixture: the boundaries
+   * scan lists that folder while this runs, and a file that is deleted between its listing and its
+   * read failed it (B27h3). Both transformers take their options from the fixture's config
+   * (`rootDir`, `tsconfig.json`), not from where the file sits.
    */
   async function factoriesCheckedOnlyWhenFlagged(tool: (typeof tools)[keyof typeof tools]) {
     const outOfScope = [
@@ -268,9 +271,10 @@ describe('routing', () => {
       "test('f', () => f())",
       '',
     ].join('\n')
-    const file = join(fixture, `src/scope-${process.pid}.test.ts`)
+    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'provino-jest-host-scope-')))
+    temps.push(dir)
+    const file = join(dir, 'scope.test.ts')
     writeFileSync(file, outOfScope)
-    temps.push(file)
     const base = config(tool.module, tool.options)
     const records = await Promise.all(
       [false, true].map(async (checksMockFactories) => {

@@ -303,7 +303,17 @@ const PLUGIN_SUPPRESSION =
   /^\s*(?:\/\/|\/\*+|\*)\s*biome-ignore(?:-all|-start)?\s+lint(?:\/plugin\S*)?(?=[\s:(]|$)/
 
 /**
- * Source files that suppress the GritQL boundary lints with a `biome-ignore` comment.
+ * Whether a caught value is the "no such file" system error. A file the walk listed can be gone by
+ * the time it is read (a test in another package writes a scratch file into a checked-in folder
+ * and deletes it), and a file that is gone is not in the tree.
+ */
+function isNotFound(error: unknown): boolean {
+  return error instanceof Error && Reflect.get(error, 'code') === 'ENOENT'
+}
+
+/**
+ * Source files that suppress the GritQL boundary lints with a `biome-ignore` comment. A listed file
+ * that is gone when it is read is skipped; any other read error fails the scan.
  * @public
  */
 export async function pluginSuppressions(
@@ -314,8 +324,12 @@ export async function pluginSuppressions(
     pkg.files
       .filter((file) => SOURCE_FILE.test(file))
       .map(async (file): Promise<readonly Problem[]> => {
-        const lines = (await readFile(join(root, pkg.dir, file), 'utf8')).split('\n')
-        const line = lines.findIndex((text) => PLUGIN_SUPPRESSION.test(text))
+        const text = await readFile(join(root, pkg.dir, file), 'utf8').catch((error: unknown) => {
+          if (isNotFound(error)) return undefined
+          throw error
+        })
+        if (text === undefined) return []
+        const line = text.split('\n').findIndex((row) => PLUGIN_SUPPRESSION.test(row))
         if (line === -1) return []
         return [
           problem(

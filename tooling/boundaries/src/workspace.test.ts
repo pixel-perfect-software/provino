@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { mkdir, rm } from 'node:fs/promises'
+import { join } from 'node:path'
 import { describe, test } from 'provino'
 import { loadManifest } from './manifest.ts'
 import { MANIFEST_PATH, ROOT } from './paths.ts'
@@ -245,6 +247,40 @@ describe('repo hygiene checks', () => {
       problems.map((p) => p.message.split(' ')[0]),
       ['packages/core/src/a.ts:1', 'packages/core/src/b.ts:1'],
     )
+  })
+})
+
+describe('a file that changes between the walk and the read (B27h3)', () => {
+  // A test in another package writes a scratch file into a folder the walk lists and deletes it
+  // again while the scan reads: CI run 45253149435 failed with ENOENT on `scope-4519.test.ts`.
+  const TREE = {
+    'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
+    'tsconfig.json': '{ "references": [] }\n',
+    'tsconfig.type-tests.json': '{ "references": [] }\n',
+    'packages/core/package.json': '{ "name": "@provino/core" }\n',
+    'packages/core/src/a.ts': '// biome-ignore lint/plugin: no\nexport {}\n',
+    'packages/core/src/scratch.test.ts': 'export {}\n',
+  }
+  const SCRATCH = 'packages/core/src/scratch.test.ts'
+
+  test('a file that is gone by the time it is read is not in the tree', async () => {
+    const dir = await scratchDir('vanish', TREE)
+    const workspace = await readWorkspace(dir)
+    assert.ok(workspace.packages[0]?.files.includes('src/scratch.test.ts'), 'listed by the walk')
+    await rm(join(dir, SCRATCH))
+    const problems = await pluginSuppressions(dir, workspace)
+    assert.deepEqual(
+      problems.map((p) => p.message.split(' ')[0]),
+      ['packages/core/src/a.ts:1'],
+    )
+  })
+
+  test('any other error reading a listed file still fails the scan', async () => {
+    const dir = await scratchDir('unreadable', TREE)
+    const workspace = await readWorkspace(dir)
+    await rm(join(dir, SCRATCH))
+    await mkdir(join(dir, SCRATCH))
+    await assert.rejects(pluginSuppressions(dir, workspace), { code: 'EISDIR' })
   })
 })
 

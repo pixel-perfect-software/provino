@@ -15,7 +15,7 @@ Every check runs, then dependency-cruiser does, so one run reports everything.
 
 - `manifest-*`: the manifest's own rules (layers point down, worker and coordinator never meet, known keys only), its dirs inside the workspace roots, package names and `package.json` deps, generated files current.
 - `workspace-*`: each package's `exports` lists `provino-source` first (so no import resolves to `dist/`), each package is in `tsconfig.json` (and its `test/` in `tsconfig.type-tests.json`), a `node --test` script has tests to run, no placed dir is git-ignored, and the TypeScript 6 pin in `packageExtensions` matches the catalog.
-- `no-plugin-suppression`: no `biome-ignore` comment silences the boundary lints.
+- `no-plugin-suppression`: no `biome-ignore` comment silences the boundary lints. A file the walk listed that is gone when it is read (`ENOENT`) is not in the tree and is skipped; any other read error fails the scan (B27h3: a test in another package wrote a scratch file into a checked-in fixture folder and deleted it while this ran). Tests write scratch files to the OS temp dir or a `.work/` dir, never into a checked-in folder.
 - The workspace roots come from `pnpm-workspace.yaml`; only `<dir>/*` globs are supported.
 
 ## Changing things
