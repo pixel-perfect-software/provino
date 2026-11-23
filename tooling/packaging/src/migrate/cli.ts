@@ -86,10 +86,14 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
         io.out(`${sites}: nothing was written, fix the sites above and run again`)
       else if (report.candidates === 0 && !report.baselineKept) io.out('no node:test files found')
       else {
+        const helpers =
+          report.helperOnly.length === 0
+            ? ''
+            : ` (${report.helperOnly.length} file(s) whose tests a helper module declares)`
         io.out(
-          report.candidates === 0
+          report.candidates === 0 && report.helperOnly.length === 0
             ? `${sites}: no node:test files are left, the existing baseline is kept`
-            : `${sites}, ${report.rewritten.length} rewritten; recorded ${report.baselineTests} baseline test(s)`,
+            : `${sites}, ${report.rewritten.length} rewritten; recorded ${report.baselineTests} baseline test(s)${helpers}`,
         )
         for (const line of await scaffoldPackage(root, packageDir)) io.out(`scaffolded ${line}`)
       }

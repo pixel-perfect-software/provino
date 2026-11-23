@@ -8,6 +8,8 @@ interface EventData {
   readonly nesting?: number
   readonly name?: string
   readonly file?: string
+  /** The test file the event came from, where `file` is where the test was declared (Node 24.22 has it, 22.15 not). */
+  readonly entryFile?: string
   readonly skip?: unknown
   readonly todo?: unknown
   readonly details?: { readonly type?: string }
@@ -24,7 +26,8 @@ export default async function* reporter(
       pass: event.type === 'test:pass',
       nesting: data.nesting ?? 0,
       name: data.name ?? '',
-      file: data.file ?? '',
+      // A test a helper module declares has the helper as its `file`: the test file is `entryFile`.
+      file: data.entryFile ?? data.file ?? '',
       suite: data.details?.type === 'suite',
       skip: Boolean(data.skip),
       todo: Boolean(data.todo),

@@ -120,6 +120,62 @@ describe('rewrite then verify', () => {
     ])
   })
 
+  it('records a test a helper module registers under the file that ran it, or stops: never drops it (B27h3)', async () => {
+    // `helper.ts` calls node:test's describe and it, so node:test reports each test's `file` as the
+    // helper. Node 24.22 also reports the file it ran as `entryFile`; Node 22.15 does not, and then
+    // rewrite must stop rather than drop the tests. `b.test.ts` imports no runner at all: its
+    // tests come only from the helper, so the codemod never rewrites it, yet it runs on both.
+    const helper =
+      "import { describe, it } from 'node:test'\nexport function group(title: string): void {\n  describe(title, () => { it('from the helper', () => {}) })\n}\n"
+    const files = {
+      'src/helper.ts': helper,
+      'src/a.test.ts':
+        "import { it } from 'node:test'\nimport { group } from './helper.ts'\nit('own', () => {})\ngroup('ga')\n",
+      'src/b.test.ts': "import { group } from './helper.ts'\ngroup('gb')\n",
+    }
+    const fixture = await fixturePackage(files)
+    const options = {
+      packageDir: fixture.pkg,
+      root: fixture.root,
+      cacheDir: fixture.cache,
+      dryRun: false,
+    }
+    let report: Awaited<ReturnType<typeof rewritePackage>>
+    try {
+      report = await rewritePackage(options)
+    } catch (error) {
+      // A Node with no entryFile: the helper's tests can't be placed, and nothing is written.
+      assert.equal((error as { code?: unknown }).code, 'MIGRATE_BASELINE')
+      assert.match((error as Error).message, /src\/helper\.ts/)
+      assert.equal(
+        await readBaseline(baselinePath(fixture.cache, fixture.pkg, fixture.root)),
+        undefined,
+      )
+      assert.equal(
+        await readFile(join(fixture.pkg, 'src/a.test.ts'), 'utf8'),
+        files['src/a.test.ts'],
+      )
+      return
+    }
+    assert.deepEqual(report.rewritten, ['src/a.test.ts'])
+    const baseline = await readBaseline(baselinePath(fixture.cache, fixture.pkg, fixture.root))
+    assert.deepEqual(
+      Object.fromEntries(
+        Object.entries(baseline?.files ?? {}).map(([file, records]) => [
+          file,
+          records.map((record) => `${record.name} (${record.status})`),
+        ]),
+      ),
+      {
+        'src/a.test.ts': ['own (pass)', 'ga > from the helper (pass)'],
+        'src/b.test.ts': ['gb > from the helper (pass)'],
+      },
+    )
+    // A second rewrite records nothing new: b.test.ts is in the baseline already.
+    const again = await rewritePackage(options)
+    assert.deepEqual(again.rewritten, [])
+  })
+
   it('verifies a skipped suite and a [slug].test.ts, which node:test and Provino list differently', async () => {
     const source =
       "import { describe, it } from 'node:test'\ndescribe.skip('s', () => { it('c', () => {}) })\nit('x', () => {})\n"

@@ -179,7 +179,17 @@ export interface RewriteReport {
   readonly baselineTests: number
   /** With no node:test file (`candidates` is 0): a baseline exists and was left as it is. */
   readonly baselineKept: boolean
+  /**
+   * Files recorded now that import no runner (neither node:test nor `provino`): a helper module
+   * declares their tests (`describeRecorded`), so the codemod has nothing to rewrite in them, but
+   * they run on node:test as they are and the baseline must hold them too.
+   */
+  readonly helperOnly: readonly string[]
 }
+
+/** Whether a file imports `provino` (it is on Provino already, so node:test can't run it). */
+const importsProvino = (source: string): boolean =>
+  /\bfrom\s+['"]provino['"]|\bimport\(\s*['"]provino['"]\s*\)/.test(source)
 
 /** @internal */
 export async function rewritePackage(options: {
@@ -209,20 +219,43 @@ export async function rewritePackage(options: {
   const changed = results.filter((result) => result.changed)
   const candidates = results.filter((result) => result.changed || result.refusals.length > 0).length
   const target = baselinePath(options.cacheDir, packageDir, root)
-  if (refusals.length > 0 || options.dryRun || changed.length === 0) {
+  const previous = (await readBaseline(target))?.files ?? {}
+  // Recorded once: a later rewrite finds them in the baseline.
+  const helperOnly = results
+    .filter(
+      (result) =>
+        !result.changed &&
+        result.refusals.length === 0 &&
+        !importsProvino(result.source) &&
+        !(result.file in previous),
+    )
+    .map((result) => result.file)
+  if (refusals.length > 0 || options.dryRun || (changed.length === 0 && helperOnly.length === 0)) {
     return {
       candidates,
       refusals,
       rewritten: [],
       baselineTests: 0,
       baselineKept: candidates === 0 && (await readBaseline(target)) !== undefined,
+      helperOnly: [],
     }
   }
 
-  const previous = (await readBaseline(target))?.files ?? {}
-  const names = changed.map((result) => result.file)
+  const names = [...changed.map((result) => result.file), ...helperOnly].sort()
   const records = await recordNodeTest(packageDir, names, script.flags)
   const fresh = new Map<string, TestRecord[]>(names.map((name) => [name, []]))
+  // A test node:test reports under a file it was not asked to run was declared by a helper module
+  // on a Node that has no `entryFile` (22.15): it can't be put under the file that ran it, and a
+  // baseline that dropped it would let verify pass without it.
+  const stray = [...new Set(records.map((record) => record.file))].filter(
+    (file) => !fresh.has(file),
+  )
+  if (stray.length > 0) {
+    throw new MigrateError(
+      'MIGRATE_BASELINE',
+      `node --test reported tests under ${stray.join(', ')}, which it was not asked to run: a helper module declares them, and this Node reports no entryFile (Node 24.22 does), so they can't be put under the file that ran them. Record the baseline on a newer Node`,
+    )
+  }
   for (const record of records) fresh.get(record.file)?.push(record)
   // Files migrated before stay, bootstrapped ones too (verify leaves those out); only entries for
   // files that are gone from disk, or being recorded now, go: a baseline never loses a file otherwise.
@@ -253,9 +286,10 @@ export async function rewritePackage(options: {
   return {
     candidates,
     refusals,
-    rewritten: names,
+    rewritten: changed.map((result) => result.file),
     baselineTests: records.length,
     baselineKept: true,
+    helperOnly,
   }
 }
 
