@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { isNotFound } from './guards.ts'
 import { isNodeModules, walkFiles } from './walk.ts'
 

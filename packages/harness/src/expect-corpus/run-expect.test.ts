@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type {
   MatcherState,
   RuntimeEvent,
@@ -8,6 +7,7 @@ import type {
   TaskState,
   TestTask,
 } from '@provino/types'
+import { test } from 'provino'
 import { summarizeExpectRun } from './run-expect.ts'
 
 const FILE_ID = 'file' as TaskId

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { SerializedError } from '@provino/types'
+import { test } from 'provino'
 import type { GoldenFile } from '../golden.ts'
 import type { CoreRun } from '../runtime-corpus/run-core.ts'
 import { assertFileOutcome, caseId, causeText, compareObservations, sameOrder } from './compare.ts'

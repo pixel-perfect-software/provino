@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { type ProcessOptions, runProcess } from './run-process.ts'
 
 // The children are inline scripts run by this same Node. They print READY once they are set up,

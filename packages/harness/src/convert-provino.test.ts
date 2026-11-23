@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { NormalizedRun } from '@provino/types'
+import { test } from 'provino'
 import { convertProvino } from './convert-provino.ts'
 import { HarnessError } from './errors.ts'
 import { makeRun } from './test-support.ts'

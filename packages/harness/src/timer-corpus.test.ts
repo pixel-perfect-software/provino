@@ -7,7 +7,7 @@
 // engine may give.
 import assert from 'node:assert/strict'
 import path from 'node:path'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import {
   defaultFixturesRoot,
   type FixtureProfile,

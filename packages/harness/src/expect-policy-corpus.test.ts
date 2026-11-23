@@ -15,7 +15,7 @@
 // A difference is allowed only as an explicit pin in `expect-policy-corpus/declared.ts`.
 import assert from 'node:assert/strict'
 import path from 'node:path'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { differences, problems, unseen } from './expect-policy-corpus/compare.ts'
 import { JEST_DECLARED, VITEST_DECLARED } from './expect-policy-corpus/declared.ts'
 import { type ObservedTests, observed, recorded } from './expect-policy-corpus/observe.ts'

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { CLEAR_ROW, maskTimes, renderTranscript } from './watch-transcript.ts'
 
 const ESC = '\u001b'

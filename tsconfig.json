@@ -29,6 +29,9 @@
       "path": "packages/harness"
     },
     {
+      "path": "packages/harness/tsconfig.tests.json"
+    },
+    {
       "path": "packages/bench"
     },
     {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { identityAllocator, toRelativePath } from './convert.ts'
 
 test('toRelativePath: POSIX paths become relative to the root; relative ones are only re-slashed', () => {

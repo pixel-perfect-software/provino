@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { FormattedTestResults } from '@jest/test-result'
 import type { NormalizedRun } from '@provino/types'
+import { describe, test } from 'provino'
 import { convertJest } from './convert-jest.ts'
 import { HarnessError } from './errors.ts'
 import { parseNormalizedRun } from './parse-normalized-run.ts'
