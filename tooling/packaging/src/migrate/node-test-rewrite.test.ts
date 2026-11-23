@@ -201,6 +201,84 @@ describe('options', () => {
     )
   })
 
+  it('a nested { concurrency: false } or 1 stays serial under a concurrent describe: { concurrent: false }', () => {
+    assert.equal(
+      rewritten(
+        HEAD +
+          "describe('a', { concurrency: true }, () => {\n  describe('b', { concurrency: false }, () => {\n    it('b1', () => {})\n  })\n  describe('c', { concurrency: 1 }, () => {})\n})\n",
+      ),
+      "import { describe, it } from 'provino'\ndescribe.concurrent('a', () => {\n  describe('b', { concurrent: false }, () => {\n    it('b1', () => {})\n  })\n  describe('c', { concurrent: false }, () => {})\n})\n",
+    )
+    assert.equal(
+      rewritten(
+        "import { suite } from 'node:test'\nsuite('a', { concurrency: true }, () => {\n  suite('b', { concurrency: false, timeout: 50 }, () => {})\n  suite('c', { concurrency: false, skip: true }, () => {})\n})\n",
+      ),
+      "import { suite } from 'provino'\nsuite.concurrent('a', () => {\n  suite('b', { concurrent: false, timeout: 50 }, () => {})\n  suite.skip('c', { concurrent: false }, () => {})\n})\n",
+    )
+  })
+
+  it('a deeper { concurrency: false } follows whatever the describes around it say', () => {
+    // Through a describe with no option, which inherits the concurrent parent's.
+    assert.match(
+      rewritten(
+        HEAD +
+          "describe('a', { concurrency: true }, () => {\n  describe('b', () => {\n    describe('c', { concurrency: false }, () => {})\n  })\n})\n",
+      ),
+      /^ {4}describe\('c', \{ concurrent: false \}, \(\) => \{\}\)$/m,
+    )
+    // Under a serial describe nothing is concurrent, so the option is dropped there.
+    assert.match(
+      rewritten(
+        HEAD +
+          "describe('a', { concurrency: true }, () => {\n  describe('b', { concurrency: false }, () => {\n    describe('c', { concurrency: false }, () => {})\n    describe('d', { concurrency: 1 }, () => {})\n  })\n})\n",
+      ),
+      /^ {2}describe\('b', \{ concurrent: false \}, \(\) => \{\n {4}describe\('c', \(\) => \{\}\)\n {4}describe\('d', \(\) => \{\}\)\n {2}\}\)$/m,
+    )
+    // A describe that says true under a serial one is concurrent again, and its own false is serial.
+    assert.match(
+      rewritten(
+        HEAD +
+          "describe('a', { concurrency: false }, () => {\n  describe('b', { concurrency: true }, () => {\n    describe('c', { concurrency: false }, () => {})\n  })\n})\n",
+      ),
+      /^ {2}describe\.concurrent\('b', \(\) => \{\n {4}describe\('c', \{ concurrent: false \}, \(\) => \{\}\)\n {2}\}\)$/m,
+    )
+    // Only a describe with no concurrent describe around it is dropped.
+    assert.equal(
+      rewritten(
+        HEAD +
+          "describe('a', { concurrency: 1 }, () => {})\ndescribe('b', () => {\n  describe('c', { concurrency: false }, () => {})\n})\n",
+      ),
+      "import { describe, it } from 'provino'\ndescribe('a', () => {})\ndescribe('b', () => {\n  describe('c', () => {})\n})\n",
+    )
+  })
+
+  it("refuses a describe's { concurrency: false } or 1 where a function makes the owner unknown, and says why", () => {
+    const sites = [
+      "function helper() {\n  describe('b', { concurrency: false }, () => {})\n}\n",
+      "describe('a', { concurrency: true }, () => {\n  for (const n of [1]) helper(n)\n  list.forEach(() => describe('b', { concurrency: 1 }, () => {}))\n})\n",
+      "it('a', () => {\n  describe('b', { concurrency: false }, () => {})\n})\n",
+    ]
+    for (const site of sites) {
+      const found = refusedAt(HEAD + site)
+      assert.equal(found.length, 1, site)
+      assert.match(
+        found[0] ?? '',
+        /a\.test\.ts:\d+ describe option concurrency false or 1 .*depends on the caller/,
+        site,
+      )
+    }
+    // true needs no owner, and neither does a describe with no option.
+    assert.equal(
+      rewriteNodeTest('a.test.ts', HEAD + sites[0]?.replace('false', 'true')).refusals.length,
+      0,
+    )
+    assert.equal(
+      rewriteNodeTest('a.test.ts', HEAD + "function helper() {\n  describe('b', () => {})\n}\n")
+        .refusals.length,
+      0,
+    )
+  })
+
   it('refuses a describe concurrency that is not a literal true or false, and any on a test', () => {
     const reason = 'describe option concurrency other than a literal true or false'
     for (const value of ['2', 'Infinity', 'n', "'yes'", 'null', 'os.availableParallelism()']) {
