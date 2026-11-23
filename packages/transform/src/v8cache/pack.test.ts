@@ -14,8 +14,8 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
 import { Script } from 'node:vm'
+import { afterAll, test } from 'provino'
 import { pruneCacheIfWritten } from '../cache/maintenance.ts'
 import { WRITTEN_NAME } from '../cache/store.ts'
 import { compactV8Packs, openV8Pack, v8CacheTag } from './index.ts'
@@ -29,7 +29,7 @@ import {
 } from './test-helpers.ts'
 
 const dirs: (() => void)[] = []
-after(() => {
+afterAll(() => {
   for (const remove of dirs) remove()
 })
 function scratch(): string {

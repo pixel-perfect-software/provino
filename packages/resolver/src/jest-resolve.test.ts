@@ -9,14 +9,14 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, test } from 'node:test'
 import type { ResolveContext, ResolveKind, ResolveResult } from '@provino/types'
+import { afterAll, test } from 'provino'
 import { createNameMapper, jestModuleNameMapper } from './mappers.ts'
 import { createResolver } from './resolver.ts'
 
 const EXTENSIONS = ['.js', '.json', '.node']
 const roots: string[] = []
-after(() => {
+afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true })
 })
 

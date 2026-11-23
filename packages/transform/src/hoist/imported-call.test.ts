@@ -2,7 +2,7 @@
 // `import { mock } from 'runner'`), the shape of the native API's `mock` (`nativeHoistPolicy` in
 // `@provino/policy`). Recognition is by binding, never by name.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { prefilterFor } from './prefilter.ts'
 import { assertOrder, assertUntouched, errorCodes, hoist } from './test-helpers.ts'
 import { blockPolicy, importedCallPolicy as policy } from './test-policies.ts'

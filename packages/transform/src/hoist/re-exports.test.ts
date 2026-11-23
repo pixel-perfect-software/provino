@@ -1,8 +1,8 @@
 // `reExports`: what happens to `export … from` when a call hoists. `in-order` loads each in source
 // order with the imports (Babel's CJS step); `static` leaves them as written (Vitest's hoistMocks).
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { TransformRecord } from '@provino/types'
+import { test } from 'provino'
 import { toModuleRunner } from '../module-runner.ts'
 import { assertOrder, hoist } from './test-helpers.ts'
 import { blockPolicy, topLevelPolicy } from './test-policies.ts'

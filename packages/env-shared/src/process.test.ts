@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import worker from 'node:process'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { createFileProcess } from './process.ts'
 
 test('the copy has the worker’s prototype, members and tag, and listeners of its own', () => {

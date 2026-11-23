@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { describe, test } from 'provino'
 import { flipped, neutral, policies } from './internal/test-support.ts'
 import { createMockFn, isMockFunction, MOCK_BRAND } from './mock-fn.ts'
 import { createMockRegistry } from './registry.ts'

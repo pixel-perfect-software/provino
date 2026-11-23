@@ -1,8 +1,8 @@
 // `export { x }` of an import and `export { a } from` under `in-order` are live: the output goes
 // through the module-runner form and runs, so what is checked is what a reader of the exports sees.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { HoistPolicy, TransformRecord } from '@provino/types'
+import { test } from 'provino'
 import { toModuleRunner } from '../module-runner.ts'
 import { hoist } from './test-helpers.ts'
 import { blockPolicy, topLevelPolicy } from './test-policies.ts'

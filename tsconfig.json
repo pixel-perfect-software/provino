@@ -5,7 +5,13 @@
       "path": "packages/types"
     },
     {
+      "path": "packages/types/tsconfig.tests.json"
+    },
+    {
       "path": "packages/rpc"
+    },
+    {
+      "path": "packages/rpc/tsconfig.tests.json"
     },
     {
       "path": "packages/orchestrator"
@@ -38,7 +44,13 @@
       "path": "packages/resolver"
     },
     {
+      "path": "packages/resolver/tsconfig.tests.json"
+    },
+    {
       "path": "packages/transform"
+    },
+    {
+      "path": "packages/transform/tsconfig.tests.json"
     },
     {
       "path": "packages/resolver/bench"
@@ -74,6 +86,9 @@
       "path": "packages/mock"
     },
     {
+      "path": "packages/mock/tsconfig.tests.json"
+    },
+    {
       "path": "packages/lazy"
     },
     {
@@ -81,6 +96,9 @@
     },
     {
       "path": "packages/timers"
+    },
+    {
+      "path": "packages/timers/tsconfig.tests.json"
     },
     {
       "path": "packages/dialect-jest"
@@ -92,10 +110,16 @@
       "path": "packages/env-jsdom"
     },
     {
+      "path": "packages/env-jsdom/tsconfig.tests.json"
+    },
+    {
       "path": "packages/env-node"
     },
     {
       "path": "packages/env-shared"
+    },
+    {
+      "path": "packages/env-shared/tsconfig.tests.json"
     },
     {
       "path": "packages/config"
@@ -117,6 +141,9 @@
     },
     {
       "path": "packages/api"
+    },
+    {
+      "path": "packages/api/tsconfig.tests.json"
     }
   ]
 }

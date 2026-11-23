@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { collectRequests, type NodeAnswer, withoutMissingTargets } from './requests.ts'
 
 /** A pnpm-like layout: `repo/node_modules/.pnpm/node_modules` (the store) and `repo/packages`. */

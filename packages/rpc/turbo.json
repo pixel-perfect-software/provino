@@ -1,0 +1,14 @@
+{
+  "$schema": "../../node_modules/turbo/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "test": {
+      "dependsOn": ["transit", "provino#build"],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/tooling/provino/**",
+        "$TURBO_ROOT$/tooling/packaging/src/dogfood.ts"
+      ]
+    }
+  }
+}

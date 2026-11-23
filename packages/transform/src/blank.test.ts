@@ -3,9 +3,9 @@
 // pipeline's path before D116: both printed by Oxc's JavaScript printer, comments dropped. The
 // corpora (10,000 fuzz files and excalidraw) are `bench/blank-corpus.test.ts`.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import { parseSync } from 'oxc-parser'
 import { transformSync } from 'oxc-transform'
+import { describe, test } from 'provino'
 import { type BlankOptions, blankTypeScript } from './blank.ts'
 
 const ELIDE: BlankOptions = {
