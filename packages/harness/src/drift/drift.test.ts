@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { afterAll, beforeAll, describe, test } from 'provino'
 import { parseDriftArgs } from './cli.ts'
-import { driftBetween, driftFails, formatDrift } from './drift.ts'
+import { type DriftReport, driftBetween, driftFails, formatDrift } from './drift.ts'
 import { parseUpstream } from './upstream.ts'
 
 const UPSTREAM = `# Vendored upstream
@@ -69,7 +69,7 @@ describe('driftBetween', () => {
     'packages/expect/src/print.ts': 'same',
     'packages/expect/src/index.ts': 'not vendored, changed',
   })
-  let report: Awaited<ReturnType<typeof driftBetween>>
+  let report: DriftReport
   beforeAll(async () => {
     report = await driftBetween('jest', { from: 'v1', to: 'v2' }, { from, to }, [
       parseUpstream('x/UPSTREAM.md', UPSTREAM),
