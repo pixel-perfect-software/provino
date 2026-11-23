@@ -71,6 +71,9 @@
       "path": "packages/mock"
     },
     {
+      "path": "packages/mock/tsconfig.tests.json"
+    },
+    {
       "path": "packages/lazy"
     },
     {
@@ -78,6 +81,9 @@
     },
     {
       "path": "packages/timers"
+    },
+    {
+      "path": "packages/timers/tsconfig.tests.json"
     },
     {
       "path": "packages/dialect-jest"
