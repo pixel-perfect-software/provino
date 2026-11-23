@@ -10,8 +10,9 @@ import { Buffer } from 'node:buffer'
 import { readFileSync } from 'node:fs'
 import { SourceMap, type SourceMapping } from 'node:module'
 import process from 'node:process'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { pathToFileURL } from 'node:url'
 import type { Loader, ModuleId, SourceMapV3 } from '@provino/types'
+import { pathOfUrl } from './internal/url.ts'
 
 /** Words that start an expression but name nothing a frame could be called after. */
 const RESERVED: ReadonlySet<string> = new Set([
@@ -168,8 +169,8 @@ export function installSourceMappedStacks(
     return own
   }
 
-  /** `site` moved on through Node's source map of its file (see `installSourceMappedStacks`). */
-  function nodeMapped(site: NodeJS.CallSite, file: string): NodeJS.CallSite {
+  /** `site` moved on through the map its file names itself (see `installSourceMappedStacks`). */
+  function ownMapped(site: NodeJS.CallSite, file: string): NodeJS.CallSite {
     const record = loader.getSourceMap(file as ModuleId)
     // A file Node loaded is Node's: its formatter, which this one hands the frames to, maps it.
     if (record === null) return site
@@ -179,25 +180,18 @@ export function installSourceMappedStacks(
     const column = site.getColumnNumber()
     if (line === null || column === null) return site
     const entry: Partial<SourceMapping> = own.map.findEntry(line - 1, column - 1)
-    const { originalSource, originalLine, originalColumn } = entry
-    if (
-      typeof originalSource !== 'string' ||
-      originalSource === '' ||
-      typeof originalLine !== 'number' ||
-      typeof originalColumn !== 'number'
-    ) {
-      return site
-    }
+    if (!isPlaced(entry) || entry.originalSource === '') return site
     return new MappedCallSite(
       site,
-      originalLine + 1,
-      originalColumn + 1,
+      entry.originalLine + 1,
+      entry.originalColumn + 1,
       null,
-      own.source(originalSource),
+      own.source(entry.originalSource),
     )
   }
 
-  function mapped(site: NodeJS.CallSite, nodeMaps = false): NodeJS.CallSite {
+  /** `site` mapped by the loader's map, then, when `throughOwn`, by the file's own. */
+  function mapped(site: NodeJS.CallSite, throughOwn: boolean): NodeJS.CallSite {
     // A throw here would replace the whole stack with it: any failure leaves the frame as it was.
     try {
       if (site.isEval() || site.isNative()) return site
@@ -206,51 +200,42 @@ export function installSourceMappedStacks(
       const moved = loaderMapped(site, file)
       // A frame the loader's map can't place is in the compiled code's coordinates, which the
       // file's own map doesn't describe.
-      if (!nodeMaps || moved === site) return moved
-      return nodeMapped(moved, file)
+      if (!throughOwn || moved === site) return moved
+      return ownMapped(moved, file)
     } catch {
       return site
     }
   }
 
   function loaderMapped(site: NodeJS.CallSite, file: string): NodeJS.CallSite {
-    try {
-      const line = site.getLineNumber()
-      const column = site.getColumnNumber()
-      if (line === null || column === null) return site
-      const sourceMap = mapOf(file)
-      if (sourceMap === null) return site
-      const entry: Partial<SourceMapping> = sourceMap.findEntry(line - 1, column - 1)
-      // `findEntry` takes the nearest segment at or before the position even on an earlier line;
-      // only one on the frame's own line places it, as in the other source-map readers.
-      if (
-        entry.generatedLine !== line - 1 ||
-        typeof entry.originalSource !== 'string' ||
-        typeof entry.originalLine !== 'number' ||
-        typeof entry.originalColumn !== 'number'
-      ) {
-        return site
-      }
-      const name = renames ? nameAt(file as ModuleId, entry) : null
-      return new MappedCallSite(site, entry.originalLine + 1, entry.originalColumn + 1, name)
-    } catch {
-      return site
-    }
+    const line = site.getLineNumber()
+    const column = site.getColumnNumber()
+    if (line === null || column === null) return site
+    const sourceMap = mapOf(file)
+    if (sourceMap === null) return site
+    const entry: Partial<SourceMapping> = sourceMap.findEntry(line - 1, column - 1)
+    // `findEntry` takes the nearest segment at or before the position even on an earlier line;
+    // only one on the frame's own line places it, as in the other source-map readers.
+    if (entry.generatedLine !== line - 1 || !isPlaced(entry)) return site
+    const name = renames ? nameAt(file as ModuleId, entry) : null
+    return new MappedCallSite(site, entry.originalLine + 1, entry.originalColumn + 1, name)
+  }
+
+  const mappedByLoader = (site: NodeJS.CallSite): NodeJS.CallSite => mapped(site, false)
+  const mappedThroughOwn = (site: NodeJS.CallSite): NodeJS.CallSite => mapped(site, true)
+
+  /** Every frame mapped; Node's source-map flag is read once per stack. */
+  function mapSites(sites: readonly NodeJS.CallSite[]): NodeJS.CallSite[] {
+    return sites.map(process.sourceMapsEnabled ? mappedThroughOwn : mappedByLoader)
   }
 
   const prepareStackTrace = Object.assign(
     (error: Error, sites: NodeJS.CallSite[]): unknown => {
-      const nodeMaps = process.sourceMapsEnabled === true
-      const frames = sites.map((site) => mapped(site, nodeMaps))
+      const frames = mapSites(sites)
       if (typeof format === 'function') return (format as PrepareStackTrace)(error, frames)
       return defaultFormat(error, frames)
     },
-    {
-      [MAP_CALL_SITES]: (sites: readonly NodeJS.CallSite[]) => {
-        const nodeMaps = process.sourceMapsEnabled === true
-        return sites.map((site) => mapped(site, nodeMaps))
-      },
-    },
+    { [MAP_CALL_SITES]: mapSites },
   )
 
   Error.prepareStackTrace = prepareStackTrace
@@ -267,9 +252,26 @@ interface OwnMap {
   readonly source: (source: string) => string
 }
 
-/** A `file:` URL as a path, which is how Node prints a mapped frame's file; anything else as it is. */
-function printedSource(source: string): string {
-  return source.startsWith('file:') ? fileURLToPath(source) : source
+/** A map entry that places its position in a source. */
+type PlacedEntry = Partial<SourceMapping> & {
+  readonly originalSource: string
+  readonly originalLine: number
+  readonly originalColumn: number
+}
+
+function isPlaced(entry: Partial<SourceMapping>): entry is PlacedEntry {
+  return (
+    typeof entry.originalSource === 'string' &&
+    typeof entry.originalLine === 'number' &&
+    typeof entry.originalColumn === 'number'
+  )
+}
+
+/** The URL a map's sources resolve against: its `sourceRoot` (as a directory) on `base`, else `base`. */
+function sourceRootUrl(sourceRoot: string | undefined, base: URL): URL {
+  return typeof sourceRoot === 'string' && sourceRoot !== ''
+    ? new URL(sourceRoot.replace(/\/?$/, '/'), base)
+    : base
 }
 
 /**
@@ -279,10 +281,7 @@ function printedSource(source: string): string {
  */
 function endsAtFile(file: string, record: SourceMapV3): boolean {
   const self = pathToFileURL(file)
-  const root =
-    typeof record.sourceRoot === 'string' && record.sourceRoot !== ''
-      ? new URL(record.sourceRoot.replace(/\/?$/, '/'), self)
-      : self
+  const root = sourceRootUrl(record.sourceRoot, self)
   return record.sources.every(
     (source) => source === null || source === '' || new URL(source, root).href === self.href,
   )
@@ -298,6 +297,7 @@ const MAGIC_COMMENT = /\/[*/]#\s+sourceMappingURL=([^\s]+)/g
 function readOwnMap(file: string): OwnMap | null {
   try {
     const text = readFileSync(file, 'utf8')
+    if (!text.includes('sourceMappingURL=')) return null
     let url: string | undefined
     for (const match of text.matchAll(MAGIC_COMMENT)) url = match[1]
     if (url === undefined) return null
@@ -316,12 +316,9 @@ function readOwnMap(file: string): OwnMap | null {
       json = readFileSync(base, 'utf8')
     }
     const payload = JSON.parse(json) as Partial<SourceMapV3>
-    const root =
-      typeof payload.sourceRoot === 'string' && payload.sourceRoot !== ''
-        ? new URL(`${payload.sourceRoot.replace(/\/?$/, '/')}`, base)
-        : base
+    const root = sourceRootUrl(payload.sourceRoot, base)
     const map = new SourceMap(payload as ConstructorParameters<typeof SourceMap>[0])
-    return { map, source: (source) => printedSource(new URL(source, root).href) }
+    return { map, source: (source) => pathOfUrl(new URL(source, root).href) }
   } catch {
     return null
   }
@@ -339,9 +336,10 @@ function defaultFormat(error: Error, sites: readonly NodeJS.CallSite[]): string 
 }
 
 /**
- * A V8 call site at another line and column. Every method answers as the site does except the
- * position, and `toString` is the site's own text with its position swapped, so the frame keeps
- * V8's layout (`async`, `new`, `[as m]`, the function and type names).
+ * A V8 call site at another line and column, and, when a map placed it in another source, in
+ * another file. Every method answers as the site does except the position and that file, and
+ * `toString` is the site's own text with those swapped, so the frame keeps V8's layout (`async`,
+ * `new`, `[as m]`, the function and type names).
  */
 class MappedCallSite implements NodeJS.CallSite {
   readonly #site: NodeJS.CallSite
@@ -377,15 +375,17 @@ class MappedCallSite implements NodeJS.CallSite {
     if (this.#name !== null) return this.#named(this.#name)
     const text = this.#site.toString()
     const position = `:${this.#site.getLineNumber()}:${this.#site.getColumnNumber()}`
-    const at = this.#file === null ? text.lastIndexOf(position) : -1
-    if (at !== -1) {
-      return `${text.slice(0, at)}:${this.#line}:${this.#column}${text.slice(at + position.length)}`
-    }
-    const where = `${this.#site.getScriptNameOrSourceURL() ?? this.#site.getFileName() ?? ''}${position}`
-    const from = this.#file === null || where === position ? -1 : text.lastIndexOf(where)
-    if (from === -1) return text
-    const moved = `${this.#file}:${this.#line}:${this.#column}`
-    return `${text.slice(0, from)}${moved}${text.slice(from + where.length)}`
+    // A frame that changed file swaps the file with the position, so the script name goes too.
+    const file =
+      this.#file === null
+        ? ''
+        : (this.#site.getScriptNameOrSourceURL() ?? this.#site.getFileName() ?? '')
+    if (this.#file !== null && file === '') return text
+    const where = `${file}${position}`
+    const at = text.lastIndexOf(where)
+    if (at === -1) return text
+    const moved = `${this.#file ?? ''}:${this.#line}:${this.#column}`
+    return `${text.slice(0, at)}${moved}${text.slice(at + where.length)}`
   }
 
   getThis(): unknown {
