@@ -3,9 +3,9 @@
 // is. Fake dialects and refs only (this package names none).
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { after, before, describe, test } from 'node:test'
 import { defineDialect, moduleRef, nativeHoistPolicy } from '@provino/policy'
 import type { NativeRuntimeRefs } from '@provino/types'
+import { afterAll, beforeAll, describe, test } from 'provino'
 import { makeTempDir, neutralProject, rejectsWith, type TempDir } from './internal/test-support.ts'
 import { resolveNeutralProject, resolveProject } from './resolve.ts'
 
@@ -33,11 +33,11 @@ const scoped = defineDialect({
 
 let temp: TempDir
 let configPath: string
-before(async () => {
+beforeAll(async () => {
   temp = await makeTempDir()
   configPath = join(temp.dir, 'provino.config.mjs')
 })
-after(() => temp.dispose())
+afterAll(() => temp.dispose())
 
 /** The resolve options, with `native` (`null`: none). */
 function options(native: NativeRuntimeRefs | null = NATIVE) {

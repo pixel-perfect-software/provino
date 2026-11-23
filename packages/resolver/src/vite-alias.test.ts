@@ -2,8 +2,8 @@
 // as its own tests state them: string prefix with a slash boundary, RegExp find with captures,
 // first match wins, and the order of the entries.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { ModuleMapper, ResolveContext } from '@provino/types'
+import { test } from 'provino'
 import { createViteAliasMapper, viteAliasMapper } from './vite-alias.ts'
 
 const context: ResolveContext = { importer: '/p/a.ts', kind: 'import', conditions: ['node'] }

@@ -4,8 +4,8 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, describe, it } from 'node:test'
 import { pathToFileURL } from 'node:url'
+import { afterAll, describe, it } from 'provino'
 import { codeFrame, collectOpenHandles } from './open-handles.ts'
 
 describe('codeFrame', () => {
@@ -63,7 +63,7 @@ describe('codeFrame', () => {
 
 describe('collectOpenHandles', () => {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), 'provino-handles-')))
-  after(() => rmSync(dir, { recursive: true, force: true }))
+  afterAll(() => rmSync(dir, { recursive: true, force: true }))
 
   /** A module of the "project": its functions make resources, and return them to be cleaned up. */
   async function project(name: string, text: string): Promise<Record<string, () => unknown>> {

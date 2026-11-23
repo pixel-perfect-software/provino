@@ -2,7 +2,7 @@
 // once the statement between them is gone. TypeScript and TSX come out of Oxc with semicolons, so
 // this is about plain `.js`. Where the output can run without imports, it runs.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import type { Node } from './ast.ts'
 import { parseForHoist } from './parse.ts'
 import { hoist } from './test-helpers.ts'

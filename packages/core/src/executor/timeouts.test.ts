@@ -2,7 +2,6 @@
 // and `now`, so nothing waits on wall time. A test starts the run, waits for the code under test to
 // say it has started (an explicit promise), then advances the clock.
 import assert from 'node:assert/strict'
-import { beforeEach, describe, test } from 'node:test'
 import {
   type BehaviourLoader,
   createBehaviourLoader,
@@ -11,6 +10,7 @@ import {
 } from '@provino/policy'
 import type { AnyFunction, Behaviour, FormatTimeout } from '@provino/types'
 import FakeTimers, { type Clock } from '@sinonjs/fake-timers'
+import { beforeEach, describe, test } from 'provino'
 import {
   clockOptions,
   eventLog,

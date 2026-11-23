@@ -1,7 +1,7 @@
 // T3.8: a neutral project's `transform` entries as the worker's `SerializedTransformConfig`.
 import assert from 'node:assert/strict'
-import { after, before, test } from 'node:test'
 import type { NeutralProject } from '@provino/types'
+import { afterAll, beforeAll, test } from 'provino'
 import { makeTempDir, rejectsWith, type TempDir } from './internal/test-support.ts'
 import { resolveNeutralProject } from './resolve.ts'
 
@@ -9,10 +9,10 @@ const ENVIRONMENTS = { node: { module: 'file:///env/node.mjs', export: 'nodeEnvi
 const options = { dialect: null, environments: ENVIRONMENTS, ci: false } as const
 
 let temp: TempDir
-before(async () => {
+beforeAll(async () => {
   temp = await makeTempDir()
 })
-after(() => temp.dispose())
+afterAll(() => temp.dispose())
 
 function neutral(overrides: Partial<NeutralProject> = {}): NeutralProject {
   return {

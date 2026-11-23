@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { join, sep } from 'node:path'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { fileIdOf, relativePosix } from './file-id.ts'
 
 describe('fileIdOf', () => {

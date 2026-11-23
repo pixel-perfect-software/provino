@@ -3,8 +3,8 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { describe, it } from 'node:test'
 import type { FileInfo, FileTask, SuiteTask, TaskId, TaskResult, TestTask } from '@provino/types'
+import { describe, it } from 'provino'
 import { createVitestResults, type VitestJsonResults } from './json.ts'
 
 const id = (text: string): TaskId => text as TaskId

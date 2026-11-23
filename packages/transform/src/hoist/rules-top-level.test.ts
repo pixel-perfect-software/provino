@@ -1,6 +1,6 @@
 // The top-level-only rules (the shape Vitest's hoister has), one rule per case. Track 3 F4.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { assertOrder, assertUntouched, errorCodes, hoist } from './test-helpers.ts'
 import { topLevelPolicy as policy } from './test-policies.ts'
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import * as realConfig from 'vitest/config'
 import {
   defaultExclude,

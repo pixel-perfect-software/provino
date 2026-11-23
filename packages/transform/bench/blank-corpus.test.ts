@@ -5,7 +5,7 @@
 // `pnpm bench:blank check` prints the same counts.
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import {
   blankPipelines,
   type CorpusFile,
@@ -52,14 +52,15 @@ describe('the in-place strip makes the program Oxc makes, file by file', () => {
 
   const real = existsSync(DEFAULT_ROOT)
   for (const verbatimModuleSyntax of [false, true]) {
-    test(`excalidraw (verbatimModuleSyntax: ${verbatimModuleSyntax})`, {
-      skip: real ? false : `${DEFAULT_ROOT} is not there`,
-    }, () => {
-      const report = check(readSources(DEFAULT_ROOT), verbatimModuleSyntax)
-      assert.deepEqual(report.different, [])
-      assert.deepEqual(report.moved, [])
-      assert.equal(report.valid, 352)
-      assert.equal(report.blanked, 319)
-    })
+    test.skipIf(real ? false : `${DEFAULT_ROOT} is not there`)(
+      `excalidraw (verbatimModuleSyntax: ${verbatimModuleSyntax})`,
+      () => {
+        const report = check(readSources(DEFAULT_ROOT), verbatimModuleSyntax)
+        assert.deepEqual(report.different, [])
+        assert.deepEqual(report.moved, [])
+        assert.equal(report.valid, 352)
+        assert.equal(report.blanked, 319)
+      },
+    )
   }
 })

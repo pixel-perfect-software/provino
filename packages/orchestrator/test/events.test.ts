@@ -2,9 +2,9 @@
 // inline), while the coordinator handles packs slowly, so the 8-pack window is what holds the
 // worker back. Every event arrives once, in order, before the file's `fileDone`.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import { connectWorker, transportFor } from '@provino/orchestrator'
 import type { CoordinatorToWorker, Transport, WorkerEvent } from '@provino/types'
+import { describe, it } from 'provino'
 import { numberOf } from './fixtures/events-worker.ts'
 import { gap, int, seeded } from './fixtures/random.ts'
 import { fixture, initFor, job, KINDS, methods } from './support.ts'

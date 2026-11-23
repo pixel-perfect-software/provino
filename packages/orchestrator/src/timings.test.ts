@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import { formatTimings, mergeTimings, parseTimings, readTimings, writeTimings } from './timings.ts'
 
 const dirs: string[] = []
@@ -12,7 +12,7 @@ async function scratch(): Promise<string> {
   dirs.push(dir)
   return dir
 }
-after(async () => {
+afterAll(async () => {
   await Promise.all(dirs.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

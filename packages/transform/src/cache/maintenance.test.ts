@@ -12,13 +12,13 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
+import { afterAll, test } from 'provino'
 import { lockfileHash, prepareCache, pruneCache, pruneCacheIfWritten } from './maintenance.ts'
 import { createTransformCache, hasProvinoTag } from './store.ts'
 import { entryFor, keyFor } from './test-entries.ts'
 
 const dirs: string[] = []
-after(() => {
+afterAll(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true })
 })
 function tempDir(): string {

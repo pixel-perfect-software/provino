@@ -7,9 +7,9 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import type { JsonValue, SerializedTransformConfig, TransformRequest } from '@provino/types'
+import { afterAll, describe, test } from 'provino'
 import { blockPolicy } from '../hoist/test-policies.ts'
 import { createPipeline } from '../pipeline.ts'
 import { createJestHost } from './index.ts'
@@ -22,7 +22,7 @@ const testFile = join(fixture, 'src/greeter.test.ts')
 const source = readFileSync(testFile, 'utf8')
 
 const temps: string[] = []
-after(() => {
+afterAll(() => {
   for (const dir of temps) rmSync(dir, { recursive: true, force: true })
 })
 

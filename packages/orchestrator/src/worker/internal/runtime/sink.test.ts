@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type { MatcherState, RuntimeEvent, RuntimeEventOf, TaskId, TaskResult } from '@provino/types'
+import { describe, it } from 'provino'
 import { assertionCountSink, type RunStates } from './sink.ts'
 
 const id = (value: string): TaskId => value as TaskId

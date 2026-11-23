@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type { LazyEvaluation, RuntimeEvent, TaskId, TaskResult } from '@provino/types'
+import { describe, it } from 'provino'
 import { lazyReportSink } from './lazy-sink.ts'
 
 const id = (value: string): TaskId => value as TaskId

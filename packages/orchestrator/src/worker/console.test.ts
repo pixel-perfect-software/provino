@@ -2,8 +2,8 @@
 // its level, direct stream writes as `level: null`, the current task, and a clean restore.
 import assert from 'node:assert/strict'
 import { Console } from 'node:console'
-import { describe, it } from 'node:test'
 import type { RuntimeEventOf, TaskId } from '@provino/types'
+import { describe, it } from 'provino'
 import { createConsoleCapture, type WritableLike } from './console.ts'
 
 type ConsoleEvent = RuntimeEventOf<'console'>

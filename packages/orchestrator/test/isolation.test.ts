@@ -4,10 +4,10 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { connectWorker, transportFor, type WorkerConnection } from '@provino/orchestrator'
 import type { PoolKind, RuntimeEventOf, WorkerEvent, WorkerExit } from '@provino/types'
+import { describe, it } from 'provino'
 import { Collect, fixture, initFor, job, methods } from './support.ts'
 
 async function startIsolation(

@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, test } from 'node:test'
+import { afterAll, describe, test } from 'provino'
 import { loadViteBridge, viteJsxSettings } from './index.ts'
 
 // A project inside this package, so `vitest/node` resolves from it as it does from a real project.
@@ -15,7 +15,7 @@ function project(files: Record<string, string>, parent = scratch): string {
   for (const [name, text] of Object.entries(files)) writeFileSync(join(dir, name), text)
   return dir
 }
-after(() => {
+afterAll(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true })
 })
 

@@ -4,11 +4,11 @@
 // give the map and the totals of the whole run on one worker. V8 runs under the Jest dialect's
 // `v8HitCounts: true`: with hits only, a statement two workers ran would count 2 against 1.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import { pathToFileURL } from 'node:url'
 import type { ResolvedProject } from '@provino/config'
 import { loadFinishCoverage } from '@provino/orchestrator'
 import type { RawCoverage, SerializedCoverageConfig } from '@provino/types'
+import { describe, it } from 'provino'
 import { run, runtimeProject, trackedProjects } from './support.ts'
 
 const { finishCoverage } = await loadFinishCoverage()

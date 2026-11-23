@@ -3,9 +3,9 @@
 // fake clock fakes `window.requestAnimationFrame`. `provino`'s `test/env-jsdom.test.ts` runs the
 // same thing through the real environment in a worker.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import { GlobalWindow } from 'happy-dom'
 import { JSDOM } from 'jsdom'
+import { describe, test } from 'provino'
 import { createFakeClock } from './clock.ts'
 import { neutral } from './internal/test-support.ts'
 

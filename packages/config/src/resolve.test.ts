@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict'
 import { symlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { after, before, describe, test } from 'node:test'
 import { pathToFileURL } from 'node:url'
 import { defineDialect, moduleRef, resolvePolicy, serializePolicy } from '@provino/policy'
 import type {
@@ -12,6 +11,7 @@ import type {
   ModuleScopeFactory,
   ProvinoConfigInput,
 } from '@provino/types'
+import { afterAll, beforeAll, describe, test } from 'provino'
 import { ConfigError } from './errors.ts'
 import { makeTempDir, pipe, rejectsWith, type TempDir } from './internal/test-support.ts'
 import {
@@ -34,11 +34,11 @@ const dash = defineDialect({
 describe('resolveProject', () => {
   let temp: TempDir
   let configPath: string
-  before(async () => {
+  beforeAll(async () => {
     temp = await makeTempDir()
     configPath = join(temp.dir, 'provino.config.mjs')
   })
-  after(() => temp.dispose())
+  afterAll(() => temp.dispose())
 
   function resolveWith(
     input: ProvinoConfigInput,
@@ -829,7 +829,7 @@ describe('resolveProject', () => {
   })
 
   describe('setup files', () => {
-    before(async () => {
+    beforeAll(async () => {
       await temp.write('app/setup.ts', '')
       await temp.write('app/nested/setup2.ts', '')
       await temp.write('abs-setup.ts', '')

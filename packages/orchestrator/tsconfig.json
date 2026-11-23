@@ -38,5 +38,6 @@
     {
       "path": "../timers"
     }
-  ]
+  ],
+  "exclude": ["src/**/*.test.ts"]
 }

@@ -2,13 +2,13 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, test } from 'node:test'
 import type { ModuleMapper, ResolveContext } from '@provino/types'
+import { afterAll, test } from 'provino'
 import { createResolver } from './resolver.ts'
 
 const EXTENSIONS = ['.ts', '.tsx', '.js', '.mjs', '.cjs', '.json']
 const roots: string[] = []
-after(() => {
+afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true })
 })
 

@@ -2,7 +2,6 @@
 // coordinator when a runner misbehaves, output arrives late, a cancel comes early, or the
 // coordinator goes away. Inline pool, so nothing global is patched.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import { MessageChannel } from 'node:worker_threads'
 import { neutralPolicy, serializePolicy } from '@provino/policy'
 import { createRpc, messagePortLink } from '@provino/rpc'
@@ -19,6 +18,7 @@ import type {
   WorkerPort,
   WorkerToCoordinator,
 } from '@provino/types'
+import { describe, it, onTestFinished } from 'provino'
 import { collectGarbage, usedHeapBytes } from './internal/memory.ts'
 import { type StartWorkerOptions, startWorker, type WorkerRunner } from './start.ts'
 
@@ -105,7 +105,7 @@ function harness(runner: WorkerRunner, options: StartWorkerOptions = {}) {
 }
 
 describe('startWorker', () => {
-  it('still sends fileDone when the thrown value breaks plain serialization', async (t) => {
+  it('still sends fileDone when the thrown value breaks plain serialization', async () => {
     const getterError = new Error('x')
     Object.defineProperty(getterError, 'message', {
       get() {
@@ -121,7 +121,7 @@ describe('startWorker', () => {
         throw thrown[job.file]
       },
     })
-    t.after(() => h.coordinator.close())
+    onTestFinished(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('null-prototype') })
     h.coordinator.send({ t: 'run', seq: 1, job: job('getter') })
@@ -135,13 +135,13 @@ describe('startWorker', () => {
     )
   })
 
-  it('charges a runner that throws with the origin runner, so a result builder can tell it from an error of the file', async (t) => {
+  it('charges a runner that throws with the origin runner, so a result builder can tell it from an error of the file', async () => {
     const h = harness({
       runFile: async () => {
         throw new Error('Tearing down a.test.js failed')
       },
     })
-    t.after(() => h.coordinator.close())
+    onTestFinished(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
     await h.until(h.fileDone(0))
@@ -154,7 +154,7 @@ describe('startWorker', () => {
     )
   })
 
-  it('sends output emitted just after runFile returns before fileDone', async (t) => {
+  it('sends output emitted just after runFile returns before fileDone', async () => {
     const h = harness({
       runFile: async ({ job, sink }) => {
         sink.emit(note(job, 'during'))
@@ -165,7 +165,7 @@ describe('startWorker', () => {
         return undefined
       },
     })
-    t.after(() => h.coordinator.close())
+    onTestFinished(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
     await h.until(h.fileDone(0))
@@ -177,7 +177,7 @@ describe('startWorker', () => {
     assert.deepEqual(before, ['during', 'late'])
   })
 
-  it('aborts a file that a cancel reached while it was still queued, but not later ones', async (t) => {
+  it('aborts a file that a cancel reached while it was still queued, but not later ones', async () => {
     const starting = Promise.withResolvers<void>()
     const aborted: string[] = []
     const h = harness({
@@ -187,7 +187,7 @@ describe('startWorker', () => {
         return undefined
       },
     })
-    t.after(() => h.coordinator.close())
+    onTestFinished(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('queued') })
     h.coordinator.send({ t: 'cancel', reason: 'bail' })
@@ -198,7 +198,7 @@ describe('startWorker', () => {
     assert.deepEqual(aborted, ['queued:true', 'after:false'])
   })
 
-  it('never starts files still queued when the coordinator goes away', async (t) => {
+  it('never starts files still queued when the coordinator goes away', async () => {
     const first = Promise.withResolvers<void>()
     const running = Promise.withResolvers<void>()
     const gone = Promise.withResolvers<void>()
@@ -212,7 +212,7 @@ describe('startWorker', () => {
         return undefined
       },
     })
-    t.after(() => h.coordinator.close())
+    onTestFinished(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
     h.coordinator.send({ t: 'run', seq: 1, job: job('b') })
@@ -227,7 +227,7 @@ describe('startWorker', () => {
     assert.deepEqual(started, ['a'])
   })
 
-  it('gives each file a fresh console: no open group or count carries over', async (t) => {
+  it('gives each file a fresh console: no open group or count carries over', async () => {
     const h = harness({
       runFile: async ({ job, console }) => {
         if (job.file === 'one') {
@@ -240,7 +240,7 @@ describe('startWorker', () => {
         return undefined
       },
     })
-    t.after(() => h.coordinator.close())
+    onTestFinished(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('one') })
     h.coordinator.send({ t: 'run', seq: 1, job: job('two') })
@@ -274,7 +274,7 @@ describe('startWorker', () => {
       return done.memoryBytes
     }
 
-    it('is the heap after one collection when the init’s memoryLimitBytes was passed: garbage a file left is not reported', async (t) => {
+    it('is the heap after one collection when the init’s memoryLimitBytes was passed: garbage a file left is not reported', async () => {
       // The limit is far under what the garbage holds and far over what the process lives on, so
       // only a collection puts the reported heap under it.
       const limit = limitAboveLiveHeap()
@@ -284,7 +284,7 @@ describe('startWorker', () => {
           return undefined
         },
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init: { ...init, memoryLimitBytes: limit } })
       h.coordinator.send({ t: 'run', seq: 0, job: job('garbage') })
       await h.until(h.fileDone(0))
@@ -292,9 +292,9 @@ describe('startWorker', () => {
       assert.ok(reported <= limit, `reported ${reported} bytes, over the limit of ${limit}`)
     })
 
-    it('is the heap after the collection, not before it: what the file still holds is reported', async (t) => {
+    it('is the heap after the collection, not before it: what the file still holds is reported', async () => {
       const held: unknown[] = []
-      t.after(() => {
+      onTestFinished(() => {
         held.length = 0
       })
       const limit = limitAboveLiveHeap()
@@ -304,7 +304,7 @@ describe('startWorker', () => {
           return undefined
         },
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init: { ...init, memoryLimitBytes: limit } })
       h.coordinator.send({ t: 'run', seq: 0, job: job('holds') })
       await h.until(h.fileDone(0))
@@ -317,11 +317,11 @@ describe('startWorker', () => {
   })
 
   describe('fileDone.leakedGlobals', () => {
-    it('carries the keys the runner reports for the file, and is empty for a clean one', async (t) => {
+    it('carries the keys the runner reports for the file, and is empty for a clean one', async () => {
       const h = harness({
         runFile: async ({ job }) => (job.file === 'leaky' ? { leakedGlobals: ['a', 'b'] } : {}),
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init })
       h.coordinator.send({ t: 'run', seq: 0, job: job('leaky') })
       h.coordinator.send({ t: 'run', seq: 1, job: job('clean') })
@@ -334,13 +334,13 @@ describe('startWorker', () => {
       )
     })
 
-    it('is empty for a file whose runner threw: the file is charged, and the field is still there', async (t) => {
+    it('is empty for a file whose runner threw: the file is charged, and the field is still there', async () => {
       const h = harness({
         runFile: async () => {
           throw new Error('boom')
         },
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init })
       h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
       await h.until(h.fileDone(0))
@@ -511,7 +511,7 @@ describe('startWorker', () => {
   describe('stop', () => {
     const stopped = (message: WorkerToCoordinator): boolean => message.t === 'stopped'
 
-    it('calls runner.stop after the queued files and before stopped, and what it emits arrives first', async (t) => {
+    it('calls runner.stop after the queued files and before stopped, and what it emits arrives first', async () => {
       const steps: string[] = []
       let seen: WorkerInit | undefined
       const h = harness({
@@ -525,7 +525,7 @@ describe('startWorker', () => {
           sink.emit(note(job('a'), 'from stop'))
         },
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init })
       h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
       h.coordinator.send({ t: 'run', seq: 1, job: job('b') })
@@ -545,7 +545,7 @@ describe('startWorker', () => {
       assert.ok(emitted !== -1 && emitted < stoppedAt, 'what stop emitted was sent before stopped')
     })
 
-    it('awaits an async stop before sending stopped', async (t) => {
+    it('awaits an async stop before sending stopped', async () => {
       const gate = Promise.withResolvers<void>()
       const reached = Promise.withResolvers<void>()
       const h = harness({
@@ -555,7 +555,7 @@ describe('startWorker', () => {
           await gate.promise
         },
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init })
       h.coordinator.send({ t: 'stop' })
       await reached.promise
@@ -566,14 +566,14 @@ describe('startWorker', () => {
       await h.done
     })
 
-    it('reports a throwing stop as an unhandled error with no owner, and still sends stopped', async (t) => {
+    it('reports a throwing stop as an unhandled error with no owner, and still sends stopped', async () => {
       const h = harness({
         runFile: async () => undefined,
         stop: () => {
           throw new Error('teardown failed')
         },
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init })
       h.coordinator.send({ t: 'stop' })
       await h.until(stopped)
@@ -591,7 +591,7 @@ describe('startWorker', () => {
       assert.ok(reportedAt < h.received.findIndex(stopped), 'reported before stopped')
     })
 
-    it('still calls stop when start threw, so a half-built worker is torn down', async (t) => {
+    it('still calls stop when start threw, so a half-built worker is torn down', async () => {
       const steps: string[] = []
       const h = harness({
         start: () => {
@@ -602,7 +602,7 @@ describe('startWorker', () => {
           steps.push('stop')
         },
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init })
       h.coordinator.send({ t: 'stop' })
       await h.until(stopped)
@@ -610,7 +610,7 @@ describe('startWorker', () => {
       assert.deepEqual(steps, ['stop'])
     })
 
-    it('does not call stop for a worker that never started, and works without a stop', async (t) => {
+    it('does not call stop for a worker that never started, and works without a stop', async () => {
       const steps: string[] = []
       const never = harness({
         runFile: async () => undefined,
@@ -618,14 +618,14 @@ describe('startWorker', () => {
           steps.push('stop')
         },
       })
-      t.after(() => never.coordinator.close())
+      onTestFinished(() => never.coordinator.close())
       never.coordinator.send({ t: 'stop' })
       await never.until(stopped)
       await never.done
       assert.deepEqual(steps, [])
 
       const plain = harness({ runFile: async () => undefined })
-      t.after(() => plain.coordinator.close())
+      onTestFinished(() => plain.coordinator.close())
       plain.coordinator.send({ t: 'start', init })
       plain.coordinator.send({ t: 'stop' })
       await plain.until(stopped)

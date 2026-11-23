@@ -1,8 +1,8 @@
 // How a worker thread's end becomes a `WorkerExit` (T9.5): a heap OOM is `oom` with or without a
 // limit the transport set.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import { getHeapStatistics } from 'node:v8'
+import { describe, it } from 'provino'
 import { threadExit } from './threads.ts'
 
 describe('threadExit', () => {
