@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import type { ModuleId } from '@provino/types'
-import { describe, test } from 'provino'
+import { beforeAll, describe, test } from 'provino'
 import { MockError, MockTypeError } from '../errors.ts'
 import { neutral } from '../internal/test-support.ts'
 import { isMockFunction } from '../mock-fn.ts'
-import { build, jestLike, tempTree, vitestLike } from './test-support.ts'
+import { build, deferredTree, jestLike, vitestLike } from './test-support.ts'
 
 const FROM = '/proj/test/a.test.ts'
 const FILES = { './dep': '/proj/src/dep.ts', pkg: '/proj/node_modules/pkg/index.js' }
@@ -483,7 +483,9 @@ describe('dispose', () => {
 })
 
 describe('__mocks__', () => {
-  const { dir, write } = tempTree('provino-mock-')
+  const tree = deferredTree('provino-mock-')
+  const { dir, write } = tree
+  beforeAll(() => tree.make())
   const rootPkg = write('__mocks__/pkg.ts')
   const rootScoped = write('__mocks__/@scope/lib.ts')
   const rootOs = write('__mocks__/os.ts')

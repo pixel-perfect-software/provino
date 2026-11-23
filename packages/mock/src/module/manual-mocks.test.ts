@@ -2,11 +2,14 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, test } from 'provino'
+import { beforeAll, describe, test } from 'provino'
 import { findManualMock, findRootMock, isCoreSpecifier } from './manual-mocks.ts'
-import { tempTree } from './test-support.ts'
+import { deferredTree } from './test-support.ts'
 
-const { dir, write } = tempTree('provino-manual-')
+// Named here, made in `beforeAll`: a listing of the file (every test skipped) never runs it.
+const tree = deferredTree('provino-manual-')
+const { dir, write } = tree
+beforeAll(() => tree.make())
 
 const pkg = write('__mocks__/pkg.js')
 const scoped = write('__mocks__/@scope/lib.ts')

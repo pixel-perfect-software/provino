@@ -2,11 +2,12 @@
 // of the space (`jestLike`, `vitestLike`), a fake resolver, and a registry builder. Neither is a
 // claim about any runner: `@provino/dialect-jest` and the harness's mod corpus own that.
 
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { randomBytes } from 'node:crypto'
+import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after } from 'node:test'
 import type { ModulePolicy, ResolveContext, ResolveResult, Resolver } from '@provino/types'
+import { afterAll } from 'provino'
 import { neutral, neutralModule } from '../internal/test-support.ts'
 import { createMockRegistry } from '../registry.ts'
 import { createModuleMockRegistry, type ModuleMockRegistry } from './registry.ts'
@@ -60,22 +61,55 @@ export function fakeResolver(files: Readonly<Record<string, string>>): Resolver 
   return resolverBy((specifier) => files[specifier])
 }
 
-/** A real temp directory removed after the enclosing suite, with a `write` that makes an empty file. */
-export function tempTree(prefix: string): {
+const made: string[] = []
+afterAll(() => {
+  for (const dir of made) rmSync(dir, { recursive: true, force: true })
+})
+
+export interface TempTree {
   readonly dir: string
+  /** The path of an empty file under `dir`, which the tree has once it is made. */
   readonly write: (path: string) => string
-} {
-  const dir = mkdtempSync(join(tmpdir(), prefix))
-  after(() => rmSync(dir, { recursive: true, force: true }))
+  /** Makes `dir` and every file `write` named before (a later `write` makes its file at once). */
+  readonly make: () => void
+}
+
+/**
+ * A temp directory named now and made by `make()`, removed when the test file ends. A `describe`
+ * body runs when a file is only listed (`-t` with a name no test has), so a tree its tests share is
+ * made in a `beforeAll`, which a listing never runs.
+ */
+export function deferredTree(prefix: string): TempTree {
+  const dir = join(tmpdir(), `${prefix}${randomBytes(6).toString('hex')}`)
+  const waiting: string[] = []
+  let ready = false
+  const create = (file: string): void => {
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, '')
+  }
   return {
     dir,
     write(path) {
       const file = join(dir, path)
-      mkdirSync(dirname(file), { recursive: true })
-      writeFileSync(file, '')
+      if (ready) create(file)
+      else waiting.push(file)
       return file
     },
+    make() {
+      if (ready) return
+      mkdirSync(dir)
+      made.push(dir)
+      ready = true
+      for (const file of waiting) create(file)
+    },
   }
+}
+
+/** A real temp directory made now (call it in a test), with a `write` that makes an empty file. */
+export function tempTree(prefix: string): TempTree {
+  const tree = deferredTree(prefix)
+  tree.make()
+  return tree
 }
 
 export interface Harness {

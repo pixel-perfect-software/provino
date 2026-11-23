@@ -25,7 +25,6 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
 import { createResolver } from '@provino/resolver'
 import { createPipeline } from '@provino/transform'
@@ -38,6 +37,7 @@ import type {
   Resolver,
   TransformClaims,
 } from '@provino/types'
+import { afterAll } from 'provino'
 import { createLoader } from '../loader.ts'
 
 /** What one run of an entry observed. JSON round-tripped, so both sides compare as plain data. */
@@ -60,7 +60,7 @@ export interface Fixture {
 }
 
 const roots: string[] = []
-after(() => {
+afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true })
 })
 

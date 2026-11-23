@@ -3,15 +3,17 @@
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import type { ResolveContext, Resolver } from '@provino/types'
-import { describe, test } from 'provino'
+import { beforeAll, describe, test } from 'provino'
 import { MockError } from '../errors.ts'
-import { build, jestLike, resolverBy, tempTree, vitestLike } from './test-support.ts'
+import { build, deferredTree, jestLike, resolverBy, vitestLike } from './test-support.ts'
 
 const FROM = '/proj/test/a.test.ts'
 const FILES = { './dep': '/proj/src/dep.ts' }
 
 describe('a root mock named by a sub-path specifier', () => {
-  const { dir, write } = tempTree('provino-mock-sub-')
+  const tree = deferredTree('provino-mock-sub-')
+  const { dir, write } = tree
+  beforeAll(() => tree.make())
   const rootSub = write('__mocks__/pkg/sub.ts')
   const rootPkg = write('__mocks__/pkg.ts')
   const rootScopedSub = write('__mocks__/@scope/lib/sub.ts')
