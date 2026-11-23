@@ -5,7 +5,13 @@ import { readFileSync } from 'node:fs'
 import { join, relative, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Script } from 'node:vm'
-import { LATE_IMPORT, toModuleRunner, usesModuleRunnerForm } from '@provino/transform'
+import {
+  LATE_IMPORT,
+  type ModuleRunnerOutput,
+  TransformError,
+  toModuleRunner,
+  usesModuleRunnerForm,
+} from '@provino/transform'
 import { openV8Pack, type V8Pack } from '@provino/transform/v8cache'
 import type {
   CompiledModuleEvent,
@@ -14,6 +20,7 @@ import type {
   ResolveKind,
   ResolveResult,
   SourceMapV3,
+  TransformRecord,
 } from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
 import { type GraphEdge, inGraph } from '../graph/index.ts'
@@ -520,7 +527,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
     // A file whose only module syntax is `import()` has no static form (`unknown`), and `import()`
     // fails in a CommonJS `vm` script, so it runs in module form (B13c Gap 6).
     if (usesModuleRunnerForm(transformed)) {
-      const runner = toModuleRunner(filename, transformed)
+      const runner = runnerFormOf(filename, transformed)
       record = makeRecord(
         id,
         path,
@@ -541,7 +548,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
       // file is that rewrite and nothing else.
       const dynamicImport = transformed.imports.some((entry) => entry.kind === 'dynamic')
       const source = dynamicImport
-        ? toModuleRunner(filename, transformed, { commonjs: true })
+        ? runnerFormOf(filename, transformed, { commonjs: true })
         : transformed
       record = makeRecord(
         id,
@@ -564,6 +571,29 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
   const importers = state.importers.get(id)
   if (importers !== undefined) for (const importer of importers) state.graphsDirty.add(importer)
   return record
+}
+
+/**
+ * `toModuleRunner`, except that the parser's report of a syntax error is thrown as the
+ * `SyntaxError` Node and V8's own compile give for it (a plain-JavaScript file is parsed here
+ * first, since the pipeline never reads it): the parser's message and `file:line:column`, the
+ * `TransformError` as the cause. The class is the worker's global one, the realm the module's
+ * code sees (there is no `realm` tier). Any other failure is thrown as it is.
+ */
+function runnerFormOf(
+  filename: string,
+  record: TransformRecord,
+  options?: { readonly commonjs?: boolean },
+): ModuleRunnerOutput {
+  try {
+    return toModuleRunner(filename, record, options)
+  } catch (error) {
+    if (error instanceof TransformError && error.parse !== undefined) {
+      const { reason, line, column } = error.parse
+      throw new SyntaxError(`${reason} (${filename}:${line}:${column})`, { cause: error })
+    }
+    throw error
+  }
 }
 
 function makeRecord(

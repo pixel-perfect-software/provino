@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping'
 import type { TransformRecord } from '@provino/types'
 import { test } from 'provino'
+import { TransformError } from './errors.ts'
 import { toModuleRunner } from './module-runner.ts'
 import { createPipeline } from './pipeline.ts'
 
@@ -112,6 +113,37 @@ test('unstripped TypeScript is a per-file error naming the file, not an abort (B
       return true
     },
   )
+})
+
+test("a syntax error carries the parser's message and its position, a redeclaration the redeclaring one", () => {
+  const parseOf = (code: string): TransformError['parse'] => {
+    const record: TransformRecord = { ...strip('/ok.ts', 'export {}\n'), code }
+    try {
+      toModuleRunner('/p.ts', record)
+    } catch (error) {
+      assert.ok(error instanceof TransformError)
+      assert.equal(error.code, 'TRANSFORM_RUNNER_FAILED')
+      return error.parse
+    }
+    return assert.fail('the module-runner step accepted the code')
+  }
+  assert.deepEqual(parseOf('export const a = 1\nexport const b = {\n'), {
+    reason: 'Expected `}` but found `EOF`',
+    line: 3,
+    column: 1,
+  })
+  // The parser's own redeclaration error has two labels, and the position is the second.
+  assert.deepEqual(parseOf('let a = 1\nlet a = 2\n'), {
+    reason: 'Identifier `a` has already been declared',
+    line: 2,
+    column: 5,
+  })
+  // The walk's own, for the one the parser lets through: a `var` in a `catch` block redeclaring an import.
+  assert.deepEqual(parseOf("import { a } from './a.js'\ntry {} catch (e) { var a }\n"), {
+    reason: 'Identifier `a` has already been declared',
+    line: 2,
+    column: 24,
+  })
 })
 
 function runnerError(code: string): string {

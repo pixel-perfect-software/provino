@@ -11,7 +11,7 @@ export {
   pruneCache,
   pruneCacheIfWritten,
 } from './cache/index.ts'
-export type { TransformErrorCode } from './errors.ts'
+export type { TransformErrorCode, TransformParseFailure } from './errors.ts'
 export { TransformError } from './errors.ts'
 export { LATE_IMPORT } from './hoist/apply.ts'
 export type { HoistOptions, HoistOutput } from './hoist/index.ts'

@@ -49,7 +49,7 @@ export interface Walked {
   /** Ranges of `import.meta`. */
   readonly metas: readonly { readonly start: number; readonly end: number }[]
   /** An import's name that a module-level declaration redeclares, which the parser let through. */
-  readonly redeclared: string | null
+  readonly redeclared: { readonly name: string; readonly start: number } | null
 }
 
 const SKIP_KEYS: ReadonlySet<string> = new Set(['type', 'start', 'end', 'range', 'loc', 'parent'])
@@ -109,15 +109,16 @@ export function walkProgram(
   let scope: Scope = top
   let varScope: Scope = top
   let statementStart = -1
-  let redeclared: string | null = null
+  let redeclared: { readonly name: string; readonly start: number } | null = null
 
-  function declare(name: string, into: Scope): void {
+  function declare(id: { readonly name: string; readonly start: number }, into: Scope): void {
+    const name = id.name
     if (!imports.has(name)) return
     // A module-level declaration of an import's name is a redeclaration error. The parser reports
     // every form but a `var` in a `catch` block whose parameter has that name, so the walk keeps
     // the first one for `rewriteModule` to report.
     if (into === top) {
-      redeclared ??= name
+      redeclared ??= id
       return
     }
     into.names ??= new Set()
@@ -129,7 +130,7 @@ export function walkProgram(
     if (pattern === null) return
     switch (pattern.type) {
       case 'Identifier':
-        if (into !== null && track) declare(pattern.name, into)
+        if (into !== null && track) declare(pattern, into)
         // An assignment to an import's name is a use of it to Oxc's TypeScript transform.
         else if (into === null && typescript) reference(pattern, 'plain')
         break
@@ -200,11 +201,11 @@ export function walkProgram(
     const savedVar = varScope
     const savedStatement = statementStart
     if (node.type === 'FunctionDeclaration') {
-      if (node.id !== null) declare(node.id.name, scope)
+      if (node.id !== null) declare(node.id, scope)
     } else if (node.type === 'FunctionExpression' && node.id !== null) {
       // A function expression's own name lives in a scope around its parameters.
       scope = { parent: scope, names: null }
-      declare(node.id.name, scope)
+      declare(node.id, scope)
     }
     // The parameters' scope.
     scope = { parent: scope, names: null }
@@ -232,9 +233,9 @@ export function walkProgram(
     if (isDeclared(node)) return
     const saved = scope
     visitDecorators(node)
-    if (node.type === 'ClassDeclaration' && node.id !== null) declare(node.id.name, scope)
+    if (node.type === 'ClassDeclaration' && node.id !== null) declare(node.id, scope)
     scope = { parent: scope, names: null }
-    if (node.id !== null) declare(node.id.name, scope)
+    if (node.id !== null) declare(node.id, scope)
     if (node.superClass !== null) visit(node.superClass)
     visit(node.body)
     scope = saved
