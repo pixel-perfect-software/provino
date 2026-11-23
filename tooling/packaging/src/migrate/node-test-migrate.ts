@@ -6,7 +6,7 @@
 import { existsSync } from 'node:fs'
 import { glob, mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
-import { bootstrapFiles as listBootstrapFiles, INCLUDE_GLOBS, TEST_RUNNER } from '../dogfood.ts'
+import { INCLUDE_GLOBS, bootstrapFiles as listBootstrapFiles, TEST_RUNNER } from '../dogfood.ts'
 import { readManifest } from '../package-json.ts'
 import { ROOT, readWorkspacePackages } from '../workspace.ts'
 import { MigrateError } from './errors.ts'
