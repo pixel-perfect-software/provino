@@ -160,7 +160,9 @@ export function installSourceMappedStacks(
   function ownMapOf(file: string, record: SourceMapV3): OwnMap | null {
     let own = ownMaps.get(record)
     if (own === undefined) {
-      own = readOwnMap(file)
+      // A record whose map already ends past the file (a hosted transformer that read the file's
+      // own map, as babel-jest does) is placed at the original source: no second step.
+      own = endsAtFile(file, record) ? readOwnMap(file) : null
       ownMaps.set(record, own)
     }
     return own
@@ -201,8 +203,11 @@ export function installSourceMappedStacks(
       if (site.isEval() || site.isNative()) return site
       const file: unknown = site.getFileName()
       if (typeof file !== 'string') return site
-      if (!nodeMaps) return loaderMapped(site, file)
-      return nodeMapped(loaderMapped(site, file), file)
+      const moved = loaderMapped(site, file)
+      // A frame the loader's map can't place is in the compiled code's coordinates, which the
+      // file's own map doesn't describe.
+      if (!nodeMaps || moved === site) return moved
+      return nodeMapped(moved, file)
     } catch {
       return site
     }
@@ -265,6 +270,22 @@ interface OwnMap {
 /** A `file:` URL as a path, which is how Node prints a mapped frame's file; anything else as it is. */
 function printedSource(source: string): string {
   return source.startsWith('file:') ? fileURLToPath(source) : source
+}
+
+/**
+ * Whether every source `record` names is `file` itself (resolved against `sourceRoot` and the
+ * file's URL, so a relative name, an absolute path and a `file:` URL compare alike): the loader's
+ * own maps point back at the file it read.
+ */
+function endsAtFile(file: string, record: SourceMapV3): boolean {
+  const self = pathToFileURL(file)
+  const root =
+    typeof record.sourceRoot === 'string' && record.sourceRoot !== ''
+      ? new URL(record.sourceRoot.replace(/\/?$/, '/'), self)
+      : self
+  return record.sources.every(
+    (source) => source === null || source === '' || new URL(source, root).href === self.href,
+  )
 }
 
 /** Node's `sourceMappingURL` comment: the last one in the file wins. */
