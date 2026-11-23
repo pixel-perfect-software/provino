@@ -170,16 +170,10 @@ const config: KnipConfig = {
       ignoreDependencies: ['jest-environment-jsdom'],
     },
     'packages/provino': {
-      // Its `test` script runs `node --test` through `tooling/packaging/src/node-test.ts` (the shard
-      // flag must come first), so knip no longer finds the test files from the script.
-      entry: [
-        'src/**/*.test.ts',
-        'test/**/*.test.ts',
-        'test/**/*.test-d.ts',
-        // Preloads the built-bin tests pass as `data:` URLs of their text, so no import names them.
-        'test/block-oxc-bindings.ts',
-        'test/load-recorder.ts',
-      ],
+      // Its test files are a migrated package's (the loop below adds them); these two are
+      // preloads the built-bin tests read as text and pass as `data:` URLs (`childEnv` in
+      // `test/support.ts`), so no import names them.
+      entry: ['test/block-oxc-bindings.ts', 'test/load-recorder.ts'],
       ignoreDependencies: [
         // Every dependency of `provino`: the packages it inlines import them and the build leaves
         // them external, so no file of its own does, and after a build knip also reads its
@@ -222,11 +216,17 @@ const config: KnipConfig = {
 
 // B27g2: a migrated package's `test` script no longer names its test files (the runner finds them),
 // so knip is told where they are, from the same facts the shared config and `test-shards check` read.
+// They are added to the entries a workspace above names itself (`packages/provino`'s preloads),
+// never in place of them.
 for (const dir of migratedDirs(import.meta.dirname)) {
   const own = config.workspaces?.[dir] ?? {}
+  const named = own.entry === undefined ? [] : [own.entry].flat()
   config.workspaces = {
     ...config.workspaces,
-    [dir]: { ...own, entry: [...INCLUDE_GLOBS, 'provino.config.ts', 'test/**/*.test-d.ts'] },
+    [dir]: {
+      ...own,
+      entry: [...named, ...INCLUDE_GLOBS, 'provino.config.ts', 'test/**/*.test-d.ts'],
+    },
   }
 }
 
