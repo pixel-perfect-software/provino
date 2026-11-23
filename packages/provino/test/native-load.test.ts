@@ -10,7 +10,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, sep } from 'node:path'
-import { after, describe, test } from 'node:test'
+import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { ADD_ON_DISTS, builtSources, chunkFiles, moduleRequests } from './dist.ts'
 import {
@@ -20,6 +20,7 @@ import {
   packageCopy,
   readLoadLogs,
   runBuilt,
+  whenFileEnds,
 } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
@@ -115,7 +116,7 @@ async function nativeProject(pkg: string, layout: Layout): Promise<string> {
     { 'package.json': '{"type":"module"}\n', ...files },
     layout === 'single' ? NATIVE_FILES.config : "export default { projects: ['packages/*'] }\n",
   )
-  after(() => project.cleanup())
+  whenFileEnds(project.cleanup)
   // Bare `provino` finds the config by name; makeProject writes `provino.config.mjs`.
   linkProvino(project.dir, pkg)
   return project.dir
@@ -127,7 +128,7 @@ const recordedRun = memoize((key: string): Promise<readonly LoadLog[]> => {
   return (async () => {
     const dir = await nativeProject(pkg, layout as Layout)
     const logs = mkdtempSync(join(tmpdir(), 'provino-native-loads-'))
-    after(() => rmSync(logs, { recursive: true, force: true }))
+    whenFileEnds(() => rmSync(logs, { recursive: true, force: true }))
     const run = runBuilt(['--pool', pool], {
       cwd: dir,
       bin: join(pkg, 'dist', 'cli.js'),

@@ -18,10 +18,48 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
-import { after } from 'node:test'
+import { after, describe as nodeDescribe, it as nodeIt } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { OUTPUT_VARIABLES } from '@provino/reporters'
+import type { ProvinoApi } from 'provino'
 import { killGroup } from './sweep.ts'
+
+/** What the helpers here and in `recorded-run.ts` register on: the runner running the file. */
+export interface TestRunner {
+  readonly describe: (name: string, fn: () => void) => unknown
+  readonly it: (name: string, fn: () => Promise<void>) => unknown
+  readonly afterAll: (fn: () => Promise<void>) => unknown
+}
+
+/**
+ * The runner that loaded this file. A Provino worker installs its native API at
+ * `Symbol.for('provino.api')` (`PROVINO_API_SLOT`, `@provino/api`) as it boots, before any test file
+ * loads; node:test installs nothing there. The bootstrap set keeps some of this package's files on
+ * node:test (the canary always), and both halves import these helpers, so a helper that registers a
+ * hook or a test asks this instead of importing one runner. The slot is read, not `provino`
+ * imported, so a node:test file loads none of the runner it checks.
+ */
+export function testRunner(): TestRunner {
+  const api = Reflect.get(globalThis, Symbol.for('provino.api')) as ProvinoApi | undefined
+  if (api === undefined) return { describe: nodeDescribe, it: nodeIt, afterAll: after }
+  return { describe: api.describe, it: api.it, afterAll: api.afterAll }
+}
+
+/**
+ * What the helpers below made for the file that imported this module, removed once its tests are
+ * done. The one hook is registered here, as the file loads (this module is evaluated once per test
+ * file on either runner), so a helper may be called from a test, a describe body or a memoised
+ * value a later test reuses, and its cleanup is the file's either way.
+ */
+const madeForFile: (() => unknown)[] = []
+testRunner().afterAll(async () => {
+  await Promise.all(madeForFile.splice(0).map((cleanup) => cleanup()))
+})
+
+/** Runs `cleanup` when the importing file's tests are done (see `madeForFile`). */
+export function whenFileEnds(cleanup: () => unknown): void {
+  madeForFile.push(cleanup)
+}
 
 // What picks the reporters, and whether the text is coloured, comes from the environment: an agent
 // (`CLAUDECODE`, `AI_AGENT`, ...) gets the `agent` reporter, GitHub Actions gets `github-actions`
@@ -197,16 +235,12 @@ export async function makeProject(files: ProjectFiles, config: string = CONFIG):
 
 /**
  * A maker of projects for one test file: each project it makes is removed once the file's tests
- * are done. It registers its own `after`, so call it once, at the top of the file.
+ * are done (`whenFileEnds`).
  */
 export function trackedProjects(): typeof makeProject {
-  const made: Project[] = []
-  after(async () => {
-    await Promise.all(made.map((project) => project.cleanup()))
-  })
   return async (files, config) => {
     const project = await makeProject(files, config)
-    made.push(project)
+    whenFileEnds(project.cleanup)
     return project
   }
 }
@@ -581,7 +615,7 @@ export function copyBuiltPackage(target: string, from: string = PACKAGE_DIR): st
 /** A temp directory (by its real path: macOS's `$TMPDIR` is a link) removed when the file ends. */
 export function scratch(prefix: string): string {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), prefix)))
-  after(() => rmSync(dir, { recursive: true, force: true }))
+  whenFileEnds(() => rmSync(dir, { recursive: true, force: true }))
   return dir
 }
 
@@ -620,7 +654,7 @@ export function linkDependencies(from: string, to: string, except: readonly stri
  */
 export function packageCopy(modules: 'all' | 'without-add-ons' = 'all'): string {
   const copy = realpathSync(mkdtempSync(join(tmpdir(), 'provino-copy-')))
-  after(() => rmSync(copy, { recursive: true, force: true }))
+  whenFileEnds(() => rmSync(copy, { recursive: true, force: true }))
   copyBuiltPackage(copy)
   if (modules === 'all')
     symlinkSync(join(PACKAGE_DIR, 'node_modules'), join(copy, 'node_modules'), 'dir')
@@ -641,7 +675,7 @@ export async function nativeProject(
   config: string = NATIVE_CONFIG,
 ): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), 'provino-native-'))
-  after(() => rm(dir, { recursive: true, force: true }))
+  whenFileEnds(() => rm(dir, { recursive: true, force: true }))
   const all: Record<string, string> = {
     'package.json': '{"type":"module"}\n',
     'provino.config.mjs': config,

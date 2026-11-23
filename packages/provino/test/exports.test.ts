@@ -30,7 +30,7 @@ import {
   staticImports,
   stringLiterals,
 } from './dist.ts'
-import { childEnv, readLoadLogs, runBuilt, trackedProjects } from './support.ts'
+import { childEnv, readLoadLogs, runBuilt, trackedProjects, whenFileEnds } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const manifest = JSON.parse(readFileSync(join(PACKAGE, 'package.json'), 'utf8')) as {
@@ -615,7 +615,7 @@ describe('the coordinator without coverage (T1.10, T7.12)', () => {
   async function coverageLoaded(args: readonly string[]): Promise<readonly string[]> {
     const dir = await builtProject()
     const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
-    after(() => rm(logs, { recursive: true, force: true }))
+    whenFileEnds(() => rm(logs, { recursive: true, force: true }))
     const bin = join(PACKAGE, 'src', 'cli.ts')
     const result = spawnSync(
       process.execPath,

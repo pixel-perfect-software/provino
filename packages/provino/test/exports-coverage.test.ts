@@ -6,9 +6,9 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync } from 'n
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, test } from 'node:test'
+import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { readLoadLogs, runBuilt, trackedProjects } from './support.ts'
+import { readLoadLogs, runBuilt, trackedProjects, whenFileEnds } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const DIST = `${join(PACKAGE, 'dist')}/`
@@ -60,7 +60,7 @@ type Load = readonly [main: string, file: string]
 async function distLoads(args: readonly string[]): Promise<readonly Load[]> {
   const dir = await builtProject()
   const logs = await mkdtemp(join(tmpdir(), 'provino-loads-'))
-  after(() => rm(logs, { recursive: true, force: true }))
+  whenFileEnds(() => rm(logs, { recursive: true, force: true }))
   const run = runBuilt(['jest', '--ci', ...args], {
     cwd: dir,
     preloads: ['load-recorder'],

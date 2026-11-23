@@ -9,7 +9,6 @@ import assert from 'node:assert/strict'
 import { mkdir, readdir, readFile, rm, symlink } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
-import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { type Json, normalizedJson, observedText } from './mask.ts'
 import {
@@ -19,7 +18,7 @@ import {
   type RecordedFixture,
   type RecordedManifest,
 } from './recorded.ts'
-import { outputFree, spawnCli } from './support.ts'
+import { outputFree, spawnCli, testRunner } from './support.ts'
 
 // The recorder's text normalizer, loaded by path: `provino` may not import `@provino/harness` (the
 // harness depends on it), as `watch-goldens.ts` loads the harness's watch pieces.
@@ -494,6 +493,9 @@ export function describeRecorded(
   const areas = new Set(
     (typeof group === 'string' ? [group] : [...group]).map((id) => id.slice(0, id.indexOf('/'))),
   )
+  // On the runner that loaded the calling file: node:test's describe would register nothing in a
+  // Provino worker, and the bootstrap set keeps some callers on node:test.
+  const { describe, it } = testRunner()
   describe(title, () => {
     it('holds every recorded fixture of the group, or leaves it out by name', async () => {
       const recorded: string[] = []

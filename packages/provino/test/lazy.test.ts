@@ -10,9 +10,9 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, describe, test } from 'node:test'
+import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { childEnv, runBuilt, viewOfNormalized } from './support.ts'
+import { childEnv, runBuilt, viewOfNormalized, whenFileEnds } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const require = createRequire(
@@ -266,7 +266,7 @@ const SUITE_COUNT = 6
 
 async function project(files: Readonly<Record<string, string>>, extra = ''): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), 'provino-lazy-'))
-  after(() => rm(dir, { recursive: true, force: true }))
+  whenFileEnds(() => rm(dir, { recursive: true, force: true }))
   const all: Record<string, string> = {
     'package.json': `{"type":"module","jest":{"testMatch":["**/tests/**/*.test.ts"]${extra}}}\n`,
     'provino.config.mjs': "export default { dialect: 'jest', include: ['tests/**/*.test.ts'] }\n",
