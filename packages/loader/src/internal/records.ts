@@ -2,7 +2,7 @@
 // compiled once per worker, its static deps are resolved once, and shared externals are loaded
 // natively. Records never hold per-file state; that lives in a registry's instances.
 import { readFileSync } from 'node:fs'
-import { relative, sep } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Script } from 'node:vm'
 import { LATE_IMPORT, toModuleRunner, usesModuleRunnerForm } from '@provino/transform'
@@ -36,8 +36,9 @@ import {
   type UserEdges,
 } from './inline.ts'
 import { loaderMessage } from './messages.ts'
+import { DATA, fileOf, HOOKED_URL } from './module-id.ts'
 import { createReevaluateState, type ReevaluateState } from './reevaluate.ts'
-import { blankHashbang, CJS_PARAMS } from './source.ts'
+import { blankHashbang, CJS_PARAMS, dataSource } from './source.ts'
 import { type InlineRules, isEvaluableExternal, isThirdParty, NO_RULES } from './third-party.ts'
 
 /**
@@ -82,6 +83,7 @@ export interface WrapperScript {
 /** One user module, as every registry in the worker shares it. */
 export interface ModuleRecord {
   readonly id: ModuleId
+  /** The file it reads: the id less a query or fragment (`fileOf`); the id itself otherwise. */
   readonly path: string
   readonly format: UserFormat
   /** The wrapper source, or the JSON text. */
@@ -372,6 +374,8 @@ export function resolveOrMissing(
       },
     }
   }
+  // A `data:` URL names its own source: nothing to resolve (`recordFor` decodes it).
+  if (specifier.startsWith(DATA)) return { kind: 'user', id: toModuleId(specifier) }
   // A package with no entry for the importer's kind (an `import`-only one) is `missing`, as in
   // Jest, so a virtual mock or a mapper can still stand in for it.
   const result = state.options.resolver.resolve(specifier, {
@@ -459,20 +463,25 @@ export function externalKey(target: Target): string {
 export function recordFor(state: Records, id: ModuleId, isTest: boolean): ModuleRecord {
   const existing = state.records.get(id)
   if (existing !== undefined) return existing
-  const path: string = id
-  const text = readFileSync(path, 'utf8')
+  const path = fileOf(id)
+  // A `data:` URL is a user module whose source is the URL itself: evaluated per registry, as
+  // jest-runtime evaluates one per test file, where Node's own `import()` shares it (compat).
+  const data = path.startsWith(DATA) ? dataSource(path) : null
+  const text = data === null ? readFileSync(path, 'utf8') : data.text
+  // What the transforms see: a data: module is JavaScript, named as a module in the root.
+  const filename = data === null ? path : join(state.options.root, '[data].mjs')
   // A node_modules file only gets here when a mock made it inline (T2.6), a transform takes it
   // (B23e), or `inline` names it.
   const thirdParty = isThirdParty(path, state.inlineRules)
   let record: ModuleRecord
   let transformKeyOf = ''
-  if (path.endsWith('.json')) {
-    record = makeRecord(id, 'json', text, () => null, [], [], false, false)
+  if (data?.json === true || path.endsWith('.json')) {
+    record = makeRecord(id, path, 'json', text, () => null, [], [], false, false)
   } else if (/\.(?:wasm|node)$/.test(path)) {
     throw new LoaderError('LOADER_UNSUPPORTED_MODULE', `cannot load ${path} as a user module`)
   } else {
     const transformed = state.options.transformer.transform({
-      filename: path,
+      filename,
       source: text,
       role: thirdParty ? 'dependency' : isTest ? 'test' : 'source',
       consumer: 'import',
@@ -511,9 +520,10 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
     // A file whose only module syntax is `import()` has no static form (`unknown`), and `import()`
     // fails in a CommonJS `vm` script, so it runs in module form (B13c Gap 6).
     if (usesModuleRunnerForm(transformed)) {
-      const runner = toModuleRunner(path, transformed)
+      const runner = toModuleRunner(filename, transformed)
       record = makeRecord(
         id,
+        path,
         'esm',
         runner.code,
         () => runner.map,
@@ -531,10 +541,11 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
       // file is that rewrite and nothing else.
       const dynamicImport = transformed.imports.some((entry) => entry.kind === 'dynamic')
       const source = dynamicImport
-        ? toModuleRunner(path, transformed, { commonjs: true })
+        ? toModuleRunner(filename, transformed, { commonjs: true })
         : transformed
       record = makeRecord(
         id,
+        path,
         'cjs',
         source.code,
         () => source.map,
@@ -546,7 +557,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
       )
     }
   }
-  if (!path.endsWith('.json')) record.transformKey = transformKeyOf
+  if (record.format !== 'json') record.transformKey = transformKeyOf
   state.records.set(id, record)
   // A record that already names this id (a target resolved before its module was transformed, or a
   // module dropped and made again) now has a dep to read.
@@ -557,6 +568,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
 
 function makeRecord(
   id: ModuleId,
+  path: string,
   format: UserFormat,
   source: string,
   mapOf: () => SourceMapV3 | null,
@@ -568,7 +580,7 @@ function makeRecord(
 ): ModuleRecord {
   return {
     id,
-    path: id,
+    path,
     format,
     source,
     get map() {
@@ -588,6 +600,22 @@ function makeRecord(
     scope: null,
     transformKey: '',
     wrapperLength: null,
+  }
+}
+
+/**
+ * An `import()` of a URL the resolver missed and no mock answered: a scheme a `module.registerHooks`
+ * hook may serve is Node's to load, as an `import()` outside the loader would be (compat). Anything
+ * else, and a scheme Node refuses or finds nothing behind, throws `notFound`, the loader's own error.
+ */
+export async function importServedByHooks(specifier: string, notFound: unknown): Promise<object> {
+  if (!HOOKED_URL.test(specifier)) throw notFound
+  try {
+    return (await import(specifier)) as object
+  } catch (error) {
+    const code = (error as { code?: unknown } | null)?.code
+    if (code === 'ERR_UNSUPPORTED_ESM_URL_SCHEME' || code === 'ERR_MODULE_NOT_FOUND') throw notFound
+    throw error
   }
 }
 
@@ -815,7 +843,8 @@ function wrapperScript(
   // The wrapper opens on the body's first line; the offset takes it back out of that line's
   // columns, so every frame is a position in the body, which is what the record's map reads.
   const code = `${prefix}${body}${suffix}`
-  const options = { filename: record.path, columnOffset: -prefix.length }
+  // The id, not the file: two URLs of one file are two scripts, each with its own coverage and map.
+  const options = { filename: record.id, columnOffset: -prefix.length }
   const wrapper: WrapperScript = {
     // With a code cache, from V8's data for exactly this text when an earlier worker left it
     // (the key is a hash of the text, the filename and the offset).
@@ -829,7 +858,7 @@ function wrapperScript(
   for (const listener of state.listeners) {
     listener({
       id: record.id,
-      scriptUrl: record.path,
+      scriptUrl: record.id,
       wrapperColumnOffset: prefix.length,
       get map() {
         return record.map
