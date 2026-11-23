@@ -302,3 +302,43 @@ describe('other ways to reach node:test', () => {
     assert.equal(out, 'console.log(1)\n')
   })
 })
+
+describe('hooks called inside a function (B27h2)', () => {
+  it('refuses a hook in a helper, with a hand-edit hint, and leaves a top-level and describe hook alone', () => {
+    const head = "import { after, before, beforeEach, describe, it } from 'node:test'\n"
+    for (const hook of ['before', 'after', 'beforeEach']) {
+      const found = refusedAt(head + `function helper() {\n  ${hook}(() => {})\n}\n`)
+      assert.equal(found.length, 1, hook)
+      assert.match(found[0] ?? '', /a\.test\.ts:3 .*called inside a function.*Hand edit/s)
+    }
+    const out = rewritten(
+      head +
+        "after(() => {})\ndescribe('s', () => {\n  before(() => {})\n  it('a', () => {})\n})\n",
+    )
+    assert.match(out, /^afterAll\(\(\) => \{\}\)$/m)
+    assert.match(out, /^ {2}beforeAll\(/m)
+  })
+
+  it('turns after inside a test body into onTestFinished, without an unused afterAll import', () => {
+    const out = rewritten(
+      "import { after, it } from 'node:test'\nit('a', () => {\n  after(() => {})\n})\n",
+    )
+    assert.equal(
+      out,
+      "import { it, onTestFinished } from 'provino'\nit('a', () => {\n  onTestFinished(() => {})\n})\n",
+    )
+  })
+
+  it('also finds one in a helper defined inside a test body, and refuses before there', () => {
+    assert.match(
+      rewritten(
+        "import { after, it } from 'node:test'\nit('a', () => {\n  const f = () => { after(() => {}) }\n  f()\n})\n",
+      ),
+      /onTestFinished\(/,
+    )
+    const found = refusedAt(
+      "import { before, it } from 'node:test'\nit('a', () => {\n  before(() => {})\n})\n",
+    )
+    assert.match(found[0] ?? '', /inside a test body has no native meaning/)
+  })
+})
