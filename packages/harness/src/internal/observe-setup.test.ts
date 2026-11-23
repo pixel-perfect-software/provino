@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { test } from 'node:test'
 import vm from 'node:vm'
+import { test } from 'provino'
 import { OBSERVE_SETUP_PATH, TRACE_ENV, traceSetupSource } from './runner-config.ts'
 
 type Observe = (id: string, run: () => unknown) => Promise<void>
