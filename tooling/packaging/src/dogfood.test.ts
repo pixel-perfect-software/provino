@@ -5,6 +5,7 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { availableParallelism } from 'node:os'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import {
@@ -16,10 +17,17 @@ import {
   TEST_RUNNER,
   testScript,
 } from './dogfood.ts'
+import { mapPool } from './pool.ts'
 import { scratchDir } from './test-support.ts'
 import { ROOT } from './workspace.ts'
 
 const BIN = join(ROOT, RUNNER_BIN)
+
+/**
+ * Discovery runs at once. Every package's run starts its own workers, so launching all of them
+ * together on a busy runner leaves an idle worker unable to stop in time (a run error).
+ */
+const DISCOVERY_LANES = Math.max(2, Math.min(4, Math.floor(availableParallelism() / 2)))
 
 /** Every `*.test.ts` under a migrated package's include roots, relative to the package, sorted. */
 function testFilesOf(packageDir: string): string[] {
@@ -180,36 +188,34 @@ describe('every test file of a migrated package runs on exactly one runner', () 
     const staying = bootstrapFiles(ROOT)
     const dirs = migratedDirs(ROOT)
     assert.ok(dirs.length > 0, 'no migrated package found')
-    await Promise.all(
-      dirs.map(async (dir) => {
-        const packageDir = join(ROOT, dir)
-        const own = staying
-          .filter((file) => file.startsWith(`${dir}/`))
-          .map((file) => file.slice(dir.length + 1))
-        const expected = testFilesOf(packageDir).filter((file) => !own.includes(file))
-        assert.ok(expected.length > 0, `${dir}: no test file is left for Provino`)
+    await mapPool(dirs, DISCOVERY_LANES, async (dir) => {
+      const packageDir = join(ROOT, dir)
+      const own = staying
+        .filter((file) => file.startsWith(`${dir}/`))
+        .map((file) => file.slice(dir.length + 1))
+      const expected = testFilesOf(packageDir).filter((file) => !own.includes(file))
+      assert.ok(expected.length > 0, `${dir}: no test file is left for Provino`)
 
-        const ran = await listDiscovered(packageDir)
-        // Exit 0 is "every test skipped"; a crash, a timeout or a signal is none of the three.
-        assert.equal(
-          ran.signal,
-          null,
-          `${dir}: ended by ${String(ran.signal)}: ${failureDetail(ran)}`,
-        )
-        assert.equal(ran.status, 0, `${dir}: exit ${String(ran.status)}: ${failureDetail(ran)}`)
-        assert.ok(existsSync(ran.report), `${dir}: the run wrote no report: ${ran.stderr}`)
-        const parsed = JSON.parse(readFileSync(ran.report, 'utf8')) as {
-          files: { file: string; tests: unknown[] }[]
-        }
-        assert.deepEqual(
-          parsed.files.map((entry) => entry.file).sort(),
-          expected,
-          `${dir}: Provino's files differ`,
-        )
-        for (const entry of parsed.files) {
-          assert.ok(entry.tests.length > 0, `${dir}: ${entry.file} registered no test`)
-        }
-      }),
-    )
+      const ran = await listDiscovered(packageDir)
+      // Exit 0 is "every test skipped"; a crash, a timeout or a signal is none of the three.
+      assert.equal(
+        ran.signal,
+        null,
+        `${dir}: ended by ${String(ran.signal)}: ${failureDetail(ran)}`,
+      )
+      assert.equal(ran.status, 0, `${dir}: exit ${String(ran.status)}: ${failureDetail(ran)}`)
+      assert.ok(existsSync(ran.report), `${dir}: the run wrote no report: ${ran.stderr}`)
+      const parsed = JSON.parse(readFileSync(ran.report, 'utf8')) as {
+        files: { file: string; tests: unknown[] }[]
+      }
+      assert.deepEqual(
+        parsed.files.map((entry) => entry.file).sort(),
+        expected,
+        `${dir}: Provino's files differ`,
+      )
+      for (const entry of parsed.files) {
+        assert.ok(entry.tests.length > 0, `${dir}: ${entry.file} registered no test`)
+      }
+    })
   })
 })
