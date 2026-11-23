@@ -16,58 +16,20 @@ import {
   vitestFlags,
 } from './cli.ts'
 import { cacOption } from './internal/cac-parse.ts'
+import {
+  cliCorpus,
+  corpusHash,
+  encode,
+  HAND,
+  installedVitestVersion,
+  loadVitestNode,
+  type Outcome,
+  readCliGolden,
+  realOutcome,
+} from './internal/cli-corpus.ts'
 import { VITEST_APPLIED_TEST_KEYS } from './to-neutral.ts'
 
-interface CacLike {
-  readonly options: Record<string, unknown>
-  readonly matchedCommand?: {
-    readonly name: string
-    checkUnknownOptions(): void
-    checkOptionValue(): void
-    checkRequiredArgs(): void
-  }
-  readonly matchedCommandName?: string
-  readonly globalCommand: { readonly options: readonly { readonly rawName: string }[] }
-  readonly commands: readonly {
-    readonly name: string
-    readonly options: readonly { readonly rawName: string }[]
-  }[]
-  parse(argv: string[], options: { run: boolean }): unknown
-}
-interface VitestNode {
-  parseCLI(argv: string[]): { filter: unknown[]; options: Record<string, unknown> }
-  createCLI(): CacLike
-}
-
-const vitestNode = (await import('vitest/node')) as unknown as VitestNode
-
-/** A value as text both sides can be compared on (a RegExp, NaN and undefined kept). */
-function encode(value: unknown): string {
-  return JSON.stringify(value, (_key, v: unknown) => {
-    if (v instanceof RegExp) return `RegExp(${String(v)})`
-    if (typeof v === 'number' && Number.isNaN(v)) return 'NaN'
-    if (v === undefined) return 'undefined'
-    return v
-  })
-}
-
-type Outcome = { readonly ok: string } | { readonly error: string }
-
-function real(args: readonly string[]): Outcome {
-  try {
-    const { filter, options } = vitestNode.parseCLI(['vitest', ...args])
-    const cli = vitestNode.createCLI()
-    cli.parse(['node', '/index.js', ...args], { run: false })
-    const command = cli.matchedCommand
-    command?.checkUnknownOptions()
-    command?.checkOptionValue()
-    command?.checkRequiredArgs()
-    return { ok: encode({ command: command?.name ?? '', filter, options }) }
-  } catch (error) {
-    const e = error as Error
-    return { error: `${e.name}: ${e.message}` }
-  }
-}
+const vitestNode = await loadVitestNode()
 
 function ours(args: readonly string[]): Outcome {
   try {
@@ -79,240 +41,7 @@ function ours(args: readonly string[]): Outcome {
   }
 }
 
-const HAND: readonly (readonly string[])[] = [
-  [],
-  ['run'],
-  ['run', 'a', 'b'],
-  ['a.test.ts:12'],
-  ['run', 'src/a.test.ts:3', 'b.test.ts'],
-  ['-t', 'adds'],
-  ['run', '-t', 'adds two'],
-  ['-t', 'a', '-t', 'b'],
-  ['-t'],
-  ['-t', '12'],
-  ['--testNamePattern=x'],
-  ['--test-name-pattern', 'x'],
-  ['--sequence.shuffle'],
-  ['--sequence.shuffle', '--sequence.seed', '3'],
-  ['--sequence.seed=12', '--sequence.shuffle.files'],
-  ['--sequence.shuffle.tests=false'],
-  ['--no-sequence.shuffle'],
-  ['--shard', '1/3'],
-  ['--shard=2/2'],
-  ['--project', 'a', '--project', 'b'],
-  ['--project=a'],
-  ['--exclude', 'x', '--exclude', 'y'],
-  ['--reporter', 'json', '--reporter', 'default'],
-  ['--reporter=json', '--outputFile', 'out.json'],
-  ['--outputFile.json', 'a.json', '--outputFile.junit', 'b.xml'],
-  ['--silent'],
-  ['--silent=passed-only'],
-  ['--silent=bogus'],
-  ['--silent', 'false'],
-  ['--no-silent'],
-  ['-u'],
-  ['-u', 'new'],
-  ['--update=all'],
-  ['--update', 'none'],
-  ['--passWithNoTests'],
-  ['--pass-with-no-tests'],
-  ['--bail', '1'],
-  ['--bail=3'],
-  ['--bail'],
-  ['--pool', 'threads'],
-  ['--pool=vmThreads'],
-  ['--maxWorkers', '2'],
-  ['--maxWorkers=50%'],
-  ['-w'],
-  ['-w', '2'],
-  ['--watch'],
-  ['watch'],
-  ['dev', 'x'],
-  ['run', '--watch'],
-  ['related', 'src/a.ts', 'src/b.ts'],
-  ['related', 'a.ts', '--passWithNoTests=false'],
-  ['list'],
-  ['list', '--json'],
-  ['list', '--json=out.json'],
-  ['list', '--filesOnly', 'a'],
-  ['list', '--json', 'a', '--json', 'b'],
-  ['run', '--json', 'a', '--json', 'b'],
-  ['list', '--changed', 'main'],
-  ['--changed'],
-  ['--changed', 'HEAD~1'],
-  ['bench'],
-  ['init'],
-  ['init', 'browser'],
-  ['doctor'],
-  ['--environment', 'jsdom'],
-  ['--environment=happy-dom'],
-  ['--globals'],
-  ['--no-globals'],
-  ['--coverage'],
-  ['--no-coverage'],
-  ['--coverage.enabled', '--coverage.provider', 'istanbul'],
-  ['--coverage.reporter', 'text', '--coverage.reporter', 'html'],
-  ['--coverage.thresholds.lines', '80'],
-  ['--coverage.thresholds.100'],
-  ['--coverage.watermarks.lines', '50,80'],
-  ['--coverage.thresholds.autoUpdate', 'yes'],
-  ['--coverage.changed=no'],
-  ['--browser'],
-  ['--browser', 'chrome'],
-  ['--browser=false'],
-  ['--browser.enabled'],
-  ['--browser.name=firefox', '--browser.headless'],
-  ['--browser.trace', 'on'],
-  ['--typecheck'],
-  ['--typecheck.only'],
-  ['--api', '3000'],
-  ['--api.port', '3000'],
-  ['--api'],
-  ['--inspect'],
-  ['--inspect=0'],
-  ['--inspect', '127.0.0.1:9230'],
-  ['--inspectBrk=yes'],
-  ['--retry', '2'],
-  ['--retry.count', '2', '--retry.condition', 'flaky'],
-  ['--retry.condition=('],
-  ['--expect', '1'],
-  ['--expect.requireAssertions'],
-  ['--expect.poll.timeout', '100'],
-  ['--expect.poll', '3'],
-  ['--mergeReports'],
-  ['--mergeReports', 'dir'],
-  ['--root', 'a'],
-  ['--root', 'a', '--root', 'b'],
-  ['-r', './a/../b/'],
-  ['--dir', 'src\\\\x'],
-  ['--config', './vitest.config.ts'],
-  ['-c', 'x.ts'],
-  ['--config'],
-  ['--mode', 'staging'],
-  ['--color'],
-  ['--no-color'],
-  ['--bogus'],
-  ['-x'],
-  ['--bogus.deep=1'],
-  ['--', '--bogus', 'x'],
-  ['run', '--', 'a'],
-  ['--testTimeout', '100', '--hookTimeout=200'],
-  ['--isolate=false'],
-  ['--no-isolate'],
-  ['--fileParallelism', 'false'],
-  ['--diff.expand', '--diff.contextLines', '2'],
-  ['--experimental.importDurations'],
-  ['--experimental.importDurations.print', 'on-warn'],
-  ['--execArgv', '--x', '--execArgv=--y'],
-  ['--logHeapUsage'],
-  ['--dom'],
-  ['--clearCache'],
-  ['--listTags'],
-  ['--listTags=json'],
-  ['--tagsFilter', 'a', '--tagsFilter', 'b'],
-  ['--includeTaskLocation'],
-  ['--"quoted"'],
-  ['-t', '"quoted"'],
-  ['-t', "'single'"],
-  ['--exclude', '"a"', '--exclude', "'b'"],
-  ['---x'],
-  ['-tu', 'x'],
-  ['-ut', 'x'],
-  ['--=x'],
-  ['-'],
-  [''],
-  ['run', ''],
-  ['x', 'run'],
-  ['complete'],
-  ['--standalone'],
-  ['--ui'],
-  ['--open=false'],
-  ['--vmMemoryLimit', '1G'],
-  ['--attachmentsDir', 'x'],
-  ['--maxConcurrency', '3'],
-  ['--allowOnly'],
-  ['--repeats', '2'],
-  ['--slowTestThreshold=10'],
-  ['--detectAsyncLeaks'],
-  ['--printConsoleTrace'],
-  ['--configLoader', 'runner'],
-  ['--clearScreen=false'],
-  ['--strictTags'],
-  ['--hideSkippedTests'],
-  ['--injectCjsGlobals=false'],
-  ['--fsModuleCache'],
-  ['--cache=false'],
-  ['--teardownTimeout', '5'],
-  ['--disableConsoleIntercept'],
-  ['--dangerouslyIgnoreUnhandledErrors'],
-  ['--expandSnapshotDiff'],
-  ['--sharedViteServer'],
-]
-
-/** Every option in its forms: bare, with `=`, with a value after it, negated, twice. */
-function forms(): (readonly string[])[] {
-  const out: (readonly string[])[] = []
-  for (const row of [...VITEST_CLI_OPTIONS, ...VITEST_LIST_OPTIONS]) {
-    if (row.path === 'help' || row.path === 'version') continue
-    const names = row.flag.replace(/ [<[].*$/, '').split(', ')
-    for (const name of names) {
-      out.push([name], [`${name}=1`], [name, 'v'], [name, 'a', name, 'b'], [`${name}=false`])
-      if (name.startsWith('--')) out.push([`--no-${name.slice(2)}`])
-      out.push(['list', name, 'x'])
-    }
-  }
-  return out
-}
-
-/** A seeded set (mulberry32): random lines over the table's names, values and commands. */
-function seeded(count: number): (readonly string[])[] {
-  let seed = 20261120
-  const random = (): number => {
-    seed = (seed + 0x6d2b79f5) | 0
-    let t = Math.imul(seed ^ (seed >>> 15), 1 | seed)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
-  const pick = <T>(items: readonly T[]): T => items[Math.floor(random() * items.length)] as T
-  const names = VITEST_CLI_OPTIONS.filter(
-    (row) => row.path !== 'help' && row.path !== 'version',
-  ).flatMap((row) => row.flag.replace(/ [<[].*$/, '').split(', '))
-  const values = [
-    '1',
-    '0',
-    'true',
-    'false',
-    'yes',
-    'no',
-    'a',
-    'a,b',
-    '"q"',
-    '50%',
-    '2/3',
-    '-1',
-    'x.ts:3',
-    '',
-  ]
-  const commands = ['', '', '', 'run', 'list', 'watch', 'related', 'bench']
-  const out: (readonly string[])[] = []
-  for (let i = 0; i < count; i++) {
-    const line: string[] = []
-    const command = pick(commands)
-    if (command !== '') line.push(command)
-    const length = 1 + Math.floor(random() * 4)
-    for (let j = 0; j < length; j++) {
-      const name = pick(names)
-      const form = Math.floor(random() * 5)
-      if (form === 0) line.push(name)
-      else if (form === 1) line.push(`${name}=${pick(values)}`)
-      else if (form === 2) line.push(name, pick(values))
-      else if (form === 3 && name.startsWith('--')) line.push(`--no-${name.slice(2)}`)
-      else line.push(pick(['a.test.ts', 'src/b.ts:4', 'c']))
-    }
-    out.push(line)
-  }
-  return out
-}
+const RECORD = 'pnpm --filter @provino/dialect-vitest record:cli'
 
 describe('vitestCli against vitest/node 5.0.5', () => {
   it('registers the options createCLI registers, in its order', () => {
@@ -329,22 +58,38 @@ describe('vitestCli against vitest/node 5.0.5', () => {
     )
   })
 
-  // D194 exception (Tyler, 2026-11-23): a whole-repo or whole-corpus test that had no timeout under node:test; 120 s is too tight on a loaded CI runner
-  it('parses as parseCLI and checks as the bin, on every line of the corpus', {
-    timeout: 600_000,
-  }, () => {
-    const corpus = [...HAND, ...forms(), ...seeded(800)]
+  // The real side over the whole corpus is the recording (`internal/cli-corpus.ts`): two
+  // `createCLI()` calls a line made this test the slowest in the package.
+  it('the recording is of this Vitest and this corpus, and the hand-written lines get it live', () => {
+    const corpus = cliCorpus()
+    const golden = readCliGolden()
+    assert.equal(golden.vitest, installedVitestVersion(), `Vitest moved: run \`${RECORD}\``)
+    assert.equal(golden.corpus, corpusHash(corpus), `the corpus changed: run \`${RECORD}\``)
+    assert.equal(golden.outcomes.length, corpus.length)
+    HAND.forEach((args, index) => {
+      assert.equal(
+        encode(golden.outcomes[index]),
+        encode(realOutcome(vitestNode, args)),
+        `${JSON.stringify(args)}: the recording is not what parseCLI says: run \`${RECORD}\``,
+      )
+    })
+  })
+
+  it('parses as parseCLI and checks as the bin, on every line of the corpus', () => {
+    const corpus = cliCorpus()
     assert.ok(corpus.length > 2000, `corpus of ${corpus.length}`)
+    const golden = readCliGolden()
+    assert.equal(golden.corpus, corpusHash(corpus), `the corpus changed: run \`${RECORD}\``)
     const failures: string[] = []
-    for (const args of corpus) {
-      const expected = real(args)
+    corpus.forEach((args, index) => {
+      const expected = golden.outcomes[index]
       const actual = ours(args)
       if (encode(expected) !== encode(actual)) {
         failures.push(
           `${JSON.stringify(args)}\n  vitest:  ${encode(expected)}\n  provino: ${encode(actual)}`,
         )
       }
-    }
+    })
     assert.equal(failures.length, 0, failures.slice(0, 10).join('\n'))
   })
 })

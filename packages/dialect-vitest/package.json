@@ -50,6 +50,7 @@
   },
   "scripts": {
     "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
+    "record:cli": "node --conditions=provino-source src/node/internal/cli-record.ts",
     "test": "node ../../packages/provino/dist/cli.js run && node --test --conditions=provino-source src/node/environment-options-key.test.ts src/node/goldens.test.ts src/node/load.test.ts src/node/reader.test.ts src/runtime/expect-table.test.ts src/runtime/globals.test.ts"
   },
   "dependencies": {
