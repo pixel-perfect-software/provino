@@ -33,6 +33,8 @@ const pinned: Readonly<Record<string, unknown>> = {
     unstubGlobals: true,
   },
   'timers.toFakeDefault': 'all-but-microtasks',
+  // Tyler, 2026-11-23 (B27h2, speed): Node's own interop, no wrapping.
+  'module.interopDefault': 'node',
   'module.factoryShape': 'namespace',
   'module.missingFactoryExport': 'throw',
   'module.rootMocksAutoApply': false,
