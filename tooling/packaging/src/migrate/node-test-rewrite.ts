@@ -109,9 +109,6 @@ function returnsOf(fn: AstNode): AstNode[] {
   return found
 }
 
-/** Whether the tests in a describe run at once: node:test's `concurrency`, which a describe inherits. */
-type Concurrency = 'yes' | 'no' | 'unknown'
-
 type Mod =
   | { readonly kind: 'skip' | 'todo' | 'only' }
   | { readonly kind: 'skipIf'; readonly condition: string }
@@ -216,14 +213,6 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
   const callbackKinds = new Map<number, 'suite' | 'test' | 'hook'>()
   /** The functions around the node being walked, outermost first (`other` is any unregistered one). */
   const functionKinds: ('suite' | 'test' | 'hook' | 'other')[] = []
-  /** Where each of those functions starts, to find a suite callback's concurrency. */
-  const functionStarts: number[] = []
-  /**
-   * Whether the tests and describes in a suite callback run concurrently, by the callback's start:
-   * its own `concurrency` option, else (as node:test makes a describe follow its parent) the one
-   * around it.
-   */
-  const suiteConcurrency = new Map<number, Concurrency>()
   /** Locals whose every hook call became onTestFinished: their native import would be unused. */
   const hookCalls = new Map<string, { total: number; retargeted: number }>()
 
@@ -285,35 +274,22 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
     }
   }
 
-  /** What a function around a describe says about the concurrency its describes follow. */
-  function enclosingConcurrency(): Concurrency {
-    const kind = functionKinds.at(-1)
-    if (kind === undefined) return 'no'
-    if (kind !== 'suite') return 'unknown'
-    return suiteConcurrency.get(functionStarts.at(-1) ?? -1) ?? 'unknown'
-  }
-
   /**
    * `{ skip, todo, only, timeout }` of a test or suite: the one modifier and the timeout text. A
-   * suite's `{ concurrency: true }` is `concurrency: 'yes'` (the native `describe.concurrent`, which
-   * chains with each modifier), and `false` or `1`, node:test's serial, is `'no'`; the caller
-   * decides what that needs where concurrent describes are around it. Any other value, and
-   * `concurrency` on a test, has no native form.
+   * suite's `{ concurrency: true }` is `concurrent: true` (the native `describe.concurrent`, which
+   * chains with each modifier) and `false` or `1`, node:test's serial, is `concurrent: false`
+   * (`{ concurrent: false }`, written whatever is around it: a describe under none is serial
+   * either way, and under a concurrent one node:test and Provino both make it follow its parent
+   * unless it says so). Any other value, and `concurrency` on a test, has no native form.
    */
   function optionsPlan(
     options: AstNode,
     modified: boolean,
     role: Registration['role'],
-  ): {
-    mod: Mod | undefined
-    timeout: string | undefined
-    concurrency: 'yes' | 'no' | undefined
-    concurrencyAt: AstNode
-  } {
+  ): { mod: Mod | undefined; timeout: string | undefined; concurrent: boolean | undefined } {
     const mods: Mod[] = []
     let timeout: string | undefined
-    let concurrency: 'yes' | 'no' | undefined
-    let concurrencyAt = options
+    let concurrent: boolean | undefined
     for (const prop of listOf(options, 'properties')) {
       const key = nodeOf(prop, 'key')
       const keyName = get(prop, 'computed') === true ? null : (nameOf(key) ?? stringValue(key))
@@ -335,9 +311,8 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
         mods.push(literal ? { kind: 'skip' } : { kind: 'skipIf', condition: text(value) })
       } else if (keyName === 'concurrency' && role === 'suite') {
         const flag = literal ? get(value, 'value') : undefined
-        concurrencyAt = prop
-        if (flag === true) concurrency = 'yes'
-        else if (flag === false || flag === 1) concurrency = 'no'
+        if (flag === true || flag === false) concurrent = flag
+        else if (flag === 1) concurrent = false
         else {
           refuse(
             prop,
@@ -355,7 +330,7 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
     if (mods.length > 1 || (mods.length > 0 && modified)) {
       refuse(options, 'more than one skip, todo or only on one test')
     }
-    return { mod: mods[0], timeout, concurrency, concurrencyAt }
+    return { mod: mods[0], timeout, concurrent }
   }
 
   /**
@@ -433,31 +408,9 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
     const last = rest.at(-1)
     const fn = isCallback(last) ? last : null
     const [options, ...extra] = fn === null ? rest : rest.slice(0, -1)
-    // What this describe's callback follows: its own `concurrency`, else the describe around it.
-    const enclosing = reg.role === 'suite' ? enclosingConcurrency() : 'no'
-    let followed: Concurrency = enclosing
     if (options !== undefined && name !== undefined) {
       if (options.type === 'ObjectExpression') {
-        const { mod, timeout, concurrency, concurrencyAt } = optionsPlan(
-          options,
-          reg.modified,
-          reg.role,
-        )
-        // node:test makes a describe with no option follow its parent, so a serial one under a
-        // concurrent describe must say so (`{ concurrent: false }`); with none around it, serial
-        // is the default and the option goes.
-        let serial = false
-        if (concurrency === 'yes') followed = 'yes'
-        else if (concurrency === 'no') {
-          followed = 'no'
-          if (enclosing === 'yes') serial = true
-          else if (enclosing === 'unknown') {
-            refuse(
-              concurrencyAt,
-              'describe option concurrency false or 1 is in a function: whether a concurrent describe is around it depends on the caller, and under one a describe with no option would follow it. Hand edit: write { concurrent: false } if a concurrent describe calls it, else drop the option',
-            )
-          }
-        }
+        const { mod, timeout, concurrent } = optionsPlan(options, reg.modified, reg.role)
         const modifier =
           mod === undefined
             ? ''
@@ -467,11 +420,11 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
         // At the callee's end: `describe` or an already modified `describe.skip` (which then has no
         // modifier of its own in the options: that was refused above).
         const callee = nodeOf(call, 'callee')
-        if (callee !== null && (modifier !== '' || concurrency === 'yes')) {
-          edited.appendLeft(callee.end, modifier + (concurrency === 'yes' ? '.concurrent' : ''))
+        if (callee !== null && (modifier !== '' || concurrent === true)) {
+          edited.appendLeft(callee.end, modifier + (concurrent === true ? '.concurrent' : ''))
         }
         const kept = [
-          ...(serial ? ['concurrent: false'] : []),
+          ...(concurrent === false ? ['concurrent: false'] : []),
           ...(timeout === undefined ? [] : [`timeout: ${timeout}`]),
         ]
         if (kept.length === 0) edited.remove(name.end, options.end)
@@ -484,7 +437,6 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
     if (fn === null) return
     callbackKinds.set(fn.start, reg.role === 'suite' ? 'suite' : 'test')
     if (reg.role === 'suite') {
-      suiteConcurrency.set(fn.start, followed)
       if (get(fn, 'async') === true) refuse(fn, 'async describe callback')
       if (listOf(fn, 'params').length > 0) {
         refuse(fn, 'describe callback takes a parameter (a node:test suite context)')
@@ -578,10 +530,7 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
       const at = node as unknown as AstNode
       const above = parent as unknown as AstNode | null
       otherReach(at)
-      if (FUNCTIONS.has(at.type)) {
-        functionKinds.push(callbackKinds.get(at.start) ?? 'other')
-        functionStarts.push(at.start)
-      }
+      if (FUNCTIONS.has(at.type)) functionKinds.push(callbackKinds.get(at.start) ?? 'other')
       if (at.type === 'CallExpression') {
         const reg = classify(at)
         if (reg === null) return
@@ -594,10 +543,7 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
       }
     },
     leave(node) {
-      if (FUNCTIONS.has((node as unknown as AstNode).type)) {
-        functionKinds.pop()
-        functionStarts.pop()
-      }
+      if (FUNCTIONS.has((node as unknown as AstNode).type)) functionKinds.pop()
     },
   })
 
