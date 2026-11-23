@@ -4,7 +4,15 @@
 // reading a `mock`-prefixed variable and a `__mocks__` file. The same fixture runs end to end, with
 // real Jest's statuses beside it, in `packages/provino/test/transformers.test.ts`.
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -19,11 +27,14 @@ const fixture = fileURLToPath(new URL('../../fixtures/jest-host/', import.meta.u
   '',
 )
 const testFile = join(fixture, 'src/greeter.test.ts')
+// Scratch files go here: git-ignored, and skipped by the boundaries scan (which lists the rest of
+// the fixture, so a test never writes there).
+const work = join(fixture, '.work')
 const source = readFileSync(testFile, 'utf8')
 
 const temps: string[] = []
 afterAll(() => {
-  for (const dir of temps) rmSync(dir, { recursive: true, force: true })
+  for (const dir of [...temps, work]) rmSync(dir, { recursive: true, force: true })
 })
 
 function projectConfig(rootDir: string): Record<string, JsonValue> {
@@ -38,7 +49,7 @@ function projectConfig(rootDir: string): Record<string, JsonValue> {
     transform: [],
     extensionsToTreatAsEsm: [],
     testPathIgnorePatterns: [],
-    cacheDirectory: join(rootDir, '.cache'),
+    cacheDirectory: join(rootDir, '.work', 'cache'),
     fakeTimers: {},
     setupFiles: [],
     testEnvironmentOptions: {},
@@ -257,11 +268,8 @@ describe('routing', () => {
 
   /**
    * A factory reading `window` and a module-scope `suffix`, through a real transformer that hoists
-   * by itself and checks nothing. ts-jest reads the file from disk, so it is written to a temp
-   * directory (removed after the file's tests), never into the checked-in fixture: the boundaries
-   * scan lists that folder while this runs, and a file that is deleted between its listing and its
-   * read failed it (B27h3). Both transformers take their options from the fixture's config
-   * (`rootDir`, `tsconfig.json`), not from where the file sits.
+   * by itself and checks nothing. ts-jest reads the file from disk, so it is written to a scratch
+   * directory under `work`, with a copy of `./deps`, and removed after the file's tests.
    */
   async function factoriesCheckedOnlyWhenFlagged(tool: (typeof tools)[keyof typeof tools]) {
     const outOfScope = [
@@ -271,8 +279,10 @@ describe('routing', () => {
       "test('f', () => f())",
       '',
     ].join('\n')
-    const dir = realpathSync(mkdtempSync(join(tmpdir(), 'provino-jest-host-scope-')))
+    mkdirSync(work, { recursive: true })
+    const dir = mkdtempSync(join(work, 'scope-'))
     temps.push(dir)
+    copyFileSync(join(fixture, 'src/deps.ts'), join(dir, 'deps.ts'))
     const file = join(dir, 'scope.test.ts')
     writeFileSync(file, outOfScope)
     const base = config(tool.module, tool.options)
