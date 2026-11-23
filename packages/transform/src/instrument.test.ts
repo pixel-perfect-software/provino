@@ -8,14 +8,14 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
 import type { CoverageInstrumenter, SourceMapV3, TransformRequest } from '@provino/types'
+import { afterAll, test } from 'provino'
 import { blockPolicy } from './hoist/test-policies.ts'
 import type { HostedSource, JestHost } from './jest-host/index.ts'
 import { createPipeline, type PipelineOptions } from './pipeline.ts'
 
 const roots: string[] = []
-after(() => {
+afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true })
 })
 

@@ -1,8 +1,8 @@
 // Rules the B13b pre-merge review found wrong against the real hoisters, one finding per group. The
 // real outcome of each was read from `babel-plugin-jest-hoist` 30.5 and `@vitest/mocker` 5.0.5.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { HoistPolicy } from '@provino/types'
+import { test } from 'provino'
 import { hoistMocks } from './index.ts'
 import { assertOrder, assertUntouched, errorCodes, hoist } from './test-helpers.ts'
 import { blockPolicy, topLevelPolicy } from './test-policies.ts'

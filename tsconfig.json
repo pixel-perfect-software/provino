@@ -41,7 +41,13 @@
       "path": "packages/resolver"
     },
     {
+      "path": "packages/resolver/tsconfig.tests.json"
+    },
+    {
       "path": "packages/transform"
+    },
+    {
+      "path": "packages/transform/tsconfig.tests.json"
     },
     {
       "path": "packages/resolver/bench"

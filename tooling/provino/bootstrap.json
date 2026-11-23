@@ -2,6 +2,7 @@
   "files": {
     "packages/lazy/src/api.test.ts": "Four tests assume no lazy runtime is installed and that the slot is the process's own; under Provino the worker owns that process-global slot, so they cannot run inside it (B27g1).",
     "packages/lazy/src/read.test.ts": "The unhandled-rejection test owns the process-wide rejection handler the runner's worker already holds (B27g1).",
-    "packages/provino/test/bootstrap/canary.test.ts": "The canary: it runs the built runner on a fixture with known failures and asserts they are reported, so a runner that reports green wrongly is caught (D203). It must not depend on the runner it checks."
+    "packages/provino/test/bootstrap/canary.test.ts": "The canary: it runs the built runner on a fixture with known failures and asserts they are reported, so a runner that reports green wrongly is caught (D203). It must not depend on the runner it checks.",
+    "packages/transform/src/pipeline.test.ts": "Runner bug (B27h): the worker installs its own Error.prepareStackTrace, so process.setSourceMapsEnabled(true) no longer maps a stack to the original .ts line, and two tests expecting `boom.ts:6:9` get the generated .mjs position."
   }
 }

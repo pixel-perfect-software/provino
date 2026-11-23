@@ -1,7 +1,7 @@
 // B20 (T3.13): our module-runner transform against oracle A (oxc's, as ASTs) and oracle B (run in a
 // stub linker) on the scoping corpus. The big corpora (fuzz, excalidraw) are `bench:runner-diff`.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { EXEMPTIONS } from './runner-exemptions.ts'
 import {
   compareExecutions,

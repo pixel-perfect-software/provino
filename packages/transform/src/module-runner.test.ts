@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping'
 import type { TransformRecord } from '@provino/types'
+import { test } from 'provino'
 import { toModuleRunner } from './module-runner.ts'
 import { createPipeline } from './pipeline.ts'
 
