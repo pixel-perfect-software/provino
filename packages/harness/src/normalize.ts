@@ -55,6 +55,16 @@ const DURATION_SUMMARY = new RegExp(
   'gm',
 )
 
+// A PASS/FAIL file header gains the file's runtime only when the file is slow (over Jest's
+// `slowTestThreshold`, 5 s): `PASS ./a.test.ts (5.2 s)`, and with `--logHeapUsage`
+// `(5.2 s, 45 MB heap size)`. Provino's text reporter copies it. Whether the time is there depends on
+// how loaded the machine is, so no recording pins it: the time goes from the header and the heap
+// stays. Only a line that starts with PASS or FAIL and ends in the parenthesis is a header.
+const SLOW_FILE_HEADER = new RegExp(
+  String.raw`^([ \t]*(?:PASS|FAIL)[ \t][^\r\n]*?)[ \t]\(${TIME}(, [^\r\n()]*)?\)[ \t]*$`,
+  'gm',
+)
+
 const UUID = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi
 const HEX_ADDRESS = /\b0x[0-9a-f]{8,}\b/gi
 
@@ -188,7 +198,13 @@ const SPECS: readonly RuleSpec[] = [
   {
     id: 'durations',
     scope: 'message',
-    run: (s) => s.replace(DURATION_IN_PARENS, '(<dur>)').replace(DURATION_SUMMARY, '$1<dur>'),
+    run: (s) =>
+      s
+        .replace(SLOW_FILE_HEADER, (_match, header: string, heap: string | undefined) =>
+          heap === undefined ? header : `${header} (${heap.slice(2)})`,
+        )
+        .replace(DURATION_IN_PARENS, '(<dur>)')
+        .replace(DURATION_SUMMARY, '$1<dur>'),
   },
   {
     id: 'placeholders',
