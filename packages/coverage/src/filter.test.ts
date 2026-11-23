@@ -4,9 +4,9 @@
 // node_modules). A file is instrumented when both agree; the filter must say the same, in-process.
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
-import { test } from 'node:test'
 import { shouldInstrument } from '@jest/transform'
 import type { SerializedCoverageConfig } from '@provino/types'
+import { test } from 'provino'
 import { createCoverageFilter } from './filter.ts'
 
 const nodeRequire = createRequire(import.meta.url)

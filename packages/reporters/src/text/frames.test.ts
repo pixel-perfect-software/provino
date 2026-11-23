@@ -2,8 +2,8 @@
 // frames stay, from a workspace checkout (`packages/<name>/src`) and from an install
 // (`node_modules/provino/dist`, `node_modules/@provino/<name>`).
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { test } from 'provino'
 import { error } from '../internal/test-support.ts'
 import { formatError, frames, isProvinoFrame } from './format.ts'
 

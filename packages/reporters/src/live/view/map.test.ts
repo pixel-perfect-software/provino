@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { type FileKind, type FolderFile, groupByFolder } from '../../internal/views/folders.ts'
 import { createStyle } from '../../style.ts'
 import { GLYPHS } from '../terminal/glyphs.ts'

@@ -2,7 +2,7 @@
 // cycle. Each fixture runs through native Node and through Provino's loader and the observations
 // are diffed (`../internal/test-support.ts`). A divergence pins what Provino does and names its id.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { expectDivergence, expectSame, TRACE } from '../internal/test-support.ts'
 
 test('live-binding-let: an exported let that a function bumps shows through every import form, and a default export is a snapshot', async () => {

@@ -4,14 +4,14 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
 import type { SerializedLoaderConfig } from '@provino/types'
+import { afterAll, test } from 'provino'
 import { createProjectLoader } from './project.ts'
 import { installSourceMappedStacks } from './stacks.ts'
 
 const roots: string[] = []
-after(() => {
+afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true })
 })
 

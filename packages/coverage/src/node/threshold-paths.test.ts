@@ -5,7 +5,7 @@
 // `glob.sync(pattern, { windowsPathsNoEscape: true })`, which turns every `\` into `/` first.
 import assert from 'node:assert/strict'
 import { posix, win32 } from 'node:path'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { absoluteGroup, globPatternOf } from './threshold-paths.ts'
 
 const WIN_CWD = 'C:\\proj'

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { fakeClock } from '../test-support.ts'
 import { createFrameScheduler, createImmediateFlusher } from './scheduler.ts'
 

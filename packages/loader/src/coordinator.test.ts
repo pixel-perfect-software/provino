@@ -6,9 +6,9 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { createRequire, syncBuiltinESMExports } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, test } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
 import type { SerializedLoaderConfig } from '@provino/types'
+import { afterAll, test } from 'provino'
 import {
   type CoordinatorLoader,
   coordinatorModulePolicy,
@@ -17,7 +17,7 @@ import {
 import { reevaluatesExternals } from './reevaluation.ts'
 
 const roots: string[] = []
-after(() => {
+afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true })
 })
 

@@ -3,8 +3,8 @@
 // reporters it follows. The claims about Jest's own text are held by `provino`'s
 // `jest-reporters.test.ts` against recordings; these goldens pin Provino's text.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { Reporter } from '@provino/types'
+import { describe, test } from 'provino'
 import { defaultReporter } from '../default/reporter.ts'
 import { expectGolden } from '../internal/golden.ts'
 import { FIXTURE_FILES, JEST_REPORT, playFixture, playThrough } from '../internal/test-support.ts'

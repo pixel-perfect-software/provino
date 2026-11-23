@@ -3,8 +3,8 @@
 // not a terminal and on one that is. The text reporters differ between the two (colour, the live
 // block); `json`, `junit` and `github-actions` do not, and are held to the same bytes both ways.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { Reporter } from '@provino/types'
+import { describe, test } from 'provino'
 import { agentReporter } from './agent/reporter.ts'
 import { defaultReporter } from './default/reporter.ts'
 import { dotReporter } from './dot/reporter.ts'

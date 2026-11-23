@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { Reporter, ReportPolicy } from '@provino/types'
+import { describe, test } from 'provino'
 import { agentReporter } from '../agent/reporter.ts'
 import { createReporterBus } from '../bus.ts'
 import { defaultReporter } from '../default/reporter.ts'

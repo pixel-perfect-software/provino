@@ -6,14 +6,14 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
 import type { IstanbulFileCoverageData } from '@provino/types'
+import { afterAll, test } from 'provino'
 import { loadCoverageReporting } from './index.ts'
 
 const reporting = await loadCoverageReporting()
 
 const dirs: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(dirs.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

@@ -3,7 +3,7 @@
 // AA contrast in both schemes (1.4.3 for text, 1.4.11 for the borders, bars and focus ring).
 
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { DARK_COLOURS, LIGHT_COLOURS, STYLES } from './page/styles.ts'
 
 /** The colour tokens of a block of declarations. */

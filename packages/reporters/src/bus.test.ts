@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { Reporter, SerializedError } from '@provino/types'
+import { describe, test } from 'provino'
 import { createReporterBus } from './bus.ts'
 import { defineReporter } from './define.ts'
 import { error, fileInfo, recorder } from './internal/test-support.ts'

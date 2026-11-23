@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { FileInfo } from '@provino/types'
+import { test } from 'provino'
 import { fileInfo } from '../../internal/test-support.ts'
 import { createEstimator } from './estimate.ts'
 import { createRunState, RING_CAPACITY, SLOWEST } from './state.ts'

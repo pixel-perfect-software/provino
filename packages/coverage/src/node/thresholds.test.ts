@@ -7,17 +7,17 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
 import { CoverageReporter } from '@jest/reporters'
 import type { CoverageThresholdGroup, IstanbulFileCoverageData } from '@provino/types'
 import libCoverage from 'istanbul-lib-coverage'
+import { afterAll, test } from 'provino'
 import { CoverageError } from '../errors.ts'
 import { checkThresholds, type ThresholdPolicy } from './thresholds.ts'
 
 const root = realpathSync(mkdtempSync(join(tmpdir(), 'provino-thresholds-')))
 const previousCwd = process.cwd()
 process.chdir(root)
-after(() => {
+afterAll(() => {
   process.chdir(previousCwd)
   rmSync(root, { recursive: true, force: true })
 })

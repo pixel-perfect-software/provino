@@ -4,7 +4,7 @@
 // columns; one footer state; the two end cards; and the `--tree` and `--map` views (B26 Phase 4)
 // over the fixture's files laid out in folders. `PROVINO_UPDATE_GOLDENS=1` writes them.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { createReporterBus } from '../bus.ts'
 import { expectGolden } from '../internal/golden.ts'
 import {

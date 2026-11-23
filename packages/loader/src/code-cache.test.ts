@@ -18,17 +18,17 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { neutralPolicy } from '@provino/policy'
 import type { CoverageInstrumenter, SerializedLoaderConfig } from '@provino/types'
+import { afterAll, test } from 'provino'
 import { CODE_CACHE_WRITE_BATCH } from './internal/records.ts'
 import { loaderOptionsFor } from './internal/test-support.ts'
 import { createLoader } from './loader.ts'
 import { createProjectLoader, type ProjectLoaderOptions } from './project.ts'
 
 const roots: string[] = []
-after(() => {
+afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true })
 })
 
