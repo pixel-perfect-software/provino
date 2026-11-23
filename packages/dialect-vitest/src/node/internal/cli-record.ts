@@ -1,7 +1,7 @@
 // Records real Vitest's answer to every line of the CLI corpus (`cli-corpus.ts`) into
 // `__goldens__/cli-corpus.json`: `pnpm --filter @provino/dialect-vitest record:cli`. With `--check`
 // it writes nothing and exits 1 when the committed recording differs from a fresh one.
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import process from 'node:process'
 import {
   CLI_GOLDEN_PATH,
@@ -22,14 +22,7 @@ const text = serializeCliGolden({
   outcomes: corpus.map((args) => realOutcome(vitestNode, args)),
 })
 if (check) {
-  const committed = (() => {
-    try {
-      return readFileSync(CLI_GOLDEN_PATH, 'utf8')
-    } catch {
-      return undefined
-    }
-  })()
-  if (committed !== text) {
+  if (!existsSync(CLI_GOLDEN_PATH) || readFileSync(CLI_GOLDEN_PATH, 'utf8') !== text) {
     console.error(
       `${CLI_GOLDEN_PATH} is stale: run \`pnpm --filter @provino/dialect-vitest record:cli\``,
     )

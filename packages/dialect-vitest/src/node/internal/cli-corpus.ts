@@ -6,9 +6,10 @@
 // changing, and still asks the real `parseCLI` live for every hand-written line.
 import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
-import { createRequire } from 'node:module'
+import { findPackageJSON } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { VITEST_CLI_OPTIONS, VITEST_LIST_OPTIONS } from '../cli-table.ts'
+import { isRec, type Rec } from '../util.ts'
 
 /** @internal */
 export interface CacLike {
@@ -41,11 +42,11 @@ export async function loadVitestNode(): Promise<VitestNode> {
 
 /** The installed Vitest's version, from its own `package.json`. @internal */
 export function installedVitestVersion(): string {
-  const require = createRequire(fileURLToPath(import.meta.resolve('vitest')))
-  const manifest: unknown = require('vitest/package.json')
-  const version =
-    typeof manifest === 'object' && manifest !== null ? Reflect.get(manifest, 'version') : undefined
-  if (typeof version !== 'string') throw new TypeError('vitest/package.json has no version')
+  const path = findPackageJSON('vitest', import.meta.url)
+  if (path === undefined) throw new Error('vitest is not installed')
+  const manifest: unknown = JSON.parse(readFileSync(path, 'utf8'))
+  const version = isRec(manifest) ? manifest.version : undefined
+  if (typeof version !== 'string') throw new TypeError(`${path} has no version`)
   return version
 }
 
@@ -344,13 +345,9 @@ export function serializeCliGolden(golden: CliGolden): string {
 }
 
 /** Reads the recording, checking its shape. @internal */
-export function readCliGolden(path: string = CLI_GOLDEN_PATH): CliGolden {
-  const json: unknown = JSON.parse(readFileSync(path, 'utf8'))
-  const field = (key: string): unknown =>
-    typeof json === 'object' && json !== null ? Reflect.get(json, key) : undefined
-  const vitest = field('vitest')
-  const corpus = field('corpus')
-  const outcomes = field('outcomes')
+export function readCliGolden(): CliGolden {
+  const json: unknown = JSON.parse(readFileSync(CLI_GOLDEN_PATH, 'utf8'))
+  const { vitest, corpus, outcomes }: Rec = isRec(json) ? json : {}
   const isOutcome = (value: unknown): value is Outcome =>
     typeof value === 'object' &&
     value !== null &&
@@ -363,7 +360,7 @@ export function readCliGolden(path: string = CLI_GOLDEN_PATH): CliGolden {
     !Array.isArray(outcomes) ||
     !outcomes.every(isOutcome)
   ) {
-    throw new TypeError(`${path} is not a CLI corpus recording`)
+    throw new TypeError(`${CLI_GOLDEN_PATH} is not a CLI corpus recording`)
   }
   return { vitest, corpus, outcomes }
 }

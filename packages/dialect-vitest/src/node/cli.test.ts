@@ -43,6 +43,16 @@ function ours(args: readonly string[]): Outcome {
 
 const RECORD = 'pnpm --filter @provino/dialect-vitest record:cli'
 
+/** The corpus and its recording, once the recording is known to be of this Vitest and this corpus. */
+function checkedGolden() {
+  const corpus = cliCorpus()
+  const golden = readCliGolden()
+  assert.equal(golden.vitest, installedVitestVersion(), `Vitest moved: run \`${RECORD}\``)
+  assert.equal(golden.corpus, corpusHash(corpus), `the corpus changed: run \`${RECORD}\``)
+  assert.equal(golden.outcomes.length, corpus.length)
+  return { corpus, golden }
+}
+
 describe('vitestCli against vitest/node 5.0.5', () => {
   it('registers the options createCLI registers, in its order', () => {
     const cli = vitestNode.createCLI()
@@ -61,25 +71,19 @@ describe('vitestCli against vitest/node 5.0.5', () => {
   // The real side over the whole corpus is the recording (`internal/cli-corpus.ts`): two
   // `createCLI()` calls a line made this test the slowest in the package.
   it('the recording is of this Vitest and this corpus, and the hand-written lines get it live', () => {
-    const corpus = cliCorpus()
-    const golden = readCliGolden()
-    assert.equal(golden.vitest, installedVitestVersion(), `Vitest moved: run \`${RECORD}\``)
-    assert.equal(golden.corpus, corpusHash(corpus), `the corpus changed: run \`${RECORD}\``)
-    assert.equal(golden.outcomes.length, corpus.length)
+    const { golden } = checkedGolden()
     HAND.forEach((args, index) => {
-      assert.equal(
-        encode(golden.outcomes[index]),
-        encode(realOutcome(vitestNode, args)),
+      assert.deepEqual(
+        golden.outcomes[index],
+        realOutcome(vitestNode, args),
         `${JSON.stringify(args)}: the recording is not what parseCLI says: run \`${RECORD}\``,
       )
     })
   })
 
   it('parses as parseCLI and checks as the bin, on every line of the corpus', () => {
-    const corpus = cliCorpus()
+    const { corpus, golden } = checkedGolden()
     assert.ok(corpus.length > 2000, `corpus of ${corpus.length}`)
-    const golden = readCliGolden()
-    assert.equal(golden.corpus, corpusHash(corpus), `the corpus changed: run \`${RECORD}\``)
     const failures: string[] = []
     corpus.forEach((args, index) => {
       const expected = golden.outcomes[index]
