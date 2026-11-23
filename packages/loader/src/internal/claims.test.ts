@@ -3,7 +3,7 @@
 // Jest 30.5.2 is `provino`'s `transform-node-modules.test.ts`.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { claimedLoad, isClaimedExternal, isClaimedUserModule } from './claims.ts'
 import { createRecords } from './records.ts'
 import { loaderOptionsFor, writeTree } from './test-support.ts'

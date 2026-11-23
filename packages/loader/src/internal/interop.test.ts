@@ -1,7 +1,7 @@
 // The interop contract (B13c Gap 3), as B13b's fake loader held it against the mod-corpus goldens:
 // Jest 30.5 is `babel`, Vitest 5.0 is `node`. Each rule below is one the goldens force.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { actualView, cjsNamespace, createInteropCache, esmExports, isNamespace } from './interop.ts'
 
 const tag = (value: object): unknown => Reflect.get(value, Symbol.toStringTag)

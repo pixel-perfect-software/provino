@@ -47,6 +47,9 @@
       "path": "packages/loader"
     },
     {
+      "path": "packages/loader/tsconfig.tests.json"
+    },
+    {
       "path": "packages/snapshot"
     },
     {

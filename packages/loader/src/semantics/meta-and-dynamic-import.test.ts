@@ -1,7 +1,7 @@
 // T2.3, Track 2 F3 rows: `import.meta` and `import()` (from ES modules and from CommonJS), each
 // run through native Node and through Provino's loader and diffed.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { expectDivergence, expectSame, runBoth, TRACE } from '../internal/test-support.ts'
 
 test('import-meta-fields: url, filename, dirname and resolve() of a module, and one object per module', async () => {

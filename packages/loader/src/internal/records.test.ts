@@ -4,9 +4,9 @@
 // printed) is `provino`'s `transform-node-modules.test.ts`.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { test } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
 import type { TransformClaims } from '@provino/types'
+import { test } from 'provino'
 import { LoaderError, RequireEsmError } from '../errors.ts'
 import type { RuntimeCapabilities } from './edge-kind.ts'
 import { createRecords, type Records } from './records.ts'

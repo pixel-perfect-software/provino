@@ -14,13 +14,13 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping'
 import type { SourceMapV3 } from '@provino/types'
+import { afterAll, test } from 'provino'
 
 const roots: string[] = []
-after(() => {
+afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true })
 })
 
