@@ -35,9 +35,14 @@ const packages = [...shardOne, '@provino/core']
  * second of wall time in both jobs (1840 s in 814 s, 1121 s in 474 s). A split package lists what
  * each half took, in shard order: Node deals files out by position, so the halves differ. A
  * package not listed weighs nothing here; add it when it is measured.
+ *
+ * `provino` is re-measured on Provino (run 45255242571, 2026-11-23, Node 22.15.0, the first with
+ * its tests on Provino): each shard's number is the two summaries its script prints added up, the
+ * Provino half's `Time:` and the bootstrap files' `duration_ms` (shard 1: 434.0 + 196.2 s,
+ * shard 2: 377.1 + 55.8 s). The other packages' numbers are still the node:test run's.
  */
 const WEIGHTS: Readonly<Record<string, number | readonly number[]>> = {
-  provino: [801, 366],
+  provino: [630, 433],
   '@provino/harness': 447,
   '@provino/orchestrator': 437,
   '@provino/bench': 133,
