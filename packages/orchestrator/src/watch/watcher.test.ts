@@ -8,7 +8,7 @@ import { statSync, watch, writeFileSync } from 'node:fs'
 import { chmod, mkdir, mkdtemp, realpath, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, relative, sep } from 'node:path'
-import { afterAll, describe, test } from 'provino'
+import { afterAll, beforeAll, describe, test } from 'provino'
 import type { WatchEvent } from './coalesce.ts'
 import { createWatcher, type Watcher, type WatchFunction } from './watcher.ts'
 
@@ -70,12 +70,10 @@ async function skipReason(recursive: boolean): Promise<string | false> {
   return `${reason} (a sandbox that denies file events); CI runs these`
 }
 
-const verdicts = new Map<boolean, Promise<string | false>>()
-
 /**
- * Why the real-`fs.watch` tests of a mode skip, or `false` to run them. The first test that asks
- * probes (and makes the probe's temp dir); importing the file probes nothing, so a listing of the
- * file makes no dir and waits for no event. Each OS holds the mode it runs in production: per
+ * Why the real-`fs.watch` tests of a mode skip, or `false` to run them. A `beforeAll` of the mode's
+ * describe asks, which probes (and makes the probe's temp dir); importing the file probes nothing,
+ * so a listing of the file makes no dir and waits for no event. Each OS holds the mode it runs in production: per
  * directory on Linux (where Node 22's recursive `fs.watch` is a JavaScript fallback, not what the
  * watcher uses), recursive on macOS and Windows; per directory is forced there too, as the option
  * allows. The fake-watch tests below run both modes everywhere.
@@ -86,12 +84,7 @@ function watchSkipReason(perDirectory: boolean): Promise<string | false> {
       'recursive mode is not used on Linux: the watcher watches per directory there (see "the default mode")',
     )
   }
-  let verdict = verdicts.get(perDirectory)
-  if (verdict === undefined) {
-    verdict = skipReason(!perDirectory)
-    verdicts.set(perDirectory, verdict)
-  }
-  return verdict
+  return skipReason(!perDirectory)
 }
 
 /** A watcher whose events a test waits for one by one. */
@@ -141,8 +134,12 @@ async function watched(root: string, perDirectory: boolean) {
 for (const perDirectory of [false, true]) {
   const mode = perDirectory ? 'one watch per directory' : 'one recursive watch per root'
   describe(`the watcher, ${mode}`, () => {
+    let skip: string | false
+    beforeAll(async () => {
+      skip = await watchSkipReason(perDirectory)
+    })
+
     test('knows the files the walk found, and leaves out node_modules and files it does not keep', async (ctx) => {
-      const skip = await watchSkipReason(perDirectory)
       if (skip !== false) ctx.skip(skip)
       const root = await tempTree({
         'a.ts': 'a',
@@ -165,7 +162,6 @@ for (const perDirectory of [false, true]) {
     })
 
     test('an added, changed, renamed and removed file, and a new directory with a file in it', async (ctx) => {
-      const skip = await watchSkipReason(perDirectory)
       if (skip !== false) ctx.skip(skip)
       const root = await tempTree({ 'a.ts': 'one' })
       const { watcher, next, events } = await watched(root, perDirectory)

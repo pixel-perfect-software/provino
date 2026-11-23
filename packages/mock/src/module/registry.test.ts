@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
 import type { ModuleId } from '@provino/types'
-import { beforeAll, describe, test } from 'provino'
+import { describe, test } from 'provino'
 import { MockError, MockTypeError } from '../errors.ts'
 import { neutral } from '../internal/test-support.ts'
 import { isMockFunction } from '../mock-fn.ts'
@@ -483,9 +483,7 @@ describe('dispose', () => {
 })
 
 describe('__mocks__', () => {
-  const tree = deferredTree('provino-mock-')
-  const { dir, write } = tree
-  beforeAll(() => tree.make())
+  const { dir, write } = deferredTree('provino-mock-')
   const rootPkg = write('__mocks__/pkg.ts')
   const rootScoped = write('__mocks__/@scope/lib.ts')
   const rootOs = write('__mocks__/os.ts')

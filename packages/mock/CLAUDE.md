@@ -15,7 +15,7 @@ The neutral mock engine (Track 4): mock functions, spies, replaced properties, s
 | `src/module/automock.ts` | `automock(value, shape, mode, mk)` (T4.6): `metadata` is jest-mock's `getMetadata` + `generateFromMetadata`, `deep` is `@vitest/mocker`'s `mockObject`; `automock` or `autospy`. |
 | `src/module/manual-mocks.ts` | `findManualMock`, `findRootMock`: `__mocks__` discovery with `node:fs`; `createRootMockIndex`: the root trees listed once (the worker makes one per worker, B13c Gap 8). |
 | `src/module/messages.ts` | The module registry's message codes and neutral text (`ModulePolicy.messages` overrides). |
-| `src/module/test-support.ts` | Test only: `jestLike`/`vitestLike` module policies, a fake `Resolver` (`resolverBy`), `tempTree` (made now, for a test) and `deferredTree` (named now, made by `make()` in a `beforeAll`), `build()`. |
+| `src/module/test-support.ts` | Test only: `jestLike`/`vitestLike` module policies, a fake `Resolver` (`resolverBy`), `tempTree` (made now, for a test) and `deferredTree` (named now, made in a `beforeAll` it registers itself: call it in a `describe` body or at module scope), `build()`. |
 | `src/internal/messages.ts` | The message codes and the neutral text. |
 | `src/internal/guards.ts` | `isObjectLike` and `isThenable`, shared by `mock-fn.ts`, `spy.ts` and the module registry. |
 | `src/internal/args-equal.ts` | `whenCalledWith`'s equality (this package can't import `@jest/expect-utils`). It answers what `equals(a, b, [iterableEquality])` answers, which `@provino/dialect-jest`'s `when-called-with-equality.test.ts` checks over a table. |

@@ -25,14 +25,14 @@ const UPSTREAM = `# Vendored upstream
 | \`not-a-source.ts\` | x |
 `
 
-let root: string | undefined
-afterAll(() => {
-  if (root !== undefined) rmSync(root, { recursive: true, force: true })
+let root: string
+beforeAll(() => {
+  root = mkdtempSync(join(tmpdir(), 'provino-drift-test-'))
 })
+afterAll(() => rmSync(root, { recursive: true, force: true }))
 
-/** Writes a tree under a temp dir that the first call makes (a describe body must not call it). */
+/** Writes a tree under the temp dir (call it from a hook or a test: a describe body runs on a listing). */
 function tree(name: string, files: Record<string, string>): string {
-  root ??= mkdtempSync(join(tmpdir(), 'provino-drift-test-'))
   const dir = join(root, name)
   for (const [path, text] of Object.entries(files)) {
     mkdirSync(dirname(join(dir, path)), { recursive: true })

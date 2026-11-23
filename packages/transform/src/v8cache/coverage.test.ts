@@ -9,7 +9,7 @@
 // script from a warm entry reports 302 functions, 302 ranges and none with block coverage. (The
 // research's 229 against 542 are another script's numbers; the direction is the same.)
 import assert from 'node:assert/strict'
-import { afterAll, test } from 'provino'
+import { afterAll, beforeAll, test } from 'provino'
 import { cacheModeFor } from './index.ts'
 import { runChild, tempDir } from './test-helpers.ts'
 
@@ -17,14 +17,14 @@ const FUNCTIONS = 300
 const RUNS = 5
 const KEY = 'c0ffee0123456789'
 
-// One directory for the file's tests (the first one fills it, the next read it), made by the first
-// test that asks: importing the file makes none.
-let scratch: ReturnType<typeof tempDir> | undefined
-afterAll(() => scratch?.remove())
-function cacheDir(): string {
-  scratch ??= tempDir()
-  return scratch.dir
-}
+// The directory the file's tests share (the first fills it, the next read it), made in `beforeAll`,
+// which a listing of the file (every test skipped) never runs.
+let dir: string
+let remove: () => void
+beforeAll(() => {
+  ;({ dir, remove } = tempDir())
+})
+afterAll(() => remove())
 
 interface Counts {
   readonly functions: number
@@ -34,13 +34,7 @@ interface Counts {
   readonly cachedDataRejected: boolean | null
 }
 function measure(how: 'plain' | 'cache', mode: 'on' | 'off'): Counts {
-  return runChild('coverage', {
-    dir: cacheDir(),
-    key: KEY,
-    functions: FUNCTIONS,
-    how,
-    mode,
-  }) as Counts
+  return runChild('coverage', { dir, key: KEY, functions: FUNCTIONS, how, mode }) as Counts
 }
 const shape = (counts: Counts): object => ({
   functions: counts.functions,
@@ -55,7 +49,7 @@ test('cacheModeFor: off when coverage is on, on otherwise', () => {
 
 test('with coverage on, the cache mode leaves the script to compile as it does with no cache at all', () => {
   // A warm entry, made by a run with the cache on and no coverage.
-  const warm = runChild('load', { dir: cacheDir(), key: KEY, functions: FUNCTIONS }) as {
+  const warm = runChild('load', { dir, key: KEY, functions: FUNCTIONS }) as {
     readonly stats: { readonly written: number }
   }
   assert.equal(warm.stats.written, 1)
