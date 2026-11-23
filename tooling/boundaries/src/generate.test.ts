@@ -26,6 +26,16 @@ const config = JSON.parse(files.get(DEPCRUISE_CONFIG) ?? '{}') as {
 const ruleNamed = (name: string): Rule =>
   config.forbidden.find((rule) => rule.name === name) ?? assert.fail(`no rule ${name}`)
 const from = (name: string): RegExp => new RegExp(String(ruleNamed(name).from.path))
+const excluded = (path: string): boolean =>
+  [
+    (
+      JSON.parse(files.get(DEPCRUISE_CONFIG) ?? '{}') as {
+        options: { exclude: { path: string[] } }
+      }
+    ).options.exclude.path,
+  ]
+    .flat(2)
+    .some((re) => new RegExp(re).test(path))
 const allows = (name: string, path: string): boolean =>
   [ruleNamed(name).to.pathNot ?? []].flat().some((re) => new RegExp(re).test(path))
 
@@ -34,6 +44,14 @@ test('the generated files on disk are current (else run `pnpm boundaries:write`)
     const onDisk = await readFile(join(ROOT, path), 'utf8')
     assert.equal(onDisk.replaceAll('\r\n', '\n'), content, path)
   }
+})
+
+test("the scan leaves out a test's temp dir (.work), which can vanish mid-scan", () => {
+  assert.ok(
+    excluded('packages/provino/.work/ecosystem-dom/provino-recorded-Nxawft/configured.test.ts'),
+  )
+  assert.ok(excluded('packages/harness/.work/x.ts'))
+  assert.ok(!excluded('packages/provino/src/work/x.ts'))
 })
 
 test("a package's rule owns its files but not its subpath entries' files or their tests", () => {

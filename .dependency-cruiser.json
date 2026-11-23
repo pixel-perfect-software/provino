@@ -2419,7 +2419,7 @@
     },
     "exclude": {
       "path": [
-        "(^|/)(?:dist|\\.tsc|\\.turbo|\\.suites|\\.results|\\.record|\\.instructions)/",
+        "(^|/)(?:dist|\\.tsc|\\.turbo|\\.suites|\\.results|\\.record|\\.instructions|\\.work)/",
         "(?:^|/)provino\\.config\\.ts$|^tooling/provino/(?:base|all\\.config)\\.ts$"
       ]
     },
