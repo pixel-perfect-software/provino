@@ -1,8 +1,8 @@
 // How a user function is called: what `firstArg` hands it, the `done` callback, generator tests
 // (`allowGeneratorFns`) and what a test may return (`nonPromiseReturn`).
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { FileTask, SuiteTask, TestContext } from '@provino/types'
+import { describe, test } from 'provino'
 import { runScript, type Script, type ScriptRun } from '../internal/test-support.ts'
 
 type Done = (reason?: unknown) => void

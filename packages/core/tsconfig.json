@@ -1,5 +1,13 @@
 {
   "extends": "../../tsconfig.base.json",
   "include": ["src"],
-  "references": [{ "path": "../types" }, { "path": "../policy" }]
+  "references": [
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../policy"
+    }
+  ],
+  "exclude": ["src/**/*.test.ts"]
 }

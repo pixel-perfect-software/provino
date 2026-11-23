@@ -4,8 +4,8 @@
 // skipped blocks are shuffled too. The generator is the policy's; Jest's own is held to the
 // recorded order in `@provino/dialect-jest` and `provino`'s `jest-randomize.test.ts`.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { ShuffleFactory, TaskId } from '@provino/types'
+import { describe, test } from 'provino'
 import { runScript, type Script } from '../internal/test-support.ts'
 
 /**

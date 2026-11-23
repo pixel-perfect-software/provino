@@ -20,6 +20,9 @@
       "path": "packages/core"
     },
     {
+      "path": "packages/core/tsconfig.tests.json"
+    },
+    {
       "path": "tooling/boundaries"
     },
     {

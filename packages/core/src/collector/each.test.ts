@@ -2,7 +2,7 @@
 // becomes rows, and what a strict or lenient read rejects (`collect.eachTableError`). Titles are the
 // policy's `formatEachTitle`, not tested here.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { eachRows } from './each.ts'
 
 /** `eachRows` called the way a tagged template calls it, read leniently. */

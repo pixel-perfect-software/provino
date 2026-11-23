@@ -6,9 +6,9 @@
 // fixtures hold the recorded order.
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { describe, test } from 'node:test'
 import type { DescribeRetry, ShuffleFactory } from '@provino/types'
 import FakeTimers from '@sinonjs/fake-timers'
+import { describe, test } from 'provino'
 import {
   clockOptions,
   eventLog,
