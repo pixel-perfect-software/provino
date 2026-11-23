@@ -1,6 +1,6 @@
 // What the finished files, the error blocks and the end of a run look like through the reporter.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { createReporterBus } from '../bus.ts'
 import {
   buildFile,

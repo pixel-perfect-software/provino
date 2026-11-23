@@ -2,8 +2,8 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, before, describe, test } from 'node:test'
 import type { NormalizedRun, SerializedError } from '@provino/types'
+import { afterAll, beforeAll, describe, test } from 'provino'
 import { createReporterBus } from '../bus.ts'
 import { type FileRecord, newFileRecord, testsInOrder } from '../internal/collect.ts'
 import {
@@ -702,10 +702,10 @@ describe('the normalized-json reporter', () => {
 
   describe('output', () => {
     let dir: string
-    before(async () => {
+    beforeAll(async () => {
       dir = await mkdtemp(join(tmpdir(), 'provino-reporters-'))
     })
-    after(async () => {
+    afterAll(async () => {
       await rm(dir, { recursive: true, force: true })
     })
 
@@ -934,10 +934,10 @@ describe('the normalized-json reporter: suites, bus failures, retries, unhandled
 
   describe('outputFile is written atomically', () => {
     let dir: string
-    before(async () => {
+    beforeAll(async () => {
       dir = await mkdtemp(join(tmpdir(), 'provino-reporters-atomic-'))
     })
-    after(async () => {
+    afterAll(async () => {
       await rm(dir, { recursive: true, force: true })
     })
 

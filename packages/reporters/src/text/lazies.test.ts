@@ -1,8 +1,8 @@
 // T6.10: a failed test's lazy values in the text reporters. Their own goldens
 // (`__goldens__/lazies.{plain,tty}.txt`): the fixture run's goldens don't change.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { LazyEvaluation, SerializedError } from '@provino/types'
+import { describe, test } from 'provino'
 import { agentReporter } from '../agent/reporter.ts'
 import { defaultReporter } from '../default/reporter.ts'
 import { dotReporter } from '../dot/reporter.ts'

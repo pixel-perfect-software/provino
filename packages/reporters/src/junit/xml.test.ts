@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { ESC } from '../style.ts'
 import { attribute, clean, content, write, writeParent } from './xml.ts'
 

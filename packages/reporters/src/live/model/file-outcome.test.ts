@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { buildFile } from '../../internal/test-support.ts'
 import { fileOutcome } from './file-outcome.ts'
 import { createRunState, type FinishedFile } from './state.ts'

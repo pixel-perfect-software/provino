@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { hyperlink, stripControls } from './ansi.ts'
 import { WIDE_RANGES } from './vendor/width-table.ts'
 import { displayWidth, fitWidth, fitWidthLeft } from './width.ts'

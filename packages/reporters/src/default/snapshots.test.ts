@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { ReportPolicy, SnapshotRunSummary } from '@provino/types'
+import { describe, test } from 'provino'
 import { type FileSpec, JEST_REPORT, playThrough } from '../internal/test-support.ts'
 import { defaultReporter } from './reporter.ts'
 

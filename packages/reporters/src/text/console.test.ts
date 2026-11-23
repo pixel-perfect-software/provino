@@ -2,7 +2,7 @@
 // own): Jest's `formatStackTrace` puts frames at 6 spaces whatever the title's indent, keeps the
 // first frame under `--noStackTrace`, and makes a path relative to the root only where it starts.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { createStyle } from '../style.ts'
 import { type ConsoleEntry, consoleEntries } from './console.ts'
 

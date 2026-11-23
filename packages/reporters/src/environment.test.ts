@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { AGENT_VARIABLES, detectOutput, isCi, OUTPUT_VARIABLES } from './environment.ts'
 
 const TTY = { isTTY: true, columns: 120 }

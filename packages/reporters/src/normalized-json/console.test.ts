@@ -1,8 +1,8 @@
 // The normalized-json reporter's console output (T12.16, B15 gap 8): per test by `taskId`, per
 // file otherwise, one entry per line.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { NormalizedRun, RuntimeEventOf, TaskId } from '@provino/types'
+import { test } from 'provino'
 import { createReporterBus } from '../bus.ts'
 import {
   buildFile,

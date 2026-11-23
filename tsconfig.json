@@ -92,6 +92,9 @@
       "path": "packages/reporters"
     },
     {
+      "path": "packages/reporters/tsconfig.tests.json"
+    },
+    {
       "path": "packages/provino"
     },
     {

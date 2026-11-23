@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { createStyle } from '../../style.ts'
 import { GLYPHS } from '../terminal/glyphs.ts'
 import { displayWidth } from '../terminal/width.ts'
