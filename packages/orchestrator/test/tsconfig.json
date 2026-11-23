@@ -6,7 +6,31 @@
       "path": ".."
     },
     {
+      "path": "../../config"
+    },
+    {
+      "path": "../../core"
+    },
+    {
+      "path": "../../expect"
+    },
+    {
+      "path": "../../loader"
+    },
+    {
+      "path": "../../policy"
+    },
+    {
+      "path": "../../provino"
+    },
+    {
       "path": "../../reporters"
+    },
+    {
+      "path": "../../rpc"
+    },
+    {
+      "path": "../../types"
     }
   ]
 }

@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { cp, mkdir, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { loadManifest } from './manifest.ts'
 import { BIOME_BIN, DEPCRUISE_BIN, MANIFEST_PATH, ROOT } from './paths.ts'
 import { scratchDir, writeFiles } from './test-support.ts'
@@ -88,7 +88,7 @@ const count = (output: string, rule: string): number =>
   output.match(new RegExp(`× ${rule}`, 'g'))?.length ?? 0
 
 // Every case has its own scratch dir, so the cases run at once (about 3x faster).
-describe('Biome GritQL plugins', { concurrency: true }, () => {
+describe.concurrent('Biome GritQL plugins', () => {
   test('slice-discipline: `import type { MockPolicy }` in @provino/core fails, naming the rule', async () => {
     const path = 'packages/core/src/planted.ts'
     const dir = await workspace({
@@ -178,7 +178,7 @@ describe('Biome GritQL plugins', { concurrency: true }, () => {
   })
 })
 
-describe('dependency-cruiser rules', { concurrency: true }, () => {
+describe.concurrent('dependency-cruiser rules', () => {
   test("`import '@provino/dialect-jest'` in @provino/core fails neutral-no-dialect and boundary-core", async () => {
     const dir = await workspace({
       'packages/core/src/planted.ts': "import '@provino/dialect-jest'\n",

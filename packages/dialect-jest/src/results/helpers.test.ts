@@ -1,7 +1,7 @@
 // The rebuilt helpers against the real `@jest/test-result` 30.5.2, on synthetic inputs.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import * as real from '@jest/test-result'
+import { describe, it } from 'provino'
 import {
   addResult,
   buildFailureTestResult,

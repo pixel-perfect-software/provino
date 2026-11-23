@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { exitCodeFor, keptMedian, medianSample, ROUNDS, WARMUP_ROUNDS } from '../internal/limits.ts'
 import { seededRandom } from '../internal/prng.ts'
 import { generateTestFile, HOIST_CALL_PATTERN } from './generate.ts'

@@ -2,7 +2,7 @@
 // ambiguous SHA, and the text staying unchanged when anything fails.
 import assert from 'node:assert/strict'
 import { cp, readFile, rm } from 'node:fs/promises'
-import { after, before, test } from 'node:test'
+import { afterAll, beforeAll, test } from 'provino'
 import { HarnessError } from '../errors.ts'
 import { runProcess } from '../run-process.ts'
 import { sha256OfFile } from './fetch.ts'
@@ -29,12 +29,12 @@ const PINS = ['sha', 'commitDate', 'tarballSha256']
 let root = ''
 let fixture = ''
 let tarSha = ''
-before(async () => {
+beforeAll(async () => {
   root = await tempDir('pin')
   fixture = await makeTarball(root, { LICENSE: 'MIT License', 'package-lock.json': '{}' })
   tarSha = await sha256OfFile(fixture)
 })
-after(async () => {
+afterAll(async () => {
   await rm(root, { recursive: true, force: true })
 })
 

@@ -4,7 +4,7 @@
 // brace-expansion's 100,000-result limit, ours throws instead of stopping silently.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { after, before, test } from 'node:test'
+import { afterAll, beforeAll, test } from 'provino'
 import { expandBraces } from './braces.ts'
 import { JestConfigError } from './errors.ts'
 import {
@@ -66,10 +66,10 @@ test("an expansion that reaches brace-expansion's limit is refused with a clear 
 
 let oracle: Oracle
 const trees: string[] = []
-before(async () => {
+beforeAll(async () => {
   oracle = await loadOracle()
 })
-after(() => {
+afterAll(() => {
   for (const tree of trees) removeTree(tree)
 })
 

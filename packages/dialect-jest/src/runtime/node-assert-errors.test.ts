@@ -5,9 +5,9 @@
 import assert from 'node:assert'
 import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { stripVTControlCharacters } from 'node:util'
+import { describe, test } from 'provino'
 import { shapeTestError } from './node-assert-errors.ts'
 import formatNodeAssertErrors from './vendor/jest-circus/formatNodeAssertErrors.ts'
 

@@ -4,8 +4,8 @@
 // shared, so the adapter does the restoring. In process, with a stand-in environment class.
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { test } from 'node:test'
 import type { EnvironmentSetupContext } from '@provino/types'
+import { test } from 'provino'
 import { fromJestEnvironment, type JestEnvironmentClass } from './jest-environment.ts'
 
 const global = globalThis as Record<string, unknown>

@@ -5,8 +5,8 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
 import type { AggregatedResult } from '@provino/dialect-jest/results'
+import { afterAll, describe, it } from 'provino'
 import {
   createNotifyReporter,
   type JestNotifier,
@@ -15,7 +15,7 @@ import {
 } from './notify.ts'
 
 const made: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

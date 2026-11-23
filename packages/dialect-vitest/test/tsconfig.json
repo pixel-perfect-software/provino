@@ -4,6 +4,15 @@
   "references": [
     {
       "path": ".."
+    },
+    {
+      "path": "../../mock"
+    },
+    {
+      "path": "../../policy"
+    },
+    {
+      "path": "../../types"
     }
   ]
 }

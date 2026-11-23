@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import {
   type AggregatedResult,
   createEmptyTestResult,
@@ -7,6 +6,7 @@ import {
   makeEmptyAggregatedTestResult,
 } from '@jest/test-result'
 import type { NormalizedTest } from '@provino/types'
+import { test } from 'provino'
 import { convertJest } from './convert-jest.ts'
 import { HarnessError } from './errors.ts'
 import { testKey } from './normalize.ts'

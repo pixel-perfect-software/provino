@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type { RuntimeEvent, TaskId, TaskResult } from '@provino/types'
+import { describe, it } from 'provino'
 import { checkOrder, type OrderInput } from './order.ts'
 
 const F = 'ffffffffff' as TaskId

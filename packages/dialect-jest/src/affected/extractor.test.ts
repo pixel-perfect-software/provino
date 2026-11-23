@@ -8,8 +8,8 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, before, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { afterAll, beforeAll, test } from 'provino'
 import { jestDependencyExtractor } from './index.ts'
 
 type Extract = (code: string) => Iterable<string>
@@ -23,7 +23,7 @@ const { worker } = createRequire(core)(workerPath) as {
 let dir = ''
 let real: Extract | undefined
 
-before(async () => {
+beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), 'provino-haste-'))
   const keeper = join(dir, 'keeper.cjs')
   await writeFile(
@@ -42,7 +42,7 @@ before(async () => {
   assert.equal(typeof real, 'function', 'the worker handed the custom extractor no fallback')
 })
 
-after(async () => {
+afterAll(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 

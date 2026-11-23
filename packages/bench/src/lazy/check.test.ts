@@ -1,7 +1,7 @@
 // T6.5's bar: the rebuilt Spikes C corpus has at least 60 checks (30 behaviours under two policies)
 // and none fail. Never lower the count or skip a behaviour to make this pass.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { BEHAVIOURS } from './behaviours.ts'
 import { runLazyCheck } from './check.ts'
 import { VARIANTS } from './run.ts'

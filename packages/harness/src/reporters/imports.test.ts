@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { WATCH_DONE_PLUGIN_PATH, WATCH_LOG_REPORTER_PATH } from '../internal/watch-record.ts'
 import { sidecarReporterPath } from '../sidecar.ts'
 

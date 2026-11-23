@@ -8,12 +8,12 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { afterAll, test } from 'provino'
 
 const GUARD = pathToFileURL(fileURLToPath(new URL('network-guard.ts', import.meta.url))).href
 const dir = mkdtempSync(join(tmpdir(), 'provino-network-guard-'))
-after(() => rmSync(dir, { recursive: true, force: true }))
+afterAll(() => rmSync(dir, { recursive: true, force: true }))
 
 // Generated at test time as data (D13): the attempts, by named import and through the defaults.
 const PROBE = `import { request as httpRequest, get as httpGet } from 'node:http'

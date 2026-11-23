@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { BenchLabel, BenchRecord, BenchResult, IsolationMode } from '@provino/types'
+import { test } from 'provino'
 import { parityOf, testRecord } from './internal/test-helpers.ts'
 import {
   evaluateKillCheck,

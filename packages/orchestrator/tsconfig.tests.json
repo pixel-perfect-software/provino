@@ -1,0 +1,54 @@
+{
+  "extends": "../../tooling/provino/tsconfig.tests.base.json",
+  "include": ["src/**/*.test.ts", "provino.config.ts"],
+  "references": [
+    {
+      "path": "./tsconfig.json"
+    },
+    {
+      "path": "../provino"
+    },
+    {
+      "path": "../config"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../coverage"
+    },
+    {
+      "path": "../expect"
+    },
+    {
+      "path": "../lazy"
+    },
+    {
+      "path": "../loader"
+    },
+    {
+      "path": "../mock"
+    },
+    {
+      "path": "../policy"
+    },
+    {
+      "path": "../reporters"
+    },
+    {
+      "path": "../rpc"
+    },
+    {
+      "path": "../snapshot"
+    },
+    {
+      "path": "../timers"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../../tooling/provino"
+    }
+  ]
+}

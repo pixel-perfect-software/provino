@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { cp, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { after, before, test } from 'node:test'
+import { afterAll, beforeAll, test } from 'provino'
 import { HarnessError } from '../errors.ts'
 import { runProcess } from '../run-process.ts'
 import {
@@ -41,12 +41,12 @@ const FILES = {
 let root = ''
 let fixture = ''
 let sha = ''
-before(async () => {
+beforeAll(async () => {
   root = await tempDir('fetch')
   fixture = await makeTarball(root, FILES)
   sha = await sha256OfFile(fixture)
 })
-after(async () => {
+afterAll(async () => {
   await rm(root, { recursive: true, force: true })
 })
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { buildStream, DEFAULT_SPEC, specForTests, streamEvents } from './stream.ts'
 
 const SMALL = { ...DEFAULT_SPEC, files: 64 }

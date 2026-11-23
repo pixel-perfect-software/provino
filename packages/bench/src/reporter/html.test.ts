@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { runHtmlLeg } from './html.ts'
 
 // 40 files (1,000 tests) and one measured round: the shape of the result, with no bar and no

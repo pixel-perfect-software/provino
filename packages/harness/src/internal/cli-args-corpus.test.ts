@@ -1,6 +1,6 @@
 // `provino-harness corpus …`'s command line.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { HarnessError } from '../errors.ts'
 import { type CorpusCommand, parseCommandLine } from './cli-args.ts'
 

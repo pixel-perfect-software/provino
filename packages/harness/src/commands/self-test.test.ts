@@ -1,6 +1,6 @@
 // self-test's own reporting, with a stand-in for the runners: no runner starts.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { HarnessError } from '../errors.ts'
 import { parseCommandLine } from '../internal/cli-args.ts'
 import { provinoParityProblems, type SampleRunner, selfTestCommand } from './self-test.ts'

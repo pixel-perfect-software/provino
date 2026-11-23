@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { runSlowSinkLeg } from './legs.ts'
 
 // 400 tests (16 files) at 20,000 a second: a replay of about 20 ms, so the test waits on no real time worth naming.

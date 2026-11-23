@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { NormalizedError, NormalizedRun } from '@provino/types'
+import { test } from 'provino'
 import { type DiffOptions, diffRuns, type ExclusionRule } from './diff.ts'
 import { HarnessError } from './errors.ts'
 import { makeFile, makeRun, makeTest } from './test-support.ts'

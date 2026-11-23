@@ -3,9 +3,9 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, describe, test } from 'node:test'
+import { afterAll, beforeAll, describe, test } from 'provino'
 import { parseDriftArgs } from './cli.ts'
-import { driftBetween, driftFails, formatDrift } from './drift.ts'
+import { type DriftReport, driftBetween, driftFails, formatDrift } from './drift.ts'
 import { parseUpstream } from './upstream.ts'
 
 const UPSTREAM = `# Vendored upstream
@@ -26,7 +26,7 @@ const UPSTREAM = `# Vendored upstream
 `
 
 const root = mkdtempSync(join(tmpdir(), 'provino-drift-test-'))
-after(() => rmSync(root, { recursive: true, force: true }))
+afterAll(() => rmSync(root, { recursive: true, force: true }))
 
 function tree(name: string, files: Record<string, string>): string {
   const dir = join(root, name)
@@ -57,7 +57,7 @@ describe('parseUpstream', () => {
   })
 })
 
-describe('driftBetween', async () => {
+describe('driftBetween', () => {
   const from = tree('from', {
     'packages/expect/src/matchers.ts': 'a',
     'packages/expect/src/print.ts': 'same',
@@ -69,9 +69,12 @@ describe('driftBetween', async () => {
     'packages/expect/src/print.ts': 'same',
     'packages/expect/src/index.ts': 'not vendored, changed',
   })
-  const report = await driftBetween('jest', { from: 'v1', to: 'v2' }, { from, to }, [
-    parseUpstream('x/UPSTREAM.md', UPSTREAM),
-  ])
+  let report: DriftReport
+  beforeAll(async () => {
+    report = await driftBetween('jest', { from: 'v1', to: 'v2' }, { from, to }, [
+      parseUpstream('x/UPSTREAM.md', UPSTREAM),
+    ])
+  })
 
   test('names each copied file that differs, with the UPSTREAM.md that copied it', () => {
     assert.equal(report.checked, 3)

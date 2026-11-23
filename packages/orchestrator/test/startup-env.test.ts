@@ -7,12 +7,12 @@ import { existsSync, readdirSync } from 'node:fs'
 import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import { run, runtimeProject, trackedProjects } from './support.ts'
 
 const makeProject = trackedProjects()
 const dirs: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(dirs.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 async function scratch(): Promise<string> {

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { parseCli } from './cli-args.ts'
 import { runCli } from './commands.ts'
 import { compareLists, listTestsCommand, parseList } from './list-tests.ts'

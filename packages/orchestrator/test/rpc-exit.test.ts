@@ -1,10 +1,10 @@
 // T9.3's check over real workers: calls still pending when the transport dies reject with the
 // WorkerExit as their cause, and so does every call made after.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import { connectWorker, transportFor } from '@provino/orchestrator'
 import { createRpc, RpcError, type RpcPort } from '@provino/rpc'
 import type { RpcCall, RpcReply, WorkerExit } from '@provino/types'
+import { describe, it } from 'provino'
 import type { PeerMethods } from './fixtures/rpc-worker.ts'
 import { fixture, forceKilled, initFor, job, methods } from './support.ts'
 

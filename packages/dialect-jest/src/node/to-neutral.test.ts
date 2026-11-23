@@ -4,15 +4,15 @@
 // but not applied yet warn naming their task, and that the project resolves to a worker config.
 import assert from 'node:assert/strict'
 import { delimiter, isAbsolute, join } from 'node:path'
-import { after, test } from 'node:test'
 import { resolveNeutralProject } from '@provino/config'
 import { resolvePolicy } from '@provino/policy'
+import { afterAll, test } from 'provino'
 import { createJestConfigReader, jestNodeDialect } from './index.ts'
 import { oracleRequireResolve, removeTree, type Tree, writeTree } from './internal/test-support.ts'
 import { neutralEnvironmentName } from './to-neutral.ts'
 
 const trees: string[] = []
-after(() => {
+afterAll(() => {
   for (const tree of trees) removeTree(tree)
 })
 

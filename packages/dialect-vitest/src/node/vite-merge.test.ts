@@ -1,6 +1,6 @@
 // B25c: the rebuilt `mergeConfig` against the real one (`vitest/config` re-exports Vite's).
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { mergeConfig as viteMergeConfig } from 'vitest/config'
 import { mergeConfig } from './vite-merge.ts'
 

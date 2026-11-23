@@ -8,10 +8,10 @@ import { execFile } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import type { JsonValue } from '@provino/types'
+import { describe, it } from 'provino'
 import type { SmokeResult, SmokeSpec } from './internal/environment-smoke.ts'
 import {
   fromVitestEnvironment,

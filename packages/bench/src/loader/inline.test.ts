@@ -5,10 +5,10 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, readdirSync, realpathSync, symlinkSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { initLexer } from '@provino/loader/graph'
 import type { LoaderWarning, ModuleId, ModuleMockRegistry } from '@provino/types'
+import { test } from 'provino'
 import { at, fileWithMocks, JESTISH, loaderFor, VITESTISH, writeTree } from './test-support.ts'
 
 const factory = (value: unknown) => ({ kind: 'factory', factory: () => value }) as const

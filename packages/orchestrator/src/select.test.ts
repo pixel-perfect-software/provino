@@ -1,7 +1,7 @@
 // File filters over discovered files (U2/T11.13): Jest's TestPathPatterns (jest-pattern 30.5.2).
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type { FileFilter } from '@provino/types'
+import { describe, it } from 'provino'
 import type { DiscoveredFile } from './discover.ts'
 import { selectFiles } from './select.ts'
 

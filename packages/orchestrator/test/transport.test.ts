@@ -8,7 +8,6 @@ import { readFileSync } from 'node:fs'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
   connectWorker,
@@ -17,6 +16,7 @@ import {
   type WorkerConnection,
 } from '@provino/orchestrator'
 import type { PoolKind, Transport, WorkerExit, WorkerInit } from '@provino/types'
+import { describe, it } from 'provino'
 import {
   Collect,
   fixture,

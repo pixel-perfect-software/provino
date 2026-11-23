@@ -2,8 +2,8 @@
 // limit), over a heap and a collector the test controls; and the real collector, which frees
 // garbage whether or not `--expose-gc` is on and leaves `gc` hidden from later contexts.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import { runInNewContext } from 'node:vm'
+import { describe, it } from 'provino'
 import { collectGarbage, memoryAfterFile, usedHeapBytes } from './memory.ts'
 
 const MIB = 1024 * 1024

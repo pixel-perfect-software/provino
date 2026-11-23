@@ -3,6 +3,7 @@
 // checkout's built bin, and `defineConfig` comes from the root's `provino: workspace:*` link, so one
 // copy of the config types serves every package.
 import { dirname, join, relative, resolve } from 'node:path'
+import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type ProvinoConfig } from 'provino/config'
 import { bootstrapFiles, INCLUDE_GLOBS, SHARED_CONFIG_VALUES } from '../packaging/src/dogfood.ts'
@@ -20,5 +21,7 @@ export function packageConfig(directory: string): ProvinoConfig {
     exclude: bootstrapFiles(ROOT).map((file) => relative(directory, join(ROOT, file))),
     // A copy: a config's nested objects are the run's to read, never a shared constant.
     ...structuredClone(SHARED_CONFIG_VALUES),
+    // CI runs many packages at once through Turborepo; two workers each keeps the runner from being oversubscribed.
+    ...(process.env.CI ? { maxWorkers: 2 } : {}),
   })
 }

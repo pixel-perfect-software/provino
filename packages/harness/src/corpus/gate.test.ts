@@ -1,7 +1,7 @@
 // G0's report built from fakes: one subject's row (the bars it must meet), the report over rows
 // (the 30-rule limit, unused rules, added normalization rules) and the text. No runs, no disk.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import type { ExclusionRule } from '../diff.ts'
 import { makeFile, makeRun, makeTest } from '../test-support.ts'
 import {

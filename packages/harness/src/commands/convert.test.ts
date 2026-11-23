@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { after, before, test } from 'node:test'
+import { afterAll, beforeAll, test } from 'provino'
 import { toGolden } from '../golden.ts'
 import { parseCommandLine } from '../internal/cli-args.ts'
 import { parseNormalizedRun } from '../parse-normalized-run.ts'
@@ -12,10 +12,10 @@ import { convertCommand } from './convert.ts'
 const RECORDED = path.resolve(import.meta.dirname, '..', '..', 'sample', '__recorded__')
 
 let dir = ''
-before(async () => {
+beforeAll(async () => {
   dir = await mkdtemp(path.join(tmpdir(), 'provino-harness-convert-'))
 })
-after(async () => {
+afterAll(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 

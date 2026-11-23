@@ -4,14 +4,20 @@
 // whole run is `cli/github-actions-not-silent`, held by `provino`'s `jest-github-actions.test.ts`;
 // colour against chalk is `provino`'s `jest-github-actions-colour.test.ts`.
 import assert from 'node:assert/strict'
-import { afterEach, describe, it, mock } from 'node:test'
 import type { AggregatedResult, TestResult } from '@provino/dialect-jest/results'
+import { afterAll, afterEach, beforeAll, describe, it } from 'provino'
 import { createJestGitHubActionsReporter, jestResultIcons } from './github-actions.ts'
 
 const written: string[] = []
-mock.method(process.stderr, 'write', (chunk: string | Uint8Array): boolean => {
-  written.push(String(chunk))
-  return true
+const originalWrite = process.stderr.write
+beforeAll(() => {
+  process.stderr.write = ((chunk: string | Uint8Array): boolean => {
+    written.push(String(chunk))
+    return true
+  }) as typeof process.stderr.write
+})
+afterAll(() => {
+  process.stderr.write = originalWrite
 })
 afterEach(() => {
   written.length = 0

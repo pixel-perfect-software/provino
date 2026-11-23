@@ -1,7 +1,7 @@
 // T12.9: the committed manifest pins all 33 F5 repositories, and the parser refuses what the brief
 // says it refuses. No network: the pins' truth is `corpus pin` and `corpus fetch --verify-only`.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { HarnessError } from '../errors.ts'
 import {
   type CorpusManifest,

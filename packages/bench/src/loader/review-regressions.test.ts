@@ -2,7 +2,7 @@
 // fix and seen failing against the code it fixes.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { at, fileWithMocks, JESTISH, loaderFor, VITESTISH, writeTree } from './test-support.ts'
 
 const g = globalThis as { __count?: number; __fail?: boolean; __order?: string[] }

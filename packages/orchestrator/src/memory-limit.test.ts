@@ -2,7 +2,7 @@
 // available / maxWorkers), the memory being the container's cap when there is one.
 import assert from 'node:assert/strict'
 import { totalmem } from 'node:os'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { defaultWorkerMemoryLimit } from './run.ts'
 
 const MIB = 1024 * 1024

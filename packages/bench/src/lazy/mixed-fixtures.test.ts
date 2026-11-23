@@ -3,9 +3,9 @@
 // 'expose'`). Provino's own: Jest has no fixtures and Vitest no lazy values, so no runner records it.
 // Lazy entries live in the suite tables core owns (`LazyHost.definitions`, D106).
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { FixtureTestApi } from '@provino/core'
 import { neutralPolicy } from '@provino/policy'
+import { test } from 'provino'
 import { runFile } from './run.ts'
 
 type Use<V> = (value: V) => Promise<void>

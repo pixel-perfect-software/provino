@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import { vitestDialect } from '@provino/dialect-vitest'
+import { test } from 'provino'
 import { vitestConfigReader, vitestNodeDialect } from './index.ts'
 
 test('the coordinator entry is the dialect value plus the config reader', () => {

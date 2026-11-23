@@ -2,16 +2,16 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { after, before, test } from 'node:test'
+import { afterAll, beforeAll, test } from 'provino'
 import type { UserConsoleLog } from 'vitest'
 import { parseSidecar } from '../sidecar.ts'
 import VitestSidecarReporter, { type ReportedEntities } from './vitest.ts'
 
 let dir = ''
-before(async () => {
+beforeAll(async () => {
   dir = await mkdtemp(path.join(tmpdir(), 'provino-vitest-sidecar-'))
 })
-after(async () => {
+afterAll(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 

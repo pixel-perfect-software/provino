@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { after, before, test } from 'node:test'
+import { afterAll, beforeAll, test } from 'provino'
 import type { ParityReport } from '../diff.ts'
 import { parseCommandLine } from '../internal/cli-args.ts'
 import { runProcess } from '../run-process.ts'
@@ -20,10 +20,10 @@ const VITEST = path.join(RECORDED, 'vitest.normalized.json')
 const TODAY = '2026-11-07'
 
 let dir = ''
-before(async () => {
+beforeAll(async () => {
   dir = await mkdtemp(path.join(tmpdir(), 'provino-harness-diff-'))
 })
-after(async () => {
+afterAll(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 

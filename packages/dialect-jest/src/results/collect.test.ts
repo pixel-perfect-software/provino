@@ -1,7 +1,6 @@
 // The collector over a played run: the events a coordinator emits, in its order, folded into the
 // aggregate. `jest-message-util` formats the failure text (it is the real package).
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type {
   FileInfo,
   FileResult,
@@ -12,6 +11,7 @@ import type {
   TaskResult,
   TestTask,
 } from '@provino/types'
+import { describe, it } from 'provino'
 import { createJestResults, type ProjectConfigLike } from './collect.ts'
 
 const id = (name: string): TaskId => name as TaskId

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { BenchError } from '../errors.ts'
 import { failures, heapGrowthMb, parseBars } from './report.ts'
 

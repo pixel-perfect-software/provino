@@ -2,12 +2,12 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, readdirSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
+import { afterAll, test } from 'provino'
 import { FIXTURE_FILES, TESTS_PER_FILE, writeLoaderFixture } from './fixture.ts'
 import { createFixtureLoader, runFixture } from './run.ts'
 
 const dir = realpathSync(mkdtempSync(join(tmpdir(), 'provino-loader-fixture-test-')))
-after(() => rmSync(dir, { recursive: true, force: true }))
+afterAll(() => rmSync(dir, { recursive: true, force: true }))
 const files = writeLoaderFixture(dir, { heavy: false })
 
 function countModules(path: string): number {

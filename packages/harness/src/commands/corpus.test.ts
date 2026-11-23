@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { cp, mkdir, readFile, stat, writeFile } from 'node:fs/promises'
 import path from 'node:path'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { type CorpusRepo, defaultManifestPath, readCorpusManifest } from '../corpus/manifest.ts'
 import { repoPaths } from '../corpus/paths.ts'
 import { runReference } from '../corpus/run.ts'

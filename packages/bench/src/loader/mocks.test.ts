@@ -6,10 +6,10 @@
 // Jest and Vitest is the harness's mod corpus; these pin the mechanism.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { test } from 'node:test'
 import { createMockRegistry, createModuleMockRegistry } from '@provino/mock'
 import { neutralPolicy } from '@provino/policy'
 import type { HoistPolicy, MockDecision, ModuleMockRegistry, ModulePolicy } from '@provino/types'
+import { test } from 'provino'
 import { at, fileWithMocks, HOIST, JESTISH, loaderFor, writeTree } from './test-support.ts'
 
 /** A registry that mocks nothing and records every `decide` it is asked. */

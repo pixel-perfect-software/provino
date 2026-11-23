@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type { GlobalReadWatch } from '@provino/types'
+import { describe, it } from 'provino'
 import {
   adoptingGlobals,
   perFileKeys,

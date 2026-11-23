@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { test } from 'provino'
 import { BenchError } from '../errors.ts'
 import { SAMPLE_PREFIX } from '../internal/limits.ts'
 import { PACKAGE_DIR } from '../suites.ts'

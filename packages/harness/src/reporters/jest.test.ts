@@ -2,16 +2,16 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
-import { after, before, test } from 'node:test'
 import type { Test, TestResult } from '@jest/test-result'
+import { afterAll, beforeAll, test } from 'provino'
 import { parseSidecar } from '../sidecar.ts'
 import JestSidecarReporter from './jest.ts'
 
 let dir = ''
-before(async () => {
+beforeAll(async () => {
   dir = await mkdtemp(path.join(tmpdir(), 'provino-jest-sidecar-'))
 })
-after(async () => {
+afterAll(async () => {
   await rm(dir, { recursive: true, force: true })
 })
 

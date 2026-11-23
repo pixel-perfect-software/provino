@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { loadManifest } from './manifest.ts'
 import { MANIFEST_PATH, ROOT } from './paths.ts'
 import { manifestOf, scratchDir } from './test-support.ts'

@@ -4,11 +4,11 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import * as matcherUtilsNamespace from 'jest-matcher-utils'
 import * as messageUtilNamespace from 'jest-message-util'
 import * as jestUtilNamespace from 'jest-util'
+import { describe, test } from 'provino'
 import * as lazy from './vendor/jest-expect/lazy-jest-packages.ts'
 
 const require = createRequire(import.meta.url)

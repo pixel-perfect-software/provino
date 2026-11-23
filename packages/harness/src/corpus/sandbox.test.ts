@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { stat } from 'node:fs/promises'
 import net from 'node:net'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { HarnessError } from '../errors.ts'
 import {
   assertSandboxPlatform,

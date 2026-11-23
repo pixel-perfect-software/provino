@@ -1,0 +1,69 @@
+{
+  "extends": "../../tooling/provino/tsconfig.tests.base.json",
+  "include": ["src/**/*.test.ts", "provino.config.ts"],
+  "references": [
+    {
+      "path": "./tsconfig.json"
+    },
+    {
+      "path": "../provino"
+    },
+    {
+      "path": "../core"
+    },
+    {
+      "path": "../dialect-jest"
+    },
+    {
+      "path": "../dialect-vitest"
+    },
+    {
+      "path": "../env-jsdom"
+    },
+    {
+      "path": "../env-node"
+    },
+    {
+      "path": "../env-shared"
+    },
+    {
+      "path": "../expect"
+    },
+    {
+      "path": "../harness"
+    },
+    {
+      "path": "../lazy"
+    },
+    {
+      "path": "../loader"
+    },
+    {
+      "path": "../mock"
+    },
+    {
+      "path": "../orchestrator"
+    },
+    {
+      "path": "../policy"
+    },
+    {
+      "path": "../reporters"
+    },
+    {
+      "path": "../resolver"
+    },
+    {
+      "path": "../timers"
+    },
+    {
+      "path": "../transform"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../../tooling/provino"
+    }
+  ]
+}

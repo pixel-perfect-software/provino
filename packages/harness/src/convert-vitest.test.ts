@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import type { JsonTestResults } from 'vitest/node'
 import { convertVitest } from './convert-vitest.ts'
 import { HarnessError } from './errors.ts'

@@ -1,7 +1,7 @@
 // A run over several projects judges each project's snapshots by its own policy and merges them.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type { SnapshotFileReport } from '@provino/types'
+import { describe, it } from 'provino'
 import { mergedSnapshots, snapshotMember, snapshotsFailRun } from './snapshot-members.ts'
 
 const lenient = { obsolete: { failLocal: false, failCI: false } }

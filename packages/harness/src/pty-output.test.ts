@@ -1,6 +1,6 @@
 // The output watch `spawnPty` and `spawnPiped` share, with no process: text is appended by hand.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { HarnessError } from './errors.ts'
 import { watchOutput } from './pty.ts'
 

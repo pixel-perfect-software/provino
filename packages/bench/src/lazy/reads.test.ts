@@ -1,7 +1,7 @@
 // T6.8's bar is a `local` measurement on a quiet machine; this checks the shape only, with a tiny
 // workload and no bar. The bar run is `pnpm bench:lazy reads --max-ratio 3`.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { measureReads, missesBar, parseReadsFlags } from './reads.ts'
 
 test('the result is the one JSON line with its fields', async () => {

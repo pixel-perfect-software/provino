@@ -7,7 +7,7 @@ import assert from 'node:assert/strict'
 import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
-import { after, before, test } from 'node:test'
+import { afterAll, beforeAll, test } from 'provino'
 import { jestChangedFiles } from './index.ts'
 
 // The probe in `r0` draws only once all five have logged themselves (a barrier on the log, kept in
@@ -27,7 +27,7 @@ let base = ''
 let log = ''
 const saved = { ...process.env }
 
-before(async () => {
+beforeAll(async () => {
   base = await realpath(await mkdtemp(join(tmpdir(), 'provino-sl-')))
   const bin = join(base, 'bin')
   await mkdir(bin)
@@ -42,7 +42,7 @@ before(async () => {
   })
 })
 
-after(async () => {
+afterAll(async () => {
   for (const name of Object.keys(process.env)) if (!(name in saved)) delete process.env[name]
   Object.assign(process.env, saved)
   await rm(base, { recursive: true, force: true })

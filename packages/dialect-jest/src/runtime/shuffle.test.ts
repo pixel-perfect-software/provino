@@ -3,7 +3,7 @@
 // 30 tests in under `--randomize --seed=1234` (`cli/randomize-seed-flat`, `cli/randomize-seed-negative`).
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { uniformIntDistribution, xoroshiro128plus } from 'pure-rand'
 import { jestShuffle } from './shuffle.ts'
 

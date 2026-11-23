@@ -7,11 +7,11 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
+import { afterAll, test } from 'provino'
 import { pipeProcesses, prepareRepoDir } from './sample-fetch.ts'
 
 const dir = mkdtempSync(join(tmpdir(), 'provino-sample-fetch-'))
-after(() => rmSync(dir, { recursive: true, force: true }))
+afterAll(() => rmSync(dir, { recursive: true, force: true }))
 
 const node = (script: string) => ({ command: process.execPath, args: ['-e', script] })
 
