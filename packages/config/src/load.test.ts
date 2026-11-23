@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { symlink } from 'node:fs/promises'
 import { join } from 'node:path'
-import { after, before, describe, test } from 'node:test'
 import type { ConfigEnv } from '@provino/types'
+import { afterAll, beforeAll, describe, test } from 'provino'
 import { ConfigError } from './errors.ts'
 import { makeTempDir, rejectsWith, type TempDir } from './internal/test-support.ts'
 import { loadConfigFile, loadProject } from './load.ts'
@@ -11,10 +11,10 @@ const ENV: ConfigEnv = { command: 'run', mode: 'test' }
 
 describe('loadConfigFile', () => {
   let temp: TempDir
-  before(async () => {
+  beforeAll(async () => {
     temp = await makeTempDir()
   })
-  after(() => temp.dispose())
+  afterAll(() => temp.dispose())
 
   test('returns the default export of an .mjs file', async () => {
     const path = await temp.write(
@@ -145,10 +145,10 @@ describe('loadConfigFile', () => {
 
 describe('loading the same file again', () => {
   let temp: TempDir
-  before(async () => {
+  beforeAll(async () => {
     temp = await makeTempDir()
   })
-  after(() => temp.dispose())
+  afterAll(() => temp.dispose())
 
   const esmSource = (include: string): string =>
     `export default { include: [${JSON.stringify(include)}] }\n`
@@ -315,10 +315,10 @@ describe('loading the same file again', () => {
 
 describe('loadProject', () => {
   let temp: TempDir
-  before(async () => {
+  beforeAll(async () => {
     temp = await makeTempDir()
   })
-  after(() => temp.dispose())
+  afterAll(() => temp.dispose())
 
   const environments = { node: { module: '/env/node.mjs', export: 'nodeEnvironment' } }
 
