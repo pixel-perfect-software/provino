@@ -1,0 +1,27 @@
+{
+  "extends": "../../tooling/provino/tsconfig.tests.base.json",
+  "include": ["src/**/*.test.ts", "provino.config.ts"],
+  "references": [
+    {
+      "path": "./tsconfig.json"
+    },
+    {
+      "path": "../provino"
+    },
+    {
+      "path": "../policy"
+    },
+    {
+      "path": "../resolver"
+    },
+    {
+      "path": "../transform"
+    },
+    {
+      "path": "../types"
+    },
+    {
+      "path": "../../tooling/provino"
+    }
+  ]
+}

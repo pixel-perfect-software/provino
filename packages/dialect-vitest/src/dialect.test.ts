@@ -66,6 +66,13 @@ test('the B23f keys: D151 is recorded as Vitest re-evaluating, the rest stay neu
   assert.deepEqual(resolved.core.boundaryTurns, neutralPolicy.core.boundaryTurns)
 })
 
+// B27h2: the neutral policy moved to Node interop; Vitest's own value is set explicitly, so a later
+// neutral change can't move it.
+test('interopDefault is node for Vitest, set by the dialect and not inherited from neutral', () => {
+  assert.equal(vitestPolicy.module?.interopDefault, 'node')
+  assert.equal(resolved.module.interopDefault, 'node')
+})
+
 test('a few divergences from the neutral policy are Vitest`s', () => {
   const rows = diffPolicy(neutralPolicy, resolved)
   const row = (path: string) => rows.find((candidate) => candidate.path === path)

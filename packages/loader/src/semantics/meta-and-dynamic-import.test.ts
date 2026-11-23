@@ -252,3 +252,46 @@ export const result = { has: 'module.exports' in c, same: c['module.exports'] ==
     assert.deepEqual(both.provino, both.native)
   }
 })
+
+test('dynamic-import-query-and-fragment: each URL of one file is its own module, evaluated once, and import.meta.url keeps the query', async () => {
+  await expectSame({
+    entry: 'entry.mjs',
+    files: {
+      'x.mjs': `${TRACE}trace.push(import.meta.url.slice(import.meta.url.lastIndexOf('/') + 1))
+export const id = {}
+export const filename = import.meta.filename.slice(import.meta.filename.lastIndexOf('/') + 1)
+`,
+      'entry.mjs': `import { pathToFileURL } from 'node:url'
+const a = await import('./x.mjs?v=1')
+const b = await import('./x.mjs?v=1')
+const c = await import('./x.mjs?v=2')
+const d = await import('./x.mjs')
+const e = await import(pathToFileURL(import.meta.filename).href.replace('entry.mjs', 'x.mjs') + '?load=3')
+const f = await import('./x.mjs#fragment')
+export const result = {
+  sameUrlOnce: a === b,
+  queriesApart: a.id !== c.id,
+  plainApart: a.id !== d.id,
+  fileUrlQuery: e.id !== a.id,
+  fragmentApart: f.id !== d.id,
+  filename: c.filename,
+}
+`,
+    },
+  })
+})
+
+test('dynamic-import-data-url: import() of a data: URL evaluates it as an ES module, once per URL', async () => {
+  await expectSame({
+    entry: 'entry.mjs',
+    files: {
+      'entry.mjs': `const source = 'globalThis.__trace.push("data"); export default 1; export const path = (await import("node:path")).sep'
+const url = 'data:text/javascript,' + encodeURIComponent(source)
+const a = await import(url)
+const b = await import(url)
+const c = await import('data:text/javascript;base64,' + Buffer.from('export const z = 2').toString('base64'))
+export const result = { value: a.default, path: a.path, once: a === b, base64: c.z }
+`,
+    },
+  })
+})

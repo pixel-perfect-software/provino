@@ -209,6 +209,12 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
   const tracker = new ScopeTracker()
   /** Where each test context parameter starts: the binding a `t.name` must resolve to. */
   const contextParameters = new Set<number>()
+  /** What each registered callback is, by its start: the kind of function a hook call sits in. */
+  const callbackKinds = new Map<number, 'suite' | 'test' | 'hook'>()
+  /** The functions around the node being walked, outermost first (`other` is any unregistered one). */
+  const functionKinds: ('suite' | 'test' | 'hook' | 'other')[] = []
+  /** Locals whose every hook call became onTestFinished: their native import would be unused. */
+  const hookCalls = new Map<string, { total: number; retargeted: number }>()
 
   /** The import a name stands for here: not a local that shadows it. */
   const importOf = (name: string | null): Imported | undefined => {
@@ -308,10 +314,56 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
     return { mod: mods[0], timeout }
   }
 
+  /**
+   * Where a hook call sits: the module top level or directly in a describe callback (its owner is
+   * the suite), inside a test body (node:test registers it on the running test), or somewhere whose
+   * owner depends on the caller (a helper function).
+   */
+  function hookPlace(): 'suite' | 'test' | 'unknown' {
+    // The nearest registered callback owns the hook; a helper function between it and the call
+    // leaves the owner to the caller, except inside a test body, where the running test owns it.
+    const nearest = functionKinds.findLast((kind) => kind !== 'other')
+    if (nearest === 'test') return 'test'
+    if (functionKinds.length === 0) return 'suite'
+    return nearest === 'suite' && functionKinds.at(-1) === 'suite' ? 'suite' : 'unknown'
+  }
+
   function registerHook(call: AstNode, reg: Registration): void {
     const [fn, options] = listOf(call, 'arguments')
     if (!isCallback(fn)) {
       refuse(call, 'hook with a callback that is not an inline function')
+      return
+    }
+    callbackKinds.set(fn.start, 'hook')
+    const local = nameOf(reg.base) ?? ''
+    const counts = hookCalls.get(local) ?? { total: 0, retargeted: 0 }
+    counts.total++
+    hookCalls.set(local, counts)
+    const place = hookPlace()
+    if (place === 'unknown') {
+      refuse(
+        call,
+        `${reg.imported} called inside a function: node:test registers it on whatever is running when the helper is called, and provino cannot know that owner here. Hand edit: move it to the module top level or the describe callback, or call it from the test body (after becomes onTestFinished)`,
+      )
+      return
+    }
+    if (place === 'test') {
+      if (reg.imported !== 'after') {
+        refuse(
+          call,
+          `${reg.imported} called inside a test body has no native meaning. Hand edit: do the work inline in the test, or move the hook to the suite`,
+        )
+      } else if (options !== undefined) {
+        refuse(
+          call,
+          'after inside a test body, with options, has no native equivalent (onTestFinished takes the callback only)',
+        )
+      } else {
+        edited.overwrite(reg.base.start, reg.base.end, 'onTestFinished')
+        needed.add('onTestFinished')
+        counts.retargeted++
+        checkReturns(fn, true)
+      }
       return
     }
     renameCallee(reg)
@@ -354,6 +406,7 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
     }
     if (extra[0] !== undefined) refuse(extra[0], 'unexpected extra argument')
     if (fn === null) return
+    callbackKinds.set(fn.start, reg.role === 'suite' ? 'suite' : 'test')
     if (reg.role === 'suite') {
       if (get(fn, 'async') === true) refuse(fn, 'async describe callback')
       if (listOf(fn, 'params').length > 0) {
@@ -448,6 +501,7 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
       const at = node as unknown as AstNode
       const above = parent as unknown as AstNode | null
       otherReach(at)
+      if (FUNCTIONS.has(at.type)) functionKinds.push(callbackKinds.get(at.start) ?? 'other')
       if (at.type === 'CallExpression') {
         const reg = classify(at)
         if (reg === null) return
@@ -459,6 +513,9 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
         valueUse(at, above)
       }
     },
+    leave(node) {
+      if (FUNCTIONS.has((node as unknown as AstNode).type)) functionKinds.pop()
+    },
   })
 
   if (refusals.length > 0) return { text: source, changed: false, refusals }
@@ -467,6 +524,8 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
   const specifiers = new Set(needed)
   for (const { imported, local } of locals.values()) {
     if (imported === 'mock') continue
+    const calls = hookCalls.get(local)
+    if (calls !== undefined && calls.total === calls.retargeted) continue
     const native = HOOKS[imported] ?? imported
     const now = local === imported ? native : local
     specifiers.add(now === native ? native : `${native} as ${now}`)

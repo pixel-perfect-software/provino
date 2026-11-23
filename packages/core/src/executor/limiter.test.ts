@@ -1,6 +1,6 @@
 // The `maxConcurrency` semaphore. Calls are held open with explicit promises, never timers.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { settle } from '../internal/test-support.ts'
 import { createLimiter, unlimited } from './limiter.ts'
 

@@ -3,7 +3,7 @@
 // (a path with ` (` in it, and `async` before a bare location) are read right here.
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { topFrame } from './frame.ts'
 
 const harness = createRequire(new URL('../../../harness/package.json', import.meta.url))

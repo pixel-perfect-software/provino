@@ -20,6 +20,9 @@
       "path": "packages/core"
     },
     {
+      "path": "packages/core/tsconfig.tests.json"
+    },
+    {
       "path": "tooling/boundaries"
     },
     {
@@ -53,6 +56,9 @@
       "path": "packages/snapshot"
     },
     {
+      "path": "packages/snapshot/tsconfig.tests.json"
+    },
+    {
       "path": "packages/coverage"
     },
     {
@@ -60,6 +66,9 @@
     },
     {
       "path": "packages/expect"
+    },
+    {
+      "path": "packages/expect/tsconfig.tests.json"
     },
     {
       "path": "packages/mock"
@@ -90,6 +99,9 @@
     },
     {
       "path": "packages/config"
+    },
+    {
+      "path": "packages/config/tsconfig.tests.json"
     },
     {
       "path": "packages/reporters"

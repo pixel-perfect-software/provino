@@ -3,9 +3,9 @@
 // side is held to Vitest 5.0.5's recordings by `@provino/harness`'s runtime corpus
 // (`runtime/fixture-*`).
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { DefinitionErrorInfo } from '@provino/types'
 import FakeTimers from '@sinonjs/fake-timers'
+import { describe, test } from 'provino'
 import type { FixtureTestApi } from '../collector/api.ts'
 import { CoreError } from '../errors.ts'
 import { clockOptions, runScript, type Script, settle } from '../internal/test-support.ts'

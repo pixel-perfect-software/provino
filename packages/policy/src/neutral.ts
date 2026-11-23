@@ -190,7 +190,9 @@ export const neutralPolicy: Policy = deepFreeze({
     actual: 'async-import',
     resetModulesBetween: false,
     injectCjsGlobals: true,
-    interopDefault: 'babel',
+    // Tyler, 2026-11-23: neutral uses Node's interop (speed: no wrapping, and a native project sees
+    // exactly what Node gives it). Jest keeps 'babel' and Vitest 'node', each set in its own dialect.
+    interopDefault: 'node',
     resetModulesClearsMocks: false,
     awaitFactory: true,
     // A missing export would otherwise read as `undefined`.

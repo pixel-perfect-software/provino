@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
 import { SnapshotError } from '@provino/snapshot'
+import { describe, test } from 'provino'
 import { HEADER, jsonPrinter, policy, put, snapText, stateIn, tempDir } from './test-support.ts'
 
 const snapPath = (dir: string): string => join(dir, '__snapshots__', 'a.test.ts.snap')

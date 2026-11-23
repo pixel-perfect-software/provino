@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { registerHooks } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { createResolver } from '@provino/resolver'
 import type {
   CompiledModuleEvent,
@@ -147,6 +149,35 @@ test('a link that throws partway still gets its async graphs marked by the next 
   assert.throws(() => registry.require(join(root, 'half.ts')), { code: 'ERR_REQUIRE_ASYNC_MODULE' })
 })
 
+// Tyler, 2026-11-23 (B27h2, speed): the neutral policy uses Node's interop, so a project with no
+// dialect sees exactly what Node gives it. Neither fixture names an interop: the neutral value decides.
+test('the neutral policy has Node’s interop: import x from an __esModule CommonJS module is module.exports', async () => {
+  const root = writeTree({
+    'esm-shaped.cjs':
+      "Object.defineProperty(exports, '__esModule', { value: true })\nexports.default = 'inner default'\nexports.named = 'named'\n",
+    'entry.test.ts':
+      "import shaped, * as ns from './esm-shaped.cjs'\nexport { shaped }\nexport const nsDefault: unknown = ns.default\n",
+  })
+  const entry = join(root, 'entry.test.ts')
+  const loaded = await loaderFor(root)
+    .createFileRegistry(entry, { tier: 'registry' })
+    .import<{ shaped: { default: string; named: string }; nsDefault: unknown }>(entry)
+  assert.deepEqual({ ...loaded.shaped }, { default: 'inner default', named: 'named' })
+  assert.equal(loaded.nsDefault, loaded.shaped)
+})
+
+test('the neutral policy has Node’s interop: import() of a builtin is a module namespace object', async () => {
+  const root = writeTree({
+    'entry.test.ts':
+      "import { types } from 'node:util'\nexport const isNamespace: boolean = types.isModuleNamespaceObject(await import('node:path'))\n",
+  })
+  const entry = join(root, 'entry.test.ts')
+  const loaded = await loaderFor(root)
+    .createFileRegistry(entry, { tier: 'registry' })
+    .import<{ isNamespace: boolean }>(entry)
+  assert.equal(loaded.isNamespace, true)
+})
+
 test('CommonJS user modules: require, module.exports and the default interop', async () => {
   const files = {
     'lib.cjs':
@@ -270,6 +301,130 @@ test('import.meta.resolve names a file that is not there, as Node does, and thro
   assert.equal(resolve('/abs/nope.mjs'), 'file:///abs/nope.mjs', 'absolute: no lookup')
   assert.equal(resolve('file:///abs/nope.mjs'), 'file:///abs/nope.mjs')
   assert.throws(() => resolve('nope-package'), { code: 'ERR_MODULE_NOT_FOUND' })
+})
+
+test('import() with a query reads the file without it: a TypeScript file, one module per URL', async () => {
+  // `@provino/config`'s `loadConfigFile` adds `?provino-load=<id>` to a file URL to read a config
+  // again; a test adds a query for a fresh evaluation. The query was left on the path the file was
+  // read from (ENOENT).
+  const root = writeTree({
+    'config.ts':
+      'globalThis.__loads = (globalThis.__loads ?? 0) + 1\nconst n: number = 1\nexport default { n, url: import.meta.url }\n',
+    'loads.ts':
+      "import { pathToFileURL } from 'node:url'\nexport const load = (query: string) => import(pathToFileURL(new URL('./config.ts', import.meta.url).pathname).href + query)\nexport const relative = () => import('./config.ts?fresh')\n",
+    'entry.test.ts': '',
+  })
+  interface Config {
+    readonly default: { readonly n: number; readonly url: string }
+  }
+  interface Loads {
+    readonly load: (query: string) => Promise<Config>
+    readonly relative: () => Promise<Config>
+  }
+  const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.ts'), {
+    tier: 'registry',
+  })
+  const previous: unknown = Reflect.get(globalThis, '__loads')
+  Reflect.set(globalThis, '__loads', 0)
+  try {
+    const loads = await registry.import<Loads>(join(root, 'loads.ts'))
+    const first = await loads.load('?provino-load=1')
+    assert.equal(first.default.n, 1)
+    assert.equal(first.default.url, `${pathToFileURL(join(root, 'config.ts')).href}?provino-load=1`)
+    assert.equal(await loads.load('?provino-load=1'), first, 'one URL, one module')
+    const second = await loads.load('?provino-load=2')
+    assert.notEqual(second, first, 'another query is another module')
+    const relative = await loads.relative()
+    assert.notEqual(relative, first)
+    assert.equal(Reflect.get(globalThis, '__loads'), 3, 'each URL evaluated once')
+  } finally {
+    Reflect.set(globalThis, '__loads', previous)
+    registry.dispose()
+  }
+})
+
+test('import() of a URL no file answers is Node’s: a scheme a registerHooks hook serves', async () => {
+  // Code the loader runs met none of the process's `module.registerHooks` hooks for its own
+  // `import()`: `provino`'s add-on scheme failed with "Cannot find module".
+  const root = writeTree({
+    'loads.mjs': 'export const load = (specifier) => import(specifier)\n',
+    'entry.test.ts': '',
+  })
+  const hooks = registerHooks({
+    resolve: (specifier, context, nextResolve) =>
+      specifier.startsWith('provino-loader-test:')
+        ? { url: specifier, shortCircuit: true }
+        : nextResolve(specifier, context),
+    load: (url, context, nextLoad) =>
+      url.startsWith('provino-loader-test:')
+        ? { format: 'module', source: 'export default 42', shortCircuit: true }
+        : nextLoad(url, context),
+  })
+  const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.ts'), {
+    tier: 'registry',
+  })
+  try {
+    const loads = await registry.import<{
+      load: (specifier: string) => Promise<{ default: unknown }>
+    }>(join(root, 'loads.mjs'))
+    assert.equal((await loads.load('provino-loader-test:answer')).default, 42)
+    await assert.rejects(loads.load('./missing.mjs'), { code: 'ERR_MODULE_NOT_FOUND' })
+  } finally {
+    hooks.deregister()
+    registry.dispose()
+  }
+})
+
+test('a data: module is evaluated per file under registry, as a user module', async () => {
+  // Node's own import() of a data: URL is cached per process, so two files of one worker shared
+  // its state; jest-runtime evaluates it per test file.
+  const root = writeTree({
+    'loads.mjs': 'export const load = (specifier) => import(specifier)\n',
+    'entry.test.ts': '',
+  })
+  const url = `data:text/javascript,${encodeURIComponent('export let n = 0\nexport const bump = () => ++n')}`
+  const json = `data:application/json;base64,${Buffer.from('{"a":1}').toString('base64')}`
+  const loader = loaderFor(root)
+  const open = () => loader.createFileRegistry(join(root, 'entry.test.ts'), { tier: 'registry' })
+  interface Loads {
+    readonly load: (specifier: string) => Promise<{ bump: () => number; default: unknown }>
+  }
+  const first = open()
+  const second = open()
+  try {
+    const inFirst = await (await first.import<Loads>(join(root, 'loads.mjs'))).load(url)
+    assert.equal(inFirst.bump(), 1)
+    assert.equal(inFirst.bump(), 2)
+    const loadsFirst = await first.import<Loads>(join(root, 'loads.mjs'))
+    assert.equal(await loadsFirst.load(url), inFirst, 'one URL, one module in a file')
+    const inSecond = await (await second.import<Loads>(join(root, 'loads.mjs'))).load(url)
+    assert.equal(inSecond.bump(), 1, 'the other file has a fresh instance')
+    assert.deepEqual((await loadsFirst.load(json)).default, { a: 1 })
+  } finally {
+    first.dispose()
+    second.dispose()
+  }
+})
+
+test('an import() of a URL with another scheme that nothing serves keeps the not-found error', async () => {
+  const root = writeTree({
+    'loads.mjs': 'export const load = (specifier) => import(specifier)\n',
+    'entry.test.ts': '',
+  })
+  const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.ts'), {
+    tier: 'registry',
+  })
+  try {
+    const loads = await registry.import<{ load: (specifier: string) => Promise<unknown> }>(
+      join(root, 'loads.mjs'),
+    )
+    await assert.rejects(loads.load('https://example.invalid/x.mjs'), {
+      code: 'ERR_MODULE_NOT_FOUND',
+      message: /^Cannot find module 'https:\/\/example\.invalid\/x\.mjs'/,
+    })
+  } finally {
+    registry.dispose()
+  }
 })
 
 test('a CommonJS file’s import() runs in the registry that evaluated it', async () => {
