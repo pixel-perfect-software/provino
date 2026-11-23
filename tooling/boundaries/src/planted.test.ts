@@ -88,7 +88,7 @@ const count = (output: string, rule: string): number =>
   output.match(new RegExp(`× ${rule}`, 'g'))?.length ?? 0
 
 // Every case has its own scratch dir, so the cases run at once (about 3x faster).
-describe('Biome GritQL plugins', () => {
+describe.concurrent('Biome GritQL plugins', () => {
   test('slice-discipline: `import type { MockPolicy }` in @provino/core fails, naming the rule', async () => {
     const path = 'packages/core/src/planted.ts'
     const dir = await workspace({
@@ -178,7 +178,7 @@ describe('Biome GritQL plugins', () => {
   })
 })
 
-describe('dependency-cruiser rules', () => {
+describe.concurrent('dependency-cruiser rules', () => {
   test("`import '@provino/dialect-jest'` in @provino/core fails neutral-no-dialect and boundary-core", async () => {
     const dir = await workspace({
       'packages/core/src/planted.ts': "import '@provino/dialect-jest'\n",
