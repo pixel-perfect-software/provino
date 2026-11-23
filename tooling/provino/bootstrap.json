@@ -1,19 +1,9 @@
 {
   "files": {
-    "packages/bench/src/check.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
-    "packages/bench/src/commands.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
-    "packages/bench/src/environment.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
-    "packages/bench/src/exec.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
-    "packages/bench/src/instructions/prepare.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
-    "packages/bench/src/output.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
-    "packages/bench/src/parity.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
-    "packages/bench/src/run-bench.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
-    "packages/bench/src/suites.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
-    "packages/bench/src/tree-rss.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
+    "packages/bench/src/run-bench.test.ts": "D101 (kept, DV215/DV216; B27h3): the test sets process.env.HOME and asserts os.homedir() returns it (run-bench.test.ts:420), but a test file under Provino has its own process with a copy of env (orchestrator.processObject 'per-file', packages/env-shared/src/process.ts), so the native os.homedir() still reads the worker's real HOME (expected the temp home, actual the real one).",
     "packages/bench/src/worker/worker.test.ts": "Runs the inline worker in this process, so it installs the expect slot (globalThis[Symbol.for('$$jest-matchers-object')]) the runner's own worker already holds (B27h).",
     "packages/config/src/transform-cache.test.ts": "Runner bug (B27h): a `process.on('warning')` listener hears 0 PROVINO_TRANSFORM_CACHE_STALE warnings inside the worker where node:test hears 1 (expected 1, actual 0).",
     "packages/dialect-jest/src/affected/git.test.ts": "Runner bug (B27h, suspected): env set on process.env in beforeAll (GIT_CONFIG_* with init.defaultBranch=main) does not reach the git child processes, so `git checkout main` fails.",
-    "packages/dialect-jest/src/inline-snapshots/inline-snapshots.test.ts": "Runner bug (B27h): the helper calls node:test's after() inside a running test (per-test cleanup); the codemod maps it to afterAll, which Provino refuses inside a test.",
     "packages/dialect-jest/src/runtime/attempt-state.test.ts": "Installs the process-global expect slot (globalThis[Symbol.for('$$jest-matchers-object')]) the runner's worker already holds, so setUpJestExpect refuses (B27h).",
     "packages/dialect-jest/src/runtime/expect-table.test.ts": "Installs the process-global expect slot (globalThis[Symbol.for('$$jest-matchers-object')]) the runner's worker already holds, so setUpJestExpect refuses (B27h).",
     "packages/dialect-jest/src/runtime/globals.test.ts": "Installs the process-global expect slot (globalThis[Symbol.for('$$jest-matchers-object')]) the runner's worker already holds, so setUpJestExpect refuses (B27h).",
@@ -32,7 +22,6 @@
     "packages/expect/src/interop-jest.test.ts": "Loads Jest's own expect, which defines globalThis[Symbol.for('$$jest-matchers-object')] non-configurably in a process of its own; the runner's worker already holds that slot (B27h).",
     "packages/expect/src/interop-vitest.test.ts": "Loads Vitest's own expect, which defines globalThis[Symbol.for('$$jest-matchers-object')] in a process of its own; the runner's worker already holds that slot (B27h).",
     "packages/expect/src/slot.test.ts": "Installs and uninstalls the expect slot itself (globalThis[Symbol.for('$$jest-matchers-object')]), which the runner's worker already holds, so install throws EXPECT_SLOT_TAKEN inside it (B27h).",
-    "packages/expect/src/snapshot-matchers.test.ts": "Runner bug (B27h): helpers call node:test's `after` inside running tests (test-scoped cleanup); the codemod makes it `afterAll`, which Provino refuses inside a test (CoreError).",
     "packages/harness/src/equality-corpus.test.ts": "Installs the process-global expect slot (globalThis[Symbol.for('$$jest-matchers-object')]) the runner's worker already holds, so setUpJestExpect refuses (B27h).",
     "packages/harness/src/expect-corpus.test.ts": "Installs the process-global expect slot (globalThis[Symbol.for('$$jest-matchers-object')]) the runner's worker already holds, so setUpJestExpect refuses (B27h).",
     "packages/harness/src/mock-corpus.test.ts": "Runs a runtime in the runner's worker process (core runs one file at a time and installs the test globals through internal/globals, so no test registers: \"the file ran at least one test\") and fails under Provino's worker (B27h).",
@@ -52,8 +41,6 @@
     "packages/orchestrator/test/runtime-transports.test.ts": "Runs the real runtime entry over the inline transport in the test's own process, which shares the process-global slots with the runner's worker (B27h).",
     "packages/orchestrator/test/runtime.test.ts": "Runs the real runtime entry inline in the test's own process, installing the process-global matcher slot and loader hooks the runner's worker already holds (B27h).",
     "packages/orchestrator/test/shard-tier.test.ts": "Runs shards through runProjects over the inline pool, whose workers install the process-global slots the runner's worker already holds (B27h).",
-    "packages/provino/test/bootstrap/canary.test.ts": "The canary: it runs the built runner on a fixture with known failures and asserts they are reported, so a runner that reports green wrongly is caught (D203). It must not depend on the runner it checks.",
-    "packages/snapshot/src/node/haste-map.test.ts": "Runner bug (B27h): a test helper calls node:test's `after` inside a running test (a test-scoped cleanup); the codemod turns it into `afterAll`, which Provino refuses inside a test (CoreError).",
-    "packages/snapshot/src/node/obsolete-files.test.ts": "Runner bug (B27h): a test helper calls node:test's `after` inside a running test (a test-scoped cleanup); the codemod turns it into `afterAll`, which Provino refuses inside a test (CoreError)."
+    "packages/provino/test/bootstrap/canary.test.ts": "The canary: it runs the built runner on a fixture with known failures and asserts they are reported, so a runner that reports green wrongly is caught (D203). It must not depend on the runner it checks."
   }
 }

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { test } from 'node:test'
 import { parseNormalizedRun, readRunEnvironment } from '@provino/harness'
 import type { NormalizedFile, NormalizedRun, NormalizedTest } from '@provino/types'
+import { test } from 'provino'
 import {
   checkProblems,
   checkRunner,

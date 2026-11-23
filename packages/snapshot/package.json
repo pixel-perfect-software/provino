@@ -40,7 +40,7 @@
   },
   "scripts": {
     "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
-    "test": "node ../../packages/provino/dist/cli.js run && node --test --conditions=provino-source src/node/haste-map.test.ts src/node/obsolete-files.test.ts"
+    "test": "node ../../packages/provino/dist/cli.js run"
   },
   "dependencies": {
     "@provino/types": "workspace:*"

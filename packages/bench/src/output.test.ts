@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { access, chmod, mkdir, readdir, readFile, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { test } from 'node:test'
+import { test } from 'provino'
 import type { BenchError } from './errors.ts'
 import { code, scratch } from './internal/test-helpers.ts'
 import { prepareOutput, writeRecordFile } from './output.ts'

@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import type { TestContext } from 'node:test'
 import { runProcess } from '@provino/harness'
 import type {
   BenchLabel,
@@ -10,6 +9,7 @@ import type {
   BenchResult,
   IsolationMode,
   RunEnvironment,
+  TestContext,
 } from '@provino/types'
 import { BenchError, type BenchErrorCode } from '../errors.ts'
 import type { StatusParity } from '../parity.ts'
@@ -17,13 +17,26 @@ import { buildRecord } from '../report.ts'
 import { PACKAGE_DIR, type RunnerPlan } from '../suites.ts'
 
 /**
+ * A test context that can run a cleanup when its test ends: Provino's (`onTestFinished`) or
+ * node:test's (`after`). `run-bench.test.ts` is still on node:test (`tooling/provino/bootstrap.json`),
+ * so the helpers below serve both until it moves.
+ * @internal
+ */
+export type TestEnd = Pick<TestContext, 'onTestFinished'> | { after(fn: () => unknown): void }
+
+function whenTestEnds(t: TestEnd, cleanup: () => Promise<void>): void {
+  if ('onTestFinished' in t) t.onTestFinished(cleanup)
+  else t.after(cleanup)
+}
+
+/**
  * Makes a temp directory named `<prefix>…` under the OS temp dir and removes it when the test
  * ends.
  * @internal
  */
-export async function scratch(t: Pick<TestContext, 'after'>, prefix: string): Promise<string> {
+export async function scratch(t: TestEnd, prefix: string): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), prefix))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  whenTestEnds(t, () => rm(dir, { recursive: true, force: true }))
   return dir
 }
 
@@ -33,11 +46,11 @@ export async function scratch(t: Pick<TestContext, 'after'>, prefix: string): Pr
  * from the package's `node_modules` and not from the OS temp dir. It is removed when the test ends.
  * @internal
  */
-export async function scratchSuites(t: Pick<TestContext, 'after'>): Promise<string> {
+export async function scratchSuites(t: TestEnd): Promise<string> {
   const parent = join(PACKAGE_DIR, '.suites')
   await mkdir(parent, { recursive: true })
   const dir = await mkdtemp(join(parent, 'test-'))
-  t.after(() => rm(dir, { recursive: true, force: true }))
+  whenTestEnds(t, () => rm(dir, { recursive: true, force: true }))
   return dir
 }
 

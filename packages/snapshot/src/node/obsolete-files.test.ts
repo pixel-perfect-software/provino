@@ -2,15 +2,21 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, test } from 'node:test'
 import { defaultSnapshotPath } from '@provino/snapshot'
+import { afterEach, describe, test } from 'provino'
 import { cleanObsoleteSnapshotFiles, defaultSnapshotTestPath } from './obsolete-files.ts'
 
 const LAYOUT = { dirName: '__snapshots__', extension: '.snap' }
 
+// The trees `tree` made in a test go when it ends (`tree` is only called from test bodies).
+const roots: string[] = []
+afterEach(() => {
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
+})
+
 function tree(files: readonly string[]): string {
   const root = mkdtempSync(join(tmpdir(), 'provino-obsolete-'))
-  after(() => rmSync(root, { recursive: true, force: true }))
+  roots.push(root)
   for (const file of files) {
     mkdirSync(join(root, file, '..'), { recursive: true })
     writeFileSync(join(root, file), '')

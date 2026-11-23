@@ -3,9 +3,9 @@ import { existsSync, readFileSync } from 'node:fs'
 import { mkdir, readFile, stat, symlink, utimes, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
 import { transformCacheDir } from '@provino/orchestrator'
+import { onTestFinished, test } from 'provino'
 import { buildGraph, GRAPH, GRAPH_SIZE, simulate } from './generators/graph.ts'
 import { BIG_RECORD_COUNT } from './generators/isolate-heavy.ts'
 import type { Flavour, GeneratedFile } from './generators/render.ts'
@@ -345,7 +345,7 @@ test('the generated graph computes what the model says, in both flavours and any
       import(pathToFileURL(join(dir, 'vitest', 'src', 'graph', `${name}.js`)).href),
   }
   const originalTz = process.env.TZ
-  t.after(() => {
+  onTestFinished(() => {
     if (originalTz === undefined) delete process.env.TZ
     else process.env.TZ = originalTz
   })
