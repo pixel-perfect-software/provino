@@ -8,8 +8,8 @@ import { readFileSync } from 'node:fs'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, onTestFinished, test } from 'provino'
 import { fileURLToPath } from 'node:url'
+import { describe, onTestFinished, test } from 'provino'
 import { readLoadLogs, runBuilt, trackedProjects } from './support.ts'
 
 /** `bindingTriple`, loaded by URL: the type-test project includes this directory but not the package's source. */

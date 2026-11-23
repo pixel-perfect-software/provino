@@ -9,8 +9,8 @@
 // build` (turbo's `test` builds first).
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { describe, it } from 'provino'
 import { isCi } from '@provino/reporters'
+import { describe, it } from 'provino'
 import { BUILT_BIN, interactiveEnv, jestConfigJson, passing, trackedProjects } from './support.ts'
 
 /** The harness's terminal pieces, loaded by path: `provino` may not import `@provino/harness`. */

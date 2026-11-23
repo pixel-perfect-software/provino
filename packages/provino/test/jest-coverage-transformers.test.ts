@@ -10,8 +10,8 @@ import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, describe, it } from 'provino'
 import { fileURLToPath } from 'node:url'
+import { afterAll, describe, it } from 'provino'
 import { spawnCli } from './support.ts'
 
 const FIXTURE: string = fileURLToPath(

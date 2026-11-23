@@ -6,8 +6,8 @@ import assert from 'node:assert/strict'
 import { mkdir, symlink } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
-import { describe, it } from 'provino'
 import { fileURLToPath } from 'node:url'
+import { describe, it } from 'provino'
 import { spawnCli, trackedProjects } from './support.ts'
 
 const makeProject = trackedProjects()

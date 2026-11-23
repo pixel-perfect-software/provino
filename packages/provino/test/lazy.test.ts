@@ -10,8 +10,8 @@ import { mkdtemp, rm } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { describe, test } from 'provino'
 import { fileURLToPath } from 'node:url'
+import { describe, test } from 'provino'
 import { childEnv, runBuilt, viewOfNormalized, whenFileEnds } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))

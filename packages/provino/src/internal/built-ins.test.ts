@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'provino'
 import { PROVINO_SERVED_MODULE } from '@provino/api'
+import { describe, test } from 'provino'
 import { NATIVE_RUNTIME } from './built-ins.ts'
 
 describe('NATIVE_RUNTIME', () => {

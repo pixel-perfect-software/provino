@@ -236,7 +236,9 @@ describe('vscode-jest replays (T11.12)', () => {
  */
 describe('vscode-jest watch replays (T11.12, B23e Phase 4)', () => {
   for (const request of WATCH_REQUESTS) {
-    it(`${request}: the run log, the results file after each run and the reporter lines`, { timeout: 150_000 }, async (t) => {
+    it(`${request}: the run log, the results file after each run and the reporter lines`, {
+      timeout: 150_000,
+    }, async (t) => {
       const skip = await watcherSkip()
       if (skip !== false) return t.skip(skip)
       const id = `ide/vscode-jest-${request}`

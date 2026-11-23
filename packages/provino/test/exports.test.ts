@@ -18,9 +18,9 @@ import {
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, onTestFinished, test } from 'provino'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runInNewContext } from 'node:vm'
+import { describe, onTestFinished, test } from 'provino'
 import {
   ADD_ON_DISTS,
   builtSources,

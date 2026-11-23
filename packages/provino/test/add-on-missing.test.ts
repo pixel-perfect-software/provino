@@ -8,8 +8,8 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, test } from 'provino'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { describe, test } from 'provino'
 import {
   childEnv,
   copyBuiltPackage,

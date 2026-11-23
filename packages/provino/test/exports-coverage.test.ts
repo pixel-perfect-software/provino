@@ -6,8 +6,8 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync } from 'n
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, test } from 'provino'
 import { fileURLToPath } from 'node:url'
+import { describe, test } from 'provino'
 import { readLoadLogs, runBuilt, trackedProjects, whenFileEnds } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))

@@ -11,8 +11,8 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
-import { afterAll, describe, it } from 'provino'
 import { fileURLToPath } from 'node:url'
+import { afterAll, describe, it } from 'provino'
 import { viewOfNormalized } from './support.ts'
 
 const TRANSFORM_PACKAGE: string = fileURLToPath(new URL('../../transform/', import.meta.url))

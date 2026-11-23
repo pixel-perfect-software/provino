@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { Writable } from 'node:stream'
-import { describe, it } from 'provino'
 import type { LiveTerminal } from '@provino/reporters/live'
+import { describe, it } from 'provino'
 import {
   hookTerminal,
   pinnedStream,

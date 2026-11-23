@@ -1,8 +1,6 @@
 {
   "extends": "../../../tsconfig.base.json",
-  "include": [
-    "."
-  ],
+  "include": ["."],
   "references": [
     {
       "path": ".."
@@ -65,7 +63,5 @@
       "path": "../../types"
     }
   ],
-  "exclude": [
-    "globals-native"
-  ]
+  "exclude": ["globals-native"]
 }

@@ -4,8 +4,8 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { afterAll, describe, it } from 'provino'
 import { fileURLToPath } from 'node:url'
+import { afterAll, describe, it } from 'provino'
 import { failing, jestConfigJson, passing, spawnCli } from './support.ts'
 
 const made: string[] = []

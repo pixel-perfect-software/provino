@@ -9,11 +9,11 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { afterAll, test } from 'provino'
 import { loadInstrumenter } from '@provino/coverage/runtime'
 import { jestHoistPolicy } from '@provino/dialect-jest'
 import { createPipeline } from '@provino/transform'
 import type { IstanbulRange } from '@provino/types'
+import { afterAll, test } from 'provino'
 
 const { istanbulInstrumenter, readInitialCoverage } = await loadInstrumenter()
 

@@ -6,10 +6,10 @@ import { execFileSync } from 'node:child_process'
 import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { test } from 'provino'
 import type { ResolvedProject } from '@provino/config'
 import { jestChangedFiles } from '@provino/dialect-jest/affected'
 import { createResultsCache, projectCacheKey } from '@provino/orchestrator'
+import { test } from 'provino'
 import { isScmCommandFailure, previousDurations } from './jest-selection.ts'
 
 test('a failing SCM command is the provider’s own failure', async () => {

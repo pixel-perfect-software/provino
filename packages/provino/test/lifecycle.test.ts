@@ -9,9 +9,9 @@
 // their goldens (7/7), and the usage-error case below puts Jest's 1 beside `provino run`'s 2 (D76).
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { describe, it } from 'provino'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
+import { describe, it } from 'provino'
 import { runJest } from './live-jest.ts'
 import { loadFixture, materialize, type RecordedFixture, underRoot } from './recorded.ts'
 import {
