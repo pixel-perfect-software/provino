@@ -19,6 +19,19 @@ import { parseSync } from 'oxc-parser'
 import { bootstrapFiles, migratedDirs, TEST_ROOTS, testFilesOf } from './dogfood.ts'
 
 /**
+ * Helpers that import node:test on purpose because they pick the runner at run time, each with why.
+ * The scan does not report such a file's own value import of node:test, and still follows and
+ * checks what it reaches, so the exemption is the file and nothing else. An entry that no longer
+ * exists, or no longer makes a value import of node:test, is itself a problem (`staleExemptions`):
+ * the list can't outlive its reasons.
+ * @internal
+ */
+export const RUNTIME_RUNNER_PICKERS: Readonly<Record<string, string>> = {
+  'packages/provino/test/support.ts':
+    "picks the runner at run time: testRunner() reads the provino.api slot a Provino worker installs, and only without it uses node:test's describe, it and after (the bootstrap set's files import it too)",
+}
+
+/**
  * The specifiers a TypeScript file loads at run time, read from its syntax tree (so a string that
  * holds an import statement is none): static imports and re-exports, and `import()` of a string or a
  * template with no substitution. A type import or re-export, or an import whose every specifier is
@@ -87,10 +100,12 @@ function reach(
 export function nodeTestImportProblems(
   tests: readonly string[],
   read: (file: string) => string | undefined,
+  /** Files whose own node:test import is allowed (`RUNTIME_RUNNER_PICKERS`'s keys). */
+  exempt: ReadonlySet<string> = new Set(),
 ): readonly string[] {
   const problems: string[] = []
   reach(tests, read, (file, requests, chain) => {
-    if (!requests.includes('node:test')) return
+    if (!requests.includes('node:test') || exempt.has(file)) return
     problems.push(
       chain.length === 1
         ? `${file} is a test file Provino runs and imports node:test: rewrite it (pnpm migrate:node-test rewrite) or add it to the bootstrap set`
@@ -123,6 +138,32 @@ export function provinoImportProblems(
 }
 
 /**
+ * The exemptions that no longer hold: a file that is gone (or outside the roots `read` serves), or
+ * one that no longer makes a value import of node:test.
+ * @internal
+ */
+export function staleExemptions(
+  exempt: Readonly<Record<string, string>>,
+  read: (file: string) => string | undefined,
+): readonly string[] {
+  return Object.keys(exempt)
+    .sort()
+    .flatMap((file) => {
+      const text = read(file)
+      if (text === undefined) {
+        return [
+          `${file} is exempt as a runner picker (node-test-imports.ts) but does not exist: remove the entry`,
+        ]
+      }
+      return runtimeRequests(file, text).includes('node:test')
+        ? []
+        : [
+            `${file} is exempt as a runner picker (node-test-imports.ts) but no longer imports node:test: remove the entry`,
+          ]
+    })
+}
+
+/**
  * A reader of the repo's own sources for the two scans: a file's text when it is under one of
  * `roots` (and not in `node_modules`) and can be read, else `undefined`. Each file is read once.
  * @internal
@@ -152,7 +193,10 @@ export function sourceReader(
  * the bootstrap set, followed through the files under their include roots.
  * @internal
  */
-export function importProblems(repoRoot: string): readonly string[] {
+export function importProblems(
+  repoRoot: string,
+  pickers: Readonly<Record<string, string>> = RUNTIME_RUNNER_PICKERS,
+): readonly string[] {
   const dirs = migratedDirs(repoRoot)
   const bootstrap = bootstrapFiles(repoRoot)
   const read = sourceReader(
@@ -163,7 +207,8 @@ export function importProblems(repoRoot: string): readonly string[] {
     .flatMap((dir) => testFilesOf(join(repoRoot, dir)).map((file) => `${dir}/${file}`))
     .filter((file) => !bootstrap.includes(file))
   return [
-    ...nodeTestImportProblems(tests, read),
+    ...nodeTestImportProblems(tests, read, new Set(Object.keys(pickers))),
+    ...staleExemptions(pickers, read),
     ...provinoImportProblems(
       bootstrap.filter((file) => read(file) !== undefined),
       read,

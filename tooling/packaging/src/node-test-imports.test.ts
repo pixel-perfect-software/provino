@@ -6,7 +6,9 @@ import {
   importProblems,
   nodeTestImportProblems,
   provinoImportProblems,
+  RUNTIME_RUNNER_PICKERS,
   sourceReader,
+  staleExemptions,
 } from './node-test-imports.ts'
 import { scratchDir, writeFiles } from './test-support.ts'
 
@@ -148,6 +150,47 @@ describe('nodeTestImportProblems (B27h3)', () => {
   })
 })
 
+describe('runtime runner pickers, the one exemption (B27h3)', () => {
+  const TEST = 'packages/p/src/a.test.ts'
+  const PICKER = 'packages/p/src/picker.ts'
+  const files: Files = {
+    [TEST]: "import './picker.ts'\n",
+    [PICKER]: "import { after } from 'node:test'\nimport './deeper.ts'\n",
+    'packages/p/src/deeper.ts': "import { describe } from 'node:test'\n",
+  }
+  const read = (file: string): string | undefined => files[file]
+
+  it("allows the exempt file's own node:test import, and still checks what it reaches", () => {
+    const found = nodeTestImportProblems([TEST], read, new Set([PICKER])).join('\n')
+    assert.doesNotMatch(found, /picker\.ts imports node:test/)
+    assert.match(found, /picker\.ts → packages\/p\/src\/deeper\.ts imports node:test/)
+    // Without the exemption both are named.
+    const plain = nodeTestImportProblems([TEST], read).join('\n')
+    assert.match(plain, /a\.test\.ts → packages\/p\/src\/picker\.ts imports node:test/)
+  })
+
+  it('a stale entry fails: a file that is gone, and one that no longer imports node:test', () => {
+    const found = staleExemptions(
+      { 'packages/p/src/gone.ts': 'why', 'packages/p/src/deeper.ts': 'why', [PICKER]: 'why' },
+      (file) =>
+        file === 'packages/p/src/deeper.ts'
+          ? "import type { TestContext } from 'node:test'\n"
+          : read(file),
+    )
+    assert.deepEqual(found, [
+      'packages/p/src/deeper.ts is exempt as a runner picker (node-test-imports.ts) but no longer imports node:test: remove the entry',
+      'packages/p/src/gone.ts is exempt as a runner picker (node-test-imports.ts) but does not exist: remove the entry',
+    ])
+  })
+
+  it('every entry says why, and the real list holds on this checkout', () => {
+    for (const [file, reason] of Object.entries(RUNTIME_RUNNER_PICKERS)) {
+      assert.ok(reason.length > 20, file)
+    }
+    assert.deepEqual(importProblems(join(import.meta.dirname, '../../..')), [])
+  })
+})
+
 describe('provinoImportProblems, the mirror (B27h3)', () => {
   const BOOT = 'packages/p/src/boot.test.ts'
   const problems = (files: Files, bootstrap: readonly string[] = [BOOT]): string =>
@@ -222,12 +265,13 @@ describe('sourceReader and importProblems (B27h3)', () => {
       'packages/p/src/helper.ts': "import { after } from 'node:test'\n",
       'packages/p/src/both.ts': "import { afterAll } from 'provino'\n",
     })
-    const found = importProblems(repo)
+    // No runner picker in this repo: the real list's files are not here.
+    const found = importProblems(repo, {})
     assert.equal(found.length, 2, found.join('\n'))
     assert.match(found.join('\n'), /a\.test\.ts → packages\/p\/src\/helper\.ts imports node:test/)
     assert.match(found.join('\n'), /boot\.test\.ts → packages\/p\/src\/both\.ts imports provino/)
     // The bootstrap test is not a Provino-run root: its own node:test import is its business.
     writeFiles(repo, { 'packages/p/src/helper.ts': '', 'packages/p/src/both.ts': '' })
-    assert.deepEqual(importProblems(repo), [])
+    assert.deepEqual(importProblems(repo, {}), [])
   })
 })
