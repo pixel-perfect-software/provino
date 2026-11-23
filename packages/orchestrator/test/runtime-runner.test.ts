@@ -2,12 +2,12 @@
 // back-pressure and the file's signal, and when it is used out of order. The test plays
 // `startWorker`: it builds the contexts and calls `start`, `runFile` and `stop`.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { after, describe, it } from 'node:test'
 import { createRuntimeRunner, type FileContext, type Packer } from '@provino/orchestrator/worker'
 import type { IsolationTier, WorkerEvent } from '@provino/types'
 import { initFor, runtimeConfig, runtimeJob, trackedProjects } from './support.ts'
 
-const project = trackedProjects()
+const project = trackedProjects(after)
 
 /** A packer the test steers: `writable()` stays pending until `open()`. */
 function steeredPacker(): Packer & {

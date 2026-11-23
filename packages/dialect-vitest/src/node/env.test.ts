@@ -4,9 +4,11 @@ import assert from 'node:assert/strict'
 import { findPackageJSON } from 'node:module'
 import { dirname, join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { test } from 'provino'
+import { afterAll, test } from 'provino'
 import { loadVitestEnv, parseDotenv } from './env.ts'
-import { writeTree } from './test-support.ts'
+import { removeTrees, writeTree } from './test-support.ts'
+
+afterAll(removeTrees)
 
 type LoadEnv = (
   mode: string,

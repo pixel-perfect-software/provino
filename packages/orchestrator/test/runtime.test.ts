@@ -7,7 +7,7 @@ import { randomUUID } from 'node:crypto'
 import { readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { after, describe, it } from 'node:test'
 import { MATCHERS_SLOT } from '@provino/expect'
 import {
   createDepsTable,
@@ -40,7 +40,7 @@ import {
   trackedProjects,
 } from './support.ts'
 
-const project = trackedProjects()
+const project = trackedProjects(after)
 
 /** `test-end` results by test name (the last path segment of the full name). */
 function resultsByName(events: readonly WorkerEvent[]): Map<string, RuntimeEventOf<'test-end'>> {

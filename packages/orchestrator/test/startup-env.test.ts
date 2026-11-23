@@ -10,7 +10,7 @@ import { join } from 'node:path'
 import { afterAll, describe, it } from 'provino'
 import { run, runtimeProject, trackedProjects } from './support.ts'
 
-const makeProject = trackedProjects()
+const makeProject = trackedProjects(afterAll)
 const dirs: string[] = []
 afterAll(async () => {
   await Promise.all(dirs.map((dir) => rm(dir, { recursive: true, force: true })))

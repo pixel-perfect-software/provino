@@ -2,12 +2,12 @@
 // in `RunSummary.coverage`, counted across files, with the files no test loaded at zero (their
 // initial coverage through the project's own transform), and moved back to the TypeScript sources.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { after, describe, it } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
 import type { SerializedCoverageConfig } from '@provino/types'
 import { type RuntimeProjectOptions, run, runtimeProject, trackedProjects } from './support.ts'
 
-const project = trackedProjects()
+const project = trackedProjects(after)
 
 const FILES = {
   'src/pricing.ts': [

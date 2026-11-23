@@ -5,14 +5,14 @@
 // value; the neutral policy has none (`single: false`, `fastFileCount: 0`).
 import assert from 'node:assert/strict'
 import { readFile, rm, writeFile } from 'node:fs/promises'
-import { describe, it } from 'node:test'
+import { after, describe, it } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
 import { createResultsCache, type RunProjectOptions, runProjects } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
 import type { ConsoleEntry, PolicyOverrides, Reporter } from '@provino/types'
 import { Collect, runtimeProject, trackedProjects } from './support.ts'
 
-const makeProject = trackedProjects()
+const makeProject = trackedProjects(after)
 
 const JEST_NUMBERS: NonNullable<PolicyOverrides['orchestrator']> = {
   inBand: { single: true, fastFileCount: 20, slowMs: 1000 },

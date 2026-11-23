@@ -1,9 +1,11 @@
 // B25c: loading a config file: the `__dirname` and `__filename` Vite defines in a bundled config.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { after, test } from 'node:test'
 import { findVitestConfig } from './find.ts'
 import { loadVitestConfig } from './load.ts'
-import { writeTree } from './test-support.ts'
+import { removeTrees, writeTree } from './test-support.ts'
+
+after(removeTrees)
 
 async function load(files: Record<string, string>, config: string) {
   const root = writeTree(files)

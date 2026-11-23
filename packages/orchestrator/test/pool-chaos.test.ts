@@ -18,11 +18,11 @@ import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import type { RunPoolOptions } from '@provino/orchestrator'
 import type { WorkerExit } from '@provino/types'
-import { describe, it } from 'provino'
+import { afterAll, describe, it } from 'provino'
 import { fixture, isRunning, takeWorkerPids, trackedProjects } from './support.ts'
 import { assertGroupEmpty, killGroup } from './sweep.ts'
 
-const makeProject = trackedProjects()
+const makeProject = trackedProjects(afterAll)
 
 const OK_FILES = 195
 const CRASHES = ['crash-1', 'crash-2', 'crash-3']

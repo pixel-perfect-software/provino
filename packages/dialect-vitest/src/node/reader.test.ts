@@ -2,11 +2,13 @@
 // Vitest 5.0.5's own `resolveConfig(...).test`, run in-process (the oracle loads Vite, which a test
 // may); what has no oracle here (`test.projects`, the neutral shape) is asserted from Vitest's rules.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { after, test } from 'node:test'
 import { resolveConfig } from 'vitest/node'
 import { VitestConfigError } from './errors.ts'
 import { createVitestConfigReader, readVitestConfig } from './index.ts'
-import { writeTree } from './test-support.ts'
+import { removeTrees, writeTree } from './test-support.ts'
+
+after(removeTrees)
 
 async function oracle(root: string, test?: object): Promise<Record<string, unknown>> {
   const resolved = (await resolveConfig({
