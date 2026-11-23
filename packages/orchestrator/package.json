@@ -44,7 +44,7 @@
   },
   "scripts": {
     "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
-    "test": "node ../../packages/provino/dist/cli.js run && node --test --conditions=provino-source src/worker/internal/runtime/environment.test.ts test/affected-run.test.ts test/coordinator.test.ts test/coverage-collect.test.ts test/coverage-run.test.ts test/global-setup.test.ts test/in-band.test.ts test/lifecycle.test.ts test/runtime-runner.test.ts test/runtime-transports.test.ts test/runtime.test.ts test/shard-tier.test.ts"
+    "test": "node ../../packages/provino/dist/cli.js run && node --test --conditions=provino-source test/affected-run.test.ts test/coordinator.test.ts test/coverage-collect.test.ts test/coverage-run.test.ts test/global-setup.test.ts test/in-band.test.ts test/lifecycle.test.ts test/runtime-runner.test.ts test/runtime-transports.test.ts test/runtime.test.ts test/shard-tier.test.ts"
   },
   "dependencies": {
     "@provino/config": "workspace:*",

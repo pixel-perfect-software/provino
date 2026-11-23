@@ -31,6 +31,21 @@
     },
     {
       "path": "../../types"
+    },
+    {
+      "path": "../../coverage"
+    },
+    {
+      "path": "../../lazy"
+    },
+    {
+      "path": "../../mock"
+    },
+    {
+      "path": "../../snapshot"
+    },
+    {
+      "path": "../../timers"
     }
   ]
 }

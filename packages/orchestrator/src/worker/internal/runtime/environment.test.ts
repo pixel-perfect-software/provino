@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type { Environment, EnvironmentRef } from '@provino/types'
+import { describe, it } from 'provino'
 import { WorkerError } from '../../errors.ts'
 import { importEnvironment, prepareEnvironment, setupEnvironment } from './environment.ts'
 
