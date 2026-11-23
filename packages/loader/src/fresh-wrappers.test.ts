@@ -59,32 +59,23 @@ function reported(root: string, events: readonly CompiledModuleEvent[]): Record<
 }
 
 /**
- * Counts the runs of each `vm.Script` from here on, for the rest of the test. The patch is undone
- * when the test finishes, whether or not it threw: the worker serves later files too.
+ * Counts the runs of each `vm.Script` from here on. The patch is undone when the test finishes,
+ * whether or not it threw: the worker serves later files too.
  */
 function countRuns(): () => number[] {
   const original = Script.prototype.runInThisContext
-  const scripts: unknown[] = []
+  const counts = new Map<Script, number>()
   Script.prototype.runInThisContext = function (
     this: Script,
     ...args: Parameters<Script['runInThisContext']>
   ) {
-    scripts.push(this)
+    counts.set(this, (counts.get(this) ?? 0) + 1)
     return original.apply(this, args)
   }
-  let restored = false
-  const restore = (): void => {
-    if (restored) return
-    restored = true
+  onTestFinished(() => {
     Script.prototype.runInThisContext = original
-  }
-  onTestFinished(restore)
-  return () => {
-    restore()
-    const byScript = new Map<unknown, number>()
-    for (const script of scripts) byScript.set(script, (byScript.get(script) ?? 0) + 1)
-    return [...byScript.values()]
-  }
+  })
+  return () => [...counts.values()]
 }
 
 type Wrapper = { readonly wrapper: unknown }
