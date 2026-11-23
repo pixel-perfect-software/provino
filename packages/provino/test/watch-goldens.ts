@@ -568,17 +568,31 @@ export async function playInProcess(
   }
 }
 
+/** Each probe's answer, asked once per test file: by the first test that needs it, never on import. */
+const skipReasons = new Map<boolean, Promise<string | false>>()
+
+function probedSkip(needTerminal: boolean): Promise<string | false> {
+  let reason = skipReasons.get(needTerminal)
+  if (reason === undefined) {
+    reason = skipReason(needTerminal)
+    skipReasons.set(needTerminal, reason)
+  }
+  return reason
+}
+
 /**
  * Why the terminal runs can't be done here: no terminal to open (`/dev/ptmx` denied) or no file
- * events. `false` runs them; with `CI` set a reason is an error, never a skip.
+ * events. `false` runs them; with `CI` set a reason is an error, never a skip. Probed once per
+ * file, from the first test that asks: a test skips itself with it (`t.skip(reason)`), since a
+ * probe at import would run on every listing of the file.
  */
 export async function terminalSkip(): Promise<string | false> {
-  return skipReason(true)
+  return probedSkip(true)
 }
 
 /** `terminalSkip` for a session on a pipe: only the file events (`fs.watch`) are needed. */
 export async function watcherSkip(): Promise<string | false> {
-  return skipReason(false)
+  return probedSkip(false)
 }
 
 async function skipReason(needTerminal: boolean): Promise<string | false> {

@@ -234,13 +234,13 @@ describe('vscode-jest replays (T11.12)', () => {
  * each run, as vscode-jest reads it on `Test results written to`, and compared with the golden's
  * (the session has no exit code: a piped Jest has no key to quit with, and the editor kills it).
  */
-describe('vscode-jest watch replays (T11.12, B23e Phase 4)', async () => {
-  const skip = await watcherSkip()
+describe('vscode-jest watch replays (T11.12, B23e Phase 4)', () => {
   for (const request of WATCH_REQUESTS) {
     it(`${request}: the run log, the results file after each run and the reporter lines`, {
-      skip,
       timeout: 150_000,
-    }, async () => {
+    }, async (t) => {
+      const skip = await watcherSkip()
+      if (skip !== false) return t.skip(skip)
       const id = `ide/vscode-jest-${request}`
       // `playPiped` holds the run log, the kept reporter lines and each captured results file to
       // the golden's (the same keys, one per run); `assertFields` names the field of a results

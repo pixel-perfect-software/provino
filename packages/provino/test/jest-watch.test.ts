@@ -109,10 +109,11 @@ describe('provino jest --watch in this process, against the watch/* goldens of J
   }
 })
 
-describe('provino jest --watch on a terminal, against the watch/* goldens of Jest 30.5.2', async () => {
-  const skip = await terminalSkip()
+describe('provino jest --watch on a terminal, against the watch/* goldens of Jest 30.5.2', () => {
   for (const name of TERMINAL_IDS) {
-    it(`watch/${name}`, { skip, timeout: SESSION_MS + 30_000 }, async () => {
+    it(`watch/${name}`, { timeout: SESSION_MS + 30_000 }, async (t) => {
+      const skip = await terminalSkip()
+      if (skip !== false) return t.skip(skip)
       await playOnTerminal(await loadFixture(`watch/${name}`))
     })
   }

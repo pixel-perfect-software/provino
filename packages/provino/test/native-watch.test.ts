@@ -376,12 +376,12 @@ function seen(stream: NodeJS.ReadableStream | null, pattern: RegExp, count: numb
   })
 }
 
-describe('the bin under --watch', async () => {
-  const skip = await watcherSkip()
+describe('the bin under --watch', () => {
   it('reruns on a real file change, and SIGINT ends it with 130', {
-    skip,
     timeout: 120_000,
-  }, async () => {
+  }, async (t) => {
+    const skip = await watcherSkip()
+    if (skip !== false) return t.skip(skip)
     const project = await makeWatchProject(FILES, CONFIG)
     const cli = startCli(['run', '--config', project.config, '--watch'], {
       cwd: project.dir,

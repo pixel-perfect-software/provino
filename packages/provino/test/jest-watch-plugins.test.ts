@@ -40,10 +40,11 @@ describe('provino jest --watch keys u and i and watch plugins, in this process',
   }
 })
 
-describe('provino jest --watch keys u and i and watch plugins, on a terminal', async () => {
-  const skip = await terminalSkip()
+describe('provino jest --watch keys u and i and watch plugins, on a terminal', () => {
   for (const name of IDS) {
-    it(`watch/${name}`, { skip, timeout: SESSION_MS + 30_000 }, async () => {
+    it(`watch/${name}`, { timeout: SESSION_MS + 30_000 }, async (t) => {
+      const skip = await terminalSkip()
+      if (skip !== false) return t.skip(skip)
       await playOnTerminal(await loadFixture(`watch/${name}`), PLAY)
     })
   }

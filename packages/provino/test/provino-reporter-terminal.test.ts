@@ -60,7 +60,19 @@ async function terminalSkip(): Promise<string | false> {
   return `${reason} (a sandbox): CI runs these`
 }
 
-const skip = await terminalSkip()
+/**
+ * `terminalSkip`, probed once by the first test that asks (a probe at import would run on every
+ * listing of this file). Where the sandbox has no terminal, it says so in the output, not only in
+ * the skip.
+ */
+let probed: Promise<string | false> | undefined
+function skipHere(): Promise<string | false> {
+  probed ??= terminalSkip().then((reason) => {
+    if (reason !== false) process.stderr.write(`provino-reporter-terminal: skipped: ${reason}\n`)
+    return reason
+  })
+  return probed
+}
 const makeProject = trackedProjects()
 
 /** An interactive terminal: nothing that says CI, an agent or a colour choice. */
@@ -99,8 +111,10 @@ function assertRestored(output: string): void {
   assert.doesNotMatch(screen, / of \d+ files? /, `a status line is left:\n${screen}`)
 }
 
-describe('the provino reporter restores the terminal (B26 Phase 3)', { skip }, () => {
-  it('a normal end: hidden once before the first footer, shown once after the end card', async () => {
+describe('the provino reporter restores the terminal (B26 Phase 3)', () => {
+  it('a normal end: hidden once before the first footer, shown once after the end card', async (t) => {
+    const skip = await skipHere()
+    if (skip !== false) return t.skip(skip)
     const project = await makeProject({
       'tests/a.test.js': passing('a'),
       'tests/b.test.js': passing('b'),
@@ -119,7 +133,9 @@ describe('the provino reporter restores the terminal (B26 Phase 3)', { skip }, (
     }
   })
 
-  it('a reporter that throws: exit 1, its error above the footer, the cursor shown', async () => {
+  it('a reporter that throws: exit 1, its error above the footer, the cursor shown', async (t) => {
+    const skip = await skipHere()
+    if (skip !== false) return t.skip(skip)
     const project = await makeProject({
       'tests/a.test.js': passing('a'),
       'tests/b.test.js': passing('b'),
@@ -148,7 +164,9 @@ describe('the provino reporter restores the terminal (B26 Phase 3)', { skip }, (
     ['SIGHUP', 129],
     ['SIGQUIT', 131],
   ] as const) {
-    it(`${signal} mid-run: exit ${code}, the cursor shown, no footer left`, async () => {
+    it(`${signal} mid-run: exit ${code}, the cursor shown, no footer left`, async (t) => {
+      const skip = await skipHere()
+      if (skip !== false) return t.skip(skip)
       const project = await makeProject({
         'tests/hang.test.js': HANGING,
         'tests/hang2.test.js': HANGING,
@@ -169,7 +187,9 @@ describe('the provino reporter restores the terminal (B26 Phase 3)', { skip }, (
     })
   }
 
-  it('a second signal within 1 s (the force path, process.exit): the cursor is still shown', async () => {
+  it('a second signal within 1 s (the force path, process.exit): the cursor is still shown', async (t) => {
+    const skip = await skipHere()
+    if (skip !== false) return t.skip(skip)
     const project = await makeProject({
       'tests/hang.test.js': HANGING,
       'tests/hang2.test.js': HANGING,
@@ -190,6 +210,3 @@ describe('the provino reporter restores the terminal (B26 Phase 3)', { skip }, (
     }
   })
 })
-
-// Where the sandbox has no terminal, say so in the output, not only in the skip.
-if (skip !== false) process.stderr.write(`provino-reporter-terminal: skipped: ${skip}\n`)
