@@ -300,6 +300,9 @@ export function workerRefs(): PluginList {
   ]
 }
 
+/** Both builds resolve the `@provino/*` packages to their sources (the `provino-source` condition). */
+const SOURCE_RESOLVE = { conditionNames: ['provino-source', 'import', 'node', 'default'] }
+
 /**
  * The tsdown configs of the `provino` package, built in its directory: the JavaScript, then the
  * declarations. Every `@provino/*` package is inlined (from source, through `provino-source`), the
@@ -325,14 +328,18 @@ export function umbrellaConfig(dir: string): UserConfig[] {
     cwd: dir,
     clean: false,
     entry: entries,
-    inputOptions: {
-      resolve: { conditionNames: ['provino-source', 'import', 'node', 'default'] },
-    },
+    inputOptions: { resolve: SOURCE_RESOLVE },
   }
   return [
     {
       ...common,
       dts: false,
+      inputOptions: {
+        resolve: SOURCE_RESOLVE,
+        // Rolldown sets this itself when a chunk group has `includeDependenciesRecursively: false`
+        // (several below do) and warns that it did (INVALID_OPTION). Saying so here changes no output.
+        preserveEntrySignatures: 'allow-extension',
+      },
       deps: {
         alwaysBundle: isEngine,
         neverBundle: (id: string) => isAddOnImport(id),
