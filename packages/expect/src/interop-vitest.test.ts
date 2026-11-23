@@ -1,7 +1,7 @@
 // Spike C, both ways, against Vitest 5.0.5's `@vitest/expect` (T7.4). Its own process: loading
 // `@vitest/expect` defines the realm's slot, so our slot is never installed here. Vitest's expect
 // is assembled as Vitest assembles it: Chai with the Jest plugins.
-import { describe } from 'node:test'
+import { describe, test } from 'node:test'
 import {
   Any,
   Anything,
@@ -39,7 +39,7 @@ describe('ours inside Vitest`s expect', () => {
     { name: 'its inverse', matcher: new StartsWith('a', true), good: 'ba', bad: 'ab' },
     { name: 'a protocol-only object', matcher: isFortyTwo, good: 42, bad: 41 },
   ]
-  defineInteropSuite(vitest, subjects)
+  defineInteropSuite({ describe, test }, vitest, subjects)
 })
 
 describe('Vitest`s inside our expect', () => {
@@ -64,5 +64,5 @@ describe('Vitest`s inside our expect', () => {
     { name: 'StringContaining', matcher: new StringContaining('b'), good: 'ab', bad: 'ac' },
     { name: 'StringMatching', matcher: new StringMatching(/^a/), good: 'ab', bad: 'ba' },
   ]
-  defineInteropSuite(ours, subjects)
+  defineInteropSuite({ describe, test }, ours, subjects)
 })
