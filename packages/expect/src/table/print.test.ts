@@ -1,7 +1,7 @@
 // `show` and `diffLines`: Node's `util.diff` is experimental, so its entry shape is pinned here.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import { diff } from 'node:util'
+import { describe, test } from 'provino'
 import { diffLines, show } from './print.ts'
 
 const numbered = (count: number, change?: number): string =>

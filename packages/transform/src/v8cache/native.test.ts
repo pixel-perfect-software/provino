@@ -3,14 +3,14 @@
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
+import { afterAll, test } from 'provino'
 import { hasProvinoTag } from '../cache/store.ts'
 import { enableNativeCompileCache } from './index.ts'
 import { compileCacheArgumentForm } from './native.ts'
 import { runChild, tempDir } from './test-helpers.ts'
 
 const dirs: (() => void)[] = []
-after(() => {
+afterAll(() => {
   for (const remove of dirs) remove()
 })
 function scratch(): string {

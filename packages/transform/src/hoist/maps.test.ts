@@ -2,9 +2,9 @@
 // the exact line and column of the original. Moved statements, rewritten references and
 // block-level hoists, under both policies.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping'
 import type { HoistPolicy } from '@provino/types'
+import { test } from 'provino'
 import { hoist } from './test-helpers.ts'
 import { blockPolicy, topLevelPolicy } from './test-policies.ts'
 

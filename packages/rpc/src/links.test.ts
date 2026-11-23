@@ -3,9 +3,9 @@
 import assert from 'node:assert/strict'
 import type { ChildProcess } from 'node:child_process'
 import { EventEmitter, once } from 'node:events'
-import { describe, it } from 'node:test'
 import { MessageChannel } from 'node:worker_threads'
 import type { LinkClosed } from '@provino/types'
+import { describe, it } from 'provino'
 import { RpcError } from './errors.ts'
 import { childProcessLink, messagePortLink, processLink } from './links.ts'
 

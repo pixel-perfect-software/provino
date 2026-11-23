@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { TestRunHandle } from '@provino/types'
+import { test } from 'provino'
 import { createRunRegistry } from './run-registry.ts'
 
 const handle = (name: string): TestRunHandle => ({ name }) as unknown as TestRunHandle

@@ -1,8 +1,8 @@
 // expect.poll (T7.8). Time is a manual scheduler injected through `pollTimers`, so nothing here
 // waits: a test moves the clock and lets the microtasks run.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { ExpectStatic, PollAssertion } from '@provino/types'
+import { describe, test } from 'provino'
 import { ExpectError } from './errors.ts'
 import { testEngine, testTask } from './internal/test-support.ts'
 import type { PollTimers } from './poll.ts'

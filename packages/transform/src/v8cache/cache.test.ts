@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
+import { afterAll, test } from 'provino'
 import { createV8Cache, V8CacheError, v8CacheTag } from './index.ts'
 import {
   manyFunctions,
@@ -24,7 +24,7 @@ import {
 } from './test-helpers.ts'
 
 const dirs: (() => void)[] = []
-after(() => {
+afterAll(() => {
   for (const remove of dirs) remove()
 })
 function scratch(): string {
@@ -228,25 +228,27 @@ test('a directory that cannot be created is a cache that misses: no throw, write
   assert.equal(readFileSync(blocker, 'utf8'), 'a file')
 })
 
-test('a read-only directory is a cache that misses: no throw, writeFailures counted, nothing written', {
-  skip:
-    process.platform === 'win32' || process.getuid?.() === 0
-      ? 'file modes do not stop this user'
-      : false,
-}, async () => {
-  const dir = scratch()
-  chmodSync(dir, 0o500)
-  try {
-    const cache = createV8Cache({ dir })
-    const script = cache.loadScript(manyFunctions(30), SCRIPT_NAME, '21b2c3d4e5f60718')
-    assert.equal(script.runInThisContext(), manyFunctionsValue(30))
-    await cache.flush()
-    assert.deepEqual(cache.stats, { ...ZERO, misses: 1, writeFailures: 1 })
-    assert.deepEqual(readdirSync(dir), [])
-  } finally {
-    chmodSync(dir, 0o700)
-  }
-})
+test.skipIf(
+  process.platform === 'win32' || process.getuid?.() === 0
+    ? 'file modes do not stop this user'
+    : false,
+)(
+  'a read-only directory is a cache that misses: no throw, writeFailures counted, nothing written',
+  async () => {
+    const dir = scratch()
+    chmodSync(dir, 0o500)
+    try {
+      const cache = createV8Cache({ dir })
+      const script = cache.loadScript(manyFunctions(30), SCRIPT_NAME, '21b2c3d4e5f60718')
+      assert.equal(script.runInThisContext(), manyFunctionsValue(30))
+      await cache.flush()
+      assert.deepEqual(cache.stats, { ...ZERO, misses: 1, writeFailures: 1 })
+      assert.deepEqual(readdirSync(dir), [])
+    } finally {
+      chmodSync(dir, 0o700)
+    }
+  },
+)
 
 test("mode 'off' compiles and touches nothing: no directory, no read of a warm entry, stats unmoved", async () => {
   const missing = join(scratch(), 'never-made')

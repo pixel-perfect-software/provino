@@ -3,12 +3,12 @@ import assert from 'node:assert/strict'
 import { appendFileSync, cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { afterAll, test } from 'provino'
 import { codeIdentityOf, ownCodeIdentity } from './code-identity.ts'
 
 const dirs: string[] = []
-after(() => {
+afterAll(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true })
 })
 

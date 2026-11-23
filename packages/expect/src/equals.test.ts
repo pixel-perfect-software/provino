@@ -2,9 +2,9 @@
 // a devDependency), over a seeded table of value pairs: same answer for every pair and every set of
 // testers, in both modes.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import { runInNewContext } from 'node:vm'
 import * as upstream from '@jest/expect-utils'
+import { describe, test } from 'provino'
 import * as vendored from './vendor/expect-utils/index.ts'
 
 /** A small seeded generator (mulberry32), so the table is the same on every run. */

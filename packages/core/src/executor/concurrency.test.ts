@@ -2,7 +2,7 @@
 // turns (`settle`), never timers: a body that starts, yields, then ends shows which others
 // started in between.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { runScript, type Script, settle } from '../internal/test-support.ts'
 
 /** A body that records its start and end, with a yield in between. */

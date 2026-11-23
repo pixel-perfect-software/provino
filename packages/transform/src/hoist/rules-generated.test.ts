@@ -1,7 +1,7 @@
 // Names the transform generated (JSX and lowering helpers) are not out-of-scope factory references,
 // because real Jest's plugin sees the code before it is lowered.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { hoistMocks } from './index.ts'
 import { errorCodes } from './test-helpers.ts'
 import { blockPolicy as policy } from './test-policies.ts'

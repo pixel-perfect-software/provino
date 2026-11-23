@@ -4,7 +4,7 @@
 // is set on its own over the neutral base.
 
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { NO_DEFINITIONS } from '../definitions/table.ts'
 import type { FileState } from '../internal/model.ts'
 import {

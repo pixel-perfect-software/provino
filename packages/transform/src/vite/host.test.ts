@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { ViteHostError } from './errors.ts'
 import { passesFilter } from './filter.ts'
 import { createViteHost, type VitePlugin, viteHostFingerprint } from './host.ts'

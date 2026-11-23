@@ -1,6 +1,6 @@
 // Lazy locations: a callsite is captured at registration and parsed only when the tree is built.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { locateMarker } from '../internal/test-support.ts'
 import { CALLER_FRAMES, captureSite, parseSite, type Site, TEST_FILE_FRAMES } from './location.ts'
 

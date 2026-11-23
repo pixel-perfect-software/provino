@@ -1,9 +1,9 @@
 // `serializeError` turns anything thrown into plain data that can cross a thread; the error
 // classes carry stable names and codes.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import { runInNewContext } from 'node:vm'
 import type { SerializedError } from '@provino/types'
+import { describe, test } from 'provino'
 import {
   AroundHookMultipleCallsError,
   AroundHookSetupError,
