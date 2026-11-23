@@ -115,18 +115,19 @@ test('unstripped TypeScript is a per-file error naming the file, not an abort (B
   )
 })
 
-test("a syntax error carries the parser's message and its position, a redeclaration the redeclaring one", () => {
-  const parseOf = (code: string): TransformError['parse'] => {
-    const record: TransformRecord = { ...strip('/ok.ts', 'export {}\n'), code }
-    try {
-      toModuleRunner('/p.ts', record)
-    } catch (error) {
-      assert.ok(error instanceof TransformError)
-      assert.equal(error.code, 'TRANSFORM_RUNNER_FAILED')
-      return error.parse
-    }
-    return assert.fail('the module-runner step accepted the code')
+function parseOf(code: string): TransformError['parse'] {
+  const record: TransformRecord = { ...strip('/ok.ts', 'export {}\n'), code }
+  try {
+    toModuleRunner('/p.ts', record)
+  } catch (error) {
+    assert.ok(error instanceof TransformError)
+    assert.equal(error.code, 'TRANSFORM_RUNNER_FAILED')
+    return error.parse
   }
+  return assert.fail('the module-runner step accepted the code')
+}
+
+test("a syntax error carries the parser's message and its position, a redeclaration the redeclaring one", () => {
   assert.deepEqual(parseOf('export const a = 1\nexport const b = {\n'), {
     reason: 'Expected `}` but found `EOF`',
     line: 3,
@@ -144,6 +145,14 @@ test("a syntax error carries the parser's message and its position, a redeclarat
     line: 2,
     column: 24,
   })
+})
+
+test('an unclosed block is at the end of the source, where V8 reports it, not at its opening bracket', () => {
+  // The parser's two labels are `}` expected, at the end, then "Opened here", at the bracket.
+  const reason = 'Expected `}` but found `EOF`'
+  assert.deepEqual(parseOf('function f() {\n x\n'), { reason, line: 3, column: 1 })
+  assert.deepEqual(parseOf('if (a) {\n x\n'), { reason, line: 3, column: 1 })
+  assert.deepEqual(parseOf('class A {\n m() {}\n'), { reason, line: 3, column: 1 })
 })
 
 function runnerError(code: string): string {

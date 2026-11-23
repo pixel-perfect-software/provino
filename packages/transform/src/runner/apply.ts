@@ -70,9 +70,13 @@ export function rewriteModule(filename: string, code: string, commonjs = false):
   const parsed = parseSync(filename, code, commonjs ? COMMONJS_OPTIONS : OPTIONS)
   for (const error of parsed.errors) {
     if (String(error.severity) === 'Error') {
-      // The last label: a redeclaration has two (where the name was declared, then where it is
-      // declared again), and V8 reports the second.
-      throw new RunnerParseError(error.message, positionOf(code, error.labels.at(-1)?.start ?? 0))
+      // The label furthest into the source, which is where V8 reports: an unclosed block has two
+      // (`}` expected at the end, then "Opened here" at the bracket) and V8 reports the end; a
+      // redeclaration has two (where the name was declared, then where it is declared again) and
+      // V8 reports the second.
+      let at = 0
+      for (const label of error.labels) if (label.start > at) at = label.start
+      throw new RunnerParseError(error.message, positionOf(code, at))
     }
   }
   const program = parsed.program
