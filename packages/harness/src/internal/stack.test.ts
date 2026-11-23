@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { type Frame, messageOf, parseStack, userFrameOf } from './stack.ts'
 
 function framesOf(text: string): readonly Frame[] {

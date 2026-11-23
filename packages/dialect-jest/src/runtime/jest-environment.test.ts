@@ -5,9 +5,9 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
+import { describe, it } from 'provino'
 
 const run = promisify(execFile)
 const require = createRequire(import.meta.url)

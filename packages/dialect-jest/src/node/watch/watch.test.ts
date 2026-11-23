@@ -2,8 +2,8 @@
 // waits. Each run is a promise the test settles, so every ordering (a key during a run, a change
 // during a run, a run that throws) is driven by hand.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type { TextStyle } from '@provino/types'
+import { describe, it } from 'provino'
 import type { JestGlobalConfig } from '../types.ts'
 import type { JestWatchResults } from './hooks.ts'
 import type { JestWatchStdin } from './quit.ts'

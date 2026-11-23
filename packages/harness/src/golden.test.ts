@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { NormalizedRun } from '@provino/types'
+import { test } from 'provino'
 import { HarnessError } from './errors.ts'
 import { goldenPath, serializeGolden, toGolden } from './golden.ts'
 import { normalizedJson, observedOf } from './record.ts'

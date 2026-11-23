@@ -4,8 +4,8 @@
 // (their names, objects and argument lists); the real ones live in the dialects, which this layer
 // can't import. `packages/harness`'s hoist corpus runs the real ones.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { HoistPolicy } from '@provino/types'
+import { test } from 'provino'
 import { prefilterFor } from './prefilter.ts'
 import { blockPolicy, topLevelPolicy } from './test-policies.ts'
 

@@ -4,7 +4,7 @@
 // option in its forms and a seeded set. And the table against `createCLI()`'s options, the
 // classification, the diagnostics and the run request.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import {
   parseVitestArgv,
   parseVitestCli,

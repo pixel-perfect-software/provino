@@ -1,7 +1,7 @@
 // What a warm worker is told after a change, and which changes replace the workers instead.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { WorkerKey } from '@provino/types'
+import { test } from 'provino'
 import { workerKeyOf } from '../key.ts'
 import type { WatchEvent } from './coalesce.ts'
 import { createStaleModules, retirementFor } from './stale.ts'

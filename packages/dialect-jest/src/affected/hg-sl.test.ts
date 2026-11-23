@@ -7,9 +7,9 @@ import { chmod, mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:f
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { delimiter, join } from 'node:path'
-import { after, before, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import type { ChangedFilesOptions } from '@provino/types'
+import { afterAll, beforeAll, test } from 'provino'
 import { jestChangedFiles } from './index.ts'
 
 interface RealChangedFiles {
@@ -42,7 +42,7 @@ let log = ''
 let root = ''
 const saved = { ...process.env }
 
-before(async () => {
+beforeAll(async () => {
   base = await realpath(await mkdtemp(join(tmpdir(), 'provino-hg-')))
   const bin = join(base, 'bin')
   await mkdir(bin)
@@ -64,7 +64,7 @@ before(async () => {
   real = createRequire(core)('jest-changed-files') as RealChangedFiles
 })
 
-after(async () => {
+afterAll(async () => {
   for (const name of Object.keys(process.env)) if (!(name in saved)) delete process.env[name]
   Object.assign(process.env, saved)
   await rm(base, { recursive: true, force: true })

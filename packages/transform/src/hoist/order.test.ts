@@ -1,7 +1,7 @@
 // The order a hoist leaves statements in: the review's Blocker layouts by name, the TSX layout
 // through the real pipeline, and a seeded property test over generated files.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { parseForHoist } from './parse.ts'
 import { assertOrder, blockPipeline, hoist } from './test-helpers.ts'
 import { blockPolicy, topLevelPolicy } from './test-policies.ts'

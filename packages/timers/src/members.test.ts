@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { TimersPolicy } from '@provino/types'
+import { describe, test } from 'provino'
 import { createFakeClock } from './clock.ts'
 import { TimersError } from './errors.ts'
 import { makeEnv, neutral } from './internal/test-support.ts'

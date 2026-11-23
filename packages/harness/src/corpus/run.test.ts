@@ -14,7 +14,7 @@ import {
   writeFile,
 } from 'node:fs/promises'
 import path from 'node:path'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { HarnessError } from '../errors.ts'
 import { runProcess } from '../run-process.ts'
 import type { SubjectOptions, SubjectResult } from '../run-subject.ts'

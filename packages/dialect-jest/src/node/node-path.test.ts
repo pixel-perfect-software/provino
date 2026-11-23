@@ -6,14 +6,14 @@
 // `jest-node-path.test.ts`) instead.
 import assert from 'node:assert/strict'
 import { delimiter, join } from 'node:path'
-import { after, test } from 'node:test'
+import { afterAll, test } from 'provino'
 import { oracleRequireResolve, removeTree, writeTree } from './internal/test-support.ts'
 import { readJestConfig } from './normalize.ts'
 import { tryRealpath } from './paths.ts'
 import { createJestResolution } from './resolution.ts'
 
 const trees: string[] = []
-after(() => {
+afterAll(() => {
   for (const tree of trees) removeTree(tree)
 })
 

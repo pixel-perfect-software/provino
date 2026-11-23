@@ -1,8 +1,8 @@
 // `assertRunMatchesGolden` against hand-built runs and goldens: each case changes one thing from a
 // matching pair and says which part of the comparison has to notice.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { SerializedError } from '@provino/types'
+import { test } from 'provino'
 import { type Golden, toGolden } from '../golden.ts'
 import { makeFile, makeRun, makeTest } from '../test-support.ts'
 import { assertRunMatchesGolden, type GoldenExpectations, testsWithoutLocation } from './compare.ts'

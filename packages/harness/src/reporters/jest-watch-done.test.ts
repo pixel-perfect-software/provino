@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import { test } from 'node:test'
+import { test } from 'provino'
 import JestWatchDonePlugin, { WATCH_DONE_ENV } from './jest-watch-done.ts'
 
 test('the plugin appends a line at every end of a run, and has no key or usage row', async () => {

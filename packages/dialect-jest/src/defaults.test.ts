@@ -4,9 +4,9 @@
 // mapped to the keys that hold those values now.
 import assert from 'node:assert/strict'
 import path from 'node:path'
-import { test } from 'node:test'
 import { resolvePolicy } from '@provino/policy'
 import { defaults } from 'jest-config'
+import { test } from 'provino'
 import { jestPolicy } from './dialect.ts'
 
 const policy = resolvePolicy(jestPolicy)

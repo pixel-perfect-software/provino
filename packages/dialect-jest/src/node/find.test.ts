@@ -3,7 +3,7 @@
 // errors carry Jest's text, "Multiple configurations found" included.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { after, before, test } from 'node:test'
+import { afterAll, beforeAll, test } from 'provino'
 import { JestConfigError } from './errors.ts'
 import { findJestConfig, JEST_CONFIG_CANDIDATES, packageJsonKey } from './find.ts'
 import {
@@ -130,11 +130,11 @@ const CASES: readonly Case[] = [
 let oracle: Oracle
 const trees: string[] = []
 
-before(async () => {
+beforeAll(async () => {
   oracle = await loadOracle()
 })
 
-after(() => {
+afterAll(() => {
   for (const tree of trees) removeTree(tree)
 })
 

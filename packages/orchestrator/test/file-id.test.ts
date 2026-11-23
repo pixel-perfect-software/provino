@@ -2,11 +2,11 @@
 // them itself. The two must agree, or a standalone run and a coordinated one would name the same
 // file differently (`@provino/core` does not export its formula, so this is where they meet).
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import { createRuntime } from '@provino/core'
 import { fileIdOf } from '@provino/orchestrator'
 import { createBehaviourLoader, neutralPolicy } from '@provino/policy'
 import type { RuntimeEvent } from '@provino/types'
+import { describe, it } from 'provino'
 
 describe('fileIdOf', () => {
   for (const [project, path] of [

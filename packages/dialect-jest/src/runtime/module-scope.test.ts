@@ -2,7 +2,6 @@
 // `_createJestObjectFor(from)` does. The module-mock calls resolve from that module; the rest is
 // the global's. The harness's mod corpus checks it against real Jest; these pin the wiring.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import { createMockRegistry, isMockFunction } from '@provino/mock'
 import { resolvePolicy } from '@provino/policy'
 import type {
@@ -12,6 +11,7 @@ import type {
   ModuleId,
   ModuleMockRegistry,
 } from '@provino/types'
+import { test } from 'provino'
 import { jestPolicy } from '../dialect.ts'
 import { type JestGlobalsHost, type JestModuleObject, jestModuleScope } from './globals.ts'
 import { timerHost } from './internal/test-support.ts'

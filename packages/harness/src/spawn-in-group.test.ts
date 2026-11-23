@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { type ChildProcess, type StdioOptions, spawn } from 'node:child_process'
 import { once } from 'node:events'
-import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
+import { test } from 'provino'
 import { exitOnSignals, spawnInGroup } from './spawn-in-group.ts'
 
 // The children are inline scripts run by this same Node. They print READY once they are set up,

@@ -3,7 +3,7 @@
 // `Dialect.loader.hoist` for the hoisting rows). A row the dialects no longer differ on is named
 // with the reason, so nothing drops out unnoticed.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { dialectDiff, formatDialectDiff } from './diff.ts'
 
 /** Track 1's rows where Jest 30.5 and Vitest 5.0 differ, as the keys that hold them now. */

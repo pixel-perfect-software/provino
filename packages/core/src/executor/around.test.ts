@@ -1,8 +1,8 @@
 // `aroundEach` and `aroundAll`: nesting order, the three error classes, the separate setup and
 // teardown timeouts (on a fake clock), and the `LazyHost` teardowns an `aroundEach` adds.
 import assert from 'node:assert/strict'
-import { beforeEach, describe, test } from 'node:test'
 import FakeTimers, { type Clock } from '@sinonjs/fake-timers'
+import { beforeEach, describe, test } from 'provino'
 import {
   clockOptions,
   eventLog,

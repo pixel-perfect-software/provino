@@ -1,9 +1,9 @@
 // `resolveNeutralProject`: a project a dialect's config reader produced, resolved by the same steps
 // as `resolveProject` after its input is read. Fake dialects only (this package names none).
 import assert from 'node:assert/strict'
-import { after, before, test } from 'node:test'
 import { defineDialect, moduleRef } from '@provino/policy'
 import type { NeutralProject } from '@provino/types'
+import { afterAll, beforeAll, test } from 'provino'
 import { makeTempDir, rejectsWith, type TempDir } from './internal/test-support.ts'
 import { resolveNeutralProject } from './resolve.ts'
 
@@ -23,10 +23,10 @@ const reader = defineDialect({
 })
 
 let temp: TempDir
-before(async () => {
+beforeAll(async () => {
   temp = await makeTempDir()
 })
-after(() => temp.dispose())
+afterAll(() => temp.dispose())
 
 function neutral(overrides: Partial<NeutralProject> = {}): NeutralProject {
   return {

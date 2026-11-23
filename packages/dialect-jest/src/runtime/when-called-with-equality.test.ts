@@ -3,10 +3,10 @@
 // with `b` reaches the branch registered for `a` exactly when `equals` says so. It lives under
 // `runtime/` because the package's root node may not import `@provino/mock`.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import { equals, iterableEquality } from '@jest/expect-utils'
 import { jestMockPolicy } from '@provino/dialect-jest'
 import { createMockFn, createMockRegistry } from '@provino/mock'
+import { test } from 'provino'
 
 const ANYTHING = {
   asymmetricMatch: (other: unknown) => other !== undefined,

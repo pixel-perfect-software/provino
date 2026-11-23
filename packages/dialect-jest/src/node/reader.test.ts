@@ -6,7 +6,7 @@
 //   listing its own directory); ours loads the file once, so a config function runs once, but
 //   normalizes it as often as Jest does, so the configs and the warnings are Jest's.
 import assert from 'node:assert/strict'
-import { after, before, test } from 'node:test'
+import { afterAll, beforeAll, test } from 'provino'
 import { createJestConfigReader } from './index.ts'
 import {
   captureWarnings,
@@ -24,10 +24,10 @@ import {
 
 let oracle: Oracle
 const trees: string[] = []
-before(async () => {
+beforeAll(async () => {
   oracle = await loadOracle()
 })
-after(() => {
+afterAll(() => {
   for (const tree of trees) removeTree(tree)
 })
 

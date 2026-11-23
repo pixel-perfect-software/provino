@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { HarnessError } from '../errors.ts'
 import type { ScmStep, WatchStep } from '../fixture.ts'
 import type { PtyExit, PtyMatch } from '../pty.ts'

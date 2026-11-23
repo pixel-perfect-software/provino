@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
 import type { FileHistory } from '@provino/types'
+import { afterAll, describe, it } from 'provino'
 import {
   createResultsCache,
   defaultCacheDir,
@@ -13,7 +13,7 @@ import {
 } from './cache.ts'
 
 const made: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

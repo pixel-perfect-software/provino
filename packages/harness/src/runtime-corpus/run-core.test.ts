@@ -1,7 +1,6 @@
 // `summarizeRun` reduces the events the core emits for one file. No core runs here: the events are
 // built by hand, so each case says exactly what the core reported.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type {
   RuntimeEvent,
   SerializedError,
@@ -12,6 +11,7 @@ import type {
   TaskState,
   TestTask,
 } from '@provino/types'
+import { test } from 'provino'
 import { summarizeRun } from './run-core.ts'
 
 const FILE_ID = 'file' as TaskId

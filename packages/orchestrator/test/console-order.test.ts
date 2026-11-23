@@ -7,9 +7,9 @@
 // (Turbo doesn't pass the variable through).
 import assert from 'node:assert/strict'
 import { Console } from 'node:console'
-import { describe, it } from 'node:test'
 import { connectWorker, transportFor } from '@provino/orchestrator'
 import type { PoolKind, TaskId, WorkerEvent } from '@provino/types'
+import { describe, it } from 'provino'
 import { type Op, program } from './fixtures/program.ts'
 import { gap, int, seeded } from './fixtures/random.ts'
 import { fixture, initFor, job, methods } from './support.ts'

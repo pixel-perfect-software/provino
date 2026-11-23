@@ -1,9 +1,9 @@
 // The neutral `errorShape: 'assertion-error'` with Provino's table: a failure throws
 // `ProvinoAssertionError` (B27e: the table had no `assertionError`, so a native run could not start).
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import type { ExpectStatic } from '@provino/types'
+import { describe, test } from 'provino'
 import { type TestEngine, testEngine, testTask } from '../internal/test-support.ts'
 import { ProvinoAssertionError } from './assertion-error.ts'
 import { provinoExpectTable } from './index.ts'

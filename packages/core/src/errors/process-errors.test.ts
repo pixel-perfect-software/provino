@@ -3,7 +3,7 @@
 // `@provino/harness`'s runtime corpus (`errors-*`, run in a child process).
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { eventsOf, runScript } from '../internal/test-support.ts'
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms))

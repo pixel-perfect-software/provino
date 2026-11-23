@@ -2,8 +2,8 @@
 // blocks and the event protocol. Timeouts, concurrency, retries, around hooks, `done` and the
 // per-test callbacks have their own files. Each policy value is set alone over the neutral base.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { HookKind, OrderHooks } from '@provino/types'
+import { describe, test } from 'provino'
 import {
   eventLog,
   eventsOf,

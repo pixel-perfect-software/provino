@@ -3,13 +3,13 @@
 // `rootDir`, root mode "root", `babelrcRoots` defaulting to the root): a `babel.config.*` in the
 // root, a `.babelrc*` there, or a `babel` key in the root's `package.json`.
 import assert from 'node:assert/strict'
-import { after, test } from 'node:test'
+import { afterAll, test } from 'provino'
 import { hasBabelConfig } from './babel-config.ts'
 import { createJestConfigReader } from './index.ts'
 import { oracleRequireResolve, removeTree, type Tree, writeTree } from './internal/test-support.ts'
 
 const trees: string[] = []
-after(() => {
+afterAll(() => {
   for (const tree of trees) removeTree(tree)
 })
 

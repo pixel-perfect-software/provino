@@ -4,15 +4,15 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
 import type { TransformRequest } from '@provino/types'
+import { afterAll, test } from 'provino'
 import { blockPolicy, topLevelPolicy } from '../hoist/test-policies.ts'
 import type { HostedSource, JestHost } from '../jest-host/index.ts'
 import { toModuleRunner } from '../module-runner.ts'
 import { createPipeline, type PipelineOptions } from '../pipeline.ts'
 
 const dirs: string[] = []
-after(() => {
+afterAll(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true })
 })
 

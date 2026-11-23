@@ -5,8 +5,8 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, resolve } from 'node:path'
-import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { test } from 'provino'
 
 // `import … from 'x'`, `export … from 'x'` and `import 'x'`, across lines, and not `import type`.
 const IMPORT = /^(?:import|export)\s+(type\s+)?(?:[^'";]*?\bfrom\s+)?['"]([^'"]+)['"]/gm

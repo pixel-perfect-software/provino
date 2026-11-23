@@ -1,8 +1,8 @@
 // Real-timer deadlines, driven by a fake clock: the timer functions and `now` are injected, so
 // nothing here waits on wall time.
 import assert from 'node:assert/strict'
-import { beforeEach, describe, test } from 'node:test'
 import FakeTimers, { type Clock } from '@sinonjs/fake-timers'
+import { beforeEach, describe, test } from 'provino'
 import { timersOf, trackRefs, watch } from '../internal/test-support.ts'
 import { type DeadlineOptions, sleep, withDeadline } from './deadline.ts'
 

@@ -4,10 +4,10 @@
 // corpus, `@provino/harness` `fixtures/runtime/each-*`.)
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
-import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
 import type { FormatEachTitle } from '@provino/types'
+import { test } from 'provino'
 import { jestPolicy } from '../dialect.ts'
 import { formatEachTitle } from './format-each-title.ts'
 

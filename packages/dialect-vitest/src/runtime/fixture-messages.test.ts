@@ -9,8 +9,8 @@ import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { dirname, join } from 'node:path'
-import { test } from 'node:test'
 import type { DefinitionErrorInfo, DefinitionErrorKind } from '@provino/types'
+import { test } from 'provino'
 import { vitestFixtureMessages } from './fixture-messages.ts'
 
 /** Vitest's runner chunk: the one dist file that holds the fixture texts. */

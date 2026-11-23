@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { HarnessError } from '../errors.ts'
 import { type Fixture, readFixture } from '../fixture.ts'
 import type { RecordPaths } from '../record.ts'

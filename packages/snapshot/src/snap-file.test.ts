@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { SnapshotError } from './errors.ts'
 import { checkSnapHeader, evaluateSnapFile, keyToTestName, serializeSnapFile } from './snap-file.ts'
 import {

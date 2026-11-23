@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
 import { isAbsolute } from 'node:path'
-import { test } from 'node:test'
 import {
   createBehaviourLoader,
   diffPolicy,
@@ -10,6 +9,7 @@ import {
   serializePolicy,
 } from '@provino/policy'
 import type { DependencyExtractor, Policy } from '@provino/types'
+import { test } from 'provino'
 import { jestDialect, jestPolicy } from './dialect.ts'
 import { jestExpectPolicy } from './expect-policy.ts'
 import { jestMockPolicy } from './mock-policy.ts'

@@ -4,7 +4,7 @@
 // through `console.warn` (colours stripped) or throws.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { after, before, test } from 'node:test'
+import { afterAll, beforeAll, test } from 'provino'
 import { JestConfigError } from './errors.ts'
 import {
   captureWarnings,
@@ -25,11 +25,11 @@ import { validateJestConfig } from './validate.ts'
 let oracle: Oracle
 const trees: string[] = []
 
-before(async () => {
+beforeAll(async () => {
   oracle = await loadOracle()
 })
 
-after(() => {
+afterAll(() => {
   for (const tree of trees) removeTree(tree)
 })
 

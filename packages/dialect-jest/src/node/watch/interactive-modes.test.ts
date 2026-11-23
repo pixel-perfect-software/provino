@@ -2,8 +2,8 @@
 // over a fake terminal: what each key asks the driver to run and what each screen says. No process,
 // no driver, no waits.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type { TextStyle } from '@provino/types'
+import { describe, it } from 'provino'
 import type { JestWatchTerminal } from './context.ts'
 import {
   type JestAssertionLocation,

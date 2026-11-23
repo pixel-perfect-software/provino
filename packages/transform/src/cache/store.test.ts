@@ -11,16 +11,16 @@ import {
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { promisify } from 'node:util'
 import type { TransformRecord } from '@provino/types'
+import { afterAll, test } from 'provino'
 import { createTransformCache } from './store.ts'
 import { entryFor, KEY_COUNT, keyFor } from './test-entries.ts'
 
 const run = promisify(execFile)
 const dirs: string[] = []
-after(() => {
+afterAll(() => {
   for (const dir of dirs) rmSync(dir, { recursive: true, force: true })
 })
 

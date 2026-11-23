@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { formatMapperMiss } from './format-mapper-miss.ts'
 
 // The texts are the `resolve/mapper-miss` golden's (Jest 30.5.2), `<root>` standing for the project.

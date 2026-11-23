@@ -33,11 +33,11 @@
 // a test that fails when the allowance is no longer needed.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { jestHoistPolicy } from '@provino/dialect-jest'
 import { hoistMocks } from '@provino/transform'
 import type { HoistPolicy } from '@provino/types'
+import { test } from 'provino'
 import {
   codeOfRealError,
   type HoistCase,
@@ -227,7 +227,7 @@ for (const [key, { ignoreLog }] of Object.entries(REAL_HOISTER_QUIRKS)) {
 for (const runner of RUNNERS) {
   for (const upstream of namedCases(runner)) {
     const key = `${runner}: ${upstream.name}`
-    test(key, { skip: SKIPPED[key] ?? false }, async () => {
+    test.skipIf(SKIPPED[key] ?? false)(key, async () => {
       const ignoreLog = REAL_HOISTER_QUIRKS[key]?.ignoreLog
       const found = await problem(runner, upstream, {
         policy: POLICIES[runner],

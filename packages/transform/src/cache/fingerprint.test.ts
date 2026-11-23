@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { HoistPolicy } from '@provino/types'
+import { test } from 'provino'
 import { blockPolicy } from '../hoist/test-policies.ts'
 import { type FingerprintInputs, pipelineFingerprint } from './fingerprint.ts'
 

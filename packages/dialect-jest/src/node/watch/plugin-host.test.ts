@@ -6,8 +6,8 @@ import assert from 'node:assert/strict'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, before, describe, it } from 'node:test'
 import type { TextStyle } from '@provino/types'
+import { afterAll, beforeAll, describe, it } from 'provino'
 import type { JestGlobalConfig } from '../types.ts'
 import type { JestFileChange } from './hooks.ts'
 import {
@@ -69,7 +69,7 @@ const stdin: JestWatchStdin = {
 }
 
 let dir = ''
-before(async () => {
+beforeAll(async () => {
   dir = await mkdtemp(join(tmpdir(), 'provino-watch-plugins-'))
   const files: Record<string, string> = {
     'claims-u.cjs':
@@ -125,7 +125,7 @@ before(async () => {
   }
   for (const [name, text] of Object.entries(files)) await writeFile(join(dir, name), text)
 })
-after(() => rm(dir, { recursive: true, force: true }))
+afterAll(() => rm(dir, { recursive: true, force: true }))
 
 const loadOptions = {
   stdin,

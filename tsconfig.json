@@ -5,10 +5,19 @@
       "path": "packages/types"
     },
     {
+      "path": "packages/types/tsconfig.tests.json"
+    },
+    {
       "path": "packages/rpc"
     },
     {
+      "path": "packages/rpc/tsconfig.tests.json"
+    },
+    {
       "path": "packages/orchestrator"
+    },
+    {
+      "path": "packages/orchestrator/tsconfig.tests.json"
     },
     {
       "path": "packages/policy"
@@ -18,6 +27,9 @@
     },
     {
       "path": "packages/core"
+    },
+    {
+      "path": "packages/core/tsconfig.tests.json"
     },
     {
       "path": "tooling/boundaries"
@@ -32,6 +44,9 @@
       "path": "packages/harness"
     },
     {
+      "path": "packages/harness/tsconfig.tests.json"
+    },
+    {
       "path": "packages/bench"
     },
     {
@@ -41,7 +56,13 @@
       "path": "packages/resolver"
     },
     {
+      "path": "packages/resolver/tsconfig.tests.json"
+    },
+    {
       "path": "packages/transform"
+    },
+    {
+      "path": "packages/transform/tsconfig.tests.json"
     },
     {
       "path": "packages/resolver/bench"
@@ -56,13 +77,22 @@
       "path": "packages/snapshot"
     },
     {
+      "path": "packages/snapshot/tsconfig.tests.json"
+    },
+    {
       "path": "packages/coverage"
     },
     {
       "path": "packages/expect"
     },
     {
+      "path": "packages/expect/tsconfig.tests.json"
+    },
+    {
       "path": "packages/mock"
+    },
+    {
+      "path": "packages/mock/tsconfig.tests.json"
     },
     {
       "path": "packages/lazy"
@@ -74,13 +104,25 @@
       "path": "packages/timers"
     },
     {
+      "path": "packages/timers/tsconfig.tests.json"
+    },
+    {
       "path": "packages/dialect-jest"
+    },
+    {
+      "path": "packages/dialect-jest/tsconfig.tests.json"
     },
     {
       "path": "packages/dialect-vitest"
     },
     {
+      "path": "packages/dialect-vitest/tsconfig.tests.json"
+    },
+    {
       "path": "packages/env-jsdom"
+    },
+    {
+      "path": "packages/env-jsdom/tsconfig.tests.json"
     },
     {
       "path": "packages/env-node"
@@ -89,7 +131,13 @@
       "path": "packages/env-shared"
     },
     {
+      "path": "packages/env-shared/tsconfig.tests.json"
+    },
+    {
       "path": "packages/config"
+    },
+    {
+      "path": "packages/config/tsconfig.tests.json"
     },
     {
       "path": "packages/reporters"
@@ -102,6 +150,9 @@
     },
     {
       "path": "packages/api"
+    },
+    {
+      "path": "packages/api/tsconfig.tests.json"
     }
   ]
 }

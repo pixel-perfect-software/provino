@@ -1,7 +1,6 @@
 // The pool over fake transports (no processes): lazy spawn, the worker limit, reuse by key,
 // replacement after a leak or a crash, start failures, abort and close.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
 import type {
   CoordinatorToWorker,
@@ -17,6 +16,7 @@ import type {
   WorkerKey,
   WorkerToCoordinator,
 } from '@provino/types'
+import { describe, it } from 'provino'
 import { OrchestratorError } from './errors.ts'
 import { workerKeyOf } from './key.ts'
 import {

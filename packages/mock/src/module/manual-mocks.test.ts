@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { findManualMock, findRootMock, isCoreSpecifier } from './manual-mocks.ts'
 import { tempTree } from './test-support.ts'
 

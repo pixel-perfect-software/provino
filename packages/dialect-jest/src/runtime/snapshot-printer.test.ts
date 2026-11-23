@@ -2,10 +2,10 @@
 // pretty-format 30.5's defaults and Jest's plugin order, and its messages carry Jest's words. The
 // bytes of a whole `.snap` are held to Jest's by `@provino/harness`'s snapshot corpus.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import { stripVTControlCharacters } from 'node:util'
 import { createBehaviourLoader, isModuleRef } from '@provino/policy'
 import type { SnapshotMessageInfo, SnapshotSerializeOptions } from '@provino/types'
+import { test } from 'provino'
 import { jestPolicy } from '../dialect.ts'
 import { jestSnapshotPrinter } from './snapshot-printer.ts'
 

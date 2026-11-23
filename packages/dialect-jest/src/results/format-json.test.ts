@@ -1,8 +1,8 @@
 // `formatJson` against the real `formatTestResults` of @jest/test-result 30.5.2, and
 // `serializeToJson` against what `serializeToJSON` says it does.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import * as real from '@jest/test-result'
+import { describe, it } from 'provino'
 import { formatJson, serializeToJson } from './format-json.ts'
 import { addResult, createEmptyTestResult, makeEmptyAggregatedTestResult } from './helpers.ts'
 import type { TestResult } from './types.ts'

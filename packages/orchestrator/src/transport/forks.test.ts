@@ -4,8 +4,8 @@
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
 import { Writable } from 'node:stream'
-import { describe, it } from 'node:test'
 import type { WorkerExit } from '@provino/types'
+import { describe, it } from 'provino'
 import { type ChildEvents, reportChildExit } from './forks.ts'
 import { oomExit } from './shared.ts'
 

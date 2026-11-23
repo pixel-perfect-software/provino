@@ -1,7 +1,7 @@
 // The snapshot on plain objects: the cases a real global cannot be used for, because a
 // non-configurable property can never be removed from it again.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { leakReport, snapshotProperties } from './restore.ts'
 
 /** An object with a mix of properties, and the descriptors it started with. */

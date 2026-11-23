@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { HarnessError, type HarnessErrorCode } from './errors.ts'
 import { parseFixtureManifest, parseScmSteps } from './fixture.ts'
 

@@ -1,6 +1,6 @@
 // The coalescer over a fake clock: the window, the repeats, the unmoved mtime, close.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { type CoalesceClock, createCoalescer, type WatchEvent } from './coalesce.ts'
 
 /** A clock whose timers fire only when the test says so. */

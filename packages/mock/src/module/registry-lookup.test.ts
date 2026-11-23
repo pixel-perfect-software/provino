@@ -2,8 +2,8 @@
 // packages, factory failures and re-entry, and error codes. `registry.test.ts` has the rest.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
 import type { ResolveContext, Resolver } from '@provino/types'
+import { describe, test } from 'provino'
 import { MockError } from '../errors.ts'
 import { build, jestLike, resolverBy, tempTree, vitestLike } from './test-support.ts'
 

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import { moduleRef, neutralPolicy, serializePolicy } from '@provino/policy'
 import type { SerializedProjectConfig } from '@provino/types'
+import { describe, it } from 'provino'
 import { WorkerError } from '../../errors.ts'
 import { parseProjectConfig } from './config.ts'
 

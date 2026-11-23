@@ -4,9 +4,9 @@
 // expectations below, each one a title from those goldens. The `format` and `inspect` it calls
 // come from `@vitest/utils`, which is installed, so those are compared in-process.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
 import type { FormatEachTitle } from '@provino/types'
+import { test } from 'provino'
 import { vitestPolicy } from '../dialect.ts'
 import { importFromVitest } from '../internal/from-vitest.ts'
 import * as ours from '../vendor/vitest-utils/display.ts'

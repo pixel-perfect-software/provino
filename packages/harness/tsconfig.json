@@ -44,5 +44,6 @@
     {
       "path": "../transform"
     }
-  ]
+  ],
+  "exclude": ["src/**/*.test.ts"]
 }

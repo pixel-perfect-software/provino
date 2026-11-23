@@ -1,6 +1,6 @@
 // WorkerKey hashing: stable across key order, sensitive to every field the key carries.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { hashOf, sameWorkerKey, stableJson, workerKeyId, workerKeyOf } from './key.ts'
 
 const base = {

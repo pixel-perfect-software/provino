@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { availableParallelism } from 'node:os'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { readRunEnvironment } from './environment.ts'
 
 test('the environment names the machine, Node and the runners', () => {

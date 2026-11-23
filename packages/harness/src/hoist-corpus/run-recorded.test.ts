@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { generateLayouts } from './generate.ts'
 import { type RunnerName, runRecorded } from './run-recorded.ts'
 

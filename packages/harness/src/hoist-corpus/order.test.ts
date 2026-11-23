@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { formatOrder, type OrderOptions, orderOf, sameOrder } from './order.ts'
 
 const NAMES = new Set([

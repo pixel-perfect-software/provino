@@ -2,9 +2,9 @@
 // for the update mode the run used (Jest: always unless it rewrites; Vitest: when nothing may be
 // written).
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import { resolvePolicy } from '@provino/policy'
 import type { FileResult, Policy, RunSummary, SnapshotRunSummary } from '@provino/types'
+import { describe, it } from 'provino'
 import { exitCodeFor } from './exit-code.ts'
 
 const jest: Policy = resolvePolicy({

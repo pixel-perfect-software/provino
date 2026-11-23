@@ -4,7 +4,7 @@
 // hold to the real Jest; these cover what a recording can't: an error whose message can't be
 // rewritten, a value pretty-format can't print, and what is left of the thrown error.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { globalSetupFailure } from './index.ts'
 
 const context = { hook: 'globalSetup', path: '/the/setup.ts' } as const

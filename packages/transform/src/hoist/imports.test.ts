@@ -1,7 +1,7 @@
 // The import rewrite (D36), which both policies share: when a call moves to the top of a file
 // with static imports, those imports become `await import()` placed after the hoisted block.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { assertOrder, hoist } from './test-helpers.ts'
 import { blockPolicy, topLevelPolicy } from './test-policies.ts'
 

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { type InBandInput, shouldRunInBand } from './in-band.ts'
 
 /** jest-core `testSchedulerHelper.ts`'s numbers: `SLOW_TEST_TIME` and `tests.length <= 20`. */

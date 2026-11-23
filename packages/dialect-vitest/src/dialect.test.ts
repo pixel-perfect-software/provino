@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict'
 import { isAbsolute } from 'node:path'
-import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
   createBehaviourLoader,
@@ -10,6 +9,7 @@ import {
   resolvePolicy,
   serializePolicy,
 } from '@provino/policy'
+import { test } from 'provino'
 import { vitestDialect, vitestPolicy } from './dialect.ts'
 import { vitestHoistPolicy } from './hoist-policy.ts'
 import { vitestMockPolicy, vitestModulePolicy } from './mock-policy.ts'

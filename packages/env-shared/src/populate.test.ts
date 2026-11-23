@@ -1,10 +1,10 @@
 // T8.2: a jsdom window and a happy-dom `GlobalWindow` are populated onto a fresh vm global; after
 // `restore`, the global's own names and every original descriptor are what they were.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import { createContext, runInContext } from 'node:vm'
 import { GlobalWindow } from 'happy-dom'
 import { JSDOM } from 'jsdom'
+import { describe, it } from 'provino'
 import { populateGlobal } from './populate.ts'
 
 type Loose = Record<string | symbol, unknown>

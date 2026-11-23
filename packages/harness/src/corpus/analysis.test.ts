@@ -1,7 +1,7 @@
 // T12.10's analysis pieces on built runs, no runner: the flaky list, the self-diff and the extractor's
 // left-out set.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import type { ExclusionRule } from '../diff.ts'
 import { makeFile, makeRun, makeTest } from '../test-support.ts'
 import { flakyKeys } from './flaky.ts'
