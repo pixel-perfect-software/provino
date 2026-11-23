@@ -3,8 +3,8 @@
 import assert from 'node:assert/strict'
 import { findPackageJSON } from 'node:module'
 import { dirname, join } from 'node:path'
-import { test } from 'node:test'
 import { pathToFileURL } from 'node:url'
+import { test } from 'provino'
 import { loadVitestEnv, parseDotenv } from './env.ts'
 import { writeTree } from './test-support.ts'
 

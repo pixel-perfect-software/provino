@@ -2,9 +2,9 @@
 // vendored @vitest/pretty-format 5.0.5 and Vitest's plugin order, and its messages are Vitest's.
 // The bytes of a whole `.snap` are held to Vitest's by `@provino/harness`'s snapshot corpus.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import { createBehaviourLoader, isModuleRef } from '@provino/policy'
 import type { SnapshotMessageInfo, SnapshotSerializeOptions } from '@provino/types'
+import { test } from 'provino'
 import { vitestPolicy } from '../dialect.ts'
 import { vitestSnapshotPrinter } from './snapshot-printer.ts'
 

@@ -1,7 +1,7 @@
 // B25c: the two glob helpers as the reader calls them: Vitest's own behaviour (tinyglobby and
 // picomatch with dot: true), not the libraries' rules.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { expandGlobs, globToRegexSource } from './glob.ts'
 import { writeTree } from './test-support.ts'
 

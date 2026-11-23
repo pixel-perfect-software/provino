@@ -4,8 +4,8 @@
 // the environment (`allowOnly`, `watch`, `open`, `reporters`: CI, a TTY, an agent) are not
 // compared. And Track 11's module-boundaries table, row by row.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import { resolvePolicy } from '@provino/policy'
+import { test } from 'provino'
 import { configDefaults, coverageConfigDefaults } from 'vitest/config'
 import { vitestPolicy } from './dialect.ts'
 
