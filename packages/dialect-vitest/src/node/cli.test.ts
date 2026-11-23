@@ -329,7 +329,10 @@ describe('vitestCli against vitest/node 5.0.5', () => {
     )
   })
 
-  it('parses as parseCLI and checks as the bin, on every line of the corpus', () => {
+  // D194 exception (Tyler, 2026-11-23): a whole-repo or whole-corpus test that had no timeout under node:test; 120 s is too tight on a loaded CI runner
+  it('parses as parseCLI and checks as the bin, on every line of the corpus', {
+    timeout: 600_000,
+  }, () => {
     const corpus = [...HAND, ...forms(), ...seeded(800)]
     assert.ok(corpus.length > 2000, `corpus of ${corpus.length}`)
     const failures: string[] = []

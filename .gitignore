@@ -31,6 +31,8 @@ packages/bench/.results/
 packages/bench/.instructions/
 packages/harness/.record/
 packages/provino/.work/
+# test temp dirs anywhere (the boundaries scan skips them too)
+.work/
 
 # the Jest config oracle's preset projects, written at run time (pnpm bench:jest-config presets)
 packages/dialect-jest/oracle/presets/.work/

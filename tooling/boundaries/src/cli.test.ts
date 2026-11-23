@@ -10,7 +10,8 @@ const run = (...args: string[]) =>
     env: { ...process.env, NO_COLOR: '1' },
   })
 
-test('`check` passes on the repo and says what agreed', () => {
+// D194 exception (Tyler, 2026-11-23): a whole-repo or whole-corpus test that had no timeout under node:test; 120 s is too tight on a loaded CI runner
+test('`check` passes on the repo and says what agreed', { timeout: 600_000 }, () => {
   const result = run('check')
   assert.equal(result.status, 0, result.stderr + result.stdout)
   assert.match(result.stdout, /no dependency violations found/)
