@@ -5,7 +5,13 @@
       "path": "packages/types"
     },
     {
+      "path": "packages/types/tsconfig.tests.json"
+    },
+    {
       "path": "packages/rpc"
+    },
+    {
+      "path": "packages/rpc/tsconfig.tests.json"
     },
     {
       "path": "packages/orchestrator"

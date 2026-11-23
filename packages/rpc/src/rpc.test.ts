@@ -1,9 +1,9 @@
 // `createRpc` over real `MessageChannel`s (T1.9's round trip) and over a hand-driven port, for the
 // exit paths: pending calls reject with the port's exit cause.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import { MessageChannel } from 'node:worker_threads'
 import type { MessageLink, RpcCall, RpcReply, SerializedError, WorkerExit } from '@provino/types'
+import { describe, it, onTestFinished } from 'provino'
 import { RpcError } from './errors.ts'
 import { messagePortLink } from './links.ts'
 import { createRpc, type RpcPort } from './rpc.ts'
@@ -72,7 +72,7 @@ function manualPort(): {
 describe('createRpc over a MessageChannel', () => {
   it('round-trips calls both ways, keeping clone-safe values', async (t) => {
     const { left, right } = channel()
-    t.after(() => left.close())
+    onTestFinished(() => left.close())
     const toRight = createRpc<Left, Right>(left, leftHandlers)
     const toLeft = createRpc<Right, Left>(right, { greet: (name) => `hi ${name}` })
 
@@ -84,7 +84,7 @@ describe('createRpc over a MessageChannel', () => {
 
   it('answers many concurrent calls by id', async (t) => {
     const { left, right } = channel()
-    t.after(() => left.close())
+    onTestFinished(() => left.close())
     createRpc<Left, Right>(left, leftHandlers)
     const toLeft = createRpc<Right, Left>(right, { greet: (name) => name })
     const sums = await Promise.all(Array.from({ length: 200 }, (_, i) => toLeft.add(i, i)))
@@ -96,7 +96,7 @@ describe('createRpc over a MessageChannel', () => {
 
   it("rejects with the remote error's name, message, code and cause", async (t) => {
     const { left, right } = channel()
-    t.after(() => left.close())
+    onTestFinished(() => left.close())
     createRpc<Left, Right>(left, leftHandlers)
     const toLeft = createRpc<Right, Left>(right, { greet: (name) => name })
     const error = await toLeft.fail('nope').then(
@@ -114,7 +114,7 @@ describe('createRpc over a MessageChannel', () => {
 
   it('answers a method that is not served', async (t) => {
     const { left, right } = channel()
-    t.after(() => left.close())
+    onTestFinished(() => left.close())
     createRpc<Left, Right>(left, leftHandlers)
     const toLeft = createRpc<Right, Left>(right, { greet: (name) => name })
     const toLeftUntyped = toLeft as unknown as Record<string, () => Promise<unknown>>
@@ -146,7 +146,7 @@ describe('createRpc over a MessageChannel', () => {
 
   it("rejects a call whose arguments can't be cloned, without sending it", async (t) => {
     const { left, right } = channel()
-    t.after(() => left.close())
+    onTestFinished(() => left.close())
     createRpc<Left, Right>(left, leftHandlers)
     const toLeft = createRpc<Right, Left>(right, { greet: (name) => name })
     const sneaky = { when: new Date(0), tags: new Set<string>(), big: 1n, fn: () => {} }
@@ -161,7 +161,7 @@ describe('createRpc over a MessageChannel', () => {
 
   it("answers with an error when a result can't be cloned", async (t) => {
     const { left, right } = channel()
-    t.after(() => left.close())
+    onTestFinished(() => left.close())
     createRpc<Right, Left>(right, {
       greet: () => (() => 'not data') as unknown as string,
     })
@@ -195,9 +195,9 @@ describe('createRpc when a reply can’t be built or sent', () => {
     const unhandled: unknown[] = []
     const onUnhandled = (reason: unknown): void => void unhandled.push(reason)
     process.on('unhandledRejection', onUnhandled)
-    t.after(() => process.off('unhandledRejection', onUnhandled))
+    onTestFinished(() => process.off('unhandledRejection', onUnhandled))
     const { left, right } = channel()
-    t.after(() => left.close())
+    onTestFinished(() => left.close())
     createRpc<Left, Right>(left, leftHandlers, {
       serializeError: () => {
         throw new Error('serializer broke')
@@ -216,7 +216,7 @@ describe('createRpc when a reply can’t be built or sent', () => {
 
   it('answers with a fixed error when the serialized error itself can’t be sent', async (t) => {
     const { left, right } = channel()
-    t.after(() => left.close())
+    onTestFinished(() => left.close())
     createRpc<Left, Right>(left, leftHandlers, {
       serializeError: (error) => ({
         name: 'Error',
