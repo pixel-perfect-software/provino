@@ -6,12 +6,12 @@
 // about as many lines as the imports took. Each record keeps the map composed back to the source
 // (`Loader.getSourceMap`), and `compile` reports line 1 in the body's own columns, so a frame's
 // position is a position in the code that map starts from.
-import { Buffer } from 'node:buffer'
 import { readFileSync } from 'node:fs'
 import { SourceMap, type SourceMapping } from 'node:module'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 import type { Loader, ModuleId, SourceMapV3 } from '@provino/types'
+import { decodeDataUrl } from './internal/source.ts'
 import { pathOfUrl } from './internal/url.ts'
 
 /** Words that start an expression but name nothing a frame could be called after. */
@@ -305,12 +305,9 @@ function readOwnMap(file: string): OwnMap | null {
     let json: string
     let base: URL = fileUrl
     if (url.startsWith('data:')) {
-      const comma = url.indexOf(',')
-      if (comma === -1) return null
-      const body = url.slice(comma + 1)
-      json = url.slice(0, comma).endsWith(';base64')
-        ? Buffer.from(body, 'base64').toString('utf8')
-        : decodeURIComponent(body)
+      const decoded = decodeDataUrl(url)
+      if (decoded === null) return null
+      json = decoded.text
     } else {
       base = new URL(url, fileUrl)
       json = readFileSync(base, 'utf8')
