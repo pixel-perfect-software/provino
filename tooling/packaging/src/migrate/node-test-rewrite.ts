@@ -274,13 +274,20 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
     }
   }
 
-  /** `{ skip, todo, only, timeout }` of a test or suite: the one modifier and the timeout text. */
+  /**
+   * `{ skip, todo, only, timeout }` of a test or suite: the one modifier and the timeout text. A
+   * suite's `{ concurrency: true }` is `concurrent` (the native `describe.concurrent`, which chains
+   * with each modifier); `concurrency: false` is node:test's default and is dropped; any other
+   * value, and `concurrency` on a test, has no native form.
+   */
   function optionsPlan(
     options: AstNode,
     modified: boolean,
-  ): { mod: Mod | undefined; timeout: string | undefined } {
+    role: Registration['role'],
+  ): { mod: Mod | undefined; timeout: string | undefined; concurrent: boolean } {
     const mods: Mod[] = []
     let timeout: string | undefined
+    let concurrent = false
     for (const prop of listOf(options, 'properties')) {
       const key = nodeOf(prop, 'key')
       const keyName = get(prop, 'computed') === true ? null : (nameOf(key) ?? stringValue(key))
@@ -300,6 +307,15 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
       } else if (keyName === 'skip') {
         if (literal && !get(value, 'value')) continue
         mods.push(literal ? { kind: 'skip' } : { kind: 'skipIf', condition: text(value) })
+      } else if (keyName === 'concurrency' && role === 'suite') {
+        const flag = literal ? get(value, 'value') : undefined
+        if (flag === true) concurrent = true
+        else if (flag !== false) {
+          refuse(
+            prop,
+            'describe option concurrency other than a literal true or false (a number, an expression) has no native equivalent',
+          )
+        }
       } else if (keyName === 'todo' || keyName === 'only') {
         if (literal && !get(value, 'value')) continue
         if (literal) mods.push({ kind: keyName })
@@ -311,7 +327,7 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
     if (mods.length > 1 || (mods.length > 0 && modified)) {
       refuse(options, 'more than one skip, todo or only on one test')
     }
-    return { mod: mods[0], timeout }
+    return { mod: mods[0], timeout, concurrent }
   }
 
   /**
@@ -391,12 +407,18 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
     const [options, ...extra] = fn === null ? rest : rest.slice(0, -1)
     if (options !== undefined && name !== undefined) {
       if (options.type === 'ObjectExpression') {
-        const { mod, timeout } = optionsPlan(options, reg.modified)
-        if (mod !== undefined) {
-          edited.appendLeft(
-            reg.base.end,
-            mod.kind === 'skipIf' ? `.skipIf(${mod.condition})` : `.${mod.kind}`,
-          )
+        const { mod, timeout, concurrent } = optionsPlan(options, reg.modified, reg.role)
+        const modifier =
+          mod === undefined
+            ? ''
+            : mod.kind === 'skipIf'
+              ? `.skipIf(${mod.condition})`
+              : `.${mod.kind}`
+        // At the callee's end: `describe` or an already modified `describe.skip` (which then has no
+        // modifier of its own in the options: that was refused above).
+        const callee = nodeOf(call, 'callee')
+        if (callee !== null && (modifier !== '' || concurrent)) {
+          edited.appendLeft(callee.end, modifier + (concurrent ? '.concurrent' : ''))
         }
         if (timeout === undefined) edited.remove(name.end, options.end)
         else edited.overwrite(options.start, options.end, `{ timeout: ${timeout} }`)

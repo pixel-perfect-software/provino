@@ -124,6 +124,111 @@ describe('options', () => {
     assert.match(out, /afterAll\(async \(\) => \{\}, 500\)/)
   })
 
+  it("a describe's { concurrency: true } becomes describe.concurrent, and suite and an alias too", () => {
+    assert.equal(
+      rewritten(HEAD + "describe('a', { concurrency: true }, () => {})\n"),
+      "import { describe, it } from 'provino'\ndescribe.concurrent('a', () => {})\n",
+    )
+    assert.equal(
+      rewritten("import { suite } from 'node:test'\nsuite('a', { concurrency: true }, () => {})\n"),
+      "import { suite } from 'provino'\nsuite.concurrent('a', () => {})\n",
+    )
+    assert.equal(
+      rewritten(
+        "import { describe as group } from 'node:test'\ngroup('a', { concurrency: true }, () => {})\n",
+      ),
+      "import { describe as group } from 'provino'\ngroup.concurrent('a', () => {})\n",
+    )
+  })
+
+  it('keeps { timeout } beside it, and rewrites a nested describe on its own', () => {
+    assert.match(
+      rewritten(HEAD + "describe('a', { concurrency: true, timeout: 50 }, () => {})\n"),
+      /describe\.concurrent\('a', \{ timeout: 50 \}, \(\) => \{\}\)/,
+    )
+    const out = rewritten(
+      HEAD +
+        "describe('a', { concurrency: true }, () => {\n  describe('b', () => {})\n  describe('c', { concurrency: true }, () => {})\n})\n",
+    )
+    assert.match(out, /^describe\.concurrent\('a', \(\) => \{$/m)
+    assert.match(out, /^ {2}describe\('b', \(\) => \{\}\)$/m)
+    assert.match(out, /^ {2}describe\.concurrent\('c', \(\) => \{\}\)$/m)
+  })
+
+  it('chains with the one modifier a describe has, from its options or its name', () => {
+    const cases: readonly [string, string][] = [
+      [
+        "describe('a', { skip: true, concurrency: true }, () => {})",
+        "describe.skip.concurrent('a', () => {})",
+      ],
+      [
+        "describe('a', { only: true, concurrency: true }, () => {})",
+        "describe.only.concurrent('a', () => {})",
+      ],
+      [
+        "describe('a', { todo: true, concurrency: true }, () => {})",
+        "describe.todo.concurrent('a', () => {})",
+      ],
+      [
+        "describe('a', { skip: ok, concurrency: true }, () => {})",
+        "describe.skipIf(ok).concurrent('a', () => {})",
+      ],
+      [
+        "describe.skip('a', { concurrency: true }, () => {})",
+        "describe.skip.concurrent('a', () => {})",
+      ],
+      [
+        "describe.only('a', { concurrency: true }, () => {})",
+        "describe.only.concurrent('a', () => {})",
+      ],
+    ]
+    for (const [before, after] of cases) {
+      assert.equal(
+        rewritten(HEAD + before + '\n'),
+        "import { describe, it } from 'provino'\n" + after + '\n',
+      )
+    }
+  })
+
+  it("{ concurrency: false } on a describe is node:test's default and is dropped", () => {
+    assert.equal(
+      rewritten(HEAD + "describe('a', { concurrency: false }, () => {})\n"),
+      "import { describe, it } from 'provino'\ndescribe('a', () => {})\n",
+    )
+    assert.equal(
+      rewritten(HEAD + "describe('a', { concurrency: false, skip: true }, () => {})\n"),
+      "import { describe, it } from 'provino'\ndescribe.skip('a', () => {})\n",
+    )
+  })
+
+  it('refuses a describe concurrency that is not a literal true or false, and any on a test', () => {
+    const reason = 'describe option concurrency other than a literal true or false'
+    for (const value of ['2', 'Infinity', 'n', "'yes'", 'null', 'os.availableParallelism()']) {
+      const found = refusedAt(HEAD + "describe('a', { concurrency: " + value + ' }, () => {})\n')
+      assert.equal(found.length, 1, value)
+      assert.match(found[0] ?? '', new RegExp('a\\.test\\.ts:2 ' + reason), value)
+    }
+    assert.equal(refusedAt(HEAD + "it('a', { concurrency: true }, () => {})\n").length, 1)
+    assert.equal(refusedAt(HEAD + "it('a', { concurrency: false }, () => {})\n").length, 1)
+    assert.equal(refusedAt(HEAD + "it('a', { concurrency: 2 }, () => {})\n").length, 1)
+    assert.equal(refusedAt(HEAD + "it.skip('a', { concurrency: true }, () => {})\n").length, 1)
+    assert.equal(
+      refusedAt("import { before } from 'node:test'\nbefore(() => {}, { concurrency: true })\n")
+        .length,
+      1,
+    )
+    // Two modifiers on one suite stay refused, with or without the concurrency beside them.
+    assert.equal(
+      refusedAt(HEAD + "describe('a', { skip: true, todo: true, concurrency: true }, () => {})\n")
+        .length,
+      1,
+    )
+    assert.equal(
+      refusedAt(HEAD + "describe.skip('a', { only: true, concurrency: true }, () => {})\n").length,
+      1,
+    )
+  })
+
   it('refuses the options with no native form, each at its line', () => {
     assert.deepEqual(refusedAt(HEAD + "it('a', { concurrency: true }, () => {})\n"), [
       'MIGRATE_UNSUPPORTED a.test.ts:2 option concurrency has no native equivalent',
