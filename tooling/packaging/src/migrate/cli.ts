@@ -84,7 +84,10 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
       if (dryRun) io.out(`${sites} (dry run: nothing written)`)
       else if (report.refusals.length > 0)
         io.out(`${sites}: nothing was written, fix the sites above and run again`)
-      else {
+      else if (report.nothingToMigrate) {
+        io.out(`${sites}: no node:test files are left, the existing baseline is kept`)
+        for (const line of await scaffoldPackage(root, packageDir)) io.out(`scaffolded ${line}`)
+      } else {
         io.out(
           `${sites}, ${report.rewritten.length} rewritten; recorded ${report.baselineTests} baseline test(s)`,
         )
@@ -101,6 +104,11 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
       )
     }
     const report = await verifyPackage({ packageDir, root, cacheDir, runner: runnerPath, config })
+    if (report.leftOutFiles > 0) {
+      io.out(
+        `verify: left out ${report.leftOutFiles} file(s) (${report.leftOutTests} test(s)) in the bootstrap set`,
+      )
+    }
     if (isEmptyDifference(report.difference)) {
       io.out(`verify: all ${report.tests} test(s) match, names and statuses`)
       return 0

@@ -132,6 +132,76 @@ describe('scaffoldPackage', () => {
     assert.deepEqual(tests.compilerOptions, { paths: {} })
   })
 
+  it('references every workspace package in dependencies, devDependencies and peerDependencies, once, never itself', async () => {
+    const root = scratchDir('scaffold-kinds', {
+      'tooling/provino/bootstrap.json': JSON.stringify({ files: {} }),
+      'tsconfig.json': JSON.stringify({ references: [] }),
+      'packages/core/package.json': '{}',
+      'packages/expect/package.json': '{}',
+      'packages/types/package.json': '{}',
+      'packages/a/package.json': JSON.stringify({
+        name: '@provino/a',
+        dependencies: { '@provino/core': 'workspace:*', '@provino/a': 'workspace:*' },
+        devDependencies: { '@provino/expect': 'workspace:*', '@provino/core': 'workspace:*' },
+        peerDependencies: { '@provino/types': '*' },
+      }),
+      'packages/a/tsconfig.json': JSON.stringify({ include: ['src'] }),
+    })
+    await scaffoldPackage(root, join(root, 'packages/a'))
+    const tests = JSON.parse(await readFile(join(root, 'packages/a/tsconfig.tests.json'), 'utf8'))
+    assert.deepEqual(
+      tests.references.map((reference: { path: string }) => reference.path),
+      [
+        './tsconfig.json',
+        '../provino',
+        '../core',
+        '../expect',
+        '../types',
+        '../../tooling/provino',
+      ],
+    )
+  })
+
+  it('gives the tsconfig that covers a test/ or bench/ test the provino and dependency references', async () => {
+    const root = scratchDir('scaffold-test-dirs', {
+      'tooling/provino/bootstrap.json': JSON.stringify({ files: {} }),
+      'tsconfig.json': JSON.stringify({ references: [] }),
+      'packages/core/package.json': '{}',
+      'packages/types/package.json': '{}',
+      'packages/a/package.json': JSON.stringify({
+        name: '@provino/a',
+        dependencies: { '@provino/core': 'workspace:*' },
+        devDependencies: { '@provino/types': 'workspace:*' },
+      }),
+      'packages/a/tsconfig.json': JSON.stringify({ include: ['src'] }),
+      'packages/a/test/tsconfig.json': JSON.stringify({
+        include: ['.'],
+        references: [{ path: '..' }, { path: '../../core' }],
+      }),
+      'packages/a/test/x.test.ts': '',
+      'packages/a/bench/deep/tsconfig.json': JSON.stringify({ include: ['.'] }),
+      'packages/a/bench/deep/more/y.test.ts': '',
+    })
+    const paths = async (file: string): Promise<string[]> =>
+      JSON.parse(await readFile(join(root, file), 'utf8')).references?.map(
+        (reference: { path: string }) => reference.path,
+      )
+    const lines = await scaffoldPackage(root, join(root, 'packages/a'))
+    assert.deepEqual(await paths('packages/a/test/tsconfig.json'), [
+      '..',
+      '../../core',
+      '../../provino',
+      '../../types',
+    ])
+    assert.deepEqual(await paths('packages/a/bench/deep/tsconfig.json'), [
+      '../../../provino',
+      '../../../core',
+      '../../../types',
+    ])
+    assert.ok(lines.some((line) => line.startsWith('packages/a/test/tsconfig.json: reference')))
+    assert.deepEqual(await scaffoldPackage(root, join(root, 'packages/a')), [])
+  })
+
   it('is idempotent: a second run writes nothing', async () => {
     const root = workspace()
     await scaffoldPackage(root, join(root, 'packages/a'))

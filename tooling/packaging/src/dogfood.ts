@@ -24,6 +24,14 @@ export const INCLUDE_GLOBS: readonly string[] = TEST_ROOTS.map((root) => `${root
 /** The `src` glob: the tests that sit in the package's own project, and the tests project's include. */
 export const SRC_TEST_GLOB: string = INCLUDE_GLOBS[0] ?? 'src/**/*.test.ts'
 
+/** The shared config's values every migrated package's config and `verify`'s scratch config use (D193, D194). */
+export const SHARED_CONFIG_VALUES = {
+  isolation: 'registry',
+  /** node:test had no timeout and CI's job limit is the outer bound, so tests and hooks get 120 s. */
+  timeouts: { test: 120_000, hook: 120_000 },
+  conditions: ['provino-source'],
+} as const
+
 /** The one file the bootstrap set must always hold: the runner's canary. */
 export const CANARY = 'packages/provino/test/bootstrap/canary.test.ts'
 

@@ -5,7 +5,7 @@
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type ProvinoConfig } from 'provino/config'
-import { bootstrapFiles, INCLUDE_GLOBS } from '../packaging/src/dogfood.ts'
+import { bootstrapFiles, INCLUDE_GLOBS, SHARED_CONFIG_VALUES } from '../packaging/src/dogfood.ts'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
 
@@ -18,8 +18,8 @@ export function packageConfig(directory: string): ProvinoConfig {
   return defineConfig({
     include: [...INCLUDE_GLOBS],
     exclude: bootstrapFiles(ROOT).map((file) => relative(directory, join(ROOT, file))),
-    isolation: 'registry',
-    timeouts: { test: 120_000, hook: 120_000 },
-    resolve: { conditions: ['provino-source'] },
+    isolation: SHARED_CONFIG_VALUES.isolation,
+    timeouts: { ...SHARED_CONFIG_VALUES.timeouts },
+    resolve: { conditions: [...SHARED_CONFIG_VALUES.conditions] },
   })
 }

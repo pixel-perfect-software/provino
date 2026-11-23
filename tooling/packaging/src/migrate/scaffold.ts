@@ -7,7 +7,7 @@
 // `../../provino` when its tests import `provino`).
 import { existsSync, readdirSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
-import { join, relative } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import { SRC_TEST_GLOB, TEST_ROOTS, testScript } from '../dogfood.ts'
 import { MigrateError } from './errors.ts'
 
@@ -91,17 +91,84 @@ function addMissing(list: unknown, wanted: readonly string[]): { list: string[];
   return { list: [...current, ...added], added }
 }
 
-/** The `@provino/*` workspace packages `manifest` depends on, as `../<dir>` references. */
-function workspaceReferences(root: string, manifest: Json): string[] {
+/** The directory names of the `@provino/*` workspace packages `manifest` depends on (any kind), sorted. */
+function workspacePackages(root: string, manifest: Json): string[] {
   const names = ['dependencies', 'devDependencies', 'peerDependencies'].flatMap((key) =>
     Object.keys((manifest[key] ?? {}) as Record<string, string>),
   )
   return [...new Set(names)]
-    .filter((name) => name.startsWith('@provino/'))
+    .filter((name) => name.startsWith('@provino/') && name !== manifest.name)
     .map((name) => name.slice('@provino/'.length))
     .filter((dir) => existsSync(join(root, 'packages', dir)))
-    .map((dir) => `../${dir}`)
     .sort()
+}
+
+/** The same packages as `../<dir>` references. */
+function workspaceReferences(root: string, manifest: Json): string[] {
+  return workspacePackages(root, manifest).map((dir) => `../${dir}`)
+}
+
+/**
+ * The nearest `tsconfig.json` at or above `file`, stopping below the package directory (the
+ * package's own project covers `src`, not `test/` or `bench/`).
+ */
+function coveringTsconfig(packageDir: string, file: string): string | undefined {
+  for (
+    let dir = dirname(file);
+    dir !== packageDir && dir.startsWith(packageDir);
+    dir = dirname(dir)
+  ) {
+    const candidate = join(dir, 'tsconfig.json')
+    if (existsSync(candidate)) return candidate
+  }
+  return undefined
+}
+
+/**
+ * Gives the project covering each `test/` or `bench/` test file the references its migrated tests
+ * need: `provino` and every `@provino/*` workspace package the package depends on. Without them a
+ * test that imports one resolves through `provino-source` into that package's src, outside any
+ * referenced project, and tsc checks its vendored files with the strict flags (not their own D17 ones).
+ */
+async function referenceTestProjects(
+  root: string,
+  packageDir: string,
+  manifest: Json,
+  self: boolean,
+  changes: Changes,
+): Promise<void> {
+  const wanted = [...(self ? [] : ['provino']), ...workspacePackages(root, manifest)].map((dir) =>
+    join(root, 'packages', dir),
+  )
+  const projects = new Set<string>()
+  for (const name of TEST_ROOTS.filter((entry) => entry !== 'src')) {
+    const base = join(packageDir, name)
+    if (!existsSync(base)) continue
+    for (const entry of readdirSync(base, { recursive: true, encoding: 'utf8' })) {
+      if (!entry.endsWith('.test.ts') || entry.split(/[\\/]/).includes('node_modules')) continue
+      const project = coveringTsconfig(packageDir, join(base, entry))
+      if (project !== undefined) projects.add(project)
+    }
+  }
+  for (const project of [...projects].sort()) {
+    await updateJson(
+      project,
+      (config) => {
+        const refs = (config.references ?? []) as { path: string }[]
+        const have = new Set(refs.map((ref) => resolve(dirname(project), ref.path)))
+        have.add(dirname(project))
+        have.add(packageDir)
+        const added = wanted.filter((dir) => !have.has(dir))
+        if (added.length === 0) return undefined
+        config.references = [
+          ...refs,
+          ...added.map((dir) => ({ path: relative(dirname(project), dir).split('\\').join('/') })),
+        ]
+        return `reference ${added.map((dir) => relative(dirname(project), dir)).join(', reference ')}`
+      },
+      changes,
+    )
+  }
 }
 
 /**
@@ -198,11 +265,13 @@ export async function scaffoldPackage(
     },
     changes,
   )
+  await referenceTestProjects(root, packageDir, manifest, self, changes)
   // Tests under test/ or bench/ are in no project of this scaffold's making: say which are in none.
   for (const root of TEST_ROOTS.filter((name) => name !== 'src')) {
-    const covered = existsSync(join(packageDir, root, 'tsconfig.json'))
-    const count = existsSync(join(packageDir, root)) ? testFilesUnder(join(packageDir, root)) : 0
-    if (count > 0 && !covered) {
+    const count = existsSync(join(packageDir, root))
+      ? uncoveredTestFiles(packageDir, join(packageDir, root))
+      : 0
+    if (count > 0) {
       changes.lines.push(
         `${dir}/${root}: ${count} test file(s) and no ${root}/tsconfig.json: no tsconfig covers them (add a project that references ../../provino, by hand)`,
       )
@@ -211,9 +280,12 @@ export async function scaffoldPackage(
   return changes.lines
 }
 
-/** How many `*.test.ts` files sit under `directory` (not in node_modules). */
-function testFilesUnder(directory: string): number {
+/** How many `*.test.ts` files under `directory` (not in node_modules) no tsconfig.json covers. */
+function uncoveredTestFiles(packageDir: string, directory: string): number {
   return readdirSync(directory, { recursive: true, encoding: 'utf8' }).filter(
-    (entry) => entry.endsWith('.test.ts') && !entry.split(/[\\/]/).includes('node_modules'),
+    (entry) =>
+      entry.endsWith('.test.ts') &&
+      !entry.split(/[\\/]/).includes('node_modules') &&
+      coveringTsconfig(packageDir, join(directory, entry)) === undefined,
   ).length
 }

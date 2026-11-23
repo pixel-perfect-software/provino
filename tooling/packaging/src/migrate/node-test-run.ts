@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { TEST_RUNNER } from '../dogfood.ts'
+import { SHARED_CONFIG_VALUES, TEST_RUNNER } from '../dogfood.ts'
 import { runCommandAsync } from '../exec.ts'
 import { MigrateError } from './errors.ts'
 import {
@@ -227,7 +227,10 @@ export async function recordProvino(options: {
       const body = {
         root: options.packageDir,
         include: options.files.map(escapeGlob),
-        resolve: { conditions: ['provino-source'] },
+        // The shared base config's values: the 5 s default would fail the long tests the package's own config passes.
+        isolation: SHARED_CONFIG_VALUES.isolation,
+        timeouts: SHARED_CONFIG_VALUES.timeouts,
+        resolve: { conditions: SHARED_CONFIG_VALUES.conditions },
       }
       await writeFile(config, `export default ${JSON.stringify(body)}\n`)
     }
