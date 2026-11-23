@@ -1,6 +1,7 @@
 // One case through the real hoister and through ours, and everything compared. The test file says
 // what is compared and why; this is how.
-import { createRequire, stripTypeScriptTypes } from 'node:module'
+import { readFileSync } from 'node:fs'
+import { createRequire, findPackageJSON, stripTypeScriptTypes } from 'node:module'
 import { createPipeline, type HoistOutput, hoistMocks, toModuleRunner } from '@provino/transform'
 import type { HoistPolicy, StaticMockCall, TransformRecord } from '@provino/types'
 import { hoistMocks as hoistMockAndResolve } from '@vitest/mocker/node'
@@ -160,24 +161,86 @@ function babelOptions(upstream: HoistCase): Record<string, unknown> {
   }
 }
 
+/** The plugin alone on the file as written (see `referenceJest`). */
+function jestHoistOptions(upstream: HoistCase): Record<string, unknown> {
+  return {
+    ...babelOptions(upstream),
+    parserOpts: { plugins: ['jsx', 'typescript'] },
+    plugins: [babel.plugin],
+  }
+}
+
 /**
  * Babel's CommonJS step on the file: one pass with the plugin, because the plugin's `post` puts the
  * hoisted calls above the `require`s only when both run together. Types are stripped first, the way
  * the recorder's Jest transformer does it (`jest-transform.ts`): nothing can strip them after.
  */
-function jestRunnable(upstream: HoistCase, record: TransformRecord): string {
-  const isTypeScript = /\.[cm]?ts$/.test(upstream.filename)
-  const code = isTypeScript ? stripTypeScriptTypes(upstream.code) : upstream.code
-  const result = babel.core.transformSync(code, {
+function jestCommonjsOptions(upstream: HoistCase): Record<string, unknown> {
+  return {
     ...babelOptions(upstream),
     parserOpts: { plugins: ['jsx'] },
     plugins: [babel.plugin, babel.commonjs],
-  })
+  }
+}
+
+/**
+ * What real Babel gives for a Jest case: the plugin's output and the CommonJS step's, or the
+ * plugin's error message. Everything compared is read from these two texts, so they are all a
+ * recording of the real hoister needs (`jest-recording.ts`).
+ */
+export type JestBabelOutput =
+  | { readonly hoisted: string; readonly commonjs: string }
+  | { readonly error: string }
+
+/** Real Babel on the case, now. */
+export function realJestBabel(upstream: HoistCase): JestBabelOutput {
+  let hoisted: string
+  try {
+    const result = babel.core.transformSync(upstream.code, jestHoistOptions(upstream))
+    if (typeof result?.code !== 'string') throw new Error('babel returned no code')
+    hoisted = result.code
+  } catch (error) {
+    return { error: messageOf(error) }
+  }
+  const isTypeScript = /\.[cm]?ts$/.test(upstream.filename)
+  const code = isTypeScript ? stripTypeScriptTypes(upstream.code) : upstream.code
+  const result = babel.core.transformSync(code, jestCommonjsOptions(upstream))
   if (typeof result?.code !== 'string') throw new Error('babel returned no CommonJS code')
-  // Babel's CommonJS step leaves `import()` for the runtime. A `new Function` body would really
-  // import it, so the module-runner form turns it into the stub's call. Nothing else in the code is
-  // ESM by now, so nothing else changes.
-  return moduleRunnerForm(upstream.filename, record, result.code)
+  return { hoisted, commonjs: result.code }
+}
+
+/** The version of an installed package, from its own `package.json`. */
+function packageVersion(name: string): string {
+  const path = findPackageJSON(name, import.meta.url)
+  if (path === undefined) throw new Error(`${name} is not installed`)
+  const manifest: unknown = JSON.parse(readFileSync(path, 'utf8'))
+  const version = isRecord(manifest) ? prop(manifest, 'version') : undefined
+  if (typeof version !== 'string') throw new Error(`${path} has no version`)
+  return version
+}
+
+/**
+ * What decides real Babel's output besides the input: the pinned packages' versions and both option
+ * sets (the plugins by name). A recording made under another one is stale.
+ */
+export function jestBabelFingerprint(): string {
+  const names = new Map<unknown, string>([
+    [babel.plugin, 'babel-plugin-jest-hoist'],
+    [babel.presetReact, '@babel/preset-react'],
+    [babel.commonjs, '@babel/plugin-transform-modules-commonjs'],
+  ])
+  const sample = plainCase('fingerprint', '')
+  const jsx: HoistCase = { ...sample, filename: 'file.tsx', jsx: 'automatic' }
+  return JSON.stringify(
+    {
+      versions: Object.fromEntries(
+        [...names.values(), '@babel/core'].map((n) => [n, packageVersion(n)]),
+      ),
+      hoist: [jestHoistOptions(sample), jestHoistOptions(jsx)],
+      commonjs: [jestCommonjsOptions(sample), jestCommonjsOptions(jsx)],
+    },
+    (_key, value: unknown) => names.get(value) ?? value,
+  )
 }
 
 /** The call rules of `FUNCTIONS` in babel-plugin-jest-hoist: which calls it really hoists. */
@@ -266,25 +329,24 @@ function staticMocksOfJestOutput(code: string): readonly StaticMock[] {
  * generated runtime import is in the output as it is in ours. Types stay in the output. The CJS
  * step is modelled in `orderOf`.
  */
-function referenceJest(upstream: HoistCase, record: TransformRecord): Outcome {
-  let output: string
-  try {
-    const result = babel.core.transformSync(upstream.code, {
-      ...babelOptions(upstream),
-      parserOpts: { plugins: ['jsx', 'typescript'] },
-      plugins: [babel.plugin],
-    })
-    if (typeof result?.code !== 'string') throw new Error('babel returned no code')
-    output = result.code
-  } catch (error) {
-    const message = messageOf(error)
+function referenceJest(
+  upstream: HoistCase,
+  record: TransformRecord,
+  babelOutput: JestBabelOutput = realJestBabel(upstream),
+): Outcome {
+  if ('error' in babelOutput) {
+    const message = babelOutput.error
     return { kind: 'error', code: codeOfRealError('jest', message), message }
   }
+  const output = babelOutput.hoisted
   return {
     kind: 'ok',
     order: orderOf(output, { ...UPSTREAM.jest, staticImports: 'after-hoisted', syntax: 'tsx' }),
     staticMocks: staticMocksOfJestOutput(output),
-    runnable: jestRunnable(upstream, record),
+    // Babel's CommonJS step leaves `import()` for the runtime. A `new Function` body would really
+    // import it, so the module-runner form turns it into the stub's call. Nothing else in the code is
+    // ESM by now, so nothing else changes.
+    runnable: moduleRunnerForm(upstream.filename, record, babelOutput.commonjs),
   }
 }
 
@@ -494,6 +556,8 @@ export interface CaseOptions {
   readonly policy: HoistPolicy
   /** Log lines left out on both sides, for a known defect in the real hoister (named by the caller). */
   readonly ignoreLog?: RegExp
+  /** Real Babel's output for a Jest case, recorded; without it Babel runs now. */
+  readonly jestBabel?: JestBabelOutput | undefined
 }
 
 /** What the real hoister did with the case. */
@@ -501,8 +565,11 @@ export function referenceOutcome(
   runner: RunnerName,
   upstream: HoistCase,
   record: TransformRecord = stripped(upstream),
+  jestBabel?: JestBabelOutput,
 ): Outcome {
-  return runner === 'jest' ? referenceJest(upstream, record) : referenceVitest(upstream, record)
+  return runner === 'jest'
+    ? referenceJest(upstream, record, jestBabel)
+    : referenceVitest(upstream, record)
 }
 
 /** What differs between the real hoister and ours, or `undefined` when they agree. */
@@ -512,7 +579,7 @@ export async function problem(
   options: CaseOptions,
 ): Promise<string | undefined> {
   const record = stripped(upstream)
-  const reference = referenceOutcome(runner, upstream, record)
+  const reference = referenceOutcome(runner, upstream, record, options.jestBabel)
   const got = ours(
     options.hoist ?? hoistMocks,
     runner,

@@ -42,15 +42,18 @@ import {
   codeOfRealError,
   type HoistCase,
   type Hoister,
+  jestBabelFingerprint,
   plainCase,
   problem,
+  realJestBabel,
   referenceOutcome,
   runOurs,
   VITEST_OUTPUT_BROKEN,
 } from './hoist-corpus/check.ts'
 import { FLIPS, UNPROVABLE } from './hoist-corpus/flips.ts'
-import { generateLayouts } from './hoist-corpus/generate.ts'
+import { GENERATED, generateLayouts } from './hoist-corpus/generate.ts'
 import { JEST_INPUTS, VITEST_INPUTS } from './hoist-corpus/inputs.ts'
+import { type JestRecording, layoutsHash, readRecording } from './hoist-corpus/jest-recording.ts'
 import type { RunnerName } from './hoist-corpus/run-recorded.ts'
 import { isRecord, prop } from './internal/guards.ts'
 import { vitestHoistPolicy } from './mock-corpus/profiles.ts'
@@ -62,8 +65,14 @@ const EXPECTED_COUNTS = {
   generated: { jest: 3000, vitest: 3000 },
 } as const
 
-/** Fixed, so a failure names a case that reproduces. */
-const SEEDS = { jest: 20261106, vitest: 20261107 } as const
+/** The generated layouts of each runner, from the seed and count `generate.ts` fixes. */
+const LAYOUTS: Readonly<Record<RunnerName, readonly HoistCase[]>> = {
+  jest: generateLayouts('jest', GENERATED.jest.count, GENERATED.jest.seed),
+  vitest: generateLayouts('vitest', GENERATED.vitest.count, GENERATED.vitest.seed),
+}
+
+/** How many recorded Jest layouts are also run through real Babel as the test runs. */
+const LIVE_LAYOUTS = 200
 
 /**
  * Cases skipped, by `<runner>: <name>`, each with the reason. A case belongs here only if it is
@@ -153,14 +162,11 @@ function isSkipped(runner: RunnerName, name: string): boolean {
 // The corpus
 
 test('the case counts are pinned and the names are unique', () => {
-  const generated = {
-    jest: generateLayouts('jest', EXPECTED_COUNTS.generated.jest, SEEDS.jest),
-    vitest: generateLayouts('vitest', EXPECTED_COUNTS.generated.vitest, SEEDS.vitest),
-  }
   for (const runner of RUNNERS) {
     assert.equal(VENDORED[runner].length, EXPECTED_COUNTS.vendored[runner])
     assert.equal(AUTHORED[runner].length, EXPECTED_COUNTS.authored[runner])
-    assert.equal(generated[runner].length, EXPECTED_COUNTS.generated[runner])
+    assert.equal(GENERATED[runner].count, EXPECTED_COUNTS.generated[runner])
+    assert.equal(LAYOUTS[runner].length, EXPECTED_COUNTS.generated[runner])
     assert.equal(
       new Set(namedCases(runner).map((c) => c.name)).size,
       namedCases(runner).length,
@@ -237,12 +243,18 @@ for (const runner of RUNNERS) {
     })
   }
 
-  // D194 exception (Tyler, 2026-11-23): a whole-repo or whole-corpus test that had no timeout under node:test; 120 s is too tight on a loaded CI runner
-  test(`${runner}: every generated layout agrees`, { timeout: 600_000 }, async () => {
-    const layouts = generateLayouts(runner, EXPECTED_COUNTS.generated[runner], SEEDS[runner])
+  test(`${runner}: every generated layout agrees`, async () => {
+    const layouts = LAYOUTS[runner]
+    // Under Jest, real Babel's output is the recording's (`hoist-corpus/jest-recording.ts`): two
+    // Babel passes a layout were most of this test's time. The next test holds the recording to
+    // these layouts and this Babel.
+    const recorded = runner === 'jest' ? jestRecording(layouts).outputs : undefined
     const failures: string[] = []
-    for (const layout of layouts) {
-      const found = await problem(runner, layout, { policy: POLICIES[runner] })
+    for (const [index, layout] of layouts.entries()) {
+      const found = await problem(runner, layout, {
+        policy: POLICIES[runner],
+        jestBabel: recorded?.[index],
+      })
       if (found !== undefined)
         failures.push(`${layout.name}\n${JSON.stringify(layout.code)}\n${found}`)
     }
@@ -253,6 +265,39 @@ for (const runner of RUNNERS) {
     )
   })
 }
+
+const RECORD_HOIST = 'pnpm --filter @provino/harness record:hoist'
+
+/** The Jest recording, refused unless it is of exactly these layouts under this Babel. */
+function jestRecording(layouts: readonly HoistCase[]): JestRecording {
+  const recording = readRecording()
+  assert.ok(recording !== undefined, `no recording of the Jest layouts: run \`${RECORD_HOIST}\``)
+  assert.equal(
+    recording.layouts,
+    layoutsHash(layouts),
+    `the layouts changed: run \`${RECORD_HOIST}\``,
+  )
+  assert.equal(
+    recording.fingerprint,
+    jestBabelFingerprint(),
+    `Babel's versions or options changed: run \`${RECORD_HOIST}\``,
+  )
+  assert.equal(recording.outputs.length, layouts.length)
+  return recording
+}
+
+test('the Jest recording is of these layouts and this Babel, and real Babel still gives it', () => {
+  const layouts = LAYOUTS.jest
+  const { outputs } = jestRecording(layouts)
+  // A slice run live, so a recording that is not what this Babel gives fails here too.
+  for (const [index, layout] of layouts.slice(0, LIVE_LAYOUTS).entries()) {
+    assert.deepEqual(
+      outputs[index],
+      realJestBabel(layout),
+      `${layout.name}: run \`${RECORD_HOIST}\``,
+    )
+  }
+})
 
 // ---------------------------------------------------------------------------------------------
 // What the differential can't say

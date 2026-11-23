@@ -246,6 +246,14 @@ jobs:
         with:
           label: the Node 22 mocking check
           include: '^(packages/harness/(src/|fixtures/mocking/|package\.json$)|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.tool-versions$|package\.json$|\.github/(workflows/ci\.yml|actions/scope/))'
+      # What the Vitest CLI recording reads: the dialect's Node entry (the parser, the option table
+      # and the corpus), Vitest's version, Node and the root scripts.
+      - id: vitest-cli
+        name: Decide whether the Vitest CLI recording is checked
+        uses: ./.github/actions/scope
+        with:
+          label: the Vitest CLI recording check
+          include: '^(packages/dialect-vitest/(src/node/|package\.json$)|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.tool-versions$|package\.json$|\.github/(workflows/ci\.yml|actions/scope/))'
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           cache: true
@@ -257,6 +265,17 @@ jobs:
       # Re-record every fixture and fail if a golden drifted (.claude/rules/tests.md).
       - if: ${{ steps.goldens.outputs.run == 'true' }}
         run: pnpm provino-harness record --check
+      # Real Babel's output for the Jest generated hoist layouts, re-recorded and compared with the
+      # committed recording: `pnpm test` reads the recording and runs only the first 200 layouts
+      # through Babel, so this is what holds the other 2,800 to it. Same inputs as the goldens above
+      # (the recorder, the harness's sources, the lockfile that pins Babel).
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.goldens.outputs.run == 'true' }}
+        run: pnpm --filter @provino/harness record:hoist --check
+      # Real Vitest's `parseCLI` answers to the whole CLI corpus, asked again and compared with the
+      # committed recording: `pnpm test` reads the recording and asks the real parser live only for
+      # the hand-written lines.
+      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.vitest-cli.outputs.run == 'true' }}
+        run: pnpm --filter @provino/dialect-vitest record:cli --check
       # T4.1: the mocking goldens regenerate byte-identically on the oldest Node we support. Below
       # 22.18 the recorder takes type stripping from NODE_OPTIONS (DECISIONS S1). Last in this job,
       # because it changes the Node every later step would run on.

@@ -672,13 +672,23 @@ const HAND_WRITTEN = [
 const PER_OPTION = optionRows()
 const GENERATED = generated(800, 0x30_5_2)
 const ALL: readonly (readonly string[])[] = [...HAND_WRITTEN, ...PER_OPTION, ...GENERATED]
-const ORACLE: readonly OracleOutcome[] = await runCliOracleParallel(ALL)
+let oracle: Promise<readonly OracleOutcome[]> | undefined
 
-function outcomeOf(args: readonly string[]): OracleOutcome {
+/**
+ * Real `buildArgv`'s answers for `ALL`, asked once, by the first test that needs them: a run that
+ * imports this file and runs none of those tests (a `-t` listing, such as the dogfood check's)
+ * starts no oracle child.
+ */
+function oracleOutcomes(): Promise<readonly OracleOutcome[]> {
+  oracle ??= runCliOracleParallel(ALL)
+  return oracle
+}
+
+async function outcomeOf(args: readonly string[]): Promise<OracleOutcome> {
   const index = ALL.findIndex(
     (line) => line.length === args.length && line.every((arg, i) => arg === args[i]),
   )
-  const outcome = ORACLE[index]
+  const outcome = (await oracleOutcomes())[index]
   if (outcome === undefined) throw new Error(`not in the corpus: ${JSON.stringify(args)}`)
   return outcome
 }
@@ -739,10 +749,10 @@ function mismatch(args: readonly string[], oracle: OracleOutcome): string | unde
   return `unexpected oracle outcome ${JSON.stringify(oracle).slice(0, 200)}`
 }
 
-function mismatches(lines: readonly (readonly string[])[]): string[] {
+async function mismatches(lines: readonly (readonly string[])[]): Promise<string[]> {
   const found: string[] = []
   for (const args of lines) {
-    const why = mismatch(args, outcomeOf(args))
+    const why = mismatch(args, await outcomeOf(args))
     if (why !== undefined) found.push(`${JSON.stringify(args)}: ${why}`)
   }
   return found
@@ -755,22 +765,22 @@ describe('the argv matches real jest-cli', () => {
     assert.ok(HAND_WRITTEN.length >= 150, `only ${HAND_WRITTEN.length}`)
   })
 
-  it('parses the F5 rows as buildArgv does', () => {
-    assert.deepEqual(mismatches(F5_ROWS), [])
+  it('parses the F5 rows as buildArgv does', async () => {
+    assert.deepEqual(await mismatches(F5_ROWS), [])
   })
 
-  it('parses greedy arrays, "--", numbers, repeats, negation and odd forms as buildArgv does', () => {
-    assert.deepEqual(mismatches(YARGS_ROWS), [])
+  it('parses greedy arrays, "--", numbers, repeats, negation and odd forms as buildArgv does', async () => {
+    assert.deepEqual(await mismatches(YARGS_ROWS), [])
   })
 
-  it("fails the lines Jest fails, with Jest's text", () => {
-    assert.deepEqual(mismatches(FAILURE_ROWS), [])
+  it("fails the lines Jest fails, with Jest's text", async () => {
+    assert.deepEqual(await mismatches(FAILURE_ROWS), [])
   })
 
-  it('refuses by name what Jest answers with text and exit 0', () => {
-    assert.deepEqual(mismatches(REFUSED_ROWS), [])
+  it('refuses by name what Jest answers with text and exit 0', async () => {
+    assert.deepEqual(await mismatches(REFUSED_ROWS), [])
     for (const args of REFUSED_ROWS) {
-      assert.equal(outcomeOf(args).exit, 0, JSON.stringify(args))
+      assert.equal((await outcomeOf(args)).exit, 0, JSON.stringify(args))
       const result = mine(args)
       assert.ok('error' in result, JSON.stringify(args))
       const form = UNSUPPORTED_FORM_ROWS.some((row) => row.join('\0') === args.join('\0'))
@@ -782,15 +792,15 @@ describe('the argv matches real jest-cli', () => {
     }
   })
 
-  it('refuses a flag named like an Object property, which crashes real Jest', () => {
-    assert.deepEqual(mismatches(CRASH_ROWS), [])
+  it('refuses a flag named like an Object property, which crashes real Jest', async () => {
+    assert.deepEqual(await mismatches(CRASH_ROWS), [])
     for (const args of CRASH_ROWS) {
-      assert.equal(outcomeOf(args).threw, YARGS_CRASH, JSON.stringify(args))
+      assert.equal((await outcomeOf(args)).threw, YARGS_CRASH, JSON.stringify(args))
       const result = mine(args)
       assert.ok('error' in result, JSON.stringify(args))
       assert.equal(result.error.code, 'JEST_CLI_UNSUPPORTED_FORM', JSON.stringify(args))
     }
-    assert.deepEqual(mismatches(QUIRK_ROWS), [])
+    assert.deepEqual(await mismatches(QUIRK_ROWS), [])
   })
 
   it("adds a numeric 1 to what the key holds, as yargs-parser's increment() does", () => {
@@ -799,14 +809,14 @@ describe('the argv matches real jest-cli', () => {
     assert.deepEqual(parseJestArgv(['--x=1', '--x=2']), { _: [], x: [1, 2] })
   })
 
-  it('parses every form of every option as buildArgv does', () => {
+  it('parses every form of every option as buildArgv does', async () => {
     assert.ok(PER_OPTION.length >= 105 * 4, `only ${PER_OPTION.length}`)
-    assert.deepEqual(mismatches(PER_OPTION), [])
+    assert.deepEqual(await mismatches(PER_OPTION), [])
   })
 
-  it('agrees with buildArgv on 800 generated command lines', () => {
+  it('agrees with buildArgv on 800 generated command lines', async () => {
     assert.equal(GENERATED.length, 800)
-    assert.deepEqual(mismatches(GENERATED), [])
+    assert.deepEqual(await mismatches(GENERATED), [])
   })
 
   it('sets the alias and the camelCase key together, and strips the dashed key', () => {
@@ -829,7 +839,7 @@ describe("failures are Jest's", () => {
     return result.error
   }
 
-  it("throws what jest-cli's check throws, with code JEST_CLI_INVALID", () => {
+  it("throws what jest-cli's check throws, with code JEST_CLI_INVALID", async () => {
     const rows: readonly [readonly string[], string][] = [
       [['-i', '-w', '2'], 'Both --runInBand and --maxWorkers were specified, only one is allowed.'],
       [
@@ -853,8 +863,8 @@ describe("failures are Jest's", () => {
       const error = failure(args)
       assert.equal(error.code, 'JEST_CLI_INVALID')
       assert.equal(error.message, message)
-      assert.ok(plain(outcomeOf(args).stderr).includes(message), JSON.stringify(args))
-      assert.equal(outcomeOf(args).exit, 1)
+      assert.ok(plain((await outcomeOf(args)).stderr).includes(message), JSON.stringify(args))
+      assert.equal((await outcomeOf(args)).exit, 1)
     }
   })
 

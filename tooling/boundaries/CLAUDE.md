@@ -7,7 +7,7 @@ Package boundaries for the whole repo, generated from one manifest. Private; nev
 - `packages.json`: **the manifest**, and the only file to edit by hand. One node per package or subpath entry: `dir`, `layer`, `runsIn`, `deps`, `slices`, `neutral`, `bannedPackages`, `compositionRoot`. Its `$comment` explains the fields.
 - `generated/` and the root `.dependency-cruiser.json`: written by `pnpm boundaries:write`. Never edit them; `pnpm boundaries` fails when they drift from the manifest. Biome skips them (`biome.json` → `files.includes`), and `.gitattributes` marks them `linguist-generated`, so GitHub collapses them in PR diffs.
 - `grit/neutral-no-dialect-name.grit`: hand-written. Which packages it covers comes from the manifest's `neutral` flags.
-- `src/manifest.ts` (parse, validate, expand), `src/workspace.ts` (workspace vs manifest and repo conventions), `src/generate.ts` (the generated files), `src/cli.ts` (`check` | `write`), `src/text.ts` and `src/paths.ts` (shared helpers), `src/test-support.ts` (test helpers; not a test file).
+- `src/manifest.ts` (parse, validate, expand), `src/workspace.ts` (workspace vs manifest and repo conventions), `src/generate.ts` (the generated files), `src/cli.ts` (`check` | `write`, `--root <dir>` for another tree: `cli.test.ts` runs it on a two-package repo of its own; the repo's own tree is CI's `pnpm boundaries` step), `src/text.ts` and `src/paths.ts` (shared helpers), `src/test-support.ts` (test helpers: scratch dirs, `runNode`, `linkPackages`; not a test file).
 
 ## What `pnpm boundaries` checks
 
