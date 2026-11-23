@@ -8,9 +8,9 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, before, describe, it } from 'node:test'
 import { promisify } from 'node:util'
 import { USER_CALL_FRAME } from '@provino/core'
+import { afterAll, beforeAll, describe, it } from 'provino'
 import { installWindowTimers } from './window-timers.ts'
 
 /**
@@ -169,7 +169,7 @@ describe('which pending timers are the file’s', () => {
     path: string
   }
 
-  before(async () => {
+  beforeAll(async () => {
     dir = await realpath(await mkdtemp(join(tmpdir(), 'provino-window-timers-')))
     await mkdir(join(dir, 'node_modules/flag-package'), { recursive: true })
     await writeFile(
@@ -215,7 +215,7 @@ describe('which pending timers are the file’s', () => {
     shared = load('flag-package')
     late = load('./late.cjs')
   })
-  after(async () => {
+  afterAll(async () => {
     await rm(dir, { recursive: true, force: true })
   })
 

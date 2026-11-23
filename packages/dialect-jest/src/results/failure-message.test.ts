@@ -2,7 +2,7 @@
 // from an install (`node_modules/provino`, `node_modules/@provino/<name>`, which that package does
 // not drop, as it drops only `jest*` frames) and from a checkout, with percent-encoded paths too.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { formatFileError, formatTestFailures, hideProvinoFrames } from './failure-message.ts'
 import type { AssertionResult } from './types.ts'
 

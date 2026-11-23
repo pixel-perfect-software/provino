@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { join } from 'node:path'
-import { after, before, test } from 'node:test'
+import { afterAll, beforeAll, test } from 'provino'
 import { JestConfigError } from './errors.ts'
 import {
   comparable,
@@ -28,11 +28,11 @@ import { readJestConfig, readJestConfigs } from './normalize.ts'
 let oracle: Oracle
 const trees: string[] = []
 
-before(async () => {
+beforeAll(async () => {
   oracle = await loadOracle()
 })
 
-after(() => {
+afterAll(() => {
   for (const tree of trees) removeTree(tree)
 })
 

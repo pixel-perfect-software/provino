@@ -2,7 +2,6 @@
 // not run, an all-skipped file and a focused one. The recordings of what Jest does are
 // `provino`'s `jest-json.test.ts` (`cli/json-*`).
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type {
   FileResult,
   FileTask,
@@ -12,6 +11,7 @@ import type {
   TaskResult,
   TestTask,
 } from '@provino/types'
+import { describe, it } from 'provino'
 import {
   type BuildOptions,
   type FileEvents,

@@ -2,9 +2,9 @@
 // events. The order of every event against real Jest 30.5.2 is `provino`'s `jest-environments.test.ts`
 // (`env/handle-test-event*`); these hold what a handler can read of the state and the objects.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import { createRuntime, type RunFileOptions, type Runtime, type RuntimeApi } from '@provino/core'
 import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
+import { describe, test } from 'provino'
 import { jestPolicy } from '../dialect.ts'
 import { type CircusConfig, createCircusMirror, type HandleTestEvent } from './circus-mirror.ts'
 

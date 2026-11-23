@@ -4,14 +4,14 @@
 import assert from 'node:assert/strict'
 import { symlinkSync } from 'node:fs'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
+import { afterAll, test } from 'provino'
 import { JestConfigError } from './errors.ts'
 import { oracleRequireResolve, removeTree, writeTree } from './internal/test-support.ts'
 import { readJestConfigs } from './normalize.ts'
 import { createJestResolution } from './resolution.ts'
 
 const trees: string[] = []
-after(() => {
+afterAll(() => {
   for (const tree of trees) removeTree(tree)
 })
 

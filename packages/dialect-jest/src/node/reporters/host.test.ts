@@ -7,7 +7,6 @@ import assert from 'node:assert/strict'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
 import { createJestResults, type ProjectConfigLike } from '@provino/dialect-jest/results'
 import type {
   FileInfo,
@@ -18,6 +17,7 @@ import type {
   TaskId,
   TestTask,
 } from '@provino/types'
+import { afterAll, describe, it } from 'provino'
 import { createJestReporterHost } from './host.ts'
 import { loadJestReporters } from './load.ts'
 import type { JestReporterPlan } from './plan.ts'
@@ -32,7 +32,7 @@ const config: ProjectConfigLike = {
 }
 
 const made: string[] = []
-after(async () => {
+afterAll(async () => {
   for (const dir of made) await rm(dir, { recursive: true, force: true })
 })
 

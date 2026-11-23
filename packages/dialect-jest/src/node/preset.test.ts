@@ -4,7 +4,7 @@
 // jest-preset-angular) are `pnpm bench:jest-config presets`, in a CI job of their own.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { after, before, test } from 'node:test'
+import { afterAll, beforeAll, test } from 'provino'
 import { JestConfigError } from './errors.ts'
 import {
   comparable,
@@ -25,11 +25,11 @@ import { deepMerge } from './preset.ts'
 let oracle: Oracle
 const trees: string[] = []
 
-before(async () => {
+beforeAll(async () => {
   oracle = await loadOracle()
 })
 
-after(() => {
+afterAll(() => {
   for (const tree of trees) removeTree(tree)
 })
 

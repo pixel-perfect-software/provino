@@ -2,7 +2,7 @@
 // the reporters are added in, which names set the summary's options (the last wins), and the
 // environment-dependent ones.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { type JestReporterEnvironment, jestReporterPlan } from './plan.ts'
 
 const PLAIN: JestReporterEnvironment = { agent: false, githubActions: false }

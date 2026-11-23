@@ -11,7 +11,7 @@
 // The tests assert both that these are refused and that real Jest exits 0 on them.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import {
   JEST_CLI_OPTIONS,
   JestCliError,
@@ -993,9 +993,8 @@ describe('the options table', () => {
     }
   })
 
-  it('classifies every option once, and counts the classes', (t) => {
+  it('classifies every option once, and counts the classes', () => {
     const counts = Object.fromEntries(supports)
-    t.diagnostic(`support classes: ${JSON.stringify(counts)}`)
     assert.deepEqual(counts, { request: 16, config: 83, accepted: 6 })
     for (const [name, option] of Object.entries(JEST_CLI_OPTIONS)) {
       const needsOwner = option.support === 'warn' || option.support === 'refuse'

@@ -3,9 +3,9 @@
 // reached through jest-config's install, as the other oracles here are).
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
 import { stripVTControlCharacters } from 'node:util'
 import { createBehaviourLoader, resolvePolicy } from '@provino/policy'
+import { describe, test } from 'provino'
 import { jestPolicy } from '../dialect.ts'
 import { requireFromJest } from './internal/test-support.ts'
 import { jestSnapshotResolver } from './snapshot-resolver.ts'

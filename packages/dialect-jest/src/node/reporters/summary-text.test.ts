@@ -3,8 +3,8 @@
 // `cli/report-snapshot-summary` and `cli/report-ran-*`, run through `provino jest` by `provino`'s
 // `reporters.test.ts`.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type { TextStyle } from '@provino/types'
+import { describe, it } from 'provino'
 import {
   jestRunSummaryLine,
   jestSnapshotStatus,

@@ -1,13 +1,13 @@
 // The text of `--collectTests` over a built aggregate; the same text against live Jest 30.5.2 is
 // `provino`'s `jest-collect-tests.test.ts`.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import {
   type AssertionResult,
   addResult,
   makeCollectedTestResult,
   makeEmptyAggregatedTestResult,
 } from '@provino/dialect-jest/results'
+import { describe, it } from 'provino'
 import { type CollectedTextStyle, jestCollectedText } from './collected-text.ts'
 
 const plain: CollectedTextStyle = {

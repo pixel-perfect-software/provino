@@ -2,13 +2,13 @@ import assert from 'node:assert/strict'
 import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import { jestDebugText } from './debug.ts'
 import { loadJestFilter } from './filter.ts'
 import type { JestGlobalConfig, JestProjectConfig } from './types.ts'
 
 const dirs: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(dirs.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 
