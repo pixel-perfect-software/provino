@@ -39,7 +39,7 @@
   },
   "scripts": {
     "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
-    "test": "node ../../packages/provino/dist/cli.js run && node --test --conditions=provino-source src/pipeline.test.ts"
+    "test": "node ../../packages/provino/dist/cli.js run"
   },
   "dependencies": {
     "@jridgewell/remapping": "catalog:",

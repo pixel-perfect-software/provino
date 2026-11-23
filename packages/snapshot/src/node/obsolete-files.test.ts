@@ -2,15 +2,15 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, test } from 'node:test'
 import { defaultSnapshotPath } from '@provino/snapshot'
+import { describe, onTestFinished, test } from 'provino'
 import { cleanObsoleteSnapshotFiles, defaultSnapshotTestPath } from './obsolete-files.ts'
 
 const LAYOUT = { dirName: '__snapshots__', extension: '.snap' }
 
 function tree(files: readonly string[]): string {
   const root = mkdtempSync(join(tmpdir(), 'provino-obsolete-'))
-  after(() => rmSync(root, { recursive: true, force: true }))
+  onTestFinished(() => rmSync(root, { recursive: true, force: true }))
   for (const file of files) {
     mkdirSync(join(root, file, '..'), { recursive: true })
     writeFileSync(join(root, file), '')

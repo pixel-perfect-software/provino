@@ -60,7 +60,7 @@
   },
   "scripts": {
     "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
-    "test": "node ../../packages/provino/dist/cli.js run && node --test --conditions=provino-source src/affected/git.test.ts src/hoist-policy.test.ts src/inline-snapshots/inline-snapshots.test.ts src/runtime/attempt-state.test.ts src/runtime/expect-table.test.ts src/runtime/globals.test.ts src/runtime/per-test-state-upstream.test.ts src/runtime/per-test-state.test.ts src/runtime/slot-order.test.ts src/runtime/snapshot-state-view.test.ts src/runtime/timers.test.ts"
+    "test": "node ../../packages/provino/dist/cli.js run && node --test --conditions=provino-source src/affected/git.test.ts src/runtime/attempt-state.test.ts src/runtime/expect-table.test.ts src/runtime/globals.test.ts src/runtime/per-test-state-upstream.test.ts src/runtime/per-test-state.test.ts src/runtime/snapshot-state-view.test.ts src/runtime/timers.test.ts"
   },
   "dependencies": {
     "@babel/core": "catalog:",

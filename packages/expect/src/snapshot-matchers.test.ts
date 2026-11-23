@@ -2,7 +2,6 @@ import assert from 'node:assert/strict'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, describe, test } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
 import { openFileSnapshots, SnapshotError, type SnapshotState } from '@provino/snapshot/runtime'
 import type {
@@ -11,6 +10,7 @@ import type {
   SnapshotPrinter,
   SnapshotViewFactory,
 } from '@provino/types'
+import { describe, onTestFinished, test } from 'provino'
 import { createEndOfTest } from './end-of-test.ts'
 import { createExpect, MatcherResultError } from './expect.ts'
 import { manualCurrentTest, testPolicy, testTable, testTask } from './internal/test-support.ts'
@@ -92,7 +92,7 @@ const put = (path: string, text: string): void => {
 
 function setup(options: Options = {}): Setup {
   const dir = mkdtempSync(join(tmpdir(), 'provino-expect-snapshot-'))
-  after(() => rmSync(dir, { recursive: true, force: true }))
+  onTestFinished(() => rmSync(dir, { recursive: true, force: true }))
   const keyJoin = options.keyJoin ?? ' '
   const current = manualCurrentTest()
   const source = createStateSource(current, { nameSeparator: keyJoin, expand: false })

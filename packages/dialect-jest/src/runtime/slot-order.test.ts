@@ -4,7 +4,6 @@
 // friends, a user setup file) then sees ours. Nothing here imports a matcher module statically:
 // the trap must be in place before they load.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import { currentTest } from '@provino/core'
 import {
   createExpect,
@@ -15,6 +14,7 @@ import {
   type MatchersSlot,
 } from '@provino/expect'
 import { neutralPolicy } from '@provino/policy'
+import { test } from 'provino'
 import { jestExpectPolicy } from '../expect-policy.ts'
 
 test('loading the table and its vendored matchers never reads the slot', async () => {

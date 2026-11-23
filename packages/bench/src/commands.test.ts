@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { type TestContext, test } from 'node:test'
 import type { BenchRecord } from '@provino/types'
+import { test } from 'provino'
 import { type CliDeps, runCli } from './commands.ts'
 import { BenchError } from './errors.ts'
 import type { ExecOutcome, ExecRequest } from './exec.ts'
@@ -26,7 +26,7 @@ interface Setup {
 // A bench with a fake process runner, a throwaway git checkout and its own suite and record
 // directories. `onRun` can fail or change a run; by default every run exits 0 after 100 ms.
 async function setup(
-  t: Pick<TestContext, 'after'>,
+  t: Parameters<typeof scratch>[0],
   options?: {
     readonly dirty?: boolean
     readonly repo?: boolean

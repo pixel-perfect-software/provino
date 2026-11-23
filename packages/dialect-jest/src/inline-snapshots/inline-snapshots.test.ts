@@ -6,13 +6,13 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, test } from 'node:test'
 import type { InlineSnapshotEdit } from '@provino/types'
+import { describe, onTestFinished, test } from 'provino'
 import { jestInlineSnapshotWriter } from './index.ts'
 
 function project(files: Readonly<Record<string, string>>): string {
   const root = mkdtempSync(join(tmpdir(), 'provino-inline-writer-'))
-  after(() => rmSync(root, { recursive: true, force: true }))
+  onTestFinished(() => rmSync(root, { recursive: true, force: true }))
   for (const [path, text] of Object.entries(files)) {
     mkdirSync(join(root, path, '..'), { recursive: true })
     writeFileSync(join(root, path), text)

@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { symlink } from 'node:fs/promises'
 import { join } from 'node:path'
-import { after, before, describe, test } from 'node:test'
 import { defineDialect } from '@provino/policy'
 import type { Dialect, ProvinoConfigInput } from '@provino/types'
+import { afterAll, beforeAll, describe, test } from 'provino'
 import { findConfigInDirectory, findConfigUpward } from './discover.ts'
 import { makeTempDir, pipe, rejectsWith, type TempDir } from './internal/test-support.ts'
 import { loadProjects, type ResolvedConfig, resolveProjects } from './projects.ts'
@@ -12,7 +12,7 @@ const ENVIRONMENTS = { node: { module: 'file:///env/node.mjs', export: 'nodeEnvi
 
 describe('resolveProjects', () => {
   let temp: TempDir
-  before(async () => {
+  beforeAll(async () => {
     temp = await makeTempDir()
     await temp.write('package.json', '{"type":"module"}')
     await temp.write('packages/a/x.txt', '')
@@ -30,7 +30,7 @@ describe('resolveProjects', () => {
     await temp.write('single/provino.config.mjs', 'export default {}\n')
     await temp.write('inline/x.txt', '')
   })
-  after(() => temp.dispose())
+  afterAll(() => temp.dispose())
 
   const resolveIn = (input: ProvinoConfigInput): Promise<ResolvedConfig> =>
     resolveProjects(input, {
@@ -161,7 +161,7 @@ describe('resolveProjects', () => {
 
 describe('resolveProjects: loadDialects (B27e)', () => {
   let temp: TempDir
-  before(async () => {
+  beforeAll(async () => {
     temp = await makeTempDir()
     await temp.write('package.json', '{"type":"module"}')
     await temp.write('packages/a/provino.config.mjs', "export default { include: ['*.js'] }\n")
@@ -169,7 +169,7 @@ describe('resolveProjects: loadDialects (B27e)', () => {
     await temp.write('named/provino.config.mjs', "export default { dialect: 'pipe' }\n")
     await temp.write('optioned/provino.config.mjs', 'export default { pipe: {} }\n')
   })
-  after(() => temp.dispose())
+  afterAll(() => temp.dispose())
 
   /** `resolveProjects` with a loader that counts its calls. */
   async function resolveCounting(
@@ -360,7 +360,7 @@ describe('resolveProjects: loadDialects (B27e)', () => {
 
 describe('config discovery (D196)', () => {
   let temp: TempDir
-  before(async () => {
+  beforeAll(async () => {
     temp = await makeTempDir()
     await temp.write('repo/.git/HEAD', '')
     await temp.write('repo/provino.config.ts', '')
@@ -371,7 +371,7 @@ describe('config discovery (D196)', () => {
     await temp.write('outer/ws/pnpm-workspace.yaml', '')
     await temp.write('outer/ws/pkg/x.txt', '')
   })
-  after(() => temp.dispose())
+  afterAll(() => temp.dispose())
 
   test('the working directory’s own config wins, else the nearest parent’s', async () => {
     assert.equal(
@@ -404,7 +404,7 @@ describe('config discovery (D196)', () => {
 describe('projects globs (D199: tinyglobby)', () => {
   let temp: TempDir
   let linked: string
-  before(async () => {
+  beforeAll(async () => {
     temp = await makeTempDir()
     await temp.write('real/packages/a/x.txt', '')
     await temp.write('real/packages/b/x.txt', '')
@@ -413,7 +413,7 @@ describe('projects globs (D199: tinyglobby)', () => {
     linked = join(temp.dir, 'linked')
     await symlink(join(temp.dir, 'real'), linked)
   })
-  after(() => temp.dispose())
+  afterAll(() => temp.dispose())
 
   const names = async (projects: readonly string[], base = join(temp.dir, 'real')) => {
     const config = await resolveProjects(

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { ModulePolicy } from '@provino/types'
+import { describe, test } from 'provino'
 import { neutral } from '../internal/test-support.ts'
 import { createMockFn, isMockFunction } from '../mock-fn.ts'
 import { createMockRegistry } from '../registry.ts'

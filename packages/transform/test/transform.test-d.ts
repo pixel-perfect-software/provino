@@ -15,6 +15,7 @@ import {
   type TransformCache,
   type TransformError,
   type TransformErrorCode,
+  type TransformParseFailure,
   toModuleRunner,
   usesModuleRunnerForm,
 } from '@provino/transform'
@@ -136,3 +137,14 @@ pruneCache('/tmp/x', '1 MB')
 expectTypeOf<Parameters<JestHost['transform']>>().toEqualTypeOf<
   [request: TransformRequest, cacheKey: string | null]
 >()
+
+// A syntax error the parser reported is typed on the error; every other failure has none.
+declare const transformFailure: TransformError
+expectTypeOf(transformFailure.parse).toEqualTypeOf<TransformParseFailure | undefined>()
+expectTypeOf<TransformParseFailure>().toEqualTypeOf<{
+  readonly reason: string
+  readonly line: number
+  readonly column: number
+}>()
+// @ts-expect-error: the parse failure is read-only
+transformFailure.parse = undefined

@@ -14,11 +14,21 @@ import type { RunnerEdit, RunnerForm } from '@provino/types'
 import MagicString from 'magic-string'
 import { type ParserOptions, parseSync, rawTransferSupported, type StringLiteral } from 'oxc-parser'
 import { exportName, targetNames } from '../hoist/ast.ts'
+import { type Position, positionOf } from '../internal/position.ts'
 import { CONTINUES_LINE, skipTrivia } from '../internal/trivia.ts'
 import { type ImportBinding, isImportReference, walkProgram } from './analyse.ts'
 
-/** The parser's own message for the first error in the file. */
-export class RunnerParseError extends Error {}
+/** The parser's own message for the first error in the file, and where it is. */
+export class RunnerParseError extends Error {
+  readonly line: number
+  readonly column: number
+
+  constructor(message: string, position: Position) {
+    super(message)
+    this.line = position.line
+    this.column = position.column
+  }
+}
 
 const RAW_TRANSFER = rawTransferSupported()
 
@@ -59,7 +69,15 @@ function removal(code: string, start: number, end: number): RunnerEdit {
 export function rewriteModule(filename: string, code: string, commonjs = false): RunnerForm {
   const parsed = parseSync(filename, code, commonjs ? COMMONJS_OPTIONS : OPTIONS)
   for (const error of parsed.errors) {
-    if (String(error.severity) === 'Error') throw new RunnerParseError(error.message)
+    if (String(error.severity) === 'Error') {
+      // The label furthest into the source, which is where V8 reports: an unclosed block has two
+      // (`}` expected at the end, then "Opened here" at the bracket) and V8 reports the end; a
+      // redeclaration has two (where the name was declared, then where it is declared again) and
+      // V8 reports the second.
+      let at = 0
+      for (const label of error.labels) if (label.start > at) at = label.start
+      throw new RunnerParseError(error.message, positionOf(code, at))
+    }
   }
   const program = parsed.program
   const body = program.body
@@ -201,7 +219,10 @@ export function rewriteModule(filename: string, code: string, commonjs = false):
 
   const walked = walkProgram(program, imports)
   if (walked.redeclared !== null) {
-    throw new RunnerParseError(`Identifier \`${walked.redeclared}\` has already been declared`)
+    throw new RunnerParseError(
+      `Identifier \`${walked.redeclared.name}\` has already been declared`,
+      positionOf(code, walked.redeclared.start),
+    )
   }
   for (const ref of walked.references) {
     if (!isImportReference(ref)) continue

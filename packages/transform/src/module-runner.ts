@@ -77,6 +77,7 @@ function runnerFormOf(filename: string, code: string, commonjs: boolean): Runner
       throw new TransformError(
         'TRANSFORM_RUNNER_FAILED',
         `the module-runner transform failed on ${filename}: ${error.message}`,
+        { parse: { reason: error.message, line: error.line, column: error.column } },
       )
     }
     throw new TransformError(

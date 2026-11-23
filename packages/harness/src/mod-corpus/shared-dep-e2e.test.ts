@@ -8,7 +8,7 @@ import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { Writable } from 'node:stream'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { run } from 'provino/node'
 
 const PACKAGES: Readonly<Record<string, string>> = {

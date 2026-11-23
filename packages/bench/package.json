@@ -18,7 +18,7 @@
     "node": "^22.15.0 || >=24"
   },
   "scripts": {
-    "test": "node ../../packages/provino/dist/cli.js run && node --test --conditions=provino-source src/check.test.ts src/commands.test.ts src/environment.test.ts src/exec.test.ts src/instructions/prepare.test.ts src/output.test.ts src/parity.test.ts src/run-bench.test.ts src/suites.test.ts src/tree-rss.test.ts src/worker/worker.test.ts",
+    "test": "node ../../packages/provino/dist/cli.js run && node --test --conditions=provino-source src/run-bench.test.ts src/worker/worker.test.ts",
     "bench": "node --conditions=provino-source src/cli.ts"
   },
   "dependencies": {

@@ -11,9 +11,9 @@
 // block below).
 import assert from 'node:assert/strict'
 import path from 'node:path'
-import { describe, test } from 'node:test'
 import { jestHoistPolicy, jestPolicy } from '@provino/dialect-jest'
 import { resolvePolicy } from '@provino/policy'
+import { describe, test } from 'provino'
 import {
   defaultFixturesRoot,
   type Fixture,

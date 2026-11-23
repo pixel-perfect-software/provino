@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { jestHoistPolicy } from './hoist-policy.ts'
 
 test('the policy names the plugin it mirrors and the rules of its FUNCTIONS table', () => {

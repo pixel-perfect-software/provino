@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url'
 import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping'
 import type { TransformRecord } from '@provino/types'
 import { test } from 'provino'
+import { TransformError } from './errors.ts'
 import { toModuleRunner } from './module-runner.ts'
 import { createPipeline } from './pipeline.ts'
 
@@ -114,14 +115,54 @@ test('unstripped TypeScript is a per-file error naming the file, not an abort (B
   )
 })
 
-function runnerError(code: string): string {
+/** The `TransformError` the module-runner step throws for `code` read as `path`; fails if it throws none. */
+function runnerFailure(path: string, code: string): TransformError {
   const record: TransformRecord = { ...strip('/ok.ts', 'export {}\n'), code }
   try {
-    toModuleRunner('/s.ts', record)
+    toModuleRunner(path, record)
   } catch (error) {
-    return String(error)
+    assert.ok(error instanceof TransformError)
+    return error
   }
-  return ''
+  return assert.fail('the module-runner step accepted the code')
+}
+
+function parseOf(code: string): TransformError['parse'] {
+  const error = runnerFailure('/p.ts', code)
+  assert.equal(error.code, 'TRANSFORM_RUNNER_FAILED')
+  return error.parse
+}
+
+test("a syntax error carries the parser's message and its position, a redeclaration the redeclaring one", () => {
+  assert.deepEqual(parseOf('export const a = 1\nexport const b = {\n'), {
+    reason: 'Expected `}` but found `EOF`',
+    line: 3,
+    column: 1,
+  })
+  // The parser's own redeclaration error has two labels, and the position is the second.
+  assert.deepEqual(parseOf('let a = 1\nlet a = 2\n'), {
+    reason: 'Identifier `a` has already been declared',
+    line: 2,
+    column: 5,
+  })
+  // The walk's own, for the one the parser lets through: a `var` in a `catch` block redeclaring an import.
+  assert.deepEqual(parseOf("import { a } from './a.js'\ntry {} catch (e) { var a }\n"), {
+    reason: 'Identifier `a` has already been declared',
+    line: 2,
+    column: 24,
+  })
+})
+
+test('an unclosed block is at the end of the source, where V8 reports it, not at its opening bracket', () => {
+  // The parser's two labels are `}` expected, at the end, then "Opened here", at the bracket.
+  const reason = 'Expected `}` but found `EOF`'
+  assert.deepEqual(parseOf('function f() {\n x\n'), { reason, line: 3, column: 1 })
+  assert.deepEqual(parseOf('if (a) {\n x\n'), { reason, line: 3, column: 1 })
+  assert.deepEqual(parseOf('class A {\n m() {}\n'), { reason, line: 3, column: 1 })
+})
+
+function runnerError(code: string): string {
+  return String(runnerFailure('/s.ts', code))
 }
 
 test('semantic errors fail the file with the parser’s text (the harness matches these)', () => {

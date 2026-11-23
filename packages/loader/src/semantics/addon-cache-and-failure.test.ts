@@ -155,3 +155,80 @@ test('failed-esm-entry: an entry whose dependency throws fails with that error, 
   )
   assert.equal(both.provino.threw?.name, 'TypeError')
 })
+
+test('syntax-error-in-esm-module: an imported module that does not parse fails the import with a SyntaxError', async () => {
+  const both = await expectSame(
+    {
+      entry: 'entry.mjs',
+      files: {
+        'syntax.mjs': 'export const value = {\n',
+        'entry.mjs': "import './syntax.mjs'\nexport const result = 'unreachable'\n",
+      },
+    },
+    { throws: true, messages: false },
+  )
+  assert.equal(both.provino.threw?.name, 'SyntaxError')
+})
+
+test('syntax-error-in-esm-module-seen-by-the-module: a dynamic import of one rejects with the SyntaxError the module sees as its own', async () => {
+  await expectSame({
+    entry: 'entry.mjs',
+    files: {
+      'syntax.mjs': 'export const value = {\n',
+      'entry.mjs': `let failure
+try { await import('./syntax.mjs') } catch (e) { failure = e }
+export const result = {
+  isSyntaxError: failure instanceof SyntaxError,
+  name: failure?.name,
+  code: failure?.code,
+}
+`,
+    },
+  })
+})
+
+test('syntax-error-in-cjs-module: a required module that does not parse throws a SyntaxError', async () => {
+  const both = await expectSame(
+    {
+      entry: 'entry.cjs',
+      files: {
+        'syntax.cjs': 'module.exports = {\n',
+        'entry.cjs': "require('./syntax.cjs')\nexports.result = 'unreachable'\n",
+      },
+    },
+    { throws: true, messages: false },
+  )
+  assert.equal(both.provino.threw?.name, 'SyntaxError')
+})
+
+test('syntax-error-in-cjs-module-calling-import: a required module that calls import() and does not parse throws a SyntaxError', async () => {
+  // A CommonJS file that calls `import()` takes the module-runner form, where the parse happens in
+  // the transform and not in V8's compile of the wrapper.
+  const both = await expectSame(
+    {
+      entry: 'entry.cjs',
+      files: {
+        'syntax.cjs': "const lazy = () => import('./other.mjs')\nmodule.exports = {\n",
+        'other.mjs': 'export const other = 1\n',
+        'entry.cjs': "require('./syntax.cjs')\nexports.result = 'unreachable'\n",
+      },
+    },
+    { throws: true, messages: false },
+  )
+  assert.equal(both.provino.threw?.name, 'SyntaxError')
+})
+
+test('redeclared-import-in-esm-module: an import redeclared by a var is a SyntaxError', async () => {
+  const both = await expectSame(
+    {
+      entry: 'entry.mjs',
+      files: {
+        'other.mjs': 'export const value = 1\n',
+        'redeclared.mjs': "import { value } from './other.mjs'\nvar value = 2\nexport { value }\n",
+        'entry.mjs': "import './redeclared.mjs'\nexport const result = 'unreachable'\n",
+      },
+    },
+    { throws: true, messages: false },
+  )
+  assert.equal(both.provino.threw?.name, 'SyntaxError')
+})
