@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { test } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { test } from 'provino'
 
 const cli = fileURLToPath(new URL('./cli.ts', import.meta.url))
 const run = (...args: string[]) =>

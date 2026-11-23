@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { BIOME_PLUGINS, DEPCRUISE_CONFIG, generate } from './generate.ts'
 import { loadManifest } from './manifest.ts'
 import { MANIFEST_PATH, ROOT } from './paths.ts'

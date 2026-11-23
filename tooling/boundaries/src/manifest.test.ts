@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
 import { neutralPolicy } from '@provino/policy'
+import { describe, test } from 'provino'
 import { allowedDeps, loadManifest, type Manifest, validateManifest } from './manifest.ts'
 import { MANIFEST_PATH, ROOT } from './paths.ts'
 import { manifestOf } from './test-support.ts'
@@ -53,8 +53,8 @@ describe('the real manifest', () => {
   })
 })
 
-describe('the rules the real manifest must keep (CLAUDE.md non-negotiables 1 and 3)', async () => {
-  const real = await loadManifest(MANIFEST_PATH)
+const real = await loadManifest(MANIFEST_PATH)
+describe('the rules the real manifest must keep (CLAUDE.md non-negotiables 1 and 3)', () => {
   const top = real.nodes.filter((n) => n.parent === undefined)
   const nodeNamed = (name: string) => real.nodes.find((n) => n.name === name) ?? assert.fail(name)
   const reaches = (from: string, to: string): boolean =>

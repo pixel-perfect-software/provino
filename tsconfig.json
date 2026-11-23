@@ -23,6 +23,9 @@
       "path": "tooling/boundaries"
     },
     {
+      "path": "tooling/boundaries/tsconfig.tests.json"
+    },
+    {
       "path": "tooling/provino"
     },
     {
