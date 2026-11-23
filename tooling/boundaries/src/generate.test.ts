@@ -22,20 +22,13 @@ interface Rule {
 }
 const config = JSON.parse(files.get(DEPCRUISE_CONFIG) ?? '{}') as {
   readonly forbidden: readonly Rule[]
+  readonly options: { readonly exclude: { readonly path: readonly string[] } }
 }
 const ruleNamed = (name: string): Rule =>
   config.forbidden.find((rule) => rule.name === name) ?? assert.fail(`no rule ${name}`)
 const from = (name: string): RegExp => new RegExp(String(ruleNamed(name).from.path))
 const excluded = (path: string): boolean =>
-  [
-    (
-      JSON.parse(files.get(DEPCRUISE_CONFIG) ?? '{}') as {
-        options: { exclude: { path: string[] } }
-      }
-    ).options.exclude.path,
-  ]
-    .flat(2)
-    .some((re) => new RegExp(re).test(path))
+  config.options.exclude.path.some((re) => new RegExp(re).test(path))
 const allows = (name: string, path: string): boolean =>
   [ruleNamed(name).to.pathNot ?? []].flat().some((re) => new RegExp(re).test(path))
 
