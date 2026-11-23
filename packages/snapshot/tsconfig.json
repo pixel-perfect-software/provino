@@ -8,5 +8,6 @@
     {
       "path": "../policy"
     }
-  ]
+  ],
+  "exclude": ["src/**/*.test.ts"]
 }

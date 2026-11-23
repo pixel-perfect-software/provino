@@ -50,6 +50,9 @@
       "path": "packages/snapshot"
     },
     {
+      "path": "packages/snapshot/tsconfig.tests.json"
+    },
+    {
       "path": "packages/coverage"
     },
     {
