@@ -33,20 +33,6 @@ export function scratchDir(prefix: string, files: Readonly<Record<string, string
   return dir
 }
 
-/**
- * `scratchDir(prefix)`, made by the first call of the returned function and the same one after:
- * for a directory a whole file shares, which must not be made while the file is only imported (a
- * `-t` listing imports every file and runs none, so the directory would be made and never removed).
- * @internal
- */
-export function lazyScratchDir(prefix: string): () => string {
-  let dir: string | undefined
-  return () => {
-    dir ??= scratchDir(prefix)
-    return dir
-  }
-}
-
 /** A scratch git repository and the git command in it. */
 export interface Repository {
   readonly dir: string

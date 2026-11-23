@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, test } from 'provino'
@@ -14,7 +14,7 @@ import {
   shardInvocation,
   shardProblems,
 } from './test-shards.ts'
-import { lazyScratchDir } from './test-support.ts'
+import { scratchDir } from './test-support.ts'
 
 const shardOne = [...SPLIT_PACKAGES, ...SHARD_ONE]
 const packages = [...shardOne, '@provino/core']
@@ -70,13 +70,10 @@ function expectedShardCosts(): readonly number[] {
 }
 
 const NODE_TEST = fileURLToPath(new URL('./node-test.ts', import.meta.url))
-/** The probes' parent: made by the first test that needs it, since a listing imports this file and runs no test. */
-const scratch = lazyScratchDir('test-shards')
 
 /** A directory of seven one-test files, `f1` to `f7`, and the files a run of them reports. */
 function probe(): { dir: string; ran: (args: readonly string[], shard?: string) => string[] } {
-  const dir = mkdtempSync(join(scratch(), 'probe.'))
-  mkdirSync(dir, { recursive: true })
+  const dir = scratchDir('probe')
   for (let index = 1; index <= 7; index += 1) {
     writeFileSync(
       join(dir, `f${index}.test.ts`),
