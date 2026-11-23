@@ -76,13 +76,25 @@ export const QUIET_ENV: Readonly<Record<string, string | undefined>> = {}
 const AGENT_PATH = /\.pi[\\/]agent/
 
 /**
+ * The package script running this suite, as npm and pnpm set it. Jest's Snapshot Summary names
+ * the update command from them (`jestUpdateCommand`: `run \`npm test -- -u\`` when the script's
+ * text names jest, else `re-run jest with \`-u\``), and this package's own `test` script names
+ * its bootstrap files (`test/jest-colour.test.ts`, …), so under `pnpm test` a child would print
+ * the npm hint where every recording has Jest's.
+ */
+const SCRIPT_VARIABLES: readonly string[] = ['npm_lifecycle_event', 'npm_lifecycle_script']
+
+/**
  * `env` without anything `detectOutput` reads (`OUTPUT_VARIABLES`: `CI`, `TERM`, the colour
- * switches, `GITHUB_ACTIONS`, the agent variables) or the workspace `github-actions` reads, and
- * without the `PATH` entry that names an agent. A child process starts from this.
+ * switches, `GITHUB_ACTIONS`, the agent variables), the workspace `github-actions` reads or the
+ * update hint reads (`SCRIPT_VARIABLES`), and without the `PATH` entry that names an agent. A
+ * child process starts from this.
  */
 export function outputFree(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const kept = { ...env }
-  for (const name of [...OUTPUT_VARIABLES, 'GITHUB_WORKSPACE']) delete kept[name]
+  for (const name of [...OUTPUT_VARIABLES, 'GITHUB_WORKSPACE', ...SCRIPT_VARIABLES]) {
+    delete kept[name]
+  }
   if (kept.PATH !== undefined) {
     kept.PATH = kept.PATH.split(delimiter)
       .filter((entry) => !AGENT_PATH.test(entry))
