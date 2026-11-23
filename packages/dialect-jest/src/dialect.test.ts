@@ -123,6 +123,13 @@ test('the divergences from the neutral policy are Jest`s', () => {
 
 // B23f Phase 1: the values; `reevaluatePatchingExternals` is recorded (Phase 3), the others are
 // research values (pending B23f-counts and -turns) until their lanes replace the comment with a claim.
+// B27h2: the neutral policy moved to Node interop; the Jest dialect keeps Babel interop, set explicitly.
+test('interopDefault: Jest keeps Babel interop while the neutral policy uses Node interop', () => {
+  assert.equal(neutralPolicy.module.interopDefault, 'node')
+  assert.equal(jestPolicy.module?.interopDefault, 'babel')
+  assert.equal(resolved.module.interopDefault, 'babel')
+})
+
 test('the B23f keys: per-file patching externals, counts carried to the next test, #114`s turns', () => {
   assert.equal(resolved.module.reevaluatePatchingExternals, true)
   assert.equal(neutralPolicy.module.reevaluatePatchingExternals, false)
