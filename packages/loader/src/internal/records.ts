@@ -527,7 +527,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
     // A file whose only module syntax is `import()` has no static form (`unknown`), and `import()`
     // fails in a CommonJS `vm` script, so it runs in module form (B13c Gap 6).
     if (usesModuleRunnerForm(transformed)) {
-      const runner = runnerFormOf(filename, transformed)
+      const runner = runnerFormOf(filename, path, transformed)
       record = makeRecord(
         id,
         path,
@@ -548,7 +548,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
       // file is that rewrite and nothing else.
       const dynamicImport = transformed.imports.some((entry) => entry.kind === 'dynamic')
       const source = dynamicImport
-        ? runnerFormOf(filename, transformed, { commonjs: true })
+        ? runnerFormOf(filename, path, transformed, { commonjs: true })
         : transformed
       record = makeRecord(
         id,
@@ -578,10 +578,13 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
  * `SyntaxError` Node and V8's own compile give for it (a plain-JavaScript file is parsed here
  * first, since the pipeline never reads it): the parser's message and `file:line:column`, the
  * `TransformError` as the cause. The class is the worker's global one, the realm the module's
- * code sees (there is no `realm` tier). Any other failure is thrown as it is.
+ * code sees (there is no `realm` tier). Any other failure is thrown as it is. `filename` is what
+ * the transform is given (a `data:` module's is a stand-in path in the root); `path` is what the
+ * error names: the file, or a `data:` module's own URL.
  */
 function runnerFormOf(
   filename: string,
+  path: string,
   record: TransformRecord,
   options?: { readonly commonjs?: boolean },
 ): ModuleRunnerOutput {
@@ -590,7 +593,7 @@ function runnerFormOf(
   } catch (error) {
     if (error instanceof TransformError && error.parse !== undefined) {
       const { reason, line, column } = error.parse
-      throw new SyntaxError(`${reason} (${filename}:${line}:${column})`, { cause: error })
+      throw new SyntaxError(`${reason} (${path}:${line}:${column})`, { cause: error })
     }
     throw error
   }

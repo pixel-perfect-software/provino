@@ -406,6 +406,39 @@ test('a data: module is evaluated per file under registry, as a user module', as
   }
 })
 
+test('a syntax error in a data: module is a SyntaxError that names its URL, not the transform’s stand-in path', async () => {
+  const root = writeTree({
+    'loads.mjs': 'export const load = (specifier) => import(specifier)\n',
+    'bad.mjs': 'export const value = {\n',
+    'entry.test.ts': '',
+  })
+  const url = `data:text/javascript,${encodeURIComponent('export const value = {\n')}`
+  const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.ts'), {
+    tier: 'registry',
+  })
+  try {
+    const loads = await registry.import<{ load: (specifier: string) => Promise<unknown> }>(
+      join(root, 'loads.mjs'),
+    )
+    const failure = await loads.load(url).then(
+      () => assert.fail('the data: module did not parse'),
+      (error: unknown) => error,
+    )
+    assert.ok(failure instanceof SyntaxError)
+    assert.equal(failure.message, `Expected \`}\` but found \`EOF\` (${url}:2:1)`)
+    assert.doesNotMatch(failure.message, /\[data\]/)
+    // A file module keeps its path.
+    const file = await loads.load('./bad.mjs').then(
+      () => assert.fail('the file did not parse'),
+      (error: unknown) => error,
+    )
+    assert.ok(file instanceof SyntaxError)
+    assert.match(file.message, /\/bad\.mjs:2:1\)$/)
+  } finally {
+    registry.dispose()
+  }
+})
+
 test('an import() of a URL with another scheme that nothing serves keeps the not-found error', async () => {
   const root = writeTree({
     'loads.mjs': 'export const load = (specifier) => import(specifier)\n',
