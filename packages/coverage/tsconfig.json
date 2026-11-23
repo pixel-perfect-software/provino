@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "include": ["src"],
-  "exclude": ["src/vendor/istanbul-lib-instrument"],
+  "exclude": ["src/vendor/istanbul-lib-instrument", "src/**/*.test.ts"],
   "references": [
     {
       "path": "../types"

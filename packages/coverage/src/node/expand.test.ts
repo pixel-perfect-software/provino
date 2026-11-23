@@ -1,7 +1,7 @@
 // The coordinator's half of the worker's map interning: counters-only takes get their maps back.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { IstanbulFileCoverageData } from '@provino/types'
+import { test } from 'provino'
 import { expandIstanbulData, type KnownMaps } from './expand.ts'
 
 const at = { start: { line: 1, column: 0 }, end: { line: 1, column: 5 } }

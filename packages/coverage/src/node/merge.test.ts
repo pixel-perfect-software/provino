@@ -10,18 +10,18 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { Session } from 'node:inspector/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, test } from 'node:test'
 import { pathToFileURL } from 'node:url'
 import { runInThisContext } from 'node:vm'
 import type { IstanbulFileCoverageData, SourceMapV3, V8ScriptCoverage } from '@provino/types'
 import MagicString from 'magic-string'
+import { afterAll, test } from 'provino'
 import { loadCoverageReporting } from './index.ts'
 import type { V8Coverage } from './v8.ts'
 
 const reporting = await loadCoverageReporting()
 
 const dirs: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(dirs.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

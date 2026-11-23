@@ -5,9 +5,9 @@
 // not adjusted away here: it is a finding (the instrumenter's maps are what the reports are made of).
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
-import { describe, test } from 'node:test'
 import { originalPositionFor, TraceMap } from '@jridgewell/trace-mapping'
 import type { IstanbulFileCoverageData, SourceMapV3 } from '@provino/types'
+import { describe, test } from 'provino'
 import { ownCodeIdentity } from './code-identity.ts'
 import { readInitialCoverage } from './initial-coverage.ts'
 import { istanbulInstrumenter } from './instrument.ts'

@@ -3,7 +3,7 @@
 // output for the same source; what they find (path and data) must be equal.
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { readInitialCoverage } from './initial-coverage.ts'
 import { istanbulInstrumenter } from './instrument.ts'
 import { CASES } from './test-cases.ts'
