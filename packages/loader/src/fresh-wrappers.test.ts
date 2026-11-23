@@ -15,7 +15,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Script } from 'node:vm'
 import type { CompiledModuleEvent, Loader } from '@provino/types'
-import { afterAll, test } from 'provino'
+import { afterAll, onTestFinished, test } from 'provino'
 import { loaderOptionsFor } from './internal/test-support.ts'
 import { createLoader } from './loader.ts'
 
@@ -58,7 +58,10 @@ function reported(root: string, events: readonly CompiledModuleEvent[]): Record<
   return counts
 }
 
-/** Counts the runs of each `vm.Script` from here on, for the rest of the test. */
+/**
+ * Counts the runs of each `vm.Script` from here on, for the rest of the test. The patch is undone
+ * when the test finishes, whether or not it threw: the worker serves later files too.
+ */
 function countRuns(): () => number[] {
   const original = Script.prototype.runInThisContext
   const scripts: unknown[] = []
@@ -69,8 +72,15 @@ function countRuns(): () => number[] {
     scripts.push(this)
     return original.apply(this, args)
   }
-  return () => {
+  let restored = false
+  const restore = (): void => {
+    if (restored) return
+    restored = true
     Script.prototype.runInThisContext = original
+  }
+  onTestFinished(restore)
+  return () => {
+    restore()
     const byScript = new Map<unknown, number>()
     for (const script of scripts) byScript.set(script, (byScript.get(script) ?? 0) + 1)
     return [...byScript.values()]
