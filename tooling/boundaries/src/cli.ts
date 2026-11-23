@@ -6,20 +6,36 @@
 // write: regenerates the files from the manifest, once the manifest itself validates.
 import { spawnSync } from 'node:child_process'
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises'
-import { dirname, join, relative, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { parseArgs } from 'node:util'
 import { DEPCRUISE_CONFIG, GENERATED_DIR, generate } from './generate.ts'
 import { loadManifest, type Problem, problem, validateManifest } from './manifest.ts'
-import { DEPCRUISE_BIN, MANIFEST_PATH, ROOT } from './paths.ts'
+import { DEPCRUISE_BIN, MANIFEST_REL, ROOT } from './paths.ts'
 import { checkWorkspace, ignoredDirs, pluginSuppressions, readWorkspace } from './workspace.ts'
 
-const [mode, ...rest] = process.argv.slice(2)
-const root = rest.length === 2 && rest[0] === '--root' ? resolve(rest[1] ?? '') : ROOT
-if ((mode !== 'check' && mode !== 'write') || (rest.length > 0 && root === ROOT)) {
+/** The mode and the repo to run on; anything else (an unknown flag, a bare `--root`) is a usage error. */
+function parseCommand(): { mode: 'check' | 'write'; root: string } {
+  try {
+    const { values, positionals } = parseArgs({
+      args: process.argv.slice(2),
+      allowPositionals: true,
+      strict: true,
+      options: { root: { type: 'string' } },
+    })
+    const [mode, ...extra] = positionals
+    if ((mode === 'check' || mode === 'write') && extra.length === 0) {
+      return { mode, root: values.root === undefined ? ROOT : resolve(values.root) }
+    }
+  } catch {
+    // parseArgs refused the arguments: the usage line below says what is accepted.
+  }
   console.error('usage: node tooling/boundaries/src/cli.ts check|write [--root <dir>]')
   process.exit(2)
 }
 
-const manifest = await loadManifest(join(root, relative(ROOT, MANIFEST_PATH)))
+const { mode, root } = parseCommand()
+
+const manifest = await loadManifest(join(root, MANIFEST_REL))
 const workspace = await readWorkspace(root)
 const manifestProblems = validateManifest(manifest)
 const files = generate(manifest, workspace.roots)

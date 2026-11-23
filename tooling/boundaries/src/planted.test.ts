@@ -2,34 +2,12 @@
 // real tools on it, so a rule that stops firing (a Biome or dependency-cruiser upgrade, a
 // manifest edit) fails here and not silently in CI.
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
 import { cp, mkdir, symlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { describe, test } from 'provino'
 import { loadManifest } from './manifest.ts'
 import { BIOME_BIN, DEPCRUISE_BIN, MANIFEST_PATH, ROOT } from './paths.ts'
-import { scratchDir, writeFiles } from './test-support.ts'
-
-interface Result {
-  readonly code: number | null
-  readonly output: string
-}
-
-function run(entry: string, args: readonly string[], cwd: string): Promise<Result> {
-  const { FORCE_COLOR: _force, ...env } = process.env
-  return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [entry, ...args], {
-      cwd,
-      // FORCE_COLOR would win over NO_COLOR for dependency-cruiser and colour the output.
-      env: { ...env, NO_COLOR: '1' },
-    })
-    let output = ''
-    child.stdout.setEncoding('utf8').on('data', (chunk: string) => (output += chunk))
-    child.stderr.setEncoding('utf8').on('data', (chunk: string) => (output += chunk))
-    child.on('error', reject)
-    child.on('close', (code) => resolve({ code, output }))
-  })
-}
+import { linkPackages, type RunResult, runNode, scratchDir, writeFiles } from './test-support.ts'
 
 /** A scratch dir with the repo's Biome config and plugins, plus `files`. */
 async function workspace(files: Readonly<Record<string, string>>): Promise<string> {
@@ -40,23 +18,6 @@ async function workspace(files: Readonly<Record<string, string>>): Promise<strin
   }
   await writeFiles(dir, files)
   return dir
-}
-
-/**
- * Adds workspace packages to a scratch dir, linked into node_modules the way pnpm does, so imports
- * resolve through `exports` and `provino-source` to the package's src/. A name is the package's
- * own, scoped or not (`@provino/policy`, `provino`); its directory is the last part.
- */
-async function linkPackages(dir: string, names: readonly string[]): Promise<void> {
-  for (const name of names) {
-    const pkgDir = join(dir, 'packages', name.split('/').pop() ?? name)
-    await mkdir(join(pkgDir, 'src'), { recursive: true })
-    const exports = { '.': { 'provino-source': './src/index.ts', types: './dist/index.d.ts' } }
-    await writeFile(join(pkgDir, 'package.json'), JSON.stringify({ name, type: 'module', exports }))
-    await writeFile(join(pkgDir, 'src/index.ts'), 'export const value = 1\n')
-    await mkdir(dirname(join(dir, 'node_modules', name)), { recursive: true })
-    await symlink(pkgDir, join(dir, 'node_modules', name), 'dir')
-  }
 }
 
 /**
@@ -76,14 +37,14 @@ async function installModule(dir: string, name: string, layout: 'flat' | 'pnpm')
   await writeFile(join(real, 'index.js'), 'module.exports = {}\n')
   if (layout === 'pnpm') {
     await mkdir(dirname(join(dir, 'node_modules', name)), { recursive: true })
-    await symlink(real, join(dir, 'node_modules', name), 'dir')
+    await symlink(real, join(dir, 'node_modules', name), 'junction')
   }
 }
 
-const biome = (dir: string, path: string): Promise<Result> =>
-  run(BIOME_BIN, ['lint', '--vcs-enabled=false', path], dir)
-const depcruise = (dir: string): Promise<Result> =>
-  run(DEPCRUISE_BIN, ['--config', join(ROOT, '.dependency-cruiser.json'), 'packages'], dir)
+const biome = (dir: string, path: string): Promise<RunResult> =>
+  runNode(BIOME_BIN, ['lint', '--vcs-enabled=false', path], dir)
+const depcruise = (dir: string): Promise<RunResult> =>
+  runNode(DEPCRUISE_BIN, ['--config', join(ROOT, '.dependency-cruiser.json'), 'packages'], dir)
 const count = (output: string, rule: string): number =>
   output.match(new RegExp(`× ${rule}`, 'g'))?.length ?? 0
 

@@ -9,10 +9,16 @@ import { fileURLToPath } from 'node:url'
 export const ROOT: string = fileURLToPath(new URL('../../../', import.meta.url))
 
 /**
- * The package manifest.
+ * The package manifest, relative to a repo root.
  * @public
  */
-export const MANIFEST_PATH: string = join(ROOT, 'tooling/boundaries/packages.json')
+export const MANIFEST_REL: string = 'tooling/boundaries/packages.json'
+
+/**
+ * The package manifest of this checkout.
+ * @public
+ */
+export const MANIFEST_PATH: string = join(ROOT, MANIFEST_REL)
 
 /**
  * dependency-cruiser's and Biome's JS entries. Run them with `process.execPath`, which also works
