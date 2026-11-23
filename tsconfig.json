@@ -89,6 +89,9 @@
       "path": "packages/env-jsdom"
     },
     {
+      "path": "packages/env-jsdom/tsconfig.tests.json"
+    },
+    {
       "path": "packages/env-node"
     },
     {
@@ -111,6 +114,9 @@
     },
     {
       "path": "packages/api"
+    },
+    {
+      "path": "packages/api/tsconfig.tests.json"
     }
   ]
 }

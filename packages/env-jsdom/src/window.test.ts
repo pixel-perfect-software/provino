@@ -3,9 +3,9 @@
 import assert from 'node:assert/strict'
 import { createServer } from 'node:http'
 import type { AddressInfo } from 'node:net'
-import { describe, test } from 'node:test'
 import * as jsdom30 from 'jsdom'
 import * as jsdom26 from 'jsdom-26'
+import { describe, test } from 'provino'
 import { createDom, type JsdomModule } from './window.ts'
 
 const versions: readonly (readonly [string, JsdomModule])[] = [
