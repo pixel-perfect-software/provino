@@ -4,9 +4,9 @@
 
 import assert from 'node:assert/strict'
 import { basename } from 'node:path'
-import { describe, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import type { CorePolicy } from '@provino/types'
+import { describe, test } from 'provino'
 import { NO_DEFINITIONS } from '../definitions/table.ts'
 import type { FileState } from '../internal/model.ts'
 import {

@@ -1,8 +1,8 @@
 // T5.8: the test context's `skip` and `annotate`, and the try-task hook points. Against Vitest:
 // `@provino/harness`'s runtime corpus (`context-shape`, `context-skip`).
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { TestContext } from '@provino/types'
+import { describe, test } from 'provino'
 import { eventsOf, runScript } from '../internal/test-support.ts'
 
 const vitest = { firstArg: 'context' } as const

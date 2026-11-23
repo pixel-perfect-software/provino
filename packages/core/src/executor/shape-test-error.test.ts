@@ -4,7 +4,6 @@
 // later is not in it, and stays as thrown (`cli/node-assert-unhandled`).
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { describe, test } from 'node:test'
 import { setFlagsFromString } from 'node:v8'
 import { runInNewContext } from 'node:vm'
 import {
@@ -14,6 +13,7 @@ import {
   moduleRef,
 } from '@provino/policy'
 import type { AnyFunction, Behaviour, ShapeTestError } from '@provino/types'
+import { describe, test } from 'provino'
 import { eventsOf, runScript } from '../internal/test-support.ts'
 
 const REF = moduleRef<ShapeTestError>('test:shape-test-error', 'shapeTestError')

@@ -3,7 +3,7 @@
 // the next one starts, records how many hops it made. Jest's own counts are the runtime corpus's
 // `microtask-turns` (harness); these use other values, to show the counts are the policy's sums.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { type CoreOverrides, policyWith, runScript, type Script } from '../internal/test-support.ts'
 import { anyTurns, TurnClock } from './turns.ts'
 

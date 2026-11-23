@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "include": ["src"],
-  "exclude": ["src/vendor"],
+  "exclude": ["src/vendor", "src/**/*.test.ts"],
   "references": [
     {
       "path": "../types"

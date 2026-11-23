@@ -2,8 +2,8 @@
 // 30.5.2's order (`run.ts`, `jestAdapterInit.ts`). `@provino/dialect-jest`'s mirror and `provino`'s
 // `jest-environments.test.ts` hold the order to a recording of the real events (`env/handle-test-event*`).
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { LifecycleEvent, LifecycleListener } from '@provino/types'
+import { describe, test } from 'provino'
 import { runScript, type Script } from './internal/test-support.ts'
 
 interface Seen {

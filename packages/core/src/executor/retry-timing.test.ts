@@ -4,9 +4,9 @@
 // `runTest` (immediate); `@provino/harness`'s runtime corpus (`runtime/retry-*`) holds the
 // recorded ground truth.
 import assert from 'node:assert/strict'
-import { describe, mock, test } from 'node:test'
 import type { DefaultRetry } from '@provino/types'
 import FakeTimers from '@sinonjs/fake-timers'
+import { describe, test } from 'provino'
 import type { RetryOption } from '../collector/retry.ts'
 import {
   clockOptions,
@@ -607,13 +607,14 @@ describe('retry.functionCondition', () => {
   /** The warnings `console.warn` gets while `body` runs. */
   async function warnings(body: () => Promise<void>): Promise<string[]> {
     const seen: string[] = []
-    const warn = mock.method(globalThis.console, 'warn', (message: unknown) => {
+    const original = globalThis.console.warn
+    globalThis.console.warn = (message: unknown) => {
       seen.push(String(message))
-    })
+    }
     try {
       await body()
     } finally {
-      warn.mock.restore()
+      globalThis.console.warn = original
     }
     return seen
   }

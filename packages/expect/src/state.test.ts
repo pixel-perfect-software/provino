@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { manualCurrentTest, testTask } from './internal/test-support.ts'
 import { createStateSource } from './state.ts'
 

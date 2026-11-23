@@ -1,7 +1,7 @@
 // T5.6 acceptance, part 4: `retry` and `repeats` (test options), `retry.keepEarlierErrors` and
 // `retry.timing`.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { eventLog, runScript, type Script } from '../internal/test-support.ts'
 
 /** The test and attempt lines of an event log (hooks left out). */
