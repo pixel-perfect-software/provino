@@ -21,7 +21,7 @@ Run everything from the repository root.
 
 | Task | Command |
 | --- | --- |
-| Typecheck | `pnpm typecheck` |
+| Typecheck | `pnpm check-types` |
 | Unit tests | `pnpm test` (one package: `pnpm test --filter @provino/core`) |
 | Type tests | `pnpm test:types` and `pnpm test:types:ts5.9` |
 | Format and lint, and fix | `pnpm format-and-lint`, `pnpm format-and-lint:fix` (Markdown is not formatted) |
@@ -55,7 +55,7 @@ Benchmark numbers from a laptop are a development signal, never a result. Label 
 - Branch from `main`, and make small commits.
 - **Sign off every commit** (`git commit -s`), which adds a `Signed-off-by` line, as the [Developer Certificate of Origin](https://developercertificate.org/) describes.
 - **Start the subject with a conventional prefix**, with the package in parentheses when one package changes: `feat(loader): ...`, `fix(snapshot): ...`, `docs: ...`, `test(core): ...`, `refactor(...)`, `build(packaging): ...`, `chore: ...`. Say what the change does, and why in the body.
-- Before you open a pull request, run `pnpm format-and-lint`, `pnpm typecheck`, `pnpm test`, `pnpm test:types` and `pnpm boundaries`, and `pnpm hygiene` if you touched a package's exports, metadata or build.
+- Before you open a pull request, run `pnpm format-and-lint`, `pnpm check-types`, `pnpm test`, `pnpm test:types` and `pnpm boundaries`, and `pnpm hygiene` if you touched a package's exports, metadata or build.
 - In the pull request, say what changed and how you checked it. Say what you did not verify.
 
 By contributing you agree that your work is licensed under the [MIT license](LICENSE).

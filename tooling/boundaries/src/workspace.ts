@@ -242,7 +242,7 @@ function checkTsconfigs(workspace: Workspace, pkg: WorkspacePackage): readonly P
     problems.push(
       problem(
         'workspace-tsconfig',
-        `${pkg.dir} is missing from tsconfig.json references, so \`pnpm typecheck\` skips it`,
+        `${pkg.dir} is missing from tsconfig.json references, so \`pnpm check-types\` skips it`,
       ),
     )
   }

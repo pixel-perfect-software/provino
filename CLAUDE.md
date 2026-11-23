@@ -32,7 +32,7 @@ Status: **pre-alpha, built in phases** from the research in `docs/research/`. No
 
 Node 24 for dev, with CI on 22.15+, 24 and 26 · **pnpm 12.21.x** workspaces with catalogs (D9) · **Turborepo 2.11.x** for per-package tasks; `tsc -b`, Biome and type tests stay root scripts (D12) · TypeScript 7.0.2 (`tsc -b`), plus a type-test job on 5.9.3 · tsdown 0.23 (Oxc d.ts) · ESM only · **Biome** for lint and format (D11) · dependency-cruiser 18.7 · Oxc (transform, resolver, parser) · valibot and Standard Schema. Our own tests use `node:test` (S1).
 
-Track 1 §How we start → Toolchain gives version **ranges** (checked 2026-10-30). The bundle that first installs a tool pins the exact patch version, respecting `minimumReleaseAge`. **Install tools only when their bundle needs them:** knip, publint, attw, API Extractor and changesets arrived with T1.6 (B21e, 2026-11-12): knip 6.44.1, publint 0.3.25, attw 0.18.5, API Extractor 7.60.1 (it brings its own TypeScript 6.0.3) and changesets 3.0.3, all in the catalog.
+Track 1 §How we start → Toolchain gives version **ranges** (checked 2026-10-30). The bundle that first installs a tool pins the exact patch version, respecting `minimumReleaseAge`. **Install tools only when their bundle needs them:** knip, publint, attw, API Extractor and changesets arrived with T1.6 (B21e, 2026-11-12): knip 6.45.1 (Tyler's bump, 2026-11-23), publint 0.3.25, attw 0.18.5, API Extractor 7.60.1 (it brings its own TypeScript 6.0.3) and changesets 3.0.3, all in the catalog.
 
 ## Commands
 
@@ -41,7 +41,7 @@ Keep this table current: a wrong command here costs every session. Run everythin
 | Task                  | Command                                                                       |
 | --------------------- | ----------------------------------------------------------------------------- |
 | Install               | `pnpm install` (CI: `pnpm install --frozen-lockfile`)                         |
-| Typecheck             | `pnpm typecheck` (`tsc -b`, TS 7)                                             |
+| Typecheck             | `pnpm check-types` (`tsc -b`, TS 7)                                           |
 | Unit tests            | `pnpm test` (Turborepo, cached); one package: `pnpm test --filter @provino/x`. `policy` and `lazy` run on this checkout's built bin (B27g2, D203; the rest still on `node:test`); every migrated package's Provino half in one call (it skips the bootstrap set, so it is not the whole suite): `pnpm build && pnpm test:provino`; the recipe: `pnpm migrate:node-test rewrite <pkg>`, `tooling/packaging/CLAUDE.md` |
 | Type tests            | `pnpm test:types` (TS 7.0.2) and `pnpm test:types:ts5.9`                      |
 | Format and lint       | `pnpm format-and-lint` (Biome lint, import order and formatting; Markdown is excluded); fix with `pnpm format-and-lint:fix` |
@@ -54,7 +54,7 @@ Keep this table current: a wrong command here costs every session. Run everythin
 | Run a Jest project | `pnpm provino jest [jest flags and test path patterns]`; details: `commands.md`, Run Provino section |
 | Boundaries            | `pnpm boundaries` (manifest check, then dependency-cruiser); after editing `tooling/boundaries/packages.json`, `pnpm boundaries:write`. A manifest node's `bannedPackages` (T7.12: `expect`, `@vitest/expect`, `jest-snapshot`, `@vitest/snapshot`, `@babel/*` for `@provino/expect` and `@provino/snapshot`) becomes a `banned-packages-*` rule: a runtime import fails, a type import and a test don't |
 | Benches, corpora, goldens, harness | `pnpm bench:*`, `pnpm provino-bench …`, `pnpm provino-harness …`, `pnpm drift`: read `.claude/context/ai-context/commands.md` before running one |
-| Dependency updates    | `pnpm deps:check` (report only); `pnpm deps:update` runs only when Tyler asks (autd, D14) |
+| Dependency updates    | `pnpm check-deps` (report only); `pnpm update-deps` runs only when Tyler asks (autd, D14) |
 
 - **Node below 22.18** (the 22.15 floor) needs `NODE_OPTIONS=--experimental-strip-types` for `pnpm test` and `pnpm boundaries`; CI's 22.15 leg sets it. Node 24+ strips types by default.
 - **A new package** adds itself to the root `tsconfig.json` references (and `packages/<name>/test` to `tsconfig.type-tests.json`), and uses `catalog:` for shared dev tools. A public package gives every `exports` subpath three conditions in this order, `provino-source` (`./src/….ts`), `types` (`./dist/<name>.d.ts`), `import` (`./dist/<name>.js`; a types-only package like `@provino/types` has none, T1.2), lists `"files": ["dist"]` (plus `"THIRD_PARTY_NOTICES.md"` if its `dist` holds vendored code: a copy of the root file, as `LICENSE` is), has a `README.md`, and has the script `"build": "tsdown --config ../../tooling/packaging/tsdown.config.ts"`: the build reads its entries from `exports`. A package's API goes in an `etc/*.api.md` report only if D67 promises it semver (`SEMVER_PACKAGES` in `tooling/packaging/src/workspace.ts`); a private one lists itself in `.changeset/config.json`'s `ignore`.
