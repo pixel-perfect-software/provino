@@ -6,7 +6,6 @@
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after } from 'node:test'
 import { createLoader } from '@provino/loader'
 import { createMockRegistry, createModuleMockRegistry } from '@provino/mock'
 import { neutralPolicy } from '@provino/policy'
@@ -22,9 +21,10 @@ import type {
   ModuleMockRegistry,
   ModulePolicy,
 } from '@provino/types'
+import { afterAll } from 'provino'
 
 const roots: string[] = []
-after(() => {
+afterAll(() => {
   for (const root of roots) rmSync(root, { recursive: true, force: true })
 })
 
