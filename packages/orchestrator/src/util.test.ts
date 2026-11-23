@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { getEventListeners } from 'node:events'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { ABORTED, isRecord, passesWithNoTests, raceAbort } from './util.ts'
 
 /** How many `abort` listeners a signal holds (`events.getEventListeners` is the public way to see them). */

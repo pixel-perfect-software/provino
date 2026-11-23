@@ -2,8 +2,8 @@
 // most 8 packs unacked, cumulative acks, nothing lost or reordered, and `flush` covering everything
 // emitted before it.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type { TaskId, WorkerEvent } from '@provino/types'
+import { describe, it } from 'provino'
 import { createPacker, type PackMessage } from './packer.ts'
 
 const event = (n: number): WorkerEvent => ({ type: 'test-start', id: `t${n}` as TaskId, t: n })

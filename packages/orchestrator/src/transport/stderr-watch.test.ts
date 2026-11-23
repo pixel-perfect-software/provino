@@ -1,7 +1,7 @@
 // What a fork's stderr watch remembers. V8 prints its heap fatal error and then about 8 KB of
 // native stack, so the line must outlive any fixed-size tail of the stream.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { createStderrWatch } from './stderr-watch.ts'
 
 const FATAL = '<--- Last few GCs --->\n\nFATAL ERROR: Reached heap limit Allocation failed\n'

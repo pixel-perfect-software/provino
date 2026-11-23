@@ -2,11 +2,11 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
 import { fileIdOf, OrchestratorError, runProjects } from '@provino/orchestrator'
 import { createReporterBus, normalizedJsonReporter } from '@provino/reporters'
 import type { Reporter } from '@provino/types'
+import { describe, it } from 'provino'
 import { Collect, runtimeProject, trackedProjects } from './support.ts'
 
 const makeProject = trackedProjects()

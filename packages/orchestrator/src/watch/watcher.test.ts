@@ -8,7 +8,7 @@ import { statSync, watch, writeFileSync } from 'node:fs'
 import { chmod, mkdir, mkdtemp, realpath, rename, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { basename, dirname, join, relative, sep } from 'node:path'
-import { after, describe, test } from 'node:test'
+import { afterAll, describe, test } from 'provino'
 import type { WatchEvent } from './coalesce.ts'
 import { createWatcher, type Watcher, type WatchFunction } from './watcher.ts'
 
@@ -16,7 +16,7 @@ import { createWatcher, type Watcher, type WatchFunction } from './watcher.ts'
 const EVENT_DEADLINE_MS = 5000
 
 const dirs: string[] = []
-after(async () => {
+afterAll(async () => {
   for (const dir of dirs) await rm(dir, { recursive: true, force: true })
 })
 
@@ -114,90 +114,100 @@ async function watched(root: string, perDirectory: boolean) {
   return { watcher, events, errors, next }
 }
 
+// The probe is awaited once here, at module level, so the describe callback below is synchronous.
+const watcherSkips = new Map<boolean, string | false>()
+for (const perDirectory of [false, true]) {
+  watcherSkips.set(
+    perDirectory,
+    !perDirectory && process.platform === 'linux'
+      ? 'recursive mode is not used on Linux: the watcher watches per directory there (see "the default mode")'
+      : await skipReason(!perDirectory),
+  )
+}
+
 for (const perDirectory of [false, true]) {
   const mode = perDirectory ? 'one watch per directory' : 'one recursive watch per root'
-  describe(`the watcher, ${mode}`, async () => {
+  describe(`the watcher, ${mode}`, () => {
     // Each OS holds the mode it runs in production: per directory on Linux (where Node 22's
     // recursive `fs.watch` is a JavaScript fallback, not what the watcher uses), recursive on
     // macOS and Windows; per directory is forced there too, as the option allows. The fake-watch
     // tests below run both modes everywhere.
-    const skip =
-      !perDirectory && process.platform === 'linux'
-        ? 'recursive mode is not used on Linux: the watcher watches per directory there (see "the default mode")'
-        : await skipReason(!perDirectory)
-    test('knows the files the walk found, and leaves out node_modules and files it does not keep', {
-      skip,
-    }, async () => {
-      const root = await tempTree({
-        'a.ts': 'a',
-        'src/b.ts': 'b',
-        'notes.md': 'n',
-        'node_modules/dep/index.ts': 'd',
-      })
-      const { watcher } = await watched(root, perDirectory)
-      try {
-        assert.deepEqual([...watcher.known.keys()].sort(), [
-          join(root, 'a.ts'),
-          join(root, 'src/b.ts'),
-        ])
-        if (perDirectory) {
-          assert.equal(watcher.handles(), 2, 'the root and src; node_modules holds no watch')
-        } else assert.equal(watcher.handles(), 1)
-      } finally {
-        watcher.close()
-      }
-    })
+    const skip = watcherSkips.get(perDirectory) ?? false
+    test.skipIf(skip)(
+      'knows the files the walk found, and leaves out node_modules and files it does not keep',
+      async () => {
+        const root = await tempTree({
+          'a.ts': 'a',
+          'src/b.ts': 'b',
+          'notes.md': 'n',
+          'node_modules/dep/index.ts': 'd',
+        })
+        const { watcher } = await watched(root, perDirectory)
+        try {
+          assert.deepEqual([...watcher.known.keys()].sort(), [
+            join(root, 'a.ts'),
+            join(root, 'src/b.ts'),
+          ])
+          if (perDirectory) {
+            assert.equal(watcher.handles(), 2, 'the root and src; node_modules holds no watch')
+          } else assert.equal(watcher.handles(), 1)
+        } finally {
+          watcher.close()
+        }
+      },
+    )
 
-    test('an added, changed, renamed and removed file, and a new directory with a file in it', {
-      skip,
-    }, async () => {
-      const root = await tempTree({ 'a.ts': 'one' })
-      const { watcher, next, events } = await watched(root, perDirectory)
-      try {
-        const a = join(root, 'a.ts')
-        await writeFile(a, 'two')
-        const changed = await next('change', a)
-        assert.equal(typeof changed.mtimeMs, 'number')
+    test.skipIf(skip)(
+      'an added, changed, renamed and removed file, and a new directory with a file in it',
+      async () => {
+        const root = await tempTree({ 'a.ts': 'one' })
+        const { watcher, next, events } = await watched(root, perDirectory)
+        try {
+          const a = join(root, 'a.ts')
+          await writeFile(a, 'two')
+          const changed = await next('change', a)
+          assert.equal(typeof changed.mtimeMs, 'number')
 
-        const b = join(root, 'b.ts')
-        await writeFile(b, 'new')
-        await next('add', b)
+          const b = join(root, 'b.ts')
+          await writeFile(b, 'new')
+          await next('add', b)
 
-        const c = join(root, 'c.ts')
-        await rename(b, c)
-        await next('add', c)
-        assert.ok(!watcher.known.has(b), 'the old name is gone')
+          const c = join(root, 'c.ts')
+          await rename(b, c)
+          await next('add', c)
+          assert.ok(!watcher.known.has(b), 'the old name is gone')
 
-        await rm(a)
-        await next('unlink', a)
+          await rm(a)
+          await next('unlink', a)
 
-        const deep = join(root, 'lib', 'deep', 'd.ts')
-        await mkdir(join(root, 'lib', 'deep'), { recursive: true })
-        await writeFile(deep, 'd')
-        await next('add', deep)
-        await watcher.settled()
-        if (perDirectory) assert.equal(watcher.handles(), 3, 'the root, lib and lib/deep')
+          const deep = join(root, 'lib', 'deep', 'd.ts')
+          await mkdir(join(root, 'lib', 'deep'), { recursive: true })
+          await writeFile(deep, 'd')
+          await next('add', deep)
+          await watcher.settled()
+          if (perDirectory) assert.equal(watcher.handles(), 3, 'the root, lib and lib/deep')
 
-        await writeFile(join(root, 'ignored.md'), 'x')
-        await mkdir(join(root, 'node_modules'), { recursive: true })
-        await writeFile(join(root, 'node_modules', 'x.ts'), 'x')
-        // A kept file written last: once it is seen, the two before it would have been too.
-        const last = join(root, 'last.ts')
-        await writeFile(last, 'l')
-        await next('add', last)
-        assert.ok(
-          events.every(
-            (event) =>
-              !event.path.endsWith('.md') && !event.path.includes(`${sep}node_modules${sep}`),
-          ),
-        )
+          await writeFile(join(root, 'ignored.md'), 'x')
+          await mkdir(join(root, 'node_modules'), { recursive: true })
+          await writeFile(join(root, 'node_modules', 'x.ts'), 'x')
+          // A kept file written last: once it is seen, the two before it would have been too.
+          const last = join(root, 'last.ts')
+          await writeFile(last, 'l')
+          await next('add', last)
+          assert.ok(
+            events.every(
+              (event) =>
+                !event.path.endsWith('.md') && !event.path.includes(`${sep}node_modules${sep}`),
+            ),
+          )
 
-        await rm(join(root, 'lib'), { recursive: true })
-        await next('unlink', deep)
-      } finally {
-        watcher.close()
-      }
-    })
+          await rm(join(root, 'lib'), { recursive: true })
+          await next('unlink', deep)
+        } finally {
+          watcher.close()
+        }
+      },
+    )
   })
 }
 
@@ -528,33 +538,36 @@ for (const perDirectory of [false, true]) {
       }
     })
 
-    test('a directory it may not read is left out and reported once; the rest is watched', {
-      skip: process.getuid?.() === 0 ? 'root reads every directory, so nothing is denied' : false,
-    }, async () => {
-      const root = await tempTree({ 'a.ts': 'a', 'secret/s.ts': 's' })
-      await chmod(join(root, 'secret'), 0o000)
-      try {
-        const errors: unknown[] = []
-        const watcher = await createWatcher({
-          roots: [root],
-          keeps: (path) => path.endsWith('.ts'),
-          perDirectory,
-          watch: fakeWatch().watchFunction,
-          onEvent: () => {},
-          onError: (error) => errors.push(error),
-        })
+    test.skipIf(
+      process.getuid?.() === 0 ? 'root reads every directory, so nothing is denied' : false,
+    )(
+      'a directory it may not read is left out and reported once; the rest is watched',
+      async () => {
+        const root = await tempTree({ 'a.ts': 'a', 'secret/s.ts': 's' })
+        await chmod(join(root, 'secret'), 0o000)
         try {
-          assert.deepEqual([...watcher.known.keys()], [join(root, 'a.ts')])
-          assert.deepEqual(
-            errors.map((error) => (error as { code?: unknown }).code),
-            ['EACCES'],
-          )
+          const errors: unknown[] = []
+          const watcher = await createWatcher({
+            roots: [root],
+            keeps: (path) => path.endsWith('.ts'),
+            perDirectory,
+            watch: fakeWatch().watchFunction,
+            onEvent: () => {},
+            onError: (error) => errors.push(error),
+          })
+          try {
+            assert.deepEqual([...watcher.known.keys()], [join(root, 'a.ts')])
+            assert.deepEqual(
+              errors.map((error) => (error as { code?: unknown }).code),
+              ['EACCES'],
+            )
+          } finally {
+            watcher.close()
+          }
         } finally {
-          watcher.close()
+          await chmod(join(root, 'secret'), 0o700)
         }
-      } finally {
-        await chmod(join(root, 'secret'), 0o700)
-      }
-    })
+      },
+    )
   })
 }

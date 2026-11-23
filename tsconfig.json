@@ -11,6 +11,9 @@
       "path": "packages/orchestrator"
     },
     {
+      "path": "packages/orchestrator/tsconfig.tests.json"
+    },
+    {
       "path": "packages/policy"
     },
     {

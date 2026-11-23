@@ -2,7 +2,6 @@
 // coordinator when a runner misbehaves, output arrives late, a cancel comes early, or the
 // coordinator goes away. Inline pool, so nothing global is patched.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import { MessageChannel } from 'node:worker_threads'
 import { neutralPolicy, serializePolicy } from '@provino/policy'
 import { createRpc, messagePortLink } from '@provino/rpc'
@@ -19,6 +18,7 @@ import type {
   WorkerPort,
   WorkerToCoordinator,
 } from '@provino/types'
+import { describe, it, onTestFinished } from 'provino'
 import { collectGarbage, usedHeapBytes } from './internal/memory.ts'
 import { type StartWorkerOptions, startWorker, type WorkerRunner } from './start.ts'
 
@@ -121,7 +121,7 @@ describe('startWorker', () => {
         throw thrown[job.file]
       },
     })
-    t.after(() => h.coordinator.close())
+    onTestFinished(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('null-prototype') })
     h.coordinator.send({ t: 'run', seq: 1, job: job('getter') })
@@ -141,7 +141,7 @@ describe('startWorker', () => {
         throw new Error('Tearing down a.test.js failed')
       },
     })
-    t.after(() => h.coordinator.close())
+    onTestFinished(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
     await h.until(h.fileDone(0))
@@ -165,7 +165,7 @@ describe('startWorker', () => {
         return undefined
       },
     })
-    t.after(() => h.coordinator.close())
+    onTestFinished(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
     await h.until(h.fileDone(0))
@@ -187,7 +187,7 @@ describe('startWorker', () => {
         return undefined
       },
     })
-    t.after(() => h.coordinator.close())
+    onTestFinished(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('queued') })
     h.coordinator.send({ t: 'cancel', reason: 'bail' })
@@ -212,7 +212,7 @@ describe('startWorker', () => {
         return undefined
       },
     })
-    t.after(() => h.coordinator.close())
+    onTestFinished(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
     h.coordinator.send({ t: 'run', seq: 1, job: job('b') })
@@ -240,7 +240,7 @@ describe('startWorker', () => {
         return undefined
       },
     })
-    t.after(() => h.coordinator.close())
+    onTestFinished(() => h.coordinator.close())
     h.coordinator.send({ t: 'start', init })
     h.coordinator.send({ t: 'run', seq: 0, job: job('one') })
     h.coordinator.send({ t: 'run', seq: 1, job: job('two') })
@@ -284,7 +284,7 @@ describe('startWorker', () => {
           return undefined
         },
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init: { ...init, memoryLimitBytes: limit } })
       h.coordinator.send({ t: 'run', seq: 0, job: job('garbage') })
       await h.until(h.fileDone(0))
@@ -294,7 +294,7 @@ describe('startWorker', () => {
 
     it('is the heap after the collection, not before it: what the file still holds is reported', async (t) => {
       const held: unknown[] = []
-      t.after(() => {
+      onTestFinished(() => {
         held.length = 0
       })
       const limit = limitAboveLiveHeap()
@@ -304,7 +304,7 @@ describe('startWorker', () => {
           return undefined
         },
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init: { ...init, memoryLimitBytes: limit } })
       h.coordinator.send({ t: 'run', seq: 0, job: job('holds') })
       await h.until(h.fileDone(0))
@@ -321,7 +321,7 @@ describe('startWorker', () => {
       const h = harness({
         runFile: async ({ job }) => (job.file === 'leaky' ? { leakedGlobals: ['a', 'b'] } : {}),
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init })
       h.coordinator.send({ t: 'run', seq: 0, job: job('leaky') })
       h.coordinator.send({ t: 'run', seq: 1, job: job('clean') })
@@ -340,7 +340,7 @@ describe('startWorker', () => {
           throw new Error('boom')
         },
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init })
       h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
       await h.until(h.fileDone(0))
@@ -525,7 +525,7 @@ describe('startWorker', () => {
           sink.emit(note(job('a'), 'from stop'))
         },
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init })
       h.coordinator.send({ t: 'run', seq: 0, job: job('a') })
       h.coordinator.send({ t: 'run', seq: 1, job: job('b') })
@@ -555,7 +555,7 @@ describe('startWorker', () => {
           await gate.promise
         },
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init })
       h.coordinator.send({ t: 'stop' })
       await reached.promise
@@ -573,7 +573,7 @@ describe('startWorker', () => {
           throw new Error('teardown failed')
         },
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init })
       h.coordinator.send({ t: 'stop' })
       await h.until(stopped)
@@ -602,7 +602,7 @@ describe('startWorker', () => {
           steps.push('stop')
         },
       })
-      t.after(() => h.coordinator.close())
+      onTestFinished(() => h.coordinator.close())
       h.coordinator.send({ t: 'start', init })
       h.coordinator.send({ t: 'stop' })
       await h.until(stopped)
@@ -618,14 +618,14 @@ describe('startWorker', () => {
           steps.push('stop')
         },
       })
-      t.after(() => never.coordinator.close())
+      onTestFinished(() => never.coordinator.close())
       never.coordinator.send({ t: 'stop' })
       await never.until(stopped)
       await never.done
       assert.deepEqual(steps, [])
 
       const plain = harness({ runFile: async () => undefined })
-      t.after(() => plain.coordinator.close())
+      onTestFinished(() => plain.coordinator.close())
       plain.coordinator.send({ t: 'start', init })
       plain.coordinator.send({ t: 'stop' })
       await plain.until(stopped)

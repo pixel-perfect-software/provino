@@ -6,7 +6,6 @@
 import assert from 'node:assert/strict'
 import { mkdir, readdir, stat, utimes, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { afterEach, describe, it } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
 import { createCoordinatorLoader } from '@provino/loader'
 import {
@@ -16,6 +15,7 @@ import {
   openRecordedGraph,
 } from '@provino/orchestrator'
 import type { DependencyExtractor } from '@provino/types'
+import { afterEach, describe, it } from 'provino'
 import { type Project, runtimeProject, trackedProjects } from './support.ts'
 
 const makeProject = trackedProjects()

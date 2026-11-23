@@ -1,9 +1,9 @@
 // `exitCodeFor`: which code a finished run exits with, and in what order the reasons are tried.
 import assert from 'node:assert/strict'
 import { constants } from 'node:os'
-import { describe, it } from 'node:test'
 import { neutralPolicy, resolvePolicy } from '@provino/policy'
 import type { FileResult, Policy, RunSummary } from '@provino/types'
+import { describe, it } from 'provino'
 import { ExitCode, exitCodeFor, isRunSignal, RUN_SIGNALS } from './exit-code.ts'
 
 const policy: Policy = resolvePolicy({

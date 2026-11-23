@@ -2,9 +2,9 @@
 // unhandled error, and `fileDone` still comes. The logic is the same for every kind, so inline
 // covers it.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import { connectWorker, transportFor } from '@provino/orchestrator'
 import type { RuntimeEventOf, WorkerEvent } from '@provino/types'
+import { describe, it } from 'provino'
 import { fixture, initFor, job, methods } from './support.ts'
 
 async function connect(workerId: number) {

@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type {
   InlineSnapshotEdit,
   InlineSnapshotWriteOptions,
   InlineSnapshotWriter,
 } from '@provino/types'
+import { describe, test } from 'provino'
 import { createInlineSnapshotWrites, withInlineSnapshots } from './inline-snapshots.ts'
 import type { PoolOutcome } from './pool.ts'
 

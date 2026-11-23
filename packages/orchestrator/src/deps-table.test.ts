@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type { TaskId } from '@provino/types'
+import { describe, it } from 'provino'
 import { createDepsTable, type DepsEvent } from './deps-table.ts'
 
 const fileId = 'f' as TaskId

@@ -2,8 +2,8 @@
 // files first, files with no history before or after the ones that have it, size and duration
 // descending, and a path tie-break so the order is total. The shard is `shard.test.ts`.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type { FileHistory, ScheduleInput } from '@provino/types'
+import { describe, it } from 'provino'
 import { createHistorySequencer } from './sequencer.ts'
 
 function history(durationMs: number, failed = false): FileHistory {

@@ -24,7 +24,7 @@
 //   last, so it is not asserted; sha1 and contiguous each far below the LPT bin-pack holds under
 //   both, and is.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import {
   generateFiles,
   median,

@@ -4,7 +4,7 @@ import assert from 'node:assert/strict'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { EOL, tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, test } from 'node:test'
+import { afterAll, describe, test } from 'provino'
 import { parsePragmas, pragmaValue, readPragmas } from './pragmas.ts'
 
 const parsed = (source: string): Record<string, unknown> => ({ ...parsePragmas(source) })
@@ -86,7 +86,7 @@ describe('parsePragmas, as jest-docblock reads a file', () => {
 
 describe('readPragmas', () => {
   const dir = mkdtempSync(join(tmpdir(), 'provino-pragmas-'))
-  after(() => rmSync(dir, { recursive: true, force: true }))
+  afterAll(() => rmSync(dir, { recursive: true, force: true }))
   const write = (name: string, text: string): string => {
     const file = join(dir, name)
     writeFileSync(file, text)

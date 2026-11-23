@@ -2,7 +2,6 @@
 // only after it settles, `fileDone` waits for earlier packs, a failing `onEvents` still acks and
 // fails the file, and an exit rejects running files only after the packs before it.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type {
   CoordinatorToWorker,
   TaskId,
@@ -11,6 +10,7 @@ import type {
   WorkerExit,
   WorkerToCoordinator,
 } from '@provino/types'
+import { describe, it } from 'provino'
 import { connectWorker } from './connect.ts'
 
 function fakeTransport() {

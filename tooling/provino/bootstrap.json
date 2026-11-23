@@ -2,6 +2,18 @@
   "files": {
     "packages/lazy/src/api.test.ts": "Four tests assume no lazy runtime is installed and that the slot is the process's own; under Provino the worker owns that process-global slot, so they cannot run inside it (B27g1).",
     "packages/lazy/src/read.test.ts": "The unhandled-rejection test owns the process-wide rejection handler the runner's worker already holds (B27g1).",
+    "packages/orchestrator/src/worker/internal/runtime/environment.test.ts": "Runner bug (B27h): the loader cannot import a `data:text/javascript,` URL (\"Cannot find module 'data:text/...'\"); node:test imports it natively.",
+    "packages/orchestrator/test/affected-run.test.ts": "Runs the coordinator over an inline pool in the test's own process, whose workers install the process-global slots the runner's worker already holds (B27h).",
+    "packages/orchestrator/test/coordinator.test.ts": "Starts inline workers in the test's own process, which install the process-global matcher/lazy slots the runner's worker already holds (EXPECT_SLOT_TAKEN or an empty trace) (B27h).",
+    "packages/orchestrator/test/coverage-collect.test.ts": "Collects coverage through inline workers in the test's own process, which share the process-global slots and the V8 profiler with the runner's worker (B27h).",
+    "packages/orchestrator/test/coverage-run.test.ts": "Runs a coordinator over inline workers in the test's own process, sharing the process-global slots the runner's worker holds (B27h).",
+    "packages/orchestrator/test/global-setup.test.ts": "Runs hand-made projects over the inline pool, whose workers install the process-global slots the runner's worker already holds (B27h).",
+    "packages/orchestrator/test/in-band.test.ts": "Asserts which runs go in band (inline workers in this process) and captures the process console, which the runner's worker already owns (B27h).",
+    "packages/orchestrator/test/lifecycle.test.ts": "Its detectOpenHandles case runs the files inline in the test's own process, sharing the slots and async_hooks with the runner's worker (B27h).",
+    "packages/orchestrator/test/runtime-runner.test.ts": "Drives createRuntimeRunner directly, which installs the process-global matcher slot the runner's worker already holds (\"$$jest-matchers-object is already defined\") (B27h).",
+    "packages/orchestrator/test/runtime-transports.test.ts": "Runs the real runtime entry over the inline transport in the test's own process, which shares the process-global slots with the runner's worker (B27h).",
+    "packages/orchestrator/test/runtime.test.ts": "Runs the real runtime entry inline in the test's own process, installing the process-global matcher slot and loader hooks the runner's worker already holds (B27h).",
+    "packages/orchestrator/test/shard-tier.test.ts": "Runs shards through runProjects over the inline pool, whose workers install the process-global slots the runner's worker already holds (B27h).",
     "packages/provino/test/bootstrap/canary.test.ts": "The canary: it runs the built runner on a fixture with known failures and asserts they are reported, so a runner that reports green wrongly is caught (D203). It must not depend on the runner it checks."
   }
 }

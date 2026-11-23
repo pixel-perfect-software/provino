@@ -1,7 +1,6 @@
 // The dispatcher over synthetic events: each runtime event reaches the bus with the node it
 // refers to, in order and awaited; unknown ids and wrong kinds are `ORCH_BAD_EVENT`.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import type {
   FileInfo,
   FileTask,
@@ -14,6 +13,7 @@ import type {
   TestTask,
   WorkerEvent,
 } from '@provino/types'
+import { describe, it } from 'provino'
 import { createFileDispatch, createIdleDispatch } from './dispatch.ts'
 
 const id = (name: string): TaskId => name as TaskId

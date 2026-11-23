@@ -1,6 +1,5 @@
 // `connect()` against a hand-driven spawned worker: the handshake's two failure races.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
 import { neutralPolicy, serializePolicy } from '@provino/policy'
 import type {
   CoordinatorToWorker,
@@ -10,6 +9,7 @@ import type {
   WorkerInit,
   WorkerToCoordinator,
 } from '@provino/types'
+import { describe, it } from 'provino'
 import { connect, type Spawned } from './shared.ts'
 
 /** A valid project config; these tests move it around without reading it. */

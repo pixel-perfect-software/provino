@@ -2,8 +2,8 @@
 // in exactly one shard, whatever order the files come in.
 import assert from 'node:assert/strict'
 import { hash } from 'node:crypto'
-import { describe, it } from 'node:test'
 import type { ScheduleInput } from '@provino/types'
+import { describe, it } from 'provino'
 import type { DiscoveredFile } from './discover.ts'
 import { seededRandom } from './schedule-sim.ts'
 import { createHistorySequencer } from './sequencer.ts'
