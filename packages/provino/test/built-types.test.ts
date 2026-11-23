@@ -62,65 +62,70 @@ function compile(compiler: (typeof COMPILERS)[number], dir: string) {
 }
 
 describe('the built declarations, as a user compiles them', () => {
+  // Each consumer is installed by the first test that compiles it, not as the file loads (a
+  // listing imports the file), and reused by the other compiler's test.
+  const consumers: { withAddOns?: string; alone?: string } = {}
   // One program: the add-ons imported, and one augmentation of each registry that every public
   // type reading it must see. `provino/internal/types` is the add-ons' own copy of those types.
-  const withAddOns = consumer(
-    {
-      'config.ts': [
-        "import { jestDialect } from '@provino/dialect-jest'",
-        "import { vitestDialect } from '@provino/dialect-vitest'",
-        "import { defineConfig, type DialectKeys, type PluginKeys, type ProjectConfig } from 'provino/config'",
-        "import type { DialectName } from 'provino/internal/types'",
-        "declare module 'provino/config' {",
-        '  interface DialectRegistry { custom: { level: number } }',
-        '  interface PluginRegistry { msw: { quiet: boolean } }',
-        '}',
-        "export const jest = defineConfig({ dialect: 'jest', jest: {} })",
-        "export const vitest = defineConfig({ dialect: 'vitest', vitest: {} })",
-        'export const both = defineConfig({ dialects: [jestDialect, vitestDialect] })',
-        '// @ts-expect-error: no dialect is called mocha',
-        "export const unknown = defineConfig({ dialect: 'mocha' })",
-        "export const custom = defineConfig({ dialect: 'custom', custom: { level: 1 } })",
-        '// @ts-expect-error: the option is a number',
-        "export const wrong = defineConfig({ dialect: 'custom', custom: { level: 'x' } })",
-        'export const plugin = defineConfig({ msw: { quiet: true } })',
-        "export const dialectKey: keyof DialectKeys = 'custom'",
-        "export const pluginKey: keyof PluginKeys = 'msw'",
-        "export const projectDialect: ProjectConfig['dialect'] = 'custom'",
-        "export const internalCustom: DialectName = 'custom'",
-        "export const internalJest: DialectName = 'jest'",
-        '// @ts-expect-error: no dialect is called mocha',
-        "export const internalUnknown: DialectName = 'mocha'",
-        '',
-      ].join('\n'),
-    },
-    true,
-  )
+  const withAddOns = (): string =>
+    (consumers.withAddOns ??= consumer(
+      {
+        'config.ts': [
+          "import { jestDialect } from '@provino/dialect-jest'",
+          "import { vitestDialect } from '@provino/dialect-vitest'",
+          "import { defineConfig, type DialectKeys, type PluginKeys, type ProjectConfig } from 'provino/config'",
+          "import type { DialectName } from 'provino/internal/types'",
+          "declare module 'provino/config' {",
+          '  interface DialectRegistry { custom: { level: number } }',
+          '  interface PluginRegistry { msw: { quiet: boolean } }',
+          '}',
+          "export const jest = defineConfig({ dialect: 'jest', jest: {} })",
+          "export const vitest = defineConfig({ dialect: 'vitest', vitest: {} })",
+          'export const both = defineConfig({ dialects: [jestDialect, vitestDialect] })',
+          '// @ts-expect-error: no dialect is called mocha',
+          "export const unknown = defineConfig({ dialect: 'mocha' })",
+          "export const custom = defineConfig({ dialect: 'custom', custom: { level: 1 } })",
+          '// @ts-expect-error: the option is a number',
+          "export const wrong = defineConfig({ dialect: 'custom', custom: { level: 'x' } })",
+          'export const plugin = defineConfig({ msw: { quiet: true } })',
+          "export const dialectKey: keyof DialectKeys = 'custom'",
+          "export const pluginKey: keyof PluginKeys = 'msw'",
+          "export const projectDialect: ProjectConfig['dialect'] = 'custom'",
+          "export const internalCustom: DialectName = 'custom'",
+          "export const internalJest: DialectName = 'jest'",
+          '// @ts-expect-error: no dialect is called mocha',
+          "export const internalUnknown: DialectName = 'mocha'",
+          '',
+        ].join('\n'),
+      },
+      true,
+    ))
   // `provino` alone: `provino/jest` and `provino/vitest` carry the declarations of their dialect.
-  const alone = consumer(
-    {
-      'config.ts': [
-        "import 'provino/jest'",
-        "import 'provino/vitest'",
-        "import { defineConfig } from 'provino/config'",
-        "export const jest = defineConfig({ dialect: 'jest' })",
-        "export const vitest = defineConfig({ dialect: 'vitest' })",
-        '// @ts-expect-error: no dialect is called mocha',
-        "export const unknown = defineConfig({ dialect: 'mocha' })",
-        '',
-      ].join('\n'),
-    },
-    false,
-  )
+  const alone = (): string =>
+    (consumers.alone ??= consumer(
+      {
+        'config.ts': [
+          "import 'provino/jest'",
+          "import 'provino/vitest'",
+          "import { defineConfig } from 'provino/config'",
+          "export const jest = defineConfig({ dialect: 'jest' })",
+          "export const vitest = defineConfig({ dialect: 'vitest' })",
+          '// @ts-expect-error: no dialect is called mocha',
+          "export const unknown = defineConfig({ dialect: 'mocha' })",
+          '',
+        ].join('\n'),
+      },
+      false,
+    ))
 
   for (const compiler of COMPILERS) {
     test(`the add-ons' names and a user's augmentation reach every registry reader (${compiler})`, () => {
-      const { status, output } = compile(compiler, withAddOns)
+      const { status, output } = compile(compiler, withAddOns())
       assert.equal(status, 0, output)
     })
 
     test(`provino/jest and provino/vitest register their dialect without the add-ons (${compiler})`, () => {
-      const { status, output } = compile(compiler, alone)
+      const { status, output } = compile(compiler, alone())
       assert.equal(status, 0, output)
     })
   }
