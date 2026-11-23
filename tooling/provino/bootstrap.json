@@ -42,7 +42,6 @@
     "packages/harness/src/runtime-corpus/suite-hook-frames.test.ts": "Runs a runtime in the runner's worker process (core runs a fixture file and installs the test globals through internal/globals, so its errors are not collected) and fails under Provino's worker (B27h).",
     "packages/lazy/src/api.test.ts": "Four tests assume no lazy runtime is installed and that the slot is the process's own; under Provino the worker owns that process-global slot, so they cannot run inside it (B27g1).",
     "packages/lazy/src/read.test.ts": "The unhandled-rejection test owns the process-wide rejection handler the runner's worker already holds (B27g1).",
-    "packages/mock/src/module/automock.test.ts": "Runner bug (B27h): under Provino `await import('node:path')` is not a real module namespace object, so the automock's ES-namespace check misses it and `__esModule` is undefined (expected true).",
     "packages/orchestrator/src/worker/internal/runtime/environment.test.ts": "Runner bug (B27h): the loader cannot import a `data:text/javascript,` URL (\"Cannot find module 'data:text/...'\"); node:test imports it natively.",
     "packages/orchestrator/test/affected-run.test.ts": "Runs the coordinator over an inline pool in the test's own process, whose workers install the process-global slots the runner's worker already holds (B27h).",
     "packages/orchestrator/test/coordinator.test.ts": "Starts inline workers in the test's own process, which install the process-global matcher/lazy slots the runner's worker already holds (EXPECT_SLOT_TAKEN or an empty trace) (B27h).",
