@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
-import { before, describe, test } from 'node:test'
+import { beforeAll, describe, test } from 'provino'
 import { changesetsSince } from './changesets.ts'
 import { fileAt, newFilesSince, resolveBase } from './git.ts'
 import { type Repository, repository, writeFiles } from './test-support.ts'
@@ -19,7 +19,7 @@ describe('the base is the merge base (T1.6)', () => {
   let repo: Repository
   let branchPoint = ''
   let tip = ''
-  before(() => {
+  beforeAll(() => {
     repo = repository({
       'etc/x.api.md': 'report v1\n',
       '.changeset/old.md': '---\n"provino": patch\n---\n',

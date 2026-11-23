@@ -1,4 +1,4 @@
-// Helpers for the migrate tests. Not a test file: `node --test` runs only `*.test.ts`.
+// Helpers for the migrate tests. Not a test file: the runner discovers only `*.test.ts`.
 import { realpath, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { scratchDir } from '../test-support.ts'

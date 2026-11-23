@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join, posix } from 'node:path'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { ROOT } from './workspace.ts'
 
 const turbo = JSON.parse(readFileSync(join(ROOT, 'turbo.json'), 'utf8')) as {

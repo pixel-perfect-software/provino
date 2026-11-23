@@ -1,7 +1,7 @@
 // The node:test -> provino rewrite: each form it rewrites, each it refuses (with file:line), and
 // that running it twice changes nothing.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { rewriteNodeTest } from './node-test-rewrite.ts'
 
 const HEAD = "import { describe, it } from 'node:test'\n"
@@ -122,6 +122,157 @@ describe('options', () => {
       "import { after } from 'node:test'\nafter(async () => {}, { timeout: 500 })\n",
     )
     assert.match(out, /afterAll\(async \(\) => \{\}, 500\)/)
+  })
+
+  it("a describe's { concurrency: true } becomes describe.concurrent, and suite and an alias too", () => {
+    assert.equal(
+      rewritten(HEAD + "describe('a', { concurrency: true }, () => {})\n"),
+      "import { describe, it } from 'provino'\ndescribe.concurrent('a', () => {})\n",
+    )
+    assert.equal(
+      rewritten("import { suite } from 'node:test'\nsuite('a', { concurrency: true }, () => {})\n"),
+      "import { suite } from 'provino'\nsuite.concurrent('a', () => {})\n",
+    )
+    assert.equal(
+      rewritten(
+        "import { describe as group } from 'node:test'\ngroup('a', { concurrency: true }, () => {})\n",
+      ),
+      "import { describe as group } from 'provino'\ngroup.concurrent('a', () => {})\n",
+    )
+  })
+
+  it('keeps { timeout } beside it, and rewrites a nested describe on its own', () => {
+    assert.match(
+      rewritten(HEAD + "describe('a', { concurrency: true, timeout: 50 }, () => {})\n"),
+      /describe\.concurrent\('a', \{ timeout: 50 \}, \(\) => \{\}\)/,
+    )
+    const out = rewritten(
+      HEAD +
+        "describe('a', { concurrency: true }, () => {\n  describe('b', () => {})\n  describe('c', { concurrency: true }, () => {})\n})\n",
+    )
+    assert.match(out, /^describe\.concurrent\('a', \(\) => \{$/m)
+    assert.match(out, /^ {2}describe\('b', \(\) => \{\}\)$/m)
+    assert.match(out, /^ {2}describe\.concurrent\('c', \(\) => \{\}\)$/m)
+  })
+
+  it('chains with the one modifier a describe has, from its options or its name', () => {
+    const cases: readonly [string, string][] = [
+      [
+        "describe('a', { skip: true, concurrency: true }, () => {})",
+        "describe.skip.concurrent('a', () => {})",
+      ],
+      [
+        "describe('a', { only: true, concurrency: true }, () => {})",
+        "describe.only.concurrent('a', () => {})",
+      ],
+      [
+        "describe('a', { todo: true, concurrency: true }, () => {})",
+        "describe.todo.concurrent('a', () => {})",
+      ],
+      [
+        "describe('a', { skip: ok, concurrency: true }, () => {})",
+        "describe.skipIf(ok).concurrent('a', () => {})",
+      ],
+      [
+        "describe.skip('a', { concurrency: true }, () => {})",
+        "describe.skip.concurrent('a', () => {})",
+      ],
+      [
+        "describe.only('a', { concurrency: true }, () => {})",
+        "describe.only.concurrent('a', () => {})",
+      ],
+    ]
+    for (const [before, after] of cases) {
+      assert.equal(
+        rewritten(HEAD + before + '\n'),
+        "import { describe, it } from 'provino'\n" + after + '\n',
+      )
+    }
+  })
+
+  it("a describe's { concurrency: false } or 1 becomes { concurrent: false }, wherever it is", () => {
+    const cases: readonly [string, string][] = [
+      // At the top, where serial is the default either way.
+      [
+        "describe('a', { concurrency: false }, () => {})",
+        "describe('a', { concurrent: false }, () => {})",
+      ],
+      [
+        "describe('a', { concurrency: 1 }, () => {})",
+        "describe('a', { concurrent: false }, () => {})",
+      ],
+      [
+        "describe('a', { concurrency: false, skip: true }, () => {})",
+        "describe.skip('a', { concurrent: false }, () => {})",
+      ],
+      [
+        "describe('a', { concurrency: false, timeout: 50 }, () => {})",
+        "describe('a', { concurrent: false, timeout: 50 }, () => {})",
+      ],
+      // Under a concurrent describe, directly or through one with no option.
+      [
+        "describe('a', { concurrency: true }, () => {\n  describe('b', { concurrency: false }, () => {})\n})",
+        "describe.concurrent('a', () => {\n  describe('b', { concurrent: false }, () => {})\n})",
+      ],
+      [
+        "describe('a', { concurrency: true }, () => {\n  describe('b', () => {\n    describe('c', { concurrency: 1 }, () => {})\n  })\n})",
+        "describe.concurrent('a', () => {\n  describe('b', () => {\n    describe('c', { concurrent: false }, () => {})\n  })\n})",
+      ],
+      // Under a serial one, and a concurrent one inside that.
+      [
+        "describe('a', { concurrency: false }, () => {\n  describe('b', { concurrency: false }, () => {})\n  describe('c', { concurrency: true }, () => {\n    describe('d', { concurrency: false }, () => {})\n  })\n})",
+        "describe('a', { concurrent: false }, () => {\n  describe('b', { concurrent: false }, () => {})\n  describe.concurrent('c', () => {\n    describe('d', { concurrent: false }, () => {})\n  })\n})",
+      ],
+      // In a function, whose caller decides what is around it.
+      [
+        "function helper() {\n  describe('b', { concurrency: false }, () => {})\n}",
+        "function helper() {\n  describe('b', { concurrent: false }, () => {})\n}",
+      ],
+      [
+        "describe('a', { concurrency: true }, () => {\n  list.forEach(() => describe('b', { concurrency: 1 }, () => {}))\n})",
+        "describe.concurrent('a', () => {\n  list.forEach(() => describe('b', { concurrent: false }, () => {}))\n})",
+      ],
+    ]
+    for (const [before, after] of cases) {
+      assert.equal(
+        rewritten(HEAD + before + '\n'),
+        "import { describe, it } from 'provino'\n" + after + '\n',
+      )
+    }
+    assert.equal(
+      rewritten(
+        "import { suite } from 'node:test'\nsuite('a', { concurrency: true }, () => {\n  suite('b', { concurrency: false, timeout: 50 }, () => {})\n  suite('c', { concurrency: false, skip: true }, () => {})\n})\n",
+      ),
+      "import { suite } from 'provino'\nsuite.concurrent('a', () => {\n  suite('b', { concurrent: false, timeout: 50 }, () => {})\n  suite.skip('c', { concurrent: false }, () => {})\n})\n",
+    )
+  })
+
+  it('refuses a describe concurrency that is not a literal true or false, and any on a test', () => {
+    const reason = 'describe option concurrency other than a literal true or false'
+    for (const value of ['2', 'Infinity', 'n', "'yes'", 'null', 'os.availableParallelism()']) {
+      const found = refusedAt(HEAD + "describe('a', { concurrency: " + value + ' }, () => {})\n')
+      assert.equal(found.length, 1, value)
+      assert.match(found[0] ?? '', new RegExp('a\\.test\\.ts:2 ' + reason), value)
+    }
+    assert.equal(refusedAt(HEAD + "it('a', { concurrency: true }, () => {})\n").length, 1)
+    assert.equal(refusedAt(HEAD + "it('a', { concurrency: false }, () => {})\n").length, 1)
+    assert.equal(refusedAt(HEAD + "it('a', { concurrency: 2 }, () => {})\n").length, 1)
+    assert.equal(refusedAt(HEAD + "it.skip('a', { concurrency: true }, () => {})\n").length, 1)
+    assert.equal(
+      refusedAt("import { before } from 'node:test'\nbefore(() => {}, { concurrency: true })\n")
+        .length,
+      1,
+    )
+    // Two modifiers on one suite stay refused, with or without the concurrency beside them.
+    assert.equal(
+      refusedAt(HEAD + "describe('a', { skip: true, todo: true, concurrency: true }, () => {})\n")
+        .length,
+      1,
+    )
+    assert.equal(
+      refusedAt(HEAD + "describe.skip('a', { only: true, concurrency: true }, () => {})\n").length,
+      1,
+    )
   })
 
   it('refuses the options with no native form, each at its line', () => {

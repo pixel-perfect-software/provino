@@ -274,13 +274,22 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
     }
   }
 
-  /** `{ skip, todo, only, timeout }` of a test or suite: the one modifier and the timeout text. */
+  /**
+   * `{ skip, todo, only, timeout }` of a test or suite: the one modifier and the timeout text. A
+   * suite's `{ concurrency: true }` is `concurrent: true` (the native `describe.concurrent`, which
+   * chains with each modifier) and `false` or `1`, node:test's serial, is `concurrent: false`
+   * (`{ concurrent: false }`, written whatever is around it: a describe under none is serial
+   * either way, and under a concurrent one node:test and Provino both make it follow its parent
+   * unless it says so). Any other value, and `concurrency` on a test, has no native form.
+   */
   function optionsPlan(
     options: AstNode,
     modified: boolean,
-  ): { mod: Mod | undefined; timeout: string | undefined } {
+    role: Registration['role'],
+  ): { mod: Mod | undefined; timeout: string | undefined; concurrent: boolean | undefined } {
     const mods: Mod[] = []
     let timeout: string | undefined
+    let concurrent: boolean | undefined
     for (const prop of listOf(options, 'properties')) {
       const key = nodeOf(prop, 'key')
       const keyName = get(prop, 'computed') === true ? null : (nameOf(key) ?? stringValue(key))
@@ -300,6 +309,16 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
       } else if (keyName === 'skip') {
         if (literal && !get(value, 'value')) continue
         mods.push(literal ? { kind: 'skip' } : { kind: 'skipIf', condition: text(value) })
+      } else if (keyName === 'concurrency' && role === 'suite') {
+        const flag = literal ? get(value, 'value') : undefined
+        if (flag === true || flag === false) concurrent = flag
+        else if (flag === 1) concurrent = false
+        else {
+          refuse(
+            prop,
+            'describe option concurrency other than a literal true or false (1 is false; any other number, a string, an expression) has no native equivalent',
+          )
+        }
       } else if (keyName === 'todo' || keyName === 'only') {
         if (literal && !get(value, 'value')) continue
         if (literal) mods.push({ kind: keyName })
@@ -311,7 +330,7 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
     if (mods.length > 1 || (mods.length > 0 && modified)) {
       refuse(options, 'more than one skip, todo or only on one test')
     }
-    return { mod: mods[0], timeout }
+    return { mod: mods[0], timeout, concurrent }
   }
 
   /**
@@ -391,15 +410,25 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
     const [options, ...extra] = fn === null ? rest : rest.slice(0, -1)
     if (options !== undefined && name !== undefined) {
       if (options.type === 'ObjectExpression') {
-        const { mod, timeout } = optionsPlan(options, reg.modified)
-        if (mod !== undefined) {
-          edited.appendLeft(
-            reg.base.end,
-            mod.kind === 'skipIf' ? `.skipIf(${mod.condition})` : `.${mod.kind}`,
-          )
+        const { mod, timeout, concurrent } = optionsPlan(options, reg.modified, reg.role)
+        const modifier =
+          mod === undefined
+            ? ''
+            : mod.kind === 'skipIf'
+              ? `.skipIf(${mod.condition})`
+              : `.${mod.kind}`
+        // At the callee's end: `describe` or an already modified `describe.skip` (which then has no
+        // modifier of its own in the options: that was refused above).
+        const callee = nodeOf(call, 'callee')
+        if (callee !== null && (modifier !== '' || concurrent === true)) {
+          edited.appendLeft(callee.end, modifier + (concurrent === true ? '.concurrent' : ''))
         }
-        if (timeout === undefined) edited.remove(name.end, options.end)
-        else edited.overwrite(options.start, options.end, `{ timeout: ${timeout} }`)
+        const kept = [
+          ...(concurrent === false ? ['concurrent: false'] : []),
+          ...(timeout === undefined ? [] : [`timeout: ${timeout}`]),
+        ]
+        if (kept.length === 0) edited.remove(name.end, options.end)
+        else edited.overwrite(options.start, options.end, `{ ${kept.join(', ')} }`)
       } else {
         refuse(options, 'options that are not an object literal')
       }

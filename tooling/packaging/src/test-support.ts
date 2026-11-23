@@ -1,12 +1,12 @@
-// Helpers shared by the tests. Not a test file: `node --test` runs only `*.test.ts`.
+// Helpers shared by the tests. Not a test file: the runner discovers only `*.test.ts`.
 import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after } from 'node:test'
+import { afterAll } from 'provino'
 
 const scratch: string[] = []
-after(() => {
+afterAll(() => {
   for (const dir of scratch) rmSync(dir, { recursive: true, force: true })
 })
 

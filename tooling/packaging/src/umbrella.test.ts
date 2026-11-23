@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { binScript, runCommand } from './exec.ts'
 import { ADD_ONS, INTERNAL_ENTRIES } from './internal-entries.ts'
 import { readManifest } from './package-json.ts'

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import {
   ADD_ONS,
   INTERNAL_ENTRIES,

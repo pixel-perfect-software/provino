@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { readFile, realpath } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { scratchDir } from '../test-support.ts'
 import { diffRecords } from './node-test-compare.ts'
 import {

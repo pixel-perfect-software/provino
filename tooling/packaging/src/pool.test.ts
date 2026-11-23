@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { mapPool } from './pool.ts'
 
 /** Lets every task that can run, run: a turn of the event loop, not a wait. */

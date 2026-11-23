@@ -2,7 +2,7 @@
 // with no release tag, and publint and attw refuse a pack whose entry points don't resolve.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { type ApiEntry, extract, publicApiChanged, reportBlocks } from './api-reports.ts'
 import { attwTarball, lintPackAsync, publintTarball } from './lint-pack.ts'
 import { packPackage, packPackageAsync } from './pack.ts'
@@ -28,8 +28,6 @@ function entryOf(pkg: WorkspacePackage): ApiEntry {
   }
 }
 
-const work = scratchDir('api-work')
-
 describe('API Extractor gate (T1.6)', () => {
   test('an export with no release tag fails, naming it', () => {
     const pkg = plantedPackage(
@@ -44,7 +42,7 @@ describe('API Extractor gate (T1.6)', () => {
         ].join('\n'),
       },
     )
-    const result = extract(entryOf(pkg), work)
+    const result = extract(entryOf(pkg), scratchDir('api-work'))
     assert.equal(result.errors.length, 1, result.errors.join('\n'))
     assert.match(result.errors[0] ?? '', /ae-missing-release-tag: "untagged"/)
   })
@@ -62,7 +60,7 @@ describe('API Extractor gate (T1.6)', () => {
         ].join('\n'),
       },
     )
-    const result = extract(entryOf(pkg), work)
+    const result = extract(entryOf(pkg), scratchDir('api-work'))
     assert.deepEqual(result.errors, [])
     assert.deepEqual(
       reportBlocks(result.report ?? '').flatMap((block) =>
@@ -115,9 +113,9 @@ describe('publint and attw gate (T1.6)', () => {
     files: ['dist'],
     exports: { '.': { types: './dist/index.d.ts', import: './dist/index.js' } },
   }
-  const out = scratchDir('packs')
 
   test('a package whose entry points resolve passes both', () => {
+    const out = scratchDir('packs')
     const pkg = plantedPackage(good, {
       'dist/index.js': 'export const a = 1\n',
       'dist/index.d.ts': 'export declare const a: 1\n',
@@ -128,6 +126,7 @@ describe('publint and attw gate (T1.6)', () => {
   })
 
   test('a types condition that names a file the pack lacks fails publint', () => {
+    const out = scratchDir('packs')
     const pkg = plantedPackage(
       { ...good, name: '@provino/planted-no-types' },
       { 'dist/index.js': 'export const a = 1\n' },
@@ -136,6 +135,7 @@ describe('publint and attw gate (T1.6)', () => {
   })
 
   test('an entry point an ES module cannot import fails attw', () => {
+    const out = scratchDir('packs')
     // Only `require` and `types`: no condition an `import` matches, so ESM resolution finds nothing.
     const pkg = plantedPackage(
       {
@@ -149,6 +149,7 @@ describe('publint and attw gate (T1.6)', () => {
   })
 
   test('an entry point written in CommonJS under "type": "module" fails publint', () => {
+    const out = scratchDir('packs')
     const pkg = plantedPackage(
       { ...good, name: '@provino/planted-cjs' },
       {
@@ -161,6 +162,7 @@ describe('publint and attw gate (T1.6)', () => {
   })
 
   test('the async path hygiene takes finds what the sync one does', async () => {
+    const out = scratchDir('packs')
     const clean = plantedPackage(
       { ...good, name: '@provino/planted-async-good' },
       {

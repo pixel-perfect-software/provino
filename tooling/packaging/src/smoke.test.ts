@@ -1,7 +1,7 @@
 // The native case of `pnpm smoke:install` (B27e, acceptance row 9): its tree check, its project,
 // and that it runs by default since B27f's install split (D187).
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import {
   bannedInTree,
   NATIVE_SMOKE_FILES,

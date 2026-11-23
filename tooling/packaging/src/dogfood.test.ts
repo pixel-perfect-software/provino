@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { availableParallelism } from 'node:os'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import {
   bootstrapFiles,
   isIncludedTestFile,
