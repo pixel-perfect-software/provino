@@ -147,6 +147,35 @@ test('a link that throws partway still gets its async graphs marked by the next 
   assert.throws(() => registry.require(join(root, 'half.ts')), { code: 'ERR_REQUIRE_ASYNC_MODULE' })
 })
 
+// Tyler, 2026-11-23 (B27h2, speed): the neutral policy uses Node's interop, so a project with no
+// dialect sees exactly what Node gives it. Neither fixture names an interop: the neutral value decides.
+test('the neutral policy has Node’s interop: import x from an __esModule CommonJS module is module.exports', async () => {
+  const root = writeTree({
+    'esm-shaped.cjs':
+      "Object.defineProperty(exports, '__esModule', { value: true })\nexports.default = 'inner default'\nexports.named = 'named'\n",
+    'entry.test.ts':
+      "import shaped, * as ns from './esm-shaped.cjs'\nexport { shaped }\nexport const nsDefault: unknown = ns.default\n",
+  })
+  const entry = join(root, 'entry.test.ts')
+  const loaded = await loaderFor(root)
+    .createFileRegistry(entry, { tier: 'registry' })
+    .import<{ shaped: { default: string; named: string }; nsDefault: unknown }>(entry)
+  assert.deepEqual({ ...loaded.shaped }, { default: 'inner default', named: 'named' })
+  assert.equal(loaded.nsDefault, loaded.shaped)
+})
+
+test('the neutral policy has Node’s interop: import() of a builtin is a module namespace object', async () => {
+  const root = writeTree({
+    'entry.test.ts':
+      "import { types } from 'node:util'\nexport const isNamespace: boolean = types.isModuleNamespaceObject(await import('node:path'))\n",
+  })
+  const entry = join(root, 'entry.test.ts')
+  const loaded = await loaderFor(root)
+    .createFileRegistry(entry, { tier: 'registry' })
+    .import<{ isNamespace: boolean }>(entry)
+  assert.equal(loaded.isNamespace, true)
+})
+
 test('CommonJS user modules: require, module.exports and the default interop', async () => {
   const files = {
     'lib.cjs':
