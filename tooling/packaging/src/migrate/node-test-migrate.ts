@@ -6,6 +6,13 @@
 import { existsSync } from 'node:fs'
 import { glob, mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
+import {
+  BOOTSTRAP_FILE,
+  bootstrapFiles,
+  INCLUDE_GLOBS,
+  isMigratedScript,
+  PACKAGE_CONFIG,
+} from '../dogfood.ts'
 import { readManifest } from '../package-json.ts'
 import { ROOT, readWorkspacePackages } from '../workspace.ts'
 import { MigrateError } from './errors.ts'
@@ -128,18 +135,17 @@ export function findPackage(name: string, root: string = ROOT): string {
  * The files that stay on node:test (B27g2: `tooling/provino/bootstrap.json`), relative to the
  * package; `rewrite` leaves them alone, so the baseline and the files agree on what is migrated.
  */
-async function bootstrapFiles(root: string, packageDir: string): Promise<ReadonlySet<string>> {
-  let text: string
+function stayingOnNodeTest(root: string, packageDir: string): ReadonlySet<string> {
+  let files: readonly string[]
   try {
-    text = await readFile(join(root, 'tooling/provino/bootstrap.json'), 'utf8')
+    files = bootstrapFiles(root)
   } catch (cause) {
     if ((cause as { code?: string }).code === 'ENOENT') return new Set()
-    throw new MigrateError('MIGRATE_BASELINE', 'cannot read tooling/provino/bootstrap.json', {
+    throw new MigrateError('MIGRATE_BASELINE', `cannot read ${BOOTSTRAP_FILE}`, {
       cause,
     })
   }
-  const files = (JSON.parse(text) as { files?: Record<string, string> }).files ?? {}
-  return new Set(Object.keys(files).map((file) => relative(packageDir, join(root, file))))
+  return new Set(files.map((file) => relative(packageDir, join(root, file))))
 }
 
 /** The package's test files: what its script's globs match, sorted, once each. */
@@ -171,6 +177,8 @@ export interface RewriteReport {
   readonly rewritten: readonly string[]
   /** Tests recorded into the baseline for the files rewritten now. */
   readonly baselineTests: number
+  /** With no node:test file (`candidates` is 0): a baseline exists and was left as it is. */
+  readonly baselineKept: boolean
 }
 
 /** @internal */
@@ -184,9 +192,13 @@ export async function rewritePackage(options: {
     realpath(options.root),
     realpath(options.packageDir),
   ])
-  const script = parseTestScript(readManifest(packageDir).scripts.test)
-  const staying = await bootstrapFiles(root, packageDir)
-  const files = (await testFiles(packageDir, script.globs)).filter((file) => !staying.has(file))
+  const scriptText = readManifest(packageDir).scripts.test
+  const script = parseTestScript(scriptText)
+  // An already-migrated package's script runs the runner, so its files are found by the include
+  // rule its config uses, not by the script's globs (which name only the bootstrap files).
+  const globs = isMigratedScript(scriptText) ? INCLUDE_GLOBS : script.globs
+  const staying = stayingOnNodeTest(root, packageDir)
+  const files = (await testFiles(packageDir, globs)).filter((file) => !staying.has(file))
   const results = await Promise.all(
     files.map(async (file) => {
       const source = await readFile(join(packageDir, file), 'utf8')
@@ -196,18 +208,27 @@ export async function rewritePackage(options: {
   const refusals = results.flatMap((result) => result.refusals)
   const changed = results.filter((result) => result.changed)
   const candidates = results.filter((result) => result.changed || result.refusals.length > 0).length
+  const target = baselinePath(options.cacheDir, packageDir, root)
   if (refusals.length > 0 || options.dryRun || changed.length === 0) {
-    return { candidates, refusals, rewritten: [], baselineTests: 0 }
+    return {
+      candidates,
+      refusals,
+      rewritten: [],
+      baselineTests: 0,
+      baselineKept: candidates === 0 && (await readBaseline(target)) !== undefined,
+    }
   }
 
-  const target = baselinePath(options.cacheDir, packageDir, root)
   const previous = (await readBaseline(target))?.files ?? {}
   const names = changed.map((result) => result.file)
   const records = await recordNodeTest(packageDir, names, script.flags)
   const fresh = new Map<string, TestRecord[]>(names.map((name) => [name, []]))
   for (const record of records) fresh.get(record.file)?.push(record)
-  // Files migrated before stay; entries for files that are gone, or are being recorded now, go.
-  const kept = Object.entries(previous).filter(([file]) => files.includes(file) && !fresh.has(file))
+  // Files migrated before stay, bootstrapped ones too (verify leaves those out); only entries for
+  // files that are gone from disk, or being recorded now, go: a baseline never loses a file otherwise.
+  const kept = Object.entries(previous).filter(
+    ([file]) => existsSync(join(packageDir, file)) && !fresh.has(file),
+  )
   await writeBaseline(target, {
     package: relative(root, packageDir),
     nodeVersion: process.version,
@@ -229,7 +250,13 @@ export async function rewritePackage(options: {
       { cause },
     )
   }
-  return { candidates, refusals, rewritten: names, baselineTests: records.length }
+  return {
+    candidates,
+    refusals,
+    rewritten: names,
+    baselineTests: records.length,
+    baselineKept: true,
+  }
 }
 
 /**
@@ -238,6 +265,10 @@ export async function rewritePackage(options: {
  */
 export interface VerifyReport {
   readonly tests: number
+  /** Baseline files left out because they are in the bootstrap set (they stay on node:test). */
+  readonly leftOutFiles: number
+  /** The tests those files held. */
+  readonly leftOutTests: number
   readonly difference: Difference
 }
 
@@ -261,13 +292,34 @@ export async function verifyPackage(options: {
       `no baseline at ${target}: run rewrite on this package first`,
     )
   }
-  const files = Object.keys(baseline.files).sort()
+  const staying = stayingOnNodeTest(root, packageDir)
+  const all = Object.keys(baseline.files).sort()
+  const files = all.filter((file) => !staying.has(file))
+  const left = all.filter((file) => staying.has(file))
+  const leftOutTests = left.reduce((sum, file) => sum + (baseline.files[file]?.length ?? 0), 0)
   const before = files.flatMap((file) => baseline.files[file] ?? [])
-  const after = await recordProvino({
-    packageDir,
-    files,
-    runner: options.runner,
-    config: options.config,
-  })
-  return { tests: before.length, difference: diffRecords(before, after) }
+  if (before.length === 0) {
+    throw new MigrateError(
+      'MIGRATE_ALL_BOOTSTRAPPED',
+      `every migrated file is in the bootstrap set (${left.length} file(s) in the baseline at ${target}); nothing runs on Provino`,
+    )
+  }
+  // The package's own config (its timeouts, D194) when it has one: it runs the whole package, so
+  // only the files the baseline holds are compared.
+  const own = join(packageDir, PACKAGE_CONFIG)
+  const wanted = new Set(files)
+  const after = (
+    await recordProvino({
+      packageDir,
+      files,
+      runner: options.runner,
+      config: options.config ?? (existsSync(own) ? own : undefined),
+    })
+  ).filter((record) => wanted.has(record.file))
+  return {
+    tests: before.length,
+    leftOutFiles: left.length,
+    leftOutTests,
+    difference: diffRecords(before, after),
+  }
 }
