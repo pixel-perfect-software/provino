@@ -5,9 +5,9 @@
 import assert from 'node:assert/strict'
 import { writeFile } from 'node:fs/promises'
 import type { Writable } from 'node:stream'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { Collect, makeProject, startCli, trackedProjects } from './support.ts'
-import { FakeStdin, FakeTerminal, watcherSkip } from './watch-goldens.ts'
+import { FakeStdin, FakeTerminal, skipped } from './watch-goldens.ts'
 
 interface WatchIo {
   readonly stdin?: unknown
@@ -376,12 +376,11 @@ function seen(stream: NodeJS.ReadableStream | null, pattern: RegExp, count: numb
   })
 }
 
-describe('the bin under --watch', async () => {
-  const skip = await watcherSkip()
+describe('the bin under --watch', () => {
   it('reruns on a real file change, and SIGINT ends it with 130', {
-    skip,
     timeout: 120_000,
-  }, async () => {
+  }, async (t) => {
+    if (await skipped(t, false)) return
     const project = await makeWatchProject(FILES, CONFIG)
     const cli = startCli(['run', '--config', project.config, '--watch'], {
       cwd: project.dir,

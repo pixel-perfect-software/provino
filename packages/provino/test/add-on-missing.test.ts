@@ -8,13 +8,14 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { describe, test } from 'provino'
 import {
   childEnv,
   copyBuiltPackage,
   linkDependencies,
   linkProvino,
+  once,
   packageCopy,
   runBuilt,
   scratch,
@@ -55,27 +56,32 @@ const VITEST_LINE = `Provino: the vitest dialect needs @provino/dialect-vitest, 
 const jestTest = "test('adds', () => { expect(1 + 1).toBe(2) })\n"
 
 describe('provino installed without an add-on (B27f, D187)', () => {
-  const pkg = packageCopy('without-add-ons')
+  // The copy is made by the first test that needs it, not as the file loads (a listing imports it).
+  const alone = once(() => packageCopy('without-add-ons'))
 
   test('provino jest prints the install line, exit 1, no stack', () => {
+    const pkg = alone()
     const run = bin(pkg, project(pkg, { 'a.test.js': jestTest }), ['jest', '--ci'])
     assert.equal(run.status, 1, run.stderr)
     assert.equal(run.stderr, JEST_LINE)
   })
 
   test('a jest.config with bare provino is the same line', () => {
+    const pkg = alone()
     const run = bin(pkg, project(pkg, { 'jest.config.json': '{}\n', 'a.test.js': jestTest }), [])
     assert.equal(run.status, 1, run.stderr)
     assert.equal(run.stderr, JEST_LINE)
   })
 
   test('provino vitest prints the install line, exit 1, no stack', () => {
+    const pkg = alone()
     const run = bin(pkg, project(pkg, { 'vitest.config.json': '{}\n' }), ['vitest', 'run'])
     assert.equal(run.status, 1, run.stderr)
     assert.equal(run.stderr, VITEST_LINE)
   })
 
   test('bare provino on a vite.config with no Vitest add-on: no config, exit 2, and the pinned install hint', () => {
+    const pkg = alone()
     // Whatever the file says (a `test` key, or a plugin option named `test`), only the add-on can
     // read it: the walk's own error, with one line on how to let it.
     const hint = `a vite.config.* was found, and whether it declares tests takes the Vitest dialect to read: pnpm add -D @provino/dialect-vitest@${VERSION}`
@@ -92,6 +98,7 @@ describe('provino installed without an add-on (B27f, D187)', () => {
   })
 
   test("a provino.config that names dialect: 'jest' is the Jest line, exit 1", () => {
+    const pkg = alone()
     const dir = project(pkg, {
       'provino.config.ts': "export default { dialect: 'jest', include: ['*.test.js'] }\n",
       'a.test.js': jestTest,
@@ -102,6 +109,7 @@ describe('provino installed without an add-on (B27f, D187)', () => {
   })
 
   test("a config that imports provino/jest is the Jest line, exit 1 (Node's ERR_MODULE_NOT_FOUND mapped)", () => {
+    const pkg = alone()
     const dir = project(pkg, {
       'provino.config.ts':
         "import { jestDialect } from 'provino/jest'\nvoid jestDialect\nexport default { include: ['*.test.js'] }\n",
@@ -113,6 +121,7 @@ describe('provino installed without an add-on (B27f, D187)', () => {
   })
 
   test("a native config with a typo'd key is the config's own error, not the install line", () => {
+    const pkg = alone()
     const run = bin(
       pkg,
       project(pkg, { 'provino.config.ts': "export default { inclde: ['*.test.ts'] }\n" }),
@@ -124,6 +133,7 @@ describe('provino installed without an add-on (B27f, D187)', () => {
   })
 
   test("dialect: 'vitest' in a provino config is the config's refusal, not the Jest line", () => {
+    const pkg = alone()
     const run = bin(
       pkg,
       project(pkg, { 'provino.config.ts': "export default { dialect: 'vitest' }\n" }),
@@ -135,6 +145,7 @@ describe('provino installed without an add-on (B27f, D187)', () => {
   })
 
   test('an add-on of another version is refused before it links: one line, the pinned install, exit 1', () => {
+    const pkg = alone()
     // A stand-in add-on in the project (its version not provino's) that would fail if it loaded.
     // provino is outside the project, so finding it at all is the project-root resolution.
     const dir = project(pkg, {
@@ -156,6 +167,7 @@ describe('provino installed without an add-on (B27f, D187)', () => {
   })
 
   test('the control: a native project runs with no add-on installed', () => {
+    const pkg = alone()
     const dir = project(pkg, {
       'provino.config.ts': "export default { include: ['*.test.ts'] }\n",
       'a.test.ts':
@@ -172,26 +184,32 @@ describe("the add-on's provino is the one running (B27f, D187)", () => {
   // project's own: `root/proj` has its own `provino` and the Jest add-on (whose peer is that copy),
   // `root/global` the other. Third-party packages are linked at `root`, so both copies and the
   // add-on find them by walking up.
-  const root = scratch('provino-two-copies-')
-  linkDependencies(PACKAGE, root, ['@provino'])
-  const dialect = realpathSync(join(PACKAGE, 'node_modules', '@provino', 'dialect-jest'))
-  linkDependencies(dialect, root, ['@provino', 'provino'])
-  const own = copyBuiltPackage(join(root, 'proj', 'node_modules', 'provino'))
-  const addOn = join(root, 'proj', 'node_modules', '@provino', 'dialect-jest')
-  copyBuiltPackage(addOn, dialect)
-  const global = copyBuiltPackage(join(root, 'global', 'node_modules', 'provino'))
-  const proj = writeProject(join(root, 'proj'), {
-    'a.test.js': jestTest,
-    'b.test.js': "test('equal', () => { expect({ a: 1 }).toEqual({ a: 1 }) })\n",
+  // Built by the first test that needs it, not as the file loads (a listing imports it).
+  const copies = once(() => {
+    const root = scratch('provino-two-copies-')
+    linkDependencies(PACKAGE, root, ['@provino'])
+    const dialect = realpathSync(join(PACKAGE, 'node_modules', '@provino', 'dialect-jest'))
+    linkDependencies(dialect, root, ['@provino', 'provino'])
+    const own = copyBuiltPackage(join(root, 'proj', 'node_modules', 'provino'))
+    const addOn = join(root, 'proj', 'node_modules', '@provino', 'dialect-jest')
+    copyBuiltPackage(addOn, dialect)
+    const global = copyBuiltPackage(join(root, 'global', 'node_modules', 'provino'))
+    const proj = writeProject(join(root, 'proj'), {
+      'a.test.js': jestTest,
+      'b.test.js': "test('equal', () => { expect({ a: 1 }).toEqual({ a: 1 }) })\n",
+    })
+    return { root, dialect, own, global, proj }
   })
 
   test("the project's own provino runs it (the control)", () => {
+    const { own, proj } = copies()
     const run = bin(own, proj, ['jest', '--ci'])
     assert.equal(run.status, 0, run.stderr)
     assert.match(run.stderr, /Tests:\s+2 passed, 2 total/)
   })
 
   test('another copy is refused before the add-on links: one line naming both, exit 1', () => {
+    const { global, own, proj } = copies()
     const run = bin(global, proj, ['jest', '--ci'])
     assert.equal(run.status, 1, run.stderr)
     assert.equal(
@@ -201,6 +219,7 @@ describe("the add-on's provino is the one running (B27f, D187)", () => {
   })
 
   test('an add-on with no provino peer installed is one line too', () => {
+    const { root, dialect } = copies()
     // The project's provino removed: the add-on's `provino/internal/*` imports would find none.
     const bare = scratch('provino-no-peer-')
     linkDependencies(root, bare)

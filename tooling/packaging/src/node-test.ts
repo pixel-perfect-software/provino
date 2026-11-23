@@ -9,6 +9,7 @@
 import { spawnSync } from 'node:child_process'
 import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import { SHARD_VARIABLE, shardOf } from './dogfood.ts'
 
 /**
  * The arguments for `node`: `--test`, the shard flag when there is a shard, then the rest.
@@ -18,18 +19,15 @@ export function nodeTestArgs(
   shard: string | undefined,
   args: readonly string[],
 ): readonly string[] {
-  if (shard === undefined || shard === '') return ['--test', ...args]
-  if (!/^[1-9]\d*\/[1-9]\d*$/.test(shard)) {
-    throw new RangeError(`PROVINO_TEST_SHARD must be <n>/<of>, got ${shard}`)
-  }
-  return ['--test', `--test-shard=${shard}`, ...args]
+  const of = shardOf(shard)
+  return of === undefined ? ['--test', ...args] : ['--test', `--test-shard=${of}`, ...args]
 }
 
 const entry = process.argv[1]
 if (entry !== undefined && realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))) {
   const result = spawnSync(
     process.execPath,
-    nodeTestArgs(process.env.PROVINO_TEST_SHARD, process.argv.slice(2)),
+    nodeTestArgs(process.env[SHARD_VARIABLE], process.argv.slice(2)),
     { stdio: 'inherit' },
   )
   process.exitCode = result.status ?? 1

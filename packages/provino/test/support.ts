@@ -2,7 +2,7 @@
 // committed, D13), a collecting stream, and a deadline for child processes.
 import assert from 'node:assert/strict'
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process'
-import { once } from 'node:events'
+import { once as nextEvent } from 'node:events'
 import {
   cpSync,
   existsSync,
@@ -18,10 +18,68 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
-import { after } from 'node:test'
+import { after, describe as nodeDescribe, it as nodeIt } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { OUTPUT_VARIABLES } from '@provino/reporters'
+import type { ProvinoApi } from 'provino'
 import { killGroup } from './sweep.ts'
+
+/** What the helpers here and in `recorded-run.ts` register on: the runner running the file. */
+export interface TestRunner {
+  readonly describe: (name: string, fn: () => void) => unknown
+  readonly it: (name: string, fn: () => Promise<void>) => unknown
+  readonly afterAll: (fn: () => Promise<void>) => unknown
+}
+
+/**
+ * The runner that loaded this file. A Provino worker installs its native API at
+ * `Symbol.for('provino.api')` (`PROVINO_API_SLOT`, `@provino/api`) as it boots, before any test file
+ * loads; node:test installs nothing there. The bootstrap set keeps some of this package's files on
+ * node:test (the canary always), and both halves import these helpers, so a helper that registers a
+ * hook or a test asks this instead of importing one runner. The slot is read, not `provino`
+ * imported, so a node:test file loads none of the runner it checks.
+ */
+export function testRunner(): TestRunner {
+  const api = Reflect.get(globalThis, Symbol.for('provino.api')) as ProvinoApi | undefined
+  if (api === undefined) return { describe: nodeDescribe, it: nodeIt, afterAll: after }
+  return { describe: api.describe, it: api.it, afterAll: api.afterAll }
+}
+
+/**
+ * What the helpers below made for the file that imported this module, removed once its tests are
+ * done. The one hook is registered here, as the file loads (this module is evaluated once per test
+ * file on either runner), so a helper may be called from a test, a describe body or a memoised
+ * value a later test reuses, and its cleanup is the file's either way.
+ */
+const madeForFile: (() => unknown)[] = []
+testRunner().afterAll(async () => {
+  // Every cleanup runs, whatever another's fate: one that fails must not leave the rest behind.
+  const settled = await Promise.allSettled(madeForFile.splice(0).map(async (cleanup) => cleanup()))
+  const failed = settled.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []))
+  if (failed.length > 0) {
+    throw new AggregateError(
+      failed,
+      `${failed.length} cleanup(s) of this file failed: ${failed.map((reason) => (reason instanceof Error ? reason.message : String(reason))).join('; ')}`,
+    )
+  }
+})
+
+/** Runs `cleanup` when the importing file's tests are done (see `madeForFile`). */
+export function whenFileEnds(cleanup: () => unknown): void {
+  madeForFile.push(cleanup)
+}
+
+/**
+ * `make`, called by the first caller and its value kept for the rest: a resource a file's tests
+ * share is made by the first test that needs it, never as the file loads (a listing imports it).
+ */
+export function once<T>(make: () => T): () => T {
+  let made: { readonly value: T } | undefined
+  return () => {
+    made ??= { value: make() }
+    return made.value
+  }
+}
 
 // What picks the reporters, and whether the text is coloured, comes from the environment: an agent
 // (`CLAUDECODE`, `AI_AGENT`, ...) gets the `agent` reporter, GitHub Actions gets `github-actions`
@@ -38,13 +96,25 @@ export const QUIET_ENV: Readonly<Record<string, string | undefined>> = {}
 const AGENT_PATH = /\.pi[\\/]agent/
 
 /**
+ * The package script running this suite, as npm and pnpm set it. Jest's Snapshot Summary names
+ * the update command from them (`jestUpdateCommand`: `run \`npm test -- -u\`` when the script's
+ * text names jest, else `re-run jest with \`-u\``), and this package's own `test` script names
+ * its bootstrap files (`test/jest-colour.test.ts`, …), so under `pnpm test` a child would print
+ * the npm hint where every recording has Jest's.
+ */
+const SCRIPT_VARIABLES: readonly string[] = ['npm_lifecycle_event', 'npm_lifecycle_script']
+
+/**
  * `env` without anything `detectOutput` reads (`OUTPUT_VARIABLES`: `CI`, `TERM`, the colour
- * switches, `GITHUB_ACTIONS`, the agent variables) or the workspace `github-actions` reads, and
- * without the `PATH` entry that names an agent. A child process starts from this.
+ * switches, `GITHUB_ACTIONS`, the agent variables), the workspace `github-actions` reads or the
+ * update hint reads (`SCRIPT_VARIABLES`), and without the `PATH` entry that names an agent. A
+ * child process starts from this.
  */
 export function outputFree(env: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
   const kept = { ...env }
-  for (const name of [...OUTPUT_VARIABLES, 'GITHUB_WORKSPACE']) delete kept[name]
+  for (const name of [...OUTPUT_VARIABLES, 'GITHUB_WORKSPACE', ...SCRIPT_VARIABLES]) {
+    delete kept[name]
+  }
   if (kept.PATH !== undefined) {
     kept.PATH = kept.PATH.split(delimiter)
       .filter((entry) => !AGENT_PATH.test(entry))
@@ -197,16 +267,12 @@ export async function makeProject(files: ProjectFiles, config: string = CONFIG):
 
 /**
  * A maker of projects for one test file: each project it makes is removed once the file's tests
- * are done. It registers its own `after`, so call it once, at the top of the file.
+ * are done (`whenFileEnds`).
  */
 export function trackedProjects(): typeof makeProject {
-  const made: Project[] = []
-  after(async () => {
-    await Promise.all(made.map((project) => project.cleanup()))
-  })
   return async (files, config) => {
     const project = await makeProject(files, config)
-    made.push(project)
+    whenFileEnds(project.cleanup)
     return project
   }
 }
@@ -346,7 +412,7 @@ export function startCli(args: readonly string[], options: CliOptions = {}): Liv
     if (detached) killGroup(pgid)
     else child.kill('SIGKILL')
   }, deadlineMs)
-  const exited = once(child, 'exit').then(([code, signal]) => {
+  const exited = nextEvent(child, 'exit').then(([code, signal]) => {
     clearTimeout(deadline)
     return { code: code as number | null, signal: signal as NodeJS.Signals | null }
   })
@@ -581,7 +647,7 @@ export function copyBuiltPackage(target: string, from: string = PACKAGE_DIR): st
 /** A temp directory (by its real path: macOS's `$TMPDIR` is a link) removed when the file ends. */
 export function scratch(prefix: string): string {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), prefix)))
-  after(() => rmSync(dir, { recursive: true, force: true }))
+  whenFileEnds(() => rmSync(dir, { recursive: true, force: true }))
   return dir
 }
 
@@ -620,7 +686,7 @@ export function linkDependencies(from: string, to: string, except: readonly stri
  */
 export function packageCopy(modules: 'all' | 'without-add-ons' = 'all'): string {
   const copy = realpathSync(mkdtempSync(join(tmpdir(), 'provino-copy-')))
-  after(() => rmSync(copy, { recursive: true, force: true }))
+  whenFileEnds(() => rmSync(copy, { recursive: true, force: true }))
   copyBuiltPackage(copy)
   if (modules === 'all')
     symlinkSync(join(PACKAGE_DIR, 'node_modules'), join(copy, 'node_modules'), 'dir')
@@ -641,7 +707,7 @@ export async function nativeProject(
   config: string = NATIVE_CONFIG,
 ): Promise<string> {
   const dir = mkdtempSync(join(tmpdir(), 'provino-native-'))
-  after(() => rm(dir, { recursive: true, force: true }))
+  whenFileEnds(() => rm(dir, { recursive: true, force: true }))
   const all: Record<string, string> = {
     'package.json': '{"type":"module"}\n',
     'provino.config.mjs': config,

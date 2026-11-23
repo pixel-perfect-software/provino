@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { hash } from 'node:crypto'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { type RunOptions, type RunResult, run } from 'provino/node'
 import { loadFixture, materialize } from './recorded.ts'
 import {

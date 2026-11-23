@@ -3,12 +3,12 @@
 // Error's class and message with no path added, a thrown string as the string.
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import { assertMatchesGolden, linkEnvironments, provinoOn, WORK } from './recorded-run.ts'
 
 const PARENT = join(WORK, 'transform-error-text')
 
-after(async () => {
+afterAll(async () => {
   await rm(PARENT, { recursive: true, force: true })
 })
 

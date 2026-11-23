@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { loadFixture, materialize } from './recorded.ts'
 import { spawnCli } from './support.ts'
 

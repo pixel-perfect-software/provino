@@ -9,9 +9,16 @@
 // build` (turbo's `test` builds first).
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
-import { describe, it } from 'node:test'
 import { isCi } from '@provino/reporters'
-import { BUILT_BIN, interactiveEnv, jestConfigJson, passing, trackedProjects } from './support.ts'
+import { describe, it } from 'provino'
+import {
+  BUILT_BIN,
+  interactiveEnv,
+  jestConfigJson,
+  once,
+  passing,
+  trackedProjects,
+} from './support.ts'
 
 /** The harness's terminal pieces, loaded by path: `provino` may not import `@provino/harness`. */
 const HARNESS = new URL('../../harness/src/', import.meta.url)
@@ -60,7 +67,25 @@ async function terminalSkip(): Promise<string | false> {
   return `${reason} (a sandbox): CI runs these`
 }
 
-const skip = await terminalSkip()
+/**
+ * `terminalSkip`, probed once by the first test that asks (a probe at import would run on every
+ * listing of this file). Where the sandbox has no terminal, it says so in the output, not only in
+ * the skip. A probe of its own, not `watch-goldens.ts`'s: it also needs the built bin.
+ */
+const probe = once(() =>
+  terminalSkip().then((reason) => {
+    if (reason !== false) process.stderr.write(`provino-reporter-terminal: skipped: ${reason}\n`)
+    return reason
+  }),
+)
+
+/** Whether this test can't run here: it then skips itself (`t.skip(reason)`) and the caller returns. */
+async function skipped(t: { skip(note: string): unknown }): Promise<boolean> {
+  const reason = await probe()
+  if (reason === false) return false
+  t.skip(reason)
+  return true
+}
 const makeProject = trackedProjects()
 
 /** An interactive terminal: nothing that says CI, an agent or a colour choice. */
@@ -99,8 +124,9 @@ function assertRestored(output: string): void {
   assert.doesNotMatch(screen, / of \d+ files? /, `a status line is left:\n${screen}`)
 }
 
-describe('the provino reporter restores the terminal (B26 Phase 3)', { skip }, () => {
-  it('a normal end: hidden once before the first footer, shown once after the end card', async () => {
+describe('the provino reporter restores the terminal (B26 Phase 3)', () => {
+  it('a normal end: hidden once before the first footer, shown once after the end card', async (t) => {
+    if (await skipped(t)) return
     const project = await makeProject({
       'tests/a.test.js': passing('a'),
       'tests/b.test.js': passing('b'),
@@ -119,7 +145,8 @@ describe('the provino reporter restores the terminal (B26 Phase 3)', { skip }, (
     }
   })
 
-  it('a reporter that throws: exit 1, its error above the footer, the cursor shown', async () => {
+  it('a reporter that throws: exit 1, its error above the footer, the cursor shown', async (t) => {
+    if (await skipped(t)) return
     const project = await makeProject({
       'tests/a.test.js': passing('a'),
       'tests/b.test.js': passing('b'),
@@ -148,7 +175,8 @@ describe('the provino reporter restores the terminal (B26 Phase 3)', { skip }, (
     ['SIGHUP', 129],
     ['SIGQUIT', 131],
   ] as const) {
-    it(`${signal} mid-run: exit ${code}, the cursor shown, no footer left`, async () => {
+    it(`${signal} mid-run: exit ${code}, the cursor shown, no footer left`, async (t) => {
+      if (await skipped(t)) return
       const project = await makeProject({
         'tests/hang.test.js': HANGING,
         'tests/hang2.test.js': HANGING,
@@ -169,7 +197,8 @@ describe('the provino reporter restores the terminal (B26 Phase 3)', { skip }, (
     })
   }
 
-  it('a second signal within 1 s (the force path, process.exit): the cursor is still shown', async () => {
+  it('a second signal within 1 s (the force path, process.exit): the cursor is still shown', async (t) => {
+    if (await skipped(t)) return
     const project = await makeProject({
       'tests/hang.test.js': HANGING,
       'tests/hang2.test.js': HANGING,
@@ -190,6 +219,3 @@ describe('the provino reporter restores the terminal (B26 Phase 3)', { skip }, (
     }
   })
 })
-
-// Where the sandbox has no terminal, say so in the output, not only in the skip.
-if (skip !== false) process.stderr.write(`provino-reporter-terminal: skipped: ${skip}\n`)

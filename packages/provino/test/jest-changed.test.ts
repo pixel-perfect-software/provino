@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict'
 import { mkdir, readdir, readFile, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { commitAll, git, gitEnv, initRepo } from './hermetic-git.ts'
 import { FIXTURES, loadFixture, materialize, type RecordedFixture, underRoot } from './recorded.ts'
 import { spawnCli, withoutNodeNoise } from './support.ts'

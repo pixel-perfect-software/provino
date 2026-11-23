@@ -7,13 +7,13 @@ import { spawn } from 'node:child_process'
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import { commitAll, gitEnv, initRepo } from './hermetic-git.ts'
 import { JEST, noColorEnv } from './live-jest.ts'
 import { outputFree, spawnCli, withoutNodeNoise } from './support.ts'
 
 const made: string[] = []
-after(async () => {
+afterAll(async () => {
   for (const dir of made) await rm(dir, { recursive: true, force: true })
 })
 

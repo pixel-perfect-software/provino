@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import type { Json } from './mask.ts'
 import type { RecordedFixture, RecordedManifest } from './recorded.ts'
 import {
@@ -20,7 +20,7 @@ import {
 } from './recorded-run.ts'
 
 const made: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

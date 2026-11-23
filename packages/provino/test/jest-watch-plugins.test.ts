@@ -8,7 +8,7 @@ import assert from 'node:assert/strict'
 import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { loadFixture } from './recorded.ts'
 import {
   FakeStdin,
@@ -17,7 +17,7 @@ import {
   playOnTerminal,
   runJestCommand,
   SESSION_MS,
-  terminalSkip,
+  skipped,
 } from './watch-goldens.ts'
 
 const PLAY = { link: ['jest-watch-typeahead'] }
@@ -40,10 +40,10 @@ describe('provino jest --watch keys u and i and watch plugins, in this process',
   }
 })
 
-describe('provino jest --watch keys u and i and watch plugins, on a terminal', async () => {
-  const skip = await terminalSkip()
+describe('provino jest --watch keys u and i and watch plugins, on a terminal', () => {
   for (const name of IDS) {
-    it(`watch/${name}`, { skip, timeout: SESSION_MS + 30_000 }, async () => {
+    it(`watch/${name}`, { timeout: SESSION_MS + 30_000 }, async (t) => {
+      if (await skipped(t, true)) return
       await playOnTerminal(await loadFixture(`watch/${name}`), PLAY)
     })
   }

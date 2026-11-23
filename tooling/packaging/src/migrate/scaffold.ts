@@ -44,15 +44,58 @@ type Reference = { path: string }
 /** The `references` of a tsconfig, `[]` when it has none. */
 const referencesOf = (config: Json): Reference[] => (config.references ?? []) as Reference[]
 
-async function readJson(path: string): Promise<Json> {
+/**
+ * JSON text as tsc reads a tsconfig: `//` and `/* *\/` comments and trailing commas dropped,
+ * strings kept as written (a glob's `/*` or a URL's `//` inside one is text). `comments` says
+ * whether there were any: writing the file back would lose them.
+ */
+function stripJsonComments(text: string): { readonly json: string; readonly comments: boolean } {
+  let json = ''
+  let comments = false
+  for (let at = 0; at < text.length; at++) {
+    const char = text[at]
+    if (char === '"') {
+      const start = at
+      for (at++; at < text.length && text[at] !== '"'; at++) if (text[at] === '\\') at++
+      json += text.slice(start, at + 1)
+    } else if (char === '/' && text[at + 1] === '/') {
+      comments = true
+      while (at < text.length && text[at] !== '\n') at++
+      json += '\n'
+    } else if (char === '/' && text[at + 1] === '*') {
+      comments = true
+      const end = text.indexOf('*/', at + 2)
+      at = end < 0 ? text.length : end + 1
+      json += ' '
+    } else {
+      // A comma before the closing bracket is a trailing one: it is outside any string, since
+      // only whitespace follows it in what is kept.
+      if (char === ']' || char === '}') json = json.replace(/,(\s*)$/, '$1')
+      json += char
+    }
+  }
+  return { json, comments }
+}
+
+/**
+ * `text` as JSON: a tsconfig as tsc reads it (`comments`: comments and trailing commas allowed, and
+ * whether there were any), a `package.json` as Node reads it. A file with comments is never written
+ * back (`updateJson` refuses, naming the edit), so none is lost.
+ */
+function parseJson(
+  path: string,
+  text: string,
+  allowComments: boolean,
+): { readonly value: Json; readonly comments: boolean } {
+  const { json, comments } = allowComments
+    ? stripJsonComments(text)
+    : { json: text, comments: false }
   try {
-    return JSON.parse(await readFile(path, 'utf8')) as Json
+    return { value: JSON.parse(json) as Json, comments }
   } catch (cause) {
-    throw new MigrateError(
-      'MIGRATE_WRITE',
-      `cannot read ${path} as JSON (comments in it? edit by hand)`,
-      { cause },
-    )
+    throw new MigrateError('MIGRATE_WRITE', `cannot read ${path} as JSON: edit it by hand`, {
+      cause,
+    })
   }
 }
 
@@ -61,35 +104,81 @@ const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`
 /** The path from `from` to `to` with `/` separators, as a tsconfig and the root's keys write it. */
 const posixRelative = (from: string, to: string): string => relative(from, to).split('\\').join('/')
 
-/** What the scaffold did, as `<path>: <what>` lines, for the command to print. */
+/**
+ * What the scaffold will do: each file's new text with a `<path>: <what>` line for the command to
+ * print, and each edit it leaves to hand. Nothing is written until `commit`, which writes every
+ * file or, when an edit is left to hand, none: a run that stops leaves no package half scaffolded.
+ */
 class Changes {
   readonly lines: string[] = []
   readonly root: string
+  private readonly pending = new Map<string, string>()
+  private readonly byHand: string[] = []
   constructor(root: string) {
     this.root = root
   }
-  add(path: string, what: string): void {
+  /** The file as this run leaves it so far: its pending text, else what is on disk, else none. */
+  async text(path: string): Promise<string | undefined> {
+    const pending = this.pending.get(path)
+    if (pending !== undefined) return pending
+    return existsSync(path) ? await readFile(path, 'utf8') : undefined
+  }
+  write(path: string, text: string, what: string): void {
+    this.pending.set(path, text)
     this.lines.push(`${relative(this.root, path)}: ${what}`)
+  }
+  leaveToHand(message: string): void {
+    this.byHand.push(message)
+  }
+  async commit(): Promise<void> {
+    if (this.byHand.length > 0) {
+      throw new MigrateError(
+        'MIGRATE_WRITE',
+        `${this.byHand.join('\n')}\nnothing was written: make the change(s) above by hand, then run rewrite again`,
+      )
+    }
+    for (const [path, text] of this.pending) await writeFile(path, text)
   }
 }
 
 async function writeIfMissing(path: string, text: string, changes: Changes): Promise<void> {
-  if (existsSync(path)) return
-  await writeFile(path, text)
-  changes.add(path, 'written')
+  if ((await changes.text(path)) !== undefined) return
+  changes.write(path, text, 'written')
 }
 
-/** Reads `path`, applies `change` (which returns what it changed, or nothing), writes on a change. */
+/**
+ * Reads `path` as this run leaves it, applies `change` (which returns what it changed, or nothing)
+ * and plans the write; a file with comments that `change` changes is left to hand instead.
+ */
 async function updateJson(
   path: string,
   change: (value: Json) => string | undefined,
   changes: Changes,
+  allowComments = true,
 ): Promise<void> {
-  const value = await readJson(path)
+  const text = await changes.text(path)
+  if (text === undefined) {
+    throw new MigrateError('MIGRATE_WRITE', `cannot read ${path}: it does not exist`)
+  }
+  const { value, comments } = parseJson(path, text, allowComments)
+  // Kept only where it is needed: the edit to name for a file that can't be rewritten.
+  const before = comments ? structuredClone(value) : undefined
   const what = change(value)
   if (what === undefined) return
-  await writeFile(path, json(value))
-  changes.add(path, what)
+  if (before !== undefined) {
+    // Rewritten, the file would lose its comments: name the edit instead, key by key.
+    const keys = [...new Set([...Object.keys(before), ...Object.keys(value)])].filter(
+      (key) => JSON.stringify(before[key]) !== JSON.stringify(value[key]),
+    )
+    const edits = keys.map((key) =>
+      key in value ? `"${key}": ${JSON.stringify(value[key])}` : `no "${key}"`,
+    )
+    changes.leaveToHand(
+      `${relative(changes.root, path)} has comments, which rewriting it would drop: make the change by hand (${what}: ${edits.join(', ')})`,
+    )
+    return
+  }
+  changes.write(path, json(value), what)
 }
 
 /**
@@ -195,7 +284,8 @@ export async function scaffoldPackage(
   const dir = posixRelative(root, packageDir)
   if (dir.startsWith('..')) return []
   const changes = new Changes(root)
-  const manifest = await readJson(join(packageDir, 'package.json'))
+  const manifestPath = join(packageDir, 'package.json')
+  const { value: manifest } = parseJson(manifestPath, await readFile(manifestPath, 'utf8'), false)
 
   await writeIfMissing(join(packageDir, PACKAGE_CONFIG), CONFIG, changes)
   await writeIfMissing(join(packageDir, 'turbo.json'), json(TURBO), changes)
@@ -284,6 +374,7 @@ export async function scaffoldPackage(
       return `test script is now "${script}"`
     },
     changes,
+    false,
   )
   // The tests under test/ and bench/: each one's covering project gets the references; the ones no
   // project covers are reported, since creating a tsconfig.json is left to hand.
@@ -304,5 +395,6 @@ export async function scaffoldPackage(
     }
   }
   await referenceTestProjects(root, packageDir, projects, packages, changes)
+  await changes.commit()
   return [...changes.lines, ...uncovered]
 }

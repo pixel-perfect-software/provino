@@ -1,7 +1,7 @@
 // B25g, T11.16: `provino vitest` ends with the exit codes Vitest 5.0.5 ends with, against the
 // black-box `cli/` goldens recorded from the real runner. The bin is a child process.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { keptLines, provinoVitest, withVitestFixture } from './vitest-recorded.ts'
 
 const CASES: readonly { readonly name: string; readonly fixture: string }[] = [

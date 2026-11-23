@@ -155,6 +155,9 @@
       "path": "packages/provino"
     },
     {
+      "path": "packages/provino/tsconfig.tests.json"
+    },
+    {
       "path": "tooling/packaging"
     },
     {

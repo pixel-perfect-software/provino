@@ -4,7 +4,7 @@
 // same project: the results file, the kept stderr lines, the exit code. Then the fields neotest
 // reads back are asserted by name, so a change to one of them says which.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import type { Json } from './mask.ts'
 import { assertMatchesGolden, provinoOn, type RecordedRun } from './recorded-run.ts'
 

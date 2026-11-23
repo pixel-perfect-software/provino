@@ -4,13 +4,22 @@ import { writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, test } from 'provino'
-import { CANARY } from './dogfood.ts'
+import {
+  CANARY,
+  CONDITIONS_FLAG,
+  SPLIT_NODE_TEST,
+  SPLIT_PACKAGES,
+  SPLIT_TEST_RUNNER,
+  TEST_RUNNER,
+  testScript,
+} from './dogfood.ts'
 import { nodeTestArgs } from './node-test.ts'
+import { runnerArgs } from './runner-shard.ts'
 import {
   bootstrapProblems,
   SHARD_COUNT,
   SHARD_ONE,
-  SPLIT_PACKAGES,
+  shardableScript,
   shardInvocation,
   shardProblems,
 } from './test-shards.ts'
@@ -26,9 +35,14 @@ const packages = [...shardOne, '@provino/core']
  * second of wall time in both jobs (1840 s in 814 s, 1121 s in 474 s). A split package lists what
  * each half took, in shard order: Node deals files out by position, so the halves differ. A
  * package not listed weighs nothing here; add it when it is measured.
+ *
+ * `provino` is re-measured on Provino (run 45255242571, 2026-11-23, Node 22.15.0, the first with
+ * its tests on Provino): each shard's number is the two summaries its script prints added up, the
+ * Provino half's `Time:` and the bootstrap files' `duration_ms` (shard 1: 434.0 + 196.2 s,
+ * shard 2: 377.1 + 55.8 s). The other packages' numbers are still the node:test run's.
  */
 const WEIGHTS: Readonly<Record<string, number | readonly number[]>> = {
-  provino: [801, 366],
+  provino: [630, 433],
   '@provino/harness': 447,
   '@provino/orchestrator': 437,
   '@provino/bench': 133,
@@ -70,6 +84,29 @@ function expectedShardCosts(): readonly number[] {
 }
 
 const NODE_TEST = fileURLToPath(new URL('./node-test.ts', import.meta.url))
+const RUNNER_SHARD = fileURLToPath(new URL('./runner-shard.ts', import.meta.url))
+
+/** Seven one-test native files, `f1` to `f7`, and the tests a `runner-shard.ts` run of them passed. */
+function runnerProbe(): (shard?: string) => string[] {
+  const files: Record<string, string> = {
+    'provino.config.mjs': "export default { include: ['f*.test.ts'] }\n",
+  }
+  for (let index = 1; index <= 7; index += 1) {
+    files[`f${index}.test.ts`] = `import { test } from 'provino'\ntest('f${index}', () => {})\n`
+  }
+  const dir = scratchDir('runner-probe', files)
+  return (shard) => {
+    const env = { ...process.env, PROVINO_TEST_SHARD: shard ?? '' }
+    const result = spawnSync(process.execPath, [RUNNER_SHARD, '--reporter', 'verbose'], {
+      cwd: dir,
+      encoding: 'utf8',
+      env,
+    })
+    const output = `${result.stdout}${result.stderr}`
+    assert.equal(result.status, 0, output)
+    return [...output.matchAll(/✓ (f\d)\b/g)].map((m) => m[1] ?? '').sort()
+  }
+}
 
 /** A directory of seven one-test files, `f1` to `f7`, and the files a run of them reports. */
 function probe(): { dir: string; ran: (args: readonly string[], shard?: string) => string[] } {
@@ -161,6 +198,27 @@ describe('the file split of a package', () => {
     assert.throws(() => nodeTestArgs('0/2', ['a']), RangeError)
   })
 
+  test('runnerArgs runs the built bin with the shard after run, and a bad one is refused', () => {
+    const [bin, ...rest] = runnerArgs('1/2', ['--reporter', 'dot'])
+    assert.match(bin ?? '', /packages\/provino\/dist\/cli\.js$/)
+    assert.deepEqual(rest, ['run', '--shard=1/2', '--reporter', 'dot'])
+    assert.deepEqual(runnerArgs(undefined, []).slice(1), ['run'])
+    assert.deepEqual(runnerArgs('', []).slice(1), ['run'])
+    assert.throws(() => runnerArgs('2', []), RangeError)
+    assert.throws(() => runnerArgs('1/0', []), RangeError)
+  })
+
+  test("the shards of runner-shard.ts run disjoint halves of a package's Provino files that add up to all", () => {
+    const ran = runnerProbe()
+    const all = ran()
+    const halves = Array.from({ length: SHARD_COUNT }, (_, index) =>
+      ran(`${index + 1}/${SHARD_COUNT}`),
+    )
+    assert.equal(all.length, 7)
+    assert.deepEqual(halves.flat().sort(), all)
+    assert.ok(halves.every((half) => half.length > 0 && half.length < all.length))
+  })
+
   test('the shards of node-test.ts run disjoint halves that add up to every file', () => {
     const { ran } = probe()
     const args = [NODE_TEST, '--test-reporter=tap', '*.test.ts']
@@ -235,5 +293,47 @@ describe('bootstrapProblems (B27g2)', () => {
       problems([CANARY], [pkg('run', 'run && node --test x', 'packages/provino')]),
       /expected "run && node --test x"/,
     )
+  })
+})
+
+describe("a split package's test script (B27h3)", () => {
+  /** A workspace with `provino` (split) and `a`, each with one bootstrap file. */
+  function workspace(): string {
+    return scratchDir('split-script', {
+      'tooling/provino/bootstrap.json': JSON.stringify({
+        files: { 'packages/provino/test/x.test.ts': 'why', 'packages/a/src/y.test.ts': 'why' },
+      }),
+      'packages/provino/package.json': JSON.stringify({ name: 'provino' }),
+      'packages/a/package.json': JSON.stringify({ name: 'a' }),
+    })
+  }
+
+  test('runs both halves through the shard wrappers; any other package keeps the plain runners', () => {
+    assert.deepEqual(SPLIT_PACKAGES, ['provino'])
+    const root = workspace()
+    assert.equal(
+      testScript(root, 'packages/provino'),
+      `${SPLIT_TEST_RUNNER} && ${SPLIT_NODE_TEST} ${CONDITIONS_FLAG} test/x.test.ts`,
+    )
+    assert.equal(
+      testScript(root, 'packages/a'),
+      `${TEST_RUNNER} && node --test ${CONDITIONS_FLAG} src/y.test.ts`,
+    )
+    assert.equal(testScript(root, 'packages/none'), TEST_RUNNER)
+  })
+
+  test('takes a shard only when its runner does: a migrated script on the plain runner does not', () => {
+    assert.ok(shardableScript(SPLIT_TEST_RUNNER))
+    assert.ok(
+      shardableScript(`${SPLIT_TEST_RUNNER} && ${SPLIT_NODE_TEST} ${CONDITIONS_FLAG} a.test.ts`),
+    )
+    assert.ok(
+      shardableScript(
+        'node ../../tooling/packaging/src/node-test.ts --conditions=x "src/**/*.test.ts"',
+      ),
+    )
+    assert.ok(!shardableScript(TEST_RUNNER))
+    assert.ok(!shardableScript(`${TEST_RUNNER} && ${SPLIT_NODE_TEST} ${CONDITIONS_FLAG} a.test.ts`))
+    assert.ok(!shardableScript('node --test "src/**/*.test.ts"'))
   })
 })

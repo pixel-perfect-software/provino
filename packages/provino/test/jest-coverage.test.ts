@@ -9,7 +9,7 @@ import { existsSync } from 'node:fs'
 import { mkdir, mkdtemp, readdir, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import { JEST, noColorEnv } from './live-jest.ts'
 import { type Json, normalizedJson, observedText } from './mask.ts'
 import { loadFixture, materialize, type RecordedFixture } from './recorded.ts'
@@ -34,7 +34,7 @@ interface Ran {
 }
 
 const disposers: (() => Promise<void>)[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(disposers.map((dispose) => dispose()))
 })
 

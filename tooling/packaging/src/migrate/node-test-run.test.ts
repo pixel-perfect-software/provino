@@ -4,6 +4,7 @@ import assert from 'node:assert/strict'
 import { readFile, realpath } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'provino'
+import { SPLIT_NODE_TEST, SPLIT_TEST_RUNNER } from '../dogfood.ts'
 import { scratchDir } from '../test-support.ts'
 import { diffRecords } from './node-test-compare.ts'
 import {
@@ -24,6 +25,16 @@ describe('the test script', () => {
       flags: ['--conditions=provino-source', '--import', './setup.ts', '--require', 'x.cjs'],
       globs: ['src/**/*.test.ts', 'test/**/*.test.mts', 'bench/**/*.test.js'],
     })
+  })
+
+  it("reads a migrated split package's script: its node:test half after the shard runner", () => {
+    assert.deepEqual(parseTestScript(SPLIT_TEST_RUNNER), { flags: [], globs: [] })
+    assert.deepEqual(
+      parseTestScript(
+        `${SPLIT_TEST_RUNNER} && ${SPLIT_NODE_TEST} --conditions=provino-source test/a.test.ts`,
+      ),
+      { flags: ['--conditions=provino-source'], globs: ['test/a.test.ts'] },
+    )
   })
 
   it('reads the wrapper provino runs through, and a loader value in the next word', () => {

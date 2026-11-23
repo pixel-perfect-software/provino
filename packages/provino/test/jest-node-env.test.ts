@@ -14,7 +14,7 @@
 import assert from 'node:assert/strict'
 import { mkdir, readFile } from 'node:fs/promises'
 import { join, relative } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { loadFixture, materialize } from './recorded.ts'
 import { describeRecorded, replayEnv, WORK } from './recorded-run.ts'
 import { spawnCli } from './support.ts'

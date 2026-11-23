@@ -6,7 +6,7 @@
 // dialect marks `checksMockFactories` (babel-jest's), and still hoists every other transformer's.
 import { mkdir, rm, symlink } from 'node:fs/promises'
 import { join } from 'node:path'
-import { after, before, describe, it } from 'node:test'
+import { afterAll, beforeAll, describe, it } from 'provino'
 import {
   assertMatchesGolden,
   linkEnvironments,
@@ -21,7 +21,7 @@ const PARENT = join(WORK, 'transform-factory-scope')
 const SWC = 'cli/transform-swc-factory-scope'
 const BABEL = 'cli/transform-babel-jest-factory-scope'
 
-before(async () => {
+beforeAll(async () => {
   await linkEnvironments(PARENT)
   await mkdir(join(PARENT, 'node_modules', '@swc'), { recursive: true })
   for (const name of ['@swc/jest', '@swc/core']) {
@@ -29,7 +29,7 @@ before(async () => {
     await symlink(packageDir(name), join(PARENT, 'node_modules', name))
   }
 })
-after(async () => {
+afterAll(async () => {
   await rm(PARENT, { recursive: true, force: true })
 })
 

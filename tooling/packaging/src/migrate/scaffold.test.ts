@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'provino'
@@ -270,9 +271,80 @@ describe('scaffoldPackage', () => {
     assert.deepEqual(await scaffoldPackage(root, join(root, 'packages/a')), [])
   })
 
-  it('stops with a coded error, writing nothing, on a tsconfig with comments', async () => {
+  it('reads a tsconfig with comments and leaves it as written when nothing in it changes', async () => {
     const root = workspace()
-    const text = '{ // note\n "include": ["src"] }\n'
+    // Comment markers inside strings (the glob's `/*`, a URL's `//`) are text, and a trailing
+    // comma is what tsc accepts.
+    const text = [
+      '{',
+      '  "$schema": "https://json.schemastore.org/tsconfig", // a line comment',
+      '  /* a block comment, with "quotes" */',
+      '  "include": ["src"],',
+      '  "exclude": ["src/gen", "src/**/*.test.ts",],',
+      '}',
+      '',
+    ].join('\n')
+    await writeFile(join(root, 'packages/a/tsconfig.json'), text)
+    const lines = await scaffoldPackage(root, join(root, 'packages/a'))
+    assert.ok(!lines.some((line) => line.startsWith('packages/a/tsconfig.json')), lines.join('\n'))
+    assert.equal(await readFile(join(root, 'packages/a/tsconfig.json'), 'utf8'), text)
+  })
+
+  it('refuses to rewrite a file with comments, naming the edit to make by hand, and leaves it as written', async () => {
+    const root = workspace()
+    const text =
+      '{\n  // why src/gen is left out\n  "include": ["src"],\n  "exclude": ["src/gen", "odd,]"]\n}\n'
+    await writeFile(join(root, 'packages/a/tsconfig.json'), text)
+    await assert.rejects(scaffoldPackage(root, join(root, 'packages/a')), (error: unknown) => {
+      assert.ok(error instanceof Error)
+      assert.equal((error as Error & { code?: unknown }).code, 'MIGRATE_WRITE')
+      assert.match(error.message, /packages\/a\/tsconfig\.json has comments/)
+      assert.match(error.message, /exclude gained src\/\*\*\/\*\.test\.ts/)
+      assert.ok(
+        error.message.includes('"exclude": ["src/gen","odd,]","src/**/*.test.ts"]'),
+        error.message,
+      )
+      return true
+    })
+    assert.equal(await readFile(join(root, 'packages/a/tsconfig.json'), 'utf8'), text)
+    // Made by hand, the edit is the one the scaffold wanted: the next run finds nothing to change.
+    await writeFile(
+      join(root, 'packages/a/tsconfig.json'),
+      text.replace('"odd,]"]', '"odd,]", "src/**/*.test.ts"]'),
+    )
+    const lines = await scaffoldPackage(root, join(root, 'packages/a'))
+    assert.ok(!lines.some((line) => line.startsWith('packages/a/tsconfig.json')), lines.join('\n'))
+  })
+
+  it('finds every by-hand edit before it writes anything, and names them together (B27h3)', async () => {
+    const root = workspace()
+    const files = {
+      'packages/a/tsconfig.json': '{\n  // a\n  "include": ["src"]\n}\n',
+      'tsconfig.json': '{\n  // the root\n  "references": [{ "path": "packages/a" }]\n}\n',
+    }
+    for (const [name, text] of Object.entries(files)) await writeFile(join(root, name), text)
+    const manifest = await readFile(join(root, 'packages/a/package.json'), 'utf8')
+    await assert.rejects(scaffoldPackage(root, join(root, 'packages/a')), (error: unknown) => {
+      assert.equal((error as { code?: unknown }).code, 'MIGRATE_WRITE')
+      const message = (error as Error).message
+      assert.match(message, /packages\/a\/tsconfig\.json has comments/)
+      assert.match(message, /^tsconfig\.json has comments/m)
+      assert.match(message, /nothing was written/)
+      return true
+    })
+    // The config, turbo.json and the tests project are not written, and the script is unchanged.
+    for (const name of ['provino.config.ts', 'turbo.json', 'tsconfig.tests.json']) {
+      assert.equal(existsSync(join(root, 'packages/a', name)), false, name)
+    }
+    assert.equal(await readFile(join(root, 'packages/a/package.json'), 'utf8'), manifest)
+    for (const [name, text] of Object.entries(files)) {
+      assert.equal(await readFile(join(root, name), 'utf8'), text, name)
+    }
+  })
+
+  it('stops with a coded error, writing nothing, on a file that is not JSON even without comments', async () => {
+    const root = workspace()
+    const text = '{ "include": ["src"] \n'
     await writeFile(join(root, 'packages/a/tsconfig.json'), text)
     await assert.rejects(scaffoldPackage(root, join(root, 'packages/a')), { code: 'MIGRATE_WRITE' })
     assert.equal(await readFile(join(root, 'packages/a/tsconfig.json'), 'utf8'), text)

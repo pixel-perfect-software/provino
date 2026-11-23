@@ -30,7 +30,7 @@ import type { Json } from './mask.ts'
 import { normalizedJson } from './mask.ts'
 import { type Materialized, materialize, type RecordedFixture } from './recorded.ts'
 import { replayEnv } from './recorded-run.ts'
-import { CLI, outputFree } from './support.ts'
+import { CLI, once, outputFree } from './support.ts'
 
 const HARNESS = new URL('../../harness/src/', import.meta.url)
 /** The run-log reporter the recorder's config names (`watchJestConfig`). */
@@ -569,16 +569,29 @@ export async function playInProcess(
 }
 
 /**
- * Why the terminal runs can't be done here: no terminal to open (`/dev/ptmx` denied) or no file
- * events. `false` runs them; with `CI` set a reason is an error, never a skip.
+ * Why the terminal runs can't be done here (`needTerminal`: no terminal to open, `/dev/ptmx`
+ * denied, or no file events), or for a session on a pipe only no file events (`fs.watch`). Each is
+ * probed once per file, by the first test that asks: a probe at import would run on every listing
+ * of the file.
  */
-export async function terminalSkip(): Promise<string | false> {
-  return skipReason(true)
+const probes = {
+  terminal: once(() => skipReason(true)),
+  watcher: once(() => skipReason(false)),
 }
 
-/** `terminalSkip` for a session on a pipe: only the file events (`fs.watch`) are needed. */
-export async function watcherSkip(): Promise<string | false> {
-  return skipReason(false)
+/**
+ * Whether this test can't run here: it then skips itself (`t.skip(reason)`, which node:test and
+ * Provino both report as skipped) and the caller returns. With `CI` set a reason is an error,
+ * never a skip (the probe throws).
+ */
+export async function skipped(
+  t: { skip(note: string): unknown },
+  needTerminal: boolean,
+): Promise<boolean> {
+  const reason = await (needTerminal ? probes.terminal : probes.watcher)()
+  if (reason === false) return false
+  t.skip(reason)
+  return true
 }
 
 async function skipReason(needTerminal: boolean): Promise<string | false> {

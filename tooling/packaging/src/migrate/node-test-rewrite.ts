@@ -80,6 +80,15 @@ const MODIFIERS = new Set(['skip', 'todo', 'only'])
 /** Members of the test context the native one has, as written. */
 const CONTEXT_SAME = new Set(['skip', 'signal', 'task'])
 const KNOWN_IMPORTS = new Set([...SUITES, ...TESTS, ...Object.keys(HOOKS)])
+/** The nodes whose `key` names a member (of an object, a class, an interface or a type literal). */
+const MEMBER_KEYS = new Set([
+  'Property',
+  'PropertyDefinition',
+  'MethodDefinition',
+  'AccessorProperty',
+  'TSPropertySignature',
+  'TSMethodSignature',
+])
 const FUNCTIONS = new Set(['ArrowFunctionExpression', 'FunctionExpression', 'FunctionDeclaration'])
 const NON_PROMISE = new Set(['Literal', 'ArrayExpression', 'ObjectExpression', 'TemplateLiteral'])
 
@@ -493,9 +502,12 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
       parent.type === 'MemberExpression' &&
       nodeOf(parent, 'property') === node &&
       get(parent, 'computed') !== true
+    // A member's name in an object, a class or a type (`{ after: 1 }`, `after = 1`,
+    // `readonly after: string`) is a key, not the import.
     const key =
-      parent.type === 'Property' &&
+      MEMBER_KEYS.has(parent.type) &&
       nodeOf(parent, 'key') === node &&
+      get(parent, 'computed') !== true &&
       get(parent, 'shorthand') !== true
     const importName = parent.type === 'ImportSpecifier' || parent.type === 'ImportDefaultSpecifier'
     if (found.imported === 'mock' && !member && !key && !importName) {

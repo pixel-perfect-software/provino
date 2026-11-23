@@ -499,6 +499,16 @@ describe('hooks called inside a function (B27h2)', () => {
     assert.match(found.join('\n'), /after used as a value/)
   })
 
+  it('leaves a type, class or object member named after alone: a key is not a use', () => {
+    const out = rewritten(
+      "import { after, it } from 'node:test'\ninterface Seen {\n  readonly after: string\n  before(): void\n}\ntype Run = { after?: number }\nclass Probe {\n  after = 1\n  static after(): void {}\n}\nconst seen = { after: 1 }\nafter(() => {})\nit('a', () => {})\n",
+    )
+    assert.equal(
+      out,
+      "import { afterAll, it } from 'provino'\ninterface Seen {\n  readonly after: string\n  before(): void\n}\ntype Run = { after?: number }\nclass Probe {\n  after = 1\n  static after(): void {}\n}\nconst seen = { after: 1 }\nafterAll(() => {})\nit('a', () => {})\n",
+    )
+  })
+
   it('classifies a hook by its nearest registered callback', () => {
     const out = rewritten(
       "import { before, describe, it } from 'node:test'\nit('a', () => {\n  describe('s', () => {\n    before(() => {})\n  })\n})\n",

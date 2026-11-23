@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { type BindingProbe, bindingTriple, missingBindingMessage } from './native-binding.ts'
 
 /** A machine, with the binding packages it can find (`present`, by full name). */

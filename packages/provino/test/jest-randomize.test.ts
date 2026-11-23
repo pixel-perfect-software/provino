@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { mkdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import type { Json } from './mask.ts'
 import { loadFixture, materialize } from './recorded.ts'
 import { spawnCli } from './support.ts'

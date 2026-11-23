@@ -2,7 +2,7 @@
 // (`formatNodeAssertErrors`: `assert.equal(received, expected)`, `Expected value to be equal to:`,
 // the diff), not Node's `AssertionError [ERR_ASSERTION]: ...`. `cli/node-assert` records Jest
 // 30.5.2's stderr and results file for every `assert` form; `provino jest` must print the same.
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { assertMatchesGolden, provinoOn } from './recorded-run.ts'
 
 describe('provino jest formats node:assert failures as Jest 30.5.2 does', () => {

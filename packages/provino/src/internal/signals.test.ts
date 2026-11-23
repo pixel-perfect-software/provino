@@ -2,8 +2,8 @@
 // `process`.
 import assert from 'node:assert/strict'
 import { EventEmitter } from 'node:events'
-import { describe, it } from 'node:test'
 import { RUN_SIGNALS } from '@provino/orchestrator'
+import { describe, it } from 'provino'
 import { type HandledSignal, handleSignals, type SignalTarget } from './signals.ts'
 
 const ALL = Object.keys(RUN_SIGNALS) as readonly HandledSignal[]

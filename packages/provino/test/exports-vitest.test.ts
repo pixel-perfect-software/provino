@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { ADD_ON_DISTS, builtSources, DIST } from './dist.ts'
 
 /** Text only the Vitest command line holds: two of its names and one of the table's descriptions. */

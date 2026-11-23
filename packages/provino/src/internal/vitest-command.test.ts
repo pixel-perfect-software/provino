@@ -3,8 +3,8 @@ import assert from 'node:assert/strict'
 import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, before, describe, it } from 'node:test'
 import type { NeutralProject } from '@provino/types'
+import { afterAll, beforeAll, describe, it } from 'provino'
 import { chooseProjects, runVitestCommand } from './vitest-command.ts'
 
 /** Runs the command with in-memory streams. */
@@ -38,10 +38,10 @@ const head = (text: string): string => text.slice(0, 300)
 describe('provino vitest refuses by name', () => {
   // An empty directory: a command that runs anyway finds no test file.
   let cwd = ''
-  before(async () => {
+  beforeAll(async () => {
     cwd = await realpath(await mkdtemp(join(tmpdir(), 'provino-vitest-command-')))
   })
-  after(() => rm(cwd, { recursive: true, force: true }))
+  afterAll(() => rm(cwd, { recursive: true, force: true }))
 
   it('vitest list (parked, D183): it runs no suite', async () => {
     const ended = await runVitest(['list'], cwd)
@@ -56,14 +56,14 @@ describe('provino vitest refuses by name', () => {
 
 describe('provino vitest file filters', () => {
   let root = ''
-  before(async () => {
+  beforeAll(async () => {
     root = await realpath(await mkdtemp(join(tmpdir(), 'provino-vitest-filter-word-')))
     await writeFile(join(root, 'package.json'), '{ "type": "module" }\n')
     await writeFile(join(root, 'vitest.config.ts'), 'export default { test: { globals: true } }\n')
     await writeFile(join(root, 'Alpha.test.ts'), "it('a', () => {})\n")
     await writeFile(join(root, 'beta.test.ts'), "it('b', () => {})\n")
   })
-  after(() => rm(root, { recursive: true, force: true }))
+  afterAll(() => rm(root, { recursive: true, force: true }))
 
   it('match the path from the root, so a word of the root selects no file (project.ts L413-L423)', async () => {
     const ended = await runVitest(['run', 'filter-word'], root)
@@ -104,12 +104,12 @@ describe('provino vitest file filters', () => {
 
 describe('provino vitest reporter options', () => {
   let root = ''
-  before(async () => {
+  beforeAll(async () => {
     root = await realpath(await mkdtemp(join(tmpdir(), 'provino-vitest-reporters-')))
     await writeFile(join(root, 'package.json'), '{ "type": "module" }\n')
     await writeFile(join(root, 'a.test.ts'), "it('a', () => {})\n")
   })
-  after(() => rm(root, { recursive: true, force: true }))
+  afterAll(() => rm(root, { recursive: true, force: true }))
 
   const configWith = (reporters: unknown): Promise<void> =>
     writeFile(

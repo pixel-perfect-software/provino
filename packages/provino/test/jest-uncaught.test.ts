@@ -10,7 +10,7 @@
 // After circus has torn its handlers down, Jest has no outcome of its own: Node's report of the
 // error ends Jest's process (in band) or kills the worker. Provino keeps a clean failure there
 // (D7): the declared differences below pin both sides.
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { assertMatchesGolden, type DeclaredDifference, provinoOn } from './recorded-run.ts'
 
 const RESULTS = 'json:.harness-out/jest.json'

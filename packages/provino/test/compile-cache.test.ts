@@ -7,8 +7,8 @@ import { existsSync, readdirSync } from 'node:fs'
 import { mkdtemp, realpath, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { afterAll, describe, it } from 'provino'
 import { outputFree, runBuilt, spawnCli, trackedProjects } from './support.ts'
 
 /** The module, loaded by URL: the type-test project includes this directory but not the package's source. */
@@ -31,7 +31,7 @@ function hasObjectForm(version: string): boolean {
 
 const CHILD = fileURLToPath(new URL('compile-cache-child.ts', import.meta.url))
 const dirs: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(dirs.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

@@ -8,8 +8,8 @@
 import assert from 'node:assert/strict'
 import { mkdir, readFile, realpath, symlink, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { describe, it } from 'provino'
 import { provinoVitest, type VitestFixture, withVitestFixture } from './vitest-recorded.ts'
 
 const OUTPUT = '.harness-out/vitest.json'

@@ -10,14 +10,14 @@
 // (`ecosystem/load-time-global`, and msw's interceptors in `ecosystem/msw-setup-file`).
 import { rm } from 'node:fs/promises'
 import { join } from 'node:path'
-import { after, before, describe, it } from 'node:test'
+import { afterAll, beforeAll, describe, it } from 'provino'
 import { assertMatchesGolden, linkEnvironments, provinoOn, WORK } from './recorded-run.ts'
 
 /** A directory of this file's own under `.work/`, whose `node_modules` holds the environments. */
 const PARENT = join(WORK, 'ecosystem-per-file')
 
-before(() => linkEnvironments(PARENT))
-after(async () => {
+beforeAll(() => linkEnvironments(PARENT))
+afterAll(async () => {
   await rm(PARENT, { recursive: true, force: true })
 })
 

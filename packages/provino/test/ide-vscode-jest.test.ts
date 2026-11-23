@@ -6,11 +6,11 @@
 // and the same `.snap`. The fields vscode-jest reads from the file are asserted by name besides, so
 // a regression names the field. No editor runs: the replays are data (D125).
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import type { Json } from './mask.ts'
 import { loadFixture } from './recorded.ts'
 import { assertMatchesGolden, provinoOn, type RecordedRun } from './recorded-run.ts'
-import { playPiped, RESULTS_WRITTEN, watcherSkip } from './watch-goldens.ts'
+import { playPiped, RESULTS_WRITTEN, skipped } from './watch-goldens.ts'
 
 const OUT = '.harness-out/jest_runner_ws_0.json'
 const REPORTER = 'vscode-jest-reporter.js'
@@ -234,13 +234,12 @@ describe('vscode-jest replays (T11.12)', () => {
  * each run, as vscode-jest reads it on `Test results written to`, and compared with the golden's
  * (the session has no exit code: a piped Jest has no key to quit with, and the editor kills it).
  */
-describe('vscode-jest watch replays (T11.12, B23e Phase 4)', async () => {
-  const skip = await watcherSkip()
+describe('vscode-jest watch replays (T11.12, B23e Phase 4)', () => {
   for (const request of WATCH_REQUESTS) {
     it(`${request}: the run log, the results file after each run and the reporter lines`, {
-      skip,
       timeout: 150_000,
-    }, async () => {
+    }, async (t) => {
+      if (await skipped(t, false)) return
       const id = `ide/vscode-jest-${request}`
       // `playPiped` holds the run log, the kept reporter lines and each captured results file to
       // the golden's (the same keys, one per run); `assertFields` names the field of a results

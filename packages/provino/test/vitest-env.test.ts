@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { it } from 'node:test'
+import { it } from 'provino'
 import { provinoVitest, withVitestFixture } from './vitest-recorded.ts'
 
 it('cli/vitest-env', () =>
