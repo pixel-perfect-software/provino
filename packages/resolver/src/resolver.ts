@@ -144,7 +144,7 @@ export const createResolver: CreateResolver = (options) => {
       const moduleType: string | undefined = result.moduleType
       return {
         type: 'file',
-        path: result.path,
+        path: withoutQuery(result.path, specifier),
         format: (moduleType === undefined ? undefined : FORMATS[moduleType]) ?? 'unknown',
         packageJson: result.packageJsonPath ?? null,
         mappedBy: null,
@@ -265,4 +265,20 @@ export const createResolver: CreateResolver = (options) => {
     fingerprint,
   }
   return resolver
+}
+
+/**
+ * The file oxc-resolver found for `specifier`, without the query and fragment it copies from the
+ * specifier onto the path (`./a.mjs?v=1#x` answers `…/a.mjs?v=1#x`), so the path names a file, as
+ * Node's and Jest's resolution do. Only a path holding a `?` or `#` pays for the check.
+ */
+function withoutQuery(path: string, specifier: string): string {
+  if (!path.includes('?') && !path.includes('#')) return path
+  // oxc-resolver reads a query from the first `?`, else a fragment from a `#` past the start
+  // (a leading `#` is a package import).
+  let at = specifier.indexOf('?')
+  if (at === -1) at = specifier.indexOf('#', 1)
+  if (at === -1) return path
+  const suffix = specifier.slice(at)
+  return path.endsWith(suffix) ? path.slice(0, -suffix.length) : path
 }

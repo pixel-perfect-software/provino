@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { after, test } from 'node:test'
+import { pathToFileURL } from 'node:url'
 import type { ModuleMapper, ResolveContext } from '@provino/types'
 import { createResolver } from './resolver.ts'
 
@@ -109,6 +110,23 @@ test('the call kind picks the export condition, and the module type becomes the 
   assert.equal(dynamic.type === 'file' && dynamic.path, join(pkg, 'esm.mjs'))
   const json = resolver.resolve('dual/data', context(importer))
   assert.equal(json.type === 'file' && json.format, 'json')
+})
+
+test('a query or fragment on the specifier is not part of the file found', () => {
+  const root = writeTree({ 'config.mjs': 'export default {}\n', 'main.ts': '' })
+  const resolver = createResolver({ root, mappers: [], extensions: EXTENSIONS })
+  const importer = join(root, 'main.ts')
+  const file = join(root, 'config.mjs')
+  // How `loadConfigFile` reloads a config: a `file:` URL with a query of its own per load.
+  for (const specifier of [
+    `${pathToFileURL(file).href}?provino-load=1`,
+    './config.mjs?v=2',
+    './config.mjs?v=2#top',
+    './config.mjs#top',
+  ]) {
+    const found = resolver.resolve(specifier, context(importer))
+    assert.equal(found.type === 'file' && found.path, file, specifier)
+  }
 })
 
 test('a miss reports the specifier and importer', () => {
