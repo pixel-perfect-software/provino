@@ -115,16 +115,22 @@ test('unstripped TypeScript is a per-file error naming the file, not an abort (B
   )
 })
 
-function parseOf(code: string): TransformError['parse'] {
+/** The `TransformError` the module-runner step throws for `code` read as `path`; fails if it throws none. */
+function runnerFailure(path: string, code: string): TransformError {
   const record: TransformRecord = { ...strip('/ok.ts', 'export {}\n'), code }
   try {
-    toModuleRunner('/p.ts', record)
+    toModuleRunner(path, record)
   } catch (error) {
     assert.ok(error instanceof TransformError)
-    assert.equal(error.code, 'TRANSFORM_RUNNER_FAILED')
-    return error.parse
+    return error
   }
   return assert.fail('the module-runner step accepted the code')
+}
+
+function parseOf(code: string): TransformError['parse'] {
+  const error = runnerFailure('/p.ts', code)
+  assert.equal(error.code, 'TRANSFORM_RUNNER_FAILED')
+  return error.parse
 }
 
 test("a syntax error carries the parser's message and its position, a redeclaration the redeclaring one", () => {
@@ -156,13 +162,7 @@ test('an unclosed block is at the end of the source, where V8 reports it, not at
 })
 
 function runnerError(code: string): string {
-  const record: TransformRecord = { ...strip('/ok.ts', 'export {}\n'), code }
-  try {
-    toModuleRunner('/s.ts', record)
-  } catch (error) {
-    return String(error)
-  }
-  return ''
+  return String(runnerFailure('/s.ts', code))
 }
 
 test('semantic errors fail the file with the parser’s text (the harness matches these)', () => {

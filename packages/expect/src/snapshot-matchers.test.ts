@@ -10,7 +10,7 @@ import type {
   SnapshotPrinter,
   SnapshotViewFactory,
 } from '@provino/types'
-import { afterEach, describe, test } from 'provino'
+import { describe, onTestFinished, test } from 'provino'
 import { createEndOfTest } from './end-of-test.ts'
 import { createExpect, MatcherResultError } from './expect.ts'
 import { manualCurrentTest, testPolicy, testTable, testTask } from './internal/test-support.ts'
@@ -90,15 +90,9 @@ const put = (path: string, text: string): void => {
   writeFileSync(path, text)
 }
 
-// The directories `setup` made in a test go when it ends (`setup` is only called from test bodies).
-const dirs: string[] = []
-afterEach(() => {
-  for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true })
-})
-
 function setup(options: Options = {}): Setup {
   const dir = mkdtempSync(join(tmpdir(), 'provino-expect-snapshot-'))
-  dirs.push(dir)
+  onTestFinished(() => rmSync(dir, { recursive: true, force: true }))
   const keyJoin = options.keyJoin ?? ' '
   const current = manualCurrentTest()
   const source = createStateSource(current, { nameSeparator: keyJoin, expand: false })

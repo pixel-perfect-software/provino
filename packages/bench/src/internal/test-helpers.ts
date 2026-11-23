@@ -20,9 +20,8 @@ import { PACKAGE_DIR, type RunnerPlan } from '../suites.ts'
  * A test context that can run a cleanup when its test ends: Provino's (`onTestFinished`) or
  * node:test's (`after`). `run-bench.test.ts` is still on node:test (`tooling/provino/bootstrap.json`),
  * so the helpers below serve both until it moves.
- * @internal
  */
-export type TestEnd = Pick<TestContext, 'onTestFinished'> | { after(fn: () => unknown): void }
+type TestEnd = Pick<TestContext, 'onTestFinished'> | { after(fn: () => unknown): void }
 
 function whenTestEnds(t: TestEnd, cleanup: () => Promise<void>): void {
   if ('onTestFinished' in t) t.onTestFinished(cleanup)

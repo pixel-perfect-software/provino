@@ -8,7 +8,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { afterAll, afterEach, describe, test } from 'provino'
+import { afterAll, describe, onTestFinished, test } from 'provino'
 import { cleanObsoleteSnapshotFiles } from './obsolete-files.ts'
 
 interface JestPieces {
@@ -82,15 +82,9 @@ function crawledSnapFiles(roots: readonly string[], ignorePatterns: readonly str
   })
 }
 
-// The trees `tree` made in a test go when it ends (`tree` is only called from test bodies).
-const made: string[] = []
-afterEach(() => {
-  for (const root of made.splice(0)) rmSync(root, { recursive: true, force: true })
-})
-
 function tree(files: readonly string[]): string {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'provino-haste-')))
-  made.push(root)
+  onTestFinished(() => rmSync(root, { recursive: true, force: true }))
   for (const file of files) {
     mkdirSync(dirname(join(root, file)), { recursive: true })
     writeFileSync(join(root, file), '')

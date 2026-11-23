@@ -29,7 +29,11 @@ export const CJS_PARAMS: string = CJS_WRAPPER.join(', ')
 /** Node's reading of a `data:` URL's path (`internal/modules/esm/load`): MIME type, base64 or not, body. */
 const DATA_URL = /^([^/]+\/[^;,]+)(?:[^,]*?)(;base64)?,([\s\S]*)$/
 
-/** A `data:` URL's MIME type and its body as text, base64 or percent-encoded; `null` when it is none. */
+/**
+ * A `data:` URL's MIME type and its body as text, base64 or percent-encoded; `null` when it is none.
+ * A base64 body with no `%` is decoded as it is: percent-decoding changes only `%XX` sequences, so
+ * the result is the same (`speed`).
+ */
 export function decodeDataUrl(
   url: string,
 ): { readonly mime: string; readonly text: string } | null {
@@ -41,8 +45,10 @@ export function decodeDataUrl(
   }
   const match = DATA_URL.exec(pathname)
   if (match === null) return null
-  const body = decodeURIComponent(match[3] ?? '')
-  const text = Buffer.from(body, match[2] === undefined ? 'utf8' : 'base64').toString('utf8')
+  const raw = match[3] ?? ''
+  const base64 = match[2] !== undefined
+  const body = base64 && !raw.includes('%') ? raw : decodeURIComponent(raw)
+  const text = Buffer.from(body, base64 ? 'base64' : 'utf8').toString('utf8')
   return { mime: match[1] ?? '', text }
 }
 

@@ -7,18 +7,12 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync }
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { InlineSnapshotEdit } from '@provino/types'
-import { afterEach, describe, test } from 'provino'
+import { describe, onTestFinished, test } from 'provino'
 import { jestInlineSnapshotWriter } from './index.ts'
-
-// The projects `project` made in a test go when it ends (`project` is only called from test bodies).
-const roots: string[] = []
-afterEach(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
-})
 
 function project(files: Readonly<Record<string, string>>): string {
   const root = mkdtempSync(join(tmpdir(), 'provino-inline-writer-'))
-  roots.push(root)
+  onTestFinished(() => rmSync(root, { recursive: true, force: true }))
   for (const [path, text] of Object.entries(files)) {
     mkdirSync(join(root, path, '..'), { recursive: true })
     writeFileSync(join(root, path), text)
