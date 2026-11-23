@@ -57,10 +57,11 @@ import { watchedLoad } from './reevaluate.ts'
 import { requireEsmError } from './require-esm.ts'
 
 /**
- * A URL with a scheme other than `file:` and `node:` (whose misses keep the dialect's not-found
- * text). Two letters at least, so a Windows drive (`C:\\`) is no scheme.
+ * A URL a `module.registerHooks` hook may serve: any scheme but `file:` and `node:` (whose misses
+ * keep the dialect's not-found text) and `data:` (a user module, `recordFor`). Two letters at
+ * least, so a Windows drive (`C:\\`) is no scheme.
  */
-const NATIVE_URL = /^(?!file:|node:)[a-z][a-z\d+.-]+:/i
+const NATIVE_URL = /^(?!file:|node:|data:)[a-z][a-z\d+.-]+:/i
 
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
 type Style = 'esm' | 'cjs'
@@ -463,13 +464,19 @@ export class Registry {
     try {
       mocked = this.#mockOf(target, specifier, importer, 'esm')
     } catch (error) {
-      // A URL the resolver can't find and no mock answers (`data:`, or a scheme a
-      // `module.registerHooks` hook serves) is Node's to load, as an `import()` outside the
-      // loader would be: its own module, evaluated once per URL (compat).
-      if (target.kind === 'missing' && NATIVE_URL.test(specifier)) {
+      // A URL the resolver can't find and no mock answers may be a scheme a
+      // `module.registerHooks` hook serves: Node's to load, as an `import()` outside the loader
+      // would be (compat). A scheme nothing serves keeps the not-found error it had.
+      if (target.kind !== 'missing' || !NATIVE_URL.test(specifier)) throw error
+      try {
         return (await import(specifier)) as object
+      } catch (native) {
+        const code = (native as { code?: unknown } | null)?.code
+        if (code === 'ERR_UNSUPPORTED_ESM_URL_SCHEME' || code === 'ERR_MODULE_NOT_FOUND') {
+          throw error
+        }
+        throw native
       }
-      throw error
     }
     if (mocked !== REAL) return (await this.#settleFor(mocked, specifier, 'async')) as object
     const found = this.#maybeInline(target as Found)

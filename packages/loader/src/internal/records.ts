@@ -2,7 +2,7 @@
 // compiled once per worker, its static deps are resolved once, and shared externals are loaded
 // natively. Records never hold per-file state; that lives in a registry's instances.
 import { readFileSync, statSync } from 'node:fs'
-import { relative, sep } from 'node:path'
+import { join, relative, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { Script } from 'node:vm'
 import { LATE_IMPORT, toModuleRunner, usesModuleRunnerForm } from '@provino/transform'
@@ -143,6 +143,29 @@ export function toModuleId(path: string): ModuleId {
   return path as ModuleId
 }
 
+const DATA = 'data:'
+
+/** Node's reading of a `data:` URL (`internal/modules/esm/load`): its MIME type, base64 or not, and body. */
+const DATA_URL = /^([^/]+\/[^;,]+)(?:[^,]*?)(;base64)?,([\s\S]*)$/
+
+/**
+ * The source of a `data:` module, decoded as Node decodes it, and whether it is JSON. Only the
+ * types Node's default loader takes as source: `text/javascript` and `application/json`.
+ */
+function dataSource(id: string): { readonly json: boolean; readonly text: string } {
+  const match = DATA_URL.exec(new URL(id).pathname)
+  const mime = match?.[1]
+  if (match === null || (mime !== 'text/javascript' && mime !== 'application/json')) {
+    throw new LoaderError(
+      'LOADER_UNSUPPORTED_MODULE',
+      `cannot load a data: URL of type ${mime ?? 'unknown'} as a module`,
+    )
+  }
+  const body = decodeURIComponent(match[3] ?? '')
+  const text = Buffer.from(body, match[2] === undefined ? 'utf8' : 'base64').toString('utf8')
+  return { json: mime === 'application/json', text }
+}
+
 /** Where a module id's query or fragment starts (`./x.ts?v`, `./x.ts#f`), in its last segment. */
 function suffixStart(id: string): number {
   const segment = Math.max(id.lastIndexOf('/'), id.lastIndexOf('\\')) + 1
@@ -157,6 +180,7 @@ function suffixStart(id: string): number {
  * Only an id with either character pays for the `stat` (speed).
  */
 export function fileOf(id: string): string {
+  if (id.startsWith(DATA)) return id
   const at = suffixStart(id)
   if (at === -1 || statSync(id, { throwIfNoEntry: false }) !== undefined) return id
   return id.slice(0, at)
@@ -164,6 +188,7 @@ export function fileOf(id: string): string {
 
 /** A module id's `file:` URL, its query or fragment kept as written (Node's `import.meta.url`). */
 export function urlOf(id: string): string {
+  if (id.startsWith(DATA)) return id
   const path = fileOf(id)
   return pathToFileURL(path).href + id.slice(path.length)
 }
@@ -398,6 +423,8 @@ export function resolveOrMissing(
       },
     }
   }
+  // A `data:` URL names its own source: nothing to resolve (`recordFor` decodes it).
+  if (specifier.startsWith(DATA)) return { kind: 'user', id: toModuleId(specifier) }
   // A package with no entry for the importer's kind (an `import`-only one) is `missing`, as in
   // Jest, so a virtual mock or a mapper can still stand in for it.
   const result = state.options.resolver.resolve(specifier, {
@@ -486,19 +513,24 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
   const existing = state.records.get(id)
   if (existing !== undefined) return existing
   const path = fileOf(id)
-  const text = readFileSync(path, 'utf8')
+  // A `data:` URL is a user module whose source is the URL itself: evaluated per registry, as
+  // jest-runtime evaluates one per test file, where Node's own `import()` shares it (compat).
+  const data = path.startsWith(DATA) ? dataSource(path) : null
+  const text = data === null ? readFileSync(path, 'utf8') : data.text
+  // What the transforms see: a data: module is JavaScript, named as a module in the root.
+  const filename = data === null ? path : join(state.options.root, '[data].mjs')
   // A node_modules file only gets here when a mock made it inline (T2.6), a transform takes it
   // (B23e), or `inline` names it.
   const thirdParty = isThirdParty(path, state.inlineRules)
   let record: ModuleRecord
   let transformKeyOf = ''
-  if (path.endsWith('.json')) {
+  if (data?.json === true || path.endsWith('.json')) {
     record = makeRecord(id, path, 'json', text, () => null, [], [], false, false)
   } else if (/\.(?:wasm|node)$/.test(path)) {
     throw new LoaderError('LOADER_UNSUPPORTED_MODULE', `cannot load ${path} as a user module`)
   } else {
     const transformed = state.options.transformer.transform({
-      filename: path,
+      filename,
       source: text,
       role: thirdParty ? 'dependency' : isTest ? 'test' : 'source',
       consumer: 'import',
@@ -537,7 +569,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
     // A file whose only module syntax is `import()` has no static form (`unknown`), and `import()`
     // fails in a CommonJS `vm` script, so it runs in module form (B13c Gap 6).
     if (usesModuleRunnerForm(transformed)) {
-      const runner = toModuleRunner(path, transformed)
+      const runner = toModuleRunner(filename, transformed)
       record = makeRecord(
         id,
         path,
@@ -558,7 +590,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
       // file is that rewrite and nothing else.
       const dynamicImport = transformed.imports.some((entry) => entry.kind === 'dynamic')
       const source = dynamicImport
-        ? toModuleRunner(path, transformed, { commonjs: true })
+        ? toModuleRunner(filename, transformed, { commonjs: true })
         : transformed
       record = makeRecord(
         id,
@@ -574,7 +606,7 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
       )
     }
   }
-  if (!path.endsWith('.json')) record.transformKey = transformKeyOf
+  if (record.format !== 'json') record.transformKey = transformKeyOf
   state.records.set(id, record)
   // A record that already names this id (a target resolved before its module was transformed, or a
   // module dropped and made again) now has a dep to read.

@@ -346,6 +346,58 @@ test('import() of a URL no file answers is Node’s: a scheme a registerHooks ho
   }
 })
 
+test('a data: module is evaluated per file under registry, as a user module', async () => {
+  // Node's own import() of a data: URL is cached per process, so two files of one worker shared
+  // its state; jest-runtime evaluates it per test file.
+  const root = writeTree({
+    'loads.mjs': 'export const load = (specifier) => import(specifier)\n',
+    'entry.test.ts': '',
+  })
+  const url = `data:text/javascript,${encodeURIComponent('export let n = 0\nexport const bump = () => ++n')}`
+  const json = `data:application/json;base64,${Buffer.from('{"a":1}').toString('base64')}`
+  const loader = loaderFor(root)
+  const open = () => loader.createFileRegistry(join(root, 'entry.test.ts'), { tier: 'registry' })
+  interface Loads {
+    readonly load: (specifier: string) => Promise<{ bump: () => number; default: unknown }>
+  }
+  const first = open()
+  const second = open()
+  try {
+    const inFirst = await (await first.import<Loads>(join(root, 'loads.mjs'))).load(url)
+    assert.equal(inFirst.bump(), 1)
+    assert.equal(inFirst.bump(), 2)
+    const loadsFirst = await first.import<Loads>(join(root, 'loads.mjs'))
+    assert.equal(await loadsFirst.load(url), inFirst, 'one URL, one module in a file')
+    const inSecond = await (await second.import<Loads>(join(root, 'loads.mjs'))).load(url)
+    assert.equal(inSecond.bump(), 1, 'the other file has a fresh instance')
+    assert.deepEqual((await loadsFirst.load(json)).default, { a: 1 })
+  } finally {
+    first.dispose()
+    second.dispose()
+  }
+})
+
+test('an import() of a URL with another scheme that nothing serves keeps the not-found error', async () => {
+  const root = writeTree({
+    'loads.mjs': 'export const load = (specifier) => import(specifier)\n',
+    'entry.test.ts': '',
+  })
+  const registry = loaderFor(root).createFileRegistry(join(root, 'entry.test.ts'), {
+    tier: 'registry',
+  })
+  try {
+    const loads = await registry.import<{ load: (specifier: string) => Promise<unknown> }>(
+      join(root, 'loads.mjs'),
+    )
+    await assert.rejects(loads.load('https://example.invalid/x.mjs'), {
+      code: 'ERR_MODULE_NOT_FOUND',
+      message: /^Cannot find module 'https:\/\/example\.invalid\/x\.mjs'/,
+    })
+  } finally {
+    registry.dispose()
+  }
+})
+
 test('a CommonJS file’s import() runs in the registry that evaluated it', async () => {
   // A `vm` script has no import callback, and one script serves every registry in the worker: the
   // call reaches its registry through a binding the wrapper takes.
