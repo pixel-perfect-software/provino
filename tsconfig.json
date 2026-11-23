@@ -59,6 +59,9 @@
       "path": "packages/expect"
     },
     {
+      "path": "packages/expect/tsconfig.tests.json"
+    },
+    {
       "path": "packages/mock"
     },
     {

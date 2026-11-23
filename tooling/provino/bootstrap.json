@@ -1,5 +1,10 @@
 {
   "files": {
+    "packages/expect/src/asymmetric.test.ts": "Asserts the context with and without our expect slot (globalThis[Symbol.for('$$jest-matchers-object')]); the runner's worker already installs it, so \"no slot\" is false and install throws (B27h).",
+    "packages/expect/src/interop-jest.test.ts": "Loads Jest's own expect, which defines globalThis[Symbol.for('$$jest-matchers-object')] non-configurably in a process of its own; the runner's worker already holds that slot (B27h).",
+    "packages/expect/src/interop-vitest.test.ts": "Loads Vitest's own expect, which defines globalThis[Symbol.for('$$jest-matchers-object')] in a process of its own; the runner's worker already holds that slot (B27h).",
+    "packages/expect/src/slot.test.ts": "Installs and uninstalls the expect slot itself (globalThis[Symbol.for('$$jest-matchers-object')]), which the runner's worker already holds, so install throws EXPECT_SLOT_TAKEN inside it (B27h).",
+    "packages/expect/src/snapshot-matchers.test.ts": "Runner bug (B27h): helpers call node:test's `after` inside running tests (test-scoped cleanup); the codemod makes it `afterAll`, which Provino refuses inside a test (CoreError).",
     "packages/lazy/src/api.test.ts": "Four tests assume no lazy runtime is installed and that the slot is the process's own; under Provino the worker owns that process-global slot, so they cannot run inside it (B27g1).",
     "packages/lazy/src/read.test.ts": "The unhandled-rejection test owns the process-wide rejection handler the runner's worker already holds (B27g1).",
     "packages/provino/test/bootstrap/canary.test.ts": "The canary: it runs the built runner on a fixture with known failures and asserts they are reported, so a runner that reports green wrongly is caught (D203). It must not depend on the runner it checks.",

@@ -1,6 +1,6 @@
 // The end-of-test check and unawaited-assertion tracking (T7.8): what an attempt owes when it ends.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { createEndOfTest, type EndOfTest } from './end-of-test.ts'
 import { MatcherResultError } from './expect.ts'
 import { testEngine, testTable, testTask } from './internal/test-support.ts'

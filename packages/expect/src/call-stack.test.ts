@@ -1,7 +1,7 @@
 // `matcherCallStack` against the real engine: the frame names it cuts at are the ones
 // `createExpect` calls a matcher through, so a rename in `expect.ts` fails here.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { matcherCallStack } from './call-stack.ts'
 import { createExpect } from './expect.ts'
 import { manualCurrentTest, testPolicy, testTable } from './internal/test-support.ts'

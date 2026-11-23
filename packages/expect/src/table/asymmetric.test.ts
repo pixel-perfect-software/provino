@@ -1,6 +1,6 @@
 // The table's asymmetric matchers: each matches, does not match, and inverts under expect.not.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { provinoExpectTable } from './index.ts'
 
 const { asymmetric, asymmetricNot } = provinoExpectTable()

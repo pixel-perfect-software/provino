@@ -2,9 +2,9 @@
 // `equals`. The corpus cases against both runners' verdicts are `@provino/harness`'s
 // `equality-corpus.test.ts`; these are the testers on their own.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import { runInNewContext } from 'node:vm'
 import type { ExpectPolicy, ExpectStatic } from '@provino/types'
+import { describe, test } from 'provino'
 import { equalityTesters } from './equality.ts'
 import { createExpect } from './expect.ts'
 import { lastContext, manualCurrentTest, testPolicy, testTable } from './internal/test-support.ts'

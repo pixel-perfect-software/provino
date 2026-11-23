@@ -1,8 +1,8 @@
 // expect.soft and expect.unreachable (T7.8): a soft failure is held in the state, the test goes on,
 // and the end-of-test check reports it. The engine is the test table's, never a dialect's.
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
 import type { ExpectMessages, ExpectStatic } from '@provino/types'
+import { describe, test } from 'provino'
 import { createEndOfTest } from './end-of-test.ts'
 import { ExpectError } from './errors.ts'
 import { MatcherResultError } from './expect.ts'
