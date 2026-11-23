@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { describe, test } from 'node:test'
 import type { ModuleId } from '@provino/types'
+import { describe, test } from 'provino'
 import { MockError, MockTypeError } from '../errors.ts'
 import { neutral } from '../internal/test-support.ts'
 import { isMockFunction } from '../mock-fn.ts'

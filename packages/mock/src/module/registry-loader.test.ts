@@ -3,8 +3,8 @@
 // the mock values swapped for its synchronous part as Jest's `_generateMock` swaps its registries.
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { test } from 'node:test'
 import type { LoadActualOptions, ResolveContext, Resolver } from '@provino/types'
+import { test } from 'provino'
 import { neutral } from '../internal/test-support.ts'
 import { createMockRegistry } from '../registry.ts'
 import { createRootMockIndex } from './manual-mocks.ts'
