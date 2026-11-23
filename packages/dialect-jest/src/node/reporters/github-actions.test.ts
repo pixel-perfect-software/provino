@@ -5,15 +5,17 @@
 // colour against chalk is `provino`'s `jest-github-actions-colour.test.ts`.
 import assert from 'node:assert/strict'
 import type { AggregatedResult, TestResult } from '@provino/dialect-jest/results'
-import { afterAll, afterEach, describe, it } from 'provino'
+import { afterAll, afterEach, beforeAll, describe, it } from 'provino'
 import { createJestGitHubActionsReporter, jestResultIcons } from './github-actions.ts'
 
 const written: string[] = []
 const originalWrite = process.stderr.write
-process.stderr.write = ((chunk: string | Uint8Array): boolean => {
-  written.push(String(chunk))
-  return true
-}) as typeof process.stderr.write
+beforeAll(() => {
+  process.stderr.write = ((chunk: string | Uint8Array): boolean => {
+    written.push(String(chunk))
+    return true
+  }) as typeof process.stderr.write
+})
 afterAll(() => {
   process.stderr.write = originalWrite
 })
