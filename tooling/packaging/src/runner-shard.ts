@@ -9,8 +9,7 @@
 import { spawnSync } from 'node:child_process'
 import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-import { RUNNER_BIN, SHARD_VARIABLE } from './dogfood.ts'
-import { shardOf } from './node-test.ts'
+import { RUNNER_BIN, SHARD_VARIABLE, shardOf } from './dogfood.ts'
 
 /** This checkout's built bin (`RUNNER_BIN`), from this file. */
 const BIN = fileURLToPath(new URL(`../../../${RUNNER_BIN}`, import.meta.url))

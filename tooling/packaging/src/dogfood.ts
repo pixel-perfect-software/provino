@@ -22,6 +22,19 @@ export const SPLIT_PACKAGES: readonly string[] = ['provino']
 export const SHARD_VARIABLE = 'PROVINO_TEST_SHARD'
 
 /**
+ * The shard `SHARD_VARIABLE` names (`<n>/<of>`), or `undefined` when it is unset or empty (every
+ * file runs); anything else is refused. Both shard wrappers (`runner-shard.ts`, `node-test.ts`)
+ * read it so.
+ */
+export function shardOf(shard: string | undefined): string | undefined {
+  if (shard === undefined || shard === '') return undefined
+  if (!/^[1-9]\d*\/[1-9]\d*$/.test(shard)) {
+    throw new RangeError(`${SHARD_VARIABLE} must be <n>/<of>, got ${shard}`)
+  }
+  return shard
+}
+
+/**
  * The runner a split package's `test` script runs: `TEST_RUNNER` with `--shard` from
  * `SHARD_VARIABLE` (`runner-shard.ts`), as its node:test half runs through `node-test.ts`.
  */

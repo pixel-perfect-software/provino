@@ -30,13 +30,6 @@ import {
 import { ROOT, readWorkspacePackages } from './workspace.ts'
 
 /**
- * Packages whose test files are split across the shards (`dogfood.ts`, which builds their script):
- * each shard runs them with `PROVINO_TEST_SHARD=<n>/SHARD_COUNT`.
- * @internal
- */
-export { SPLIT_PACKAGES }
-
-/**
  * Whether a split package's `test` script takes its share of a shard: a migrated one's runs its
  * Provino half through `runner-shard.ts` (`SPLIT_TEST_RUNNER`; `bootstrapProblems` holds the rest to
  * `testScript`, which runs the bootstrap half through `node-test.ts`), an unmigrated one's runs

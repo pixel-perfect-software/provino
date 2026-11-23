@@ -9,19 +9,7 @@
 import { spawnSync } from 'node:child_process'
 import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
-
-/**
- * The shard `PROVINO_TEST_SHARD` names (`<n>/<of>`), or `undefined` when it is unset or empty
- * (every file runs); anything else is refused. `runner-shard.ts` reads it the same way.
- * @internal
- */
-export function shardOf(shard: string | undefined): string | undefined {
-  if (shard === undefined || shard === '') return undefined
-  if (!/^[1-9]\d*\/[1-9]\d*$/.test(shard)) {
-    throw new RangeError(`PROVINO_TEST_SHARD must be <n>/<of>, got ${shard}`)
-  }
-  return shard
-}
+import { SHARD_VARIABLE, shardOf } from './dogfood.ts'
 
 /**
  * The arguments for `node`: `--test`, the shard flag when there is a shard, then the rest.
@@ -39,7 +27,7 @@ const entry = process.argv[1]
 if (entry !== undefined && realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))) {
   const result = spawnSync(
     process.execPath,
-    nodeTestArgs(process.env.PROVINO_TEST_SHARD, process.argv.slice(2)),
+    nodeTestArgs(process.env[SHARD_VARIABLE], process.argv.slice(2)),
     { stdio: 'inherit' },
   )
   process.exitCode = result.status ?? 1
