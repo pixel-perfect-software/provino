@@ -4,7 +4,6 @@
 // through the file's module-mock registry. `realm` (T2.8), leak restore (T2.7), docblock
 // escalation (T2.11) and the native engine (T2.10) arrive with their tasks.
 import { existsSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
 import type {
   CreateLoader,
   FileRegistry,
@@ -29,6 +28,7 @@ import { activate, promoteLearned, takeLearned } from './internal/reevaluate.ts'
 import { type FileContext, NO_FILE, Registry } from './internal/registry.ts'
 import { blankHashbang } from './internal/source.ts'
 import { isEvaluableExternal } from './internal/third-party.ts'
+import { pathOfUrl } from './internal/url.ts'
 import { reevaluatesExternals } from './reevaluation.ts'
 import { tierFor } from './tier.ts'
 
@@ -204,7 +204,7 @@ export const createLoader: CreateLoader = (options) => {
     },
     compiledModule: (url) => {
       // V8 reports a vm script by the `file:` URL of its filename; a path is accepted too.
-      const path = url.startsWith('file:') ? fileURLToPath(url) : url
+      const path = pathOfUrl(url)
       const record = state.records.get(toModuleId(path))
       if (record === undefined || record.wrapperLength === null) return null
       return {

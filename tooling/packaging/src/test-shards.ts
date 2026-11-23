@@ -20,6 +20,7 @@ import {
   INCLUDE_GLOBS,
   isIncludedTestFile,
   migratedDirs,
+  PACKAGE_CONFIG,
   testScript,
 } from './dogfood.ts'
 import { ROOT, readWorkspacePackages } from './workspace.ts'
@@ -136,11 +137,11 @@ export function bootstrapProblems(
   const problems: string[] = []
   // A guard that finds nothing to guard must fail: a malformed manifest would otherwise drop a
   // package from the script and glob checks without a word.
-  if (dirs.length === 0) problems.push('no migrated package (a provino.config.ts) was found')
+  if (dirs.length === 0) problems.push(`no migrated package (a ${PACKAGE_CONFIG}) was found`)
   for (const dir of dirs) {
     if (!packages.some((pkg) => pkg.dir === dir)) {
       problems.push(
-        `${dir} has a provino.config.ts but is not a readable workspace package (its package.json?)`,
+        `${dir} has a ${PACKAGE_CONFIG} but is not a readable workspace package (its package.json?)`,
       )
     }
   }
@@ -153,7 +154,7 @@ export function bootstrapProblems(
     if (file === CANARY && owner === undefined) continue
     if (owner === undefined) {
       problems.push(
-        `bootstrap file ${file} is not in a migrated package (one with a provino.config.ts)`,
+        `bootstrap file ${file} is not in a migrated package (one with a ${PACKAGE_CONFIG})`,
       )
     } else if (!isIncludedTestFile(file.slice(owner.dir.length + 1))) {
       problems.push(

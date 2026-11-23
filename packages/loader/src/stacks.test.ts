@@ -7,9 +7,12 @@ import assert from 'node:assert/strict'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
+import process from 'node:process'
 import { after, test } from 'node:test'
+import { pathToFileURL } from 'node:url'
+import { runInThisContext } from 'node:vm'
 import { neutralPolicy } from '@provino/policy'
-import type { SerializedLoaderConfig } from '@provino/types'
+import type { Loader, SerializedLoaderConfig, SourceMapV3 } from '@provino/types'
 import { createProjectLoader } from './project.ts'
 import { installSourceMappedStacks } from './stacks.ts'
 
@@ -144,4 +147,156 @@ test('a file the loader did not compile keeps its frame, and the uninstall puts 
   again()
   assert.equal(Error.prepareStackTrace, later)
   Error.prepareStackTrace = before
+})
+
+/** One source-map segment, VLQ-encoded (the fields are deltas, here from zero). */
+function segment(...fields: readonly number[]): string {
+  const digits = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/'
+  let text = ''
+  for (const field of fields) {
+    let value = field < 0 ? (-field << 1) | 1 : field << 1
+    do {
+      let digit = value & 31
+      value >>>= 5
+      if (value > 0) digit |= 32
+      text += digits[digit]
+    } while (value > 0)
+  }
+  return text
+}
+
+/**
+ * A module whose own inline map puts its `new Error` (line 2, column 10) at `orig.ts:6:9`, as a
+ * build step's output names the file it came from.
+ */
+function selfMapped(): string {
+  const map = { version: 3, sources: ['orig.ts'], names: [], mappings: `;${segment(9, 0, 5, 8)}` }
+  const inline = Buffer.from(JSON.stringify(map)).toString('base64')
+  return [
+    'export function boom() {',
+    "  return new Error('mapped')",
+    '}',
+    `//# sourceMappingURL=data:application/json;base64,${inline}`,
+    '',
+  ].join('\n')
+}
+
+/** Runs `body` with Node's source maps on, then puts the setting back. */
+async function withNodeSourceMaps(body: () => Promise<void>): Promise<void> {
+  const was = process.sourceMapsEnabled
+  process.setSourceMapsEnabled(true)
+  try {
+    await body()
+  } finally {
+    process.setSourceMapsEnabled(was)
+  }
+}
+
+test('with Node’s source maps on, a compiled file’s own map moves its frame on, as Node’s would', async () => {
+  const root = writeTree({ ...TREE, 'boom.js': selfMapped() })
+  const file = join(root, 'boom.js')
+  const loader = await createProjectLoader(root, CONFIG, neutralPolicy.module)
+  const uninstall = installSourceMappedStacks(loader)
+  try {
+    const { boom } = await loader
+      .createFileRegistry(join(root, 'entry.test.ts'), { tier: 'registry' })
+      .import<{ boom(): Error }>(file)
+    // Off: the file's own map is not read, and the frame is where the file has it.
+    assert.equal(frameIn(boom().stack, file), '2:10')
+    await withNodeSourceMaps(async () => {
+      assert.equal(frameIn(boom().stack, join(root, 'orig.ts')), '6:9')
+      assert.equal(frameIn(boom().stack, file), undefined)
+    })
+  } finally {
+    uninstall()
+  }
+})
+
+// A guard, not a regression: Node's own formatter, which the installed one hands the frames to,
+// maps a file Node loaded, and the loader's step must not get in its way.
+test('with Node’s source maps on, a file Node loaded is still mapped by Node', async () => {
+  const root = writeTree({ ...TREE, 'native.mjs': selfMapped() })
+  const loader = await createProjectLoader(root, CONFIG, neutralPolicy.module)
+  const uninstall = installSourceMappedStacks(loader)
+  try {
+    await withNodeSourceMaps(async () => {
+      // Node records a module's map as it loads it, so the import is inside the window.
+      const { boom }: { boom(): Error } = await import(pathToFileURL(join(root, 'native.mjs')).href)
+      assert.equal(frameIn(boom().stack, join(root, 'orig.ts')), '6:9')
+    })
+  } finally {
+    uninstall()
+  }
+})
+
+/** A frame made in `file`, compiled by `vm` as the loader compiles, at `line` (1-based) of `code`. */
+function errorFrom(file: string, code: string): Error {
+  return (runInThisContext(code, { filename: file }) as () => Error)()
+}
+
+/** A loader that holds `map` for `file` and nothing else. */
+function holding(file: string, map: SourceMapV3): Pick<Loader, 'getSourceMap'> {
+  return { getSourceMap: (id) => (id === file ? map : null) }
+}
+
+/** The file's own map: one segment, at its line 1, column 1, into `orig.ts` line 1. */
+const OWN_MAP_LINE_ONE = `//# sourceMappingURL=data:application/json;base64,${Buffer.from(
+  JSON.stringify({ version: 3, sources: ['orig.ts'], names: [], mappings: segment(0, 0, 0, 0) }),
+).toString('base64')}`
+
+test('with Node’s source maps on, a frame the loader’s map can’t place stays where V8 put it', async () => {
+  const root = writeTree({})
+  const file = join(root, 'compiled.js')
+  // The error is made on line 3, which the record's map has no segment for (a line the loader
+  // wrote); the file's own map would place line 1 only, and its nearest earlier entry is wrong.
+  const code = [
+    '(function () {',
+    '  return () =>',
+    '    new Error("x")',
+    '})()',
+    OWN_MAP_LINE_ONE,
+  ].join('\n')
+  writeFileSync(file, code)
+  const record: SourceMapV3 = {
+    version: 3,
+    sources: [file],
+    names: [],
+    mappings: segment(0, 0, 0, 0),
+  }
+  const uninstall = installSourceMappedStacks(holding(file, record))
+  try {
+    await withNodeSourceMaps(async () => {
+      const error = errorFrom(file, code)
+      assert.equal(frameIn(error.stack, file), '3:5')
+      assert.equal(frameIn(error.stack, join(root, 'orig.ts')), undefined)
+    })
+  } finally {
+    uninstall()
+  }
+})
+
+test('with Node’s source maps on, a record already mapped past the file is not moved again', async () => {
+  const root = writeTree({})
+  const file = join(root, 'compiled.js')
+  const code = ['(function () {', '  return () => new Error("x")', '})()', OWN_MAP_LINE_ONE].join(
+    '\n',
+  )
+  writeFileSync(file, code)
+  // A hosted transformer's map, composed with the file's own: it ends at orig.ts, line 6, column 9.
+  const record: SourceMapV3 = {
+    version: 3,
+    sources: ['orig.ts'],
+    names: [],
+    mappings: `;${segment(15, 0, 5, 8)}`,
+  }
+  const uninstall = installSourceMappedStacks(holding(file, record))
+  try {
+    await withNodeSourceMaps(async () => {
+      const error = errorFrom(file, code)
+      assert.equal(frameIn(error.stack, file), '6:9')
+      assert.equal(frameIn(error.stack, join(root, 'orig.ts')), undefined)
+    })
+  } finally {
+    uninstall()
+  }
 })
