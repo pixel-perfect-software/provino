@@ -7,7 +7,7 @@ import type { SourceMapV3 } from '@provino/types'
 interface RawMap {
   readonly file?: string | null | undefined
   readonly sourceRoot?: string | undefined
-  readonly sources: readonly (string | null)[]
+  readonly sources: readonly (string | null | undefined)[]
   readonly sourcesContent?: readonly (string | null | undefined)[] | undefined
   readonly names: readonly string[]
   readonly mappings: string
@@ -20,7 +20,8 @@ export function toSourceMapV3(map: RawMap): SourceMapV3 {
     version: 3,
     ...(map.file === undefined ? {} : { file: map.file }),
     ...(map.sourceRoot === undefined ? {} : { sourceRoot: map.sourceRoot }),
-    sources: [...map.sources],
+    // oxc-transform 0.159 types a missing source as `undefined`; a v3 map writes `null`.
+    sources: map.sources.map((source) => source ?? null),
     ...(map.sourcesContent === undefined
       ? {}
       : { sourcesContent: map.sourcesContent.map((content) => content ?? null) }),
