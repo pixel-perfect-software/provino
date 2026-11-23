@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict'
-import { afterEach, describe, test } from 'node:test'
 import type { RuntimeApi } from '@provino/core'
 import { LazyError, lazy } from '@provino/lazy'
 import { createMockRegistry, type MockRegistry } from '@provino/mock'
@@ -12,6 +11,7 @@ import type {
   FileRegistry,
   ModuleMockRegistry,
 } from '@provino/types'
+import { afterEach, describe, test } from 'provino'
 import {
   type ApiHost,
   PROVINO_API_SLOT,
