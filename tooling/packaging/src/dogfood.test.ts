@@ -9,16 +9,16 @@ import { spawn } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { availableParallelism } from 'node:os'
 import { join } from 'node:path'
-import { describe, it } from 'provino'
+import { afterAll, beforeAll, describe, it, onTestFinished } from 'provino'
 import {
   bootstrapFiles,
-  isIncludedTestFile,
   migratedDirs,
   RUNNER_BIN,
-  TEST_ROOTS,
   TEST_RUNNER,
+  testFilesOf,
   testScript,
 } from './dogfood.ts'
+import { mapPool } from './pool.ts'
 import { scratchDir } from './test-support.ts'
 import { ROOT } from './workspace.ts'
 
@@ -30,67 +30,42 @@ const BIN = join(ROOT, RUNNER_BIN)
  */
 const DISCOVERY_LANES = Math.max(2, Math.min(4, Math.floor(availableParallelism() / 2)))
 
-/**
- * Runs each task once one of `limit` lanes is free, and hands the lane to the next waiting task as
- * a task ends. The packages' tests start together (each has its own deadline: a package that is slow
- * to list fails alone); this keeps at most `limit` listings in flight, as the pool did.
- */
-function lanes(limit: number): <T>(task: () => Promise<T>) => Promise<T> {
-  let busy = 0
-  const waiting: (() => void)[] = []
-  return async (task) => {
-    if (busy >= limit) await new Promise<void>((resolve) => waiting.push(resolve))
-    else busy++
-    try {
-      return await task()
-    } finally {
-      const next = waiting.shift()
-      if (next === undefined) busy--
-      else next()
-    }
-  }
-}
-
-const inLane = lanes(DISCOVERY_LANES)
-
-/** Every `*.test.ts` under a migrated package's include roots, relative to the package, sorted. */
-function testFilesOf(packageDir: string): string[] {
-  return TEST_ROOTS.filter((root) => existsSync(join(packageDir, root)))
-    .flatMap((root) =>
-      readdirSync(join(packageDir, root), { recursive: true, encoding: 'utf8' })
-        .map((entry) => `${root}/${entry.split('\\').join('/')}`)
-        .filter((path) => !path.includes('/node_modules/')),
-    )
-    .filter(isIncludedTestFile)
-    .sort()
-}
-
-/**
- * The built bin over the package with a name filter nothing matches; what it exited with and wrote,
- * and what it left in the temp dir. The listing gets a temp dir of its own (`TMPDIR`, `TMP` and
- * `TEMP`), empty, and the report goes elsewhere: a test file that makes a temp dir when it is only
- * imported (module scope, a `describe` body) leaves it there, since no test runs to remove it. The
- * runner itself writes nothing there (measured over every package, B27h3), so nothing is excluded.
- */
-function listDiscovered(packageDir: string): Promise<{
+/** What a listing exited with and wrote, and what it left in the temp dir. */
+interface Listed {
   status: number | null
   signal: NodeJS.Signals | null
   stderr: string
   report: string
   left: string[]
-}> {
+}
+
+/** A listing that is running, and the way to end it. */
+interface Listing {
+  readonly done: Promise<Listed>
+  /** Ends the run if it is still going (a test that ended, timed out or was interrupted). */
+  stop(): void
+}
+
+/**
+ * The built bin over the package with a name filter nothing matches. The listing gets a temp dir of
+ * its own (`TMPDIR`, `TMP` and `TEMP`), empty, and the report goes elsewhere: a test file that makes
+ * a temp dir when it is only imported (module scope, a `describe` body) leaves it there, since no
+ * test runs to remove it. The runner itself writes nothing there (measured over every package,
+ * B27h3), so nothing is excluded.
+ */
+function startListing(packageDir: string): Listing {
   const report = join(scratchDir('listing'), 'report.json')
   const tmp = scratchDir('listing-tmp')
-  return new Promise((resolve, reject) => {
-    const child = spawn(
-      process.execPath,
-      [BIN, 'run', '--reporter', 'json', '--outputFile', report, '-t', 'NO TEST HAS THIS NAME'],
-      {
-        cwd: packageDir,
-        timeout: 120_000,
-        env: { ...process.env, TMPDIR: tmp, TMP: tmp, TEMP: tmp },
-      },
-    )
+  const child = spawn(
+    process.execPath,
+    [BIN, 'run', '--reporter', 'json', '--outputFile', report, '-t', 'NO TEST HAS THIS NAME'],
+    {
+      cwd: packageDir,
+      timeout: 120_000,
+      env: { ...process.env, TMPDIR: tmp, TMP: tmp, TEMP: tmp },
+    },
+  )
+  const done = new Promise<Listed>((resolve, reject) => {
     let stderr = ''
     child.stderr.setEncoding('utf8').on('data', (chunk: string) => (stderr += chunk))
     child.stdout.resume()
@@ -99,6 +74,13 @@ function listDiscovered(packageDir: string): Promise<{
       resolve({ status, signal, stderr, report, left: readdirSync(tmp).sort() }),
     )
   })
+  return {
+    done,
+    stop() {
+      // SIGTERM: the runner ends its workers on it (exit 143), where a kill would orphan them.
+      if (child.exitCode === null && child.signalCode === null) child.kill('SIGTERM')
+    },
+  }
 }
 
 /** At most this much of a failed sub-run's report goes into an assertion message. */
@@ -195,9 +177,31 @@ describe('a failed sub-run explains itself', () => {
       'provino.config.ts': 'export default {}\n',
       'src/boom.test.ts': "throw new Error('planted load failure')\n",
     })
-    const ran = await listDiscovered(root)
+    const ran = await startListing(root).done
     assert.notEqual(ran.status, 0)
     assert.match(failureDetail(ran), /planted load failure/)
+  })
+})
+
+describe('a listing', () => {
+  it('is ended by stop(), so a test that ends takes its run with it', async () => {
+    assert.ok(existsSync(BIN), `${BIN} is missing: run pnpm build`)
+    const root = scratchDir('dogfood-hanging', {
+      'provino.config.ts': 'export default {}\n',
+      'src/hang.test.ts': 'await new Promise(() => {})\n',
+    })
+    const listing = startListing(root)
+    listing.stop()
+    // A bound for a stop that does nothing (the file never ends by itself), never a wait that passes.
+    let broken: NodeJS.Timeout | undefined
+    const bound = new Promise<never>((_, reject) => {
+      broken = setTimeout(() => reject(new Error('the listing is still running')), 10_000)
+    })
+    const ran = await Promise.race([listing.done, bound]).finally(() => clearTimeout(broken))
+    assert.ok(
+      ran.signal === 'SIGTERM' || ran.status === 143,
+      `ended by ${String(ran.signal)} ${String(ran.status)}`,
+    )
   })
 })
 
@@ -220,12 +224,35 @@ describe('testScript', () => {
   })
 })
 
-// One test per package, each with its own deadline, and the packages are read when the file loads (a
-// directory listing: cheap, and the one thing the test names come from). They start together;
-// `inLane` keeps at most DISCOVERY_LANES listings running.
-describe.concurrent('every test file of a migrated package runs on exactly one runner', () => {
+// One test per package, each with its own deadline. The packages are read when the file loads (a
+// directory listing: cheap, and where the test names come from). Every listing starts in `beforeAll`,
+// DISCOVERY_LANES at a time through `mapPool`, and the tests wait for their own package's one after
+// the other: a listing's wait for a lane is then in no test's deadline (a test that took the lane
+// itself had its wait counted against it), and a test ends its listing's process when it ends.
+describe('every test file of a migrated package runs on exactly one runner', () => {
   const staying = bootstrapFiles(ROOT)
   const dirs = migratedDirs(ROOT)
+  const listed = new Map(dirs.map((dir) => [dir, Promise.withResolvers<Listed>()]))
+  const running = new Map<string, Listing>()
+  // A listing that nobody awaits (its test did not run) is not an unhandled rejection.
+  for (const { promise } of listed.values()) promise.catch(() => undefined)
+
+  beforeAll(() => {
+    if (!existsSync(BIN)) return
+    void mapPool(dirs, DISCOVERY_LANES, async (dir) => {
+      const answer = listed.get(dir)
+      try {
+        const listing = startListing(join(ROOT, dir))
+        running.set(dir, listing)
+        answer?.resolve(await listing.done)
+      } catch (error) {
+        answer?.reject(error)
+      }
+    })
+  })
+  afterAll(() => {
+    for (const listing of running.values()) listing.stop()
+  })
 
   it('there is a migrated package', () => {
     assert.ok(dirs.length > 0, 'no migrated package found')
@@ -234,14 +261,15 @@ describe.concurrent('every test file of a migrated package runs on exactly one r
   for (const dir of dirs) {
     it(`${dir}: what Provino discovers is every test file minus the bootstrap set, each file has tests, and importing them leaves no temp dir`, async () => {
       assert.ok(existsSync(BIN), `${BIN} is missing: run pnpm build`)
-      const packageDir = join(ROOT, dir)
+      onTestFinished(() => running.get(dir)?.stop())
       const own = staying
         .filter((file) => file.startsWith(`${dir}/`))
         .map((file) => file.slice(dir.length + 1))
-      const expected = testFilesOf(packageDir).filter((file) => !own.includes(file))
+      const expected = testFilesOf(join(ROOT, dir)).filter((file) => !own.includes(file))
       assert.ok(expected.length > 0, `${dir}: no test file is left for Provino`)
 
-      const ran = await inLane(() => listDiscovered(packageDir))
+      const ran = await listed.get(dir)?.promise
+      assert.ok(ran !== undefined, `${dir}: no listing was started`)
       // Exit 0 is "every test skipped"; a crash, a timeout or a signal is none of the three.
       assert.equal(
         ran.signal,

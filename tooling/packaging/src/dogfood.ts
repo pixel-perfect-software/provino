@@ -89,6 +89,22 @@ export function isIncludedTestFile(relative: string): boolean {
 }
 
 /**
+ * Every `*.test.ts` a migrated package's config includes (under `TEST_ROOTS`, `node_modules` left
+ * out), relative to the package with `/` separators, sorted: what Provino discovers before the
+ * bootstrap set takes some away. The completeness test and the import scan list the same files.
+ */
+export function testFilesOf(packageDir: string): string[] {
+  return TEST_ROOTS.filter((root) => existsSync(join(packageDir, root)))
+    .flatMap((root) =>
+      readdirSync(join(packageDir, root), { recursive: true, encoding: 'utf8' })
+        .map((entry) => `${root}/${entry.split('\\').join('/')}`)
+        .filter((path) => !path.includes('/node_modules/')),
+    )
+    .filter(isIncludedTestFile)
+    .sort()
+}
+
+/**
  * The `test` script of the migrated package at `dir`: the runner, then `node --test` over the
  * package's bootstrap files when it has any.
  */
