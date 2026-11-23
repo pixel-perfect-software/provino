@@ -322,11 +322,10 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
   function hookPlace(): 'suite' | 'test' | 'unknown' {
     // The nearest registered callback owns the hook; a helper function between it and the call
     // leaves the owner to the caller, except inside a test body, where the running test owns it.
-    const at = functionKinds.findLastIndex((kind) => kind !== 'other')
-    if (at < 0) return functionKinds.length === 0 ? 'suite' : 'unknown'
-    const kind = functionKinds[at]
-    if (kind === 'test') return 'test'
-    return kind === 'suite' && at === functionKinds.length - 1 ? 'suite' : 'unknown'
+    const nearest = functionKinds.findLast((kind) => kind !== 'other')
+    if (nearest === 'test') return 'test'
+    if (functionKinds.length === 0) return 'suite'
+    return nearest === 'suite' && functionKinds.at(-1) === 'suite' ? 'suite' : 'unknown'
   }
 
   function registerHook(call: AstNode, reg: Registration): void {
@@ -526,7 +525,7 @@ export function rewriteNodeTest(file: string, source: string): RewriteResult {
   for (const { imported, local } of locals.values()) {
     if (imported === 'mock') continue
     const calls = hookCalls.get(local)
-    if (calls !== undefined && calls.total > 0 && calls.total === calls.retargeted) continue
+    if (calls !== undefined && calls.total === calls.retargeted) continue
     const native = HOOKS[imported] ?? imported
     const now = local === imported ? native : local
     specifiers.add(now === native ? native : `${native} as ${now}`)

@@ -4,7 +4,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { SHARED_CONFIG_VALUES, TEST_RUNNER } from '../dogfood.ts'
+import { CONDITIONS_FLAG, SCRIPT_JOIN, SHARED_CONFIG_VALUES, TEST_RUNNER } from '../dogfood.ts'
 import { runCommandAsync } from '../exec.ts'
 import { MigrateError } from './errors.ts'
 import {
@@ -101,8 +101,8 @@ export function parseTestScript(script: string | undefined): TestScript {
   // An already-migrated package (B27g2): `<runner> [&& node --test <bootstrap files>]`. Its Provino
   // part has nothing for the codemod to rewrite; the node:test part is read as any other script.
   if (script === TEST_RUNNER) return { flags: [], globs: [] }
-  if (script.startsWith(`${TEST_RUNNER} && `)) {
-    return parseTestScript(script.slice(TEST_RUNNER.length + 4))
+  if (script.startsWith(`${TEST_RUNNER}${SCRIPT_JOIN}`)) {
+    return parseTestScript(script.slice(TEST_RUNNER.length + SCRIPT_JOIN.length))
   }
   const tokens = words(script)
   if (tokens[0] !== 'node') throw scriptError(script, 'it does not start with node')
@@ -228,9 +228,7 @@ export async function recordProvino(options: {
         root: options.packageDir,
         include: options.files.map(escapeGlob),
         // The shared base config's values: the 5 s default would fail the long tests the package's own config passes.
-        isolation: SHARED_CONFIG_VALUES.isolation,
-        timeouts: SHARED_CONFIG_VALUES.timeouts,
-        resolve: { conditions: SHARED_CONFIG_VALUES.conditions },
+        ...SHARED_CONFIG_VALUES,
       }
       await writeFile(config, `export default ${JSON.stringify(body)}\n`)
     }
@@ -239,7 +237,7 @@ export async function recordProvino(options: {
       process.execPath,
       [
         ...stripFlags(),
-        ...(options.runner.endsWith('.ts') ? ['--conditions=provino-source'] : []),
+        ...(options.runner.endsWith('.ts') ? [CONDITIONS_FLAG] : []),
         resolve(options.runner),
         'run',
         '--config',

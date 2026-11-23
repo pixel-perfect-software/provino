@@ -6,7 +6,13 @@
 import { existsSync } from 'node:fs'
 import { glob, mkdir, readFile, realpath, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
-import { INCLUDE_GLOBS, bootstrapFiles as listBootstrapFiles, TEST_RUNNER } from '../dogfood.ts'
+import {
+  BOOTSTRAP_FILE,
+  bootstrapFiles,
+  INCLUDE_GLOBS,
+  isMigratedScript,
+  PACKAGE_CONFIG,
+} from '../dogfood.ts'
 import { readManifest } from '../package-json.ts'
 import { ROOT, readWorkspacePackages } from '../workspace.ts'
 import { MigrateError } from './errors.ts'
@@ -129,13 +135,13 @@ export function findPackage(name: string, root: string = ROOT): string {
  * The files that stay on node:test (B27g2: `tooling/provino/bootstrap.json`), relative to the
  * package; `rewrite` leaves them alone, so the baseline and the files agree on what is migrated.
  */
-async function bootstrapFiles(root: string, packageDir: string): Promise<ReadonlySet<string>> {
+function stayingOnNodeTest(root: string, packageDir: string): ReadonlySet<string> {
   let files: readonly string[]
   try {
-    files = listBootstrapFiles(root)
+    files = bootstrapFiles(root)
   } catch (cause) {
     if ((cause as { code?: string }).code === 'ENOENT') return new Set()
-    throw new MigrateError('MIGRATE_BASELINE', 'cannot read tooling/provino/bootstrap.json', {
+    throw new MigrateError('MIGRATE_BASELINE', `cannot read ${BOOTSTRAP_FILE}`, {
       cause,
     })
   }
@@ -171,9 +177,7 @@ export interface RewriteReport {
   readonly rewritten: readonly string[]
   /** Tests recorded into the baseline for the files rewritten now. */
   readonly baselineTests: number
-  /** No file imports node:test any more. */
-  readonly nothingToMigrate: boolean
-  /** A baseline exists (and was left as it is). */
+  /** With no node:test file (`candidates` is 0): a baseline exists and was left as it is. */
   readonly baselineKept: boolean
 }
 
@@ -192,10 +196,8 @@ export async function rewritePackage(options: {
   const script = parseTestScript(scriptText)
   // An already-migrated package's script runs the runner, so its files are found by the include
   // rule its config uses, not by the script's globs (which name only the bootstrap files).
-  const migrated =
-    scriptText === TEST_RUNNER || scriptText?.startsWith(`${TEST_RUNNER} && `) === true
-  const globs = migrated ? INCLUDE_GLOBS : script.globs
-  const staying = await bootstrapFiles(root, packageDir)
+  const globs = isMigratedScript(scriptText) ? INCLUDE_GLOBS : script.globs
+  const staying = stayingOnNodeTest(root, packageDir)
   const files = (await testFiles(packageDir, globs)).filter((file) => !staying.has(file))
   const results = await Promise.all(
     files.map(async (file) => {
@@ -206,19 +208,17 @@ export async function rewritePackage(options: {
   const refusals = results.flatMap((result) => result.refusals)
   const changed = results.filter((result) => result.changed)
   const candidates = results.filter((result) => result.changed || result.refusals.length > 0).length
+  const target = baselinePath(options.cacheDir, packageDir, root)
   if (refusals.length > 0 || options.dryRun || changed.length === 0) {
     return {
       candidates,
       refusals,
       rewritten: [],
       baselineTests: 0,
-      nothingToMigrate: candidates === 0,
-      baselineKept:
-        (await readBaseline(baselinePath(options.cacheDir, packageDir, root))) !== undefined,
+      baselineKept: candidates === 0 && (await readBaseline(target)) !== undefined,
     }
   }
 
-  const target = baselinePath(options.cacheDir, packageDir, root)
   const previous = (await readBaseline(target))?.files ?? {}
   const names = changed.map((result) => result.file)
   const records = await recordNodeTest(packageDir, names, script.flags)
@@ -255,7 +255,6 @@ export async function rewritePackage(options: {
     refusals,
     rewritten: names,
     baselineTests: records.length,
-    nothingToMigrate: false,
     baselineKept: true,
   }
 }
@@ -293,7 +292,7 @@ export async function verifyPackage(options: {
       `no baseline at ${target}: run rewrite on this package first`,
     )
   }
-  const staying = await bootstrapFiles(root, packageDir)
+  const staying = stayingOnNodeTest(root, packageDir)
   const all = Object.keys(baseline.files).sort()
   const files = all.filter((file) => !staying.has(file))
   const left = all.filter((file) => staying.has(file))
@@ -307,7 +306,7 @@ export async function verifyPackage(options: {
   }
   // The package's own config (its timeouts, D194) when it has one: it runs the whole package, so
   // only the files the baseline holds are compared.
-  const own = join(packageDir, 'provino.config.ts')
+  const own = join(packageDir, PACKAGE_CONFIG)
   const wanted = new Set(files)
   const after = (
     await recordProvino({

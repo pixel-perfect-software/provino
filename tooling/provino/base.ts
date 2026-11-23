@@ -18,8 +18,7 @@ export function packageConfig(directory: string): ProvinoConfig {
   return defineConfig({
     include: [...INCLUDE_GLOBS],
     exclude: bootstrapFiles(ROOT).map((file) => relative(directory, join(ROOT, file))),
-    isolation: SHARED_CONFIG_VALUES.isolation,
-    timeouts: { ...SHARED_CONFIG_VALUES.timeouts },
-    resolve: { conditions: [...SHARED_CONFIG_VALUES.conditions] },
+    // A copy: a config's nested objects are the run's to read, never a shared constant.
+    ...structuredClone(SHARED_CONFIG_VALUES),
   })
 }

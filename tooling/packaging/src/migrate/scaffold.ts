@@ -3,12 +3,13 @@
 // turbo.json, the tsconfig exclude and the root reference, and the `test` script. Idempotent: it
 // writes what is missing, adds what an existing file lacks (never removing a line), and sets the
 // script, so running `rewrite` again after editing `bootstrap.json` refreshes the script. Left to
-// hand: the bootstrap entries themselves, and a `test/` directory's own tsconfig (a reference to
-// `../../provino` when its tests import `provino`).
+// hand: the bootstrap entries themselves, and creating a missing `test/` or `bench/` tsconfig.json
+// (the scaffold then adds the `provino` and dependency references to the one that covers each test).
 import { existsSync, readdirSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
-import { SRC_TEST_GLOB, TEST_ROOTS, testScript } from '../dogfood.ts'
+import { PACKAGE_CONFIG, SRC_TEST_GLOB, TEST_ROOTS, testScript } from '../dogfood.ts'
+import { record } from '../package-json.ts'
 import { MigrateError } from './errors.ts'
 
 const CONFIG = `import type { ProvinoConfig } from 'provino/config'
@@ -38,6 +39,10 @@ const TURBO = {
 }
 
 type Json = Record<string, unknown>
+type Reference = { path: string }
+
+/** The `references` of a tsconfig, `[]` when it has none. */
+const referencesOf = (config: Json): Reference[] => (config.references ?? []) as Reference[]
 
 async function readJson(path: string): Promise<Json> {
   try {
@@ -94,7 +99,7 @@ function addMissing(list: unknown, wanted: readonly string[]): { list: string[];
 /** The directory names of the `@provino/*` workspace packages `manifest` depends on (any kind), sorted. */
 function workspacePackages(root: string, manifest: Json): string[] {
   const names = ['dependencies', 'devDependencies', 'peerDependencies'].flatMap((key) =>
-    Object.keys((manifest[key] ?? {}) as Record<string, string>),
+    Object.keys(record(manifest[key])),
   )
   return [...new Set(names)]
     .filter((name) => name.startsWith('@provino/') && name !== manifest.name)
@@ -103,25 +108,32 @@ function workspacePackages(root: string, manifest: Json): string[] {
     .sort()
 }
 
-/** The same packages as `../<dir>` references. */
-function workspaceReferences(root: string, manifest: Json): string[] {
-  return workspacePackages(root, manifest).map((dir) => `../${dir}`)
+/**
+ * A lookup of the nearest `tsconfig.json` at or above a file, stopping below the package directory
+ * (the package's own project covers `src`, not `test/` or `bench/`); answers are kept per directory.
+ */
+function tsconfigFinder(packageDir: string): (file: string) => string | undefined {
+  const known = new Map<string, string | undefined>()
+  const find = (dir: string): string | undefined => {
+    if (dir === packageDir || !dir.startsWith(packageDir)) return undefined
+    if (known.has(dir)) return known.get(dir)
+    const candidate = join(dir, 'tsconfig.json')
+    const found = existsSync(candidate) ? candidate : find(dirname(dir))
+    known.set(dir, found)
+    return found
+  }
+  return (file) => find(dirname(file))
 }
 
-/**
- * The nearest `tsconfig.json` at or above `file`, stopping below the package directory (the
- * package's own project covers `src`, not `test/` or `bench/`).
- */
-function coveringTsconfig(packageDir: string, file: string): string | undefined {
-  for (
-    let dir = dirname(file);
-    dir !== packageDir && dir.startsWith(packageDir);
-    dir = dirname(dir)
-  ) {
-    const candidate = join(dir, 'tsconfig.json')
-    if (existsSync(candidate)) return candidate
-  }
-  return undefined
+/** The `*.test.ts` files under `directory`, skipping `node_modules` while walking. */
+function testFilesUnder(directory: string): string[] {
+  if (!existsSync(directory)) return []
+  return readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(directory, entry.name)
+    if (entry.name === 'node_modules') return []
+    if (entry.isDirectory()) return testFilesUnder(path)
+    return entry.name.endsWith('.test.ts') ? [path] : []
+  })
 }
 
 /**
@@ -133,28 +145,16 @@ function coveringTsconfig(packageDir: string, file: string): string | undefined 
 async function referenceTestProjects(
   root: string,
   packageDir: string,
-  manifest: Json,
-  self: boolean,
+  projects: ReadonlySet<string>,
+  packages: readonly string[],
   changes: Changes,
 ): Promise<void> {
-  const wanted = [...(self ? [] : ['provino']), ...workspacePackages(root, manifest)].map((dir) =>
-    join(root, 'packages', dir),
-  )
-  const projects = new Set<string>()
-  for (const name of TEST_ROOTS.filter((entry) => entry !== 'src')) {
-    const base = join(packageDir, name)
-    if (!existsSync(base)) continue
-    for (const entry of readdirSync(base, { recursive: true, encoding: 'utf8' })) {
-      if (!entry.endsWith('.test.ts') || entry.split(/[\\/]/).includes('node_modules')) continue
-      const project = coveringTsconfig(packageDir, join(base, entry))
-      if (project !== undefined) projects.add(project)
-    }
-  }
+  const wanted = packages.map((name) => join(root, 'packages', name))
   for (const project of [...projects].sort()) {
     await updateJson(
       project,
       (config) => {
-        const refs = (config.references ?? []) as { path: string }[]
+        const refs = referencesOf(config)
         const have = new Set(refs.map((ref) => resolve(dirname(project), ref.path)))
         have.add(dirname(project))
         have.add(packageDir)
@@ -185,17 +185,19 @@ export async function scaffoldPackage(
   const changes = new Changes(root)
   const manifest = await readJson(join(packageDir, 'package.json'))
 
-  await writeIfMissing(join(packageDir, 'provino.config.ts'), CONFIG, changes)
+  await writeIfMissing(join(packageDir, PACKAGE_CONFIG), CONFIG, changes)
   await writeIfMissing(join(packageDir, 'turbo.json'), json(TURBO), changes)
 
   // The tests project: `provino` depends on most packages, so the tests cannot sit in the package's
   // own project (a cycle). It references the package's project, `provino` (not itself), the
   // `@provino/*` packages the package depends on, and the shared config's project.
-  const self = manifest.name === 'provino'
+  const packages = [
+    ...(manifest.name === 'provino' ? [] : ['provino']),
+    ...workspacePackages(root, manifest),
+  ]
   const references = [
     './tsconfig.json',
-    ...(self ? [] : ['../provino']),
-    ...workspaceReferences(root, manifest),
+    ...packages.map((name) => `../${name}`),
     '../../tooling/provino',
   ]
   // One path: seed the file when it is missing, then merge into whatever is there.
@@ -210,7 +212,7 @@ export async function scaffoldPackage(
         notes.push(`extends ${TESTS_BASE}`)
       }
       // The base carries these; a copy in the package would only drift.
-      const options = { ...((config.compilerOptions ?? {}) as Json) }
+      const options = { ...record(config.compilerOptions) }
       for (const key of ['rewriteRelativeImportExtensions', 'allowImportingTsExtensions']) {
         if (key in options) {
           delete options[key]
@@ -219,9 +221,11 @@ export async function scaffoldPackage(
       }
       if (Object.keys(options).length === 0) delete config.compilerOptions
       else config.compilerOptions = options
-      const include = addMissing(config.include, [SRC_TEST_GLOB, 'provino.config.ts'])
-      const current = ((config.references ?? []) as { path: string }[]).map((ref) => ref.path)
-      const refs = addMissing(current, references)
+      const include = addMissing(config.include, [SRC_TEST_GLOB, PACKAGE_CONFIG])
+      const refs = addMissing(
+        referencesOf(config).map((ref) => ref.path),
+        references,
+      )
       config.include = include.list
       config.references = refs.list.map((path) => ({ path }))
       notes.push(...include.added.map((item) => `include ${item}`))
@@ -244,7 +248,7 @@ export async function scaffoldPackage(
   await updateJson(
     join(root, 'tsconfig.json'),
     (config) => {
-      const refs = (config.references ?? []) as { path: string }[]
+      const refs = referencesOf(config)
       const tests = `${dir}/tsconfig.tests.json`
       if (refs.some((ref) => ref.path === tests)) return undefined
       const at = refs.findIndex((ref) => ref.path === dir)
@@ -257,7 +261,7 @@ export async function scaffoldPackage(
   await updateJson(
     join(packageDir, 'package.json'),
     (config) => {
-      const scripts = (config.scripts ?? {}) as Record<string, string>
+      const scripts = record(config.scripts)
       const script = testScript(root, dir)
       if (scripts.test === script) return undefined
       config.scripts = { ...scripts, test: script }
@@ -265,27 +269,24 @@ export async function scaffoldPackage(
     },
     changes,
   )
-  await referenceTestProjects(root, packageDir, manifest, self, changes)
-  // Tests under test/ or bench/ are in no project of this scaffold's making: say which are in none.
-  for (const root of TEST_ROOTS.filter((name) => name !== 'src')) {
-    const count = existsSync(join(packageDir, root))
-      ? uncoveredTestFiles(packageDir, join(packageDir, root))
-      : 0
+  // The tests under test/ and bench/: each one's covering project gets the references; the ones no
+  // project covers are reported, since creating a tsconfig.json is left to hand.
+  const covering = tsconfigFinder(packageDir)
+  const projects = new Set<string>()
+  const uncovered: string[] = []
+  for (const name of TEST_ROOTS.filter((entry) => entry !== 'src')) {
+    let count = 0
+    for (const file of testFilesUnder(join(packageDir, name))) {
+      const project = covering(file)
+      if (project === undefined) count++
+      else projects.add(project)
+    }
     if (count > 0) {
-      changes.lines.push(
-        `${dir}/${root}: ${count} test file(s) and no ${root}/tsconfig.json: no tsconfig covers them (add a project that references ../../provino, by hand)`,
+      uncovered.push(
+        `${dir}/${name}: ${count} test file(s) and no ${name}/tsconfig.json: no tsconfig covers them (create one by hand; the scaffold then adds its references)`,
       )
     }
   }
-  return changes.lines
-}
-
-/** How many `*.test.ts` files under `directory` (not in node_modules) no tsconfig.json covers. */
-function uncoveredTestFiles(packageDir: string, directory: string): number {
-  return readdirSync(directory, { recursive: true, encoding: 'utf8' }).filter(
-    (entry) =>
-      entry.endsWith('.test.ts') &&
-      !entry.split(/[\\/]/).includes('node_modules') &&
-      coveringTsconfig(packageDir, join(directory, entry)) === undefined,
-  ).length
+  await referenceTestProjects(root, packageDir, projects, packages, changes)
+  return [...changes.lines, ...uncovered]
 }

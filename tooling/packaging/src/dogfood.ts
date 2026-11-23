@@ -25,12 +25,30 @@ export const INCLUDE_GLOBS: readonly string[] = TEST_ROOTS.map((root) => `${root
 export const SRC_TEST_GLOB: string = INCLUDE_GLOBS[0] ?? 'src/**/*.test.ts'
 
 /** The shared config's values every migrated package's config and `verify`'s scratch config use (D193, D194). */
-export const SHARED_CONFIG_VALUES = {
+export const SHARED_CONFIG_VALUES: {
+  isolation: 'registry'
+  timeouts: { test: number; hook: number }
+  resolve: { conditions: string[] }
+} = {
   isolation: 'registry',
   /** node:test had no timeout and CI's job limit is the outer bound, so tests and hooks get 120 s. */
   timeouts: { test: 120_000, hook: 120_000 },
-  conditions: ['provino-source'],
-} as const
+  resolve: { conditions: ['provino-source'] },
+}
+
+/** The node flag that resolves `provino-source` (the workspace's TypeScript sources). */
+export const CONDITIONS_FLAG: string = `--conditions=${SHARED_CONFIG_VALUES.resolve.conditions[0]}`
+
+/** The file a migrated package's Provino config lives in. */
+export const PACKAGE_CONFIG = 'provino.config.ts'
+
+/** Joins the runner and the `node --test` part of a migrated package's `test` script. */
+export const SCRIPT_JOIN = ' && '
+
+/** Whether a `test` script is `testScript`'s shape: the runner, then optionally its bootstrap files. */
+export function isMigratedScript(script: string | undefined): boolean {
+  return script === TEST_RUNNER || script?.startsWith(`${TEST_RUNNER}${SCRIPT_JOIN}`) === true
+}
 
 /** The one file the bootstrap set must always hold: the runner's canary. */
 export const CANARY = 'packages/provino/test/bootstrap/canary.test.ts'
@@ -57,8 +75,7 @@ export function migratedDirs(root: string): readonly string[] {
     )
     .filter(
       (dir) =>
-        existsSync(join(root, dir, 'provino.config.ts')) &&
-        existsSync(join(root, dir, 'package.json')),
+        existsSync(join(root, dir, PACKAGE_CONFIG)) && existsSync(join(root, dir, 'package.json')),
     )
     .sort()
 }
@@ -81,5 +98,5 @@ export function testScript(root: string, dir: string): string {
     .map((file) => file.slice(dir.length + 1))
   return own.length === 0
     ? TEST_RUNNER
-    : `${TEST_RUNNER} && node --test --conditions=provino-source ${own.join(' ')}`
+    : `${TEST_RUNNER}${SCRIPT_JOIN}node --test ${CONDITIONS_FLAG} ${own.join(' ')}`
 }

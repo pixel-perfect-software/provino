@@ -5,6 +5,7 @@ import { chmod, mkdir, readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { TEST_RUNNER } from '../dogfood.ts'
+import { writeFiles } from '../test-support.ts'
 import { formatDifference, isEmptyDifference } from './node-test-compare.ts'
 import {
   baselinePath,
@@ -207,12 +208,12 @@ describe('an already-migrated package, bootstrap entries and verify config (B27h
     dryRun: false,
   })
 
-  async function bootstrap(f: { root: string }, files: readonly string[]): Promise<void> {
-    await mkdir(join(f.root, 'tooling/provino'), { recursive: true })
-    await writeFile(
-      join(f.root, 'tooling/provino/bootstrap.json'),
-      JSON.stringify({ files: Object.fromEntries(files.map((file) => [file, 'why'])) }),
-    )
+  function bootstrap(f: { root: string }, files: readonly string[]): void {
+    writeFiles(f.root, {
+      'tooling/provino/bootstrap.json': JSON.stringify({
+        files: Object.fromEntries(files.map((file) => [file, 'why'])),
+      }),
+    })
   }
 
   it('finds the files of a migrated package through the include rule, not the script globs', async () => {
@@ -233,7 +234,7 @@ describe('an already-migrated package, bootstrap entries and verify config (B27h
       'src/a.test.ts',
       'src/b.test.ts',
     ])
-    await bootstrap(f, ['pkg/src/b.test.ts'])
+    bootstrap(f, ['pkg/src/b.test.ts'])
     await writeFile(join(f.pkg, 'src/c.test.ts'), OLD)
     await rewritePackage(options(f))
     assert.deepEqual(Object.keys((await readBaseline(path))?.files ?? {}).sort(), [
@@ -243,14 +244,14 @@ describe('an already-migrated package, bootstrap entries and verify config (B27h
     ])
     // A third run finds no node:test file: it says so and leaves the baseline as it is.
     const again = await rewritePackage(options(f))
-    assert.equal(again.nothingToMigrate, true)
+    assert.equal(again.candidates, 0)
     assert.equal(Object.keys((await readBaseline(path))?.files ?? {}).length, 3)
   })
 
   it('verify leaves out the baseline records of bootstrap files and says how many', async () => {
     const f = await fixturePackage({ 'src/a.test.ts': THREE_TESTS, 'src/b.test.ts': OLD })
     await rewritePackage(options(f))
-    await bootstrap(f, ['pkg/src/b.test.ts'])
+    bootstrap(f, ['pkg/src/b.test.ts'])
     const verified = await verify(f, await fakeRunner(f.root, THREE_REPORT))
     assert.equal(verified.tests, 3)
     assert.equal(verified.leftOutFiles, 1)
@@ -261,7 +262,7 @@ describe('an already-migrated package, bootstrap entries and verify config (B27h
   it('verify with every baseline file in the bootstrap set is MIGRATE_ALL_BOOTSTRAPPED', async () => {
     const f = await fixturePackage({ 'src/a.test.ts': OLD })
     await rewritePackage(options(f))
-    await bootstrap(f, ['pkg/src/a.test.ts'])
+    bootstrap(f, ['pkg/src/a.test.ts'])
     await assert.rejects(verify(f, 'x.ts'), { code: 'MIGRATE_ALL_BOOTSTRAPPED' })
   })
 
