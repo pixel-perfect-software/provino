@@ -15,7 +15,7 @@ Every check runs, then dependency-cruiser does, so one run reports everything.
 
 - `manifest-*`: the manifest's own rules (layers point down, worker and coordinator never meet, known keys only), its dirs inside the workspace roots, package names and `package.json` deps, generated files current.
 - `workspace-*`: each package's `exports` lists `provino-source` first (so no import resolves to `dist/`), each package is in `tsconfig.json` (and its `test/` in `tsconfig.type-tests.json`), a `node --test` script has tests to run, no placed dir is git-ignored, and the TypeScript 6 pin in `packageExtensions` matches the catalog.
-- `no-plugin-suppression`: no `biome-ignore` comment silences the boundary lints.
+- `no-plugin-suppression`: no `biome-ignore` comment silences the boundary lints. The scan skips a listed file or directory that is gone when it is read (`ENOENT`); any other read error fails the scan.
 - The workspace roots come from `pnpm-workspace.yaml`; only `<dir>/*` globs are supported.
 
 ## Changing things
@@ -30,6 +30,7 @@ Every check runs, then dependency-cruiser does, so one run reports everything.
 
 ## Gotchas
 
+- **Tests keep scratch files in the OS temp dir or a `.work/` dir** (git-ignored, and in `SKIPPED_DIRS`), never in a checked-in folder: the workspace walk lists those while other packages' tests run.
 - **`node_modules` is in the cruise graph,** as edge targets only (`doNotFollow`; the `exclude` list leaves it out of `SKIPPED_DIRS`' regex): the ban rule needs to see an import of a package. Everything else in `SKIPPED_DIRS` is still excluded.
 
 - Biome's `--stdin-file-path` mode doesn't report plugin diagnostics, so `planted.test.ts` copies the config into a scratch dir under the OS temp dir and lints real files. Turbo passes `TMPDIR` through so sandboxes that block `/tmp` work. A scratch dir inside a folder with its own root `biome.json` fails with "nested root configuration".

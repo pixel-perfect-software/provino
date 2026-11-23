@@ -1,5 +1,5 @@
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { type Dirent, existsSync } from 'node:fs'
 import { readdir, readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import {
@@ -65,7 +65,7 @@ export async function readWorkspace(root: string): Promise<Workspace> {
     await Promise.all(
       roots.map(async (base) =>
         (
-          await readdir(join(root, base), { withFileTypes: true }).catch(() => [])
+          await readEntries(join(root, base))
         )
           .filter((entry) => entry.isDirectory())
           .map((entry) => `${base}/${entry.name}`),
@@ -302,8 +302,24 @@ const SOURCE_FILE = /\.(?:[cm]?[jt]sx?)$/
 const PLUGIN_SUPPRESSION =
   /^\s*(?:\/\/|\/\*+|\*)\s*biome-ignore(?:-all|-start)?\s+lint(?:\/plugin\S*)?(?=[\s:(]|$)/
 
+/** A path can be gone between the walk and the read (a test's scratch file); that is `ENOENT`. */
+function isNotFound(error: unknown): boolean {
+  return error instanceof Error && Reflect.get(error, 'code') === 'ENOENT'
+}
+
+/** The entries of `dir`: none when it is gone, and any other error (an unreadable one) is real. */
+async function readEntries(dir: string): Promise<Dirent[]> {
+  try {
+    return await readdir(dir, { withFileTypes: true })
+  } catch (error) {
+    if (isNotFound(error)) return []
+    throw error
+  }
+}
+
 /**
- * Source files that suppress the GritQL boundary lints with a `biome-ignore` comment.
+ * Source files that suppress the GritQL boundary lints with a `biome-ignore` comment. A listed file
+ * that is gone when it is read is skipped; any other read error fails the scan.
  * @public
  */
 export async function pluginSuppressions(
@@ -314,8 +330,14 @@ export async function pluginSuppressions(
     pkg.files
       .filter((file) => SOURCE_FILE.test(file))
       .map(async (file): Promise<readonly Problem[]> => {
-        const lines = (await readFile(join(root, pkg.dir, file), 'utf8')).split('\n')
-        const line = lines.findIndex((text) => PLUGIN_SUPPRESSION.test(text))
+        let text: string
+        try {
+          text = await readFile(join(root, pkg.dir, file), 'utf8')
+        } catch (error) {
+          if (isNotFound(error)) return []
+          throw error
+        }
+        const line = text.split('\n').findIndex((row) => PLUGIN_SUPPRESSION.test(row))
         if (line === -1) return []
         return [
           problem(
@@ -343,7 +365,7 @@ async function references(path: string): Promise<ReadonlySet<string>> {
 async function listFiles(dir: string): Promise<readonly string[]> {
   const files: string[] = []
   const walk = async (prefix: string): Promise<void> => {
-    const entries = await readdir(join(dir, prefix), { withFileTypes: true }).catch(() => [])
+    const entries = await readEntries(join(dir, prefix))
     await Promise.all(
       entries.map(async (entry) => {
         if (SKIP_DIRS.has(entry.name)) return

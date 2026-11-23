@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { chmod } from 'node:fs/promises'
+import { join } from 'node:path'
 import { describe, test } from 'provino'
 import { loadManifest } from './manifest.ts'
 import { MANIFEST_PATH, ROOT } from './paths.ts'
@@ -64,6 +66,13 @@ function ws(packages: readonly WorkspacePackage[], extra: Partial<Workspace> = {
 }
 
 const rules = (problems: readonly { rule: string }[]): string[] => problems.map((p) => p.rule)
+
+/** For `assert.rejects`: an error that is not "no such file". */
+function notMissing(error: unknown): boolean {
+  assert.ok(error instanceof Error)
+  assert.notEqual(Reflect.get(error, 'code'), 'ENOENT')
+  return true
+}
 
 describe('the real workspace', () => {
   test('matches the real manifest and the repo conventions', async () => {
@@ -246,7 +255,78 @@ describe('repo hygiene checks', () => {
       ['packages/core/src/a.ts:1', 'packages/core/src/b.ts:1'],
     )
   })
+
+  const SUPPRESSED = '// biome-ignore lint/plugin: no\nexport {}\n'
+  const listed = (...files: string[]) =>
+    ws([pkg({ dir: 'packages/core', name: '@provino/core', files })])
+
+  test('a listed file that is gone when it is read is skipped', async () => {
+    const dir = await scratchDir('ghost', { 'packages/core/src/a.ts': SUPPRESSED })
+    const problems = await pluginSuppressions(dir, listed('src/a.ts', 'src/ghost.ts'))
+    assert.deepEqual(
+      problems.map((p) => p.message.split(' ')[0]),
+      ['packages/core/src/a.ts:1'],
+    )
+  })
+
+  test('any other error reading a listed file fails the scan', async () => {
+    // A directory where a file is listed: its error code varies by platform and Node version.
+    const dir = await scratchDir('not-a-file', {
+      'packages/core/src/a.ts': SUPPRESSED,
+      'packages/core/src/dir.ts/keep': '',
+    })
+    await assert.rejects(pluginSuppressions(dir, listed('src/a.ts', 'src/dir.ts')), notMissing)
+  })
 })
+
+const WALK_ROOT = {
+  'pnpm-workspace.yaml': 'packages:\n  - packages/*\n',
+  'tsconfig.json': '{ "references": [] }\n',
+  'tsconfig.type-tests.json': '{ "references": [] }\n',
+}
+
+test('a workspace root that does not exist is skipped', async () => {
+  const dir = await scratchDir('walk-no-root', {
+    ...WALK_ROOT,
+    'pnpm-workspace.yaml': 'packages:\n  - packages/*\n  - tooling/*\n',
+    'packages/core/package.json': '{ "name": "@provino/core" }\n',
+  })
+  const workspace = await readWorkspace(dir)
+  assert.deepEqual(workspace.roots, ['packages', 'tooling'])
+  assert.deepEqual(
+    workspace.packages.map((p) => p.dir),
+    ['packages/core'],
+  )
+})
+
+test('a workspace root that cannot be read fails the walk', async () => {
+  const dir = await scratchDir('walk-root-file', { ...WALK_ROOT, packages: 'not a directory' })
+  await assert.rejects(readWorkspace(dir), notMissing)
+})
+
+/** Why a directory can't be denied here, or `false`. */
+function cannotDeny(): string | false {
+  if (process.platform === 'win32') return 'chmod does not deny a directory on Windows'
+  return process.getuid?.() === 0 ? 'root reads every directory, so nothing is denied' : false
+}
+
+test.skipIf(cannotDeny())(
+  'a directory that cannot be read fails the walk instead of dropping its files',
+  async () => {
+    const dir = await scratchDir('walk-locked', {
+      ...WALK_ROOT,
+      'packages/core/package.json': '{ "name": "@provino/core" }\n',
+      'packages/core/src/locked/a.ts': 'export {}\n',
+    })
+    const locked = join(dir, 'packages/core/src/locked')
+    await chmod(locked, 0o000)
+    try {
+      await assert.rejects(readWorkspace(dir), notMissing)
+    } finally {
+      await chmod(locked, 0o755)
+    }
+  },
+)
 
 test('the workspace walk skips generated suites, bench records and recorder work dirs', async () => {
   const dir = await scratchDir('walk', {
