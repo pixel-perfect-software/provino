@@ -1,6 +1,6 @@
 // The save loop against a fake session: no process, no watcher, no real wait.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import type { ProbeEvent } from './report.ts'
 import { type Found, measureSaves, type SessionDriver } from './session.ts'
 

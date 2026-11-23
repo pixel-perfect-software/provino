@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { inParallel } from './in-parallel.ts'
 
 const yieldOnce = (): Promise<void> => new Promise<void>((resolve) => setImmediate(resolve))

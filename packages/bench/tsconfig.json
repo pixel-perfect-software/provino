@@ -50,5 +50,6 @@
     {
       "path": "../orchestrator"
     }
-  ]
+  ],
+  "exclude": ["src/**/*.test.ts"]
 }

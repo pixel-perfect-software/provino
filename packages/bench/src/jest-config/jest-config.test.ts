@@ -2,7 +2,7 @@
 // the sample's selection rules (F4) and T11.4's bar.
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { test } from 'node:test'
+import { test } from 'provino'
 import {
   BAR_KEY_COUNT,
   compareReads,

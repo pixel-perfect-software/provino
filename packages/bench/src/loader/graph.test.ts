@@ -1,7 +1,7 @@
 // The corpus of `bench:loader graph` (T2.6, B13d): the rebuilt corpus meets the research's floors,
 // and the graph misses no static edge that `oxc-parser` finds. The timing bars are the command's.
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { buildCorpusGraph, checkEdges, corpusStats, FLOORS } from './graph.ts'
 
 test('the corpus holds at least the research floors, and no static edge is missed', async () => {

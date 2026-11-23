@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { resolve } from 'node:path'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { parseCli } from '../cli-args.ts'
 import { BenchError } from '../errors.ts'
 import { tsCorpusFiles } from '../generators/ts-corpus.ts'

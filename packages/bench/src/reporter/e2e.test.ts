@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { BenchError } from '../errors.ts'
 import { CPU_FILE_VARIABLE, cpuProbeImport, E2E_SUBJECTS, e2eArgs, parseCpuProbe } from './e2e.ts'
 

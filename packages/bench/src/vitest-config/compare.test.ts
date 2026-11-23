@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { type CompareInputs, compareTest, firstDifference, TEST_BAR_KEYS } from './compare.ts'
 
 const ROOT = '/work/app'

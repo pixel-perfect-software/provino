@@ -32,6 +32,9 @@
       "path": "packages/bench"
     },
     {
+      "path": "packages/bench/tsconfig.tests.json"
+    },
+    {
       "path": "packages/resolver"
     },
     {

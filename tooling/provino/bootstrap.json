@@ -1,5 +1,16 @@
 {
   "files": {
+    "packages/bench/src/check.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
+    "packages/bench/src/commands.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
+    "packages/bench/src/environment.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
+    "packages/bench/src/exec.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
+    "packages/bench/src/instructions/prepare.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
+    "packages/bench/src/output.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
+    "packages/bench/src/parity.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
+    "packages/bench/src/run-bench.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
+    "packages/bench/src/suites.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
+    "packages/bench/src/tree-rss.test.ts": "Codemod gap (B27h): after() inside a test helper registers on the running test: the helper takes the test context and calls t.after.",
+    "packages/bench/src/worker/worker.test.ts": "Runs the inline worker in this process, so it installs the expect slot (globalThis[Symbol.for('$$jest-matchers-object')]) the runner's own worker already holds (B27h).",
     "packages/lazy/src/api.test.ts": "Four tests assume no lazy runtime is installed and that the slot is the process's own; under Provino the worker owns that process-global slot, so they cannot run inside it (B27g1).",
     "packages/lazy/src/read.test.ts": "The unhandled-rejection test owns the process-wide rejection handler the runner's worker already holds (B27g1).",
     "packages/provino/test/bootstrap/canary.test.ts": "The canary: it runs the built runner on a fixture with known failures and asserts they are reported, so a runner that reports green wrongly is caught (D203). It must not depend on the runner it checks."

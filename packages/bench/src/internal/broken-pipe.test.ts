@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { spawn } from 'node:child_process'
 import { PassThrough } from 'node:stream'
-import { test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { test } from 'provino'
 import { ignoreBrokenPipe } from './broken-pipe.ts'
 
 const MODULE_URL = pathToFileURL(fileURLToPath(new URL('./broken-pipe.ts', import.meta.url))).href

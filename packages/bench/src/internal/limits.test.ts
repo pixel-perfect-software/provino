@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { overBar, parseLimit, readSample, SAMPLE_PREFIX } from './limits.ts'
 
 test('a bar flag must be a finite number, or the check could never fail', () => {

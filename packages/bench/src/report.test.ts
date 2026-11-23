@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { test } from 'node:test'
 import type { BenchRecord, BenchResult, BenchSubject } from '@provino/types'
+import { test } from 'provino'
 import { code, testEnvironment, testRecord } from './internal/test-helpers.ts'
 import {
   BENCH_LABELS,

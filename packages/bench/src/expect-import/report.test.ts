@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describe, test } from 'node:test'
+import { describe, test } from 'provino'
 import { describeRun, type ImportSample, parseImportArgs, summarise } from './report.ts'
 
 const sample = (entry: number, engine: number): ImportSample => ({

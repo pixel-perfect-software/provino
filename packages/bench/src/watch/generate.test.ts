@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { posix } from 'node:path'
-import { test } from 'node:test'
+import { test } from 'provino'
 import { generateWatchTree } from './generate.ts'
 
 test('the full tree is 5,000 files in 600 directories, 500 of them tests over chains of 9', () => {
