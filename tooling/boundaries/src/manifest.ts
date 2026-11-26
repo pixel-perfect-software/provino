@@ -52,8 +52,8 @@ export interface Manifest {
   /** `@provino/policy` exports that hand out the whole policy (`neutralPolicy`, `resolvePolicy`). */
   readonly wholePolicyValues: readonly string[]
   /**
-   * The one file every `boundary-*` rule lets through and only tests may import (B27g2, D203: this
-   * repo's tests import the native API as `provino`; Phase 10 removes it). Absent: no allowance.
+   * The one file every `boundary-*` rule lets through and only tests may import (B27g2, D191; why it
+   * stays is the `test-only-entry` rule's comment in `generate.ts`). Absent: no allowance.
    */
   readonly testOnlyEntry: string | undefined
   readonly nodes: readonly ManifestNode[]

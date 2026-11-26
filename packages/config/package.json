@@ -29,7 +29,7 @@
   },
   "scripts": {
     "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
-    "test": "node ../../packages/provino/dist/cli.js run && node --test --conditions=provino-source src/transform-cache.test.ts"
+    "test": "node ../../node_modules/provino-runner/dist/cli.js run && node --test --conditions=provino-source src/transform-cache.test.ts"
   },
   "dependencies": {
     "@provino/policy": "workspace:*",

@@ -8,6 +8,7 @@ import { existsSync, realpathSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
+import { RUNNER_BIN } from '../dogfood.ts'
 import { ROOT } from '../workspace.ts'
 import { MigrateError } from './errors.ts'
 import { formatDifference, isEmptyDifference } from './node-test-compare.ts'
@@ -15,8 +16,8 @@ import { findPackage, rewritePackage, verifyPackage } from './node-test-migrate.
 import { formatRefusal } from './node-test-rewrite.ts'
 import { scaffoldPackage } from './scaffold.ts'
 
-/** This checkout's built bin (D203, until the one release moves it to a pinned rc, D191): `pnpm build` first. */
-const DEFAULT_RUNNER = join(ROOT, 'packages/provino/dist/cli.js')
+/** The pinned runner's bin (D191): `pnpm install` puts it there. */
+const DEFAULT_RUNNER = join(ROOT, RUNNER_BIN)
 const USAGE =
   'usage: migrate:node-test rewrite <package> [--dry-run]\n' +
   '       migrate:node-test verify <package> [--runner <cli.js>] [--config <file>]'
@@ -109,7 +110,7 @@ export async function main(argv: readonly string[], io: CliIo): Promise<number> 
     if (!existsSync(runnerPath)) {
       throw new MigrateError(
         'MIGRATE_USAGE',
-        `no runner at ${runnerPath}: run pnpm build or pass --runner <cli.js>`,
+        `no runner at ${runnerPath}: run pnpm install or pass --runner <cli.js>`,
       )
     }
     const report = await verifyPackage({ packageDir, root, cacheDir, runner: runnerPath, config })

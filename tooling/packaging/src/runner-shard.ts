@@ -1,6 +1,6 @@
-// `provino run` on this checkout's built bin with the shard flag. A split package's `test` script
-// (`testScript` in `dogfood.ts`) runs its Provino half through this file, as it runs its node:test
-// half through `node-test.ts`, so each CI shard takes its share of both halves and every file runs in
+// `provino run` on the pinned runner's bin (`RUNNER_BIN`, D191) with the shard flag. A split
+// package's `test` script (`testScript` in `dogfood.ts`) runs its Provino half through this file,
+// as it runs its node:test half through `node-test.ts`, so each CI shard takes its share of both halves and every file runs in
 // exactly one shard. The shard comes from `PROVINO_TEST_SHARD` (`<n>/<of>`, set by `test-shards.ts`
 // and a `turbo.json` `test` env); unset, every file runs. The bin is found from this file, so it
 // runs in the package directory (discovery finds the package's own config) whatever that is.
@@ -11,7 +11,7 @@ import { realpathSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { RUNNER_BIN, SHARD_VARIABLE, shardOf } from './dogfood.ts'
 
-/** This checkout's built bin (`RUNNER_BIN`), from this file. */
+/** The pinned runner's bin (`RUNNER_BIN`), from this file. */
 const BIN = fileURLToPath(new URL(`../../../${RUNNER_BIN}`, import.meta.url))
 
 /**

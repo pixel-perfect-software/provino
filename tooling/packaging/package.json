@@ -9,7 +9,7 @@
     "node": "^22.15.0 || >=24"
   },
   "scripts": {
-    "test": "node ../../packages/provino/dist/cli.js run"
+    "test": "node ../../node_modules/provino-runner/dist/cli.js run"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "catalog:",

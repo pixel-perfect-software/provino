@@ -1,4 +1,4 @@
-// What a package needs, beside its rewritten test files, to run them on Provino (B27g2, D203):
+// What a package needs, beside its rewritten test files, to run them on Provino (B27g2, D191):
 // the config, the tests' tsconfig project (its `src` tests and its `provino.config.ts`), its
 // turbo.json, the tsconfig exclude and the root reference, and the `test` script. Idempotent: it
 // writes what is missing, adds what an existing file lacks (never removing a line), and sets the
@@ -8,11 +8,17 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
-import { PACKAGE_CONFIG, SRC_TEST_GLOB, TEST_ROOTS, testScript } from '../dogfood.ts'
+import {
+  PACKAGE_CONFIG,
+  SRC_TEST_GLOB,
+  TEST_DEPENDS_ON,
+  TEST_ROOTS,
+  testScript,
+} from '../dogfood.ts'
 import { record } from '../package-json.ts'
 import { MigrateError } from './errors.ts'
 
-const CONFIG = `import type { ProvinoConfig } from 'provino/config'
+const CONFIG = `import type { ProvinoConfig } from 'provino-runner/config'
 import { packageConfig } from '../../tooling/provino/base.ts'
 
 const config: ProvinoConfig = packageConfig(import.meta.dirname)
@@ -28,7 +34,7 @@ const TURBO = {
   extends: ['//'],
   tasks: {
     test: {
-      dependsOn: ['transit', 'provino#build'],
+      dependsOn: [...TEST_DEPENDS_ON],
       inputs: [
         '$TURBO_DEFAULT$',
         '$TURBO_ROOT$/tooling/provino/**',

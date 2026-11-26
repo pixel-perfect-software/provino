@@ -1,16 +1,29 @@
-// What this repo's own test setup shares (B27g2, D203): the files that stay on node:test, the globs
+// What this repo's own test setup shares (B27g2, D191): the files that stay on node:test, the globs
 // a migrated package's config includes, the `test` script every migrated package has, and the
 // packages that are migrated. One module with no dependencies of its own, so the shared config
 // (`tooling/provino/base.ts`, run by the runner), `test-shards.ts`, the migrate code and `knip.ts`
-// all read the same facts. Phase 10 (the move to the pinned runner) changes `TEST_RUNNER` here.
+// all read the same facts. The runner is the pinned rc (`provino-runner`, D191), never the checkout.
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-/** This checkout's built bin, repo-relative (D203; Phase 10 swaps it for the pinned runner). */
-export const RUNNER_BIN = 'packages/provino/dist/cli.js'
+/** The pinned runner's bin (the root's `provino-runner` devDependency, D191), repo-relative. */
+export const RUNNER_BIN = 'node_modules/provino-runner/dist/cli.js'
 
 /** The runner a migrated package's `test` script runs, from a package directory. */
 export const TEST_RUNNER: string = `node ../../${RUNNER_BIN} run`
+
+/**
+ * The build a migrated package's `test` task waits for (its turbo `dependsOn`; `provino`'s own is
+ * `build`): `provino`'s, whose `^build` builds every package. The runner is installed, not built,
+ * but a nested run's forked workers find their entry with Node's own resolution
+ * (`import.meta.resolve('@provino/orchestrator/worker/main')`), and the runner's process has no
+ * `provino-source` condition to hand them, so they load each package's `dist`. D206's `execArgv`
+ * key, in a pinned rc, lets it go.
+ */
+export const TEST_BUILD = 'provino#build'
+
+/** A migrated package's turbo `test.dependsOn`, as the scaffold writes it. */
+export const TEST_DEPENDS_ON: readonly string[] = ['transit', TEST_BUILD]
 
 /**
  * The packages whose test files CI splits across its shards (`test-shards.ts`): `provino`'s

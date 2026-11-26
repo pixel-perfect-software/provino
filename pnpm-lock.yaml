@@ -485,6 +485,9 @@ catalogs:
     pretty-format:
       specifier: 30.5.1
       version: 30.5.1
+    provino-runner:
+      specifier: npm:provino@0.1.0-rc.7
+      version: 0.1.0-rc.7
     publint:
       specifier: 0.3.25
       version: 0.3.25
@@ -586,6 +589,9 @@ importers:
       provino:
         specifier: workspace:*
         version: link:packages/provino
+      provino-runner:
+        specifier: 'catalog:'
+        version: provino@0.1.0-rc.7(@oxc-project/types@0.159.0)(jsdom@30.1.3)(rolldown@1.2.16)(supports-color@8.1.1)(vite@8.3.5(@types/node@22.20.5)(jiti@2.7.0)(yaml@2.9.1))
       publint:
         specifier: 'catalog:'
         version: 0.3.25
@@ -5858,6 +5864,19 @@ packages:
   proto-list@1.2.4:
     resolution: {integrity: sha512-vtK/94akxsTMhe0/cbfpR+syPuszcuwhqVjJq26CuNDgFGj682oRBXOP5MJpv2r7JtE8MsiepGIqvvOTBwn2vA==}
 
+  provino@0.1.0-rc.7:
+    resolution: {integrity: sha512-ji4tyhgm0QoO9DEDnVlS054AyB/pDLi9vbLR/kHB5Xx5o4tFegB+XWfPQidPH5/dgXS1UM3hBTATt2iEnDDu6A==}
+    engines: {node: ^22.15.0 || >=24}
+    hasBin: true
+    peerDependencies:
+      jsdom: '>=26 <31'
+      vite: '>=6'
+    peerDependenciesMeta:
+      jsdom:
+        optional: true
+      vite:
+        optional: true
+
   psl@1.15.0:
     resolution: {integrity: sha512-JZd3gMVBAVQkSs6HdNZo9Sdo0LNcQeMNP3CozBJb3JYC/QUYZTnKxP+f8oWRX4rHP5EurWxqAHTSwUCjlNKa1w==}
 
@@ -10889,6 +10908,35 @@ snapshots:
       sisteransi: 1.0.5
 
   proto-list@1.2.4: {}
+
+  provino@0.1.0-rc.7(@oxc-project/types@0.159.0)(jsdom@30.1.3)(rolldown@1.2.16)(supports-color@8.1.1)(vite@8.3.5(@types/node@22.20.5)(jiti@2.7.0)(yaml@2.9.1)):
+    dependencies:
+      '@bcoe/v8-coverage': 0.2.3
+      '@istanbuljs/schema': 0.1.6
+      '@jridgewell/remapping': 2.3.5
+      '@jridgewell/trace-mapping': 0.3.31
+      '@sinonjs/fake-timers': 15.4.0
+      '@standard-schema/spec': 1.1.0
+      es-module-lexer: 3.0.5
+      istanbul-lib-coverage: 3.2.2
+      istanbul-lib-report: 3.0.1
+      istanbul-lib-source-maps: 5.0.6(supports-color@8.1.1)
+      istanbul-reports: 3.2.0
+      magic-string: 1.4.5
+      oxc-parser: 0.159.0
+      oxc-resolver: 11.24.2
+      oxc-transform: 0.159.0
+      oxc-walker: 1.1.1(@oxc-project/types@0.159.0)(oxc-parser@0.159.0)(rolldown@1.2.16)
+      picomatch: 4.0.7
+      tinyglobby: 0.2.17
+      v8-to-istanbul: 9.3.0
+    optionalDependencies:
+      jsdom: 30.1.3
+      vite: 8.3.5(@types/node@22.20.5)(jiti@2.7.0)(yaml@2.9.1)
+    transitivePeerDependencies:
+      - '@oxc-project/types'
+      - rolldown
+      - supports-color
 
   psl@1.15.0:
     dependencies:

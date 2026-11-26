@@ -42,6 +42,6 @@ The worker (`packages/orchestrator/src/worker/runtime/runner.ts`) installs it af
 
 The read-cost gate (B24f). T6.9's `fixtures.compile` is not a lazy export: `test.extend` builds its own `DefinitionSet` in core (`packages/core/CLAUDE.md`, Fixtures), and a file mixes the two (`packages/bench/src/lazy/mixed-fixtures.test.ts`); a lazy value does not read a fixture by key, nor a fixture a lazy key (a lazy read is synchronous, a fixture is made by its scope). `bench:lazy reads` after D106 waits for the final pass (D160).
 
-## How its tests run (B27g2, D203)
+## How its tests run (B27g2, D191)
 
-On Provino, through the built bin (`tooling/packaging/CLAUDE.md` → "Dogfooding"). `src/api.test.ts` and `src/read.test.ts` stay on node:test (the bootstrap set): their five tests (no runtime installed, `instanceof` across copies, the unhandled-rejection probe) own the process-global slot or rejection handler the runner's worker holds. They are not edited to pass.
+On Provino, through the pinned runner (`tooling/packaging/CLAUDE.md` → "Dogfooding"). `src/api.test.ts` and `src/read.test.ts` stay on node:test (the bootstrap set): their five tests (no runtime installed, `instanceof` across copies, the unhandled-rejection probe) own the process-global slot or rejection handler the runner's worker holds. They are not edited to pass.

@@ -1,11 +1,11 @@
-// The shared config of this repo's own suites (B27g2, D193, D194, D203): every migrated package's
-// `provino.config.ts` is `export default packageConfig(import.meta.dirname)`. The runner is this
-// checkout's built bin, and `defineConfig` comes from the root's `provino: workspace:*` link, so one
-// copy of the config types serves every package.
+// The shared config of this repo's own suites (B27g2, D193, D194, D191): every migrated package's
+// `provino.config.ts` is `export default packageConfig(import.meta.dirname)`. The runner is the pinned
+// rc (`provino-runner`, D191), and `defineConfig` comes from its `provino-runner/config`, so one copy of
+// the config types serves every package.
 import { dirname, join, relative, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
-import { defineConfig, type ProvinoConfig } from 'provino/config'
+import { defineConfig, type ProvinoConfig } from 'provino-runner/config'
 import { bootstrapFiles, INCLUDE_GLOBS, SHARED_CONFIG_VALUES } from '../packaging/src/dogfood.ts'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')

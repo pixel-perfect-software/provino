@@ -7,6 +7,7 @@ import { describe, test } from 'provino'
 import {
   CANARY,
   CONDITIONS_FLAG,
+  RUNNER_BIN,
   SPLIT_NODE_TEST,
   SPLIT_PACKAGES,
   SPLIT_TEST_RUNNER,
@@ -198,9 +199,9 @@ describe('the file split of a package', () => {
     assert.throws(() => nodeTestArgs('0/2', ['a']), RangeError)
   })
 
-  test('runnerArgs runs the built bin with the shard after run, and a bad one is refused', () => {
+  test("runnerArgs runs the pinned runner's bin with the shard after run, and a bad one is refused", () => {
     const [bin, ...rest] = runnerArgs('1/2', ['--reporter', 'dot'])
-    assert.match(bin ?? '', /packages\/provino\/dist\/cli\.js$/)
+    assert.ok((bin ?? '').endsWith(RUNNER_BIN), bin)
     assert.deepEqual(rest, ['run', '--shard=1/2', '--reporter', 'dot'])
     assert.deepEqual(runnerArgs(undefined, []).slice(1), ['run'])
     assert.deepEqual(runnerArgs('', []).slice(1), ['run'])

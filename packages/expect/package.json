@@ -35,7 +35,7 @@
   },
   "scripts": {
     "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
-    "test": "node ../../packages/provino/dist/cli.js run && node --test --conditions=provino-source src/asymmetric.test.ts src/interop-jest.test.ts src/interop-vitest.test.ts src/slot.test.ts"
+    "test": "node ../../node_modules/provino-runner/dist/cli.js run && node --test --conditions=provino-source src/asymmetric.test.ts src/interop-jest.test.ts src/interop-vitest.test.ts src/slot.test.ts"
   },
   "dependencies": {
     "@provino/snapshot": "workspace:*",

@@ -1,6 +1,6 @@
 // B27g2: the facts `dogfood.ts` shares, and the proof that no test file of a migrated package is lost
-// between the two runners. The completeness test runs the built bin (turbo builds `provino` first,
-// `tooling/packaging/turbo.json`; with no build it fails, it does not skip) with a name filter that
+// between the two runners. The completeness test runs the pinned runner's bin (`pnpm install` puts it in
+// node_modules; with it missing the test fails by name, it does not skip) with a name filter that
 // matches no test, so every file Provino discovers is imported and reported as skipped, none runs.
 // B27h3: it is one test per package, and each listing runs with a temp dir of its own that must be
 // empty afterwards: a test file does no work when it is imported (`.claude/rules/tests.md`).
@@ -12,8 +12,10 @@ import { join } from 'node:path'
 import { afterAll, beforeAll, describe, it, onTestFinished } from 'provino'
 import {
   bootstrapFiles,
+  CANARY,
   migratedDirs,
   RUNNER_BIN,
+  TEST_BUILD,
   TEST_RUNNER,
   testFilesOf,
   testScript,
@@ -23,6 +25,11 @@ import { scratchDir } from './test-support.ts'
 import { ROOT } from './workspace.ts'
 
 const BIN = join(ROOT, RUNNER_BIN)
+
+/** Fails by name when the pinned runner is not installed: a skipped proof is no proof. */
+function assertRunnerInstalled(): void {
+  assert.ok(existsSync(BIN), `${BIN} is missing: run pnpm install`)
+}
 
 /**
  * Discovery runs at once. Every package's run starts its own workers, so launching all of them
@@ -47,7 +54,7 @@ interface Listing {
 }
 
 /**
- * The built bin over the package with a name filter nothing matches. The listing gets a temp dir of
+ * The pinned runner over the package with a name filter nothing matches. The listing gets a temp dir of
  * its own (`TMPDIR`, `TMP` and `TEMP`), empty, and the report goes elsewhere: a test file that makes
  * a temp dir when it is only imported (module scope, a `describe` body) leaves it there, since no
  * test runs to remove it. The runner itself writes nothing there (measured over every package,
@@ -172,7 +179,7 @@ describe('a failed sub-run explains itself', () => {
   })
 
   it('a real failing sub-run names its load error', async () => {
-    assert.ok(existsSync(BIN), `${BIN} is missing: run pnpm build`)
+    assertRunnerInstalled()
     const root = scratchDir('dogfood-failing', {
       'provino.config.ts': 'export default {}\n',
       'src/boom.test.ts': "throw new Error('planted load failure')\n",
@@ -185,7 +192,7 @@ describe('a failed sub-run explains itself', () => {
 
 describe('a listing', () => {
   it('is ended by stop(), so a test that ends takes its run with it', async () => {
-    assert.ok(existsSync(BIN), `${BIN} is missing: run pnpm build`)
+    assertRunnerInstalled()
     const root = scratchDir('dogfood-hanging', {
       'provino.config.ts': 'export default {}\n',
       'src/hang.test.ts': 'await new Promise(() => {})\n',
@@ -221,6 +228,46 @@ describe('testScript', () => {
 
   it('names the one runner bin', () => {
     assert.ok(TEST_RUNNER.includes(RUNNER_BIN))
+  })
+
+  it('has the canary run that same bin (it repeats the path: a package test cannot import tooling)', () => {
+    const canary = readFileSync(join(ROOT, CANARY), 'utf8')
+    // The path the canary builds (from `packages/provino/test/bootstrap/` to the root), and the run
+    // that uses it: a comment naming the path would not do.
+    assert.ok(
+      canary.includes(`new URL('../../../../${RUNNER_BIN}'`),
+      'the canary builds RUNNER_BIN',
+    )
+    assert.ok(canary.includes('bin: PINNED_BIN'), 'the canary runs it')
+  })
+
+  it('is the bin the root test:provino script runs', () => {
+    const { scripts } = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8')) as {
+      readonly scripts?: Readonly<Record<string, string>>
+    }
+    assert.ok(
+      scripts?.['test:provino']?.startsWith(`node ${RUNNER_BIN} run `),
+      scripts?.['test:provino'],
+    )
+  })
+})
+
+// Every migrated package's `test` task waits for `TEST_BUILD` (`dogfood.ts` says why). A checkout that
+// has built before hides a missing one, so this is the check that sees it.
+describe("a migrated package's turbo test task", () => {
+  it("waits for every package's build", () => {
+    const dirs = migratedDirs(ROOT)
+    assert.ok(dirs.length > 0, 'no migrated package found')
+    const missing = dirs.flatMap((dir) => {
+      const turbo = JSON.parse(readFileSync(join(ROOT, dir, 'turbo.json'), 'utf8')) as {
+        readonly tasks?: { readonly test?: { readonly dependsOn?: readonly string[] } }
+      }
+      const dependsOn = turbo.tasks?.test?.dependsOn ?? []
+      // `provino`'s own `build` is `TEST_BUILD`.
+      const build = dir === 'packages/provino' ? 'build' : TEST_BUILD
+      return dependsOn.includes(build) ? [] : [`${dir}/turbo.json: ${JSON.stringify(dependsOn)}`]
+    })
+    assert.deepEqual(missing, [])
   })
 })
 
@@ -260,7 +307,7 @@ describe('every test file of a migrated package runs on exactly one runner', () 
 
   for (const dir of dirs) {
     it(`${dir}: what Provino discovers is every test file minus the bootstrap set, each file has tests, and importing them leaves no temp dir`, async () => {
-      assert.ok(existsSync(BIN), `${BIN} is missing: run pnpm build`)
+      assertRunnerInstalled()
       onTestFinished(() => running.get(dir)?.stop())
       const own = staying
         .filter((file) => file.startsWith(`${dir}/`))
