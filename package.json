@@ -80,6 +80,7 @@
     "expect-type": "catalog:",
     "knip": "catalog:",
     "provino": "workspace:*",
+    "provino-runner": "catalog:",
     "publint": "catalog:",
     "tsdown": "catalog:",
     "turbo": "catalog:",
