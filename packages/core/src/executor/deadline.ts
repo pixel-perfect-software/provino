@@ -22,6 +22,14 @@ export const capturedTimers: RealTimers = {
   clearTimeout: globalThis.clearTimeout,
 }
 
+/**
+ * The monotonic clock (ms) that was global when core loaded: the default `now` of every deadline.
+ * Fake timers fake `performance`, and `reset` (`clearAllTimers`) keeps the offset `setSystemTime`
+ * made, so the fake `performance.now()` can sit years from the real one; a deadline read through it
+ * would fail a body or hook that took no time. Like `capturedTimers`, it is taken before user code runs.
+ */
+export const capturedNow: () => number = performance.now.bind(performance)
+
 /** The longest delay a timer holds: Node fires a longer one after 1 ms. */
 const MAX_TIMER_MS = 2 ** 31 - 1
 

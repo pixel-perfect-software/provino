@@ -852,3 +852,79 @@ describe('setDefaultTimeout (jest.setTimeout)', () => {
     assert.equal(codeOf(await running, 'slow'), 'CORE_TIMEOUT')
   })
 })
+
+describe('the clock the deadlines read', () => {
+  /**
+   * Runs a test that fakes `performance` the way `timers.useFakeTimers()` does, moves the system
+   * time to `date` and clears the fake timers, with an `afterEach` that puts the real clock back
+   * (`timers.useRealTimers()`). `reset` keeps the offset `setSystemTime` made, so the fake
+   * `performance.now()` then reads years behind the real one (a date ahead) or ahead of it (a date
+   * behind). No `now` is injected: this is the runtime's own clock.
+   */
+  async function runWithMovedClock(date: Date): Promise<ScriptRun> {
+    let fake: ReturnType<typeof FakeTimers.install> | undefined
+    const restore = (): void => {
+      fake?.uninstall()
+      fake = undefined
+    }
+    try {
+      return await runScript(({ test, afterEach }) => {
+        afterEach(restore)
+        test('moves the fake clock', () => {
+          fake = FakeTimers.install({ toFake: ['performance'], now: Date.now() })
+          fake.setSystemTime(date)
+          fake.reset()
+        })
+      })
+    } finally {
+      restore()
+    }
+  }
+
+  test('a test that moved the fake clock ahead and cleared its timers does not time out its afterEach', async () => {
+    const run = await runWithMovedClock(new Date('2030-01-01'))
+    assert.deepEqual(run.errors['moves the fake clock'], [])
+    assert.equal(run.states['moves the fake clock'], 'pass')
+  })
+
+  test('a test that moved the fake clock back and cleared its timers does not time out', async () => {
+    const run = await runWithMovedClock(new Date('2000-01-01'))
+    assert.deepEqual(run.errors['moves the fake clock'], [])
+    assert.equal(run.states['moves the fake clock'], 'pass')
+  })
+
+  test('an async test still has all of its timeout (a policy that checks no synchronous overrun, Jest’s)', async () => {
+    const { started, signal } = startSignal()
+    const release = Promise.withResolvers<void>()
+    let fake: ReturnType<typeof FakeTimers.install> | undefined
+    const restore = (): void => {
+      fake?.uninstall()
+      fake = undefined
+    }
+    try {
+      const running = runScript(
+        ({ test, afterEach }) => {
+          afterEach(restore)
+          test('waits', async () => {
+            fake = FakeTimers.install({ toFake: ['performance'], now: Date.now() })
+            fake.setSystemTime(new Date('2000-01-01'))
+            fake.reset()
+            signal()
+            await release.promise
+          })
+        },
+        { timeouts: { test: 5000, catchSyncOverrun: false } },
+        { realTimers: timersOf(clock) },
+      )
+      await reached(started, running)
+      // The deadline was armed for what is left of 5000 ms: none of it is gone after 100 ms.
+      await clock.tickAsync(100)
+      release.resolve()
+      const run = await running
+      assert.deepEqual(run.errors.waits, [])
+      assert.equal(run.states.waits, 'pass')
+    } finally {
+      restore()
+    }
+  })
+})
