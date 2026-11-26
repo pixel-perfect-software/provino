@@ -494,8 +494,9 @@ export const jestPolicy: PolicyOverrides = {
     // research: track-01 L231
     slowTestThresholdMs: 5000,
     // `registry` is DECISIONS D6 (Track 1 L232 and Track 2 L455 said `realm`); an own key of ours,
-    // so it needs a test, not ground truth. `byEnvironment` is left to the neutral value
-    // (jsdom and happy-dom on `realm`): D6 sets the default only.
+    // so it needs a test, not ground truth. `byEnvironment` is left to the neutral value (none:
+    // every environment, jsdom and happy-dom included, is on `registry` until the realm tier is
+    // built, D207).
     isolationDefault: { default: 'registry' },
     // research: track-01 L232
     envDefault: 'node',

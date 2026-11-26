@@ -1,7 +1,7 @@
 // `@provino/env-jsdom` through `run()`: a `provino.config` project with `environment: 'jsdom'`
 // (D44: a Jest-dialect project read by `provino jest` gets its own `jest-environment-jsdom`
-// instead; this is the Provino-config path). Real forked workers, under the `registry` tier (the
-// default for jsdom is `realm`, which waits for T2.8).
+// instead; this is the Provino-config path). Real forked workers, under the `registry` tier, stated
+// here (it is also the neutral default for jsdom until the realm tier exists, D207).
 import assert from 'node:assert/strict'
 import { describe, it } from 'provino'
 import { run } from 'provino/node'
