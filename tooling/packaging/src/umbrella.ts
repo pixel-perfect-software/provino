@@ -45,6 +45,10 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   // The native runtime (B27b, D186): the served `provino` module and its globals, for a project
   // with no dialect.
   '@provino/api': 'worker/api',
+  // The native snapshot printer's vendored pretty-format (B28): its shim rides `worker/expect-table`
+  // (`@provino/expect/table` re-exports it) and `require`s this file on the first snapshot, so a run
+  // without one never reads it.
+  '@provino/snapshot/printer-impl': 'worker/snapshot-printer-impl',
 }
 
 /**

@@ -30,6 +30,11 @@
       "types": "./dist/printer/index.d.ts",
       "import": "./dist/printer/index.js"
     },
+    "./printer-impl": {
+      "provino-source": "./src/printer/impl.ts",
+      "types": "./dist/printer/impl.d.ts",
+      "import": "./dist/printer/impl.js"
+    },
     "./runtime": {
       "provino-source": "./src/runtime/index.ts",
       "types": "./dist/runtime/index.d.ts",

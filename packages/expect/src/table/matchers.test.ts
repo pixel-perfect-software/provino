@@ -1,7 +1,7 @@
 // One case per matcher (D188): it passes, it fails with Provino's message, and `.not` flips both.
 import assert from 'node:assert/strict'
 import { runInNewContext } from 'node:vm'
-import type { ExpectError } from '@provino/expect'
+import { type ExpectError, snapshotMatchers } from '@provino/expect'
 import type { Assertion, ExpectStatic, Matchers } from '@provino/types'
 import { describe, test } from 'provino'
 import { testEngine, testTask } from '../internal/test-support.ts'
@@ -166,13 +166,9 @@ const rows: readonly Row[] = [
   },
 ]
 
-// Every matcher of `Matchers` but the snapshot ones (D189) is in the table, and no other: the type
-// check fails when the interface gains a member this list lacks, the test when the table drifts.
-type Snapshotting =
-  | 'toMatchSnapshot'
-  | 'toMatchInlineSnapshot'
-  | 'toThrowErrorMatchingSnapshot'
-  | 'toThrowErrorMatchingInlineSnapshot'
+// Every matcher of `Matchers` is in the table, the snapshot ones included since B28 (D189's
+// refusal ended), and no other: the type check fails when the interface gains a member this list
+// lacks, the test when the table drifts.
 const tabled = [
   'toBe',
   'toBeCloseTo',
@@ -208,14 +204,26 @@ const tabled = [
   'toHaveReturnedWith',
   'toHaveLastReturnedWith',
   'toHaveNthReturnedWith',
-] as const satisfies readonly Exclude<keyof Matchers, Snapshotting>[]
-type Missing = Exclude<keyof Matchers, Snapshotting | (typeof tabled)[number]>
+  'toMatchSnapshot',
+  'toMatchInlineSnapshot',
+  'toThrowErrorMatchingSnapshot',
+  'toThrowErrorMatchingInlineSnapshot',
+] as const satisfies readonly (keyof Matchers)[]
+type Missing = Exclude<keyof Matchers, (typeof tabled)[number]>
 const noneMissing: [Missing] extends [never] ? true : never = true
 
 describe('the matchers of provinoExpectTable', () => {
-  test('the table has exactly the matchers of the Matchers interface, less the snapshot ones', () => {
+  test('the table has exactly the matchers of the Matchers interface', () => {
     assert.equal(noneMissing, true)
     assert.deepEqual(Object.keys(provinoExpectTable().matchers).sort(), [...tabled].sort())
+  })
+
+  test('the promise forms: toThrow, and the two snapshot matchers that read a thrown error', () => {
+    assert.deepEqual(Object.keys(provinoExpectTable().promiseMatchers ?? {}).sort(), [
+      'toThrow',
+      'toThrowErrorMatchingInlineSnapshot',
+      'toThrowErrorMatchingSnapshot',
+    ])
   })
 
   test('.not messages are pinned, aligned under Expected', () => {
@@ -274,10 +282,14 @@ describe('the matchers of provinoExpectTable', () => {
     })
   }
 
-  test('a table row exists for every matcher the table has', () => {
+  test('a table row exists for every matcher the table has, but the shared snapshot ones', () => {
+    // The snapshot matchers are `snapshotMatchers`' (the dialects' too), with a file's snapshot
+    // state: `snapshot-matchers.test.ts` holds them, and `provino`'s `native-snapshots.test.ts`
+    // holds them in a native run.
+    const shared = new Set(Object.keys(snapshotMatchers({ fileSnapshot: false }).matchers))
     const named = new Set(rows.map((row) => row.name))
     for (const name of Object.keys(provinoExpectTable().matchers)) {
-      assert.ok(named.has(name), `${name} has no row`)
+      assert.ok(named.has(name) || shared.has(name), `${name} has no row`)
     }
   })
 

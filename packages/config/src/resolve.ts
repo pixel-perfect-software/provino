@@ -3,6 +3,7 @@ import { dirname, isAbsolute, resolve } from 'node:path'
 import {
   callBehaviour,
   createBehaviourLoader,
+  nativeSnapshotPolicy,
   resolvePolicy,
   serializePolicy,
 } from '@provino/policy'
@@ -583,9 +584,19 @@ function resolverKeys(input: ProjectInput): Partial<SerializedLoaderConfig> {
   }
 }
 
-/** The native runtime's policy layer: its matcher table over the neutral `null`. */
+/**
+ * The native runtime's policy layer: its matcher table over the neutral `null`, and with a snapshot
+ * printer the snapshot slice that writes Jest's `.snap` format (`nativeSnapshotPolicy`, B28).
+ */
 function nativeLayer(native: NativeRuntimeRefs | undefined): PolicyOverrides | undefined {
-  return native === undefined ? undefined : { expect: { matcherTable: native.matcherTable } }
+  if (native === undefined) return undefined
+  const { snapshotPrinter, snapshotWriter } = native
+  return {
+    expect: { matcherTable: native.matcherTable },
+    ...(snapshotPrinter === undefined
+      ? {}
+      : { snapshot: nativeSnapshotPolicy({ snapshotPrinter, snapshotWriter }) }),
+  }
 }
 
 /** The steps every project shares once its input is read: policy, environment, the worker config. */

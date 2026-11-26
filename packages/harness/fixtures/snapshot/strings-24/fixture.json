@@ -1,0 +1,18 @@
+{
+  "description": "24 string snapshots (quotes, backslashes, backticks, a dollar-brace, LF, CRLF and a lone CR, control characters, Unicode, a long line) against a .snap Jest wrote, in write mode: every test passes and the file is left as it was (B28: a native run leaves its bytes and its mtime alone).",
+  "runners": ["jest"],
+  "env": {
+    "CI": ""
+  },
+  "files": {
+    "jest": {
+      "__snapshots__/strings.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`strings CRLF 1`] = `\n\"one\ntwo\"\n`;\n\nexports[`strings JSON text 1`] = `\"{\"a\":[1,\"two\"],\"b\":null}\"`;\n\nexports[`strings a NUL 1`] = `\"nul\u0000byte\"`;\n\nexports[`strings a backslash 1`] = `\"back\\\\slash\"`;\n\nexports[`strings a backtick 1`] = `\"back\\`tick\"`;\n\nexports[`strings a comment closer 1`] = `\"/* not */ a comment\"`;\n\nexports[`strings a dollar-brace 1`] = `\"cost \\${price}\"`;\n\nexports[`strings a lone carriage return 1`] = `\n\"a\nb\"\n`;\n\nexports[`strings a long line 1`] = `\"word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word \"`;\n\nexports[`strings a space 1`] = `\" \"`;\n\nexports[`strings a tab 1`] = `\"tab\there\"`;\n\nexports[`strings a template literal's text 1`] = `\"\\`\\${a}\\` and \\\\\\`\"`;\n\nexports[`strings a trailing line break 1`] = `\n\"ends with a break\n\"\n`;\n\nexports[`strings a zero-width joiner 1`] = `\"a‍b\"`;\n\nexports[`strings accents and CJK 1`] = `\"é 日本語\"`;\n\nexports[`strings an emoji 1`] = `\"smile 😀\"`;\n\nexports[`strings double quotes 1`] = `\"say \"hi\"\"`;\n\nexports[`strings empty 1`] = `\"\"`;\n\nexports[`strings leading and trailing spaces 1`] = `\"  padded  \"`;\n\nexports[`strings markup 1`] = `\"<div class=\"x\">&amp;</div>\"`;\n\nexports[`strings only a line break 1`] = `\n\"\n\"\n`;\n\nexports[`strings plain 1`] = `\"plain\"`;\n\nexports[`strings single quotes 1`] = `\"it's\"`;\n\nexports[`strings two lines 1`] = `\n\"line one\nline two\"\n`;\n"
+    }
+  },
+  "run": {
+    "argv": {
+      "jest": ["--ci=false"]
+    },
+    "capture": ["exitCode", "file:__snapshots__/strings.test.ts.snap"]
+  }
+}

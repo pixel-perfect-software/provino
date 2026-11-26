@@ -1,0 +1,450 @@
+{
+  "schemaVersion": 1,
+  "runner": "jest",
+  "runnerVersion": "30.5.2",
+  "suite": "snapshot/strings-24",
+  "files": [
+    {
+      "file": "strings.test.ts",
+      "status": "passed",
+      "tests": [
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "plain"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 4,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "empty"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 8,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "a space"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 12,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "leading and trailing spaces"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 16,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "double quotes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 20,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "single quotes"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 24,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "a backslash"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 28,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "a backtick"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 32,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "a dollar-brace"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 36,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "a template literal's text"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 40,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "two lines"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 44,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "a trailing line break"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 48,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "only a line break"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 52,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "CRLF"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 56,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "a lone carriage return"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 60,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "a tab"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 64,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "a NUL"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 68,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "accents and CJK"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 72,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "an emoji"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 76,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "a zero-width joiner"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 80,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "markup"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 84,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "a comment closer"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 88,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "JSON text"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 92,
+            "column": 3
+          }
+        },
+        {
+          "id": {
+            "file": "strings.test.ts",
+            "path": [
+              "strings",
+              "a long line"
+            ],
+            "dupIndex": 0
+          },
+          "status": "passed",
+          "errors": [],
+          "passingAssertions": 1,
+          "location": {
+            "line": 96,
+            "column": 3
+          }
+        }
+      ]
+    }
+  ],
+  "snapshots": {
+    "counters": {
+      "added": 0,
+      "matched": 24,
+      "unmatched": 0,
+      "updated": 0,
+      "unchecked": 0,
+      "total": 24,
+      "filesAdded": 0,
+      "filesRemoved": 0,
+      "filesUnmatched": 0,
+      "filesUpdated": 0
+    },
+    "files": [
+      {
+        "file": "__snapshots__/strings.test.ts.snap",
+        "sha256": "3d1188b20f682d02471bb22f4041880df5e2e6f0139efcd7cc58920b2685951b"
+      }
+    ]
+  },
+  "runErrors": [],
+  "success": true,
+  "observed": {
+    "exitCode": 0,
+    "files": {
+      "__snapshots__/strings.test.ts.snap": "// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing\n\nexports[`strings CRLF 1`] = `\n\"one\ntwo\"\n`;\n\nexports[`strings JSON text 1`] = `\"{\"a\":[1,\"two\"],\"b\":null}\"`;\n\nexports[`strings a NUL 1`] = `\"nul\u0000byte\"`;\n\nexports[`strings a backslash 1`] = `\"back\\\\slash\"`;\n\nexports[`strings a backtick 1`] = `\"back\\`tick\"`;\n\nexports[`strings a comment closer 1`] = `\"/* not */ a comment\"`;\n\nexports[`strings a dollar-brace 1`] = `\"cost \\${price}\"`;\n\nexports[`strings a lone carriage return 1`] = `\n\"a\nb\"\n`;\n\nexports[`strings a long line 1`] = `\"word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word \"`;\n\nexports[`strings a space 1`] = `\" \"`;\n\nexports[`strings a tab 1`] = `\"tab\there\"`;\n\nexports[`strings a template literal's text 1`] = `\"\\`\\${a}\\` and \\\\\\`\"`;\n\nexports[`strings a trailing line break 1`] = `\n\"ends with a break\n\"\n`;\n\nexports[`strings a zero-width joiner 1`] = `\"a‍b\"`;\n\nexports[`strings accents and CJK 1`] = `\"é 日本語\"`;\n\nexports[`strings an emoji 1`] = `\"smile 😀\"`;\n\nexports[`strings double quotes 1`] = `\"say \"hi\"\"`;\n\nexports[`strings empty 1`] = `\"\"`;\n\nexports[`strings leading and trailing spaces 1`] = `\"  padded  \"`;\n\nexports[`strings markup 1`] = `\"<div class=\"x\">&amp;</div>\"`;\n\nexports[`strings only a line break 1`] = `\n\"\n\"\n`;\n\nexports[`strings plain 1`] = `\"plain\"`;\n\nexports[`strings single quotes 1`] = `\"it's\"`;\n\nexports[`strings two lines 1`] = `\n\"line one\nline two\"\n`;\n"
+    }
+  }
+}

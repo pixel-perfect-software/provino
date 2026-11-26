@@ -16,7 +16,14 @@ import type { PluginRegistry, ProvinoPlugin } from './extensions.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { IsolationTier } from './isolation.ts'
 import type { TransformClaims } from './loader.ts'
-import type { MatcherTableFactory, ModuleRef, PoolKind, SerializedPolicy } from './policy/index.ts'
+import type {
+  InlineSnapshotWriterFactory,
+  MatcherTableFactory,
+  ModuleRef,
+  PoolKind,
+  SerializedPolicy,
+  SnapshotPrinterFactory,
+} from './policy/index.ts'
 import type { SerializedModuleMapper } from './resolve.ts'
 
 /** The keys `ProjectConfig` adds to `BaseConfig`, apart from dialect and plugin options. */
@@ -230,6 +237,17 @@ export interface NativeRuntimeRefs {
    * `SerializedLoaderConfig.hoist`. None: nothing hoists.
    */
   readonly hoist?: HoistPolicy
+  /**
+   * The snapshot printer (B28): with it, the native policy's snapshot slice writes Jest's `.snap`
+   * format (`nativeSnapshotPolicy` in `@provino/policy`). None: the neutral slice, with no printer,
+   * so a snapshot matcher fails with `SNAPSHOT_NO_PRINTER`.
+   */
+  readonly snapshotPrinter?: ModuleRef<SnapshotPrinterFactory>
+  /**
+   * Writes inline snapshots into the source, in the coordinator (`SnapshotPolicy.inline.writer`).
+   * None: an inline snapshot that would be written fails instead. Used only with `snapshotPrinter`.
+   */
+  readonly snapshotWriter?: ModuleRef<InlineSnapshotWriterFactory>
 }
 
 /**

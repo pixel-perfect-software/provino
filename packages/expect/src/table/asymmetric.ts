@@ -1,5 +1,9 @@
 // The asymmetric matchers of the table (D188): `any`, `anything`, `objectContaining`,
-// `arrayContaining`, `stringContaining`, `stringMatching` and `closeTo`.
+// `arrayContaining`, `stringContaining`, `stringMatching` and `closeTo`. Their `toString()` and
+// `toAsymmetricMatcher()` are Jest 30.5.2's (`expect/src/asymmetricMatchers.ts`, compat): the
+// snapshot printer's `AsymmetricMatcher` plugin reads them, so a property matcher prints in a
+// `.snap` as Jest prints it (B28; `snapshot/property-matchers` records `Any<Number>` and
+// `StringMatching /\^abc/`).
 import { AsymmetricMatcher, equals, type MatcherContext } from '@provino/expect'
 import type {
   AsymmetricFactories,
@@ -24,6 +28,36 @@ abstract class Inversible<T> extends AsymmetricMatcher<T> {
   }
 }
 
+/** A function's name as Jest's `fnNameFor` finds it: `name`, else the source's, else `<anonymous>`. */
+function fnNameFor(func: unknown): string {
+  if (typeof func !== 'function') return show(func)
+  if (func.name) return func.name
+  const matches = Function.prototype.toString
+    .call(func)
+    .match(/^(?:async)?\s*function\s*\*?\s*([\w$]+)\s*\(/)
+  return matches?.[1] ?? '<anonymous>'
+}
+
+/** Jest's `pluralize` (jest-matcher-utils): `two digits`, `one digit`, `14 digits`. */
+const NUMBERS = [
+  'zero',
+  'one',
+  'two',
+  'three',
+  'four',
+  'five',
+  'six',
+  'seven',
+  'eight',
+  'nine',
+  'ten',
+  'eleven',
+  'twelve',
+  'thirteen',
+]
+const pluralize = (word: string, count: number): string =>
+  `${NUMBERS[count] ?? count} ${word}${count === 1 ? '' : 's'}`
+
 class Any extends Inversible<unknown> {
   matches(other: unknown): boolean {
     const type = this.sample
@@ -39,10 +73,13 @@ class Any extends Inversible<unknown> {
     return pass
   }
   toString(): string {
-    return `${this.not()}Any<${(this.sample as { name?: string }).name ?? show(this.sample)}>`
+    return `${this.not()}Any`
   }
   override getExpectedType(): string {
     return (this.sample as { name?: string }).name ?? 'any'
+  }
+  override toAsymmetricMatcher(): string {
+    return `${this.toString()}<${fnNameFor(this.sample)}>`
   }
 }
 
@@ -52,6 +89,9 @@ class Anything extends Inversible<undefined> {
   }
   toString(): string {
     return this.inverse ? 'Nothing' : 'Anything'
+  }
+  override toAsymmetricMatcher(): string {
+    return this.toString()
   }
 }
 
@@ -66,7 +106,7 @@ class ObjectContaining extends Inversible<object> {
     )
   }
   toString(): string {
-    return `${this.not()}ObjectContaining ${show(this.sample)}`
+    return `Object${this.not()}Containing`
   }
 }
 
@@ -80,7 +120,7 @@ class ArrayContaining extends Inversible<readonly unknown[]> {
     return pass
   }
   toString(): string {
-    return `${this.not()}ArrayContaining ${show(this.sample)}`
+    return `Array${this.not()}Containing`
   }
 }
 
@@ -89,7 +129,7 @@ class StringContaining extends Inversible<string> {
     return typeof other === 'string' && other.includes(this.sample)
   }
   toString(): string {
-    return `${this.not()}StringContaining ${show(this.sample)}`
+    return `String${this.not()}Containing`
   }
 }
 
@@ -101,7 +141,7 @@ class StringMatching extends Inversible<RegExp> {
     return pass
   }
   toString(): string {
-    return `${this.not()}StringMatching ${String(this.sample)}`
+    return `String${this.not()}Matching`
   }
 }
 
@@ -117,7 +157,10 @@ class CloseTo extends Inversible<number> {
     return pass
   }
   toString(): string {
-    return `${this.not()}CloseTo ${this.sample} (${this.digits} digits)`
+    return `Number${this.not()}CloseTo`
+  }
+  override toAsymmetricMatcher(): string {
+    return [this.toString(), this.sample, `(${pluralize('digit', this.digits)})`].join(' ')
   }
 }
 
@@ -138,7 +181,10 @@ class Custom extends Inversible<readonly unknown[]> {
     return run.call(this.getMatcherContext(), other, ...this.sample).pass
   }
   toString(): string {
-    return `${this.not()}${this.#name}`
+    return `${this.inverse ? 'not.' : ''}${this.#name}`
+  }
+  override toAsymmetricMatcher(): string {
+    return `${this.toString()}<${this.sample.map(String).join(', ')}>`
   }
 }
 

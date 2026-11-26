@@ -8,7 +8,10 @@
 //     captured file (an inline snapshot's source).
 // The `jest` profile is Provino with the Jest dialect; the `vitest` profile is the same with
 // Vitest's snapshot slice over it (see `snapshot-corpus/run-snapshot.ts`). A file that calls `vi`
-// can't run, and a fixture of such files is evidence only.
+// can't run, and a fixture of such files is evidence only. The `native` profile (B28) is a project
+// with no dialect and `globals: true`, held to the Jest recording: its `.snap` bytes, test statuses
+// and exit codes (its failure text is Provino's own, D188). The fixtures it can't hold are listed in
+// `NATIVE_EXCLUDED`, each with why.
 //
 // One divergence is declared, and pinned to what Provino does: under the `vitest` profile an
 // inline snapshot with nothing written in it would be written into the test file, and Vitest's
@@ -25,7 +28,6 @@ import path from 'node:path'
 import { describe, test } from 'provino'
 import {
   defaultFixturesRoot,
-  FIXTURE_RUNNERS,
   type Fixture,
   findFixtures,
   readFixture,
@@ -33,8 +35,10 @@ import {
 } from './fixture.ts'
 import { readGolden } from './golden.ts'
 import {
+  recordedRunner,
   runnableFiles,
   runSnapshotEndToEnd,
+  SNAPSHOT_PROFILES,
   type SnapshotEndToEnd,
 } from './snapshot-corpus/run-snapshot.ts'
 
@@ -63,15 +67,62 @@ const HELD_BY_PROVINO_JEST: Readonly<Record<string, string>> = {
   'snapshot/resolver-missing-member': '`snapshotResolver`',
 }
 
+/**
+ * The fixtures the `native` profile doesn't run, with why. The check fails when the list and the
+ * fixtures that would otherwise run drift apart, so an entry goes when its reason does.
+ */
+const NATIVE_EXCLUDED: Readonly<Record<string, string>> = {
+  'snapshot/mock-fn': "`jest.fn`/`vi.fn`: the native API's is `fn`",
+  'snapshot/file-snapshot':
+    "`toMatchFileSnapshot`, Vitest's slice: a `*.vitest.test.ts` file, recorded by Vitest only",
+  'snapshot/format': '`snapshotFormat`, a Jest config key a native config has none of',
+  'snapshot/serializers': '`snapshotSerializers`, a Jest config key a native config has none of',
+  'snapshot/resolver-custom': '`snapshotResolver` is a Jest key',
+  'snapshot/resolver-esm-default': '`snapshotResolver` is a Jest key',
+  'snapshot/resolver-esm-named': '`snapshotResolver` is a Jest key',
+  'snapshot/resolver-inconsistent': '`snapshotResolver` is a Jest key',
+  'snapshot/resolver-missing-member': '`snapshotResolver` is a Jest key',
+  'snapshot/inline-prettier': 'the native formatter is `none`',
+  'snapshot/inline-no-frame':
+    "a package installed under `node_modules`, which the corpus's copy of a fixture has none of",
+  'snapshot/inline-tsx': 'a Jest `preset` transform and a `.tsx` `testMatch`',
+  'snapshot/inline-new-js':
+    'writes the inline snapshot into the source: no native writer until Phase 7',
+  'snapshot/inline-property-matchers':
+    'writes the inline snapshot into the source: no native writer until Phase 7',
+  'snapshot/inline-resolves':
+    'writes the inline snapshot into the source: no native writer until Phase 7',
+  'snapshot/inline-throw-error':
+    'writes the inline snapshot into the source: no native writer until Phase 7',
+  'snapshot/inline-two-on-one-line':
+    'writes the inline snapshot into the source: no native writer until Phase 7',
+  'snapshot/inline-update':
+    'writes the inline snapshot into the source: no native writer until Phase 7',
+  'snapshot/inline-same-call-twice':
+    'one call that would write two values: Jest fails it while writing the source, and there is no native writer until Phase 7',
+  'snapshot/obsolete-local':
+    'an obsolete snapshot fails a local Jest run (`obsolete.failLocal`); the native slice keeps the neutral rule, which does not',
+  'snapshot/inline-written':
+    'writes the inline snapshot into the source: no native writer until Phase 7',
+}
+
+/** Pairs whose stored files the run must leave as they were, bytes and mtime, with why. */
+const UNTOUCHED: Readonly<Record<string, string>> = {
+  'snapshot/strings-24 (native)':
+    'every string Jest stored matches, so the native run leaves its .snap alone, mtime included',
+}
+
 /** The pairs the check ran and the snapshot tests in them, pinned so it cannot pass by running nothing. */
-const EXPECTED = { pairs: 52, evidenceOnly: 11, tests: 130 } as const
+const EXPECTED = { pairs: 53, evidenceOnly: 11, tests: 154, native: 20, nativeTests: 78 } as const
 
 const fixtures: Fixture[] = await Promise.all(
   (await findFixtures(path.join(defaultFixturesRoot(), 'snapshot'))).map((dir) => readFixture(dir)),
 )
 
-const counted = { pairs: 0, evidenceOnly: 0, tests: 0 }
+const counted = { pairs: 0, evidenceOnly: 0, tests: 0, native: 0, nativeTests: 0 }
 const declaredSeen = new Set<string>()
+const nativeExcludedSeen = new Set<string>()
+const untouchedSeen = new Set<string>()
 /** What each pair left, so the sabotage check can hold one profile against the other's golden. */
 const left = new Map<string, SnapshotEndToEnd>()
 
@@ -85,21 +136,28 @@ function comparedFiles(captured: readonly string[], ran: readonly string[]): rea
 
 for (const fixture of fixtures) {
   describe(fixture.id, () => {
-    for (const profile of FIXTURE_RUNNERS) {
-      if (!fixture.manifest.runners.includes(profile)) continue
+    for (const profile of SNAPSHOT_PROFILES) {
+      const native = profile === 'native'
+      if (native && Object.hasOwn(NATIVE_EXCLUDED, fixture.id)) {
+        nativeExcludedSeen.add(fixture.id)
+        continue
+      }
+      if (!fixture.manifest.runners.includes(recordedRunner(profile))) continue
       const ran = runnableFiles(fixture, profile)
       if (ran.length === 0 || Object.hasOwn(HELD_BY_PROVINO_JEST, fixture.id)) {
+        if (native) throw new Error(`${fixture.id}: list it in NATIVE_EXCLUDED, with why`)
         counted.evidenceOnly++
         continue
       }
       test(profile, { timeout: TIMEOUT_MS }, async () => {
         const signal = AbortSignal.timeout(TIMEOUT_MS - ABORT_MARGIN_MS)
-        const golden = await readGolden(fixture.dir, profile)
+        const golden = await readGolden(fixture.dir, recordedRunner(profile))
         const observed = golden.observed ?? {}
         const captured = Object.keys(observed.files ?? {})
         const result = await runSnapshotEndToEnd(fixture, profile, captured, signal)
         left.set(`${fixture.id} (${profile})`, result)
-        counted.pairs++
+        if (native) counted.native++
+        else counted.pairs++
 
         // The tests of the files that ran, by identity.
         const identity = (file: string, t: { id: { path: readonly string[]; dupIndex: number } }) =>
@@ -113,7 +171,8 @@ for (const fixture of fixtures) {
         for (const file of result.normalized.files) {
           for (const t of file.tests) got.set(identity(file.file, t), t.status)
         }
-        counted.tests += wanted.size
+        if (native) counted.nativeTests += wanted.size
+        else counted.tests += wanted.size
 
         const files = comparedFiles(captured, ran)
         const pair = `${fixture.id} (${profile})`
@@ -136,7 +195,7 @@ for (const fixture of fixtures) {
         }
 
         assert.deepEqual([...got], [...wanted], `tests (stderr: ${result.stderr.slice(0, 400)})`)
-        if (ran.length === testFilesFor(fixture.files, profile).length) {
+        if (ran.length === testFilesFor(fixture.files, recordedRunner(profile)).length) {
           assert.equal(result.exitCode, observed.exitCode, 'the exit code')
         } else {
           // Files that call `vi` are left out, so the golden's code is not comparable: the files
@@ -147,6 +206,11 @@ for (const fixture of fixtures) {
         for (const file of files) {
           assert.equal(result.files[file], observed.files?.[file], file)
         }
+        if (Object.hasOwn(UNTOUCHED, pair)) {
+          // The stored `.snap` Jest wrote is matched whole and never written again (B28).
+          assert.deepEqual(result.touched, [], `${pair}: ${UNTOUCHED[pair]}`)
+          untouchedSeen.add(pair)
+        }
       })
     }
   })
@@ -156,6 +220,15 @@ describe('the check is not vacuous', () => {
   test('every declared divergence ran, and the totals are the ones pinned', () => {
     assert.deepEqual([...declaredSeen].sort(), Object.keys(DECLARED).sort())
     assert.deepEqual(counted, EXPECTED)
+  })
+
+  test('every UNTOUCHED pair ran and left its files alone', () => {
+    assert.deepEqual([...untouchedSeen].sort(), Object.keys(UNTOUCHED).sort())
+  })
+
+  test('every NATIVE_EXCLUDED key is a fixture, and has a reason', () => {
+    assert.deepEqual([...nativeExcludedSeen].sort(), Object.keys(NATIVE_EXCLUDED).sort())
+    for (const [id, reason] of Object.entries(NATIVE_EXCLUDED)) assert.ok(reason.length > 0, id)
   })
 
   test('a profile can be told from the other: Vitest`s run does not leave Jest`s bytes', async () => {

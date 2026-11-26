@@ -40,7 +40,8 @@ export const JEST_BUILT_INS: Readonly<Record<string, EnvironmentModule>> = {
  * The native runtime (D185, D186, D188; `ResolveOptions.native`): what a project with no dialect
  * gets in place of a dialect's scope, globals and matcher table. The served `provino` module and its
  * globals come from `@provino/api`, the matchers from `@provino/expect/table` (Provino's own table,
- * B27c). Refs only: the coordinator resolves them and loads neither (D21).
+ * B27c), the snapshot printer from `@provino/snapshot/printer` through the table's module (B28). Refs only: the coordinator
+ * resolves them and loads none of them (D21).
  * @internal
  */
 export const NATIVE_RUNTIME: NativeRuntimeRefs = nativeRuntime('provino')
@@ -55,6 +56,13 @@ function nativeRuntime(served: string): NativeRuntimeRefs {
     matcherTable: {
       module: import.meta.resolve('@provino/expect/table'),
       export: 'provinoExpectTable',
+    },
+    // Jest's `.snap` format through the vendored pretty-format (B28): a shim the worker loads at
+    // its start, whose implementation loads on the first snapshot.
+    // The table's module re-exports it, so a native worker loads no file more at its start.
+    snapshotPrinter: {
+      module: import.meta.resolve('@provino/expect/table'),
+      export: 'nativeSnapshotPrinter',
     },
   }
 }

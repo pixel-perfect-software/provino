@@ -155,6 +155,16 @@
       "neutral": true,
       "bannedPackages": "native"
     },
+    "@provino/snapshot/printer": {
+      "dir": "packages/snapshot/src/printer",
+      "layer": 2,
+      "runsIn": "worker",
+      "deps": ["@provino/types", "@provino/snapshot"],
+      "slices": ["snapshot"],
+      "neutral": true,
+      "bannedPackages": "native",
+      "note": "B28 (D211): the native snapshot printer. index.ts is a shim the native matcher table re-exports; impl.ts (the ./printer-impl subpath) composes the vendored pretty-format in ../vendor and is loaded by require(esm) on the first snapshot."
+    },
     "@provino/coverage": {
       "dir": "packages/coverage",
       "layer": 2,
@@ -214,7 +224,7 @@
       "dir": "packages/expect/src/table",
       "layer": 2,
       "runsIn": "worker",
-      "deps": ["@provino/types", "@provino/policy", "@provino/expect"],
+      "deps": ["@provino/types", "@provino/policy", "@provino/expect", "@provino/snapshot/printer"],
       "slices": ["expect"],
       "neutral": true,
       "note": "B27 (D186, D188): the neutral matcher table a project with no dialect gets (NativeRuntimeRefs.matcherTable). It imports @provino/expect for AsymmetricMatcher.",
