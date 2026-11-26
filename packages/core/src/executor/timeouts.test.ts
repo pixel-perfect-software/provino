@@ -1,6 +1,7 @@
-// T5.6 acceptance, part 2: timeouts. Every deadline runs on a fake clock injected as `realTimers`
-// and `now`, so nothing waits on wall time. A test starts the run, waits for the code under test to
-// say it has started (an explicit promise), then advances the clock.
+// T5.6 acceptance, part 2: timeouts. Deadlines run on a fake clock injected as `realTimers` and
+// `now`, so nothing waits on wall time; two cases of the last block run on core's own clock, which
+// is what they hold. A test starts the run, waits for the code under test to say it has started
+// (an explicit promise), then advances the clock.
 import assert from 'node:assert/strict'
 import {
   type BehaviourLoader,
@@ -855,11 +856,10 @@ describe('setDefaultTimeout (jest.setTimeout)', () => {
 
 describe('the clock the deadlines read', () => {
   /**
-   * Fake timers that fake `performance` as `timers.useFakeTimers()` does, and what
-   * `timers.setSystemTime(date)` then `timers.clearAllTimers()` leave of it: `reset` keeps the
+   * The user's fake timers: they fake the global `performance` as `timers.useFakeTimers()` does, and
+   * what `timers.setSystemTime(date)` then `timers.clearAllTimers()` leave of it: `reset` keeps the
    * offset `setSystemTime` made, so the fake `performance.now()` reads years behind the real one
-   * (a date ahead) or ahead of it (a date behind). `restore` is `timers.useRealTimers()`. A script
-   * that uses it sets no `now`: the deadlines read the runtime's own clock.
+   * (a date ahead) or ahead of it (a date behind). `restore` is `timers.useRealTimers()`.
    */
   function clockMover(): { move(date: Date): void; restore(): void } {
     let fake: ReturnType<typeof FakeTimers.install> | undefined
@@ -876,6 +876,12 @@ describe('the clock the deadlines read', () => {
     }
   }
 
+  // The clock each case holds. 'leaves a test and its afterEach in time' gives the runtime nothing, so
+  // the deadline reads core's default clock, which must be the real one. 'lets an async test that
+  // settles inside its timeout pass' gives it the test clock's timers and keeps that default `now`:
+  // it settles at 100 ms against 5000 ms, a boundary no real millisecond reaches. 'leaves an async
+  // test its whole timeout' gives it a test clock for both (`clockOptions`), so its exact 4999 and
+  // 5000 ms are the test's alone, and holds that the deadline reads that clock, never the global one.
   for (const [direction, date] of [
     ['ahead', '2030-01-01'],
     ['back', '2000-01-01'],
@@ -895,9 +901,8 @@ describe('the clock the deadlines read', () => {
         }
       })
 
-      // No synchronous overrun check (Jest's policy): only the deadline's timer is under test. It
-      // was armed for what was left of 5000 ms on the moved clock: 1 ms for a date behind, and
-      // none at all for a date ahead.
+      // No synchronous overrun check (Jest's policy): only the deadline's timer is under test. On the
+      // test clock, which only the test moves, the timer is armed for exactly 5000 ms.
       test('leaves an async test its whole timeout: not cut sooner, and not left to hang', async () => {
         const mover = clockMover()
         const { started, signal } = startSignal()
@@ -912,7 +917,7 @@ describe('the clock the deadlines read', () => {
               })
             },
             { timeouts: { test: 5000, catchSyncOverrun: false } },
-            { realTimers: timersOf(clock) },
+            clockOptions(clock),
           )
           const state = watch(running)
           await reached(started, running)
