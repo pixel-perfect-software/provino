@@ -1,8 +1,7 @@
-// The bootstrap canary (B27g2, D191): this repo's suites run on the pinned runner (`provino-runner`,
-// `RUNNER_BIN` in `tooling/packaging/src/dogfood.ts`), so a runner that reports green wrongly would
-// pass them all. The canary guards that runner, not the checkout's build (which `provino`'s own
-// end-to-end tests cover, on the pin). This file stays on node:test (it is in
-// `tooling/provino/bootstrap.json`) and runs the pinned runner on fixtures that fail in the ways the
+// The bootstrap canary (B27g2, D191): this repo's suites run on the pinned runner, so a runner that
+// reports green wrongly would pass them all. The canary guards that runner, not the checkout's build.
+// This file stays on node:test (it is in `tooling/provino/bootstrap.json`) and runs the pinned runner
+// on fixtures that fail in the ways the
 // migrated suites fail: every run must exit 1 and report the counts the fixture is built to have,
 // and one all-passing fixture must exit 0, so the canary cannot pass on a bin that fails everything.
 import assert from 'node:assert/strict'

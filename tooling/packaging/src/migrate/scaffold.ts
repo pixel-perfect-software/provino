@@ -8,7 +8,13 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
-import { PACKAGE_CONFIG, SRC_TEST_GLOB, TEST_ROOTS, testScript } from '../dogfood.ts'
+import {
+  PACKAGE_CONFIG,
+  SRC_TEST_GLOB,
+  TEST_DEPENDS_ON,
+  TEST_ROOTS,
+  testScript,
+} from '../dogfood.ts'
 import { record } from '../package-json.ts'
 import { MigrateError } from './errors.ts'
 
@@ -28,7 +34,7 @@ const TURBO = {
   extends: ['//'],
   tasks: {
     test: {
-      dependsOn: ['transit', 'provino#build'],
+      dependsOn: [...TEST_DEPENDS_ON],
       inputs: [
         '$TURBO_DEFAULT$',
         '$TURBO_ROOT$/tooling/provino/**',
