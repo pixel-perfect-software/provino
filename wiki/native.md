@@ -77,9 +77,9 @@ Node itself reads the config file, so a `provino.config.ts` needs Node's type st
 | `exclude` | Globs to leave out. Default `**/node_modules/**` and `**/dist/**`. A list you give **replaces** the default, so keep `**/node_modules/**` in it |
 | `root` | The project's directory, relative to the config file's directory (default: that directory). It must exist |
 | `name` | The project's name, printed before its files when a run has several projects |
-| `environment` | `node` (default) or `jsdom`. `jsdom` needs the `jsdom` package (`>=26 <31`) and `isolation: 'registry'` |
+| `environment` | `node` (default) or `jsdom`. `jsdom` needs the `jsdom` package (`>=26 <31`) |
 | `environmentOptions` | Options for the environment, as JSON (`{ url: 'http://example.test/' }` for `jsdom`) |
-| `isolation` | How files are kept apart in a worker: `registry` (default: a fresh module registry per file), `none` (modules load once per worker and are shared), `process` (a worker per file). `realm` is not built yet |
+| `isolation` | How files are kept apart in a worker: `registry` (default, for `jsdom` too: a fresh module registry per file), `none` (modules load once per worker and are shared), `process` (a worker per file). `realm` is not available yet |
 | `globals` | `true` installs the API as globals (see [globals](#globals)) |
 | `setupFiles` | Modules imported before each test file: a path (`./test/setup.ts`) or a package name |
 | `timeouts` | `{ test, hook, teardown }` in ms. Defaults 5000, 10000 and 10000; `0` is no limit. A timeout given to a test or hook wins |
@@ -352,7 +352,7 @@ Off a terminal (CI, a pipe, an agent) it reruns on change and reads no keys. The
 | Snapshots | `toMatchSnapshot` and the other snapshot matchers don't exist: the types list them, but a call fails the test with `… is not a function` | Not yet planned |
 | Coverage under `provino run` | `--coverage` is refused (`--coverage is not supported by provino run yet`), and `coverage` is not a config key | Planned |
 | `plugins`, `alsoServe` | A non-empty list is refused by name | Planned |
-| `isolation: 'realm'` | Not built. `jsdom`'s default is `realm`, so a `jsdom` project sets `isolation: 'registry'` for now | Planned |
+| `isolation: 'realm'` | Not available yet: asking for it fails the file with "the realm tier is not implemented yet". A `jsdom` project runs on the `registry` tier like any other | Planned |
 
 ## Coming from node:test
 
