@@ -5,8 +5,8 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { describe, it } from 'provino'
 import { promisify } from 'node:util'
+import { describe, it } from 'provino'
 
 const execFileAsync = promisify(execFile)
 

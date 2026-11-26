@@ -4,9 +4,9 @@
 // `createStyle` builds from the run's colour decision.
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
-import { afterAll, afterEach, beforeAll, describe, it } from 'provino'
 import { createJestGitHubActionsReporter } from '@provino/dialect-jest/node'
 import type { AggregatedResult, TestResult } from '@provino/dialect-jest/results'
+import { afterAll, afterEach, beforeAll, describe, it } from 'provino'
 import { createStyle } from 'provino/reporters'
 
 type Chalk = {
