@@ -1,8 +1,8 @@
 // The real entry over each transport: the config and the events cross a real link, errors keep
 // their `code` through core's serializer, and console output is attributed to the running test.
 import assert from 'node:assert/strict'
-import { after, describe, it } from 'node:test'
 import type { RuntimeEventOf } from '@provino/types'
+import { afterAll, describe, it } from 'provino'
 import {
   eventsOf,
   KINDS,
@@ -13,7 +13,7 @@ import {
   trackedProjects,
 } from './support.ts'
 
-const project = trackedProjects(after)
+const project = trackedProjects(afterAll)
 
 for (const pool of KINDS) {
   describe(`${pool}: the runtime entry`, () => {

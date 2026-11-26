@@ -7,7 +7,6 @@ import { randomUUID } from 'node:crypto'
 import { rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
 import { setTimeout as sleep } from 'node:timers/promises'
 import type { ResolvedProject } from '@provino/config'
 import {
@@ -18,6 +17,7 @@ import {
 } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
 import type { RunSummary } from '@provino/types'
+import { afterAll, describe, it } from 'provino'
 import {
   assertWorkersGone,
   Collect,
@@ -31,7 +31,7 @@ import {
   trackedProjects,
 } from './support.ts'
 
-const makeProject = trackedProjects(after)
+const makeProject = trackedProjects(afterAll)
 
 interface Run {
   readonly summary: RunSummary

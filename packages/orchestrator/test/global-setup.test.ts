@@ -3,7 +3,6 @@
 // order the policy says), a throw fails the run with the policy's text. The files run inline, so
 // the setups, the tests and the reporter all write to one `globalThis.__trace`.
 import assert from 'node:assert/strict'
-import { after, describe, it } from 'node:test'
 import type { ResolvedGlobalSetup, ResolvedProject } from '@provino/config'
 import {
   hookFailureReport,
@@ -13,9 +12,10 @@ import {
 } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
 import type { PolicyOverrides, Reporter } from '@provino/types'
+import { afterAll, describe, it } from 'provino'
 import { Collect, runtimeProject, trackedProjects } from './support.ts'
 
-const makeProject = trackedProjects(after)
+const makeProject = trackedProjects(afterAll)
 
 const JEST_HOOKS: NonNullable<PolicyOverrides['orchestrator']> = {
   globalSetup: {
