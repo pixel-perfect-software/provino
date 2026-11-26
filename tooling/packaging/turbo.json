@@ -3,7 +3,7 @@
   "extends": ["//"],
   "tasks": {
     "test": {
-      "dependsOn": ["transit"],
+      "dependsOn": ["transit", "provino#build"],
       "cache": false
     }
   }

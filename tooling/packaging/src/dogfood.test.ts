@@ -11,10 +11,10 @@ import { availableParallelism } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, it, onTestFinished } from 'provino'
 import {
+  BUILT_TEST_DEPENDS_ON,
   bootstrapFiles,
   CANARY,
   migratedDirs,
-  PROVINO_TEST_DEPENDS_ON,
   RUNNER_BIN,
   TEST_DEPENDS_ON,
   TEST_RUNNER,
@@ -253,12 +253,11 @@ describe('testScript', () => {
   })
 })
 
-// No migrated package's `test` task waits for `provino#build` (the workers run source through the shared
-// config's `execArgv`, D206), and `provino`'s own waits for its own `build`, which its `exports.test.ts`
-// and built-bin tests run. A checkout that has built before hides a missing `dist`, so a package whose
-// tests need one must say so here.
+// A migrated package's `test` task waits for no build (the workers run source through the shared config's
+// `execArgv`, D206), but for the packages in `BUILT_TEST_DEPENDS_ON`, whose tests need a built `dist`. A
+// checkout that has built before hides a missing `dist`, so this is the check that sees it.
 describe("a migrated package's turbo test task", () => {
-  it('waits for no umbrella build, but provino waits for its own', () => {
+  it('waits for a build only where BUILT_TEST_DEPENDS_ON says its tests need one', () => {
     const dirs = migratedDirs(ROOT)
     assert.ok(dirs.length > 0, 'no migrated package found')
     const missing = dirs.flatMap((dir) => {
@@ -266,7 +265,7 @@ describe("a migrated package's turbo test task", () => {
         readonly tasks?: { readonly test?: { readonly dependsOn?: readonly string[] } }
       }
       const dependsOn = turbo.tasks?.test?.dependsOn ?? []
-      const expected = dir === 'packages/provino' ? PROVINO_TEST_DEPENDS_ON : TEST_DEPENDS_ON
+      const expected = BUILT_TEST_DEPENDS_ON[dir] ?? TEST_DEPENDS_ON
       return JSON.stringify(dependsOn) === JSON.stringify(expected)
         ? []
         : [`${dir}/turbo.json: ${JSON.stringify(dependsOn)}`]

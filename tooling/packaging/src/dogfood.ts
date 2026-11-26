@@ -21,8 +21,17 @@ export const TEST_RUNNER: string = `node ../../${RUNNER_BIN} run`
  */
 export const TEST_DEPENDS_ON: readonly string[] = ['transit']
 
-/** The `test.dependsOn` of `provino`, whose tests run its own built `dist`. */
-export const PROVINO_TEST_DEPENDS_ON: readonly string[] = ['transit', 'build']
+/**
+ * The packages whose tests need a built `dist` keep a build dependency of their own, repo-relative
+ * directory to `test.dependsOn` (each with its reason; `turbo.json` says it too):
+ * - `packages/provino`: its `exports.test.ts` and built-bin tests run its own `dist`.
+ * - `tooling/packaging`: `dogfood.test.ts` lists every package's tests, and `provino`'s built-output
+ *   test files read `dist` as they are imported.
+ */
+export const BUILT_TEST_DEPENDS_ON: Readonly<Record<string, readonly string[]>> = {
+  'packages/provino': ['transit', 'build'],
+  'tooling/packaging': ['transit', 'provino#build'],
+}
 
 /**
  * The packages whose test files CI splits across its shards (`test-shards.ts`): `provino`'s
