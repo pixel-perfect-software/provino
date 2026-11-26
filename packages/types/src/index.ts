@@ -162,6 +162,7 @@ export type {
   Loader,
   LoaderOptions,
   LoaderWarning,
+  MaterializeOptions,
   MockDecision,
   MockFactory,
   MockSpec,

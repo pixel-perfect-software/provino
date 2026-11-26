@@ -226,6 +226,26 @@ export interface LoadActualOptions {
    * load, as Jest's `_generateMock` swaps its registries).
    */
   readonly scratch?: boolean
+  /**
+   * Load synchronously whatever `ModulePolicy.actual` says (`require` semantics: a graph with
+   * top-level await throws `ERR_REQUIRE_ASYNC_MODULE`): a mock reached on the sync path under
+   * `syncMocks: 'settle'`.
+   */
+  readonly sync?: boolean
+}
+
+/**
+ * Options for `ModuleMockRegistry.materialize`.
+ * @public
+ */
+export interface MaterializeOptions {
+  /**
+   * The edge asking is synchronous (a `require`) and the policy settles mocks there
+   * (`ModulePolicy.syncMocks: 'settle'`): a factory whose result is no thenable is the module at
+   * once, shaped as the async path shapes it, and an automock or manual mock loads through the sync
+   * actual path. A factory that returns a thenable still gives a Promise, which the edge refuses.
+   */
+  readonly sync?: boolean
 }
 
 /**
@@ -263,8 +283,11 @@ export interface ModuleMockRegistry {
   ): MockDecision
   /** The same for a specifier that didn't resolve: a virtual module, or a root-mocked package that isn't installed. */
   decideUnresolved(specifier: string, importer: string): MockDecision
-  /** The mock's value, built once and cached (per isolation overlay). A Promise under `awaitFactory`, or when `loadActual` returns one. */
-  materialize(id: string): unknown
+  /**
+   * The mock's value, built once and cached (per isolation overlay). A Promise under
+   * `awaitFactory`, or when `loadActual` returns one, unless `options.sync` settles it at once.
+   */
+  materialize(id: string, options?: MaterializeOptions): unknown
   /**
    * The mocked value of `specifier` as `from` names it, whether or not it is registered: the
    * registration's, else the manual mock, else an automock (`jest.requireMock`, `vi.importMock`).

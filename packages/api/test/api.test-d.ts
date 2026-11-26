@@ -72,6 +72,16 @@ api.replaceProperty(target, 'level', 2)
 // @ts-expect-error the new value has the property's type
 api.replaceProperty(target, 'level', 'two')
 
+// The module-registry members are plain members: globals too (B28).
+expectTypeOf<ProvinoGlobalsApi>().toHaveProperty('resetModules')
+expectTypeOf(api.isolateModules(() => ({ n: 1 }))).toEqualTypeOf<{ n: number }>()
+expectTypeOf(api.isolateModulesAsync(async () => 1)).toEqualTypeOf<Promise<number>>()
+// @ts-expect-error the async form takes a function that returns a Promise
+api.isolateModulesAsync(() => 1)
+expectTypeOf(
+  new ProvinoApiError('API_ISOLATE_CALLBACK', 'm').code,
+).toEqualTypeOf<ProvinoApiErrorCode>()
+
 // `timers` chains.
 expectTypeOf(api.timers.useFakeTimers().advanceTimersByTime(10)).toEqualTypeOf<ProvinoTimers>()
 expectTypeOf(api.timers.getTimerCount()).toEqualTypeOf<number>()

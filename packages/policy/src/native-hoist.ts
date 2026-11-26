@@ -10,6 +10,17 @@ import { defineHoistPolicy } from './dialect.ts'
 export const NATIVE_HOISTED_CALLS: readonly ['mock', 'unmock'] = ['mock', 'unmock'] as const
 
 /**
+ * The native API's calls whose callback is a scope of its own for hoisting (B28,
+ * `HoistPolicy.callbackScopes`): a `mock` written in the callback moves to the top of it, so it
+ * is registered before the isolated loads that follow it.
+ * @public
+ */
+export const NATIVE_CALLBACK_SCOPES: readonly ['isolateModules', 'isolateModulesAsync'] = [
+  'isolateModules',
+  'isolateModulesAsync',
+] as const
+
+/**
  * A name in `NATIVE_HOISTED_CALLS`.
  * @public
  */
@@ -27,17 +38,21 @@ export type NativeHoistedCall = (typeof NATIVE_HOISTED_CALLS)[number]
 export function nativeHoistPolicy(module: string): HoistPolicy<NativeHoistedCall, never> {
   return defineHoistPolicy<NativeHoistedCall, never>({
     // Part of the transform cache's fingerprint: bump it when a value here changes.
-    id: `provino-native-1:${module}`,
+    id: `provino-native-2:${module}`,
     // No mock object: each call is a named import itself (import-aware, never a global name).
     objects: [],
     // Every top-level call hoists whatever its arguments; the API checks them when it runs, with a
     // code (`API_MOCK_SPECIFIER`, `API_MOCK_FACTORY`), so nothing stays behind silently.
     hoistCalls: { mock: 'any', unmock: 'any' },
     importedCalls: NATIVE_HOISTED_CALLS.map((exportName) => ({ module, exportName })),
+    // A `mock` inside `isolateModules(() => { … })` belongs to that isolation: it moves to the top
+    // of the callback, not of the file, and registers in the isolation's overlay.
+    callbackScopes: NATIVE_CALLBACK_SCOPES.map((exportName) => ({ module, exportName })),
     hoistValues: [],
     rewriteImportArg: [],
     chainable: false,
     // A call nested in a function or block fails the file: it would run before the code around it.
+    // The one exception is the callback of `callbackScopes`, above.
     placement: 'top-level-only',
     topLevelGuards: [],
     // Not checked here. A factory runs when the module it replaces first loads, which is during the

@@ -19,5 +19,7 @@ describe('NATIVE_RUNTIME', () => {
     assert.deepEqual(modules, [PROVINO_SERVED_MODULE])
     assert.deepEqual(hoist?.runnerModules, modules)
     assert.deepEqual(new Set(hoist?.importedCalls?.map((call) => call.module)), new Set(modules))
+    // The isolation callbacks hoist a `mock` of their own (B28), from the same served module.
+    assert.deepEqual(new Set(hoist?.callbackScopes?.map((call) => call.module)), new Set(modules))
   })
 })

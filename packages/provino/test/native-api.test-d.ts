@@ -7,6 +7,8 @@ import {
   fn,
   importActual,
   isMockFunction,
+  isolateModules,
+  isolateModulesAsync,
   type Mock,
   type Mocked,
   type MockedClass,
@@ -20,6 +22,7 @@ import {
   type ProvinoTimers,
   replaceProperty,
   requireActual,
+  resetModules,
   spyOn,
   test,
   timers,
@@ -161,3 +164,14 @@ expectTypeOf(new klass(1).find).toExtend<(name: string) => string>()
 // A value that is no function or object is unchanged.
 expectTypeOf(mocked(3)).toEqualTypeOf<number>()
 expectTypeOf<Mock<() => void>>().toExtend<() => void>()
+
+// Module reset (B28): `isolateModules` returns its callback's value, the async form a Promise of it.
+expectTypeOf(resetModules()).toEqualTypeOf<void>()
+expectTypeOf(isolateModules(() => 1)).toEqualTypeOf<number>()
+expectTypeOf(isolateModulesAsync(async () => 'one')).toEqualTypeOf<Promise<string>>()
+// @ts-expect-error resetModules takes nothing
+resetModules('./dep.ts')
+// @ts-expect-error isolateModules takes a function
+isolateModules('./dep.ts')
+// @ts-expect-error isolateModulesAsync takes a function that returns a Promise
+isolateModulesAsync(() => 1)

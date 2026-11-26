@@ -30,6 +30,7 @@ import {
 } from '@provino/mock'
 import { createTimerMembers } from '@provino/timers'
 import { moduleMocksOver, PROVINO_MODULE_MOCK_NAMES } from './module-mocks.ts'
+import { moduleRegistryOver } from './module-registry.ts'
 import type {
   ApiHost,
   ProvinoApi,
@@ -132,6 +133,7 @@ function built(host: ApiHost): Built {
     mocked: <T>(value: T): Mocked<T> => value as Mocked<T>,
     mocks: mocksOver(host),
     timers: timersOver(host),
+    ...moduleRegistryOver(host),
     ...moduleMocksOver(host, null),
   })
   // Configurable, so the worker's teardown (or a test) can take it out again.

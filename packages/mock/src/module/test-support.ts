@@ -6,7 +6,13 @@ import { randomBytes } from 'node:crypto'
 import { mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import type { ModulePolicy, ResolveContext, ResolveResult, Resolver } from '@provino/types'
+import type {
+  LoadActualOptions,
+  ModulePolicy,
+  ResolveContext,
+  ResolveResult,
+  Resolver,
+} from '@provino/types'
 import { afterAll, beforeAll } from 'provino'
 import { neutral, neutralModule } from '../internal/test-support.ts'
 import { createMockRegistry } from '../registry.ts'
@@ -126,6 +132,8 @@ export interface Harness {
   readonly registry: ModuleMockRegistry
   /** What `loadActual` was asked, in order: `[id, importer]`. */
   readonly loads: Array<readonly [string, string]>
+  /** The options of each `loadActual` call, in the same order. */
+  readonly loadOptions: Array<LoadActualOptions | undefined>
 }
 
 export function build(options: {
@@ -137,6 +145,7 @@ export function build(options: {
   readonly resolver?: Resolver
 }): Harness {
   const loads: Array<readonly [string, string]> = []
+  const loadOptions: Array<LoadActualOptions | undefined> = []
   const registry = createModuleMockRegistry({
     policy: options.policy,
     mockPolicy: neutral,
@@ -144,10 +153,11 @@ export function build(options: {
     resolver: options.resolver ?? fakeResolver(options.files ?? {}),
     roots: options.roots ?? ['/proj'],
     extensions: ['.ts', '.js'],
-    loadActual(id, importer) {
+    loadActual(id, importer, actualOptions) {
       loads.push([id, importer])
+      loadOptions.push(actualOptions)
       return options.actuals?.[id]
     },
   })
-  return { registry, loads }
+  return { registry, loads, loadOptions }
 }

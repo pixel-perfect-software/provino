@@ -58,6 +58,9 @@ const OWN_NAMES = [
   'mocked',
   'mocks',
   'timers',
+  'resetModules',
+  'isolateModules',
+  'isolateModulesAsync',
 ]
 
 /** Served per module (they resolve from it), in the slot too, never globals. */
@@ -93,6 +96,15 @@ function fakeHost(tier: FileRegistry['tier'] = 'registry'): {
     requireActual: (...args: unknown[]) => {
       fileCalls.push(['requireActual', ...args])
       return { real: true }
+    },
+    resetModules: () => void fileCalls.push(['resetModules']),
+    isolateModules: (fn: () => unknown) => {
+      fileCalls.push(['isolateModules'])
+      return fn()
+    },
+    isolateModulesAsync: async (fn: () => Promise<unknown>) => {
+      fileCalls.push(['isolateModulesAsync'])
+      return await fn()
     },
   } as unknown as FileRegistry
   const host: ApiHost = {
@@ -424,5 +436,37 @@ describe('mocked', () => {
     assert.equal(api(value), value)
     assert.equal(api(undefined), undefined)
     assert.equal(provinoGlobals(host).mocked, api)
+  })
+})
+
+describe('module reset', () => {
+  test("resetModules, isolateModules and isolateModulesAsync reach the file registry running now and return the callback's value", async () => {
+    const { host, fileCalls } = fakeHost()
+    const api = provinoGlobals(host)
+    api.resetModules()
+    assert.equal(
+      api.isolateModules(() => 'sync'),
+      'sync',
+    )
+    assert.equal(await api.isolateModulesAsync(async () => 'async'), 'async')
+    assert.deepEqual(fileCalls, [['resetModules'], ['isolateModules'], ['isolateModulesAsync']])
+    // Plain members: the served module and the slot hold the same functions as the globals.
+    const namespace = served(host)
+    const slot = Reflect.get(globalThis, PROVINO_API_SLOT) as ProvinoApi
+    for (const name of ['resetModules', 'isolateModules', 'isolateModulesAsync'] as const) {
+      assert.equal(namespace[name], api[name], name)
+      assert.equal(slot[name], api[name], name)
+    }
+  })
+
+  test('a callback that is not a function is API_ISOLATE_CALLBACK, before the registry is asked', async () => {
+    const { host, fileCalls } = fakeHost()
+    const misuse = provinoGlobals(host) as unknown as {
+      isolateModules(fn: unknown): unknown
+      isolateModulesAsync(fn: unknown): Promise<unknown>
+    }
+    assert.throws(() => misuse.isolateModules(undefined), isCode('API_ISOLATE_CALLBACK'))
+    await assert.rejects(misuse.isolateModulesAsync('x'), isCode('API_ISOLATE_CALLBACK'))
+    assert.deepEqual(fileCalls, [])
   })
 })

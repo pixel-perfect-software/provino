@@ -47,6 +47,12 @@ export function includeExamples<R, A extends unknown[]>(group: SharedExamples<R,
 export const isMockFunction: ProvinoApi["isMockFunction"];
 
 // @public
+export const isolateModules: ProvinoApi["isolateModules"];
+
+// @public
+export const isolateModulesAsync: ProvinoApi["isolateModulesAsync"];
+
+// @public
 export const it: ProvinoApi["it"];
 
 // @public
@@ -184,6 +190,9 @@ export type ProvinoApi = {
     readonly importActual: <T extends object = Record<string, unknown>>(specifier: string) => Promise<T>;
     readonly requireActual: <T extends object = Record<string, unknown>>(specifier: string) => T;
     readonly mocked: <T>(value: T) => Mocked<T>;
+    readonly resetModules: () => void;
+    readonly isolateModules: <R>(fn: () => R) => R;
+    readonly isolateModulesAsync: <R>(fn: () => Promise<R>) => Promise<R>;
 };
 
 // @public
@@ -268,6 +277,9 @@ export const replaceProperty: ProvinoApi["replaceProperty"];
 
 // @public
 export const requireActual: ProvinoApi["requireActual"];
+
+// @public
+export const resetModules: ProvinoApi["resetModules"];
 
 // @public
 export function sharedContext<R, Out>(name: string, body: ($: SharedLazy<R>) => Values<Out>): SharedContext<R, ContextOutput<R, Out>>;

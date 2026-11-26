@@ -27,6 +27,9 @@ const NAMES = [
   'unmock',
   'importActual',
   'requireActual',
+  'resetModules',
+  'isolateModules',
+  'isolateModulesAsync',
 ]
 
 const API_SLOT = PROVINO_API_SLOT
@@ -269,6 +272,9 @@ describe("a native-only name in a dialect's worker (B27b review)", () => {
       ['mock', 'jest.mock'],
       ['importActual', 'jest.requireActual'],
       ['requireActual', 'jest.requireActual'],
+      ['resetModules', 'jest.resetModules'],
+      ['isolateModules', 'jest.isolateModules'],
+      ['isolateModulesAsync', 'jest.isolateModulesAsync'],
     ] as const) {
       assert.throws(
         () => Reflect.get(Reflect.get(api, name) as object, 'x'),

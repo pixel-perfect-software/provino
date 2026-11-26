@@ -156,6 +156,9 @@ test('the module slice: a missing export reads undefined, and the registry texts
     'mod-reregister: Jest keeps the value',
   )
   assert.equal(neutralPolicy.module.mockValueOwner, 'registration')
+  // Provino's own key (B28): Jest's factories are synchronous, so the sync path keeps its refusal.
+  assert.equal(resolved.module.syncMocks, 'refuse')
+  assert.equal(neutralPolicy.module.syncMocks, 'settle')
   assert.deepEqual(resolved.module.messages, {
     'module-missing':
       "Cannot find module '{specifier}' from '{from}'\n\nTo mock a module that does not exist on disk, pass `{virtual: true}` in the mock options. See https://jestjs.io/docs/jest-object#jestmockmodulename-factory-options",

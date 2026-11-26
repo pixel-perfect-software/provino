@@ -153,3 +153,7 @@ test('the globals factory and the module scope are absolute refs that load', asy
 test('mapperMiss is null: Vitest has no moduleNameMapper, so a miss is a not-found', () => {
   assert.equal(vitestModulePolicy.mapperMiss, null)
 })
+
+test("module.syncMocks is refuse: Provino's own key (B28), and Vitest's mocker hooks imports only", () => {
+  assert.equal(vitestModulePolicy.syncMocks, 'refuse')
+})

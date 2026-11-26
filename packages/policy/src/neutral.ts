@@ -195,6 +195,9 @@ export const neutralPolicy: Policy = deepFreeze({
     interopDefault: 'node',
     resetModulesClearsMocks: false,
     awaitFactory: true,
+    // Provino's own (D7): a require of a mock settles it at once when it can, so a sync
+    // isolateModules callback can load what it mocks. Speed: no promise where none is needed.
+    syncMocks: 'settle',
     // A missing export would otherwise read as `undefined`.
     missingFactoryExport: 'throw',
     requireVirtualFlag: false,

@@ -27,4 +27,7 @@ declare global {
   var mocked: ProvinoApi['mocked']
   var mocks: ProvinoApi['mocks']
   var timers: ProvinoApi['timers']
+  var resetModules: ProvinoApi['resetModules']
+  var isolateModules: ProvinoApi['isolateModules']
+  var isolateModulesAsync: ProvinoApi['isolateModulesAsync']
 }

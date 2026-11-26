@@ -160,6 +160,20 @@ export type ProvinoApi = {
    * behind. It does nothing at run time.
    */
   readonly mocked: <T>(value: T) => Mocked<T>
+  /**
+   * Forgets every module instance of the file running now, so the next import or `require`
+   * evaluates the module again (a module-level memo starts fresh). Mock registrations stay. Under
+   * isolation `none` the instances are the worker's, so every later file in it loads afresh too.
+   */
+  readonly resetModules: () => void
+  /**
+   * Runs `fn` with a fresh module registry and module-mock overlay, and returns what it returns:
+   * what `fn` loads is its own, and is gone after it. A `mock` at the top of `fn`'s body is
+   * hoisted to the top of it. Nested inside another isolation, it throws.
+   */
+  readonly isolateModules: <R>(fn: () => R) => R
+  /** `isolateModules` for an async `fn`: the isolation lasts until its Promise settles. */
+  readonly isolateModulesAsync: <R>(fn: () => Promise<R>) => Promise<R>
 }
 
 /**

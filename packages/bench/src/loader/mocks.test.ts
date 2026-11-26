@@ -10,7 +10,15 @@ import { createMockRegistry, createModuleMockRegistry } from '@provino/mock'
 import { neutralPolicy } from '@provino/policy'
 import type { HoistPolicy, MockDecision, ModuleMockRegistry, ModulePolicy } from '@provino/types'
 import { test } from 'provino'
-import { at, fileWithMocks, HOIST, JESTISH, loaderFor, writeTree } from './test-support.ts'
+import {
+  at,
+  fileWithMocks,
+  HOIST,
+  JESTISH,
+  loaderFor,
+  VITESTISH,
+  writeTree,
+} from './test-support.ts'
 
 /** A registry that mocks nothing and records every `decide` it is asked. */
 function recording(): { readonly registry: ModuleMockRegistry; readonly asked: string[] } {
@@ -410,4 +418,70 @@ test('a test file that fails to load on an unresolved relative mock names itself
     code: 'LOADER_UNRESOLVED_MOCK',
     message: `Cannot find module '/missing.ts' imported from ${file}`,
   })
+})
+
+// `ModulePolicy.syncMocks` (B28): a sync edge under `awaitFactory` settles a mock at once when it
+// can ('settle', the neutral value), or refuses every such mock by name ('refuse').
+test('syncMocks settle: a require reaches a sync factory, an automock and a mock an ES module imports; a Promise factory is refused', async () => {
+  const root = writeTree({
+    'dep.ts': "export const value = (): string => 'real'\n",
+    'user.ts': "import { value } from './dep.ts'\nexport const seen = (): string => value()\n",
+    'auto.ts': 'export const compute = (): number => 42\n',
+    'later.ts': "export const later = 'real'\n",
+    'entry.test.ts': '',
+  })
+  const policy: Partial<ModulePolicy> = { ...VITESTISH, syncMocks: 'settle' }
+  const { files } = fileWithMocks(loaderFor(root, { policy }), join(root, 'entry.test.ts'), {
+    policy,
+  })
+  files.registerMock('./dep.ts', null, {
+    kind: 'factory',
+    factory: () => ({ value: () => 'mocked' }),
+  })
+  files.registerMock('./auto.ts', null, { kind: 'automock', spy: false })
+  files.registerMock('./later.ts', null, { kind: 'factory', factory: async () => ({ later: 'x' }) })
+  const from = at(root, 'x.ts')
+  assert.equal(files.require<{ value: () => string }>('./dep.ts', from).value(), 'mocked')
+  // The ES module a require evaluates takes its static import's mock on the same sync path.
+  assert.equal(files.require<{ seen: () => string }>('./user.ts', from).seen(), 'mocked')
+  const auto = files.require<{ compute: () => unknown }>('./auto.ts', from)
+  assert.equal(auto.compute(), undefined)
+  assert.throws(() => files.require('./later.ts', from), /its mock is asynchronous/)
+  // The import path is as it was: it awaits the factory.
+  const later = await files.import<{ later: string }>('./later.ts', from)
+  assert.equal(later.later, 'x')
+})
+
+test('syncMocks refuse: a require of any mock under awaitFactory is refused by name, as before', () => {
+  const root = writeTree({
+    'dep.ts': "export const value = (): string => 'real'\n",
+    'entry.test.ts': '',
+  })
+  const policy: Partial<ModulePolicy> = { ...VITESTISH, syncMocks: 'refuse' }
+  const { files } = fileWithMocks(loaderFor(root, { policy }), join(root, 'entry.test.ts'), {
+    policy,
+  })
+  files.registerMock('./dep.ts', null, {
+    kind: 'factory',
+    factory: () => ({ value: () => 'mocked' }),
+  })
+  assert.throws(() => files.require('./dep.ts', at(root, 'x.ts')), /its mock is asynchronous/)
+})
+
+test('an automock of a graph with top-level await is refused on the sync path by the real load', () => {
+  const root = writeTree({
+    'tla.ts': 'await Promise.resolve()\nexport const late = 1\n',
+    'entry.test.ts': '',
+  })
+  const policy: Partial<ModulePolicy> = { ...VITESTISH, syncMocks: 'settle' }
+  const { files } = fileWithMocks(loaderFor(root, { policy }), join(root, 'entry.test.ts'), {
+    policy,
+  })
+  files.registerMock('./tla.ts', null, { kind: 'automock', spy: false })
+  assert.throws(
+    () => files.require('./tla.ts', at(root, 'x.ts')),
+    (error: unknown) =>
+      (error as { code?: unknown }).code === 'ERR_REQUIRE_ASYNC_MODULE' &&
+      !String((error as Error).message).includes('its mock is asynchronous'),
+  )
 })

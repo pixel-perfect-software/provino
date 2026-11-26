@@ -189,9 +189,10 @@ export function analyse(
   original?: string,
 ): Analysis {
   const importedCalls = policy.importedCalls ?? []
+  const callbackScopes = policy.callbackScopes ?? []
   const { named: importedLocals, namespaces: namespaceLocals } = importedCallLocals(
     program,
-    new Set(importedCalls.map((call) => call.module)),
+    new Set([...importedCalls, ...callbackScopes].map((call) => call.module)),
   )
   // A policy of imported calls alone (the native one) has nothing to find in a file that imports
   // none of them: no walk at all.
@@ -302,30 +303,65 @@ export function analyse(
     const known = directCalls.get(call)
     if (known !== undefined) return known
     let recognised: Recognised | null = null
-    const callee = call.callee
-    if (importedCalls.length > 0 && !call.optional) {
-      let found: { module: string; exportName: string } | null = null
-      if (callee.type === 'Identifier') {
-        if (importedLocals.has(callee.name)) found = namedImport(callee.name)
-      } else if (
-        callee.type === 'MemberExpression' &&
-        !callee.optional &&
-        callee.object.type === 'Identifier' &&
-        namespaceLocals.has(callee.object.name)
-      ) {
-        const module = namespaceImport(callee.object.name)
-        const name = memberName(callee.computed, callee.property)
-        if (module !== null && name !== null) found = { module, exportName: name }
-      }
+    if (importedCalls.length > 0) {
+      const found = importedCallee(call)
       if (
         found !== null &&
         importedCalls.some((m) => m.module === found.module && m.exportName === found.exportName)
       ) {
+        const { callee } = call
         recognised = { method: found.exportName, text: code.slice(callee.start, callee.end) }
       }
     }
     directCalls.set(call, recognised)
     return recognised
+  }
+
+  /**
+   * The import `call`'s callee is, called as a function: a named import (any local name), or a
+   * member of a namespace import. A shadowing binding or an optional call is none.
+   */
+  function importedCallee(call: CallExpression): { module: string; exportName: string } | null {
+    const callee = call.callee
+    if (call.optional) return null
+    if (callee.type === 'Identifier') {
+      return importedLocals.has(callee.name) ? namedImport(callee.name) : null
+    }
+    if (
+      callee.type === 'MemberExpression' &&
+      !callee.optional &&
+      callee.object.type === 'Identifier' &&
+      namespaceLocals.has(callee.object.name)
+    ) {
+      const module = namespaceImport(callee.object.name)
+      const name = memberName(callee.computed, callee.property)
+      if (module !== null && name !== null) return { module, exportName: name }
+    }
+    return null
+  }
+
+  /**
+   * Whether `block` is the body of a function passed as the first argument of one of
+   * `policy.callbackScopes` (`isolateModules(() => { … })`), given the stack index it sits at: a
+   * hoisted call there moves to the top of that body, as `enclosing-block` would move it.
+   */
+  function isCallbackScope(block: Node, index: number): boolean {
+    if (callbackScopes.length === 0) return false
+    const fn = stack[index - 1]
+    const call = stack[index - 2]
+    if (
+      (fn?.type !== 'ArrowFunctionExpression' && fn?.type !== 'FunctionExpression') ||
+      fn.body !== block ||
+      call?.type !== 'CallExpression' ||
+      call.arguments[0] !== fn
+    ) {
+      return false
+    }
+    const found = importedCallee(call)
+    return (
+      found !== null &&
+      callbackScopes.some((m) => m.module === found.module && m.exportName === found.exportName)
+    )
   }
 
   /** The mock call `call` is under the policy (its name and its callee as written), or `null`. */
@@ -616,6 +652,8 @@ export function analyse(
           if (policy.topLevelGuards.includes(guard)) {
             unit = { stmt, container: program, kind: 'call', guard }
           }
+        } else if (isCallbackScope(container, index - 1)) {
+          unit = { stmt, container, kind: 'call', guard: null }
         }
       }
     }

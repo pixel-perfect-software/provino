@@ -1332,6 +1332,10 @@ export type HoistErrorCode = "HOIST_FACTORY_OUT_OF_SCOPE" | "HOIST_NOT_TOP_LEVEL
 
 // @public
 export interface HoistPolicy<Calls extends string = string, Values extends string = string> {
+    readonly callbackScopes?: readonly {
+        readonly module: string;
+        readonly exportName: string;
+    }[];
     readonly chainable: boolean;
     // (undocumented)
     readonly factoryReferences: "allow" | FactoryReferenceRule;
@@ -1799,6 +1803,7 @@ export type LoadActual = (id: string, importer: string, options?: LoadActualOpti
 // @public
 export interface LoadActualOptions {
     readonly scratch?: boolean;
+    readonly sync?: boolean;
 }
 
 // @public
@@ -2027,6 +2032,11 @@ export interface MatcherState {
 export type MatcherTableFactory = () => ExpectTable;
 
 // @public
+export interface MaterializeOptions {
+    readonly sync?: boolean;
+}
+
+// @public
 export interface MessageLink<Out, In> {
     // (undocumented)
     close(): void;
@@ -2163,7 +2173,7 @@ export interface ModuleMockRegistry {
     // (undocumented)
     exitIsolation(): void;
     generation(): number;
-    materialize(id: string): unknown;
+    materialize(id: string, options?: MaterializeOptions): unknown;
     mockFor(specifier: string, from: string): unknown;
     onGenerateMock(callback: (moduleId: string, moduleMock: unknown) => unknown): void;
     onResetModules(): void;
@@ -2208,6 +2218,7 @@ export interface ModulePolicy {
     readonly resetModulesClearsMocks: boolean;
     readonly rootMocksAutoApply: boolean;
     readonly stackFrameNames: "mapped-name" | "engine";
+    readonly syncMocks: "settle" | "refuse";
     readonly unmockedPathPatterns: readonly RegExp[];
     readonly virtualRelative: boolean;
 }

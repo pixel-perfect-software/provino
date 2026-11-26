@@ -290,6 +290,9 @@ export const jestPolicy: PolicyOverrides = {
     resetModulesClearsMocks: false,
     // research: track-04 L309
     awaitFactory: false,
+    // Provino's own key (D7), read only under awaitFactory: Jest's factories are synchronous, so
+    // nothing reads it; the refusal keeps the sync path as it was.
+    syncMocks: 'refuse',
     // research: track-04 L313
     requireVirtualFlag: true,
     // research: track-04 L313 (mod corpus agrees: `mod-virtual-static`)

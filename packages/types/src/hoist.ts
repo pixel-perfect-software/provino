@@ -60,6 +60,14 @@ export interface HoistPolicy<Calls extends string = string, Values extends strin
    * `hoistCalls`. Recognised by binding, never by name. None when absent.
    */
   readonly importedCalls?: readonly { readonly module: string; readonly exportName: Calls }[]
+  /**
+   * Imported calls whose callback is a scope of its own under `placement: 'top-level-only'`: a
+   * hoisted call written directly in the block body of the function passed as their first argument
+   * (`isolateModules(() => { mock('./a'); … })`) moves to the top of that body, as
+   * `'enclosing-block'` moves a call to the top of its block, instead of failing the file with
+   * `HOIST_NOT_TOP_LEVEL`. Recognised by binding, as `importedCalls` are. None when absent.
+   */
+  readonly callbackScopes?: readonly { readonly module: string; readonly exportName: string }[]
   /** `['hoisted']` for Vitest, `[]` for Jest. */
   readonly hoistValues: readonly Values[]
   /**

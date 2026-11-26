@@ -17,7 +17,13 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { createRequire } from 'node:module'
 import { dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { ModuleId, ModuleMockRegistry, ModuleScopeValues, ResolveKind } from '@provino/types'
+import type {
+  MaterializeOptions,
+  ModuleId,
+  ModuleMockRegistry,
+  ModuleScopeValues,
+  ResolveKind,
+} from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
 import { reevaluatesExternals } from '../reevaluation.ts'
 import { claimedLoad, demoteOnParseFailure, isClaimedUserModule } from './claims.ts'
@@ -85,6 +91,9 @@ interface Instance {
  * A mock's value that isn't ready (a factory's Promise under `awaitFactory`), kept apart from a
  * module whose own value is a Promise.
  */
+/** What a sync edge asks of `materialize` under `syncMocks: 'settle'`: one object, no allocation per edge. */
+const SETTLE_NOW: MaterializeOptions = Object.freeze({ sync: true })
+
 class Pending {
   readonly promise: Promise<unknown>
   constructor(promise: Promise<unknown>) {
@@ -476,7 +485,7 @@ export class Registry {
       record === undefined
         ? resolveOrMissing(this.#state, specifier, importer, 'require')
         : this.#targetOf(record, specifier, 'require')
-    const mocked = this.#mockOf(target, specifier, importer, 'cjs')
+    const mocked = this.#mockOf(target, specifier, importer, 'cjs', true)
     if (mocked !== REAL) {
       if (mocked instanceof Pending) {
         throw requireError(`'${specifier}'`, 'its mock is asynchronous')
@@ -495,7 +504,7 @@ export class Registry {
   /** A static import inside `record`'s wrapper, evaluating in `mode`: its target was linked ahead. */
   #importEdge(record: ModuleRecord, specifier: string, mode: Mode): unknown {
     const target = this.#targetOf(record, specifier, 'import')
-    const mocked = this.#mockOf(target, specifier, record.path, 'esm')
+    const mocked = this.#mockOf(target, specifier, record.path, 'esm', mode === 'sync')
     if (mocked !== REAL) return this.#settleFor(mocked, specifier, mode)
     const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#externalImport(found)
@@ -507,7 +516,7 @@ export class Registry {
   /** A late import (D38) on the sync path: what `require()` of a rewritten ES module needs. */
   #lateImportSync(record: ModuleRecord, specifier: string): unknown {
     const target = resolveOrMissing(this.#state, specifier, record.path, 'import')
-    const mocked = this.#mockOf(target, specifier, record.path, 'esm')
+    const mocked = this.#mockOf(target, specifier, record.path, 'esm', true)
     if (mocked !== REAL) return this.#settleFor(mocked, specifier, 'sync')
     const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#externalImport(found)
@@ -528,14 +537,23 @@ export class Registry {
    * The mock decision for an edge: the mocked value shaped for the edge, or `REAL`. A specifier
    * that didn't resolve is mocked only if `decideUnresolved` says so, and a module that didn't
    * transform only if `decide` does; otherwise its error is thrown here, when the edge runs.
+   * `sync`: the edge runs synchronously, so a mock that can settle at once does (`syncMocks`).
    */
-  #mockOf(target: Target, specifier: string, importer: string, style: Style): unknown {
+  #mockOf(
+    target: Target,
+    specifier: string,
+    importer: string,
+    style: Style,
+    sync = false,
+  ): unknown {
     const mocks = this.context.mocks
     if (target.kind === 'missing' || target.kind === 'served') {
       const served = target.kind === 'served' ? this.#served(specifier, importer, style) : REAL
       if (served !== REAL) return served
       const found = mocks?.decideUnresolved(specifier, importer)
-      if (mocks !== null && found?.mocked === true) return this.#mocked(mocks, found.id, style)
+      if (mocks !== null && found?.mocked === true) {
+        return this.#mocked(mocks, found.id, style, sync)
+      }
       throw new ModuleNotFoundError(target.error.code, target.error.message)
     }
     if (mocks === null) {
@@ -549,7 +567,7 @@ export class Registry {
       target.kind === 'builtin' ? 'builtin' : style,
       specifier,
     )
-    if (decision.mocked) return this.#mocked(mocks, decision.id, style)
+    if (decision.mocked) return this.#mocked(mocks, decision.id, style, sync)
     if (target.kind === 'failed') throw target.error
     return REAL
   }
@@ -572,11 +590,15 @@ export class Registry {
   /**
    * A mocked module's value for an edge. Under `factoryShape: 'module-value'` an `import` sees it
    * through the CommonJS interop, as it would the real `module.exports`; under `awaitFactory` a
-   * Promise is a result to wait for, otherwise it is the module itself.
+   * Promise is a result to wait for, otherwise it is the module itself. On a sync edge under
+   * `syncMocks: 'settle'` the registry builds what it can without a Promise (`MaterializeOptions`).
    */
-  #mocked(mocks: ModuleMockRegistry, id: string, style: Style): unknown {
+  #mocked(mocks: ModuleMockRegistry, id: string, style: Style, sync: boolean): unknown {
     const policy = this.#state.options.policy
-    const served = mocks.materialize(id)
+    const served =
+      sync && policy.awaitFactory && policy.syncMocks === 'settle'
+        ? mocks.materialize(id, SETTLE_NOW)
+        : mocks.materialize(id)
     const shape =
       style === 'esm' && policy.factoryShape === 'module-value'
         ? (value: unknown): unknown => cjsNamespace(value, policy.interopDefault, this.#cache)

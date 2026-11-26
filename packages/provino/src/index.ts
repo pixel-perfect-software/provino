@@ -81,6 +81,9 @@ const JEST_INSTEAD: Readonly<Record<string, string>> = {
   importActual: 'jest.requireActual',
   requireActual: 'jest.requireActual',
   mocked: 'jest.mocked',
+  resetModules: 'jest.resetModules',
+  isolateModules: 'jest.isolateModules',
+  isolateModulesAsync: 'jest.isolateModulesAsync',
 }
 
 /** The names only the native API has (a Jest project's worker installs none of them). */
@@ -316,6 +319,26 @@ export const importActual: ProvinoApi['importActual'] = bound('importActual')
  * @public
  */
 export const requireActual: ProvinoApi['requireActual'] = bound('requireActual')
+
+/**
+ * `resetModules`: forgets the file's module instances, so the next import evaluates each module
+ * again (native API).
+ * @public
+ */
+export const resetModules: ProvinoApi['resetModules'] = bound('resetModules')
+
+/**
+ * `isolateModules`: runs a function with a fresh module registry and returns its value; a `mock`
+ * at the top of the function is hoisted to the top of it (native API).
+ * @public
+ */
+export const isolateModules: ProvinoApi['isolateModules'] = bound('isolateModules')
+
+/**
+ * `isolateModulesAsync`: `isolateModules` for an async function (native API).
+ * @public
+ */
+export const isolateModulesAsync: ProvinoApi['isolateModulesAsync'] = bound('isolateModulesAsync')
 
 /**
  * `mocked`: `value`, typed with the mock methods of `Mocked`. It does nothing at run time, so it
