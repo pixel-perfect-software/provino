@@ -103,9 +103,14 @@ describe('provino jest', () => {
     // A mistyped command is a pattern that matches nothing: the run says so, and exits 1.
     const typo = await provino(['jset'], dir)
     assert.equal(typo.code, 1)
-    // Exactly what `provino jest jset` does.
+    // Exactly what `provino jest jset` does. On Node 22.15 each child's type-stripping warning
+    // names its own pid, so the pid is the one part that may differ.
     const explicit = await provino(['jest', 'jset'], dir)
-    assert.deepEqual(typo, explicit)
+    const samePid = (run: typeof typo) => ({
+      ...run,
+      stderr: run.stderr.replace(/\(node:\d+\)/g, '(node:PID)'),
+    })
+    assert.deepEqual(samePid(typo), samePid(explicit))
   })
 })
 
