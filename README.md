@@ -5,7 +5,7 @@
 <h1 align="center">Provino</h1>
 
 <p align="center">
-  The Jest suite you already have, on a runner built to be faster: same config, same command line, same matchers, same snapshots.
+  A fast test runner for JavaScript and TypeScript: run the Jest suite you already have, as it is, or start native with no Jest at all.
 </p>
 
 <p align="center">
@@ -16,7 +16,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
-`provino jest` runs a Jest project as it is: the same `jest.config` and Jest's flags, matchers and mocks. It writes snapshot files byte for byte as Jest does, and exits with Jest's exit codes. There's nothing to migrate: you change the command. Underneath, it's built not to redo work for every test file. [Why Provino →](wiki/why-provino.md)
+`provino jest` runs a Jest project as it is: the same `jest.config` and Jest's flags, matchers and mocks. It writes snapshot files byte for byte as Jest does, and exits with Jest's exit codes. There's nothing to migrate: you change the command. Underneath, it's built not to redo work for every test file. A project with no Jest uses a `provino.config.ts` and `import { describe, it, expect } from 'provino'`, gets Provino's own matchers, mocks, timers and lazy variables, and installs and loads nothing from Jest or Vitest. [Why Provino →](wiki/why-provino.md) · [Provino-native projects →](wiki/native.md)
 
 <!-- capture: a real `provino jest` run on a terminal, the final screen once the live footer is gone -->
 ```console
@@ -52,10 +52,7 @@ On a terminal, Provino draws its own live view while the run goes. A pipe, CI, a
 - 🧵 **Sharding that balances:** Jest's split, or by recorded time.
 - 🤖 **Output for people, CI and agents:** Provino's own live view in a terminal (`--tree` and `--map` add a folder tree and a status map), Jest's text byte for byte wherever a machine reads it, annotations on GitHub Actions, and a compact report under an AI agent, and a single-file HTML report.
 
-## 📋 Requirements
-
-- **Node.js** 22.15 or later, or 24 or later (24 recommended).
-- **A Jest project,** to use `provino jest`. Provino matches Jest 30.5's behaviour.
+Lazy variables look like this:
 
 ```ts
 import { lazy } from 'provino'
@@ -72,19 +69,24 @@ describe('greeting', () => {
 })
 ```
 
+## 📋 Requirements
+
+- **Node.js** 22.15 or later, or 24 or later (24 recommended).
+- **A Jest project,** to use `provino jest` (Provino matches Jest 30.5's behaviour). A native project needs none.
+
 ## 🚀 Install
 
-Provino is a release candidate. Add it to your Jest project with its Jest dialect (with `-w` at a pnpm workspace root):
+Provino is a release candidate. For a Jest project, add it with its Jest dialect (with `-w` at a pnpm workspace root):
 
 ```bash
 pnpm add -D provino@rc @provino/dialect-jest@rc
 ```
 
-A project that uses only `provino.config` and `import … from 'provino'` needs `provino` alone, and installs nothing from Jest.
+A native project, one that uses only `provino.config` and `import … from 'provino'`, needs `provino` alone and installs nothing from Jest.
 
 ## 🧭 Getting started
 
-With a Jest project:
+### A Jest project
 
 ```bash
 pnpm exec provino jest --listTests        # the files it would run
@@ -92,7 +94,13 @@ pnpm exec provino jest src/cart.test.ts   # one file first
 pnpm exec provino jest                    # the whole suite
 ```
 
-With no Jest at all, add a `provino.config.ts` and a test that imports from `provino`. A `.ts` config needs Node 22.18 or later; on 22.15 to 22.17 use `provino.config.mjs` ([why](wiki/native.md#the-config)).
+### A new project, without Jest
+
+Add Provino, a `provino.config.ts` and a test that imports from `provino`:
+
+```bash
+pnpm add -D provino@rc
+```
 
 ```ts
 import { defineConfig } from 'provino/config'
@@ -113,6 +121,8 @@ it('records a call', () => {
 ```bash
 pnpm exec provino
 ```
+
+A `.ts` config needs Node 22.18 or later; on 22.15 to 22.17 use `provino.config.mjs` ([why](wiki/native.md#the-config)). [Provino-native projects](wiki/native.md) has the config keys, the test API, mocks and watch mode.
 
 ## ⌨️ Commands
 
