@@ -5,16 +5,16 @@
 <h1 align="center">provino</h1>
 
 <p align="center">
-  The Jest suite you already have, on a runner built to be faster: same config, same command line, same matchers, same snapshots.
+  A fast test runner for JavaScript and TypeScript: run the Jest suite you already have, as it is, or start native with no Jest at all.
 </p>
 
-`provino jest` runs a Jest project as it is: the same `jest.config` and Jest's flags, matchers and mocks. It writes snapshot files byte for byte as Jest does, and exits with Jest's exit codes. There's nothing to migrate: you change the command. [Why Provino →](https://github.com/pixel-perfect-software/provino/blob/main/wiki/why-provino.md)
+`provino jest` runs a Jest project as it is: the same `jest.config` and Jest's flags, matchers and mocks. It writes snapshot files byte for byte as Jest does, and exits with Jest's exit codes. There's nothing to migrate: you change the command. A project with no Jest uses a `provino.config.ts` and `import { describe, it, expect } from 'provino'`, gets Provino's own matchers, mocks, timers and lazy variables, and installs and loads nothing from Jest or Vitest. [Why Provino →](https://github.com/pixel-perfect-software/provino/blob/main/wiki/why-provino.md) · [Provino-native projects →](https://github.com/pixel-perfect-software/provino/blob/main/wiki/native.md)
 
 This package is the one you install. It holds Provino's engine in one bundle, with the `provino` command. `provino jest` also needs the Jest dialect, [`@provino/dialect-jest`](https://www.npmjs.com/package/@provino/dialect-jest), installed beside it at the same version.
 
 ## 🚀 Install
 
-A release candidate. Add it to your Jest project with its Jest dialect (with `-w` at a pnpm workspace root). It needs Node 22.15 or later, or 24.
+A release candidate. It needs Node 22.15 or later, or 24. For a Jest project, add it with its Jest dialect (with `-w` at a pnpm workspace root):
 
 ```bash
 pnpm add -D provino@rc @provino/dialect-jest@rc
@@ -23,6 +23,8 @@ pnpm add -D provino@rc @provino/dialect-jest@rc
 Without the dialect, or with one of another version, `provino jest` prints the command that installs the matching one and exits 1. A project with only a `provino.config` needs `provino` alone.
 
 ## 🧭 Getting started
+
+### A Jest project
 
 ```bash
 pnpm exec provino jest --listTests        # the files it would run
@@ -45,9 +47,9 @@ On a terminal, Provino draws its own live view while the run goes. A pipe, CI, a
 
 A flag Provino can't run yet is refused by name. `provino vitest` comes next. Watch mode (`--watch`, `--watchAll`) works, except that `--coverage`, `--collectTests` and `--detectOpenHandles` are refused by name with it, and coverage from saved reports (`--merge-reports`) is planned. [Jest compatibility](https://github.com/pixel-perfect-software/provino/blob/main/wiki/compatibility.md) has the full list. If a test passes under Jest and fails under Provino, please [open an issue](https://github.com/pixel-perfect-software/provino/issues).
 
-## 🌱 Without Jest
+### A new project, without Jest
 
-A project with a `provino.config.ts` and tests that import from `provino` needs `provino` alone, and installs and loads nothing from Jest or Vitest. A `.ts` config needs Node 22.18 or later; on 22.15 to 22.17 use `provino.config.mjs` ([why](https://github.com/pixel-perfect-software/provino/blob/main/wiki/native.md#the-config)).
+Add Provino, a `provino.config.ts` and a test that imports from `provino`. A `.ts` config needs Node 22.18 or later; on 22.15 to 22.17 use `provino.config.mjs` ([why](https://github.com/pixel-perfect-software/provino/blob/main/wiki/native.md#the-config)).
 
 ```bash
 pnpm add -D provino@rc
