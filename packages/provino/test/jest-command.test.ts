@@ -29,7 +29,7 @@ const CONFIG = jestConfigJson()
 const provino = (args: readonly string[], cwd: string) => spawnCli(['jest', ...args], { cwd })
 
 describe('what provino jest does not run is said, not ignored', () => {
-  it('refuses what watch mode cannot run yet by name, with the task that builds it', async () => {
+  it('refuses what watch mode cannot run yet by name', async () => {
     const dir = await tree({ 'jest.config.json': CONFIG, 'tests/a.test.js': passing('a') })
     // No flag is refused on its own since B23c Phase 8 built --watch and --watchAll; what a watch
     // session can't apply yet is, before anything runs.
@@ -40,10 +40,7 @@ describe('what provino jest does not run is said, not ignored', () => {
     ]) {
       const ended = await provino(flags, dir)
       assert.equal(ended.code, 1, `${flags.join(' ')}: ${ended.stderr}`)
-      assert.match(
-        ended.stderr,
-        new RegExp(`${flags[1]} in watch mode is not supported yet \\(B23c Phase 9\\)`),
-      )
+      assert.match(ended.stderr, new RegExp(`${flags[1]} in watch mode is not supported yet`))
       assert.doesNotMatch(ended.stderr, /PASS/, `${flags.join(' ')} ran nothing`)
     }
   })

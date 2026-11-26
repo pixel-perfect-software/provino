@@ -168,7 +168,7 @@ export async function findChangedFiles(
   if (provider === null) {
     throw new OrchestratorError(
       'ORCH_NOT_IMPLEMENTED',
-      'selecting tests by changed files is not built for this dialect yet (T11.16)',
+      'selecting tests by changed files is not built for this dialect yet',
     )
   }
   return callBehaviour(createBehaviourLoader(), provider, options)

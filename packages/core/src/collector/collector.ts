@@ -254,7 +254,7 @@ export class Collector {
     const parent = this.#target('describe')
     if (parent === undefined) return
     if (spec.flags.shuffle === true || spec.options.shuffle === true) {
-      throw new CoreError('CORE_NOT_IMPLEMENTED', '`describe.shuffle` arrives with T5.13')
+      throw new CoreError('CORE_NOT_IMPLEMENTED', '`describe.shuffle` is not implemented yet')
     }
     const inherited = parent.options
     const declared = this.#declare(spec.flags, spec.options, inherited, spec.body)

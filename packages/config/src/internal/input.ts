@@ -128,13 +128,10 @@ export interface ParsedInput {
 }
 
 /**
- * Keys that parse but have no owner yet, with who builds them. A non-empty value for one is
- * `CONFIG_UNSUPPORTED`: ignoring it silently would run something other than what the file says.
+ * Keys that parse but are not supported yet. A non-empty value for one is `CONFIG_UNSUPPORTED`:
+ * ignoring it silently would run something other than what the file says.
  */
-const UNSUPPORTED: Readonly<Record<string, string>> = {
-  plugins: 'T1.4 (plugins)',
-  alsoServe: 'T1.4 (a project serving several dialects)',
-}
+const UNSUPPORTED: readonly string[] = ['plugins', 'alsoServe']
 
 /** Whether a value is a non-null object that is not an array. */
 export function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
@@ -355,15 +352,12 @@ export function parseInput(
     '',
     topLevel ? [] : TOP_LEVEL_KEYS,
   )
-  for (const [key, owner] of Object.entries(UNSUPPORTED)) {
+  for (const key of UNSUPPORTED) {
     const value: unknown = Reflect.get(input, key)
     if (value === undefined) continue
     if (!Array.isArray(value)) throw invalid(key, 'an array', value)
     if (value.length > 0) {
-      throw new ConfigError(
-        'CONFIG_UNSUPPORTED',
-        `config key "${key}" isn't supported yet; ${owner} builds it`,
-      )
+      throw new ConfigError('CONFIG_UNSUPPORTED', `config key "${key}" isn't supported yet`)
     }
   }
   return {
