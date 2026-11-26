@@ -1,5 +1,21 @@
 # @provino/reporters
 
+## 0.1.0-rc.7
+
+### Patch Changes
+
+- c8e34ba: `--reporter html` (and `reporters: ['html']`, or `['html', { outputFile }]`) writes a self-contained HTML report at the end of the run: a searchable test tree, a status map, time by folder and a per-worker timeline, in one file that loads and requests nothing. It goes to `--outputFile` when `html` is the only document reporter, else to `provino-report.html` in the project root, and never to stdout; `@provino/reporters/html` is its entry.
+- Updated dependencies [28c95d9]
+- Updated dependencies [5a4dce2]
+- Updated dependencies [9f7b73d]
+- Updated dependencies [7daea04]
+- Updated dependencies [c730222]
+- Updated dependencies [ba5e5f7]
+- Updated dependencies [ecc8972]
+- Updated dependencies [55de21e]
+- Updated dependencies [c2970a6]
+  - @provino/types@0.1.0-rc.7
+
 ## 0.1.0-rc.6
 
 ### Patch Changes

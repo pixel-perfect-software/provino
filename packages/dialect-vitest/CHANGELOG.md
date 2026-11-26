@@ -1,5 +1,51 @@
 # @provino/dialect-vitest
 
+## 0.1.0-rc.7
+
+### Minor Changes
+
+- 9f7b73d: The Vitest command line (`vitestCli` in `@provino/dialect-vitest/node`: Vitest 5.0.5's `parseCLI` and its checks, rebuilt) and the first of Vitest's results (`@provino/dialect-vitest/results`: `createVitestResults`, its `json` document). `provino vitest` runs a Vitest project once, as `vitest run` does, with Vitest's exit codes, `--reporter=json`, `--outputFile`, `--shard` (Vitest's split, `orchestrator.shard.fallback: 'rooted-sha1-slice'`), `--project`, `--bail`, `--passWithNoTests` and the variables Vitest's CLI sets; bare `provino` runs a Vitest project the same way. Every flag, command, reporter option and config key it does not apply is refused by name, or warned about as not applied for a config key (D183: Vitest is parked after this release).
+- e3cac0e: The dialects are add-on installs. `provino` no longer bundles `@provino/dialect-jest` or `@provino/dialect-vitest`, nor their Jest, Babel and Chai packages: install `@provino/dialect-jest` beside `provino`, at `provino`'s own version, to run `provino jest` (`pnpm add -D @provino/dialect-jest@<the provino version>`), and `@provino/dialect-vitest` for `provino vitest`. Without the add-on, or with one of another version, the command prints that install line, the version filled in, and exits 1 (`PROVINO_DIALECT_NOT_INSTALLED`, `PROVINO_DIALECT_VERSION_MISMATCH`); an add-on that runs on another copy of `provino` than the one running (a global install, `pnpm dlx`) is refused the same way, naming both (`PROVINO_DIALECT_OTHER_PROVINO`). The add-on is resolved from the project's own install, from the config's directory. `ConfigError` gains `subject`: the dialect or top-level key it refused. Each dialect names `provino` as a peer and runs on its engine through `provino/internal/*` subpaths, which are internal and promise no semver. A project that uses only `provino.config` installs nothing from Jest or Vitest.
+
+### Patch Changes
+
+- 28c95d9: Fixtures in core: `test.extend` (object, `[value, options]` and builder forms) and `test.override`, with `test`, `file` and `worker` scopes, `auto` and `injected` entries and cleanups after `afterEach`, under the neutral policy and the Vitest dialect (Vitest 5.0.5's fixture errors, word for word); the Jest dialect's `test` has neither. `LazyHost.definitions` holds each suite's definition table, which lazy values now live in.
+  
+  `LazyHost` now requires `definitions(suite)`: a host you implement yourself (as `@provino/lazy`'s tests do) must add it, returning one `Map` per suite handle. The policy gains `core.definitions.plainSuiteHook` (`pass-suite` for the neutral policy and Jest, `refuse-fixtures` for Vitest).
+- 12a9b2b: `provino vitest` resolves a project's `environment` (the config's, `--environment`) as a file's docblock is resolved, with `vitestEnvironmentRef` (now exported from `@provino/dialect-vitest/node` too): `jsdom` over the project's own jsdom, Vitest's built-in `happy-dom` and `edge-runtime`, `vitest-environment-<name>` packages and paths. `--dom` runs every file in happy-dom, as Vitest's does. The Vitest dialect keeps `jsdom` and `happy-dom` files on the `registry` isolation tier, since Vitest sets them up on the worker's own global.
+- 5a4dce2: The Vitest dialect's environments: `node`, `jsdom` (over the project's own jsdom), Vitest's built-in `happy-dom` and `edge-runtime` setups over the project's libraries, `vitest-environment-<name>` packages and paths, and the `@vitest-environment` and `@jest-environment` docblocks with their options. An externalized package that registers a hook or writes the global as it loads is evaluated again in each file, as Vitest's isolated files do.
+- 1b058a4: The Vitest dialect's globals and `vi`: `vitestGlobals` builds the 19 globals Vitest injects, `vitestModuleScope` gives each module its own `vi` (Vitest 5.0.5's members, in its order) and serves `vitest`, `@vitest/expect`, `@vitest/spy` and `vitest/runtime`.
+- c2e1bb1: `defineConfig({ dialect: 'jest' })` and `'vitest'` now type-check against the published packages. The dialects register their name on `DialectRegistry` by declaration merging, and the built declarations named `@provino/types`, which no install has, so `DialectName` was `never`. They now name `provino/config`, which exports `DialectRegistry`, `PluginRegistry` and `ProvidedContext` (augment those there). `provino`'s internal declarations no longer hold a second copy of the three.
+- ce31acb: Error and help messages no longer name internal task ids. A non-empty `plugins` or `alsoServe` says `config key "plugins" isn't supported yet`; `provino --help` no longer says that a build loads the Jest dialect's code or points at the task that builds a refused flag; and the "not implemented yet", "not supported yet" and "not applied" texts of `provino run`, `provino jest` and `provino vitest`, the loader, the environments, core, the orchestrator, coverage, the transform and the inline snapshot matchers drop their task and decision references.
+- 30b872f: The Vite bridge and plugin host. `@provino/dialect-vitest/vite-bridge` runs the project's own `vitest/node` `resolveConfig` when a Vitest config has plugins (every plugin's `config` and `configResolved` hook runs) and reads `test`, the JSX settings, the defines and the user's plugins, with a version and a code hash each; without Vite installed it warns once and skips the plugins. `@provino/transform/vite` hosts those plugins' `buildStart`, `resolveId`, `load` and `transform` hooks with a plugin context (`parse`, `resolve`, `warn`, `error`, `addWatchFile`, `getCombinedSourcemap`, `environment`); `\0` and query ids are virtual modules the host owns, `@vitejs/plugin-react` is skipped, and a dev-server hook or `this.getModuleInfo` fails with `VITE_HOOK_UNSUPPORTED` naming the plugin. `vite` is an optional peer of `@provino/transform`. `provino vitest` itself is still not available.
+- ecc8972: The Vitest config reader: `@provino/dialect-vitest/node` finds `vitest.config.*` or `vite.config.*`, imports it natively (`vitest/config` is served by a stand-in, so reading a config loads neither Vitest nor Vite), applies `test` over Vitest's defaults and the command line over the file, resolves `test.projects` and the `.env*` files, and returns neutral projects; a config with plugins is marked for the Vite bridge. `@provino/resolver` gains `viteAliasMapper` (a `@provino/resolver/vite-alias` subpath), Vite's `resolve.alias` rule, and `@provino/types` gains `NeutralProject.mappers`, which carries it. Bare `provino` now detects a `vite.config.*` with a `test` key as a Vitest project. `provino vitest` itself is still not available.
+- c2970a6: The Vitest dialect has its own `expect`: `@vitest/expect` 5.0.5's matchers (aliases, sinon-chai's names, `toSatisfy` and `toBeOneOf` included) over Provino's front end, failing with Chai's `AssertionError` and Vitest's messages and diff, with Chai loaded only on a failure or a Chai assertion (`expect(x).to.equal(1)`), `expect(value, message)`, and equality that judges values from another realm by their class. `ExpectTable` gains `assertionError`, `chain` and `equals` for it, its `messages` may leave the engine's own policy words out (`ExpectTableMessages`), `ExpectPolicy` gains `settlementCheck` and `messageArgument`, and A Vitest failure carries Vitest's diff (`SerializedError.diff` is now that text, and the dialect's `core.shapeTestError` adds it where an error has none). `SnapshotPolicy.mismatch: 'throw'` makes a snapshot that differs throw at the call, as Vitest's does. `@provino/expect` exports `policyMessages`, the one copy of the words for its async and counting policies.
+- Updated dependencies [28c95d9]
+- Updated dependencies [12a9b2b]
+- Updated dependencies [5a4dce2]
+- Updated dependencies [1b058a4]
+- Updated dependencies [9f7b73d]
+- Updated dependencies [6f49f83]
+- Updated dependencies [7daea04]
+- Updated dependencies [c730222]
+- Updated dependencies [467aaf4]
+- Updated dependencies [12ebe35]
+- Updated dependencies [e3cac0e]
+- Updated dependencies [c2e1bb1]
+- Updated dependencies [021f020]
+- Updated dependencies [2662c60]
+- Updated dependencies [26b1b86]
+- Updated dependencies [ce31acb]
+- Updated dependencies [84407de]
+- Updated dependencies [7b73d24]
+- Updated dependencies [ba5e5f7]
+- Updated dependencies [334af48]
+- Updated dependencies [c8e34ba]
+- Updated dependencies [30b872f]
+- Updated dependencies [ecc8972]
+- Updated dependencies [c2970a6]
+  - provino@0.1.0-rc.7
+
 ## 0.1.0-rc.6
 
 ### Patch Changes

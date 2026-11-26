@@ -1,5 +1,32 @@
 # @provino/config
 
+## 0.1.0-rc.7
+
+### Patch Changes
+
+- 7daea04: The contracts for Provino-native projects (B27, D184 to D186). `ProvinoConfigInput` gains `timeouts`, `resolve` (`conditions`, `aliases`, `tsconfig`), `environmentOptions`, and the run keys `pool` and `maxWorkers`; `setupFiles` may name a package. `ProvinoConfig` is what `defineConfig` will take. These are types only for now: until a later release reads them, a config that sets one is refused with `CONFIG_UNSUPPORTED`. `NativeRuntimeRefs` and `ResolveProjectOptions.native` carry the native runtime's matcher table, served modules and globals for a project with no dialect.
+- ce31acb: Error and help messages no longer name internal task ids. A non-empty `plugins` or `alsoServe` says `config key "plugins" isn't supported yet`; `provino --help` no longer says that a build loads the Jest dialect's code or points at the task that builds a refused flag; and the "not implemented yet", "not supported yet" and "not applied" texts of `provino run`, `provino jest` and `provino vitest`, the loader, the environments, core, the orchestrator, coverage, the transform and the inline snapshot matchers drop their task and decision references.
+- ba5e5f7: Native module mocks: a project with no dialect can `import { mock, unmock, importActual } from 'provino'`. A top-level `mock(specifier, factory?)` is hoisted above the file's imports; the factory returns the module's exports as an object (or a Promise of them) and is given `importOriginal`; no factory is an automock. `HoistPolicy` gains the optional `importedCalls` (named imports that are hoisted calls themselves) and `NativeRuntimeRefs` the optional `hoist`; both are additions no existing value has to change for. `@provino/policy` exports `nativeHoistPolicy(module)` and `NATIVE_HOISTED_CALLS`.
+- Updated dependencies [28c95d9]
+- Updated dependencies [5a4dce2]
+- Updated dependencies [9f7b73d]
+- Updated dependencies [7daea04]
+- Updated dependencies [c730222]
+- Updated dependencies [021f020]
+- Updated dependencies [6002b7a]
+- Updated dependencies [26b1b86]
+- Updated dependencies [ce31acb]
+- Updated dependencies [ba5e5f7]
+- Updated dependencies [5713e8e]
+- Updated dependencies [30b872f]
+- Updated dependencies [ecc8972]
+- Updated dependencies [55de21e]
+- Updated dependencies [c2970a6]
+  - @provino/types@0.1.0-rc.7
+  - @provino/policy@0.1.0-rc.7
+  - @provino/transform@0.1.0-rc.7
+  - @provino/resolver@0.1.0-rc.7
+
 ## 0.1.0-rc.6
 
 ### Patch Changes

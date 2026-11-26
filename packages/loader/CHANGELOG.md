@@ -1,5 +1,32 @@
 # @provino/loader
 
+## 0.1.0-rc.7
+
+### Patch Changes
+
+- d0821a2: An `import()` with a query string (`./x.ts?v`) reads the file without it, each URL its own module; `import()` of a `data:` URL, or of a scheme a `module.registerHooks` hook serves, loads as Node loads it.
+- 6002b7a: A syntax error in a module the loader runs is a `SyntaxError`, as Node gives it, with the parser's message and position, and the transform's error as its `cause`. `TransformError.parse` says when a transform failure is the parser's report of a syntax error.
+- ce31acb: Error and help messages no longer name internal task ids. A non-empty `plugins` or `alsoServe` says `config key "plugins" isn't supported yet`; `provino --help` no longer says that a build loads the Jest dialect's code or points at the task that builds a refused flag; and the "not implemented yet", "not supported yet" and "not applied" texts of `provino run`, `provino jest` and `provino vitest`, the loader, the environments, core, the orchestrator, coverage, the transform and the inline snapshot matchers drop their task and decision references.
+- Updated dependencies [28c95d9]
+- Updated dependencies [5a4dce2]
+- Updated dependencies [9f7b73d]
+- Updated dependencies [7daea04]
+- Updated dependencies [c730222]
+- Updated dependencies [021f020]
+- Updated dependencies [6002b7a]
+- Updated dependencies [26b1b86]
+- Updated dependencies [ce31acb]
+- Updated dependencies [ba5e5f7]
+- Updated dependencies [5713e8e]
+- Updated dependencies [30b872f]
+- Updated dependencies [ecc8972]
+- Updated dependencies [55de21e]
+- Updated dependencies [c2970a6]
+  - @provino/types@0.1.0-rc.7
+  - @provino/policy@0.1.0-rc.7
+  - @provino/transform@0.1.0-rc.7
+  - @provino/resolver@0.1.0-rc.7
+
 ## 0.1.0-rc.6
 
 ### Patch Changes

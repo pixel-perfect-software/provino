@@ -1,5 +1,20 @@
 # @provino/env-shared
 
+## 0.1.0-rc.7
+
+### Patch Changes
+
+- Updated dependencies [28c95d9]
+- Updated dependencies [5a4dce2]
+- Updated dependencies [9f7b73d]
+- Updated dependencies [7daea04]
+- Updated dependencies [c730222]
+- Updated dependencies [ba5e5f7]
+- Updated dependencies [ecc8972]
+- Updated dependencies [55de21e]
+- Updated dependencies [c2970a6]
+  - @provino/types@0.1.0-rc.7
+
 ## 0.1.0-rc.6
 
 ### Patch Changes

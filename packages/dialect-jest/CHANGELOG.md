@@ -1,5 +1,44 @@
 # @provino/dialect-jest
 
+## 0.1.0-rc.7
+
+### Minor Changes
+
+- e3cac0e: The dialects are add-on installs. `provino` no longer bundles `@provino/dialect-jest` or `@provino/dialect-vitest`, nor their Jest, Babel and Chai packages: install `@provino/dialect-jest` beside `provino`, at `provino`'s own version, to run `provino jest` (`pnpm add -D @provino/dialect-jest@<the provino version>`), and `@provino/dialect-vitest` for `provino vitest`. Without the add-on, or with one of another version, the command prints that install line, the version filled in, and exits 1 (`PROVINO_DIALECT_NOT_INSTALLED`, `PROVINO_DIALECT_VERSION_MISMATCH`); an add-on that runs on another copy of `provino` than the one running (a global install, `pnpm dlx`) is refused the same way, naming both (`PROVINO_DIALECT_OTHER_PROVINO`). The add-on is resolved from the project's own install, from the config's directory. `ConfigError` gains `subject`: the dialect or top-level key it refused. Each dialect names `provino` as a peer and runs on its engine through `provino/internal/*` subpaths, which are internal and promise no semver. A project that uses only `provino.config` installs nothing from Jest or Vitest.
+
+### Patch Changes
+
+- c2e1bb1: `defineConfig({ dialect: 'jest' })` and `'vitest'` now type-check against the published packages. The dialects register their name on `DialectRegistry` by declaration merging, and the built declarations named `@provino/types`, which no install has, so `DialectName` was `never`. They now name `provino/config`, which exports `DialectRegistry`, `PluginRegistry` and `ProvidedContext` (augment those there). `provino`'s internal declarations no longer hold a second copy of the three.
+- ce31acb: Error and help messages no longer name internal task ids. A non-empty `plugins` or `alsoServe` says `config key "plugins" isn't supported yet`; `provino --help` no longer says that a build loads the Jest dialect's code or points at the task that builds a refused flag; and the "not implemented yet", "not supported yet" and "not applied" texts of `provino run`, `provino jest` and `provino vitest`, the loader, the environments, core, the orchestrator, coverage, the transform and the inline snapshot matchers drop their task and decision references.
+- 7b73d24: Fake timers no longer make a test or its hook "time out" at once. After `timers.setSystemTime(date)` and `timers.clearAllTimers()`, the fake `performance.now()` sat years from the real one, and the runtime read it for its own deadlines. A test (a past date) or its `afterEach` (a future one) ended "Test timed out" or "Hook timed out in 10000ms" without waiting, and an async test could get a 1 ms deadline or none. The runtime now reads the clock it captured before any test code ran, as it does for its timers. Under the Jest dialect, a custom environment's `handleTestEvent` no longer hears a negative `test.duration` after `jest.setSystemTime`: `startedAt` and `duration` read the real `Date.now`, as jest-circus's do.
+- 55de21e: The policy has three new keys for the Vitest dialect: `snapshot.mismatch` (when a snapshot mismatch fails the test), `core.definitions.extendApi` (whether `test.extend` is there) and `core.definitions.messages` (the module that words a definition error). `WorkerKey` gains an optional `dialect`, and `NeutralProject` gains `importMetaEnv`. The neutral policy and the Jest dialect behave as before: a mismatch fails at the end of the test, and the Jest dialect has no `test.extend`.
+- c2970a6: The Vitest dialect has its own `expect`: `@vitest/expect` 5.0.5's matchers (aliases, sinon-chai's names, `toSatisfy` and `toBeOneOf` included) over Provino's front end, failing with Chai's `AssertionError` and Vitest's messages and diff, with Chai loaded only on a failure or a Chai assertion (`expect(x).to.equal(1)`), `expect(value, message)`, and equality that judges values from another realm by their class. `ExpectTable` gains `assertionError`, `chain` and `equals` for it, its `messages` may leave the engine's own policy words out (`ExpectTableMessages`), `ExpectPolicy` gains `settlementCheck` and `messageArgument`, and A Vitest failure carries Vitest's diff (`SerializedError.diff` is now that text, and the dialect's `core.shapeTestError` adds it where an error has none). `SnapshotPolicy.mismatch: 'throw'` makes a snapshot that differs throw at the call, as Vitest's does. `@provino/expect` exports `policyMessages`, the one copy of the words for its async and counting policies.
+- Updated dependencies [28c95d9]
+- Updated dependencies [12a9b2b]
+- Updated dependencies [5a4dce2]
+- Updated dependencies [1b058a4]
+- Updated dependencies [9f7b73d]
+- Updated dependencies [6f49f83]
+- Updated dependencies [7daea04]
+- Updated dependencies [c730222]
+- Updated dependencies [467aaf4]
+- Updated dependencies [12ebe35]
+- Updated dependencies [e3cac0e]
+- Updated dependencies [c2e1bb1]
+- Updated dependencies [021f020]
+- Updated dependencies [2662c60]
+- Updated dependencies [26b1b86]
+- Updated dependencies [ce31acb]
+- Updated dependencies [84407de]
+- Updated dependencies [7b73d24]
+- Updated dependencies [ba5e5f7]
+- Updated dependencies [334af48]
+- Updated dependencies [c8e34ba]
+- Updated dependencies [30b872f]
+- Updated dependencies [ecc8972]
+- Updated dependencies [c2970a6]
+  - provino@0.1.0-rc.7
+
 ## 0.1.0-rc.6
 
 ### Patch Changes

@@ -1,5 +1,24 @@
 # @provino/policy
 
+## 0.1.0-rc.7
+
+### Patch Changes
+
+- 021f020: Projects with no dialect now get Node's own ES module interop: a CommonJS module's default import is `module.exports`.
+- 26b1b86: A native project (no dialect) with `environment: 'jsdom'` and no `isolation` now runs under `provino run`. Its default tier was `realm`, which is not built, so every file failed with "the realm tier is not implemented yet"; it is `registry` now, and the environment's exact global restore keeps a file's DOM globals from reaching the next file. `@provino/policy`'s neutral `orchestrator.isolationDefault.byEnvironment` is empty until the realm tier exists.
+- ba5e5f7: Native module mocks: a project with no dialect can `import { mock, unmock, importActual } from 'provino'`. A top-level `mock(specifier, factory?)` is hoisted above the file's imports; the factory returns the module's exports as an object (or a Promise of them) and is given `importOriginal`; no factory is an automock. `HoistPolicy` gains the optional `importedCalls` (named imports that are hoisted calls themselves) and `NativeRuntimeRefs` the optional `hoist`; both are additions no existing value has to change for. `@provino/policy` exports `nativeHoistPolicy(module)` and `NATIVE_HOISTED_CALLS`.
+- 55de21e: The policy has three new keys for the Vitest dialect: `snapshot.mismatch` (when a snapshot mismatch fails the test), `core.definitions.extendApi` (whether `test.extend` is there) and `core.definitions.messages` (the module that words a definition error). `WorkerKey` gains an optional `dialect`, and `NeutralProject` gains `importMetaEnv`. The neutral policy and the Jest dialect behave as before: a mismatch fails at the end of the test, and the Jest dialect has no `test.extend`.
+- Updated dependencies [28c95d9]
+- Updated dependencies [5a4dce2]
+- Updated dependencies [9f7b73d]
+- Updated dependencies [7daea04]
+- Updated dependencies [c730222]
+- Updated dependencies [ba5e5f7]
+- Updated dependencies [ecc8972]
+- Updated dependencies [55de21e]
+- Updated dependencies [c2970a6]
+  - @provino/types@0.1.0-rc.7
+
 ## 0.1.0-rc.6
 
 ### Patch Changes
