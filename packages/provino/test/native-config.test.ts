@@ -5,7 +5,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { describe, it } from 'node:test'
 import { run } from 'provino/node'
-import { Collect, type ProjectFiles, QUIET_ENV, trackedProjects } from './support.ts'
+import { Collect, nativeProject, type ProjectFiles, QUIET_ENV, trackedProjects } from './support.ts'
 
 const makeProject = trackedProjects()
 
@@ -126,5 +126,49 @@ describe('provino.config keys reach the worker', () => {
     assert.equal(forked.exitCode, 0, forked.stderr)
     assert.notEqual(await readFile(forked.project.path('forked.pid'), 'utf8'), String(process.pid))
     assert.ok(existsSync(forked.project.path('forked.pid')))
+  })
+})
+
+// A native project (no dialect) names a DOM environment and no `isolation`: the neutral default
+// for it is `registry`, since the `realm` tier is not built (T2.8). The environment's exact global
+// restore (`populateGlobal`) keeps one file's DOM state from reaching the next in the same worker.
+describe('a native project with a DOM environment and no isolation', () => {
+  // Each file asserts the other's marks are absent before it sets its own, so whichever runs second
+  // proves the reset; one worker serves both.
+  const dom = (mark: string): string => `import { expect, test } from 'provino'
+
+test('the window starts clean and takes this file’s marks', () => {
+  expect(window).toBe(globalThis)
+  expect(document.title).toBe('')
+  expect(document.body.innerHTML).toBe('')
+  expect(window.leaked).toBeUndefined()
+  document.title = '${mark}'
+  document.body.innerHTML = '<p id="${mark}"></p>'
+  window.leaked = '${mark}'
+  expect(window.leaked).toBe('${mark}')
+})
+`
+
+  it('jsdom runs every file green, each on a window the last one left clean', async () => {
+    const dir = await nativeProject(
+      { 'tests/a.test.ts': dom('a'), 'tests/b.test.ts': dom('b') },
+      "export default { include: ['tests/**/*.test.ts'], environment: 'jsdom' }\n",
+    )
+    const stderr = new Collect()
+    const ran = await run({
+      config: 'provino.config.mjs',
+      cwd: dir,
+      stdout: new Collect(),
+      stderr,
+      env: QUIET_ENV,
+      pool: 'forks',
+      maxWorkers: 1,
+    })
+    const states = new Map(ran.summary?.files.map((file) => [file.file.path, file.state]))
+    assert.equal(ran.exitCode, 0, stderr.text)
+    assert.deepEqual([...states].sort(), [
+      ['tests/a.test.ts', 'pass'],
+      ['tests/b.test.ts', 'pass'],
+    ])
   })
 })
