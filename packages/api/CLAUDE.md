@@ -4,7 +4,7 @@ The native test API (B27, D185, D186): what `import { describe, it, expect, … 
 
 ## Layer
 
-Layer 5, runs in the **worker**, neutral (`tooling/boundaries/packages.json`, `.claude/context/ai-context/monorepo-architecture.md`). It may import `@provino/types`, `policy`, `core` (**types only**), `lazy`, `expect`, `mock` and `timers`; its `package.json` lists all but `policy` as dependencies (`policy` is a dev dependency, for the tests' `neutralPolicy`). It never imports a dialect and never names `'jest'` or `'vitest'`; it loads nothing from Jest or Vitest (`bannedPackages: "native"`). Only `provino` (layer 6) imports it, through the refs it hands `@provino/config` (`NativeRuntimeRefs`: `packages/provino/src/internal/built-ins.ts` names `provinoModuleScope` and `provinoGlobals` as `ModuleRef`s, so nothing here crosses a thread as a closure).
+Layer 5, runs in the **worker**, neutral (`tooling/boundaries/packages.json` owns what it may import; `core` is types only). It never imports a dialect and never names `'jest'` or `'vitest'`; it loads nothing from Jest or Vitest (`bannedPackages: "native"`). Only `provino` imports it, through the refs it hands `@provino/config` (`NativeRuntimeRefs`: `packages/provino/src/internal/built-ins.ts`), so nothing here crosses a thread as a closure.
 
 ## Map
 
@@ -27,8 +27,7 @@ Layer 5, runs in the **worker**, neutral (`tooling/boundaries/packages.json`, `.
 
 ## The served module (`provinoModuleScope`)
 
-`NativeRuntimeRefs.moduleScope` calls it once per worker; the loader then answers an import of `provino` before resolution. The result is a function from the importing module's path to a scope: a frozen object with **no binding names** (`Object.keys` is `[]`, so a native file gets the API only by importing it) and one non-enumerable key, `provino`, holding the module's namespace. The namespace is built on a module's first import and is the same object after: `{ ...api, ...moduleMocksOver(host, from), ...LAZY_EXPORTS }`. Every value but the three module-mock members is the worker's one object, so `expect === expect` across a file's modules, and a served import is direct bindings, with no Proxy and no per-call lookup (D115, `speed`); only the registries and the clock, which each file has its own of, are read when a member is called. `LAZY_EXPORTS` are `provino`'s own lazy functions and `LazyError`, which read the lazy runtime's slot when called. The function is `Disposable`: the worker disposes it as it stops, which runs `uninstallProvinoApi` (it takes the slot out only while the slot still holds this API, so an inline pool's next run keeps its own).
-
+`NativeRuntimeRefs.moduleScope` calls it once per worker; the loader then answers an import of `provino` before resolution. The result is a function from the importing module's path to a scope: a frozen object with **no binding names** (`Object.keys` is `[]`, so a native file gets the API only by importing it) and one non-enumerable key, `provino`, holding the module's namespace. The namespace is built on a module's first import and is the same object after: `{ ...api, ...moduleMocksOver(host, from), ...LAZY_EXPORTS }`. Every value but the three module-mock members is the worker's one object, so `expect === expect` across a file's modules, and a served import is direct bindings, with no Proxy and no per-call lookup (D115, `speed`); only the registries and the clock, which each file has its own of, are read when a member is called. `LAZY_EXPORTS` are `provino`'s own lazy functions and `LazyError`, which read the lazy runtime's slot when called.
 ## Error codes
 
 `ProvinoApiError` (`code`, then the message), thrown where the call is made (a factory's, when it runs):
@@ -38,14 +37,11 @@ Layer 5, runs in the **worker**, neutral (`tooling/boundaries/packages.json`, `.
 - `API_MOCK_FACTORY_UNINITIALIZED`: a factory read a binding in its dead zone (it runs while the file's imports load). `guarded` rethrows V8's `ReferenceError` with the binding as the user wrote it (the hoister's `__provino_import_N__` late imports are read back to the import's export name) and the original as `cause`; any other error passes through, and an async factory's rejection is read the same way.
 - `API_MOCK_SHARED_MODULE`: `mock` or `unmock` called from a module other than the test file under isolation `none`, which loads that module once per worker, so the mock would reach only the first file.
 
-Two more codes belong to `provino`'s `ProvinoWorkerApiError` (`packages/provino/src/index.ts`), not to this package: `PROVINO_NO_WORKER_API` (a forwarder called where no worker installed the API) and `PROVINO_NATIVE_ONLY` (a name only the native API has, used in a dialect's worker). `@provino/api` can't import `provino`, so that class is not in the served namespace.
-
 ## Tests
 
-- `src/scope.test.ts` (13 tests, on Provino): the factories against a fake host (`fakeHost(tier)`: each entry of `host.api` is a distinct function so the test can tell which one a namespace holds, `next()` moves "the file running now" to a new mock registry and clock, and a stand-in file registry records the module-mock calls). It holds the namespace and the slot, the globals, `fn`/`spyOn`/`replaceProperty`/`mocks`/`timers` acting on the file running now, the slot's removal at stop, and each error code. It uses `neutralPolicy`'s `mock` and `timers` slices.
+- `src/scope.test.ts`: the factories against a fake host (`fakeHost(tier)`: each entry of `host.api` is a distinct function so the test can tell which one a namespace holds, `next()` moves "the file running now" to a new mock registry and clock, and a stand-in file registry records the module-mock calls). It holds the namespace and the slot, the globals, `fn`/`spyOn`/`replaceProperty`/`mocks`/`timers` acting on the file running now, the slot's removal at stop, and each error code. It uses `neutralPolicy`'s `mock` and `timers` slices.
 - `test/api.test-d.ts` (`pnpm test:types` and `pnpm test:types:ts5.9`): the factories extend `ModuleScopeFactory` and `GlobalsFactory`, the module-mock names are not in `ProvinoGlobalsApi`, `uninstallProvinoApi` takes the API, and each misuse is a `@ts-expect-error` line.
-- What runs the factories in a real worker is `provino`'s: `packages/provino/test/native-api.test.ts`, `packages/provino/test/native-mocks.test.ts`, `packages/provino/src/internal/built-ins.test.ts` (which holds `PROVINO_SERVED_MODULE` equal to `NATIVE_RUNTIME.modules` and the hoist policy's modules), and `packages/provino/src/index.test.ts` (the slot-then-globals order; in the bootstrap set because it owns the slot).
-- `pnpm test --filter @provino/api` runs `node ../../packages/provino/dist/cli.js run` after Turborepo builds `provino`.
+- What runs the factories in a real worker is `provino`'s: `packages/provino/test/native-api.test.ts`, `packages/provino/test/native-mocks.test.ts`, `packages/provino/src/internal/built-ins.test.ts` (which holds `PROVINO_SERVED_MODULE` equal to `NATIVE_RUNTIME.modules` and the hoist policy's modules), and `packages/provino/src/index.test.ts` (the slot-then-globals order). Which runner runs a file: `.claude/rules/tests.md`.
 
 ## Not built
 
