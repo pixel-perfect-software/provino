@@ -114,11 +114,9 @@ test('the divergences from the neutral policy are Jest`s', () => {
     a: 'provino',
     b: 'jest',
   })
-  assert.deepEqual(row('coverage.thresholdGrouping'), {
-    path: 'coverage.thresholdGrouping',
-    a: 'all-files',
-    b: 'every-match',
-  })
+  // D212 (B28): the neutral policy took Jest's threshold grouping, so this key no longer diverges.
+  assert.equal(row('coverage.thresholdGrouping'), undefined)
+  assert.equal(resolved.coverage.thresholdGrouping, 'every-match')
 })
 
 // B23f Phase 1: the values; `reevaluatePatchingExternals` is recorded (Phase 3), the others are
