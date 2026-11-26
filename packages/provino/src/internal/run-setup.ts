@@ -103,7 +103,19 @@ export async function resolveRun(options: RunOptions): Promise<ResolvedRun> {
       ? { maxWorkers: resolved.maxWorkers }
       : {}),
   })
-  return { project, others, root: resolved.root, cwd, configPath, env, pool }
+  // The config's flags go after the coordinator's own, which a fork takes by default and a thread
+  // inherits; without the key the transports keep that default.
+  const execArgv =
+    resolved.execArgv === undefined ? {} : { execArgv: [...process.execArgv, ...resolved.execArgv] }
+  return {
+    project,
+    others,
+    root: resolved.root,
+    cwd,
+    configPath,
+    env,
+    pool: { ...pool, ...execArgv },
+  }
 }
 
 /**

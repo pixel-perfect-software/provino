@@ -9,6 +9,7 @@ import { describe, it } from 'provino'
 import { run } from 'provino/node'
 import {
   Collect,
+  NATIVE_CONFIG,
   nativeProject,
   notedPids,
   type ProjectFiles,
@@ -136,6 +137,54 @@ describe('provino.config keys reach the worker', () => {
     assert.notEqual(await readFile(forked.project.path('forked.pid'), 'utf8'), String(process.pid))
     assert.ok(existsSync(forked.project.path('forked.pid')))
   })
+})
+
+// D206: `execArgv` is the Node flags a fork or a thread starts with. Node's own resolver
+// (`createRequire().resolve`) reads `--conditions`, which `resolve.conditions` does not reach.
+describe('execArgv reaches the workers', () => {
+  const filesFor = (expected: string) => ({
+    'node_modules/exec-pkg/package.json': JSON.stringify({
+      name: 'exec-pkg',
+      exports: { 'provino-exec-test': './custom.js', default: './default.js' },
+    }),
+    'node_modules/exec-pkg/custom.js': 'module.exports = 1\n',
+    'node_modules/exec-pkg/default.js': 'module.exports = 2\n',
+    'tests/a.test.ts': `import { createRequire } from 'node:module'
+import { expect, test } from 'provino'
+
+test('exec-pkg', () => {
+  const target = createRequire(import.meta.url).resolve('exec-pkg')
+  expect(target.slice(target.lastIndexOf('/') + 1)).toBe('${expected}')
+})
+`,
+  })
+
+  async function runWith(config: string, pool: 'forks' | 'threads', expected: string) {
+    const dir = await nativeProject(filesFor(expected), config)
+    const stderr = new Collect()
+    const ran = await run({
+      config: 'provino.config.mjs',
+      cwd: dir,
+      stdout: new Collect(),
+      stderr,
+      env: QUIET_ENV,
+      pool,
+      maxWorkers: 1,
+    })
+    return { ran, stderr: stderr.text }
+  }
+
+  const WITH =
+    "export default { include: ['tests/**/*.test.ts'], execArgv: ['--conditions=provino-exec-test'] }\n"
+
+  for (const pool of ['forks', 'threads'] as const) {
+    it(`the flags apply on ${pool}, and a config without the key gets the default target`, async () => {
+      const set = await runWith(WITH, pool, 'custom.js')
+      assert.equal(set.ran.exitCode, 0, set.stderr)
+      const control = await runWith(NATIVE_CONFIG, pool, 'default.js')
+      assert.equal(control.ran.exitCode, 0, control.stderr)
+    })
+  }
 })
 
 // A native project (no dialect) names a DOM environment and no `isolation`: the default is
