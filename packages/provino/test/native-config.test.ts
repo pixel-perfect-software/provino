@@ -1,11 +1,20 @@
 // B27d, acceptance row 7: the config keys reach the worker. The test files use the Jest dialect's
-// globals, since the native API is B27b's; every key under test is the neutral config's own.
+// globals, since the native API is B27b's; every key under test is the neutral config's own. The
+// last block is a native project (no dialect), whose files import from `provino`.
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { describe, it } from 'provino'
 import { run } from 'provino/node'
-import { Collect, type ProjectFiles, QUIET_ENV, trackedProjects } from './support.ts'
+import {
+  Collect,
+  nativeProject,
+  notedPids,
+  type ProjectFiles,
+  QUIET_ENV,
+  trackedProjects,
+} from './support.ts'
 
 const makeProject = trackedProjects()
 
@@ -126,5 +135,47 @@ describe('provino.config keys reach the worker', () => {
     assert.equal(forked.exitCode, 0, forked.stderr)
     assert.notEqual(await readFile(forked.project.path('forked.pid'), 'utf8'), String(process.pid))
     assert.ok(existsSync(forked.project.path('forked.pid')))
+  })
+})
+
+// A native project (no dialect) names a DOM environment and no `isolation`: the default is
+// `registry` (D207), and the environment's exact global restore keeps one file's DOM state from the
+// next. Both files have one source and run on one worker (a worker that leaked a global would be
+// replaced, and its successor would pass either way), so the second file's clean start is the proof.
+describe('a native project with a DOM environment and no isolation', () => {
+  const DOM = `import { appendFileSync } from 'node:fs'
+import { expect, test } from 'provino'
+
+test('the window starts clean, and the file leaves a mark on it', () => {
+  appendFileSync(new URL('../workers.pids', import.meta.url), \`\${process.pid}\\n\`)
+  expect(window).toBe(globalThis)
+  expect(window.leaked).toBeUndefined()
+  window.leaked = true
+})
+`
+
+  it('jsdom runs two files green on one worker, the second on a window the first left clean', async () => {
+    const dir = await nativeProject(
+      { 'tests/a.test.ts': DOM, 'tests/b.test.ts': DOM },
+      "export default { include: ['tests/**/*.test.ts'], environment: 'jsdom' }\n",
+    )
+    const stderr = new Collect()
+    const ran = await run({
+      config: 'provino.config.mjs',
+      cwd: dir,
+      stdout: new Collect(),
+      stderr,
+      env: QUIET_ENV,
+      pool: 'forks',
+      maxWorkers: 1,
+    })
+    assert.equal(ran.exitCode, 0, stderr.text)
+    assert.deepEqual(
+      ran.summary?.files.map((f) => f.state),
+      ['pass', 'pass'],
+    )
+    const pids = await notedPids(join(dir, 'workers.pids'))
+    assert.equal(pids.length, 2)
+    assert.equal(new Set(pids).size, 1, `two workers: ${pids.join(', ')}`)
   })
 })

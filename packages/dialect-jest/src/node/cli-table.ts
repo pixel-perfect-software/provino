@@ -11,8 +11,8 @@
  * - `config`: a Jest config option given on the command line; it reaches the config reader through
  *   the parsed argv (`setFromArgv`), so the parser adds nothing.
  * - `accepted`: harmless here; nothing to say.
- * - `warn`: accepted, but has no effect yet (`owner` is the task that will apply it); a warning.
- * - `refuse`: no backend yet (`owner` is the task that builds it); an error diagnostic when given.
+ * - `warn`: accepted, but has no effect yet (`owner` says what is missing); a warning.
+ * - `refuse`: no backend yet (`owner` says what is missing); an error diagnostic when given.
  * @public
  */
 export type JestCliSupport = 'request' | 'config' | 'accepted' | 'warn' | 'refuse'

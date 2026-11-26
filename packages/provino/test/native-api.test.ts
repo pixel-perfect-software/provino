@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { writeFileSync } from 'node:fs'
-import { mkdtemp, rm } from 'node:fs/promises'
+import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -137,7 +137,6 @@ async function project(): Promise<{ readonly dir: string }> {
 async function assertNativeRun(dir: string, status: number | null, output: string): Promise<void> {
   // One test fails on purpose.
   assert.equal(status, 1, output)
-  const { readFile } = await import('node:fs/promises')
   const text = await readFile(join(dir, 'results.json'), 'utf8')
   const view = viewOfNormalized(text)
   assert.equal(view.success, false)
@@ -191,6 +190,45 @@ describe('the native API through provino run (built bin)', () => {
       await assertNativeRun(dir, run.status, `${run.stdout}\n${run.stderr}`)
     })
   }
+})
+
+/**
+ * A faked clock moved to a far date and cleared (`timers.setSystemTime`, `timers.clearAllTimers`)
+ * left `performance.now()` years from the real one, and the runtime's deadlines read it: a test
+ * (a past date) or its `afterEach` (a future one) ended "timed out" at once, with `useRealTimers`
+ * in an `afterEach`.
+ */
+const FAKE_CLOCK = `import { afterEach, it, timers } from 'provino'
+
+afterEach(() => timers.useRealTimers())
+
+for (const date of ['2030-01-01', '2000-01-01']) {
+  it(\`clears the timers after a system time of \${date}\`, () => {
+    timers.useFakeTimers()
+    timers.setSystemTime(new Date(date))
+    timers.clearAllTimers()
+  })
+}
+`
+
+describe('fake timers do not move the runtime’s deadlines', () => {
+  test('a faked clock moved to a far date and cleared leaves the test and its afterEach in time', async () => {
+    const dir = await nativeProject({ 'tests/fake-clock.test.ts': FAKE_CLOCK })
+    const run = await spawnCli(nativeRunArgs('forks'), { cwd: dir })
+    const output = `${run.stdout}\n${run.stderr}`
+    assert.equal(run.code, 0, output)
+    const [file] = [
+      ...viewOfNormalized(await readFile(join(dir, 'results.json'), 'utf8')).files.values(),
+    ]
+    assert.deepEqual(
+      [...(file?.tests ?? [])],
+      [
+        ['clears the timers after a system time of 2030-01-01', 'passed'],
+        ['clears the timers after a system time of 2000-01-01', 'passed'],
+      ],
+      output,
+    )
+  })
 })
 
 describe('the built entry outside a worker', () => {
@@ -266,7 +304,6 @@ describe('the Jest dialect', () => {
       env: QUIET_ENV,
       reporters: [['normalized-json', { outputFile: 'results.json' }]],
     })
-    const { readFile } = await import('node:fs/promises')
     const text = await readFile(join(jest.dir, 'results.json'), 'utf8')
     assert.equal(second.exitCode, 0, text)
     const [file] = [...viewOfNormalized(text).files.values()]

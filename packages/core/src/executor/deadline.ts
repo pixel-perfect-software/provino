@@ -1,6 +1,6 @@
-// Real-timer deadlines (Track 5 decision 9). Timeouts use timers captured before user code runs
-// (the caller passes the loader's capture; the default is what was global when core loaded), so
-// fake timers can't freeze them. An elapsed-time check on settle catches synchronous overruns
+// Real-timer deadlines (Track 5 decision 9). Timeouts use timers and the monotonic clock captured
+// before user code runs (the caller passes the loader's capture; the default is what was global
+// when core loaded), so fake timers can't freeze or move them. An elapsed-time check on settle catches synchronous overruns
 // when the policy asks (`timeouts.catchSyncOverrun`). `createDeadlines` owns every user call's
 // deadline: its bound, its `CORE_TIMEOUT` message and the test signal it aborts.
 import type { CorePolicy, FormatTimeout, SourceLocation } from '@provino/types'
@@ -21,6 +21,14 @@ export const capturedTimers: RealTimers = {
   setTimeout: globalThis.setTimeout,
   clearTimeout: globalThis.clearTimeout,
 }
+
+/**
+ * The monotonic clock (ms) that was global when core loaded: the default `now` of every deadline.
+ * Fake timers fake `performance`, and `reset` (`clearAllTimers`) keeps the offset `setSystemTime`
+ * made, so the fake `performance.now()` can sit years from the real one; a deadline read through it
+ * would fail a body or hook that took no time. Like `capturedTimers`, it is taken before user code runs.
+ */
+export const capturedNow: () => number = performance.now.bind(performance)
 
 /** The longest delay a timer holds: Node fires a longer one after 1 ms. */
 const MAX_TIMER_MS = 2 ** 31 - 1

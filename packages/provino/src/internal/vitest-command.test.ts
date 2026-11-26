@@ -43,11 +43,11 @@ describe('provino vitest refuses by name', () => {
   })
   afterAll(() => rm(cwd, { recursive: true, force: true }))
 
-  it('vitest list (parked, D183): it runs no suite', async () => {
+  it('vitest list is refused: it runs no suite', async () => {
     const ended = await runVitest(['list'], cwd)
     assert.equal(ended.code, 1, head(ended.stderr))
     assert.ok(
-      /vitest list is not supported \(parked \(D183\)\)/.test(ended.stderr),
+      /vitest list is not supported \(not built yet\)/.test(ended.stderr),
       head(ended.stderr),
     )
     assert.equal(ended.stdout, '')
@@ -128,12 +128,12 @@ describe('provino vitest reporter options', () => {
     assert.equal(json.numTotalTests, 1)
   })
 
-  it('refuses options on a text reporter by name (parked, D183)', async () => {
+  it('refuses options on a text reporter by name', async () => {
     await configWith([['verbose', { summary: false }]])
     const ended = await runVitest(['run'], root)
     assert.equal(ended.code, 1)
     assert.ok(
-      /the reporter "verbose" takes no options here \(parked \(D183\)\)/.test(ended.stderr),
+      /the reporter "verbose" takes no options here: summary/.test(ended.stderr),
       head(ended.stderr),
     )
   })

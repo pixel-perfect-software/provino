@@ -283,11 +283,11 @@ test('a file that ends in types has a statement on every line, as Jest’s babel
   assert.equal(Object.keys(only(coverage, path).statementMap).length, 7)
 })
 
-test('the AST conversion is B25’s', async () => {
+test('the AST conversion is not built yet', async () => {
   await assert.rejects(
     reporting.convertV8Coverage([], [], { conversion: 'ast', hashbang: 'kept' }),
     (error: unknown) =>
       (error as { code?: unknown }).code === 'COVERAGE_NOT_IMPLEMENTED' &&
-      String((error as Error).message).includes('B25'),
+      String((error as Error).message).includes('not built yet'),
   )
 })

@@ -16,8 +16,8 @@ config of any kind and runs it: a provino.config.* (which wins within one direct
 config, else a Vitest config; the walk stops at a directory with .git or pnpm-workspace.yaml.
 provino run takes a provino.config.* only, and says so when the nearest config is another kind.
 --dialect jest|vitest names the runner and skips the search. A config that names no dialect runs
-Provino's own policy; this build still loads the Jest dialect's code at start. provino jest
-takes Jest's own flags; one Provino can't run yet is refused by name, with the task that builds it.
+Provino's own policy and loads no Jest or Vitest code. provino jest takes Jest's own flags; one
+Provino can't run yet is refused by name.
 
 Options of provino run:
   -c, --config <file>               The config file (default: the provino.config.* found from the
@@ -65,7 +65,9 @@ Options of provino run:
                                     a change to a package.json, provino.config.* or tsconfig).
                                     On a terminal: a runs all, f runs the failed, Enter reruns the
                                     last, q quits (Ctrl+C too); off a terminal it reruns on change
-                                    with no keys. Not with --coverage, --shard or --detectOpenHandles
+                                    with no keys. Not with --coverage, --shard,
+                                    --detectOpenHandles, --timings, --update-timings or
+                                    --forceExit
       --watchAll                    As --watch, and every file reruns on any change
   -h, --help                        Print this text
       --version                     Print the version of provino

@@ -24,28 +24,28 @@ import { mergeAlias, normalizeAlias } from './vite-merge.ts'
 
 const SOURCE_EXTENSIONS: readonly string[] = ['ts', 'mts', 'cts', 'js', 'mjs', 'cjs', 'tsx', 'jsx']
 
-/** A key (dotted path into `test`) read and not applied yet, and the phase that applies it. */
+/** A key (dotted path into `test`) read and not applied yet, with why when there is more to say. */
 const NOT_APPLIED: readonly (readonly [string, string])[] = [
-  ['retry', 'parked (D183): no policy key carries a retry count yet'],
-  ['minWorkers', 'parked (D183)'],
-  ['coverage', 'B25h (Vitest coverage)'],
-  ['fakeTimers', 'B25f (the vi facade)'],
-  ['env', 'B25f: it reaches import.meta.env only; process.env needs the worker'],
-  ['sequence.concurrent', 'B25e (fixtures and definitions in core)'],
-  ['sequence.setupFiles', 'parked (D183)'],
-  ['onConsoleLog', 'parked (D183)'],
-  ['onStackTrace', 'parked (D183)'],
-  ['provide', 'a later bundle: no B25 phase owns provide and inject'],
-  ['execArgv', 'parked (D183)'],
-  ['server', 'B25d (the Vite bridge)'],
-  ['deps', 'B25d (the Vite bridge)'],
-  ['css', 'B25d (the Vite bridge)'],
+  ['retry', 'no policy key carries a retry count yet'],
+  ['minWorkers', ''],
+  ['coverage', ''],
+  ['fakeTimers', ''],
+  ['env', 'it reaches import.meta.env only'],
+  ['sequence.concurrent', ''],
+  ['sequence.setupFiles', ''],
+  ['onConsoleLog', ''],
+  ['onStackTrace', ''],
+  ['provide', ''],
+  ['execArgv', ''],
+  ['server', ''],
+  ['deps', ''],
+  ['css', ''],
 ]
 
 /**
  * The `test` keys Provino applies: this reader's, the resolver's (`normalize.ts`) and the run-wide
  * ones `provino vitest` reads from the root (`reporters` to `logHeapUsage`). Any other key a
- * config sets, and not in `NOT_APPLIED`, is `VITEST_CONFIG_NOT_APPLIED` (parked, D183).
+ * config sets, and not in `NOT_APPLIED`, is `VITEST_CONFIG_NOT_APPLIED`.
  * `cli.test.ts` holds every `config` row of the command line to it.
  */
 export const VITEST_APPLIED_TEST_KEYS: ReadonlySet<string> = new Set([
@@ -201,25 +201,25 @@ export function vitestProjectToNeutral(project: VitestResolvedProject): {
 } {
   const diagnostics: Diagnostic[] = []
   const { root, test, given } = project
-  for (const [key, phase] of NOT_APPLIED) {
+  for (const [key, why] of NOT_APPLIED) {
     if (read(given as Rec, key) === undefined) continue
     notApplied(
       diagnostics,
       `test.${key}`,
-      `test.${key} is read and not applied yet: it comes with ${phase}`,
+      `test.${key} is read and not applied yet${why === '' ? '' : `: ${why}`}`,
     )
   }
   if (given.allowOnly === false) {
     notApplied(
       diagnostics,
       'test.allowOnly',
-      'test.allowOnly false is read and not applied outside CI (parked (D183))',
+      'test.allowOnly false is read and not applied outside CI',
     )
   }
   const warned = new Set(NOT_APPLIED.map(([key]) => key))
   for (const key of Object.keys(given)) {
     if (VITEST_APPLIED_TEST_KEYS.has(key) || warned.has(key)) continue
-    notApplied(diagnostics, `test.${key}`, `test.${key} is read and not applied (parked (D183))`)
+    notApplied(diagnostics, `test.${key}`, `test.${key} is read and not applied`)
   }
   if (isRec(given.sequence)) {
     for (const key of Object.keys(given.sequence)) {
@@ -227,7 +227,7 @@ export function vitestProjectToNeutral(project: VitestResolvedProject): {
       notApplied(
         diagnostics,
         `test.sequence.${key}`,
-        `test.sequence.${key} is read and not applied (parked (D183))`,
+        `test.sequence.${key} is read and not applied`,
       )
     }
   }
@@ -238,8 +238,8 @@ export function vitestProjectToNeutral(project: VitestResolvedProject): {
       diagnostics,
       key,
       key === 'plugins'
-        ? 'plugins are read by the Vite bridge (`@provino/dialect-vitest/vite-bridge`) and hosted by `@provino/transform/vite`; running them in a worker is parked (D183)'
-        : `${key} is read and not applied yet: the Vite bridge reads it, and a worker applies it with B25f`,
+        ? 'plugins are read by the Vite bridge (`@provino/dialect-vitest/vite-bridge`) and hosted by `@provino/transform/vite`; running them in a worker is not supported yet'
+        : `${key} is read and not applied yet: the Vite bridge reads it, and a worker does not apply it yet`,
     )
   }
   const sequence = isRec(test.sequence) ? test.sequence : {}
@@ -250,7 +250,7 @@ export function vitestProjectToNeutral(project: VitestResolvedProject): {
     notApplied(
       diagnostics,
       'test.sequence.shuffle.files',
-      'test.sequence.shuffle.files is read and not applied (parked (D183))',
+      'test.sequence.shuffle.files is read and not applied',
     )
   }
   const environmentName = typeof test.environment === 'string' ? test.environment : 'node'

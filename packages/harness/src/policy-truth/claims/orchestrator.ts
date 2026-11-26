@@ -301,9 +301,9 @@ const conditionsMatch = (g: Golden, value: unknown): boolean => {
   return test.id.path.join(' ').includes(`${predicted} variant`)
 }
 
-/** The isolation tiers both dialects' tests pin: `registry` (D6), and `realm` for a DOM. */
-const ISOLATION = { default: 'registry', byEnvironment: { jsdom: 'realm', 'happy-dom': 'realm' } }
-/** Vitest's DOM environments run on the worker's own global, so they stay on `registry` too. */
+/** The isolation tiers both dialects' tests pin: `registry` (D6), and Jest takes the neutral `byEnvironment` (D207). */
+const ISOLATION = { default: 'registry', byEnvironment: {} }
+/** Vitest's DOM environments run on the worker's own global, so it names `registry` for them. */
 const VITEST_ISOLATION = {
   default: 'registry',
   byEnvironment: { jsdom: 'registry', 'happy-dom': 'registry' },

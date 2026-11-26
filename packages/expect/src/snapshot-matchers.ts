@@ -50,7 +50,7 @@ interface Call {
 type SnapshotResult = MatcherResult & { readonly name: string; readonly snapshotPath?: string }
 
 const INLINE_NOT_WRITTEN =
-  "An inline snapshot would have to be written into the test file, and this project's dialect has no inline snapshot writer (T7.11). " +
+  "An inline snapshot would have to be written into the test file, and this project's dialect has no inline snapshot writer. " +
   'Run with --ci to treat a missing inline snapshot as a failure, or write the snapshot by hand.'
 
 const INDENTATION_REGEX = /^([^\S\n]*)\S/m

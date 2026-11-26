@@ -32,8 +32,8 @@ import { pathOfUrl } from './internal/url.ts'
 import { reevaluatesExternals } from './reevaluation.ts'
 import { tierFor } from './tier.ts'
 
-function notYet(what: string, task: string): LoaderError {
-  return new LoaderError('LOADER_NOT_IMPLEMENTED', `${what} is not implemented yet (${task}).`)
+function notYet(what: string): LoaderError {
+  return new LoaderError('LOADER_NOT_IMPLEMENTED', `${what} is not implemented yet.`)
 }
 
 /** The code of the module-mock registry's error for a mock that can't stand in for a relative path. */
@@ -44,7 +44,7 @@ const UNRESOLVED_RELATIVE_MOCK = 'unresolved-relative-mock'
  * @public
  */
 export const createLoader: CreateLoader = (options) => {
-  if (options.engine !== 'runner') throw notYet("engine: 'native'", 'T2.10')
+  if (options.engine !== 'runner') throw notYet("engine: 'native'")
   const state = createRecords(options)
   // A registration resolves as an edge of its kind does (`ModulePolicy.moduleSyncCondition`).
   const conditions = edgeConditions(state.edgeKinds, options.policy.mockResolveKind)
@@ -52,7 +52,7 @@ export const createLoader: CreateLoader = (options) => {
   const shared = new Registry(state, true)
 
   function fileRegistry(testFile: string, registryOptions: FileRegistryOptions): FileRegistry {
-    if (registryOptions.tier === 'realm') throw notYet('the realm tier', 'T2.8')
+    if (registryOptions.tier === 'realm') throw notYet('the realm tier')
     // What an earlier file's loads learned is evaluated per file from this one on (D127).
     promoteLearned(state.reevaluate)
     const registry = registryOptions.tier === 'none' ? shared : new Registry(state)

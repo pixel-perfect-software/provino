@@ -4,6 +4,6 @@ Provino's native test API: the `provino` module a test file imports in a project
 
 This package is a building block of [Provino](https://github.com/pixel-perfect-software/provino), a test runner for JavaScript and TypeScript. It is private: the `provino` package inlines it, so you install `provino`, not this package.
 
-**Status:** built. Until Provino's own matcher table is wired in, a native run needs one named by ref.
+**Status:** built. `expect` uses Provino's own matcher table, so a native run loads nothing from Jest or Vitest.
 
 [MIT](https://github.com/pixel-perfect-software/provino/blob/main/LICENSE)

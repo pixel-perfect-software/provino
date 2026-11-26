@@ -6,7 +6,7 @@ import { binScript, runCommand } from './exec.ts'
 import { ADD_ONS, INTERNAL_ENTRIES } from './internal-entries.ts'
 import { readManifest } from './package-json.ts'
 import { scratchDir } from './test-support.ts'
-import { umbrellaEntries, WORKER_ENTRIES, workerRefs } from './umbrella.ts'
+import { umbrellaEntries, umbrellaPasses, WORKER_ENTRIES, workerRefs } from './umbrella.ts'
 import { ROOT } from './workspace.ts'
 
 describe('the umbrella names every module a worker is given by file (D21)', () => {
@@ -50,6 +50,19 @@ describe('the umbrella names every module a worker is given by file (D21)', () =
       new URL('../../../packages/provino/src/internal/add-on.ts', import.meta.url).href
     )) as { readonly DIALECT_ADD_ONS: Readonly<Record<string, string>> }
     assert.deepEqual(Object.values(DIALECT_ADD_ONS).sort(), [...ADD_ONS].sort())
+  })
+})
+
+describe('the umbrella build (B27i)', () => {
+  test('each of its three passes checks that its entries are written where exports name them', () => {
+    const passes = umbrellaPasses(join(ROOT, 'packages', 'provino'))
+    assert.equal(passes.length, 3)
+    for (const [index, pass] of passes.entries()) {
+      const names = ([pass.plugins] as unknown[])
+        .flat(Number.POSITIVE_INFINITY)
+        .map((plugin) => (plugin as { readonly name?: string } | null | undefined)?.name)
+      assert.ok(names.includes('provino-entry-files'), `pass ${index}: ${names.join(', ')}`)
+    }
   })
 })
 

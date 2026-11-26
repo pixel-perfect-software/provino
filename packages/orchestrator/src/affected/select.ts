@@ -157,7 +157,7 @@ export function keepFailed(
 /**
  * The files a change touched under some roots, by the policy's `orchestrator.changedFiles` (Jest's
  * jest-changed-files under the Jest dialect). A policy with none can't select by changed files:
- * `ORCH_NOT_IMPLEMENTED`, naming the task that builds the neutral and Vitest ones. What the
+ * `ORCH_NOT_IMPLEMENTED`. What the
  * provider rejects with (a failing git command) is passed on as it is.
  * @beta
  */
@@ -168,7 +168,7 @@ export async function findChangedFiles(
   if (provider === null) {
     throw new OrchestratorError(
       'ORCH_NOT_IMPLEMENTED',
-      'selecting tests by changed files is not built for this dialect yet (T11.16)',
+      'selecting tests by changed files is not built for this dialect yet',
     )
   }
   return callBehaviour(createBehaviourLoader(), provider, options)

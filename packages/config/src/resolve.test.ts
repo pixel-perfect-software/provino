@@ -1132,10 +1132,9 @@ describe('resolveProject', () => {
       ['alsoServe', { alsoServe: ['x'] as never }],
     ]
     for (const [key, input] of CASES) {
-      test(`a non-empty \`${key}\` is CONFIG_UNSUPPORTED, naming the key and T1.4`, async () => {
+      test(`a non-empty \`${key}\` is CONFIG_UNSUPPORTED, naming the key and no task`, async () => {
         const error = await rejectsWith(resolveWith(input), 'CONFIG_UNSUPPORTED')
-        assert.match(error.message, new RegExp(`"${key}"`))
-        assert.match(error.message, /T1\.4/)
+        assert.equal(error.message, `config key "${key}" isn't supported yet`)
       })
 
       test(`an empty \`${key}\` is fine`, async () => {

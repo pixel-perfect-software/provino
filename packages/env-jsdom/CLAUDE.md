@@ -32,7 +32,7 @@ Provino's own jsdom environment (Track 8, T8.3's jsdom part; B17c part 3). Runs 
 ## Not copied from Vitest
 
 - Its `URL`, `Request` and Blob/FormData compat wrappers. A jsdom `Blob` is not accepted as a `fetch` body (Node's `fetch` cannot read it), and the window keeps jsdom's own `URL`.
-- `setupVM` (realm `context`, T2.8): `setup` throws `ENV_JSDOM_REALM_UNSUPPORTED`. The `isolationDefault` for jsdom is `realm`, so until T2.8 a project must say `isolation: 'registry'`.
+- `setupVM` (realm `context`, T2.8): `setup` throws `ENV_JSDOM_REALM_UNSUPPORTED`. The neutral `isolationDefault` for jsdom is `registry` (D207); a project that asks for `realm` gets this error.
 
 ## Tests
 

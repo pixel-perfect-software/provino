@@ -7,16 +7,16 @@ Tier 1 is project-wide. Read a Tier 1 file only when the task needs it; `.claude
 - `CLAUDE.md`: standards, non-negotiables, commands, git workflow.
 - `README.md`: the public front page, kept short in the house style of Pixel Perfect's other READMEs (centered logo, tagline and badges; a real `provino jest` run; Features, Requirements, Install, Getting started, Commands; links into `wiki/`). Longer explanations go in `wiki/`, not here.
 - `CONTRIBUTING.md`: setup, commands and conventions for human contributors. It doesn't repeat this file's agent rules.
-- `wiki/`: the longer public docs the README links to: `why-provino.md` (the problem, goal and go/no-go bar), `compatibility.md` (what `provino jest` does and the full gap table: when a gap closes or a flag stops being refused, update it here), `output.md` (what a run prints on a terminal and elsewhere, the flags and variables that change it, the HTML report; its examples are pasted from the `provino*` goldens, so a change to a golden is a change to it), `how-it-works.md`, `troubleshooting.md`.
+- `wiki/`: the longer public docs the README links to: `why-provino.md` (the problem, goal and go/no-go bar), `compatibility.md` (what `provino jest` does and the full gap table: when a gap closes or a flag stops being refused, update it here), `output.md` (what a run prints on a terminal and elsewhere, the flags and variables that change it, the HTML report; its examples are pasted from the `provino*` goldens, so a change to a golden is a change to it), `how-it-works.md`, `lazy-variables.md` (the RSpec-style lazy variables: define, override, `import { lazy } from 'provino'`), `native.md` (a Provino-native project: config, discovery, the test API and globals, coming from `node:test`), `troubleshooting.md`.
 - `THIRD_PARTY_NOTICES.md`: the license for code copied from other projects. Eight packages (`provino`, `@provino/dialect-jest`, `@provino/dialect-vitest`, `@provino/snapshot`, `@provino/env-shared`, `@provino/coverage`, `@provino/reporters`, `@provino/expect`) ship a copy, which `pnpm hygiene` holds equal to it.
 - `packages/*/README.md`: each published package's npm page (`packages/provino/README.md` is the one users read; the others say they are building blocks inlined into `provino`, and whether D82 gives them semver).
 - `.claude/context/ai-context/handoff.md`: where the last session stopped. **Read first in every session** (it is created after the first session). Gitignored, so each checkout and worktree keeps its own.
 - `.claude/context/ai-context/monorepo-architecture.md`: package map, layers, dependency rules, coordinator vs worker placement. Read before creating a package or adding an import between packages.
-- `.claude/context/ai-context/commands.md`: the long command reference moved out of the root `CLAUDE.md` (build, hygiene, pack and smoke, release, run Provino and run a Jest project, every bench, corpus and check, goldens, harness and corpus). Read before running a bench, corpus, hygiene, or release command.
+- `.claude/context/ai-context/commands.md`: the long command reference moved out of the root `CLAUDE.md` (build, hygiene, pack and smoke, release, run Provino and run a Jest project, our own tests and how to move a package onto Provino, every bench, corpus and check, goldens, harness and corpus). Read before running a bench, corpus, hygiene, or release command.
 - `.claude/context/ai-context/project-structure.md`: directory tree, stack and where things go. Read before adding a top-level directory.
 - `.claude/rules/benchmarks.md`: rules for `packages/bench/**`.
 - `.claude/rules/dialects.md`: rules for `packages/dialect-*/**`.
-- `.claude/rules/tests.md`: rules for tests, type tests, fixtures and goldens.
+- `.claude/rules/tests.md`: rules for tests (which run on Provino; the bootstrap set stays on `node:test`), type tests, fixtures and goldens. Also loads on `tooling/provino/**`, where the bootstrap set lives.
 - `.claude/rules/typescript.md`: rules for all package source.
 - `.claude/rules/vendored-upstream.md`: rules for code copied from Jest or Vitest.
 - `docs/plan/DECISIONS.md`: decided, default, proposed and open decisions, plus the precedence order. Overrides all research.
@@ -28,6 +28,7 @@ Tier 1 is project-wide. Read a Tier 1 file only when the task needs it; `.claude
 
 When a package gains non-obvious structure, add `packages/<name>/CLAUDE.md` (under ~150 lines) and list it here, alphabetically.
 
+- `packages/api/CLAUDE.md`: the native test API's module map (the factories over the worker host, the served `provino` module's per-module scope, the `provino.api` slot and `globals: true`, the module mocks), its error codes, its layer and imports, its tests, and what isn't built here. How `provino` wires it is `packages/provino/CLAUDE.md` → "The native API".
 - `packages/bench/CLAUDE.md`: where the bench's pieces are (including `list-tests`), how the kill-check reads each R6 check, what its verdict and record hold, the dry run, and what today's numbers do and don't include.
 - `packages/config/CLAUDE.md`: loading a `provino.config.*` (`loadConfigFile`; a Jest config loads in `packages/dialect-jest`'s `load.ts`) and resolving a project from it or from a dialect reader's `NeutralProject` (`resolveNeutralProject`): dialect selection, policy layering, environment, isolation, the worker's `SerializedProjectConfig`, the `ConfigError` codes, and what is still stubbed (with owning tasks).
 - `packages/core/CLAUDE.md`: the runtime's module map, one store per test attempt, the per-attempt order, the two focus algorithms, how the corpus check runs core, and what is still stubbed (with owning tasks).
@@ -50,7 +51,7 @@ When a package gains non-obvious structure, add `packages/<name>/CLAUDE.md` (und
 - `packages/snapshot/CLAUDE.md`: the snapshot engine's three entries (the `.snap` format, the per-file `SnapshotState` and its lifecycle, the coordinator's update mode and totals), what a dialect supplies (policy values, the printer, the key function), the differences it reproduces and the ones it doesn't, and what is still stubbed (with owning tasks).
 - `packages/transform/CLAUDE.md`: how the hoister is laid out, the import rewrite (D36) and its output shape, how the pipeline runs it, the transform cache, the V8 code cache and Node's compile cache helper (`@provino/transform/v8cache`, T3.7), and what is still stubbed (with owning tasks).
 - `tooling/boundaries/CLAUDE.md`: the package manifest, what is generated from it, and how to add a package or rule.
-- `tooling/packaging/CLAUDE.md`: the shared tsdown preset, the `provino` bundle (what is inlined, how worker modules are found by file, the shared chunk), `pnpm hygiene` and each check's planted case, the API reports and changesets, the release workflow lint and the install smoke.
+- `tooling/packaging/CLAUDE.md`: the shared tsdown preset, the `provino` bundle (what is inlined, how worker modules are found by file, the shared chunk), `pnpm hygiene` and each check's planted case, the API reports and changesets, the release workflow lint and the install smoke, and how this repo's own tests run on Provino (the runner, the bootstrap set, the migrate codemod and scaffold).
 
 ## Tier 3 — Package reference notes
 

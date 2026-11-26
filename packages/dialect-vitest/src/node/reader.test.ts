@@ -240,7 +240,7 @@ test('a vitest.workspace file is not read, and the reader says so', async () => 
   )
 })
 
-test('a key read and not applied warns and names its phase', async () => {
+test('a key read and not applied warns', async () => {
   const root = writeTree({
     'vitest.config.mjs':
       'export default { define: { A: 1 }, test: { retry: 2, minWorkers: 1, bail: 1, coverage: { enabled: true } } }\n',
@@ -251,7 +251,7 @@ test('a key read and not applied warns and names its phase', async () => {
   assert.deepEqual(keys, ['define', 'test.coverage', 'test.minWorkers', 'test.retry'])
   for (const entry of diagnostics) {
     assert.equal(entry.code, 'VITEST_CONFIG_NOT_APPLIED')
-    assert.match(entry.message, /B25[a-k]|D183/)
+    assert.match(entry.message, /is read and not applied/)
   }
 })
 

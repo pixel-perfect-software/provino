@@ -95,7 +95,7 @@ function refusal(globalConfig: JestGlobalConfig): string | undefined {
   if (globalConfig.collectTests) refused.push('--collectTests')
   if (globalConfig.detectOpenHandles) refused.push('--detectOpenHandles')
   if (refused.length === 0) return undefined
-  return `${refused.join(', ')} in watch mode ${refused.length === 1 ? 'is' : 'are'} not supported yet (B23c Phase 9)`
+  return `${refused.join(', ')} in watch mode ${refused.length === 1 ? 'is' : 'are'} not supported yet`
 }
 
 /** jest-util's `isInteractive` (`isInteractive.ts` L10-L25): a terminal, not `dumb`, not CI. */

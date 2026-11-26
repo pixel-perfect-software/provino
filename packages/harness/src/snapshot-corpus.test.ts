@@ -125,8 +125,8 @@ for (const fixture of fixtures) {
             f.tests.flatMap((t) => t.errors.map((e) => e.message)),
           )
           assert.ok(
-            messages.some((message) => message.includes('T7.11')),
-            `the failure names T7.11: ${messages.join(' | ')}`,
+            messages.some((message) => message.includes('no inline snapshot writer')),
+            `the failure says there is no writer: ${messages.join(' | ')}`,
           )
           for (const file of files) {
             const original = await readFile(path.join(fixture.dir, file), 'utf8')

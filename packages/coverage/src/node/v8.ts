@@ -165,7 +165,7 @@ export async function convertV8Coverage(
   if (options.conversion !== 'v8-to-istanbul') {
     throw new CoverageError(
       'COVERAGE_NOT_IMPLEMENTED',
-      `the '${options.conversion}' conversion of V8 coverage is not built yet (B25)`,
+      `the '${options.conversion}' conversion of V8 coverage is not built yet`,
     )
   }
   // The compiled module of each path, from the first take that had it (Jest's first

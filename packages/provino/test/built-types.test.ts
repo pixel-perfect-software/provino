@@ -5,11 +5,15 @@
 // `provino/config`, which exports the registries. This compiles consumers against copies of the
 // built `provino` and both add-ons (no `@provino/types` anywhere, `skipLibCheck: false`) on both
 // compilers, and has one augmentation reach every public type that reads a registry.
+// B27i: the root entry's `types` file was a shared declaration chunk (its names mangled, `$`, `_`,
+// `A`…), so `import { describe } from 'provino'` failed with TS2305; a user compiles the native API
+// here, and each public entry's `types` file must export exactly its source entry's names.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { writeFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { parseSync } from 'oxc-parser'
 import { describe, test } from 'provino'
 import { builtSources } from './dist.ts'
 import {
@@ -60,6 +64,26 @@ function consumer(files: Readonly<Record<string, string>>, addOns: boolean): str
   return dir
 }
 
+/**
+ * The names a module exports, read by Oxc's parser (`export { a as b }`, `export const`,
+ * `export type { … } from`, `export default` as `default`), once each (an overload, or a value and a
+ * type of one name, is listed again in a source but once in a bundled file), sorted. `export *` is
+ * refused: its names can't be read here.
+ */
+function exportedNames(path: string): string[] {
+  const { module, errors } = parseSync(path, readFileSync(path, 'utf8'))
+  assert.deepEqual(errors, [], `${path} does not parse`)
+  const names = new Set<string>()
+  for (const entry of module.staticExports) {
+    for (const item of entry.entries) {
+      const { kind, name } = item.exportName
+      assert.notEqual(kind, 'None', `${path}: an export *, whose names can't be read`)
+      names.add(kind === 'Default' ? 'default' : (name ?? ''))
+    }
+  }
+  return [...names].sort()
+}
+
 /** The compiler over the consumer: its exit code and what it printed. */
 function compile(compiler: (typeof COMPILERS)[number], dir: string) {
   const run = spawnSync(process.execPath, [compilerBin(compiler), '-p', dir, '--pretty', 'false'], {
@@ -107,7 +131,9 @@ describe('the built declarations, as a user compiles them', () => {
       true,
     ),
   )
-  // `provino` alone: `provino/jest` and `provino/vitest` carry the declarations of their dialect.
+  // `provino` alone, as a native project has it: `provino/jest` and `provino/vitest` carry the
+  // declarations of their dialect, and `import … from 'provino'` types the main names of the native
+  // API, each used as a value (the names test below covers every export).
   const alone = once(() =>
     consumer(
       {
@@ -121,6 +147,47 @@ describe('the built declarations, as a user compiles them', () => {
           "export const unknown = defineConfig({ dialect: 'mocha' })",
           '',
         ].join('\n'),
+        'native.ts': [
+          'import {',
+          '  afterAll, afterEach, aroundAll, aroundEach, beforeAll, beforeEach, describe, expect, fn,',
+          '  importActual, isMockFunction, it, lazy, mock, mocks, onTestFailed, onTestFinished,',
+          '  ProvinoWorkerApiError, replaceProperty, sharedExamples, spyOn, suite, test, timers, unmock,',
+          "} from 'provino'",
+          "mock('./dep.ts')",
+          "unmock('./dep.ts')",
+          "const $ = lazy.let('user', () => ({ name: 'ada' }))",
+          "export const examples = sharedExamples<{ user: { name: string } }>('a user', () => {})",
+          "describe('a suite', () => {",
+          '  beforeAll(() => {})',
+          '  afterAll(() => {})',
+          '  beforeEach(() => {})',
+          '  afterEach(() => {})',
+          '  aroundEach(async (runTest) => { await runTest() })',
+          '  aroundAll(async (runSuite) => { await runSuite() })',
+          "  it('a test', async () => {",
+          '    onTestFinished(() => {})',
+          '    onTestFailed(() => {})',
+          '    const add = fn((a: number, b: number) => a + b)',
+          '    expect(add(1, 2)).toBe(3)',
+          '    expect(isMockFunction(add)).toBe(true)',
+          '    const service = { load: (id: number) => id, retries: 3 }',
+          "    spyOn(service, 'load')",
+          "    replaceProperty(service, 'retries', 5)",
+          '    mocks.restoreAll()',
+          '    timers.useFakeTimers()',
+          "    await importActual('./dep.ts')",
+          "    expect($.user.name).toBe('ada')",
+          '  })',
+          '})',
+          "suite('another', () => { test('runs', () => {}) })",
+          "export const code: 'PROVINO_NO_WORKER_API' | 'PROVINO_NATIVE_ONLY' =",
+          "  new ProvinoWorkerApiError('describe').code",
+          '// @ts-expect-error: a test needs a name',
+          'test()',
+          '// @ts-expect-error: the specifier is a string',
+          'mock(1)',
+          '',
+        ].join('\n'),
       },
       false,
     ),
@@ -132,11 +199,41 @@ describe('the built declarations, as a user compiles them', () => {
       assert.equal(status, 0, output)
     })
 
-    test(`provino/jest and provino/vitest register their dialect without the add-ons (${compiler})`, () => {
+    test(`provino alone types the native API, and provino/jest and provino/vitest register their dialect (${compiler})`, () => {
       const { status, output } = compile(compiler, alone())
       assert.equal(status, 0, output)
     })
   }
+
+  test("each public entry's types file is its own declarations, exporting its source's names", () => {
+    // A shared declaration chunk that takes an entry's file name exports other names (mangled ones),
+    // and the entry's own declarations land in `<name>2.d.ts` or further: `types` then names the chunk.
+    const dir = join(PACKAGES, 'provino')
+    const manifest = JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as {
+      readonly exports: Readonly<Record<string, Readonly<Record<string, string>>>>
+    }
+    const entries = Object.entries(manifest.exports).filter(
+      ([subpath, conditions]) =>
+        !subpath.startsWith('./internal/') && conditions['provino-source']?.endsWith('.ts'),
+    )
+    // The subpaths a user's program needs; dropping some other entry must not fail this.
+    const subpaths = entries.map(([subpath]) => subpath)
+    for (const required of ['.', './config']) {
+      assert.ok(
+        subpaths.includes(required),
+        `no public entry ${required} among ${subpaths.join(', ')}`,
+      )
+    }
+    for (const [subpath, conditions] of entries) {
+      const source = exportedNames(join(dir, conditions['provino-source'] ?? ''))
+      const built = exportedNames(join(dir, conditions.types ?? ''))
+      assert.deepEqual(
+        built,
+        source,
+        `provino ${subpath}: ${conditions.types} is not its own declarations`,
+      )
+    }
+  })
 
   test('no built declaration imports, re-exports or augments @provino/types, which no install has', () => {
     // A quoted specifier: `import`, `import type`, `import()`, `export … from` and `declare module`.
