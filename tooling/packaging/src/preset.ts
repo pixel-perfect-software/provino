@@ -1,7 +1,12 @@
 import { rmSync } from 'node:fs'
 import { join } from 'node:path'
 import type { UserConfig } from 'tsdown/config'
-import { augmentationTarget, internalImports, isAddOn } from './internal-entries.ts'
+import {
+  augmentationTarget,
+  internalImports,
+  isAddOn,
+  type PluginList,
+} from './internal-entries.ts'
 import { type PackageManifest, readManifest, runtimeDependencyNames } from './package-json.ts'
 
 /**
@@ -33,6 +38,36 @@ export const DTS_ONLY: Exclude<UserConfig['dts'], boolean | undefined> = {
   generator: 'oxc',
   sourcemap: false,
   emitDtsOnly: true,
+}
+
+/**
+ * Fails the build when an entry is not written to the file its `exports` name: `<name>.js`, and
+ * `<name>.d.ts` for its declarations (B27i). Rolldown gives a file name to the first chunk that asks
+ * for it and numbers the rest, so a shared declaration chunk named after an `index.ts` module took
+ * `index.d.ts` and `provino`'s own root declarations went to `index5.d.ts`: `types` named a chunk
+ * of mangled names, and `import { describe } from 'provino'` failed to typecheck.
+ * @internal
+ */
+export function entryFiles(): PluginList {
+  return [
+    {
+      name: 'provino-entry-files',
+      generateBundle(_options, bundle) {
+        for (const item of Object.values(bundle)) {
+          if (item.type !== 'chunk' || !item.isEntry) continue
+          // A declaration entry's chunk is named `<name>.d` (rolldown-plugin-dts).
+          const expected = item.fileName.endsWith('.d.ts')
+            ? `${item.name.replace(/\.d$/, '')}.d.ts`
+            : `${item.name}.js`
+          if (item.fileName !== expected) {
+            throw new Error(
+              `entry ${item.name}: written to ${item.fileName}, not ${expected}, which its exports name: another chunk took that file name (give the chunks a directory of their own with chunkFileNames)`,
+            )
+          }
+        }
+      },
+    },
+  ]
 }
 
 /** One subpath of a package's `exports`: where its source is, and what the build writes. */
@@ -109,16 +144,17 @@ export function packageConfig(dir: string): UserConfig {
       // A subpath entry may import its own package by name (a self-reference, which keeps one copy).
       onlyImport: [manifest.name, ...runtimeDependencyNames(manifest)],
     },
-    // An add-on (D187) reaches the engine through its `provino` peer, never a copy of its own.
-    ...(isAddOn(manifest)
-      ? {
-          plugins: [
+    plugins: [
+      // An add-on (D187) reaches the engine through its `provino` peer, never a copy of its own.
+      ...(isAddOn(manifest)
+        ? [
             ...internalImports(manifest.name),
             // The registries are `provino/config`'s, the one module a user's install resolves.
             ...augmentationTarget(),
-          ],
-        }
-      : {}),
+          ]
+        : []),
+      ...entryFiles(),
+    ],
   }
 }
 

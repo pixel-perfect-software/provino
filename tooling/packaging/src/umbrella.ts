@@ -11,7 +11,7 @@ import {
   sharedRegistries,
 } from './internal-entries.ts'
 import { readManifest, runtimeDependencyNames } from './package-json.ts'
-import { DTS_ONLY, entriesOf, PRESET } from './preset.ts'
+import { DTS_ONLY, entriesOf, entryFiles, PRESET } from './preset.ts'
 
 /**
  * The modules a worker loads by file URL (DECISIONS D21): the coordinator resolves each with
@@ -42,11 +42,12 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
 
 /**
  * The add-ons' worker modules (D187), which the umbrella built until B27f: entries of the public
- * declarations pass still, and nothing else. The pass's chunk graph, and with it the names
- * Rolldown's declaration bundler gives the types its chunks share (the mangled names
- * `etc/provino.api.md` lists, D67), is then the one it was: without them every one of those
- * names moved, with no public change. Their own files are not written (`dropDeclarations`):
- * `provino` ships no such module.
+ * declarations pass still, and nothing else, so the pass's chunk graph (the files in `chunks/` and
+ * the aliases Rolldown's declaration bundler gives the types they share) is the one it was. Those
+ * aliases were in `etc/provino.api.md` while the root entry's `types` file was a chunk; since
+ * B27i no entry's is, no report reads them, and without these entries every report is unchanged
+ * (2026-11-26), so they can go. Their own files are not written (`dropDeclarations`): `provino`
+ * ships no such module.
  */
 const DECLARATION_ONLY_ENTRIES: Readonly<Record<string, string>> = {
   '@provino/dialect-jest/runtime': 'worker/jest-runtime',
@@ -441,7 +442,7 @@ export function umbrellaConfig(dir: string): UserConfig[] {
           ],
         },
       },
-      plugins: workerRefs(),
+      plugins: [...workerRefs(), ...entryFiles()],
     },
     // The declarations, in two passes: the public entries, then the add-ons' engine
     // (`internal/*`, D187). One pass would share declaration chunks between them, so the internal
@@ -451,8 +452,11 @@ export function umbrellaConfig(dir: string): UserConfig[] {
       entry: publicEntries,
       dts: DTS_ONLY,
       deps: { alwaysBundle: PROVINO_SCOPE, dts: { alwaysBundle: PROVINO_SCOPE } },
+      // Its shared declaration chunks go under `chunks/`, so none can take an entry's file name
+      // (B27i): one named after an `index.ts` module took `index.d.ts`, which `types` names.
+      outputOptions: { chunkFileNames: 'chunks/[name].d.ts' },
       // `jest.d.ts` and `vitest.d.ts` register their dialect on the registry `config.d.ts` exports.
-      plugins: [...dropDeclarations(), ...augmentationTarget()],
+      plugins: [...dropDeclarations(), ...augmentationTarget(), ...entryFiles()],
     },
     {
       ...common,
@@ -461,7 +465,7 @@ export function umbrellaConfig(dir: string): UserConfig[] {
       deps: { alwaysBundle: PROVINO_SCOPE, dts: { alwaysBundle: PROVINO_SCOPE } },
       // Its shared declaration chunks go under `internal/`, where no public pass writes.
       outputOptions: { chunkFileNames: 'internal/chunks/[name].d.ts' },
-      plugins: sharedRegistries(),
+      plugins: [...sharedRegistries(), ...entryFiles()],
     },
   ]
 }

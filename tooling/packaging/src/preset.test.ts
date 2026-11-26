@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import { describe, test } from 'provino'
 import { NOTICES_FILE } from './pack-contents.ts'
 import { type PackageManifest, readManifest } from './package-json.ts'
-import { entriesOf, PRESET, packageConfig } from './preset.ts'
+import { entriesOf, entryFiles, PRESET, packageConfig } from './preset.ts'
 import { scratchDir } from './test-support.ts'
 import { publicPackages, ROOT } from './workspace.ts'
 
@@ -95,6 +95,46 @@ describe('the shared tsdown preset (T1.6)', () => {
         ),
       /types must be \.\/dist\/index\.d\.ts/,
     )
+  })
+
+  test("the build fails when an entry isn't written to the file its exports name (B27i)", () => {
+    const [plugin] = entryFiles()
+    const generate = (
+      plugin as unknown as { generateBundle: (options: unknown, bundle: object) => void }
+    ).generateBundle
+    const chunk = (name: string, fileName: string, isEntry = true) => ({
+      type: 'chunk',
+      name,
+      fileName,
+      isEntry,
+    })
+    // `provino`'s root before B27i: a shared declaration chunk took `index.d.ts`.
+    const taken = {
+      'index.d.ts': chunk('index.d', 'index.d.ts', false),
+      'index5.d.ts': chunk('index.d', 'index5.d.ts'),
+    }
+    assert.throws(
+      () => generate({}, taken),
+      /entry index\.d: written to index5\.d\.ts, not index\.d\.ts/,
+    )
+    assert.throws(
+      () => generate({}, { 'index2.js': chunk('index', 'index2.js') }),
+      /entry index: written to index2\.js, not index\.js/,
+    )
+    generate(
+      {},
+      {
+        'index.js': chunk('index', 'index.js'),
+        'node/index.d.ts': chunk('node/index.d', 'node/index.d.ts'),
+        'chunks/index.d.ts': chunk('index.d', 'chunks/index.d.ts', false),
+      },
+    )
+    // Every package's build carries it.
+    const plugins = packageConfig(join(ROOT, 'packages', 'env-node')).plugins
+    const names = (Array.isArray(plugins) ? plugins : []).map(
+      (item) => (item as { name?: string }).name,
+    )
+    assert.ok(names.includes('provino-entry-files'), String(names))
   })
 
   test("a package's config keeps its declared dependencies external and allows no other import", () => {
