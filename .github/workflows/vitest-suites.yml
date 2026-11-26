@@ -5,8 +5,9 @@ name: Vitest suite checks
 # (Vitest's per-file isolation fetches every module from its main process), and only a
 # `--runner vitest` bench run reads those trees, itself a manual step (D160). So this workflow runs
 # by hand only (D209): no push, pull_request or schedule trigger. isolate-heavy's Vitest leg and the
-# harness self-test stay in ci.yml's suites job. Run it before a Vitest bench run, or after a change
-# to the generator (`packages/bench`), the harness helpers it uses or Vitest's version.
+# harness self-test stay in ci.yml's suites job. Run it before a Vitest bench run, or on a branch
+# that changes the generator (`packages/bench`), the harness helpers it uses or Vitest's version:
+# `gh workflow run vitest-suites.yml --ref <branch>`.
 on:
   workflow_dispatch:
 

@@ -150,14 +150,15 @@ jobs:
     name: Bench suites (Jest 30.5, Vitest 5.0)
     if: ${{ github.event_name == 'push' || !startsWith(github.head_ref, 'task/') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The whole history, so the branch can be diffed against main below.
           fetch-depth: 0
-      # The suite checks' result depends only on the generator and check code (bench, and the harness helpers it uses), the runners'
-      # versions (lockfile, catalog), Node (.tool-versions), the root scripts and this workflow.
+      # The suite checks are most of this job's time, and their result depends only on the
+      # generator and check code (bench, and the harness helpers it uses), the runners' versions
+      # (lockfile, catalog), Node (.tool-versions), the root scripts and this workflow.
       # The app-500 and mock-heavy-500 checks also run Provino itself (`--runner provino`), so they
       # depend on the source and manifest of every package a Provino run might load: any workspace package's
       # `src/` or `package.json`, so a package that starts to be loaded later needs no edit here.
