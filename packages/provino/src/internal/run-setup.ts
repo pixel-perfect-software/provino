@@ -1,5 +1,12 @@
 import { dirname, resolve } from 'node:path'
-import { ConfigError, loadConfigFile, type ResolvedProject, resolveProjects } from '@provino/config'
+import {
+  ConfigError,
+  loadConfigFile,
+  type ResolvedCoverage,
+  type ResolvedProject,
+  resolveProjects,
+  withCoverage,
+} from '@provino/config'
 import { discoverProject, ExitCode, type RunProjectOptions } from '@provino/orchestrator'
 import { isCi } from '@provino/reporters'
 import type { RunOptions } from '../types.ts'
@@ -63,6 +70,10 @@ export interface ResolvedRun {
   readonly configPath: string
   readonly env: NonNullable<RunOptions['env']>
   readonly pool: NonNullable<RunProjectOptions['pool']>
+  /** The config's `coverage` key with its defaults applied (`enabled` is the config's own say). */
+  readonly coverage: ResolvedCoverage
+  /** Whether this run collects coverage (`--coverage` or `coverage.enabled`, never under watch): the projects then carry the worker config for it. */
+  readonly collectCoverage: boolean
 }
 
 /**
@@ -70,7 +81,11 @@ export interface ResolvedRun {
  * `ConfigError`, which `reportRunError` says.
  * @internal
  */
-export async function resolveRun(options: RunOptions): Promise<ResolvedRun> {
+export async function resolveRun(
+  options: RunOptions,
+  /** A watch session collects no coverage (`coverage.enabled` is then ignored). */
+  watching = false,
+): Promise<ResolvedRun> {
   if (typeof options.config !== 'string' || options.config === '') {
     throw new UsageError('run() needs the path of a config file')
   }
@@ -99,7 +114,16 @@ export async function resolveRun(options: RunOptions): Promise<ResolvedRun> {
     }
     throw error
   })
-  const [project, ...others] = resolved.projects
+  if (resolved.projects[0] === undefined) throw new UsageError('the config has no project to run')
+  const collectCoverage = !watching && (options.coverage === true || resolved.coverage.enabled)
+  const [project, ...others] = collectCoverage
+    ? withCoverage(
+        resolved.projects,
+        resolved.coverage,
+        resolved.root ?? resolved.projects[0].rootDir,
+        configPath,
+      )
+    : resolved.projects
   if (project === undefined) throw new UsageError('the config has no project to run')
   // The command line wins over the config's own defaults.
   const pool = poolOptions(
@@ -112,7 +136,17 @@ export async function resolveRun(options: RunOptions): Promise<ResolvedRun> {
     },
     resolved.execArgv,
   )
-  return { project, others, root: resolved.root, cwd, configPath, env, pool }
+  return {
+    project,
+    others,
+    root: resolved.root,
+    cwd,
+    configPath,
+    env,
+    pool,
+    coverage: resolved.coverage,
+    collectCoverage,
+  }
 }
 
 /**

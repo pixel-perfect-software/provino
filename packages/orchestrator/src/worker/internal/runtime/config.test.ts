@@ -402,6 +402,20 @@ describe('parseProjectConfig', () => {
     })
     assert.deepEqual(changed.coverage?.changedFiles, ['/root/a.ts'])
     assert.deepEqual(changed.coverage?.sourcesRelatedToTestsInChangedFiles, ['/root/b.ts'])
+    assert.equal('excludeGlobs' in (plain.coverage ?? {}), false)
+    const globbed = parseProjectConfig({
+      ...structuredClone(valid),
+      coverage: { ...coverage, excludeGlobs: ['src/gen/**'] },
+    })
+    assert.deepEqual(globbed.coverage?.excludeGlobs, ['src/gen/**'])
+    assert.throws(
+      () =>
+        parseProjectConfig({
+          ...structuredClone(valid),
+          coverage: { ...coverage, excludeGlobs: [1] },
+        }),
+      { code: 'ORCH_BAD_CONFIG' },
+    )
     assert.throws(
       () =>
         parseProjectConfig({

@@ -59,6 +59,9 @@ export interface NativeWatchIo {
 /** `--watch`: the files a change reaches; `--watchAll`: every file on any change. */
 export type WatchMode = 'changed' | 'all'
 
+/** Said once when a config asks for coverage under watch, which collects none. */
+export const COVERAGE_NOTICE = 'Provino: coverage is not collected in watch mode\n'
+
 /** The line after each run on a terminal. */
 export const WATCH_HINT = 'Watching: a runs all, f runs the failed, Enter reruns, q quits'
 
@@ -108,6 +111,8 @@ async function watchLoop(
   const stderr = options.stderr ?? process.stderr
   const stdin: WatchInput = io.stdin ?? process.stdin
   const { env } = first
+  // A watch run collects no coverage: a config that asks for it gets one line saying so.
+  if (first.coverage.enabled) stderr.write(COVERAGE_NOTICE)
   const stderrIsTerminal = Reflect.get(stderr, 'isTTY') === true
   const columns: unknown = Reflect.get(stderr, 'columns')
   // The reporters' own rule for a live terminal (not CI, not dumb, not an agent's), and a
@@ -264,7 +269,7 @@ async function watchLoop(
     stderr.write(`Provino: ${basename(old.resolved.configPath)} changed, loading it again\n`)
     let next: Round
     try {
-      next = await open(await resolveRun(options))
+      next = await open(await resolveRun(options, true))
     } catch (error) {
       if (reportRunError(error, stderr) === undefined) throw error
       stderr.write('Provino: keeping the previous config until it changes again\n')
@@ -336,7 +341,7 @@ export async function runNativeWatch(
 ): Promise<number> {
   const stderr = options.stderr ?? process.stderr
   try {
-    const first = await resolveRun(options)
+    const first = await resolveRun(options, true)
     // A signal that came during the load: nothing to watch.
     if (options.signal?.aborted === true) return 0
     return await watchLoop(options, mode, io, first)

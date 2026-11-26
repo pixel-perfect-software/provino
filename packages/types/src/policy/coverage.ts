@@ -19,7 +19,8 @@ export interface CoveragePolicy {
   /**
    * How a V8 `ScriptCoverage` becomes Istanbul data. `v8-to-istanbul` is the package Jest uses, with
    * its numbers; `ast` is the faster converter that walks the syntax tree (B25). Jest:
-   * `v8-to-istanbul`. Neutral: `ast`, which is refused until B25 builds it. research: track-08 F10
+   * `v8-to-istanbul`. Neutral: `v8-to-istanbul` too, the only converter until B25 builds `ast`
+   * (speed: `ast` is the faster one). Vitest: `ast`. research: track-08 F10
    */
   readonly v8Conversion: 'v8-to-istanbul' | 'ast'
   /**

@@ -43,6 +43,8 @@ export interface CoverageReporter extends Reporter {
   coverageMap(): unknown
   /** Whether the run's coverage missed a threshold (Jest: the reporter's `getLastError()` is set). */
   thresholdsFailed(): boolean
+  /** Whether the reports could not be written (what a native run turns into a failing exit code). */
+  reportsFailed(): boolean
 }
 
 /**
@@ -52,11 +54,13 @@ export interface CoverageReporter extends Reporter {
 export function createCoverageReporter(options: CoverageReporterOptions): CoverageReporter {
   let written: unknown
   let thresholdsMissed = false
+  let reportsMissed = false
   const fail = (text: string): unknown => options.stderr.write(`${options.style.red(text)}\n`)
   return {
     name: 'coverage',
     coverageMap: () => written,
     thresholdsFailed: () => thresholdsMissed,
+    reportsFailed: () => reportsMissed,
     async 'run:end'(summary: RunSummary) {
       const coverage = summary.coverage
       if (coverage === undefined) return
@@ -77,6 +81,7 @@ export function createCoverageReporter(options: CoverageReporterOptions): Covera
         written = map
       } catch (error) {
         // `writeCoverageReports` wraps what a report threw; Jest prints that error.
+        reportsMissed = true
         const cause = error instanceof Error && error.cause !== undefined ? error.cause : error
         const text = cause instanceof Error ? cause.toString() : String(cause)
         await fail(

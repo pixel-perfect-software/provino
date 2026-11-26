@@ -74,8 +74,11 @@ const pinned: Readonly<Record<string, unknown>> = {
     graph: 'recorded-then-static',
     conditions: 'environment',
   },
-  // B23b: V8 coverage goes through the AST converter (built in B25) and counts no calls.
-  'coverage.v8Conversion': 'ast',
+  // B28: V8 coverage goes through v8-to-istanbul (the only converter until B25's `'ast'`) and counts no calls.
+  'coverage.v8Conversion': 'v8-to-istanbul',
+  // B28: the native thresholds are Jest's `coverageThreshold` shape, so Jest's grouping.
+  'coverage.thresholdGrouping': 'every-match',
+  'coverage.globThresholdScope': 'per-file',
   'coverage.v8HitCounts': false,
   'coverage.v8Hashbang': 'kept',
   'coverage.istanbulVariable': '__coverage__',

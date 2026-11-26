@@ -1,10 +1,13 @@
 import type {
   BaseConfig,
+  ConfigCoverage,
   ConfigResolve,
   ConfigTimeouts,
+  CoverageReporterName,
   Dialect,
   IsolationTier,
   JsonValue,
+  MetricThresholds,
   PoolKind,
   ProjectConfig,
   ProvinoConfigInput,
@@ -41,7 +44,42 @@ const TOP_LEVEL_KEYS: readonly string[] = Object.keys({
   pool: true,
   maxWorkers: true,
   execArgv: true,
+  coverage: true,
 } satisfies Record<Exclude<keyof ProvinoConfigInput, keyof ProjectConfig>, true>)
+
+const COVERAGE_KEYS: readonly string[] = Object.keys({
+  enabled: true,
+  provider: true,
+  include: true,
+  exclude: true,
+  reporters: true,
+  directory: true,
+  thresholds: true,
+} satisfies Record<keyof ConfigCoverage, true>)
+
+/** The reporters `istanbul-reports` has, which `coverage.reporters` may name. */
+const COVERAGE_REPORTERS: readonly CoverageReporterName[] = [
+  'clover',
+  'cobertura',
+  'html',
+  'html-spa',
+  'json',
+  'json-summary',
+  'lcov',
+  'lcovonly',
+  'none',
+  'teamcity',
+  'text',
+  'text-lcov',
+  'text-summary',
+]
+
+const COVERAGE_METRICS: readonly string[] = Object.keys({
+  statements: true,
+  branches: true,
+  functions: true,
+  lines: true,
+} satisfies Record<keyof MetricThresholds, true>)
 
 const TIMEOUT_KEYS: readonly string[] = Object.keys({
   test: true,
@@ -125,6 +163,8 @@ export interface ParsedInput {
   readonly pool: PoolKind | undefined
   readonly maxWorkers: number | undefined
   readonly execArgv: readonly string[] | undefined
+  /** Top-level only: the run's code coverage. */
+  readonly coverage: ConfigCoverage | undefined
   /** Top-level only: the entries of `projects`, each a path or glob, or an inline project. */
   readonly projects: readonly (ProjectConfig | string)[] | undefined
 }
@@ -233,6 +273,71 @@ function isNodeFlags(value: unknown): value is readonly string[] {
     value.every((entry) => entry !== '') &&
     (value[0] === undefined || value[0].startsWith('-'))
   )
+}
+
+function isCoverageReporterName(value: unknown): value is CoverageReporterName {
+  return COVERAGE_REPORTERS.some((name) => name === value)
+}
+
+function isCoverageReporterEntry(
+  value: unknown,
+): value is
+  | CoverageReporterName
+  | readonly [CoverageReporterName, Readonly<Record<string, JsonValue>>] {
+  if (isCoverageReporterName(value)) return true
+  return (
+    Array.isArray(value) &&
+    value.length === 2 &&
+    isCoverageReporterName(value[0]) &&
+    isJsonRecord(value[1])
+  )
+}
+
+function isCoverageReporters(value: unknown): value is NonNullable<ConfigCoverage['reporters']> {
+  return Array.isArray(value) && value.every(isCoverageReporterEntry)
+}
+
+function isCoverageProvider(value: unknown): value is NonNullable<ConfigCoverage['provider']> {
+  return value === 'v8' || value === 'istanbul'
+}
+
+/** `{ global: { lines: 80 }, 'src/a.ts': { statements: -2 } }`: the metrics are numbers. */
+function parseThresholds(coverage: object): void {
+  const value = optional(coverage, 'thresholds', 'an object of threshold groups', isRecord)
+  if (value === undefined) return
+  for (const [name, group] of Object.entries(value)) {
+    const path = `coverage.thresholds.${name}`
+    if (!isRecord(group)) throw invalid(path, 'an object of metric thresholds', group)
+    assertKnownKeys(group, COVERAGE_METRICS, path)
+    for (const metric of COVERAGE_METRICS) {
+      const threshold: unknown = Reflect.get(group, metric)
+      if (
+        threshold !== undefined &&
+        (typeof threshold !== 'number' || !Number.isFinite(threshold))
+      ) {
+        throw invalid(`${path}.${metric}`, 'a number', threshold)
+      }
+    }
+  }
+}
+
+function parseCoverage(input: object): ConfigCoverage | undefined {
+  const value = optional(input, 'coverage', 'an object', isRecord)
+  if (value === undefined) return undefined
+  assertKnownKeys(value, COVERAGE_KEYS, 'coverage')
+  optional(value, 'enabled', 'a boolean', isBoolean)
+  optional(value, 'provider', '"v8" or "istanbul"', isCoverageProvider)
+  optional(value, 'include', 'an array of strings', isStringArray)
+  optional(value, 'exclude', 'an array of strings', isStringArray)
+  optional(
+    value,
+    'reporters',
+    `an array of reporter names (${COVERAGE_REPORTERS.join(', ')}), each alone or as [name, options]`,
+    isCoverageReporters,
+  )
+  optional(value, 'directory', 'a string', isString)
+  parseThresholds(value)
+  return value
 }
 
 function isProjectEntries(value: unknown): value is readonly (ProjectConfig | string)[] {
@@ -412,6 +517,7 @@ export function parseInput(
       'an array of Node flags (non-empty strings, the first one starting with "-")',
       isNodeFlags,
     ),
+    coverage: topLevel ? parseCoverage(input) : undefined,
     projects: optional(
       input,
       'projects',

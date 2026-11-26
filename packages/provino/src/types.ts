@@ -127,6 +127,12 @@ export interface RunOptions {
   readonly testNamePattern?: string
   /** Rewrite the snapshots that differ (`-u`). Default: write new ones, and none in a CI run. */
   readonly updateSnapshot?: boolean
+  /**
+   * Collect code coverage and write its reports (`--coverage`), whatever the config's
+   * `coverage.enabled` says. Which files count, the provider, the reporters, the directory and the
+   * thresholds are the config's `coverage` key. Not under watch: a watch run collects none.
+   */
+  readonly coverage?: boolean
   /** Order the run by, and record it in, the results cache. Default `true`. */
   readonly cache?: boolean
   /** Where the `normalized-json` reporter writes without an `outputFile`. Default: `process.stdout`. */

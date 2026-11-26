@@ -3,6 +3,7 @@
 // changes fed to the session and its coalescing clock fired by hand, so nothing here waits on time.
 // A test waits for the run's own totals line to be written, not for a delay.
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import type { Writable } from 'node:stream'
 import { describe, it } from 'provino'
@@ -33,9 +34,9 @@ const { main } = (await import(new URL('../src/internal/cli.ts', import.meta.url
 const { USAGE } = (await import(new URL('../src/internal/usage.ts', import.meta.url).href)) as {
   USAGE: string
 }
-const { WATCH_HINT } = (await import(
+const { COVERAGE_NOTICE, WATCH_HINT } = (await import(
   new URL('../src/internal/native-watch.ts', import.meta.url).href
-)) as { WATCH_HINT: string }
+)) as { COVERAGE_NOTICE: string; WATCH_HINT: string }
 
 const makeWatchProject = trackedProjects()
 
@@ -140,6 +141,21 @@ describe('provino run --watch', () => {
     // Off a terminal there are no keys and no hint.
     assert.equal(watch.stdin.listenerCount('data'), 0)
     assert.doesNotMatch(watch.stderr.text, HINT)
+    watch.controller.abort()
+    assert.equal(await watch.result, 0)
+  })
+
+  it('a config that enables coverage runs without it and says so once', async () => {
+    const watch = await start(['--watch'], {
+      config:
+        "export default { include: ['tests/**/*.test.ts'], coverage: { enabled: true, directory: 'cov' } }\n",
+    })
+    await watch.stderr.waitFor(TOTALS, 1)
+    assert.equal(watch.stderr.text.split(COVERAGE_NOTICE).length - 1, 1)
+    assert.equal(existsSync(watch.project.path('cov')), false)
+    watch.change('src/a.ts')
+    await watch.stderr.waitFor(TOTALS, 2)
+    assert.equal(watch.stderr.text.split(COVERAGE_NOTICE).length - 1, 1)
     watch.controller.abort()
     assert.equal(await watch.result, 0)
   })
@@ -338,7 +354,6 @@ describe('provino run --watch', () => {
       [['--watch', '--forceExit'], /--forceExit in watch mode is not supported/],
       [['--watch', '--shard', '1/2', '--forceExit'], /--shard, --forceExit in watch mode are not/],
       [['--watch', '--watchAll'], /--watch and --watchAll are one or the other/],
-      [['--coverage'], /--coverage is not supported by provino run yet/],
     ]
     try {
       for (const [args, message] of cases) {

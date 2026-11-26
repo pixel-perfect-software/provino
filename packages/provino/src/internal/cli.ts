@@ -199,9 +199,6 @@ export function parseRunArgs(
   if (values.watch === true && values.watchAll === true) {
     throw new UsageError('--watch and --watchAll are one or the other')
   }
-  if (values.coverage === true && !watching) {
-    throw new UsageError('--coverage is not supported by provino run yet')
-  }
   if (watching) {
     // What a watch session can't honour, each named: one list, before anything starts.
     const refused = [
@@ -234,6 +231,7 @@ export function parseRunArgs(
     ...(hasViews(views) ? { views } : {}),
     ...(values.ci === true ? { ci: true } : {}),
     ...(values.updateSnapshot === true ? { updateSnapshot: true } : {}),
+    ...(values.coverage === true ? { coverage: true } : {}),
     ...(values.passWithNoTests === true ? { passWithNoTests: true } : {}),
     ...(values.testNamePattern === undefined ? {} : { testNamePattern: values.testNamePattern }),
     ...(values['no-cache'] === true ? { cache: false } : {}),

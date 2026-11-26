@@ -2,6 +2,7 @@
 // built yet: `plugins`, `alsoServe`, and the Oxc fallback for a `.ts` file Node can't load (T1.4).
 
 export { hasProvinoTag } from '@provino/transform'
+export { type ResolvedCoverage, withCoverage } from './coverage.ts'
 export { defineConfig } from './define.ts'
 export {
   findConfigInDirectory,

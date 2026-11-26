@@ -36,6 +36,7 @@ export interface RunOptions {
     readonly cache?: boolean;
     readonly ci?: boolean;
     readonly config: string;
+    readonly coverage?: boolean;
     readonly cwd?: string;
     readonly detectOpenHandles?: boolean;
     readonly emoji?: false;

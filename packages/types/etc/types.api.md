@@ -243,6 +243,17 @@ export interface CompiledModuleInfo {
 }
 
 // @public
+export interface ConfigCoverage {
+    readonly directory?: string;
+    readonly enabled?: boolean;
+    readonly exclude?: readonly string[];
+    readonly include?: readonly string[];
+    readonly provider?: "v8" | "istanbul";
+    readonly reporters?: readonly (CoverageReporterName | readonly [CoverageReporterName, Readonly<Record<string, JsonValue>>])[];
+    readonly thresholds?: Readonly<Record<string, MetricThresholds>>;
+}
+
+// @public
 export interface ConfigEnv {
     // (undocumented)
     readonly command: "run" | "watch";
@@ -549,6 +560,9 @@ export interface CoverageProvider {
     // (undocumented)
     readonly name: "v8" | "istanbul";
 }
+
+// @public
+export type CoverageReporterName = "clover" | "cobertura" | "html" | "html-spa" | "json" | "json-summary" | "lcov" | "lcovonly" | "none" | "teamcity" | "text" | "text-lcov" | "text-summary";
 
 // @beta
 export interface CoverageSummary {
@@ -3126,6 +3140,7 @@ export interface Sequencer {
 // @public
 export interface SerializedCoverageConfig {
     readonly changedFiles?: readonly string[];
+    readonly excludeGlobs?: readonly string[];
     readonly excludePaths: readonly string[];
     readonly excludePatterns: readonly string[];
     readonly force: readonly string[];

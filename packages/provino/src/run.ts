@@ -1,3 +1,4 @@
+import type { ExecuteOptions } from './internal/execute.ts'
 import { executeProject } from './internal/execute.ts'
 import { executeOptionsOf, reportRunError, resolveRun } from './internal/run-setup.ts'
 import type { RunOptions, RunResult } from './types.ts'
@@ -7,7 +8,27 @@ async function execute(
   stdout: NonNullable<RunOptions['stdout']>,
   stderr: NonNullable<RunOptions['stderr']>,
 ): Promise<RunResult> {
-  return executeProject(executeOptionsOf(options, await resolveRun(options), stdout, stderr))
+  const resolved = await resolveRun(options)
+  const base: ExecuteOptions = executeOptionsOf(options, resolved, stdout, stderr)
+  if (!resolved.collectCoverage) return executeProject(base)
+  // The coverage reporter brings `@provino/coverage/node`: loaded only for a run that collects (T1.10).
+  const { nativeCoverageFor } = await import('./internal/native-coverage.ts')
+  const coverage = nativeCoverageFor(resolved, {
+    stdout,
+    stderr,
+    ci: resolved.project.config.ci,
+    passWithNoTests: options.passWithNoTests,
+  })
+  const result = await executeProject({
+    ...base,
+    // Before the text reporters, so the table and the threshold lines come ahead of the summary.
+    leadingReporters: [coverage.reporter],
+    coverage: coverage.hooks,
+  })
+  // Reports that could not be written fail a run that would otherwise pass.
+  return result.exitCode === 0 && coverage.reporter.reportsFailed()
+    ? { ...result, exitCode: resolved.project.policy.orchestrator.exitCodes.failure }
+    : result
 }
 
 /**

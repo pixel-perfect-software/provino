@@ -136,6 +136,17 @@ describe('parseRunArgs', () => {
     )
   })
 
+  it('--coverage is an option of a plain run, and a watch run refuses it by name', () => {
+    assert.deepEqual(parseRunArgs(['-c', 'c.mjs', '--coverage']), {
+      type: 'run',
+      options: { config: 'c.mjs', coverage: true },
+    })
+    usageError(
+      ['-c', 'c.mjs', '--watch', '--coverage'],
+      /--coverage in watch mode is not supported/,
+    )
+  })
+
   it('gives normalized-json by name without an outputFile', () => {
     assert.deepEqual(parseRunArgs(['--config', 'c.mjs', '--reporter', 'normalized-json']), {
       type: 'run',

@@ -2,7 +2,7 @@
 // the keys each feature needs.
 
 import type { JsonValue } from './clone-safe.ts'
-import type { SerializedCoverageConfig } from './coverage.ts'
+import type { MetricThresholds, SerializedCoverageConfig } from './coverage.ts'
 import type {
   Dialect,
   DialectName,
@@ -48,6 +48,62 @@ interface TopLevelKeys {
    * `inline` pool or an in-band run shares the coordinator's process and ignores the key.
    */
   readonly execArgv?: readonly string[]
+  /**
+   * Code coverage for the run. It is the run's own, so a project doesn't take it: one report
+   * directory, one reporter set and one threshold set cover every project.
+   */
+  readonly coverage?: ConfigCoverage
+}
+
+/**
+ * The reporters of Istanbul's `istanbul-reports` that `coverage.reporters` names.
+ * @public
+ */
+export type CoverageReporterName =
+  | 'clover'
+  | 'cobertura'
+  | 'html'
+  | 'html-spa'
+  | 'json'
+  | 'json-summary'
+  | 'lcov'
+  | 'lcovonly'
+  | 'none'
+  | 'teamcity'
+  | 'text'
+  | 'text-lcov'
+  | 'text-summary'
+
+/**
+ * The top-level `coverage` key: collect code coverage and report it. Off unless `enabled` is
+ * true or the run is given `--coverage`.
+ * @public
+ */
+export interface ConfigCoverage {
+  /** Collect coverage on every run. Default: false; `--coverage` turns it on for one run. */
+  readonly enabled?: boolean
+  /** How coverage is collected. Default: `'v8'` (no instrumentation). */
+  readonly provider?: 'v8' | 'istanbul'
+  /**
+   * The files that count, as globs relative to the run's root (a leading `!` leaves files out).
+   * None: every file the tests load.
+   */
+  readonly include?: readonly string[]
+  /** Files that never count, as globs relative to the run's root. Default: `['**\/node_modules/**']`. */
+  readonly exclude?: readonly string[]
+  /** The reports to write, each a name or `[name, options]`. Default: `['text', 'lcovonly']`. */
+  readonly reporters?: readonly (
+    | CoverageReporterName
+    | readonly [CoverageReporterName, Readonly<Record<string, JsonValue>>]
+  )[]
+  /** Where the reports go, relative to the run's root. Default: `coverage`. */
+  readonly directory?: string
+  /**
+   * The minimums the run must meet, in Jest's `coverageThreshold` shape: `global` or a path or
+   * glob, each with a minimum percentage per metric (a negative number is a maximum count of
+   * uncovered items). A missed threshold fails the run.
+   */
+  readonly thresholds?: Readonly<Record<string, MetricThresholds>>
 }
 
 /**

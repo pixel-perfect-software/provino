@@ -6,7 +6,7 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, symlinkSync } from 'n
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, test } from 'provino'
-import { readLoadLogs, runBuilt, scratch, trackedProjects } from './support.ts'
+import { nativeProject, readLoadLogs, runBuilt, scratch, trackedProjects } from './support.ts'
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url))
 const DIST = `${join(PACKAGE, 'dist')}/`
@@ -64,6 +64,11 @@ async function distLoads(args: readonly string[]): Promise<readonly Load[]> {
     env: { PROVINO_LOAD_LOG: logs },
   })
   assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
+  return readLoads(logs)
+}
+
+/** The `dist/` files each process the log directory holds loaded, with that process's main module. */
+function readLoads(logs: string): readonly Load[] {
   const loads: Load[] = []
   for (const { main, urls } of readLoadLogs(logs)) {
     for (const url of urls) {
@@ -73,6 +78,25 @@ async function distLoads(args: readonly string[]): Promise<readonly Load[]> {
     }
   }
   return loads
+}
+
+/** `distLoads` for `provino run` on a native project with one passing test. */
+async function nativeDistLoads(args: readonly string[]): Promise<readonly Load[]> {
+  const dir = await nativeProject(
+    {
+      'tests/a.test.ts':
+        "import { expect, test } from 'provino'\ntest('one', () => { expect(1).toBe(1) })\n",
+    },
+    "export default { include: ['tests/**/*.test.ts'], coverage: { provider: 'istanbul', reporters: ['text-summary'] } }\n",
+  )
+  const logs = scratch('provino-loads-')
+  const run = runBuilt(['run', '--config', 'provino.config.mjs', '--maxWorkers', '1', ...args], {
+    cwd: dir,
+    preloads: ['load-recorder'],
+    env: { PROVINO_LOAD_LOG: logs },
+  })
+  assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
+  return readLoads(logs)
 }
 
 const covered = (loads: readonly Load[]): readonly Load[] =>
@@ -96,6 +120,20 @@ describe('the built package and coverage (T1.10)', () => {
   test('a run with --coverage loads every one of them in some process (the control)', async () => {
     const loads = await distLoads(['--coverage', '--coverageReporters=text-summary'])
     const loaded = new Set(covered(loads).map(([, file]) => file))
+    assert.deepEqual(
+      COVERAGE_FILES.filter((file) => !loaded.has(file)),
+      [],
+    )
+  })
+
+  test('provino run without coverage loads none of them, with --coverage every one', async () => {
+    const without = await nativeDistLoads([])
+    assert.ok(
+      without.some(([main]) => main.endsWith('worker/bootstrap.js')),
+      'no worker was recorded',
+    )
+    assert.deepEqual(covered(without), [])
+    const loaded = new Set(covered(await nativeDistLoads(['--coverage'])).map(([, file]) => file))
     assert.deepEqual(
       COVERAGE_FILES.filter((file) => !loaded.has(file)),
       [],

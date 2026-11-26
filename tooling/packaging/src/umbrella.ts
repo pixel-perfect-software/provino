@@ -211,6 +211,15 @@ const WATCH = new RegExp(
 )
 
 /**
+ * The coverage reporter and what builds it for `provino run` (B28): both import `@provino/coverage/node`,
+ * so they stay a chunk of their own that `provino jest` and `provino run` import dynamically for a run
+ * that collects coverage. Shared by two dynamic importers they would otherwise land in `coordinator.js`
+ * (`minShareCount: 2`), which would then load the coverage chunk on every run.
+ */
+const COVERAGE_RUN =
+  /[\\/]packages[\\/]provino[\\/]src[\\/]internal[\\/](?:coverage-reporter|native-coverage)\.ts$/
+
+/**
  * The `provino` reporter (B26): `@provino/reporters/live`, the renderer and the live terminal output.
  * `provino` imports it with `await import()` only when the reporter is chosen, so a worker, the
  * `expect` import and a run with another reporter load none of it. What it shares with the other
@@ -401,6 +410,13 @@ export function umbrellaPasses(dir: string): UserConfig[] {
             {
               name: 'vitest-node',
               test: VITEST_NODE,
+              priority: 5,
+              includeDependenciesRecursively: false,
+            },
+            // The coverage reporter and the `provino run` wiring that builds it: coverage runs only.
+            {
+              name: 'coverage-run',
+              test: COVERAGE_RUN,
               priority: 5,
               includeDependenciesRecursively: false,
             },
