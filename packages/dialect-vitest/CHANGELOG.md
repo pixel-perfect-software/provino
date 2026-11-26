@@ -1,5 +1,12 @@
 # @provino/dialect-vitest
 
+## 0.1.0-rc.8
+
+### Patch Changes
+
+- Updated dependencies [4534450]
+  - provino@0.1.0-rc.8
+
 ## 0.1.0-rc.7
 
 ### Minor Changes
