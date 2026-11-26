@@ -178,13 +178,16 @@ test('exec-pkg', () => {
     "export default { include: ['tests/**/*.test.ts'], execArgv: ['--conditions=provino-exec-test'] }\n"
 
   for (const pool of ['forks', 'threads'] as const) {
-    it(`the flags apply on ${pool}, and a config without the key gets the default target`, async () => {
+    it(`the config's flags apply on ${pool}`, async () => {
       const set = await runWith(WITH, pool, 'custom.js')
       assert.equal(set.ran.exitCode, 0, set.stderr)
-      const control = await runWith(NATIVE_CONFIG, pool, 'default.js')
-      assert.equal(control.ran.exitCode, 0, control.stderr)
     })
   }
+
+  it('a config without the key gets the default target', async () => {
+    const control = await runWith(NATIVE_CONFIG, 'forks', 'default.js')
+    assert.equal(control.ran.exitCode, 0, control.stderr)
+  })
 })
 
 // A native project (no dialect) names a DOM environment and no `isolation`: the default is

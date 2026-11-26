@@ -147,8 +147,8 @@ function assertUniqueNames(projects: readonly ResolvedProject[]): void {
  * when it has one), a path to a config file, or a glob (tinyglobby's, with `!` entries leaving directories out) of directories. The
  * top-level config's other keys are not inherited by them; its `pool` and `maxWorkers` are the
  * run's defaults, and its `execArgv` the workers' Node flags. A project has no `projects`, `pool`,
- * `maxWorkers` or `execArgv` of its own, and two projects
- * may not share a name. Every failure is a `ConfigError`.
+ * `maxWorkers` or `execArgv` of its own, and two projects may not share a name. Every failure is a
+ * `ConfigError`.
  * @public
  */
 export async function resolveProjects(

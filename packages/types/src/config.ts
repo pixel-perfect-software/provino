@@ -41,14 +41,11 @@ interface TopLevelKeys {
   /** The most workers `provino run` starts when the command line names no number. */
   readonly maxWorkers?: number
   /**
-   * Node flags each forked or threaded worker starts with (`['--conditions=development']`), added
-   * after the coordinator's own `process.execArgv`. Without the key a worker gets the coordinator's
-   * flags alone. Each entry is one argument, so `['--require', file]` is two, and the first must be
-   * a flag. Node reads a relative path in a flag from the working directory, not the config's
-   * directory, so give an absolute one. A thread refuses V8 and process-wide flags such as
-   * `--max-old-space-size`, in this list and in the coordinator's own once the key is set: give
-   * those through `NODE_OPTIONS`, which reaches every worker. An `inline` pool, and a run that goes
-   * in band, share the coordinator's process: the flags don't apply there, and are not an error.
+   * Node flags each forked or threaded worker starts with, after the coordinator's own
+   * `process.execArgv`: one argument per entry, the first a flag (`['--conditions=development']`).
+   * Node reads a relative path in a flag from the working directory. A thread refuses V8 flags such
+   * as `--max-old-space-size`, the coordinator's own included (pass them in `NODE_OPTIONS`). An
+   * `inline` pool or an in-band run shares the coordinator's process and ignores the key.
    */
   readonly execArgv?: readonly string[]
 }

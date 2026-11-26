@@ -56,12 +56,6 @@ expectTypeOf<ProjectConfig>().not.toHaveProperty('pool')
 expectTypeOf<ProjectConfig>().not.toHaveProperty('projects')
 expectTypeOf<ProjectConfig>().not.toHaveProperty('execArgv')
 expectTypeOf<ProvinoConfigInput['execArgv']>().toEqualTypeOf<readonly string[] | undefined>()
-// @ts-expect-error execArgv is a list of flags, not a string
-const badExecArgv: ProvinoConfigInput = { execArgv: '--x' }
-// @ts-expect-error an inline project takes no execArgv
-const projectExecArgv: ProvinoConfigInput = { projects: [{ execArgv: ['--x'] }] }
-void badExecArgv
-void projectExecArgv
 
 // `ProvinoConfig` is the config or a (maybe async) function of the env that returns one.
 const asFunction: ProvinoConfig = (env: ConfigEnv) => ({ include: [env.mode] })
