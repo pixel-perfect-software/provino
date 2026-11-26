@@ -88,6 +88,7 @@ void run({
   ci: true,
   passWithNoTests: true,
   testNamePattern: 'adds',
+  testPathPatterns: ['math', 'src/a\\.test'],
   cache: false,
   stdout: process.stdout,
   stderr: process.stderr,
@@ -97,6 +98,8 @@ void run({
 // Misuse.
 // @ts-expect-error config is required
 void run({})
+// @ts-expect-error test path patterns are a list of strings
+void run({ config: 'c.mjs', testPathPatterns: 'math' })
 // @ts-expect-error config is a path, not a number
 void run({ config: 1 })
 // @ts-expect-error there is no pool called cluster

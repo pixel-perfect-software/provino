@@ -29,6 +29,18 @@ describe('parseRunArgs', () => {
     })
   })
 
+  it('every positional argument is a test path pattern, and -- ends the flags', () => {
+    assert.deepEqual(parseRunArgs(['-c', 'c.mjs', 'math', 'src/a\\.test']), {
+      type: 'run',
+      options: { config: 'c.mjs', testPathPatterns: ['math', 'src/a\\.test'] },
+    })
+    // A flag after a pattern is still a flag; after `--` it is a pattern.
+    assert.deepEqual(parseRunArgs(['math', '-c', 'c.mjs', '--', '--odd']), {
+      type: 'run',
+      options: { config: 'c.mjs', testPathPatterns: ['math', '--odd'] },
+    })
+  })
+
   it('--no-emoji is RunOptions.emoji false, and provino and html are reporter names (D141, D144)', () => {
     assert.deepEqual(parseRunArgs(['-c', 'c.mjs', '--no-emoji', '--reporter', 'provino']), {
       type: 'run',
@@ -298,7 +310,6 @@ describe('parseRunArgs', () => {
     assert.deepEqual(parseRunArgs([]), { type: 'run', options: {} })
     usageError(['--config'], /--config/)
     usageError(['--config', 'c.mjs', '--nope'], /--nope/)
-    usageError(['--config', 'c.mjs', 'file.test.js'], /file\.test\.js/)
     usageError(['--config', 'c.mjs', '--pool', 'cluster'], /--pool/)
     usageError(['--config', 'c.mjs', '--reporter', 'tap'], /unknown reporter "tap"/)
     // A misspelt name is named as such, not reported as a missing document reporter.

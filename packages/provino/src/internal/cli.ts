@@ -52,8 +52,8 @@ function isPoolKind(value: string): value is PoolKind {
 }
 
 /**
- * `--bail` with no count is `--bail=1`, and `--bail 2` is `--bail=2` (`provino run` takes no
- * positional arguments): `parseArgs` has no option with an optional value.
+ * `--bail` with no count is `--bail=1`, and `--bail 2` is `--bail=2` (a test path pattern of
+ * only digits needs `--bail=1 2` or `--`): `parseArgs` has no option with an optional value.
  */
 function bailWithCount(args: readonly string[]): string[] {
   const out: string[] = []
@@ -181,7 +181,9 @@ function parseReporters(
 
 /**
  * Parses the arguments after `run`. A flag it doesn't know or a missing or bad value is a
- * `UsageError`; with no `--config` the file is found later (`runCommand`).
+ * `UsageError`; with no `--config` the file is found later (`runCommand`). Every positional
+ * argument is a test path pattern (Jest's `testPathPatterns`: a case-insensitive regular expression
+ * over the file's path); `--` ends the flags.
  * @internal
  */
 export function parseRunArgs(
@@ -193,7 +195,7 @@ export function parseRunArgs(
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error), { cause: error })
   }
-  const { values } = parsed
+  const { values, positionals } = parsed
   if (values.help === true) return { type: 'help' }
   const watching = values.watch === true || values.watchAll === true
   if (values.watch === true && values.watchAll === true) {
@@ -229,6 +231,7 @@ export function parseRunArgs(
     ...(values.pool === undefined ? {} : { pool: values.pool }),
     ...(names.length === 0 ? {} : { reporters }),
     ...(hasViews(views) ? { views } : {}),
+    ...(positionals.length === 0 ? {} : { testPathPatterns: positionals }),
     ...(values.ci === true ? { ci: true } : {}),
     ...(values.updateSnapshot === true ? { updateSnapshot: true } : {}),
     ...(values.coverage === true ? { coverage: true } : {}),
@@ -313,7 +316,7 @@ function longFormOfShortWithEquals(arg: string): string {
 }
 
 function parse(args: readonly string[]) {
-  return parseArgs({ args: [...args], allowPositionals: false, strict: true, options: OPTIONS })
+  return parseArgs({ args: [...args], allowPositionals: true, strict: true, options: OPTIONS })
 }
 
 /**
@@ -346,9 +349,9 @@ function parseCommand(command: string | undefined, args: readonly string[]): Run
   if (command === 'run') return parseRunArgs(args)
   if (command === 'jest') return { type: 'jest', args }
   if (command === 'vitest') return { type: 'vitest', args }
-  // Anything else starting with a dash is the bare form: `provino --dialect jest -t foo`.
-  if (command.startsWith('-')) return { type: 'bare', args: [command, ...args] }
-  throw new UsageError(`unknown command "${command}"`)
+  // Anything else is the bare form, as `provino jest <pattern>` is: a flag (`provino --dialect jest
+  // -t foo`) or a test path pattern (`provino math`, `provino src/a.test.ts`).
+  return { type: 'bare', args: [command, ...args] }
 }
 
 /**

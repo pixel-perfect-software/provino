@@ -7,8 +7,14 @@ import {
   resolveProjects,
   withCoverage,
 } from '@provino/config'
-import { discoverProject, ExitCode, type RunProjectOptions } from '@provino/orchestrator'
+import {
+  discoverProject,
+  ExitCode,
+  type RunProjectOptions,
+  selectFiles,
+} from '@provino/orchestrator'
 import { isCi } from '@provino/reporters'
+import type { FileFilter } from '@provino/types'
 import type { RunOptions } from '../types.ts'
 import { addOnSpecifier, reportAddOnFailure } from './add-on.ts'
 import { builtInDialects, ENVIRONMENTS, NATIVE_RUNTIME } from './built-ins.ts'
@@ -150,6 +156,15 @@ export async function resolveRun(
 }
 
 /**
+ * The command line's test path patterns as file filters of kind `regex`: Jest's `testPathPatterns`,
+ * case-insensitive over the path (an invalid one is the orchestrator's `ORCH_BAD_PATTERN`, exit 2).
+ * @internal
+ */
+export function patternFilters(patterns: readonly string[] | undefined): readonly FileFilter[] {
+  return (patterns ?? []).map((value) => ({ kind: 'regex', value }))
+}
+
+/**
  * What `run()` and a watch run both hand `executeProject`: the project, where output goes, the
  * reporters, the pool and every run option `options` carries. A watch run adds its session and
  * its own `passWithNoTests` on top.
@@ -162,6 +177,7 @@ export function executeOptionsOf(
   stderr: NonNullable<RunOptions['stderr']>,
 ): ExecuteOptions {
   const { project, others, root, cwd, env, pool } = resolved
+  const fileFilters = patternFilters(options.testPathPatterns)
   return {
     project,
     ...(others.length === 0 ? {} : { others }),
@@ -177,8 +193,15 @@ export function executeOptionsOf(
     // (`selectsProvino`), so the reporters may need the count before the run: asked only then. A
     // sharded run's count is the shard's, which only the run knows; it is left to the run.
     ...(options.shard === undefined && others.length === 0
-      ? { fileCount: async () => (await discoverProject(project)).length }
+      ? {
+          fileCount: async () =>
+            selectFiles(await discoverProject(project), fileFilters, {
+              rootDir: project.rootDir,
+              cwd,
+            }).length,
+        }
       : {}),
+    ...(fileFilters.length === 0 ? {} : { fileFilters }),
     pool,
     ...(options.cache === false ? { cache: false } : {}),
     testNamePattern: options.testNamePattern,

@@ -15,6 +15,7 @@ import {
   type ChangeSource,
   type CoalesceClock,
   createWatchSession,
+  selectFiles,
   type WatchSession,
 } from '@provino/orchestrator'
 import { detectOutput, isCi } from '@provino/reporters'
@@ -23,7 +24,13 @@ import type { RunOptions } from '../types.ts'
 import { workerStartupEnv } from './compile-cache.ts'
 import { type ExecuteOptions, executeProject } from './execute.ts'
 import { DOCUMENT_REPORTERS, isDocumentReporter } from './reporter-names.ts'
-import { executeOptionsOf, type ResolvedRun, reportRunError, resolveRun } from './run-setup.ts'
+import {
+  executeOptionsOf,
+  patternFilters,
+  type ResolvedRun,
+  reportRunError,
+  resolveRun,
+} from './run-setup.ts'
 import { latchInterrupts, type RunInterrupts } from './watch-interrupt.ts'
 import { createWatchQueue, type Trigger } from './watch-queue.ts'
 
@@ -225,7 +232,17 @@ async function watchLoop(
       extra = { onlyFailures: new Set(queue.failedFiles) }
     } else if (trigger.kind === 'changed') {
       const selection: AffectedSelection = { kind: 'related', paths: trigger.paths }
-      extra = { selection }
+      // A selection replaces the file filters, so the command line's patterns restrict the files it
+      // reached here: every run of a watch stays inside them.
+      const filters = patternFilters(options.testPathPatterns)
+      extra =
+        filters.length === 0
+          ? { selection }
+          : {
+              selection,
+              fileFilter: (project, files) =>
+                selectFiles(files, filters, { rootDir: project.rootDir, cwd: resolved.cwd }),
+            }
     }
     interrupts.begin()
     let result: Awaited<ReturnType<typeof executeProject>>

@@ -118,6 +118,35 @@ async function start(
   }
 }
 
+describe('provino run --watch with test path patterns', () => {
+  it('keeps every run, a related one included, inside the patterns (B28)', async () => {
+    const watch = await start(['--watch', 'tests/a'])
+    await watch.stderr.waitFor(TOTALS, 1)
+    assert.match(watch.stderr.text, /tests\/a\.test\.ts/)
+    assert.doesNotMatch(watch.stderr.text, /tests\/b\.test\.ts/)
+    // A change that reaches only the file the patterns leave out runs nothing.
+    let from = watch.stderr.text.length
+    await writeFile(watch.project.path('src/b.ts'), 'export const b = 1 // edited\n')
+    watch.change('src/b.ts')
+    await watch.stderr.waitFor(TOTALS, 2)
+    assert.doesNotMatch(watch.stderr.text.slice(from), /tests\/b\.test\.ts/)
+    // A change that reaches the file inside them runs it, and a project input still only that one.
+    from = watch.stderr.text.length
+    await writeFile(watch.project.path('src/a.ts'), 'export const a = 1 // edited\n')
+    watch.change('src/a.ts')
+    await watch.stderr.waitFor(TOTALS, 3)
+    assert.match(watch.stderr.text.slice(from), /tests\/a\.test\.ts/)
+    from = watch.stderr.text.length
+    watch.change('package.json')
+    await watch.stderr.waitFor(TOTALS, 4)
+    const segment = watch.stderr.text.slice(from)
+    assert.match(segment, /tests\/a\.test\.ts/)
+    assert.doesNotMatch(segment, /tests\/b\.test\.ts/)
+    watch.controller.abort('SIGINT')
+    await watch.result
+  })
+})
+
 describe('provino run --watch', () => {
   it('runs every file, then the files a change reaches, and every file for a project input', async () => {
     const watch = await start(['--watch'])

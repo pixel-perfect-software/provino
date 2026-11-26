@@ -3,6 +3,24 @@ import { executeProject } from './internal/execute.ts'
 import { executeOptionsOf, reportRunError, resolveRun } from './internal/run-setup.ts'
 import type { RunOptions, RunResult } from './types.ts'
 
+/** Said when test path patterns kept no file, so a mistyped one (or a mistyped command) reads clearly. */
+function noMatchLine(patterns: readonly string[]): string {
+  const named = patterns.map((pattern) => JSON.stringify(pattern)).join(', ')
+  return `Provino: no test file matches ${patterns.length === 1 ? 'the pattern' : 'any of the patterns'} ${named}\n`
+}
+
+/** `executeProject`, then the no-match line when the patterns left no file to run. */
+async function executeProjectNamingPatterns(
+  options: RunOptions,
+  execute: ExecuteOptions,
+  stderr: NonNullable<RunOptions['stderr']>,
+): Promise<RunResult> {
+  const result = await executeProject(execute)
+  const patterns = options.testPathPatterns ?? []
+  if (patterns.length > 0 && result.summary?.files.length === 0) stderr.write(noMatchLine(patterns))
+  return result
+}
+
 async function execute(
   options: RunOptions,
   stdout: NonNullable<RunOptions['stdout']>,
@@ -10,7 +28,7 @@ async function execute(
 ): Promise<RunResult> {
   const resolved = await resolveRun(options)
   const base: ExecuteOptions = executeOptionsOf(options, resolved, stdout, stderr)
-  if (!resolved.collectCoverage) return executeProject(base)
+  if (!resolved.collectCoverage) return executeProjectNamingPatterns(options, base, stderr)
   // The coverage reporter brings `@provino/coverage/node`: loaded only for a run that collects (T1.10).
   const { nativeCoverageFor } = await import('./internal/native-coverage.ts')
   const coverage = nativeCoverageFor(resolved, {
@@ -19,12 +37,16 @@ async function execute(
     ci: resolved.project.config.ci,
     passWithNoTests: options.passWithNoTests,
   })
-  const result = await executeProject({
-    ...base,
-    // Before the text reporters, so the table and the threshold lines come ahead of the summary.
-    leadingReporters: [coverage.reporter],
-    coverage: coverage.hooks,
-  })
+  const result = await executeProjectNamingPatterns(
+    options,
+    {
+      ...base,
+      // Before the text reporters, so the table and the threshold lines come ahead of the summary.
+      leadingReporters: [coverage.reporter],
+      coverage: coverage.hooks,
+    },
+    stderr,
+  )
   // Reports that could not be written fail a run that would otherwise pass.
   return result.exitCode === 0 && coverage.reporter.reportsFailed()
     ? { ...result, exitCode: resolved.project.policy.orchestrator.exitCodes.failure }

@@ -9,9 +9,14 @@ export const USAGE: string = `Usage: provino <command> [options]
 Commands:
   jest     Run a Jest project with Jest's command line: provino jest [--config <file>] [patterns]
   vitest   Run a Vitest project (not available yet)
-  run      Run a project from a provino config file: provino run [--config <file>] [options]
+  run      Run a project from a provino config file: provino run [options] [pattern…]
 
-With no command, provino [options] walks up from this directory to the nearest one that holds a
+A pattern is a regular expression, tried case-insensitively on each test file's path (from the
+project root, and the absolute path): the files that match any pattern run, as Jest's path
+patterns do. provino run math src/a.test.ts runs the files whose path holds either. A word that
+is not a command is a pattern for the bare form below.
+
+With no command, provino [options] [pattern…] walks up from this directory to the nearest one that holds a
 config of any kind and runs it: a provino.config.* (which wins within one directory), else a Jest
 config, else a Vitest config; the walk stops at a directory with .git or pnpm-workspace.yaml.
 provino run takes a provino.config.* only, and says so when the nearest config is another kind.

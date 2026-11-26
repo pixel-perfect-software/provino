@@ -123,6 +123,14 @@ export interface RunOptions {
    * `orchestrator.passWithNoTests`.
    */
   readonly passWithNoTests?: boolean
+  /**
+   * Run only the test files whose path matches one of these regular expressions (the command
+   * line's `provino run <pattern>…`; Jest's `testPathPatterns`). Each is tried case-insensitively on
+   * the path from the project root and on the absolute path, and a leading `./` anchors it to the
+   * start of the root-relative path. A file that any one matches runs. An invalid expression is a
+   * usage error (exit 2). Default: every file the config finds.
+   */
+  readonly testPathPatterns?: readonly string[]
   /** Run only the tests whose full name matches this regular expression (`-t`). */
   readonly testNamePattern?: string
   /** Rewrite the snapshots that differ (`-u`). Default: write new ones, and none in a CI run. */
