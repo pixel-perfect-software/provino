@@ -66,23 +66,22 @@ function consumer(files: Readonly<Record<string, string>>, addOns: boolean): str
 
 /**
  * The names a module exports, read by Oxc's parser (`export { a as b }`, `export const`,
- * `export type { … } from`), sorted. A star export is refused: its names can't be read here.
+ * `export type { … } from`, `export default` as `default`), once each (an overload, or a value and a
+ * type of one name, is listed again in a source but once in a bundled file), sorted. `export *` is
+ * refused: its names can't be read here.
  */
 function exportedNames(path: string): string[] {
   const { module, errors } = parseSync(path, readFileSync(path, 'utf8'))
   assert.deepEqual(errors, [], `${path} does not parse`)
-  const names: string[] = []
+  const names = new Set<string>()
   for (const entry of module.staticExports) {
     for (const item of entry.entries) {
-      assert.equal(
-        item.exportName.kind,
-        'Name',
-        `${path}: a star export, whose names can't be read`,
-      )
-      names.push(item.exportName.name ?? '')
+      const { kind, name } = item.exportName
+      assert.notEqual(kind, 'None', `${path}: an export *, whose names can't be read`)
+      names.add(kind === 'Default' ? 'default' : (name ?? ''))
     }
   }
-  return names.sort()
+  return [...names].sort()
 }
 
 /** The compiler over the consumer: its exit code and what it printed. */

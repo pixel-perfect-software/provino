@@ -11,7 +11,14 @@ import {
   sharedRegistries,
 } from './internal-entries.ts'
 import { readManifest, runtimeDependencyNames } from './package-json.ts'
-import { DTS_ONLY, entriesOf, entryFiles, PRESET } from './preset.ts'
+import {
+  chunkFileName,
+  DTS_ONLY,
+  type EntryOutputs,
+  entriesOf,
+  entryFiles,
+  PRESET,
+} from './preset.ts'
 
 /**
  * The modules a worker loads by file URL (DECISIONS D21): the coordinator resolves each with
@@ -272,6 +279,10 @@ export function workerRefs(): PluginList {
   ]
 }
 
+/** What the JavaScript build and the declaration passes write for each of their entries. */
+const JS_ONLY: EntryOutputs = { js: true, declarations: false }
+const DECLARATIONS_ONLY: EntryOutputs = { js: false, declarations: true }
+
 /** Both builds resolve the `@provino/*` packages to their sources (the `provino-source` condition). */
 const SOURCE_RESOLVE = { conditionNames: ['provino-source', 'import', 'node', 'default'] }
 
@@ -286,8 +297,16 @@ const SOURCE_RESOLVE = { conditionNames: ['provino-source', 'import', 'node', 'd
  * @internal
  */
 export function umbrellaConfig(dir: string): UserConfig[] {
-  const manifest = readManifest(dir)
   rmSync(join(dir, 'dist'), { recursive: true, force: true })
+  return umbrellaPasses(dir)
+}
+
+/**
+ * `umbrellaConfig`'s three builds, read from the manifests and touching no file.
+ * @internal
+ */
+export function umbrellaPasses(dir: string): UserConfig[] {
+  const manifest = readManifest(dir)
   const entries = umbrellaEntries(dir)
   const publicEntries = Object.fromEntries(
     Object.entries(entries).filter(([name]) => !isInternalEntry(name)),
@@ -413,7 +432,7 @@ export function umbrellaConfig(dir: string): UserConfig[] {
           ],
         },
       },
-      plugins: [...workerRefs(), ...entryFiles()],
+      plugins: [...workerRefs(), ...entryFiles(Object.keys(entries), JS_ONLY)],
     },
     // The declarations, in two passes: the public entries, then the add-ons' engine
     // (`internal/*`, D187). One pass would share declaration chunks between them, so the internal
@@ -425,9 +444,12 @@ export function umbrellaConfig(dir: string): UserConfig[] {
       deps: { alwaysBundle: PROVINO_SCOPE, dts: { alwaysBundle: PROVINO_SCOPE } },
       // Its shared declaration chunks go under `chunks/`, so none can take an entry's file name
       // (B27i): one named after an `index.ts` module took `index.d.ts`, which `types` names.
-      outputOptions: { chunkFileNames: 'chunks/[name].d.ts' },
+      outputOptions: { chunkFileNames: chunkFileName },
       // `jest.d.ts` and `vitest.d.ts` register their dialect on the registry `config.d.ts` exports.
-      plugins: [...augmentationTarget(), ...entryFiles()],
+      plugins: [
+        ...augmentationTarget(),
+        ...entryFiles(Object.keys(publicEntries), DECLARATIONS_ONLY),
+      ],
     },
     {
       ...common,
@@ -436,7 +458,10 @@ export function umbrellaConfig(dir: string): UserConfig[] {
       deps: { alwaysBundle: PROVINO_SCOPE, dts: { alwaysBundle: PROVINO_SCOPE } },
       // Its shared declaration chunks go under `internal/`, where no public pass writes.
       outputOptions: { chunkFileNames: 'internal/chunks/[name].d.ts' },
-      plugins: [...sharedRegistries(), ...entryFiles()],
+      plugins: [
+        ...sharedRegistries(),
+        ...entryFiles(Object.keys(internalEntries), DECLARATIONS_ONLY),
+      ],
     },
   ]
 }

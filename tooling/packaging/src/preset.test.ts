@@ -3,7 +3,14 @@ import { join } from 'node:path'
 import { describe, test } from 'provino'
 import { NOTICES_FILE } from './pack-contents.ts'
 import { type PackageManifest, readManifest } from './package-json.ts'
-import { entriesOf, entryFiles, PRESET, packageConfig } from './preset.ts'
+import {
+  chunkFileName,
+  type EntryOutputs,
+  entriesOf,
+  entryFiles,
+  PRESET,
+  packageConfig,
+} from './preset.ts'
 import { scratchDir } from './test-support.ts'
 import { publicPackages, ROOT } from './workspace.ts'
 
@@ -98,36 +105,63 @@ describe('the shared tsdown preset (T1.6)', () => {
   })
 
   test("the build fails when an entry isn't written to the file its exports name (B27i)", () => {
-    const [plugin] = entryFiles()
-    const generate = (
-      plugin as unknown as { generateBundle: (options: unknown, bundle: object) => void }
-    ).generateBundle
+    const generate = (names: readonly string[], outputs: EntryOutputs, bundle: object): void => {
+      const [plugin] = entryFiles(names, outputs)
+      const hooks = plugin as unknown as {
+        generateBundle: (options: unknown, bundle: object) => void
+      }
+      hooks.generateBundle({}, bundle)
+    }
     const chunk = (name: string, fileName: string, isEntry = true) => ({
       type: 'chunk',
       name,
       fileName,
       isEntry,
     })
+    const both: EntryOutputs = { js: true, declarations: true }
+    const declarations: EntryOutputs = { js: false, declarations: true }
     // `provino`'s root before B27i: a shared declaration chunk took `index.d.ts`.
     const taken = {
       'index.d.ts': chunk('index.d', 'index.d.ts', false),
       'index5.d.ts': chunk('index.d', 'index5.d.ts'),
     }
     assert.throws(
-      () => generate({}, taken),
+      () => generate(['index'], declarations, taken),
       /entry index\.d: written to index5\.d\.ts, not index\.d\.ts/,
     )
     assert.throws(
-      () => generate({}, { 'index2.js': chunk('index', 'index2.js') }),
+      () =>
+        generate(
+          ['index'],
+          { js: true, declarations: false },
+          { 'index2.js': chunk('index', 'index2.js') },
+        ),
       /entry index: written to index2\.js, not index\.js/,
     )
-    generate(
-      {},
-      {
-        'index.js': chunk('index', 'index.js'),
-        'node/index.d.ts': chunk('node/index.d', 'node/index.d.ts'),
-        'chunks/index.d.ts': chunk('index.d', 'chunks/index.d.ts', false),
-      },
+    // Two subpaths with one source: two JavaScript entries, one declaration file.
+    const oneSource = {
+      'index.js': chunk('index', 'index.js'),
+      'other.js': chunk('other', 'other.js'),
+      'index.d.ts': chunk('index.d', 'index.d.ts'),
+    }
+    assert.throws(
+      () => generate(['index', 'other'], both, oneSource),
+      /entries not written: other\.d\.ts/,
+    )
+    generate(['index', 'node/index'], both, {
+      'index.js': chunk('index', 'index.js'),
+      'node/index.js': chunk('node/index', 'node/index.js'),
+      'index.d.ts': chunk('index.d', 'index.d.ts'),
+      'node/index.d.ts': chunk('node/index.d', 'node/index.d.ts'),
+      'chunks/index.d.ts': chunk('index.d', 'chunks/index.d.ts', false),
+    })
+    generate(['index'], declarations, { 'index.d.ts': chunk('index.d', 'index.d.ts') })
+    // Shared declaration chunks go to `chunks/`; JavaScript chunks keep tsdown's own name.
+    assert.equal(chunkFileName({ name: 'index.d' }), 'chunks/[name].d.ts')
+    assert.equal(chunkFileName({ name: 'failure-message' }), '[name].js')
+    assert.equal(
+      (PRESET.outputOptions as { readonly chunkFileNames?: unknown }).chunkFileNames,
+      chunkFileName,
     )
     // Every package's build carries it.
     const plugins = packageConfig(join(ROOT, 'packages', 'env-node')).plugins

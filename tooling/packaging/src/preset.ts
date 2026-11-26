@@ -31,6 +31,18 @@ export const PRESET: UserConfig = {
   hash: false,
   treeshake: true,
   minify: false,
+  // Shared declaration chunks in `chunks/`, JavaScript chunks where they were (B27i).
+  outputOptions: { chunkFileNames: chunkFileName },
+}
+
+/**
+ * A shared chunk's file name: `chunks/[name].d.ts` for declarations (rolldown-plugin-dts names
+ * those chunks `<module>.d`), so none can take an entry's file name (B27i), and `[name].js`, tsdown's
+ * own default with `hash: false`, for JavaScript, whose chunk names and bytes stay as they were.
+ * @internal
+ */
+export function chunkFileName(chunk: { readonly name: string }): string {
+  return chunk.name.endsWith('.d') ? 'chunks/[name].d.ts' : '[name].js'
 }
 
 /** Declarations only, from Oxc's generator: a types-only package, and the umbrella's second build. */
@@ -40,19 +52,30 @@ export const DTS_ONLY: Exclude<UserConfig['dts'], boolean | undefined> = {
   emitDtsOnly: true,
 }
 
+/** What a build writes for each of its entries. */
+export interface EntryOutputs {
+  /** `<name>.js` */
+  readonly js: boolean
+  /** `<name>.d.ts` */
+  readonly declarations: boolean
+}
+
 /**
- * Fails the build when an entry is not written to the file its `exports` name: `<name>.js`, and
- * `<name>.d.ts` for its declarations (B27i). Rolldown gives a file name to the first chunk that asks
- * for it and numbers the rest, so a shared declaration chunk named after an `index.ts` module took
- * `index.d.ts` and `provino`'s own root declarations went to `index5.d.ts`: `types` named a chunk
- * of mangled names, and `import { describe } from 'provino'` failed to typecheck.
+ * Fails the build when an entry is not written to the file its `exports` name (B27i): every entry
+ * chunk at `<name>.js` or `<name>.d.ts`, and each of `names` written as `outputs` says (two
+ * subpaths with one source give one declaration file: the dts plugin maps entries by source).
+ * Rolldown gives a file name to the first chunk that asks for it and numbers the rest, so a shared
+ * declaration chunk named after an `index.ts` module took `index.d.ts` and `provino`'s own root
+ * declarations went to `index5.d.ts`: `types` named a chunk of mangled names, and
+ * `import { describe } from 'provino'` failed to typecheck.
  * @internal
  */
-export function entryFiles(): PluginList {
+export function entryFiles(names: readonly string[], outputs: EntryOutputs): PluginList {
   return [
     {
       name: 'provino-entry-files',
       generateBundle(_options, bundle) {
+        const written = new Set<string>()
         for (const item of Object.values(bundle)) {
           if (item.type !== 'chunk' || !item.isEntry) continue
           // A declaration entry's chunk is named `<name>.d` (rolldown-plugin-dts).
@@ -61,9 +84,21 @@ export function entryFiles(): PluginList {
             : `${item.name}.js`
           if (item.fileName !== expected) {
             throw new Error(
-              `entry ${item.name}: written to ${item.fileName}, not ${expected}, which its exports name: another chunk took that file name. Give that build's chunks a directory of their own with outputOptions.chunkFileNames, as umbrellaConfig's declaration passes do ('chunks/[name].d.ts'); PRESET sets none`,
+              `entry ${item.name}: written to ${item.fileName}, not ${expected}, which its exports name: another chunk took that file name. A build's outputOptions.chunkFileNames must keep chunks out of the entries' names, as the preset's chunkFileName (preset.ts) does with chunks/[name].d.ts`,
             )
           }
+          written.add(item.fileName)
+        }
+        const missing = names
+          .flatMap((name) => [
+            ...(outputs.js ? [`${name}.js`] : []),
+            ...(outputs.declarations ? [`${name}.d.ts`] : []),
+          ])
+          .filter((fileName) => !written.has(fileName))
+        if (missing.length > 0) {
+          throw new Error(
+            `entries not written: ${missing.join(', ')} (two exports subpaths with one source give one declaration file)`,
+          )
         }
       },
     },
@@ -144,18 +179,31 @@ export function packageConfig(dir: string): UserConfig {
       // A subpath entry may import its own package by name (a self-reference, which keeps one copy).
       onlyImport: [manifest.name, ...runtimeDependencyNames(manifest)],
     },
-    plugins: [
-      // An add-on (D187) reaches the engine through its `provino` peer, never a copy of its own.
-      ...(isAddOn(manifest)
-        ? [
-            ...internalImports(manifest.name),
-            // The registries are `provino/config`'s, the one module a user's install resolves.
-            ...augmentationTarget(),
-          ]
-        : []),
-      ...entryFiles(),
-    ],
+    plugins: packagePlugins(
+      manifest,
+      entries.map((entry) => entry.name),
+      typesOnly,
+    ),
   }
+}
+
+/** A package build's plugins, made for each build: `names` are that build's entries. */
+function packagePlugins(
+  manifest: PackageManifest,
+  names: readonly string[],
+  typesOnly: boolean,
+): PluginList {
+  return [
+    // An add-on (D187) reaches the engine through its `provino` peer, never a copy of its own.
+    ...(isAddOn(manifest)
+      ? [
+          ...internalImports(manifest.name),
+          // The registries are `provino/config`'s, the one module a user's install resolves.
+          ...augmentationTarget(),
+        ]
+      : []),
+    ...entryFiles(names, { js: !typesOnly, declarations: true }),
+  ]
 }
 
 /**
@@ -187,11 +235,16 @@ export function packageConfigs(dir: string): UserConfig[] {
     entries.filter((entry) => WORKER_SUBPATHS.has(entry.subpath)).map((entry) => entry.name),
   )
   const entry = Object.entries(config.entry ?? {})
-  const pick = (inWorker: boolean) =>
-    Object.fromEntries(entry.filter(([name]) => worker.has(name) === inWorker))
+  // Each build gets its own plugins, which check its own entries.
+  const build = (inWorker: boolean): UserConfig => {
+    const picked = Object.fromEntries(entry.filter(([name]) => worker.has(name) === inWorker))
+    return {
+      ...config,
+      clean: false,
+      entry: picked,
+      plugins: packagePlugins(manifest, Object.keys(picked), false),
+    }
+  }
   rmSync(join(dir, 'dist'), { recursive: true, force: true })
-  return [
-    { ...config, clean: false, entry: pick(false) },
-    { ...config, clean: false, entry: pick(true) },
-  ]
+  return [build(false), build(true)]
 }
