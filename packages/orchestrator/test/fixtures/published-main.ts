@@ -7,7 +7,8 @@ import type { WorkerMain } from '@provino/types'
 type Published = typeof globalThis & { __workerMains?: Promise<void>[] }
 
 const published: WorkerMain = (port) => {
-  const settled = main(port)
+  // A `WorkerMain` may return nothing; the real one returns its run, which this hands on as it is.
+  const settled = Promise.resolve(main(port))
   ;(globalThis as Published).__workerMains?.push(settled)
   return settled
 }
