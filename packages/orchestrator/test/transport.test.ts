@@ -324,6 +324,27 @@ describe('inline transport', () => {
     assert.deepEqual(await connection.exited, { type: 'exit', code: 0 })
   })
 
+  // The coordinator's end closes at once; the worker's end hears it in a `close` event that comes
+  // after. A bound shorter than that event's delivery reported the exit before the worker heard it,
+  // so the next inline worker could boot beside slots not yet marked stopped (`abandon`). Many
+  // workers with a bound of 0, since the race is lost only now and then on a given Node.
+  it('reports a worker gone only once its own end has heard the link close, whatever the bound', async () => {
+    const noted = globalThis as typeof globalThis & { __heardClose?: number }
+    try {
+      for (let index = 0; index < 100; index++) {
+        noted.__heardClose = 0
+        const { transport, connection } = await start('inline', 'heard-close-worker.ts', {
+          teardownTimeoutMs: 0,
+        })
+        void connection.run(job('forever')).catch(() => {})
+        await transport.terminate(true)
+        assert.equal(noted.__heardClose, 1, `worker ${index} was reported gone before it heard`)
+      }
+    } finally {
+      Reflect.deleteProperty(noted, '__heardClose')
+    }
+  })
+
   // Inside this test runner something else keeps the event loop alive; a real coordinator may have
   // nothing. The stuck worker holds no handle, so only the bound's own timer can: unref'd, the loop
   // drained and `terminate` never resolved (exit 13, "unsettled top-level await").

@@ -40,6 +40,7 @@ type Shared = typeof globalThis & {
   __runInner?: () => Promise<string[][]>
   __held?: PromiseWithResolvers<void>
   __release?: PromiseWithResolvers<void>
+  __workerMains?: Promise<void>[]
 }
 const shared = globalThis as Shared
 
@@ -101,6 +102,7 @@ async function withOuter(body: (outer: Outer) => Promise<void>): Promise<void> {
       '__runInner',
       '__held',
       '__release',
+      '__workerMains',
     ])
       Reflect.deleteProperty(shared, key)
   }
@@ -132,11 +134,15 @@ function assertAsFound(outer: Outer, when: string): void {
 /** An inline worker over the real entry, connected: its events as they come. */
 async function startInline(
   config: SerializedProjectConfig,
-  options: { readonly captureConsole?: boolean; readonly teardownTimeoutMs?: number } = {},
+  options: {
+    readonly captureConsole?: boolean
+    readonly teardownTimeoutMs?: number
+    readonly entry?: string
+  } = {},
 ) {
   const events: WorkerEvent[] = []
   const transport = await transportFor('inline', {
-    entry: RUNTIME_ENTRY,
+    entry: options.entry ?? RUNTIME_ENTRY,
     stderr: new Collect(),
     ...(options.teardownTimeoutMs === undefined
       ? {}
@@ -320,8 +326,13 @@ describe('an inline worker inside another worker’s process', () => {
     await withOuter(async (outer) => {
       shared.__held = Promise.withResolvers<void>()
       shared.__release = Promise.withResolvers<void>()
-      // A short bound: the kill is reported while the stop still waits behind the held file.
-      const first = await startInline(config, { teardownTimeoutMs: 1 })
+      // A short bound: the kill is reported (once the worker has heard it) while the stop still
+      // waits behind the held file. The entry publishes the worker's run, to wait for that stop.
+      shared.__workerMains = []
+      const first = await startInline(config, {
+        teardownTimeoutMs: 1,
+        entry: fixture('published-main.ts').href,
+      })
       const holding = first.connection
         .run(runtimeJob(config, p.path('hold.test.js')))
         .catch(() => undefined)
@@ -347,18 +358,8 @@ describe('an inline worker inside another worker’s process', () => {
       // The held file ends; the first worker's stop runs now and puts the outer slots back.
       shared.__release.resolve()
       await holding
-      for (let turn = 0; turn < 1000 && !slotsAsFound(outer); turn++) {
-        await new Promise((resolve) => setImmediate(resolve))
-      }
+      await shared.__workerMains[0]
       assertAsFound(outer, "after the first worker's late stop")
     })
   })
 })
-
-/** Whether every slot holds what `outer` recorded (the late stop's end, polled by turns). */
-function slotsAsFound(outer: Outer): boolean {
-  return PROCESS_SLOTS.every(
-    (key, index) =>
-      Reflect.getOwnPropertyDescriptor(globalThis, key)?.value === outer.slots[index]?.value,
-  )
-}
