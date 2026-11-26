@@ -132,10 +132,10 @@ describe('Provino on top of the parse', () => {
     assert.deepEqual(codes(['--configLoader', 'runner']), ['warning:--configLoader'])
     assert.deepEqual(codes(['--pool=vmThreads', '--environment', 'node']), [])
     const [watch] = parseVitestCli(['watch']).diagnostics
-    assert.match(watch?.message ?? '', /D175/)
+    assert.match(watch?.message ?? '', /provino vitest runs once/)
   })
 
-  it('consumes every row it neither refuses nor warns about (D183: nothing is dropped)', () => {
+  it('consumes every row it neither refuses nor warns about (nothing is dropped)', () => {
     // Each `request` row, with what reads it: `provino vitest` or `vitestArgvToRunRequest`.
     const requestRows = [
       'root', // readVitestConfig's root
@@ -187,7 +187,7 @@ describe('Provino on top of the parse', () => {
       assert.ok(VITEST_APPLIED_TEST_KEYS.has(path.split('.')[0] ?? ''), path)
     }
     for (const path of ['repeats', 'diff.expand', 'expect.poll', 'retry', 'json']) {
-      assert.match(rows.find((row) => row.path === path)?.owner ?? '', /parked \(D183\)/, path)
+      assert.match(rows.find((row) => row.path === path)?.owner ?? '', /^not built yet$/, path)
     }
   })
 

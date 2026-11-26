@@ -9,7 +9,7 @@ export type OrchestratorErrorCode =
   | 'ORCH_WORKER_EXITED'
   | 'ORCH_BAD_ENTRY'
   | 'ORCH_BAD_INIT'
-  /** A run option names something the coordinator doesn't do yet (the message names the task that will). */
+  /** A run option names something the coordinator doesn't do yet (the message says what). */
   | 'ORCH_NOT_IMPLEMENTED'
   /** The test name pattern isn't a valid regular expression. */
   | 'ORCH_BAD_PATTERN'

@@ -101,21 +101,21 @@ function refuse(test: Rec, where: string): void {
   if (pool === 'vmThreads' || pool === 'vmForks') {
     throw new VitestConfigError(
       'VITEST_CONFIG_UNSUPPORTED',
-      `${where}: test.pool "${pool}" is not supported: it needs the realm isolation tier (T2.8); use "forks" or "threads"`,
+      `${where}: test.pool "${pool}" is not supported: it needs the realm isolation tier, which is not available yet; use "forks" or "threads"`,
     )
   }
   const browser = test.browser
   if (isRec(browser) && browser.enabled === true) {
     throw new VitestConfigError(
       'VITEST_CONFIG_UNSUPPORTED',
-      `${where}: test.browser.enabled is not supported: Provino runs Node only (D3)`,
+      `${where}: test.browser.enabled is not supported: Provino runs Node only`,
     )
   }
   const typecheck = test.typecheck
   if (isRec(typecheck) && typecheck.enabled === true) {
     throw new VitestConfigError(
       'VITEST_CONFIG_UNSUPPORTED',
-      `${where}: test.typecheck.enabled is not supported yet: type tests are not part of B25`,
+      `${where}: test.typecheck.enabled is not supported yet: type tests are not built`,
     )
   }
 }

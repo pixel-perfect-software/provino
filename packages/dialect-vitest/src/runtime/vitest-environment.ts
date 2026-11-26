@@ -172,7 +172,7 @@ async function setUpVitest(
   if (typeof environment.setup !== 'function') {
     throw new VitestDialectError(
       'VITEST_ENVIRONMENT_SETUP_VM',
-      `The Vitest environment "${environment.name}" has no "setup", only "setupVM", which needs the realm isolation tier (T2.8, not built).`,
+      `The Vitest environment "${environment.name}" has no "setup", only "setupVM", which needs the realm isolation tier, which is not available yet.`,
     )
   }
   // The worker's global is shared by every file, so it is put back as `nodeEnvironment` does

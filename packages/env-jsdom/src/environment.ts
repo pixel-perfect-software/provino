@@ -148,7 +148,7 @@ export const jsdomEnvironment: Environment<'jsdom', JsdomEnvironmentOptions> = {
     if (context.realm !== 'worker') {
       throw new JsdomEnvironmentError(
         'ENV_JSDOM_REALM_UNSUPPORTED',
-        `The jsdom environment supports the 'worker' realm only, not '${context.realm}'. A vm-context window needs the 'realm' isolation tier (T2.8).`,
+        `The jsdom environment supports the 'worker' realm only, not '${context.realm}'. A vm-context window needs the 'realm' isolation tier, which is not built yet.`,
       )
     }
     if (!isPrepared(prepared)) {

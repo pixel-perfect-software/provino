@@ -42,7 +42,7 @@ export const nodeEnvironment: Environment<'node'> = {
     if (context.realm !== 'worker') {
       throw new NodeEnvironmentError(
         'ENV_NODE_REALM_UNSUPPORTED',
-        `The node environment supports the 'worker' realm only, not '${context.realm}'. A vm-context global needs the 'realm' isolation tier (T2.8).`,
+        `The node environment supports the 'worker' realm only, not '${context.realm}'. A vm-context global needs the 'realm' isolation tier, which is not built yet.`,
       )
     }
     const snapshot = snapshotProperties(globalThis)

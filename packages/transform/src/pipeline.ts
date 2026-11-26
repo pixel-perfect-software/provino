@@ -214,7 +214,7 @@ export const createPipeline: CreatePipeline = (options) => {
   if (options.typescript !== 'oxc' && options.typescript !== 'blank') {
     throw new TransformError(
       'TRANSFORM_OPTION_UNSUPPORTED',
-      `typescript: '${options.typescript}' is not supported yet (only 'oxc' and 'blank'; 'node-strip' is T3.10).`,
+      `typescript: '${options.typescript}' is not supported yet (only 'oxc' and 'blank').`,
     )
   }
   const findTsconfig = createTsconfigFinder()
@@ -430,7 +430,7 @@ export const createPipeline: CreatePipeline = (options) => {
   function instrumenterMissing(): TransformError {
     return new TransformError(
       'TRANSFORM_OPTION_UNSUPPORTED',
-      'coverage instrumentation needs an `instrumenter` option (U6, B23b).',
+      'coverage instrumentation needs an `instrumenter` option.',
     )
   }
 

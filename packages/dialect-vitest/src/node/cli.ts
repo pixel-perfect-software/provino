@@ -323,17 +323,17 @@ function invalid(error: unknown): VitestCliError {
 const NOT_SUPPORTED = 'VITEST_CLI_UNSUPPORTED'
 const NOT_APPLIED = 'VITEST_CLI_NOT_APPLIED'
 
-const RUNS_ONCE = 'D175: provino vitest runs once, as vitest run; watch mode is a follow-up bundle'
+const RUNS_ONCE = 'provino vitest runs once, as vitest run'
 
-/** Commands `provino vitest` refuses, with why (D175 for watch). */
+/** Commands `provino vitest` refuses, with why. */
 const REFUSED_COMMANDS: Readonly<Partial<Record<VitestCommandName, string>>> = {
   watch: RUNS_ONCE,
   dev: RUNS_ONCE,
-  related: 'a follow-up bundle (Vitest related)',
+  related: 'not built yet',
   bench: 'not planned: benchmarks',
-  init: 'not planned: browser mode (D3)',
-  doctor: 'a follow-up bundle (Vitest doctor)',
-  list: 'parked (D183)',
+  init: 'not planned: browser mode',
+  doctor: 'not built yet',
+  list: 'not built yet',
   complete: 'not planned: shell completions',
 }
 

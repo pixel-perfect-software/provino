@@ -57,7 +57,7 @@ export function selectFiles(
     if (filter.kind === 'pathLine') {
       throw new OrchestratorError(
         'ORCH_NOT_IMPLEMENTED',
-        `a ${filter.kind} file filter is not supported yet (T11.16)`,
+        `a ${filter.kind} file filter is not supported yet`,
       )
     }
   }

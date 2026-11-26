@@ -2,8 +2,7 @@
 // `@provino/config`'s `resolveNeutralProject` builds a run from. Every path is absolute already;
 // patterns stay sources (no `RegExp`), and option objects must be JSON (a function or other value
 // that can't cross to a worker is dropped with a warning naming it). Keys Provino reads but doesn't
-// apply yet warn, naming the task that builds them (gap 9 of `bundles/B14.md`: nothing is ignored
-// silently).
+// apply yet warn (gap 9 of `bundles/B14.md`: nothing is ignored silently).
 
 import { createRequire } from 'node:module'
 import { delimiter, isAbsolute, join, resolve } from 'node:path'
