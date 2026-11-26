@@ -226,7 +226,13 @@ describe('testScript', () => {
 
   it('has the canary run that same bin (it repeats the path: a package test cannot import tooling)', () => {
     const canary = readFileSync(join(ROOT, CANARY), 'utf8')
-    assert.ok(canary.includes(RUNNER_BIN))
+    // The path the canary builds (from `packages/provino/test/bootstrap/` to the root), and the run
+    // that uses it: a comment naming the path would not do.
+    assert.ok(
+      canary.includes(`new URL('../../../../${RUNNER_BIN}'`),
+      'the canary builds RUNNER_BIN',
+    )
+    assert.match(canary, /runBuiltAsync\([^)]*\bbin: PINNED_BIN\b/s, 'the canary runs it')
   })
 })
 

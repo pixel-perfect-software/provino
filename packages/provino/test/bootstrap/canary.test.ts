@@ -2,7 +2,7 @@
 // `RUNNER_BIN` in `tooling/packaging/src/dogfood.ts`), so a runner that reports green wrongly would
 // pass them all. The canary guards that runner, not the checkout's build (which `provino`'s own
 // end-to-end tests cover, on the pin). This file stays on node:test (it is in
-// `tooling/provino/bootstrap.json`) and runs the built bin on fixtures that fail in the ways the
+// `tooling/provino/bootstrap.json`) and runs the pinned runner on fixtures that fail in the ways the
 // migrated suites fail: every run must exit 1 and report the counts the fixture is built to have,
 // and one all-passing fixture must exit 0, so the canary cannot pass on a bin that fails everything.
 import assert from 'node:assert/strict'
@@ -21,7 +21,7 @@ const PINNED_BIN = fileURLToPath(
 
 const project = trackedProjects()
 
-/** The built bin on `files` (config `include` `tests/**`, or the one given), and what it printed. */
+/** The pinned runner on `files` (config `include` `tests/**`, or the one given), and what it printed. */
 async function runFixture(
   files: Readonly<Record<string, string>>,
   include = 'tests/**/*.test.mjs',

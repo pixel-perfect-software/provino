@@ -53,7 +53,8 @@ export interface Manifest {
   readonly wholePolicyValues: readonly string[]
   /**
    * The one file every `boundary-*` rule lets through and only tests may import (B27g2, D191: this
-   * repo's tests import `provino`, which type-checks against the checkout while the pinned runner serves its own at run time). Absent: no allowance.
+   * repo's tests import `provino`, which type-checks against the checkout while the pinned runner
+   * serves its own at run time). Absent: no allowance.
    */
   readonly testOnlyEntry: string | undefined
   readonly nodes: readonly ManifestNode[]
