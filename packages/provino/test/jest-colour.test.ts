@@ -62,7 +62,7 @@ function ours(flag: boolean | undefined, env: Record<string, string>): boolean {
   }).colour
 }
 
-describe('provino jest colour follows supports-color, as Jest does', () => {
+describe.concurrent('provino jest colour follows supports-color, as Jest does', () => {
   const flags: readonly [string, readonly string[], boolean | undefined][] = [
     ['--colors', ['--colors'], true],
     ['--no-color', ['--no-color'], false],
