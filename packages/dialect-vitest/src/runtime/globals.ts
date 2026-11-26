@@ -124,11 +124,11 @@ export function vitestGlobals(host: VitestGlobalsHost): VitestGlobals {
 }
 
 /** `inject` and `recordArtifact`: exported so a file that imports them loads; refused when called. */
-function notBuilt(name: string, owner: string): () => never {
+function notBuilt(name: string): () => never {
   return () => {
     throw new VitestDialectError(
       'VITEST_DIALECT_NOT_BUILT',
-      `\`${name}\` from 'vitest' is not supported by Provino yet (${owner})`,
+      `\`${name}\` from 'vitest' is not supported by Provino yet`,
     )
   }
 }
@@ -169,8 +169,8 @@ export function vitestModuleScope(
             undefined,
             [],
           ),
-        inject: notBuilt('inject', 'B25 Phase 7'),
-        recordArtifact: notBuilt('recordArtifact', 'B25 Phase 7'),
+        inject: notBuilt('inject'),
+        recordArtifact: notBuilt('recordArtifact'),
       }
     })
     served('@vitest/spy', () => ({

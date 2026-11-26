@@ -11,16 +11,16 @@
 // (handed to the config reader as `test`, which applies it or warns `VITEST_CONFIG_NOT_APPLIED`),
 // `refuse` (an error naming `owner`), `warn` (read and not applied, naming `owner`).
 
-// The owners several rows share. `PARKED`: Vitest is parked after B25g, so the rest is refused (D183).
-const PARKED = 'parked (D183)'
-const COVERAGE = 'B25h (Vitest coverage)'
+// The owners several rows share: the reason `provino vitest` prints after a refusal or a warning.
+const PARKED = 'not built yet'
+const COVERAGE = 'Vitest coverage is not built yet'
 const EXPERIMENTAL = 'experimental flags are not applied'
-const NODE_ONLY = 'not planned: Provino runs Node only (D3)'
+const NODE_ONLY = 'not planned: Provino runs Node only'
 const VITEST_UI = 'not planned: Vitest UI'
-const TYPE_TESTS = 'not planned in B25: type tests'
-const TEST_TAGS = 'a follow-up bundle (test tags)'
-const CHANGED = 'a follow-up bundle (Vitest --changed)'
-const NO_WATCH = 'D175: no watch mode in B25'
+const TYPE_TESTS = 'not planned: type tests'
+const TEST_TAGS = 'test tags are not built yet'
+const CHANGED = '--changed is not built yet'
+const NO_WATCH = 'no watch mode under provino vitest'
 const COLLECTS_BY_RUNNING = 'Provino collects by running the files'
 
 /**
@@ -632,7 +632,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     path: 'vmMemoryLimit',
     description: 'Memory limit for VM pools. If you see memory leaks, try to tinker this value.',
     support: 'refuse',
-    owner: 'T2.8 (the realm isolation tier)',
+    owner: 'it needs the realm isolation tier, which is not available yet',
   },
   {
     flag: '--fileParallelism',
@@ -1146,7 +1146,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     path: 'clearScreen',
     description: 'Clear terminal screen when re-running tests during watch mode (default: true)',
     support: 'warn',
-    owner: 'watch mode only (D175)',
+    owner: 'it only applies in watch mode',
   },
   {
     flag: '--configLoader <loader>',
@@ -1154,7 +1154,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Use bundle to bundle the config with esbuild or runner (experimental) to process it on the fly. This is only available in vite version 6.1.0 and above. (default: bundle)',
     support: 'warn',
-    owner: 'Provino imports the config natively (D169)',
+    owner: 'Provino imports the config natively',
   },
   {
     flag: '--standalone',
@@ -1171,7 +1171,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
       "Path to a blob reports directory. If this options is used, Vitest won't run any tests, it will only report previously recorded tests",
     value: 'merge-reports',
     support: 'refuse',
-    owner: 'T9.8 (blob reports)',
+    owner: 'blob reports are not built yet',
   },
   {
     flag: '--listTags [type]',
@@ -1187,7 +1187,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       'Delete all Vitest caches, including the fsModuleCache, without running any tests. This will reduce the performance in the subsequent test run.',
     support: 'refuse',
-    owner: 'a follow-up bundle (Vitest --clearCache)',
+    owner: 'not built yet',
   },
   {
     flag: '--tagsFilter <expression>',
@@ -1212,7 +1212,7 @@ export const VITEST_CLI_OPTIONS: readonly VitestCliOption[] = [
     description:
       "Let inline projects that don't modify the Vite config reuse the Vite server of the config that declares them. (default: true)",
     support: 'warn',
-    owner: 'the Vite bridge (D169)',
+    owner: 'the Vite bridge reads the config',
   },
   {
     flag: '--experimental <features>',

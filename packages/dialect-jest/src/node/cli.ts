@@ -305,8 +305,8 @@ function isGiven(value: unknown): boolean {
 
 /**
  * `parseJestArgv`, plus Provino's diagnostics: a `warning` for each flag it reads but doesn't apply
- * yet, and an `error` for each flag it has no backend for (named with the task that builds it).
- * The diagnostics come in the table's order.
+ * yet, and an `error` for each flag it has no backend for. The diagnostics come in the table's
+ * order.
  * @public
  */
 export function parseJestCli(args: readonly string[]): {
@@ -322,14 +322,14 @@ export function parseJestCli(args: readonly string[]): {
         level: 'warning',
         code: NOT_APPLIED,
         key: `--${name}`,
-        message: `--${name} is read but not applied yet (${option.owner})`,
+        message: `--${name} is read but not applied yet`,
       })
     } else if (option.support === 'refuse') {
       diagnostics.push({
         level: 'error',
         code: NOT_SUPPORTED,
         key: `--${name}`,
-        message: `--${name} is not supported yet (${option.owner})`,
+        message: `--${name} is not supported yet`,
       })
     }
   }

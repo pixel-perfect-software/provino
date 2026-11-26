@@ -120,11 +120,11 @@ describe('provino vitest', () => {
     assert.equal((await provino(['vitest', 'run', 'a.test'], broken)).code, 0)
   })
 
-  it('refuses watch mode by name and ends 1, as Vitest ends on any error (D175)', async () => {
+  it('refuses watch mode by name and ends 1, as Vitest ends on any error', async () => {
     const dir = await tree(VITEST_PROJECT)
     const watch = await provino(['vitest', 'watch'], dir)
     assert.equal(watch.code, 1)
-    assert.match(watch.stderr, /vitest watch is not supported \(D175/)
+    assert.match(watch.stderr, /vitest watch is not supported \(provino vitest runs once/)
   })
 })
 

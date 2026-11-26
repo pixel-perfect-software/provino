@@ -101,7 +101,7 @@ export function checkThresholds(
   if (policy.thresholdGrouping !== 'every-match' || policy.globThresholdScope !== 'per-file') {
     throw new CoverageError(
       'COVERAGE_NOT_IMPLEMENTED',
-      `Coverage thresholds with grouping "${policy.thresholdGrouping}" and glob scope "${policy.globThresholdScope}" are not built yet (B25).`,
+      `Coverage thresholds with grouping "${policy.thresholdGrouping}" and glob scope "${policy.globThresholdScope}" are not built yet.`,
     )
   }
   if (groups.length === 0) return []

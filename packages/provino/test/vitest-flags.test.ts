@@ -54,14 +54,14 @@ describe('provino vitest flags against Vitest 5.0.5', () => {
       assert.match(loud.stdout + loud.stderr, /MARKER stdout/)
     }))
 
-  it('--silent=passed-only is refused by name (parked, D183)', () =>
+  it('--silent=passed-only is refused by name', () =>
     withVitestFixture('cli/vitest-silent', async (_fixture, root) => {
       const ended = await spawnCli(['vitest', 'run', '--silent=passed-only'], {
         cwd: root,
         env: { CI: '1', TZ: 'UTC', NO_COLOR: '1' },
       })
       assert.equal(ended.code, 1)
-      assert.match(ended.stderr, /--silent=passed-only is not supported \(parked \(D183\)\)/)
+      assert.match(ended.stderr, /--silent=passed-only is not supported/)
       assert.doesNotMatch(ended.stdout + ended.stderr, /MARKER/)
     }))
 

@@ -289,7 +289,7 @@ test('a function in a transformer’s options is left out of the worker’s copy
   )
 })
 
-test('keys read but not applied yet warn, naming the task (gap 9)', async () => {
+test('keys read but not applied yet warn (gap 9)', async () => {
   const root = tree({
     'node_modules/jest-environment-jsdom/package.json': '{ "name": "jest-environment-jsdom" }\n',
     'node_modules/jest-environment-jsdom/index.js': 'module.exports = class {}\n',

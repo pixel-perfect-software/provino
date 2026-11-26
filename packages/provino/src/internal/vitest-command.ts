@@ -76,14 +76,14 @@ const TEXT_REPORTERS: Readonly<Record<string, ReporterChoice | null>> = {
 
 /** Vitest's built-in reporter names Provino refuses by name, with why. */
 const REFUSED_REPORTERS: Readonly<Record<string, string>> = {
-  junit: 'parked (D183)',
-  'github-actions': 'parked (D183)',
-  tap: 'not supported under provino vitest (D173)',
-  'tap-flat': 'not supported under provino vitest (D173)',
-  'hanging-process': 'not supported under provino vitest (D173)',
-  blob: 'not supported: --merge-reports is not built (D173)',
-  html: 'not supported: @vitest/ui is not run (D173)',
-  tree: 'not supported under provino vitest (D173)',
+  junit: 'not built yet',
+  'github-actions': 'not built yet',
+  tap: 'not supported under provino vitest',
+  'tap-flat': 'not supported under provino vitest',
+  'hanging-process': 'not supported under provino vitest',
+  blob: 'not supported: --merge-reports is not built',
+  html: 'not supported: @vitest/ui is not run',
+  tree: 'not supported under provino vitest',
 }
 
 class VitestCommandError extends Error {}
@@ -142,9 +142,7 @@ type Rec = Readonly<Record<string, unknown>>
 function refuseOptions(name: string, options: Rec, allowed: readonly string[]): void {
   const keys = Object.keys(options).filter((key) => !allowed.includes(key))
   if (keys.length > 0) {
-    throw new VitestCommandError(
-      `the reporter "${name}" takes no options here (parked (D183)): ${keys.join(', ')}`,
-    )
+    throw new VitestCommandError(`the reporter "${name}" takes no options here: ${keys.join(', ')}`)
   }
 }
 
@@ -243,7 +241,7 @@ function maxWorkersOf(value: unknown, fileParallelism: unknown): number | undefi
 function coordinatorFilter(filter: FileFilter): FileFilter {
   if (filter.kind === 'pathLine') {
     throw new VitestCommandError(
-      `the location filter ${filter.value}:${String(filter.line)} is not supported under provino vitest (parked (D183))`,
+      `the location filter ${filter.value}:${String(filter.line)} is not supported under provino vitest`,
     )
   }
   return filter
@@ -301,7 +299,7 @@ export async function runVitestCommand(
     const { argv } = parsed
     const request = vitestCli.toRunRequest(argv)
     if (request.mode !== 'run') {
-      throw new VitestCommandError(`the ${request.mode} mode is not supported (parked (D183))`)
+      throw new VitestCommandError(`the ${request.mode} mode is not supported`)
     }
     const { options } = argv
     const read = await readVitestConfig({
@@ -315,7 +313,7 @@ export async function runVitestCommand(
     const rootTest = read.root.test
     const silent = options.silent ?? rootTest.silent
     if (silent === 'passed-only') {
-      throw new VitestCommandError('--silent=passed-only is not supported (parked (D183))')
+      throw new VitestCommandError('--silent=passed-only is not supported')
     }
     const neutrals = chooseProjects(read.projects, options.project)
     const ci = Boolean(env.CI)

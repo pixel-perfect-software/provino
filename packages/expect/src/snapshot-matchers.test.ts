@@ -551,9 +551,12 @@ describe('inline snapshots', () => {
     inTest(['t'], () => expect({ a: 1 }).toMatchInlineSnapshot(indented))
   })
 
-  test('a missing one fails naming T7.11 when it would be written, and nothing is written', () => {
+  test('a missing one fails for want of a writer when it would be written, and nothing is written', () => {
     const { expect, inTest, state, snapPath } = setup()
-    assert.throws(() => inTest(['t'], () => expect(1).toMatchInlineSnapshot()), /T7\.11/)
+    assert.throws(
+      () => inTest(['t'], () => expect(1).toMatchInlineSnapshot()),
+      /no inline snapshot writer/,
+    )
     state.finish()
     assert.equal(existsSync(snapPath), false)
   })
@@ -642,13 +645,13 @@ describe('inline snapshots', () => {
     assert.equal(taken, 0, 'a match and a mismatch take no stack for the writer')
   })
 
-  test('a missing one under `none` fails as a snapshot that was not written, not as T7.11', () => {
+  test('a missing one under `none` fails as a snapshot that was not written, not for want of a writer', () => {
     const { expect, inTest } = setup({ update: 'none' })
     assert.throws(
       () => inTest(['t'], () => expect(1).toMatchInlineSnapshot()),
       (error) =>
         error instanceof Error &&
-        !/T7\.11/.test(error.message) &&
+        !/no inline snapshot writer/.test(error.message) &&
         /not written/.test(error.message),
     )
   })
