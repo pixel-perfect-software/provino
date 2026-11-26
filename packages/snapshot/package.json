@@ -25,6 +25,11 @@
       "types": "./dist/node/index.d.ts",
       "import": "./dist/node/index.js"
     },
+    "./printer": {
+      "provino-source": "./src/printer/index.ts",
+      "types": "./dist/printer/index.d.ts",
+      "import": "./dist/printer/index.js"
+    },
     "./runtime": {
       "provino-source": "./src/runtime/index.ts",
       "types": "./dist/runtime/index.d.ts",
@@ -47,6 +52,7 @@
   },
   "devDependencies": {
     "@provino/policy": "workspace:*",
-    "natural-compare": "catalog:"
+    "natural-compare": "catalog:",
+    "pretty-format": "catalog:"
   }
 }

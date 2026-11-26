@@ -7,7 +7,17 @@
     },
     {
       "path": "../policy"
+    },
+    {
+      "path": "src/vendor"
     }
   ],
-  "exclude": ["src/**/*.test.ts", "src/**/test-support.ts"]
+  "exclude": [
+    "src/vendor/ansi-styles",
+    "src/vendor/pretty-format",
+    "src/vendor/react-is",
+    "src/vendor/jest-snapshot",
+    "src/**/*.test.ts",
+    "src/**/test-support.ts"
+  ]
 }

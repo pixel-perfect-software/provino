@@ -1650,6 +1650,9 @@ importers:
       natural-compare:
         specifier: 'catalog:'
         version: 1.4.0
+      pretty-format:
+        specifier: 'catalog:'
+        version: 30.5.1
 
   packages/timers:
     dependencies:
