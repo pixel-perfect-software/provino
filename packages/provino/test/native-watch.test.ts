@@ -362,6 +362,11 @@ describe('provino run --watch', () => {
     assert.match(USAGE, /--watch /)
     assert.match(USAGE, /--watchAll/)
     assert.match(USAGE, /a runs all, f runs the failed, Enter reruns the\s+last, q quits/)
+    // The flags watch refuses are the ones `parseRunArgs` refuses, all of them.
+    assert.match(
+      USAGE,
+      /Not with --coverage, --shard,\s+--detectOpenHandles, --timings, --update-timings or\s+--forceExit/,
+    )
   })
 })
 

@@ -43,16 +43,17 @@ test('an async test', async () => {
 })
 ```
 
-<!-- capture: a real run of this project, the final lines of a pipe with the provino reporter named -->
+Run it with `pnpm exec provino`. On a terminal, it ends with:
+
+<!-- capture: a real run of this project (--reporter provino, since a pipe gets the default reporter); the lines are the ones a terminal ends with -->
 ```console
-$ pnpm exec provino
 ✅ src/native.test.ts · 3 tests · 28ms
 
 🎉 3 tests passed in 1 file · 166ms
 🐢 slowest: src/native.test.ts 28ms
 ```
 
-`provino` with no command finds the config and runs it. `provino run` does the same and takes the flags below. [Output](output.md) says what a run prints, on a terminal and elsewhere.
+`provino` with no command finds the config and runs it. Both take the flags of `provino run` (`provino --help`). [Output](output.md) says what a run prints, on a terminal and elsewhere.
 
 ## Finding the config
 
@@ -149,7 +150,7 @@ describe('cart', () => {
 - The second argument can be options (`timeout`, `retry`, `repeats`, `concurrent`, `skip`, `only`, `todo`, `tags`) and a number third is a timeout in ms.
 - A test with no body is a todo. A `describe` body can't be async.
 - On CI (the `CI` variable) a test marked `.only` fails with "Unexpected .only modifier", so a stray `.only` can't shrink a CI run.
-- The test body takes a context: `ctx.skip()` skips from inside the test, and `ctx.signal` is aborted on a timeout, a bail or an interrupt.
+- The test body takes a context: `ctx.skip()` skips from inside the test, and `ctx.signal` is aborted when the test times out.
 - Tests marked `.concurrent` run together, at most five at a time.
 
 `test.extend` adds fixtures to the context. A fixture is a value, or a function that returns one: its first parameter destructures the fixtures it reads, and `onCleanup` registers what runs when the test is done.

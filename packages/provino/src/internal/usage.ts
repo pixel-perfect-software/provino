@@ -65,7 +65,9 @@ Options of provino run:
                                     a change to a package.json, provino.config.* or tsconfig).
                                     On a terminal: a runs all, f runs the failed, Enter reruns the
                                     last, q quits (Ctrl+C too); off a terminal it reruns on change
-                                    with no keys. Not with --coverage, --shard or --detectOpenHandles
+                                    with no keys. Not with --coverage, --shard,
+                                    --detectOpenHandles, --timings, --update-timings or
+                                    --forceExit
       --watchAll                    As --watch, and every file reruns on any change
   -h, --help                        Print this text
       --version                     Print the version of provino
