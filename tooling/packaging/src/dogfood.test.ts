@@ -230,6 +230,29 @@ describe('testScript', () => {
   })
 })
 
+// The pinned runner is installed, not built, but a migrated package's tests still need every
+// package built: a nested run's forked workers find their entry with Node's own resolution
+// (`import.meta.resolve('@provino/orchestrator/worker/main')`), and the runner's process has no
+// `provino-source` condition to hand its workers, so they load each package's `dist`. `provino#build`
+// builds them all (its `^build`). A checkout that has built before hides a missing dependency, so
+// this is the check that sees it. D206's `execArgv` key, in a pinned rc, is what lets it go.
+describe("a migrated package's turbo test task", () => {
+  for (const dir of migratedDirs(ROOT)) {
+    it(`${dir} waits for every package's build`, () => {
+      const turbo = JSON.parse(readFileSync(join(ROOT, dir, 'turbo.json'), 'utf8')) as {
+        readonly tasks?: { readonly test?: { readonly dependsOn?: readonly string[] } }
+      }
+      const dependsOn = turbo.tasks?.test?.dependsOn ?? []
+      // `provino`'s own `build` is `provino#build`.
+      const build = dir === 'packages/provino' ? 'build' : 'provino#build'
+      assert.ok(
+        dependsOn.includes(build),
+        `${dir}/turbo.json: test.dependsOn is ${JSON.stringify(dependsOn)}`,
+      )
+    })
+  }
+})
+
 // One test per package, each with its own deadline. The packages are read when the file loads (a
 // directory listing: cheap, and where the test names come from). Every listing starts in `beforeAll`,
 // DISCOVERY_LANES at a time through `mapPool`, and the tests wait for their own package's one after

@@ -28,7 +28,7 @@ const TURBO = {
   extends: ['//'],
   tasks: {
     test: {
-      dependsOn: ['transit'],
+      dependsOn: ['transit', 'provino#build'],
       inputs: [
         '$TURBO_DEFAULT$',
         '$TURBO_ROOT$/tooling/provino/**',

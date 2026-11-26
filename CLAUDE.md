@@ -42,7 +42,7 @@ Keep this table current: a wrong command here costs every session. Run everythin
 | --------------------- | ----------------------------------------------------------------------------- |
 | Install               | `pnpm install` (CI: `pnpm install --frozen-lockfile`)                         |
 | Typecheck             | `pnpm check-types` (`tsc -b`, TS 7)                                           |
-| Unit tests            | `pnpm test` (Turborepo, cached); one package: `pnpm test --filter @provino/x`. Our own tests run on Provino, and which runner runs which file is in `.claude/rules/tests.md`, as is how to write a test. Every migrated package's Provino half in one call (it skips the bootstrap set, so it is not the whole suite): `pnpm test:provino` |
+| Unit tests            | `pnpm test` (Turborepo, cached); one package: `pnpm test --filter @provino/x`. Our own tests run on Provino, and which runner runs which file is in `.claude/rules/tests.md`, as is how to write a test. Every migrated package's Provino half in one call (it skips the bootstrap set, so it is not the whole suite): `pnpm build && pnpm test:provino` |
 | Type tests            | `pnpm test:types` (TS 7.0.2) and `pnpm test:types:ts5.9`                      |
 | Migrate and shard tests | `pnpm migrate:node-test rewrite\|verify <pkg>`; `pnpm test:shard check\|run <1\|2>`. Details: `commands.md` |
 | Recorded oracles      | `pnpm --filter @provino/dialect-vitest record:cli [--check]` (real Vitest's `parseCLI` answers) and `pnpm --filter @provino/harness record:hoist [--check]` (real Babel's hoist output): package scripts, not root ones; `--check` writes nothing and exits 1 on a difference. Details: `commands.md` |
