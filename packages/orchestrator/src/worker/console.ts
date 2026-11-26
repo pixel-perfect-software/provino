@@ -5,7 +5,6 @@
 import { Console } from 'node:console'
 import { StringDecoder } from 'node:string_decoder'
 import type { RuntimeEventOf, TaskId } from '@provino/types'
-import { REPLACED_CONSOLE } from './internal/runtime/process-globals.ts'
 import { flushStream } from './stdio.ts'
 
 /**
@@ -84,6 +83,31 @@ export interface InstallOptions {
    * worker shares `globalThis.console` with the coordinator, whose reporters must still print.
    */
   readonly passThrough?: () => boolean
+}
+
+/**
+ * The registered key under which an installed capture's front console holds the console it replaced
+ * (`install` with a target), so a worker started inside this one's process (an inline worker in a
+ * test file this worker runs) finds it: the two workers are two copies of this module.
+ */
+const REPLACED_CONSOLE: unique symbol = Symbol.for('provino.console.replaced')
+
+/**
+ * When `target.console` is another worker's capture, puts the console that capture replaced on
+ * `target` and returns the function that puts the capture back; `undefined` otherwise. See
+ * `internal/runtime/process-globals.ts`.
+ * @internal
+ */
+export function setAsideOuterConsole(
+  target: { console: Console } = globalThis,
+): (() => void) | undefined {
+  const found = target.console
+  const replaced: unknown = Reflect.get(found, REPLACED_CONSOLE)
+  if (replaced === undefined) return undefined
+  target.console = replaced as Console
+  return () => {
+    target.console = found
+  }
 }
 
 /**

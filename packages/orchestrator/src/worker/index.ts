@@ -7,6 +7,7 @@ export {
   type WritableLike,
 } from './console.ts'
 export { WorkerError, type WorkerErrorCode } from './errors.ts'
+export { PROCESS_SLOTS } from './internal/runtime/process-globals.ts'
 export {
   createPacker,
   type Packer,

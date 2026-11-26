@@ -21,10 +21,10 @@ import {
   type ConsoleCapture,
   createConsoleCapture,
   type InstalledCapture,
+  setAsideOuterConsole,
   type WritableLike,
 } from './console.ts'
 import { memoryAfterFile, usedHeapBytes } from './internal/memory.ts'
-import { setAsideOuterConsole } from './internal/runtime/process-globals.ts'
 import { createPacker, type Packer, type PackerOptions } from './packer.ts'
 import { flushStdio } from './stdio.ts'
 import { nextMacrotask } from './timers.ts'
@@ -121,6 +121,14 @@ export interface WorkerRunner {
    * (the inline transport) knows the teardown is over.
    */
   stop?(context: WorkerContext): void | Promise<void>
+  /**
+   * Called once, synchronously, when the link closes before the runner has stopped (the coordinator
+   * was killed, or `terminate(true)` closed an inline worker's link), before the best-effort `stop`
+   * is queued: nothing will reach this worker again, though a file still running holds its `stop`
+   * back. The runtime runner marks what it installed process-wide as stopped, so a worker that boots
+   * in this process meanwhile doesn't adopt it (`internal/runtime/process-globals.ts`).
+   */
+  abandon?(): void
 }
 
 /**
@@ -164,11 +172,7 @@ export function startWorker(
   })
   let init: WorkerInit | undefined
   let installed: InstalledCapture | undefined
-  /**
-   * Puts back the console another worker's capture had on `globalThis` when this one started in its
-   * process (an inline worker inside a worker's test file); this one runs with the console that
-   * capture replaced, as a process of its own would.
-   */
+  /** An outer worker's console capture, set aside for this worker's life (`process-globals.ts`). */
   let restoreOuterConsole: (() => void) | undefined
   let finished = false
   /** Set when a `stop` arrives, or when the link's exit queued the best-effort one: `runner.stop` runs once. */
@@ -363,6 +367,7 @@ export function startWorker(
     // environment's teardown, which puts the capture's console back on the global, so the console
     // is given back again once the runner has stopped. Errors have nowhere to go.
     finish()
+    if (init !== undefined) runner.abandon?.()
     if (!stopQueued) {
       stopQueued = true
       enqueue(() => stopRunner(() => {}))

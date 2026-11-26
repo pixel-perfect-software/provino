@@ -2,7 +2,12 @@
 // back-pressure and the file's signal, and when it is used out of order. The test plays
 // `startWorker`: it builds the contexts and calls `start`, `runFile` and `stop`.
 import assert from 'node:assert/strict'
-import { createRuntimeRunner, type FileContext, type Packer } from '@provino/orchestrator/worker'
+import {
+  createRuntimeRunner,
+  type FileContext,
+  type Packer,
+  PROCESS_SLOTS,
+} from '@provino/orchestrator/worker'
 import type { IsolationTier, WorkerEvent } from '@provino/types'
 import { afterAll, describe, it } from 'provino'
 import { initFor, runtimeConfig, runtimeJob, trackedProjects } from './support.ts'
@@ -227,5 +232,31 @@ describe('createRuntimeRunner', () => {
     await createRuntimeRunner().stop?.(base)
     await runner.stop?.(base)
     await runner.stop?.(base)
+  })
+})
+
+describe('the process-global slots', () => {
+  it('a worker that boots adds, replaces or takes off no symbol key of globalThis but PROCESS_SLOTS', async () => {
+    const symbols = () =>
+      new Map(
+        Object.getOwnPropertySymbols(globalThis).map((key) => [
+          key,
+          Reflect.getOwnPropertyDescriptor(globalThis, key)?.value,
+        ]),
+      )
+    const before = symbols()
+    const { runner, base } = await started()
+    const during = symbols()
+    await runner.stop?.(base)
+    const touched = [...new Set([...before.keys(), ...during.keys()])].filter(
+      (key) => !before.has(key) || !during.has(key) || before.get(key) !== during.get(key),
+    )
+    // Not vacuous: the matcher slot and the lazy runtime are this worker's.
+    assert.ok(touched.length >= 2, `only ${touched.map(String).join(', ')} changed`)
+    assert.deepEqual(
+      touched.filter((key) => !PROCESS_SLOTS.includes(key)).map(String),
+      [],
+      'a slot the boot installs is missing from PROCESS_SLOTS, so a worker inside another would take it over',
+    )
   })
 })

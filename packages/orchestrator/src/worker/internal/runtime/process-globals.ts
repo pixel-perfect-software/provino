@@ -1,62 +1,112 @@
 // What a worker installs process-wide, set aside for a worker that starts inside another one's
 // process. An inline or in-band pool runs its worker in the coordinator's process, and that process
 // can itself be a worker's: a test that calls `run()` or `runJestCommand` under Provino (the outer
-// worker) on a project that goes in band. The outer worker holds its slots, its process error
-// listeners and its console capture for its whole life, so the inner one would find the matcher
-// slot taken (`EXPECT_SLOT_TAKEN`), delete the API and lazy slots it replaced instead of giving them
-// back, and have its files' uncaught errors charged to the outer worker's test. So the inner worker
-// takes each of them off as it starts and puts it back, exactly as it found it, once it has stopped:
-// the slots (`setAsideOuterSlots`, first in the runner's `boot`, last in its `stop`), the error
-// listeners (`listenInPlaceOfOuter`, swapped with the runner's own in one step each way, so the
-// process is never left without one) and the console (`setAsideOuterConsole`, `startWorker`'s, around
-// its own capture).
+// worker) on a project that goes in band. The outer worker holds its slots (`PROCESS_SLOTS`), its
+// process error listeners and its console capture for its whole life, so the inner one would find
+// the matcher slot taken (`EXPECT_SLOT_TAKEN`), delete the API and lazy slots it replaced instead of
+// giving them back, and have its files' uncaught errors charged to the outer worker's test. So the
+// inner worker takes each off as it starts and puts it back, exactly as found, once it has stopped:
+// the slots (`setAsideOuterSlots`: first in the runner's `boot`, last in its `stop`), the error
+// listeners (`listenInPlaceOfOuter`: swapped with the runner's own in one step each way, so the
+// process is never left without one, and only when slots were set aside) and the console
+// (`setAsideOuterConsole` in `console.ts`, `startWorker`'s, around its own capture). A worker alone in
+// its process pays one own-property read per slot.
 //
-// A worker alone in its process pays one check per slot and one property read on `console`.
+// **A stopped worker's slots are no one's to adopt.** An inline worker killed while a file runs on
+// (a file can't be cancelled until T5.12) is reported gone once the transport's teardown bound
+// passes, while its stop still waits behind the file, so the next worker in the process can boot
+// beside its slots. The runner marks the slot values it installed as stopped (`markSlotsStopped`, a
+// registered `WeakSet` both copies of this code share) when its link closes (`WorkerRunner.abandon`)
+// and again as it stops; `setAsideOuterSlots` leaves a stopped value where it is, so that next
+// worker fails loudly with `EXPECT_SLOT_TAKEN`, sets nothing aside and so takes none of the error
+// listeners, and a restore never puts a stopped value back. Inside an outer worker the same holds:
+// until the killed worker's stop finally runs, the outer worker's later tests see that worker's
+// slots and listeners, not their own.
 //
-// While the inner worker lives, the outer worker's test that started it is awaiting the run; a test
+// While an inner worker lives, the outer worker's test that started it is awaiting the run; a test
 // of the outer worker running concurrently beside it sees the inner worker's slots (its `expect`
 // state, lazy runtime and API), has an uncaught error charged by the inner worker, and its console
 // calls reach the outer capture as direct writes to the process's streams (no level, still its own
-// task's). It is a limit, not handled: nothing tells the two apart in one process.
+// task's). A limit, not handled: nothing tells the two apart in one process. Two inline runs that
+// overlap in one process are not supported either.
 import { MATCHERS_SLOT } from '@provino/expect'
 import { LAZY_RUNTIME_SLOT } from '@provino/lazy'
 
 /**
- * `@provino/api`'s `PROVINO_API_SLOT`: the native runtime's module-scope factory installs it, and
- * this node reaches that factory by ref only, so the key is written here too (a registered symbol is
- * the same value wherever it is made).
+ * `@provino/api`'s `PROVINO_API_SLOT`, written here because the worker node reaches `@provino/api`
+ * by ref only (the native runtime's module-scope factory): a registered symbol is the same value
+ * wherever it is made.
  */
 const API_SLOT: unique symbol = Symbol.for('provino.api')
 
 /**
  * Every process-global slot a worker's boot installs: the matcher slot (the runner's
  * `installMatchersSlot`), the lazy runtime (`installLazyRuntime`) and the native API (the module
- * scope's factory).
- * @internal
+ * scope's factory). A worker inside another one's process sets these aside; a slot left off the list
+ * would be taken over instead (`test/runtime-runner.test.ts` fails on one).
+ * @beta
  */
 export const PROCESS_SLOTS: readonly symbol[] = [MATCHERS_SLOT, LAZY_RUNTIME_SLOT, API_SLOT]
 
+/** The registered key of the set of slot values whose worker has stopped or lost its link. */
+const STOPPED_SLOTS: unique symbol = Symbol.for('provino.worker.stoppedSlots')
+
+function stoppedSlots(): WeakSet<object> | undefined {
+  const found: unknown = Reflect.get(globalThis, STOPPED_SLOTS)
+  return found instanceof WeakSet ? found : undefined
+}
+
+function isStopped(value: unknown): boolean {
+  if ((typeof value !== 'object' && typeof value !== 'function') || value === null) return false
+  return stoppedSlots()?.has(value) === true
+}
+
 /**
- * Takes every slot of `PROCESS_SLOTS` that `target` holds off it, and returns the function that
- * puts each back with the descriptor it had, whatever the slot holds by then (the inner worker's
- * `stop` has taken its own out). `undefined` when none was held: the worker is alone in its process.
- * A non-configurable slot (Jest's own `expect` defines the matcher slot so) can't be taken off and
- * stays, so `installMatchersSlot` still refuses it.
+ * What each slot of `PROCESS_SLOTS` holds on `target` now (`undefined` for a free one), in order.
+ * @internal
+ */
+export function slotValues(target: object = globalThis): readonly unknown[] {
+  return PROCESS_SLOTS.map((key) => Reflect.getOwnPropertyDescriptor(target, key)?.value)
+}
+
+/**
+ * Marks `values` (a worker's own slot values) as no one's to adopt: `setAsideOuterSlots` leaves
+ * them in place and never puts one back.
+ * @internal
+ */
+export function markSlotsStopped(values: readonly unknown[]): void {
+  let stopped = stoppedSlots()
+  for (const value of values) {
+    if ((typeof value !== 'object' && typeof value !== 'function') || value === null) continue
+    if (stopped === undefined) {
+      stopped = new WeakSet()
+      Reflect.defineProperty(globalThis, STOPPED_SLOTS, { value: stopped, configurable: true })
+    }
+    stopped.add(value)
+  }
+}
+
+/**
+ * Takes every slot of `PROCESS_SLOTS` that `target` holds for a live worker off it, and returns
+ * the function that puts each back with the descriptor it had, unless its worker has stopped since.
+ * `undefined` when none was taken: the worker is alone in its process. A non-configurable slot
+ * (Jest's own `expect` defines the matcher slot so) and a stopped worker's slot stay, so
+ * `installMatchersSlot` refuses them.
  * @internal
  */
 export function setAsideOuterSlots(target: object = globalThis): (() => void) | undefined {
-  let held: Array<readonly [symbol, PropertyDescriptor]> | undefined
+  const held: Array<readonly [symbol, PropertyDescriptor]> = []
   for (const key of PROCESS_SLOTS) {
     const descriptor = Reflect.getOwnPropertyDescriptor(target, key)
-    if (descriptor?.configurable !== true) continue
-    held ??= []
+    if (descriptor?.configurable !== true || isStopped(descriptor.value)) continue
     held.push([key, descriptor])
     Reflect.deleteProperty(target, key)
   }
-  if (held === undefined) return undefined
-  const found = held
+  if (held.length === 0) return undefined
   return () => {
-    for (const [key, descriptor] of found) Reflect.defineProperty(target, key, descriptor)
+    for (const [key, descriptor] of held) {
+      if (!isStopped(descriptor.value)) Reflect.defineProperty(target, key, descriptor)
+    }
   }
 }
 
@@ -104,30 +154,5 @@ export function listenInPlaceOfOuter(target: ListenerTarget, listen: () => () =>
     } finally {
       putBack()
     }
-  }
-}
-
-/**
- * The registered key under which an installed console capture's front console holds the console it
- * replaced (`ConsoleCapture.install` with a target), so a worker inside another's process finds
- * the console that was there before the outer capture (the two workers are two copies of this code).
- * @internal
- */
-export const REPLACED_CONSOLE: unique symbol = Symbol.for('provino.console.replaced')
-
-/**
- * When `target.console` is another worker's capture, puts the console that capture replaced on
- * `target` and returns the function that puts the capture back; `undefined` otherwise.
- * @internal
- */
-export function setAsideOuterConsole(
-  target: { console: Console } = globalThis,
-): (() => void) | undefined {
-  const found = target.console
-  const replaced: unknown = Reflect.get(found, REPLACED_CONSOLE)
-  if (replaced === undefined) return undefined
-  target.console = replaced as Console
-  return () => {
-    target.console = found
   }
 }

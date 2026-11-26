@@ -13,9 +13,7 @@
 //   stop           the process error listeners → the worker's mock registry (isolation `none`) →
 //                  core's worker teardowns → the worker environment → loader → the matcher slot →
 //                  the worker's lifetime signal → the slots an outer worker in this process held
-// A worker that starts inside another worker's process (an inline or in-band pool in a test the
-// outer worker runs) finds the outer one's process-global slots and error listeners: `boot` sets
-// them aside and `stop` puts them back (`process-globals.ts`).
+// Inside another worker's process, `boot` sets the outer slots and listeners aside: `process-globals.ts`.
 // The fake clock (T4.9) is per file, on the environment's global; the mock cleanup between tests
 // (T4.10) is core's `onBeforeTryTask`; uncaught exceptions and rejections reach core through
 // `captureProcessErrors` (T5.11).
@@ -115,7 +113,12 @@ import {
   workerLeakEvent,
 } from '../internal/runtime/leaks.ts'
 import { pragmaValue, readPragmas } from '../internal/runtime/pragmas.ts'
-import { listenInPlaceOfOuter, setAsideOuterSlots } from '../internal/runtime/process-globals.ts'
+import {
+  listenInPlaceOfOuter,
+  markSlotsStopped,
+  setAsideOuterSlots,
+  slotValues,
+} from '../internal/runtime/process-globals.ts'
 import { assertionCountSink } from '../internal/runtime/sink.ts'
 import type { FileContext, FileOutcome, WorkerContext, WorkerRunner } from '../start.ts'
 
@@ -199,6 +202,10 @@ interface Booted {
    * (`setAsideOuterSlots`); `undefined` for a worker alone in its process.
    */
   restoreOuterSlots: (() => void) | undefined
+  /** What the slots held once the outer ones were set aside: none of it is this worker's. */
+  slotsFound: readonly unknown[]
+  /** The slot values this worker installed, taken when `start` ends: `stop` and `abandon` mark them stopped. */
+  ownSlots: readonly unknown[]
   /**
    * Disposes the module scope's function when the factory made it disposable (the native runtime's
    * takes its API slot out of the global), so an inline pool leaves nothing for the next run.
@@ -384,6 +391,12 @@ function openRegistries(
 }
 
 const noop = (): void => {}
+
+/** The slot values installed since `found` was taken (none when boot never began). */
+function ownSlotValues(found: readonly unknown[] | undefined): readonly unknown[] {
+  if (found === undefined) return []
+  return slotValues().filter((value, at) => value !== undefined && value !== found[at])
+}
 
 /**
  * What a file scope holds after `--detectLeaks` let go of the file's own: fresh registries, a
@@ -625,6 +638,7 @@ export function createRuntimeRunner(): WorkerRunner {
   async function boot(context: WorkerContext): Promise<void> {
     // First, before anything installs one: an outer worker's slots go aside until `stop`.
     parts.restoreOuterSlots = setAsideOuterSlots()
+    parts.slotsFound = slotValues()
     const config = parseProjectConfig(context.init.config)
     // A SerializedPolicy is a Policy whose behaviour keys are all refs: nothing to deserialize.
     const policy: Policy = config.policy
@@ -1040,7 +1054,11 @@ export function createRuntimeRunner(): WorkerRunner {
 
   return {
     async start(context): Promise<void> {
-      await boot(context)
+      try {
+        await boot(context)
+      } finally {
+        parts.ownSlots = ownSlotValues(parts.slotsFound)
+      }
     },
 
     async runFile(context): Promise<FileOutcome> {
@@ -1241,9 +1259,15 @@ export function createRuntimeRunner(): WorkerRunner {
       }
     },
 
+    abandon(): void {
+      markSlotsStopped(parts.ownSlots ?? ownSlotValues(parts.slotsFound))
+    },
+
     async stop(context): Promise<void> {
       const torn = parts
       parts = {}
+      // Before anything is taken out: a worker booting in this process from now on adopts none of it.
+      markSlotsStopped(torn.ownSlots ?? ownSlotValues(torn.slotsFound))
       // Under `none` the worker's registry is disposed below; nothing may reach it afterwards.
       fallback = undefined
       let leaked: readonly string[] = []
