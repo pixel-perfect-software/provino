@@ -51,6 +51,11 @@ export function inlineTransport(options: InlineTransportOptions): TransportFacto
     const { port1, port2 } = new MessageChannel()
     const link = messagePortLink<CoordinatorToWorker, WorkerToCoordinator>(port1)
     const workerPort: WorkerPort = messagePortLink(port2)
+    // Settles once the worker's own end has heard the link close (a `close` event, which comes
+    // after ours): only then has `startWorker` begun its teardown, the runner's `abandon` included.
+    const workerHeardClose = new Promise<void>((resolve) => {
+      workerPort.onExit(() => resolve())
+    })
     let failed = false
     const teardownTimeoutMs = teardownTimeoutOf(options)
     // Settles when `main` has returned or thrown. A main that throws is like an uncaught error in a
@@ -67,13 +72,16 @@ export function inlineTransport(options: InlineTransportOptions): TransportFacto
       pid: undefined,
       onExit(listener) {
         link.onExit(() => {
-          // The link is closed; the worker has ended once its main has settled too. Past the
-          // bound it is reported as it is. The bound's timer is ref'd: a main stuck on a promise
-          // holds no handle, so an unref'd one would let the loop drain before the exit is
-          // reported, and `terminate` would never resolve.
-          void settlesWithin(mainSettled, teardownTimeoutMs, { ref: true }).then(() =>
-            listener({ type: 'exit', code: failed ? 1 : 0 }),
-          )
+          // The link is closed; the worker has ended once it has heard so and its main has
+          // settled too. Past the bound it is reported as it is, but never before the worker
+          // heard the close: a short bound could otherwise end before its `close` event came,
+          // and the next worker in this process would boot beside slots not yet marked stopped.
+          // The bound's timer is ref'd: a main stuck on a promise holds no handle, so an unref'd
+          // one would let the loop drain before the exit is reported, and `terminate` would
+          // never resolve.
+          void workerHeardClose
+            .then(() => settlesWithin(mainSettled, teardownTimeoutMs, { ref: true }))
+            .then(() => listener({ type: 'exit', code: failed ? 1 : 0 }))
         })
       },
       kill() {

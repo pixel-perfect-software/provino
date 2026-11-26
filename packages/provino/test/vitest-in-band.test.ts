@@ -9,10 +9,10 @@ import { copyFile, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/pr
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import type { Writable } from 'node:stream'
-import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { resolveNeutralProject } from '@provino/config'
 import { readVitestConfig, vitestNodeDialect } from '@provino/dialect-vitest/node'
+import { afterAll, test } from 'provino'
 import { Collect, type NormalizedView, viewOfNormalized } from './support.ts'
 
 /** `executeProject` and the built-in environments, loaded by URL (see `projects.test.ts`). */
@@ -35,7 +35,7 @@ const { ENVIRONMENTS } = (await import(
 )) as { ENVIRONMENTS: Parameters<typeof resolveNeutralProject>[1]['environments'] }
 
 const made: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

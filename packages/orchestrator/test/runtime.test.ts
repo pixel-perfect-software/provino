@@ -7,7 +7,6 @@ import { randomUUID } from 'node:crypto'
 import { readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
 import { MATCHERS_SLOT } from '@provino/expect'
 import {
   createDepsTable,
@@ -27,6 +26,7 @@ import type {
   TaskId,
   WorkerEvent,
 } from '@provino/types'
+import { afterAll, describe, it } from 'provino'
 import {
   Collect,
   eventsOf,
@@ -40,7 +40,14 @@ import {
   trackedProjects,
 } from './support.ts'
 
-const project = trackedProjects(after)
+/**
+ * The matcher slot as this file found it (none under node:test; the outer worker's own under
+ * Provino, which an inline worker sets aside and puts back): a worker's stop leaves it so.
+ */
+const OUTER_SLOT: unknown = Reflect.get(globalThis, MATCHERS_SLOT)
+const slotAsFound = (): boolean => Reflect.get(globalThis, MATCHERS_SLOT) === OUTER_SLOT
+
+const project = trackedProjects(afterAll)
 
 /** `test-end` results by test name (the last path segment of the full name). */
 function resultsByName(events: readonly WorkerEvent[]): Map<string, RuntimeEventOf<'test-end'>> {
@@ -1050,7 +1057,7 @@ describe('stop', () => {
     })
     assert.deepEqual(run.exit, { type: 'exit', code: 0 })
     assert.equal(trace.at(-1), 'env:teardown matchers=toBe')
-    assert.equal(Reflect.has(globalThis, MATCHERS_SLOT), false)
+    assert.equal(slotAsFound(), true, 'the matcher slot is not as the worker found it')
     // Worker-scoped: the globals the file saw were removed with the environment.
     assert.equal(Reflect.has(globalThis, 'describe'), false)
   })
@@ -1081,7 +1088,7 @@ describe('stop', () => {
         [],
       )
       assert.deepEqual(states(second.events), { b: 'pass' })
-      assert.equal(Reflect.has(globalThis, MATCHERS_SLOT), false)
+      assert.equal(slotAsFound(), true, 'the matcher slot is not as the worker found it')
       // Under none the environment was worker-scoped: the first worker's globals went with it.
       assert.equal(Reflect.has(globalThis, 'describe'), false)
     })
@@ -1108,7 +1115,7 @@ describe('stop', () => {
       assert.deepEqual(states(first.events), { a: 'pass' })
       // The kill is reported only once the worker has torn down: nothing is left to run.
       assert.equal(trace.at(-1), 'env:teardown ended')
-      assert.equal(Reflect.has(globalThis, MATCHERS_SLOT), false)
+      assert.equal(slotAsFound(), true, 'the matcher slot is not as the worker found it')
 
       const second = await runJobs({
         config,
@@ -1147,7 +1154,7 @@ describe('stop', () => {
     })
     const run = await runJobs({ config, jobs: [runtimeJob(config, p.path('a.test.js'))] })
     // Expect was booted (the slot installed) before the environment failed; stop undid it.
-    assert.equal(Reflect.has(globalThis, MATCHERS_SLOT), false)
+    assert.equal(slotAsFound(), true, 'the matcher slot is not as the worker found it')
     assert.deepEqual(run.exit, { type: 'exit', code: 0 })
     assert.equal(run.done.length, 1)
   })

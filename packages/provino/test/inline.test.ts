@@ -1,7 +1,7 @@
 // `run()` with the pools that share or split stdio: an inline pool on several files, and a
 // worker's own stdout next to a reporter's JSON on stdout.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { run } from 'provino/node'
 import { Collect, passing, QUIET_ENV, trackedProjects, viewOfNormalized } from './support.ts'
 

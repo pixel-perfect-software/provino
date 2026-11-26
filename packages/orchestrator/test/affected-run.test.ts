@@ -4,7 +4,6 @@
 import assert from 'node:assert/strict'
 import { stat } from 'node:fs/promises'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
 import {
   affectedCachePaths,
   cacheDirectories,
@@ -16,9 +15,10 @@ import {
 } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
 import type { AffectedSelection, Reporter } from '@provino/types'
+import { afterAll, describe, it } from 'provino'
 import { Collect, type Project, runtimeProject, trackedProjects } from './support.ts'
 
-const makeProject = trackedProjects(after)
+const makeProject = trackedProjects(afterAll)
 
 const FILES: Readonly<Record<string, string>> = {
   'src/leaf.js': 'module.exports = { leaf: 1 }\n',

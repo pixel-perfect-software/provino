@@ -18,7 +18,7 @@
     "node": "^22.15.0 || >=24"
   },
   "scripts": {
-    "test": "node ../../packages/provino/dist/cli.js run && node --test --conditions=provino-source src/run-bench.test.ts src/worker/worker.test.ts",
+    "test": "node ../../packages/provino/dist/cli.js run && node --test --conditions=provino-source src/run-bench.test.ts",
     "bench": "node --conditions=provino-source src/cli.ts"
   },
   "dependencies": {

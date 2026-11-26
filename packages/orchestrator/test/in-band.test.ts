@@ -4,15 +4,16 @@
 // test's `console` still reaches the reporters as events. `inBand` is Jest's numbers here, a policy
 // value; the neutral policy has none (`single: false`, `fastFileCount: 0`).
 import assert from 'node:assert/strict'
+import { Console } from 'node:console'
 import { readFile, rm, writeFile } from 'node:fs/promises'
-import { after, describe, it } from 'node:test'
 import type { ResolvedProject } from '@provino/config'
 import { createResultsCache, type RunProjectOptions, runProjects } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
 import type { ConsoleEntry, PolicyOverrides, Reporter } from '@provino/types'
+import { afterAll, describe, it } from 'provino'
 import { Collect, runtimeProject, trackedProjects } from './support.ts'
 
-const makeProject = trackedProjects(after)
+const makeProject = trackedProjects(afterAll)
 
 const JEST_NUMBERS: NonNullable<PolicyOverrides['orchestrator']> = {
   inBand: { single: true, fastFileCount: 20, slowMs: 1000 },
@@ -224,7 +225,7 @@ describe('console in band', () => {
     const events: ConsoleEntry[] = []
     const printed: string[] = []
     const before = globalThis.console
-    globalThis.console = new console.Console({
+    globalThis.console = new Console({
       stdout: {
         write: (chunk: string) => {
           printed.push(String(chunk))

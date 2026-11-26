@@ -86,6 +86,31 @@ export interface InstallOptions {
 }
 
 /**
+ * The registered key under which an installed capture's front console holds the console it replaced
+ * (`install` with a target), so a worker started inside this one's process (an inline worker in a
+ * test file this worker runs) finds it: the two workers are two copies of this module.
+ */
+const REPLACED_CONSOLE: unique symbol = Symbol.for('provino.console.replaced')
+
+/**
+ * When `target.console` is another worker's capture, puts the console that capture replaced on
+ * `target` and returns the function that puts the capture back; `undefined` otherwise. See
+ * `internal/runtime/process-globals.ts`.
+ * @internal
+ */
+export function setAsideOuterConsole(
+  target: { console: Console } = globalThis,
+): (() => void) | undefined {
+  const found = target.console
+  const replaced: unknown = Reflect.get(found, REPLACED_CONSOLE)
+  if (replaced === undefined) return undefined
+  target.console = replaced as Console
+  return () => {
+    target.console = found
+  }
+}
+
+/**
  * Creates a console capture that sends each write to `emit`.
  * @public
  */
@@ -173,6 +198,14 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
     install(streams, target, installOptions) {
       const previousConsole = target?.console
       if (target !== undefined) target.console = front
+      // What a worker started inside this one's process puts back for its own life
+      // (`setAsideOuterConsole`): the console as it was before this capture.
+      if (previousConsole !== undefined) {
+        Reflect.defineProperty(front, REPLACED_CONSOLE, {
+          value: previousConsole,
+          configurable: true,
+        })
+      }
       const passThrough = installOptions?.passThrough
       const installedForward =
         previousConsole === undefined || passThrough === undefined
@@ -196,6 +229,8 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
           if (!restored) {
             restored = true
             for (const stream of patched) stream.restore()
+            if (Reflect.get(front, REPLACED_CONSOLE) === previousConsole)
+              Reflect.deleteProperty(front, REPLACED_CONSOLE)
             if (target !== undefined && previousConsole !== undefined)
               target.console = previousConsole
           } else if (target?.console === front && previousConsole !== undefined) {

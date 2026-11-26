@@ -10,8 +10,8 @@ import { writeFileSync } from 'node:fs'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, test } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { describe, onTestFinished, test } from 'provino'
 import { run } from 'provino/node'
 import {
   Collect,
@@ -246,7 +246,7 @@ const codes = names.map((name) => {
 process.stdout.write(JSON.stringify(codes))`
     // A file, not `node -e`: under `-e` Node's built-in modules are globals, `timers` among them.
     const dir = await mkdtemp(join(tmpdir(), 'provino-native-outside-'))
-    after(() => rm(dir, { recursive: true, force: true }))
+    onTestFinished(() => rm(dir, { recursive: true, force: true }))
     writeFileSync(join(dir, 'outside.mjs'), script)
     const run = spawnSync(process.execPath, [join(dir, 'outside.mjs')], {
       encoding: 'utf8',
@@ -260,6 +260,9 @@ process.stdout.write(JSON.stringify(codes))`
 describe('the native API slot in one process (inline pool)', () => {
   test('a native run takes its slot out at stop, so a later Jest run reaches the Jest globals', async () => {
     const native = await project()
+    // What the process held before the run (under a Provino worker, that worker's own API; under
+    // node:test, nothing): the run's stop takes its own out and leaves exactly that.
+    const found = Reflect.getOwnPropertyDescriptor(globalThis, Symbol.for('provino.api'))
     const first = await run({
       config: 'provino.config.mjs',
       cwd: native.dir,
@@ -270,12 +273,10 @@ describe('the native API slot in one process (inline pool)', () => {
       reporters: [['normalized-json', { outputFile: 'results.json' }]],
     })
     await assertNativeRun(native.dir, first.exitCode, 'the inline native run')
-    // A boolean: a failed assertion on the API object itself would print the whole runtime.
-    assert.equal(
-      Object.hasOwn(globalThis, Symbol.for('provino.api')),
-      false,
-      'the slot is still installed',
-    )
+    // Booleans: a failed assertion on the API object itself would print the whole runtime.
+    const left = Reflect.getOwnPropertyDescriptor(globalThis, Symbol.for('provino.api'))
+    assert.equal(left === undefined, found === undefined, 'the slot is not as the run found it')
+    assert.equal(left?.value === found?.value, true, 'the run left its own API in the slot')
 
     const jest = await project()
     writeFileSync(

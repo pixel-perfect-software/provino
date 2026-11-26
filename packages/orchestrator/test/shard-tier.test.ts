@@ -8,7 +8,6 @@ import { readFileSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, afterEach, describe, it } from 'node:test'
 import {
   createResultsCache,
   projectCacheKey,
@@ -17,9 +16,10 @@ import {
 } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
 import type { RunSummary } from '@provino/types'
+import { afterAll, afterEach, describe, it } from 'provino'
 import { Collect, run, runtimeProject, trackedProjects } from './support.ts'
 
-const makeProject = trackedProjects(after)
+const makeProject = trackedProjects(afterAll)
 
 const passing = (name: string): string => `test('${name}', () => { expect(1).toBe(1) })\n`
 const FILES = Object.fromEntries(

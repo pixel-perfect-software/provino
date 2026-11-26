@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { liveJest, provinoRun, sorted } from './live-jest.ts'
 import { FIXTURES } from './recorded.ts'
 import { jestConfigJson, spawnCli, trackedProjects } from './support.ts'

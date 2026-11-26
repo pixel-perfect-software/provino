@@ -10,7 +10,7 @@ import { mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from 'node
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, sep } from 'node:path'
 import { Writable } from 'node:stream'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import { JEST } from './live-jest.ts'
 import { loadFixture, materialize } from './recorded.ts'
 import { outputFree, spawnCli, viewOfNormalized } from './support.ts'
@@ -34,7 +34,7 @@ const { runJestCommand } = (await import(
 }
 
 const made: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

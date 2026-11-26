@@ -5,7 +5,6 @@
 import assert from 'node:assert/strict'
 import { rm, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
 import {
   createResultsCache,
   defaultCacheDir,
@@ -19,6 +18,7 @@ import {
 } from '@provino/orchestrator'
 import { createReporterBus } from '@provino/reporters'
 import type { FileInfo, Reporter, ReporterBus, RunInfo, TaskId } from '@provino/types'
+import { afterAll, describe, it } from 'provino'
 import {
   assertWorkersGone,
   Collect,
@@ -32,7 +32,7 @@ import {
   trackedProjects,
 } from './support.ts'
 
-const makeProject = trackedProjects(after)
+const makeProject = trackedProjects(afterAll)
 
 /** The names of the events of one file, in order. */
 const namesOf = (seen: readonly Seen[], fileId: TaskId): string[] =>
@@ -135,66 +135,67 @@ describe('runProject over forks', () => {
 
   // With one worker the replacement is certain; with two, the survivor may take the next files.
   for (const maxWorkers of [1, 2]) {
-    it(`fails a file whose worker is killed by SIGSEGV with the cause, and runs every other file (${maxWorkers} worker${maxWorkers === 1 ? '' : 's'})`, {
-      skip: process.platform === 'win32',
-    }, async () => {
-      const p = await makeProject({
-        'a.test.js': passing('a'),
-        // The largest file, so it is the first one taken.
-        'boom.test.js': [
-          "test('about to crash', () => {",
-          "  process.kill(process.pid, 'SIGSEGV')",
-          '})',
-          `// ${'z'.repeat(400)}`,
-        ].join('\n'),
-        'c.test.js': passing('c'),
-        'd.test.js': passing('d'),
-        'e.test.js': passing('e'),
-      })
-      const project = runtimeProject(p.dir)
-      const { summary, seen, pids } = await run(project, { pool: { kind: 'forks', maxWorkers } })
+    it.skipIf(process.platform === 'win32')(
+      `fails a file whose worker is killed by SIGSEGV with the cause, and runs every other file (${maxWorkers} worker${maxWorkers === 1 ? '' : 's'})`,
+      async () => {
+        const p = await makeProject({
+          'a.test.js': passing('a'),
+          // The largest file, so it is the first one taken.
+          'boom.test.js': [
+            "test('about to crash', () => {",
+            "  process.kill(process.pid, 'SIGSEGV')",
+            '})',
+            `// ${'z'.repeat(400)}`,
+          ].join('\n'),
+          'c.test.js': passing('c'),
+          'd.test.js': passing('d'),
+          'e.test.js': passing('e'),
+        })
+        const project = runtimeProject(p.dir)
+        const { summary, seen, pids } = await run(project, { pool: { kind: 'forks', maxWorkers } })
 
-      const byPath = new Map(summary.files.map((f) => [f.file.path, f]))
-      const boom = byPath.get('boom.test.js')
-      assert.equal(boom?.state, 'fail')
-      assert.deepEqual(boom?.workerExit, { type: 'signal', signal: 'SIGSEGV', likelyOom: false })
-      assert.equal(boom?.errors.length, 1)
-      assert.equal(boom?.errors[0]?.name, 'WorkerCrash')
-      assert.equal(
-        boom?.errors[0]?.message,
-        'The worker running boom.test.js exited: killed by SIGSEGV',
-      )
-      for (const path of ['a.test.js', 'c.test.js', 'd.test.js', 'e.test.js']) {
-        assert.equal(byPath.get(path)?.state, 'pass', path)
-      }
-      assert.equal(summary.files.length, 5)
-      assert.equal(summary.reason, 'failed')
-      assert.equal(
-        exitCodeFor(summary, { policy: project.policy }),
-        project.policy.orchestrator.exitCodes.failure,
-      )
-
-      // The crashed file ends like any other: `file:end` is its last event.
-      const crashedId = boom?.file.fileId
-      assert.ok(crashedId !== undefined)
-      assert.equal(namesOf(seen, crashedId).at(-1), 'file:end')
-      assertStartEndPaired(seen)
-
-      // The crash cost one worker; the files after it ran on others (`run` has checked that
-      // none of them, the crashed one included, is still running).
-      const workers = seen
-        .filter((entry) => entry.name === 'file:start')
-        .map((entry) => entry.detail.workerId)
-      assert.ok(pids.length >= 2 && pids.length <= 1 + 4)
-      if (maxWorkers === 1) {
-        assert.deepEqual(
-          workers,
-          [1, 2, 2, 2, 2],
-          'the next file got a new worker, which was reused',
+        const byPath = new Map(summary.files.map((f) => [f.file.path, f]))
+        const boom = byPath.get('boom.test.js')
+        assert.equal(boom?.state, 'fail')
+        assert.deepEqual(boom?.workerExit, { type: 'signal', signal: 'SIGSEGV', likelyOom: false })
+        assert.equal(boom?.errors.length, 1)
+        assert.equal(boom?.errors[0]?.name, 'WorkerCrash')
+        assert.equal(
+          boom?.errors[0]?.message,
+          'The worker running boom.test.js exited: killed by SIGSEGV',
         )
-        assert.equal(pids.length, 2)
-      }
-    })
+        for (const path of ['a.test.js', 'c.test.js', 'd.test.js', 'e.test.js']) {
+          assert.equal(byPath.get(path)?.state, 'pass', path)
+        }
+        assert.equal(summary.files.length, 5)
+        assert.equal(summary.reason, 'failed')
+        assert.equal(
+          exitCodeFor(summary, { policy: project.policy }),
+          project.policy.orchestrator.exitCodes.failure,
+        )
+
+        // The crashed file ends like any other: `file:end` is its last event.
+        const crashedId = boom?.file.fileId
+        assert.ok(crashedId !== undefined)
+        assert.equal(namesOf(seen, crashedId).at(-1), 'file:end')
+        assertStartEndPaired(seen)
+
+        // The crash cost one worker; the files after it ran on others (`run` has checked that
+        // none of them, the crashed one included, is still running).
+        const workers = seen
+          .filter((entry) => entry.name === 'file:start')
+          .map((entry) => entry.detail.workerId)
+        assert.ok(pids.length >= 2 && pids.length <= 1 + 4)
+        if (maxWorkers === 1) {
+          assert.deepEqual(
+            workers,
+            [1, 2, 2, 2, 2],
+            'the next file got a new worker, which was reused',
+          )
+          assert.equal(pids.length, 2)
+        }
+      },
+    )
   }
 
   it('stops the run and kills the workers when the signal aborts: the file that had started ends as a failure, the rest are not reported', async () => {
@@ -947,21 +948,22 @@ describe('runProject: pool and run lifecycle', () => {
     }
   })
 
-  it('reports a worker that crashes when told to stop, and does not pass the run', {
-    skip: process.platform === 'win32',
-  }, async () => {
-    const p = await makeProject({ 'a.test.js': passing() })
-    const { summary, seen } = await run(runtimeProject(p.dir), {
-      pool: { kind: 'forks', maxWorkers: 1 },
-      entry: fixture('crash-on-stop-main.ts'),
-    })
-    const errors = seen.filter((entry) => entry.name === 'error')
-    assert.equal(errors.length, 1)
-    assert.match(String(errors[0]?.detail.message), /exited while it ran no file/)
-    assert.equal(errors[0]?.detail.origin, 'coordinator')
-    assert.equal(summary.unhandled.length, 1)
-    assert.equal(summary.reason, 'failed')
-  })
+  it.skipIf(process.platform === 'win32')(
+    'reports a worker that crashes when told to stop, and does not pass the run',
+    async () => {
+      const p = await makeProject({ 'a.test.js': passing() })
+      const { summary, seen } = await run(runtimeProject(p.dir), {
+        pool: { kind: 'forks', maxWorkers: 1 },
+        entry: fixture('crash-on-stop-main.ts'),
+      })
+      const errors = seen.filter((entry) => entry.name === 'error')
+      assert.equal(errors.length, 1)
+      assert.match(String(errors[0]?.detail.message), /exited while it ran no file/)
+      assert.equal(errors[0]?.detail.origin, 'coordinator')
+      assert.equal(summary.unhandled.length, 1)
+      assert.equal(summary.reason, 'failed')
+    },
+  )
 })
 
 describe('run:start: expected times and the worker cap (B26)', () => {
