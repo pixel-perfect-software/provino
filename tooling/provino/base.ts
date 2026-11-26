@@ -26,12 +26,9 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..')
  * (node:test had none, and CI's job limit is the outer bound; D194) and the shared registry
  * isolation (D193). The paths are relative to `directory`, the project's root.
  */
-export function packageProject(directory: string): {
+export function packageProject(directory: string): typeof SHARED_CONFIG_VALUES & {
   include: string[]
   exclude: string[]
-  isolation: 'registry'
-  timeouts: { test: number; hook: number }
-  resolve: { conditions: string[] }
 } {
   return {
     include: [...INCLUDE_GLOBS],

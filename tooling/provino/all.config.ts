@@ -1,5 +1,5 @@
 // Every migrated package in one call: `pnpm build && pnpm test:provino` (B27g2; the build is
-// what the packages' bin and `exports.test.ts` need, not their own tests, D206). The projects are
+// for the built-output tests of `BUILT_TEST_DEPENDS_ON`'s packages; see `dogfood.ts`, D206). The projects are
 // the directories with a `provino.config.ts` of their own, each listed inline from the same
 // `packageProject` its own config uses: a project that sets `execArgv` is refused
 // (`CONFIG_UNKNOWN_KEY`), so the run's values (`runValues`) are set once, here. This file is not at the

@@ -11,13 +11,12 @@ import { availableParallelism } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, it, onTestFinished } from 'provino'
 import {
-  BUILT_TEST_DEPENDS_ON,
   bootstrapFiles,
   CANARY,
   migratedDirs,
   RUNNER_BIN,
-  TEST_DEPENDS_ON,
   TEST_RUNNER,
+  testDependsOn,
   testFilesOf,
   testScript,
 } from './dogfood.ts'
@@ -260,17 +259,16 @@ describe("a migrated package's turbo test task", () => {
   it('waits for a build only where BUILT_TEST_DEPENDS_ON says its tests need one', () => {
     const dirs = migratedDirs(ROOT)
     assert.ok(dirs.length > 0, 'no migrated package found')
-    const missing = dirs.flatMap((dir) => {
-      const turbo = JSON.parse(readFileSync(join(ROOT, dir, 'turbo.json'), 'utf8')) as {
-        readonly tasks?: { readonly test?: { readonly dependsOn?: readonly string[] } }
-      }
-      const dependsOn = turbo.tasks?.test?.dependsOn ?? []
-      const expected = BUILT_TEST_DEPENDS_ON[dir] ?? TEST_DEPENDS_ON
-      return JSON.stringify(dependsOn) === JSON.stringify(expected)
-        ? []
-        : [`${dir}/turbo.json: ${JSON.stringify(dependsOn)}`]
-    })
-    assert.deepEqual(missing, [])
+    const actual = Object.fromEntries(
+      dirs.map((dir) => {
+        const turbo = JSON.parse(readFileSync(join(ROOT, dir, 'turbo.json'), 'utf8')) as {
+          readonly tasks?: { readonly test?: { readonly dependsOn?: readonly string[] } }
+        }
+        return [dir, turbo.tasks?.test?.dependsOn ?? []]
+      }),
+    )
+    const expected = Object.fromEntries(dirs.map((dir) => [dir, testDependsOn(dir)]))
+    assert.deepEqual(actual, expected)
   })
 })
 

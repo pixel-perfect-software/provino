@@ -33,6 +33,11 @@ export const BUILT_TEST_DEPENDS_ON: Readonly<Record<string, readonly string[]>> 
   'tooling/packaging': ['transit', 'provino#build'],
 }
 
+/** The `test.dependsOn` a package's `turbo.json` holds: its `BUILT_TEST_DEPENDS_ON` entry, else `TEST_DEPENDS_ON`. */
+export function testDependsOn(dir: string): readonly string[] {
+  return BUILT_TEST_DEPENDS_ON[dir] ?? TEST_DEPENDS_ON
+}
+
 /**
  * The packages whose test files CI splits across its shards (`test-shards.ts`): `provino`'s
  * end-to-end tests are more than half the workspace's test time, so each shard runs half its files.

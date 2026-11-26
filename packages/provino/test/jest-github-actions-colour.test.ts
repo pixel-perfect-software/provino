@@ -6,7 +6,7 @@ import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
 import { createJestGitHubActionsReporter } from '@provino/dialect-jest/node'
 import type { AggregatedResult, TestResult } from '@provino/dialect-jest/results'
-import { afterAll, afterEach, beforeAll, describe, it } from 'provino'
+import { afterEach, beforeEach, describe, it, spyOn } from 'provino'
 import { createStyle } from 'provino/reporters'
 
 type Chalk = {
@@ -30,18 +30,19 @@ function chalkOracle(): InstanceType<Chalk['Instance']> {
 }
 
 const written: string[] = []
-const realWrite = process.stderr.write
-// Installed in `before` and put back in `after`: a test file does no work when it is only imported.
-beforeAll(() => {
-  process.stderr.write = ((chunk: string | Uint8Array): boolean => {
-    written.push(String(chunk))
-    return true
-  }) as typeof process.stderr.write
-})
-afterAll(() => {
-  process.stderr.write = realWrite
+// Spied before each test and restored after it (the mock policy restores spies before every test, so
+// one made in `beforeAll` would be gone): a test file does no work when it is only imported.
+let stderr: { mockRestore(): void } | undefined
+beforeEach(() => {
+  stderr = spyOn(process.stderr, 'write').mockImplementation(
+    (chunk: string | Uint8Array): boolean => {
+      written.push(String(chunk))
+      return true
+    },
+  )
 })
 afterEach(() => {
+  stderr?.mockRestore()
   written.length = 0
 })
 
