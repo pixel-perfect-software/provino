@@ -47,7 +47,7 @@ A flag Provino can't run yet is refused by name. `provino vitest` comes next. Wa
 
 ## 🌱 Without Jest
 
-A project with a `provino.config.ts` and tests that import from `provino` needs `provino` alone, and installs and loads nothing from Jest or Vitest. (A `.ts` config is read by Node, which strips types by default from 22.18; on 22.15 to 22.17 use `provino.config.mjs`.)
+A project with a `provino.config.ts` and tests that import from `provino` needs `provino` alone, and installs and loads nothing from Jest or Vitest. A `.ts` config needs Node 22.18 or later; on 22.15 to 22.17 use `provino.config.mjs` ([why](https://github.com/pixel-perfect-software/provino/blob/main/wiki/native.md#the-config)).
 
 ```bash
 pnpm add -D provino@rc
@@ -77,13 +77,6 @@ pnpm exec provino run --watch
 ```
 
 [Provino-native projects →](https://github.com/pixel-perfect-software/provino/blob/main/wiki/native.md): the config, the test API, mocks, watch mode, and what isn't there yet.
-
-## 📚 Learn more
-
-- [Provino-native projects](https://github.com/pixel-perfect-software/provino/blob/main/wiki/native.md): no Jest, one import, Provino's own policy.
-- [Jest compatibility](https://github.com/pixel-perfect-software/provino/blob/main/wiki/compatibility.md): what `provino jest` does, and every gap.
-- [Lazy variables](https://github.com/pixel-perfect-software/provino/blob/main/wiki/lazy-variables.md): `lazy`, scopes, shared examples.
-- [Output](https://github.com/pixel-perfect-software/provino/blob/main/wiki/output.md): the terminal view, its flags, and the HTML report.
 
 ## 📝 License
 

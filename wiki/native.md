@@ -69,7 +69,7 @@ $ pnpm exec provino
 
 A config is an object, or a function of `{ command, mode }` that returns one (it may be async). Today it is called with `{ command: 'run', mode: 'test' }`. `defineConfig` types it and returns it as it is.
 
-Node itself reads the config file, so a `provino.config.ts` needs Node's type stripping: on by default from Node 22.18, and `NODE_OPTIONS=--experimental-strip-types` on 22.15 to 22.17. A `provino.config.mjs` or `.js` works on every supported version. Your test files don't depend on this: Provino compiles them itself.
+Node itself reads the config file, so a `.ts` config needs Node 22.18 or later, where Node strips types by default. On 22.15 to 22.17 use a `provino.config.mjs` (or `.js`), which works on every supported version; `NODE_OPTIONS=--experimental-strip-types` also works there. Your test files don't depend on this: Provino compiles them itself.
 
 | Key | What it does |
 | --- | --- |
@@ -83,7 +83,7 @@ Node itself reads the config file, so a `provino.config.ts` needs Node's type st
 | `globals` | `true` installs the API as globals (see [globals](#globals)) |
 | `setupFiles` | Modules imported before each test file: a path (`./test/setup.ts`) or a package name |
 | `timeouts` | `{ test, hook, teardown }` in ms. Defaults 5000, 10000 and 10000; `0` is no limit. A timeout given to a test or hook wins |
-| `resolve` | `conditions` (export conditions added after the environment's, such as `['provino-source']`), `aliases` (`{ '@/*': './src/*' }`) and `tsconfig` (`'auto'` is the nearest `tsconfig.json`, a path, or `false`) |
+| `resolve` | `conditions` (export conditions added after the environment's, such as `['development']`), `aliases` (`{ '@/*': './src/*' }`) and `tsconfig` (`'auto'` is the nearest `tsconfig.json`, a path, or `false`) |
 | `projects` | See [Projects](#projects). Top level only |
 | `pool` | `forks` (default), `threads` or `inline`: the pool when the command line names none. Top level only |
 | `maxWorkers` | The most workers when the command line names no number (default: the cores, less one). Top level only |
@@ -116,7 +116,7 @@ export default defineConfig({
 
 ## Writing tests
 
-Everything comes from `provino`. The loader serves the import, so every module of a test file, a helper included, gets the same `expect` and `fn`.
+Everything comes from `provino`. Every module of a test file, a helper included, gets the same `expect` and `fn`.
 
 ### Suites and tests
 
@@ -338,13 +338,6 @@ On a terminal, keys control the session:
 
 Off a terminal (CI, a pipe, an agent) it reruns on change and reads no keys. The command ends with the exit code of the last run that finished. `--coverage`, `--shard`, `--detectOpenHandles`, `--timings`, `--update-timings` and `--forceExit` with watch are a usage error that names them.
 
-## Errors you may meet
-
-- `PROVINO_NO_WORKER_API`: a `provino` export (`describe`, `expect`, `fn`, …) was used outside a test file that Provino is running, from a plain Node script for example. The message says `"describe" is only available inside a test file that Provino is running`, and the error has that `code`.
-- `PROVINO_NATIVE_ONLY`: a name only the native API has (`fn`, `spyOn`, `mock`, `timers`, `aroundEach`, `onTestFinished`, …) was used in a Jest project. The message names the `jest.*` member to use.
-- A config error is printed as `Provino: <message>` and exits 2: an unknown key, a `plugins` or `alsoServe` list, a `root` that isn't a directory, two projects with one name, a `setupFiles` entry that doesn't resolve (`setupFiles[0]`).
-- Exit codes: 0 when every test passes, 1 when a test fails or no test file is found (`--passWithNoTests` passes that run), 2 for a usage or config error, and 130, 143 and 129 for `SIGINT`, `SIGTERM` and `SIGHUP`.
-
 ## Not there yet
 
 | What | Today | Status |
@@ -352,6 +345,7 @@ Off a terminal (CI, a pipe, an agent) it reruns on change and reads no keys. The
 | Snapshots | `toMatchSnapshot` and the other snapshot matchers don't exist: the types list them, but a call fails the test with `… is not a function` | Not yet planned |
 | Coverage under `provino run` | `--coverage` is refused (`--coverage is not supported by provino run yet`), and `coverage` is not a config key | Planned |
 | `plugins`, `alsoServe` | A non-empty list is refused by name | Planned |
+| `environment: 'happy-dom'` | Not available: a native project's environments are `node` and `jsdom`, and any other name is refused (`unknown environment "happy-dom"; the known environments are "node", "jsdom"`) | Planned |
 | `isolation: 'realm'` | Not available yet: asking for it fails the file with "the realm tier is not implemented yet". A `jsdom` project runs on the `registry` tier like any other | Planned |
 
 ## Coming from node:test
@@ -374,7 +368,6 @@ import { describe, it } from 'provino'
 - `t.mock` is `fn` and `spyOn`, which Provino restores between tests.
 - `{ concurrency }` is `describe.concurrent` or `it.concurrent`. Provino runs at most five concurrent tests at a time, and there is no config key for the number. node:test runs the children of a concurrent suite without a cap.
 
-## Loading differences from Node
+## When something goes wrong
 
-- A syntax error in a plain JavaScript file is a `SyntaxError` with Oxc's wording and position (``Expected `}` but found `EOF` (/path/file.js:3:1)``), not V8's `Unexpected end of input`, and it has no V8 source-line header.
-- A syntax error in a TypeScript file fails the test file as `LOADER_TRANSFORM_FAILED` with Oxc's diagnostic. Node's type stripping gives a `SyntaxError`.
+The errors a native project meets (`PROVINO_NO_WORKER_API`, a config error, the exit codes) and how a syntax error reads are in [Troubleshooting](troubleshooting.md#native-projects).
