@@ -5,6 +5,7 @@
 import { Console } from 'node:console'
 import { StringDecoder } from 'node:string_decoder'
 import type { RuntimeEventOf, TaskId } from '@provino/types'
+import { REPLACED_CONSOLE } from './internal/runtime/process-globals.ts'
 import { flushStream } from './stdio.ts'
 
 /**
@@ -173,6 +174,14 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
     install(streams, target, installOptions) {
       const previousConsole = target?.console
       if (target !== undefined) target.console = front
+      // What a worker started inside this one's process puts back for its own life
+      // (`setAsideOuterConsole`): the console as it was before this capture.
+      if (previousConsole !== undefined) {
+        Reflect.defineProperty(front, REPLACED_CONSOLE, {
+          value: previousConsole,
+          configurable: true,
+        })
+      }
       const passThrough = installOptions?.passThrough
       const installedForward =
         previousConsole === undefined || passThrough === undefined
@@ -196,6 +205,8 @@ export function createConsoleCapture(options: ConsoleCaptureOptions): ConsoleCap
           if (!restored) {
             restored = true
             for (const stream of patched) stream.restore()
+            if (Reflect.get(front, REPLACED_CONSOLE) === previousConsole)
+              Reflect.deleteProperty(front, REPLACED_CONSOLE)
             if (target !== undefined && previousConsole !== undefined)
               target.console = previousConsole
           } else if (target?.console === front && previousConsole !== undefined) {

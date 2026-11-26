@@ -24,6 +24,7 @@ import {
   type WritableLike,
 } from './console.ts'
 import { memoryAfterFile, usedHeapBytes } from './internal/memory.ts'
+import { setAsideOuterConsole } from './internal/runtime/process-globals.ts'
 import { createPacker, type Packer, type PackerOptions } from './packer.ts'
 import { flushStdio } from './stdio.ts'
 import { nextMacrotask } from './timers.ts'
@@ -163,6 +164,12 @@ export function startWorker(
   })
   let init: WorkerInit | undefined
   let installed: InstalledCapture | undefined
+  /**
+   * Puts back the console another worker's capture had on `globalThis` when this one started in its
+   * process (an inline worker inside a worker's test file); this one runs with the console that
+   * capture replaced, as a process of its own would.
+   */
+  let restoreOuterConsole: (() => void) | undefined
   let finished = false
   /** Set when a `stop` arrives, or when the link's exit queued the best-effort one: `runner.stop` runs once. */
   let stopQueued = false
@@ -220,6 +227,8 @@ export function startWorker(
   const releaseConsole = (): void => {
     installed?.restore()
     installed = undefined
+    restoreOuterConsole?.()
+    restoreOuterConsole = undefined
   }
 
   /**
@@ -367,6 +376,7 @@ export function startWorker(
     switch (message.t) {
       case 'start': {
         init = message.init
+        restoreOuterConsole = setAsideOuterConsole()
         // A run in band captures `console` only: the streams are the coordinator's own, and the
         // reporters write to them.
         const inBand = init.captureConsole === true

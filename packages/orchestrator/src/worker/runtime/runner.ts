@@ -12,7 +12,10 @@
 //                  still alive, so a spy on a global is restored before the next file sees it
 //   stop           the process error listeners → the worker's mock registry (isolation `none`) →
 //                  core's worker teardowns → the worker environment → loader → the matcher slot →
-//                  the worker's lifetime signal
+//                  the worker's lifetime signal → the slots an outer worker in this process held
+// A worker that starts inside another worker's process (an inline or in-band pool in a test the
+// outer worker runs) finds the outer one's process-global slots and error listeners: `boot` sets
+// them aside and `stop` puts them back (`process-globals.ts`).
 // The fake clock (T4.9) is per file, on the environment's global; the mock cleanup between tests
 // (T4.10) is core's `onBeforeTryTask`; uncaught exceptions and rejections reach core through
 // `captureProcessErrors` (T5.11).
@@ -21,6 +24,7 @@
 // The environment and the globals come in by ref, never by import: this node knows no dialect and
 // no environment package.
 import { AsyncLocalStorage } from 'node:async_hooks'
+import process from 'node:process'
 import { createRuntime, currentTest, type Runtime } from '@provino/core'
 import {
   createEndOfTest,
@@ -111,6 +115,7 @@ import {
   workerLeakEvent,
 } from '../internal/runtime/leaks.ts'
 import { pragmaValue, readPragmas } from '../internal/runtime/pragmas.ts'
+import { listenInPlaceOfOuter, setAsideOuterSlots } from '../internal/runtime/process-globals.ts'
 import { assertionCountSink } from '../internal/runtime/sink.ts'
 import type { FileContext, FileOutcome, WorkerContext, WorkerRunner } from '../start.ts'
 
@@ -189,6 +194,11 @@ interface Booted {
   stopProcessErrors: (() => void) | undefined
   /** Takes the lazy runtime out of its slot (`installLazyRuntime`). */
   uninstallLazy: (() => void) | undefined
+  /**
+   * Puts back the process-global slots an outer worker in this process held when this one booted
+   * (`setAsideOuterSlots`); `undefined` for a worker alone in its process.
+   */
+  restoreOuterSlots: (() => void) | undefined
   /**
    * Disposes the module scope's function when the factory made it disposable (the native runtime's
    * takes its API slot out of the global), so an inline pool leaves nothing for the next run.
@@ -613,6 +623,8 @@ export function createRuntimeRunner(): WorkerRunner {
   }
 
   async function boot(context: WorkerContext): Promise<void> {
+    // First, before anything installs one: an outer worker's slots go aside until `stop`.
+    parts.restoreOuterSlots = setAsideOuterSlots()
     const config = parseProjectConfig(context.init.config)
     // A SerializedPolicy is a Policy whose behaviour keys are all refs: nothing to deserialize.
     const policy: Policy = config.policy
@@ -789,8 +801,15 @@ export function createRuntimeRunner(): WorkerRunner {
       // One error each, as the runners report them (two soft failures are two errors).
       for (const error of endOfTest({ test, attempt, repeat, failed })) fail(error)
     })
-    // Uncaught exceptions and rejections with no handler are charged by `errors.lateErrors` (T5.11).
-    parts.stopProcessErrors = coreRuntime.captureProcessErrors()
+    // Uncaught exceptions and rejections with no handler are charged by `errors.lateErrors` (T5.11),
+    // on the process itself (`node:process`): inside an outer worker's file the global `process` is
+    // that file's copy, which nothing emits on. Inside an outer worker, this one's listeners stand in
+    // for the outer one's until `stop`.
+    const captureErrors = (): (() => void) => coreRuntime.captureProcessErrors(process)
+    parts.stopProcessErrors =
+      parts.restoreOuterSlots === undefined
+        ? captureErrors()
+        : listenInPlaceOfOuter(process, captureErrors)
     // Lazy variables: `import { lazy } from 'provino'` reaches this runtime through its slot. It is
     // neutral, so every dialect gets it, and it goes in before the environment is prepared.
     const lazyRuntime = createLazyRuntime({
@@ -1257,8 +1276,10 @@ export function createRuntimeRunner(): WorkerRunner {
         () => torn.uninstallLazy?.(),
         () => torn.disposeModuleScope?.(),
         () => torn.slot?.uninstall(),
-        // Last: the worker environment's teardown ran with its signal still live.
+        // The worker environment's teardown ran with its signal still live.
         () => workerLifetime.abort(),
+        // Last, once this worker's own are out: what an outer worker in this process held.
+        () => torn.restoreOuterSlots?.(),
       ])
       // The worker-scoped environment (isolation `none`) reports once, here, before `stopped`.
       if (leaked.length > 0) context.sink.emit(workerLeakEvent(leaked))
