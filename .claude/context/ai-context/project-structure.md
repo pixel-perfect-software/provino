@@ -35,7 +35,7 @@ provino/
 │   ├── boundaries/               # provino-boundaries: packages.json manifest, generator, GritQL plugins
 │   └── packaging/                # provino-packaging: the tsdown preset and the `provino` bundle, `pnpm hygiene`, the install smoke (B21e)
 ├── .refs/                        # gitignored upstream sources at pinned commits (DECISIONS S3); excalidraw/ is GitHub's tarball (the sandbox blocks nested git)
-└── .github/workflows/ci.yml      # Node 22.15/24/26 typecheck + test; type tests on TS 7.0.2 and 5.9.3; lint; recorded goldens on every push, bench suites when their inputs change; resolver/transform corpora
+└── .github/workflows/ci.yml      # Node 22.15/24/26 typecheck + test; type tests on TS 7.0.2 and 5.9.3; lint; recorded goldens on every push, bench suites when their inputs change; resolver/transform corpora (vitest-suites.yml: the bench suites' Vitest legs, by hand only, D209)
 ```
 
 Gitignored build output: `packages/*/.tsc/` (declarations from `tsc -b`; project references need emit), `packages/*/dist/` (tsdown, `pnpm build`) and `.turbo/`. Committed beside the sources: `packages/*/etc/*.api.md` (API Extractor reports of the semver packages), `.changeset/`, `knip.ts`.

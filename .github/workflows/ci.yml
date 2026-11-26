@@ -150,15 +150,15 @@ jobs:
     name: Bench suites (Jest 30.5, Vitest 5.0)
     if: ${{ github.event_name == 'push' || !startsWith(github.head_ref, 'task/') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # The whole history, so the branch can be diffed against main below.
           fetch-depth: 0
-      # The suite checks take about 11 of this job's 12 minutes, and their result depends only on
-      # the generator and check code (bench, and the harness helpers it uses), the runners'
-      # versions (lockfile, catalog), Node (.tool-versions), the root scripts and this workflow.
+      # The suite checks are most of this job's time, and their result depends only on the
+      # generator and check code (bench, and the harness helpers it uses), the runners' versions
+      # (lockfile, catalog), Node (.tool-versions), the root scripts and this workflow.
       # The app-500 and mock-heavy-500 checks also run Provino itself (`--runner provino`), so they
       # depend on the source and manifest of every package a Provino run might load: any workspace package's
       # `src/` or `package.json`, so a package that starts to be loaded later needs no edit here.
@@ -175,20 +175,6 @@ jobs:
           include: '^(packages/bench/|packages/harness/src/|packages/harness/sample/|packages/[^/]+/(src/|package\.json$)|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.tool-versions$|package\.json$|\.github/(workflows/ci\.yml|actions/scope/))'
           exclude: '^packages/[^/]+/src/.*\.test(-d)?\.ts$'
           keep: "^packages/(bench|harness)/"
-      # The `--runner vitest` legs of app-500 and mock-heavy-500 only check that the generated Vitest
-      # trees pass under real Vitest, and take about 10 minutes here (Vitest's per-file isolation
-      # fetches every module from its main process, on 4 cores). Their answer depends on the generator
-      # and check code (bench, the harness helpers it uses, the types they share), Vitest's version,
-      # Node, the root scripts and this workflow, not on Provino's packages, so they have their own,
-      # narrower scope. Jest stays in the Provino legs: Provino's statuses are compared with Jest's.
-      - id: vitest
-        name: Decide whether the Vitest legs of the suite checks run
-        uses: ./.github/actions/scope
-        with:
-          label: the Vitest legs of the suite checks
-          include: '^(packages/bench/|packages/harness/src/|packages/types/(src/|package\.json$)|pnpm-lock\.yaml$|pnpm-workspace\.yaml$|\.tool-versions$|package\.json$|\.github/(workflows/ci\.yml|actions/scope/))'
-          exclude: '^packages/[^/]+/src/.*\.test(-d)?\.ts$'
-          keep: "^packages/(bench|harness)/"
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           cache: true
@@ -197,17 +183,14 @@ jobs:
           node-version-file: .tool-versions
       - id: install
         run: pnpm install --frozen-lockfile
-      # Every generated suite must pass under both real runners (Track 12 T12.12). app-500 and
+      # Every generated suite must pass under both real runners (Track 12 T12.12); the Vitest legs of
+      # app-500 and mock-heavy-500 run by hand, in `vitest-suites.yml` (D209). app-500 and
       # mock-heavy-500 (B13c) also run Provino (the `provino` bin, as a black box, all cores but one):
       # every test passes, its normalized-json parses, and each test's status equals Jest's (B11).
       - if: ${{ steps.scope.outputs.run == 'true' }}
         run: pnpm provino-bench check app-500 --runner jest --runner provino
       - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}
         run: pnpm provino-bench check mock-heavy-500 --runner jest --runner provino
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.vitest.outputs.run == 'true' }}
-        run: pnpm provino-bench check app-500 --runner vitest
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.vitest.outputs.run == 'true' }}
-        run: pnpm provino-bench check mock-heavy-500 --runner vitest
       - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}
         run: pnpm provino-bench check isolate-heavy --runner jest --runner vitest
       # The harness self-test (Track 12 T12.6, T12.16): the sample under real Jest and Vitest, its
