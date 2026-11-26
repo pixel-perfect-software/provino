@@ -1,11 +1,23 @@
-// The bootstrap canary (B27g2, D203): this repo's suites run on this checkout's own built bin, so a
-// runner that reports green wrongly would pass them all. This file stays on node:test (it is in
+// The bootstrap canary (B27g2, D191): this repo's suites run on the pinned runner (`provino-runner`,
+// `RUNNER_BIN` in `tooling/packaging/src/dogfood.ts`), so a runner that reports green wrongly would
+// pass them all. The canary guards that runner, not the checkout's build (which `provino`'s own
+// end-to-end tests cover, on the pin). This file stays on node:test (it is in
 // `tooling/provino/bootstrap.json`) and runs the built bin on fixtures that fail in the ways the
 // migrated suites fail: every run must exit 1 and report the counts the fixture is built to have,
 // and one all-passing fixture must exit 0, so the canary cannot pass on a bin that fails everything.
 import assert from 'node:assert/strict'
 import { describe, test } from 'node:test'
+import { fileURLToPath } from 'node:url'
 import { runBuiltAsync, trackedProjects, withoutNodeNoise } from '../support.ts'
+
+/**
+ * The pinned runner's bin: `RUNNER_BIN` in `tooling/packaging/src/dogfood.ts`, repeated here because
+ * the boundaries manifest does not let a package's tests import tooling. `dogfood.test.ts` holds the
+ * two equal.
+ */
+const PINNED_BIN = fileURLToPath(
+  new URL('../../../../node_modules/provino-runner/dist/cli.js', import.meta.url),
+)
 
 const project = trackedProjects()
 
@@ -18,7 +30,10 @@ async function runFixture(
     Object.fromEntries(Object.entries(files).map(([name, text]) => [`tests/${name}`, text])),
     `export default { include: [${JSON.stringify(include)}] }\n`,
   )
-  const ran = await runBuiltAsync(['run', '--config', 'provino.config.mjs'], { cwd: dir })
+  const ran = await runBuiltAsync(['run', '--config', 'provino.config.mjs'], {
+    cwd: dir,
+    bin: PINNED_BIN,
+  })
   const output = `${ran.stdout}\n${withoutNodeNoise(ran.stderr)}`
   // A bin that crashed or timed out has no status: that is not a result to count.
   assert.ok(ran.status !== null && Number.isFinite(ran.status), `no exit status: ${output}`)

@@ -208,7 +208,7 @@ function depcruiseConfig(manifest: Manifest, roots: readonly string[]): unknown 
         : [
             {
               name: 'test-only-entry',
-              comment: `B27g2 (D203): this repo's own tests import the native API as \`provino\`, so every boundary-* rule lets ${manifest.testOnlyEntry} through and this rule keeps it to test files and to its own package. Production code reaches the API as data, through the runtime refs.`,
+              comment: `B27g2 (D191): this repo's own tests import \`provino\` and type-check against the checkout's API (the root's \`provino: workspace:*\`) while the pinned runner serves its own at run time, so every boundary-* rule lets ${manifest.testOnlyEntry} through and this rule keeps it to test files and to its own package. Production code reaches the API as data, through the runtime refs.`,
               severity: 'error',
               from: { path: `^(?:${rootsPattern})/`, pathNot: [TEST_FILE, testOnlyOwner] },
               to: { path: testOnlyEntry },

@@ -2,12 +2,12 @@
 // a migrated package's config includes, the `test` script every migrated package has, and the
 // packages that are migrated. One module with no dependencies of its own, so the shared config
 // (`tooling/provino/base.ts`, run by the runner), `test-shards.ts`, the migrate code and `knip.ts`
-// all read the same facts. Phase 10 (the move to the pinned runner) changes `TEST_RUNNER` here.
+// all read the same facts. The runner is the pinned rc (`provino-runner`, D191), never the checkout.
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
-/** This checkout's built bin, repo-relative (D203; Phase 10 swaps it for the pinned runner). */
-export const RUNNER_BIN = 'packages/provino/dist/cli.js'
+/** The pinned runner's bin (the root's `provino-runner` devDependency, D191), repo-relative. */
+export const RUNNER_BIN = 'node_modules/provino-runner/dist/cli.js'
 
 /** The runner a migrated package's `test` script runs, from a package directory. */
 export const TEST_RUNNER: string = `node ../../${RUNNER_BIN} run`

@@ -3,10 +3,5 @@
   "compilerOptions": {
     "rootDir": ".."
   },
-  "include": ["*.ts", "../packaging/src/dogfood.ts"],
-  "references": [
-    {
-      "path": "../../packages/provino"
-    }
-  ]
+  "include": ["*.ts", "../packaging/src/dogfood.ts"]
 }

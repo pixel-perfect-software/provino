@@ -40,7 +40,7 @@
   },
   "scripts": {
     "build": "tsdown --config ../../tooling/packaging/tsdown.config.ts",
-    "test": "node ../../packages/provino/dist/cli.js run"
+    "test": "node ../../node_modules/provino-runner/dist/cli.js run"
   },
   "dependencies": {
     "@bcoe/v8-coverage": "catalog:",

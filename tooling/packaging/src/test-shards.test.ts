@@ -200,7 +200,7 @@ describe('the file split of a package', () => {
 
   test('runnerArgs runs the built bin with the shard after run, and a bad one is refused', () => {
     const [bin, ...rest] = runnerArgs('1/2', ['--reporter', 'dot'])
-    assert.match(bin ?? '', /packages\/provino\/dist\/cli\.js$/)
+    assert.match(bin ?? '', /node_modules\/provino-runner\/dist\/cli\.js$/)
     assert.deepEqual(rest, ['run', '--shard=1/2', '--reporter', 'dot'])
     assert.deepEqual(runnerArgs(undefined, []).slice(1), ['run'])
     assert.deepEqual(runnerArgs('', []).slice(1), ['run'])
