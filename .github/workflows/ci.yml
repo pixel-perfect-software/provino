@@ -150,7 +150,7 @@ jobs:
     name: Bench suites (Jest 30.5, Vitest 5.0)
     if: ${{ github.event_name == 'push' || !startsWith(github.head_ref, 'task/') }}
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -183,12 +183,10 @@ jobs:
           node-version-file: .tool-versions
       - id: install
         run: pnpm install --frozen-lockfile
-      # Every generated suite must pass under both real runners (Track 12 T12.12). isolate-heavy runs
-      # both here. The `--runner vitest` legs of app-500 and mock-heavy-500 take 8 to 10 minutes, and
-      # only a `--runner vitest` bench run (a manual step) reads those trees, so they run by hand in
-      # `vitest-suites.yml` (D209). app-500 and mock-heavy-500 (B13c) also run Provino (the
-      # `provino` bin, as a black box, all cores but one): every test passes, its normalized-json
-      # parses, and each test's status equals Jest's (B11).
+      # Every generated suite must pass under both real runners (Track 12 T12.12); the Vitest legs of
+      # app-500 and mock-heavy-500 run by hand, in `vitest-suites.yml` (D209). app-500 and
+      # mock-heavy-500 (B13c) also run Provino (the `provino` bin, as a black box, all cores but one):
+      # every test passes, its normalized-json parses, and each test's status equals Jest's (B11).
       - if: ${{ steps.scope.outputs.run == 'true' }}
         run: pnpm provino-bench check app-500 --runner jest --runner provino
       - if: ${{ !cancelled() && steps.install.outcome == 'success' && steps.scope.outputs.run == 'true' }}

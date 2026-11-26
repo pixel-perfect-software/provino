@@ -1,13 +1,9 @@
 name: Vitest suite checks
 
 # The `--runner vitest` legs of the app-500 and mock-heavy-500 suite checks (Track 12 T12.12):
-# every generated test passes under real Vitest. They take 8 to 10 minutes on a 4-core runner
-# (Vitest's per-file isolation fetches every module from its main process), and only a
-# `--runner vitest` bench run reads those trees, itself a manual step (D160). So this workflow runs
-# by hand only (D209): no push, pull_request or schedule trigger. isolate-heavy's Vitest leg and the
-# harness self-test stay in ci.yml's suites job. Run it before a Vitest bench run, or on a branch
-# that changes the generator (`packages/bench`), the harness helpers it uses or Vitest's version:
-# `gh workflow run vitest-suites.yml --ref <branch>`.
+# every generated test passes under real Vitest. They take about 4 minutes each, and only a
+# `--runner vitest` bench run reads those trees, so they run by hand (D209): before a Vitest bench
+# run, or on a branch that changes the generator, with `gh workflow run vitest-suites.yml --ref <branch>`.
 on:
   workflow_dispatch:
 
@@ -20,19 +16,22 @@ concurrency:
 
 jobs:
   vitest-suites:
-    name: Bench suites under real Vitest (Vitest 5.0)
+    name: ${{ matrix.suite }} under real Vitest (Vitest 5.0)
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [app-500, mock-heavy-500]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           cache: true
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: .tool-versions
-      - id: install
-        run: pnpm install --frozen-lockfile
-      - run: pnpm provino-bench check app-500 --runner vitest
-      - if: ${{ !cancelled() && steps.install.outcome == 'success' }}
-        run: pnpm provino-bench check mock-heavy-500 --runner vitest
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm provino-bench check ${{ matrix.suite }} --runner vitest

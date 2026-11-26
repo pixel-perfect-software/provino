@@ -94,7 +94,7 @@ Every check has a case that must fail, and a real-repo case that must pass.
 
 ## Not built (B21h, D73)
 
-The instruction-count PR job is dropped (D168: no CI job runs a measurement on its own); the nightly fuzz and `site-data` are not built. The `pnpm hygiene` job is in `ci.yml`, `release.yml` and `install-matrix.yml` are built (above).
+The instruction-count PR job is dropped (D168: no CI job runs a measurement on its own); the nightly fuzz and `site-data` are not built. The `pnpm hygiene` job is in `ci.yml`, `release.yml` and `install-matrix.yml` are built (above). `vitest-suites.yml` (D209) is the other hand-run workflow: the `--runner vitest` legs of app-500 and mock-heavy-500 as a two-job matrix, on `workflow_dispatch` only, with no lint reading it.
 
 ## Dogfooding: the runner, the bootstrap set and the scaffold (B27g2, D191)
 
