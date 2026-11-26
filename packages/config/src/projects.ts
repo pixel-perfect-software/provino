@@ -42,6 +42,8 @@ export interface ResolvedConfig {
   readonly pool?: PoolKind
   /** `maxWorkers`, when the config sets it: the default for a run whose command line names none. */
   readonly maxWorkers?: number
+  /** `execArgv`, when the config sets it: the Node flags the run's workers start with, after the coordinator's. */
+  readonly execArgv?: readonly string[]
 }
 
 /**
@@ -144,7 +146,8 @@ function assertUniqueNames(projects: readonly ResolvedProject[]): void {
  * object (its `root` is relative to the config file), a directory (its own `provino.config.*`
  * when it has one), a path to a config file, or a glob (tinyglobby's, with `!` entries leaving directories out) of directories. The
  * top-level config's other keys are not inherited by them; its `pool` and `maxWorkers` are the
- * run's defaults. A project has no `projects`, `pool` or `maxWorkers` of its own, and two projects
+ * run's defaults, and its `execArgv` the workers' Node flags. A project has no `projects`, `pool`,
+ * `maxWorkers` or `execArgv` of its own, and two projects
  * may not share a name. Every failure is a `ConfigError`.
  * @public
  */
@@ -161,6 +164,7 @@ export async function resolveProjects(
   const run = {
     ...(parsed.pool === undefined ? {} : { pool: parsed.pool }),
     ...(parsed.maxWorkers === undefined ? {} : { maxWorkers: parsed.maxWorkers }),
+    ...(parsed.execArgv === undefined ? {} : { execArgv: parsed.execArgv }),
   }
   const entries = parsed.projects ?? []
   if (entries.length === 0) return { projects: [await resolveProject(input, options)], ...run }

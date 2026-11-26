@@ -88,6 +88,7 @@ Node itself reads the config file, so a `.ts` config needs Node 22.18 or later, 
 | `projects` | See [Projects](#projects). Top level only |
 | `pool` | `forks` (default), `threads` or `inline`: the pool when the command line names none. Top level only |
 | `maxWorkers` | The most workers when the command line names no number (default: the cores, less one). Top level only |
+| `execArgv` | Node flags each forked or threaded worker starts with, such as `['--conditions=provino-source']` for a test that calls `createRequire(import.meta.url).resolve(...)`. They are added after the flags the coordinator itself runs with (its `process.execArgv`), one entry per argument (`['--require', './setup.cjs']` is two). A thread refuses V8 and process-wide flags such as `--max-old-space-size` (use `workerMemoryLimit`), so on `threads` give it only flags a thread takes. They do not apply to `--pool inline`, or to a run that goes in band, which share the coordinator's process (no error). Top level only |
 
 Reporters are not config keys: name them on the command line (`--reporter`). A key the config does not know is a usage error that names the nearest one: `unknown config key "incude"; did you mean "include"?` (exit 2). A non-empty `plugins` or `alsoServe` is refused by name too.
 
@@ -111,7 +112,7 @@ export default defineConfig({
 
 - A directory that has its own `provino.config.*` uses it, and is named for the directory unless the config names it. A glob matches directories, never `node_modules`, and never the config's own directory.
 - An entry that starts with `!` leaves out what the globs matched.
-- Each project has its own `include`, `setupFiles`, `environment`, `isolation`, `timeouts` and `resolve`. The top level's keys are **not** inherited. A project has no `projects`, `pool` or `maxWorkers`.
+- Each project has its own `include`, `setupFiles`, `environment`, `isolation`, `timeouts` and `resolve`. The top level's keys are **not** inherited. A project has no `projects`, `pool`, `maxWorkers` or `execArgv`.
 - Names must be unique, and two projects can't share a `root`. A glob that matches nothing is an error.
 - With several projects a file's line starts with its project's name: `PASS core packages/core/src/core.test.ts`.
 

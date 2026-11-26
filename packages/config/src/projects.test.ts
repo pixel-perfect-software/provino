@@ -41,7 +41,12 @@ describe('resolveProjects', () => {
     })
 
   test('a config with no projects is the one project, with its run defaults', async () => {
-    const config = await resolveIn({ name: 'solo', pool: 'inline', maxWorkers: 3 })
+    const config = await resolveIn({
+      name: 'solo',
+      pool: 'inline',
+      maxWorkers: 3,
+      execArgv: ['--conditions=x', '--require', './setup.cjs'],
+    })
     assert.deepEqual(
       config.projects.map((p) => p.name),
       ['solo'],
@@ -49,6 +54,21 @@ describe('resolveProjects', () => {
     assert.equal(config.root, undefined)
     assert.equal(config.pool, 'inline')
     assert.equal(config.maxWorkers, 3)
+    assert.deepEqual(config.execArgv, ['--conditions=x', '--require', './setup.cjs'])
+  })
+
+  test('a config that sets no execArgv resolves with none', async () => {
+    assert.equal((await resolveIn({ name: 'solo' })).execArgv, undefined)
+  })
+
+  test('execArgv is a top-level key: a project refuses it, and a bad value names it', async () => {
+    const error = await rejectsWith(
+      resolveIn({ projects: [{ execArgv: ['--x'] } as never] }),
+      'CONFIG_UNKNOWN_KEY',
+    )
+    assert.match(error.message, /"execArgv" belongs to the top-level config only/)
+    const bad = await rejectsWith(resolveIn({ execArgv: '--x' } as never), 'CONFIG_INVALID')
+    assert.match(bad.message, /execArgv/)
   })
 
   test('an empty projects list is the config itself', async () => {

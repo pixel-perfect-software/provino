@@ -1300,6 +1300,8 @@ describe('resolveProject', () => {
       await rejectsWith(resolveWith({ pool: 'cluster' } as never), 'CONFIG_INVALID')
       await rejectsWith(resolveWith({ maxWorkers: 0 }), 'CONFIG_INVALID')
       await rejectsWith(resolveWith({ maxWorkers: 1.5 }), 'CONFIG_INVALID')
+      await resolveWith({ execArgv: ['--conditions=x'] })
+      await rejectsWith(resolveWith({ execArgv: [1] } as never), 'CONFIG_INVALID')
     })
 
     test('resolveProject refuses a non-empty projects: resolveProjects reads it', async () => {

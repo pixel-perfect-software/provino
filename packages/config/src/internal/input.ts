@@ -40,6 +40,7 @@ const TOP_LEVEL_KEYS: readonly string[] = Object.keys({
   projects: true,
   pool: true,
   maxWorkers: true,
+  execArgv: true,
 } satisfies Record<Exclude<keyof ProvinoConfigInput, keyof ProjectConfig>, true>)
 
 const TIMEOUT_KEYS: readonly string[] = Object.keys({
@@ -123,6 +124,7 @@ export interface ParsedInput {
   /** Top-level only: the defaults `run` takes when the command line names none. */
   readonly pool: PoolKind | undefined
   readonly maxWorkers: number | undefined
+  readonly execArgv: readonly string[] | undefined
   /** Top-level only: the entries of `projects`, each a path or glob, or an inline project. */
   readonly projects: readonly (ProjectConfig | string)[] | undefined
 }
@@ -391,6 +393,7 @@ export function parseInput(
       isPoolKind,
     ),
     maxWorkers: optional(input, 'maxWorkers', 'a whole number of at least 1', isWorkerCount),
+    execArgv: optional(input, 'execArgv', 'an array of strings', isStringArray),
     projects: optional(
       input,
       'projects',

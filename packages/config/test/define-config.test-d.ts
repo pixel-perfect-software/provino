@@ -23,5 +23,10 @@ defineConfig({ timeouts: { test: '50' } })
 defineConfig({ pool: 'cluster' })
 // @ts-expect-error an inline project has no pool of its own
 defineConfig({ projects: [{ pool: 'forks' }] })
+defineConfig({ execArgv: ['--conditions=provino-source', '--require', './setup.cjs'] })
+// @ts-expect-error execArgv is a list of flags, not one string
+defineConfig({ execArgv: '--conditions=provino-source' })
+// @ts-expect-error an inline project has no execArgv of its own
+defineConfig({ projects: [{ execArgv: ['--x'] }] })
 // @ts-expect-error resolve has no such key
 defineConfig({ resolve: { conditon: ['x'] } })

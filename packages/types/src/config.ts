@@ -40,6 +40,16 @@ interface TopLevelKeys {
   readonly pool?: PoolKind
   /** The most workers `provino run` starts when the command line names no number. */
   readonly maxWorkers?: number
+  /**
+   * Node flags each forked or threaded worker starts with (`['--conditions=provino-source']`), added
+   * after the flags the coordinator's own `process.execArgv` already gives them. Each entry is one
+   * argument, so `['--require', './setup.cjs']` is two. Without the key a worker gets the
+   * coordinator's flags alone. A thread refuses V8 and process-wide flags (`--max-old-space-size`,
+   * set `workerMemoryLimit` instead), so on threads give it only the flags a thread takes. An
+   * `inline` pool, and a run that goes in band, share the coordinator's process: the flags don't
+   * apply there, and are not an error.
+   */
+  readonly execArgv?: readonly string[]
 }
 
 /**
