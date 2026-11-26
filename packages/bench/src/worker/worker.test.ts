@@ -7,10 +7,10 @@ import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promi
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { Writable } from 'node:stream'
-import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { fileIdOf, relativePosix } from '@provino/orchestrator'
 import type { IsolationTier, TaskId, WorkerEvent } from '@provino/types'
+import { afterAll, describe, it } from 'provino'
 import { checkSuite, meetsBar, TIERS, writeJestSuite } from './check.ts'
 import { POOLS, PROJECT_NAME, runWorkerFiles, type WorkerRunResult } from './run.ts'
 
@@ -22,7 +22,7 @@ const THROWING_ENVIRONMENT = {
 } as const
 
 const cleanups: Array<() => Promise<void>> = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(cleanups.map((cleanup) => cleanup()))
 })
 
@@ -61,7 +61,7 @@ function statesOf(events: readonly WorkerEvent[]): Record<string, string> {
 }
 
 describe('app-500 in one inline worker', () => {
-  it('runs all 4,000 tests passing under registry and under none, in order', async (t) => {
+  it('runs all 4,000 tests passing under registry and under none, in order', async () => {
     const suite = await writeJestSuite('app-500')
     cleanups.push(suite.cleanup)
     const checks = await checkSuite(suite)
@@ -70,7 +70,8 @@ describe('app-500 in one inline worker', () => {
       [...TIERS],
     )
     for (const { result, expected, ok } of checks) {
-      t.diagnostic(`${result.isolation}: ${result.elapsedMs.toFixed(0)} ms (local)`)
+      // A development signal only (`local`), printed with the test's output.
+      console.log(`${result.isolation}: ${result.elapsedMs.toFixed(0)} ms (local)`)
       assert.deepEqual(result.failures, [], result.isolation)
       assert.deepEqual(result.violations, [], result.isolation)
       assert.equal(result.files, 500)
