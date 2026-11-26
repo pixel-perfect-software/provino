@@ -1,4 +1,5 @@
-// Native module mocks end to end (B27j, D202): `mock`, `unmock` and `importActual` imported from
+// Native module mocks end to end (B27j, D202): `mock`, `unmock`, `importActual` and (B28)
+// `requireActual` imported from
 // `provino` in a project with no dialect, through `provino run` on the source bin and the built one,
 // in forks, threads and inline. Every `mock` call sits below the imports it replaces: the hoister
 // (`nativeHoistPolicy`) moves it above them. Two files share one worker (`--maxWorkers 1`), each
@@ -311,4 +312,96 @@ describe('a mock in a helper module', () => {
     )
     assert.ok(!texts.includes('passed'), texts.join('\n'))
   })
+})
+
+/** `requireActual`, and `mocked` over a mock, in a test and in a synchronous factory (B28). */
+const REQUIRE_ACTUAL: Readonly<Record<string, string>> = {
+  'src/tla.ts': 'await Promise.resolve()\nexport const late = 1\n',
+  'tests/require-actual.test.ts': `import { expect, it, mock, mocked, requireActual } from 'provino'
+import { a, b } from '../src/actual.ts'
+import { compute } from '../src/auto.ts'
+import { value } from '../src/dep.ts'
+
+it('a synchronous factory reads the real module', () => {
+  expect(a).toBe(1)
+  expect(b).toBe(20)
+})
+
+it('a test reads the real module past the mock, synchronously', () => {
+  const real = requireActual<typeof import('../src/dep.ts')>('../src/dep.ts')
+  expect(real.value()).toBe('real')
+  expect(value()).toBe('mocked')
+})
+
+it('a graph with top-level await is refused by name', () => {
+  expect(() => requireActual('../src/tla.ts')).toThrow(/ERR_REQUIRE_ASYNC_MODULE|top-level await/)
+})
+
+it('mocked is the value itself, typed with the mock methods', () => {
+  mocked(compute).mockReturnValue(7)
+  expect(compute()).toBe(7)
+  expect(mocked(compute)).toBe(compute)
+})
+
+mock('../src/actual.ts', () => ({ ...requireActual('../src/actual.ts'), b: 20 }))
+mock('../src/dep.ts', () => ({ value: () => 'mocked' }))
+mock('../src/auto.ts')
+`,
+}
+
+describe('requireActual and mocked (B28)', () => {
+  for (const pool of POOLS) {
+    test(`--pool ${pool}`, async () => {
+      const dir = await nativeProject({ ...SOURCES, ...REQUIRE_ACTUAL })
+      const run = await spawnCli(nativeRunArgs(pool), { cwd: dir })
+      assert.equal(run.code, 0, `${run.stdout}\n${run.stderr}`)
+      const found = await outcomes(dir)
+      assert.equal(found.get('require-actual.test.ts'), 'passed,passed,passed,passed')
+    })
+  }
+})
+
+/** An alias import of a module with an adjacent manual mock, and a helper that imports it relatively. */
+function aliasedManual(suffix: '' | '.ts'): Readonly<Record<string, string>> {
+  return {
+    'src/utils/logger.ts': "export const log = (): string => 'real'\n",
+    'src/utils/__mocks__/logger.ts': "export const log = (): string => 'manual'\n",
+    'src/helper.ts': `import { log } from './utils/logger${suffix}'
+
+export const viaHelper = (): string => log()
+`,
+    'tests/aliased.test.ts': `import { expect, it, mock } from 'provino'
+import { log } from '@/utils/logger${suffix}'
+import { viaHelper } from '../src/helper.ts'
+
+it('an aliased mock with no factory uses the adjacent manual mock', () => {
+  expect(log()).toBe('manual')
+})
+
+it('a helper importing the module relatively sees the same mock', () => {
+  expect(viaHelper()).toBe('manual')
+})
+
+mock('@/utils/logger${suffix}')
+`,
+  }
+}
+
+describe('an aliased module with a manual mock (B28)', () => {
+  for (const [form, suffix] of [
+    ['with the extension', '.ts'],
+    ['without the extension', ''],
+  ] as const) {
+    for (const pool of ['forks', 'inline'] as const) {
+      test(`${form}, --pool ${pool}`, async () => {
+        const config =
+          "export default { include: ['tests/**/*.test.ts'], resolve: { aliases: { '@/*': './src/*' } } }\n"
+        const dir = await nativeProject({ ...aliasedManual(suffix) }, config)
+        const run = await spawnCli(nativeRunArgs(pool), { cwd: dir })
+        assert.equal(run.code, 0, `${run.stdout}\n${run.stderr}`)
+        const found = await outcomes(dir)
+        assert.equal(found.get('aliased.test.ts'), 'passed,passed')
+      })
+    }
+  }
 })

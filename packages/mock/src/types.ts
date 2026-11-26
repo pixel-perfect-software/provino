@@ -1,5 +1,5 @@
-// The first-cut public types (B13a Gap 10): `fn` and `spyOn` inference and misuse. T4.5 ports
-// upstream's assertions and adds `JestMock`, `Mocked*` and the second view.
+// The first-cut public types (B13a Gap 10): `fn` and `spyOn` inference and misuse, and the
+// `Mocked*` types (B28). T4.5 ports upstream's assertions and adds `JestMock` and the second view.
 
 /**
  * A function of unknown shape, the default target of a mock.
@@ -199,3 +199,49 @@ export type SpiedGetter<V> = Mock<() => V>
  * @public
  */
 export type SpiedSetter<V> = Mock<(value: V) => void>
+
+/**
+ * A function `T` after `mocked(value)`: it keeps its own call signature and members, and gains the
+ * mock methods.
+ * @public
+ */
+export type MockedFunction<T extends FunctionLike> = Mock<T> & { [K in keyof T]: T[K] }
+
+/**
+ * A class `T` after `mocked(value)`: construction makes a `Mocked` instance, its statics are
+ * mocked, and its prototype's methods are mocked too.
+ * @public
+ */
+export type MockedClass<T extends ClassLike> = MockInstance<
+  (...args: ConstructorParameters<T>) => Mocked<InstanceType<T>>
+> &
+  MockedObject<T>
+
+/**
+ * An object `T` after `mocked(value)`, mapped deeply (the neutral `automockShape: 'deep'`): each
+ * class member is a `MockedClass`, each function a `MockedFunction`, each object member a
+ * `MockedObject`, and any other value stays as it is.
+ * @public
+ */
+export type MockedObject<T extends object> = {
+  [K in keyof T]: T[K] extends ClassLike
+    ? MockedClass<T[K]>
+    : T[K] extends FunctionLike
+      ? MockedFunction<T[K]>
+      : T[K] extends object
+        ? MockedObject<T[K]>
+        : T[K]
+} & T
+
+/**
+ * What `mocked(value)` returns for a `value` of type `T`: a class, a function or an object with
+ * the mock methods typed in, and any other value as it is. The value itself is unchanged.
+ * @public
+ */
+export type Mocked<T> = T extends ClassLike
+  ? MockedClass<T>
+  : T extends FunctionLike
+    ? MockedFunction<T>
+    : T extends object
+      ? MockedObject<T>
+      : T

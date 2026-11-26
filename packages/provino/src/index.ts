@@ -17,6 +17,7 @@
 // would have its own matchers and its own state, not the test's.
 import type { ProvinoApi } from '@provino/api'
 import type { JestGlobals } from '@provino/dialect-jest/runtime'
+import type { Mocked } from '@provino/mock'
 
 export type {
   ProvinoApi,
@@ -26,7 +27,6 @@ export type {
   ProvinoSpyOn,
   ProvinoTimers,
 } from '@provino/api'
-
 export {
   evaluatedLazies,
   includeContext,
@@ -39,6 +39,14 @@ export {
   sharedContext,
   sharedExamples,
 } from '@provino/lazy'
+export type {
+  Mock,
+  Mocked,
+  MockedClass,
+  MockedFunction,
+  MockedObject,
+  MockInstance,
+} from '@provino/mock'
 
 /**
  * The worker API's old name: the Jest dialect's test-definition globals, as the Jest dialect
@@ -71,6 +79,8 @@ const JEST_INSTEAD: Readonly<Record<string, string>> = {
   mock: 'jest.mock',
   unmock: 'jest.unmock',
   importActual: 'jest.requireActual',
+  requireActual: 'jest.requireActual',
+  mocked: 'jest.mocked',
 }
 
 /** The names only the native API has (a Jest project's worker installs none of them). */
@@ -300,3 +310,16 @@ export const unmock: ProvinoApi['unmock'] = bound('unmock')
  * @public
  */
 export const importActual: ProvinoApi['importActual'] = bound('importActual')
+
+/**
+ * `requireActual`: the real module, past any mock of it, loaded synchronously (native API).
+ * @public
+ */
+export const requireActual: ProvinoApi['requireActual'] = bound('requireActual')
+
+/**
+ * `mocked`: `value`, typed with the mock methods of `Mocked`. It does nothing at run time, so it
+ * works anywhere, in or out of a worker.
+ * @public
+ */
+export const mocked: ProvinoApi['mocked'] = <T>(value: T): Mocked<T> => value as Mocked<T>

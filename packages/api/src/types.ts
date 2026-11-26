@@ -4,6 +4,7 @@ import type { FixtureTestApi, RuntimeApi, SuiteApi } from '@provino/core'
 import type { createExpect } from '@provino/expect'
 import type {
   Mock,
+  Mocked,
   MockRegistry,
   MockTarget,
   Replaced,
@@ -148,6 +149,17 @@ export type ProvinoApi = {
   readonly importActual: <T extends object = Record<string, unknown>>(
     specifier: string,
   ) => Promise<T>
+  /**
+   * The real module `specifier` names, past any mock of it, loaded synchronously with `require`
+   * semantics: a graph with top-level await throws `ERR_REQUIRE_ASYNC_MODULE`. Use `importActual`
+   * for that.
+   */
+  readonly requireActual: <T extends object = Record<string, unknown>>(specifier: string) => T
+  /**
+   * `value`, typed with the mock methods of `Mocked`: for a function or object a mock stands
+   * behind. It does nothing at run time.
+   */
+  readonly mocked: <T>(value: T) => Mocked<T>
 }
 
 /**

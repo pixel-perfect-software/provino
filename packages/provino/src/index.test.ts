@@ -26,6 +26,7 @@ const NAMES = [
   'mock',
   'unmock',
   'importActual',
+  'requireActual',
 ]
 
 const API_SLOT = PROVINO_API_SLOT
@@ -33,6 +34,7 @@ const API_SLOT = PROVINO_API_SLOT
 /** Provino's stateless extras: the lazy-variable forwarders, and the error the entry throws. */
 const EXTRAS = [
   'LazyError',
+  'mocked',
   'ProvinoWorkerApiError',
   'evaluatedLazies',
   'includeContext',
@@ -67,6 +69,11 @@ afterEach(() => {
 describe('the provino entry binds late to the worker globals (T1.10)', () => {
   test('exports the native API and the lazy variables, and no engine of its own', () => {
     assert.deepEqual(Object.keys(api).sort(), [...NAMES, ...EXTRAS].sort())
+  })
+
+  test('mocked is the value itself, in or out of a worker', () => {
+    const value = { load: (): number => 1 }
+    assert.equal(api.mocked(value), value)
   })
 
   test('outside a worker, each export throws one error that names it and says why', () => {
@@ -261,6 +268,7 @@ describe("a native-only name in a dialect's worker (B27b review)", () => {
       ['timers', 'jest.useFakeTimers'],
       ['mock', 'jest.mock'],
       ['importActual', 'jest.requireActual'],
+      ['requireActual', 'jest.requireActual'],
     ] as const) {
       assert.throws(
         () => Reflect.get(Reflect.get(api, name) as object, 'x'),

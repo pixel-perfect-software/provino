@@ -15,6 +15,10 @@ import {
   type MockCleanupConfig,
   type MockDecision,
   type MockError,
+  type Mocked,
+  type MockedClass,
+  type MockedFunction,
+  type MockedObject,
   type MockInstance,
   type MockRegistry,
   type MockTypeError,
@@ -207,3 +211,42 @@ expectTypeOf(automock({}, 'deep', 'autospy', maker)).toBeUnknown()
 automock({}, 'jest-metadata', 'automock', maker)
 // @ts-expect-error the mode is automock or autospy
 automock({}, 'deep', 'spy', maker)
+
+// `Mocked*` (B28): a function, a class and an object with the mock methods typed in.
+class Account {
+  static open(owner: string): Account {
+    return new Account(owner)
+  }
+  readonly owner: string
+  constructor(owner: string) {
+    this.owner = owner
+  }
+  balance(): number {
+    return 1
+  }
+}
+declare const service: { load(id: number): string; inner: { size(): number }; flag: boolean }
+
+declare const mockedFn: MockedFunction<(a: number) => string>
+expectTypeOf(mockedFn).toExtend<MockInstance<(a: number) => string>>()
+expectTypeOf(mockedFn(1)).toEqualTypeOf<string>()
+mockedFn.mockReturnValue('x')
+// @ts-expect-error the return value has the function's type
+mockedFn.mockReturnValue(1)
+
+declare const mockedObject: MockedObject<typeof service>
+mockedObject.load.mockReturnValue('x')
+mockedObject.inner.size.mockReturnValue(2)
+expectTypeOf(mockedObject.flag).toEqualTypeOf<boolean>()
+// @ts-expect-error a plain value has no mock methods
+mockedObject.flag.mockReturnValue
+
+declare const mockedClass: MockedClass<typeof Account>
+mockedClass.open.mockReturnValue(new Account('a'))
+expectTypeOf(new mockedClass('a').balance).toExtend<() => number>()
+expectTypeOf(mockedClass.mock.instances).toEqualTypeOf<Array<Mocked<Account>>>()
+
+expectTypeOf<Mocked<typeof service>>().toEqualTypeOf<MockedObject<typeof service>>()
+expectTypeOf<Mocked<() => void>>().toEqualTypeOf<MockedFunction<() => void>>()
+expectTypeOf<Mocked<typeof Account>>().toEqualTypeOf<MockedClass<typeof Account>>()
+expectTypeOf<Mocked<number>>().toEqualTypeOf<number>()

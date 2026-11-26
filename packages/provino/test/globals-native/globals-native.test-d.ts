@@ -24,3 +24,6 @@ globalThis.jest
 globalThis.mock
 // @ts-expect-error `importActual` is an import too
 globalThis.importActual
+// @ts-expect-error `requireActual` is an import too
+globalThis.requireActual
+expectTypeOf(globalThis.mocked).toEqualTypeOf<ProvinoApi['mocked']>()

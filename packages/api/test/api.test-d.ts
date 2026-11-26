@@ -36,6 +36,10 @@ expectTypeOf(provinoGlobals(host)).toEqualTypeOf<ProvinoGlobalsApi>()
 // The module-mock names are served per module, never globals.
 expectTypeOf<ProvinoGlobalsApi>().not.toHaveProperty('mock')
 expectTypeOf<ProvinoApi>().toHaveProperty('mock')
+expectTypeOf<ProvinoApi>().toHaveProperty('requireActual')
+expectTypeOf<ProvinoGlobalsApi>().not.toHaveProperty('requireActual')
+// `mocked` is a plain member, so it is a global too.
+expectTypeOf<ProvinoGlobalsApi>().toHaveProperty('mocked')
 expectTypeOf(new ProvinoApiError('API_MOCK_FACTORY', 'm').code).toEqualTypeOf<ProvinoApiErrorCode>()
 // @ts-expect-error the code is one of ProvinoApiErrorCode
 new ProvinoApiError('API_OTHER', 'm')
