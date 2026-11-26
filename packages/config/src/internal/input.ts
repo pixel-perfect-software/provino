@@ -40,6 +40,7 @@ const TOP_LEVEL_KEYS: readonly string[] = Object.keys({
   projects: true,
   pool: true,
   maxWorkers: true,
+  execArgv: true,
 } satisfies Record<Exclude<keyof ProvinoConfigInput, keyof ProjectConfig>, true>)
 
 const TIMEOUT_KEYS: readonly string[] = Object.keys({
@@ -123,6 +124,7 @@ export interface ParsedInput {
   /** Top-level only: the defaults `run` takes when the command line names none. */
   readonly pool: PoolKind | undefined
   readonly maxWorkers: number | undefined
+  readonly execArgv: readonly string[] | undefined
   /** Top-level only: the entries of `projects`, each a path or glob, or an inline project. */
   readonly projects: readonly (ProjectConfig | string)[] | undefined
 }
@@ -218,6 +220,19 @@ function isPoolKind(value: unknown): value is PoolKind {
 
 function isWorkerCount(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1
+}
+
+/**
+ * Node flags for the workers: non-empty strings, the first one a flag. A value may follow its flag
+ * as an entry of its own (`['--require', file]`), but one that comes first, or an empty entry,
+ * would reach `node` as the script to run.
+ */
+function isNodeFlags(value: unknown): value is readonly string[] {
+  return (
+    isStringArray(value) &&
+    value.every((entry) => entry !== '') &&
+    (value[0] === undefined || value[0].startsWith('-'))
+  )
 }
 
 function isProjectEntries(value: unknown): value is readonly (ProjectConfig | string)[] {
@@ -391,6 +406,12 @@ export function parseInput(
       isPoolKind,
     ),
     maxWorkers: optional(input, 'maxWorkers', 'a whole number of at least 1', isWorkerCount),
+    execArgv: optional(
+      input,
+      'execArgv',
+      'an array of Node flags (non-empty strings, the first one starting with "-")',
+      isNodeFlags,
+    ),
     projects: optional(
       input,
       'projects',

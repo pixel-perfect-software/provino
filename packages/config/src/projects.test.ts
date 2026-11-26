@@ -41,7 +41,12 @@ describe('resolveProjects', () => {
     })
 
   test('a config with no projects is the one project, with its run defaults', async () => {
-    const config = await resolveIn({ name: 'solo', pool: 'inline', maxWorkers: 3 })
+    const config = await resolveIn({
+      name: 'solo',
+      pool: 'inline',
+      maxWorkers: 3,
+      execArgv: ['--conditions=x', '--require', './setup.cjs'],
+    })
     assert.deepEqual(
       config.projects.map((p) => p.name),
       ['solo'],
@@ -49,6 +54,17 @@ describe('resolveProjects', () => {
     assert.equal(config.root, undefined)
     assert.equal(config.pool, 'inline')
     assert.equal(config.maxWorkers, 3)
+    assert.deepEqual(config.execArgv, ['--conditions=x', '--require', './setup.cjs'])
+  })
+
+  test('execArgv is optional, and is Node flags: the first entry a flag, none empty', async () => {
+    assert.equal((await resolveIn({ name: 'solo' })).execArgv, undefined)
+    assert.deepEqual((await resolveIn({ execArgv: [] })).execArgv, [])
+    // Node would take a first entry that is not a flag, or an empty one, as the script to run.
+    for (const execArgv of ['--x', ['conditions=x'], ['--x', ''], ['./setup.cjs', '--require']]) {
+      const error = await rejectsWith(resolveIn({ execArgv } as never), 'CONFIG_INVALID')
+      assert.match(error.message, /execArgv/)
+    }
   })
 
   test('an empty projects list is the config itself', async () => {
@@ -131,6 +147,11 @@ describe('resolveProjects', () => {
     await rejectsWith(resolveIn({ projects: [{ projects: ['x'] } as never] }), 'CONFIG_UNKNOWN_KEY')
     await rejectsWith(resolveIn({ projects: [{ pool: 'forks' } as never] }), 'CONFIG_UNKNOWN_KEY')
     await rejectsWith(resolveIn({ projects: [{ maxWorkers: 2 } as never] }), 'CONFIG_UNKNOWN_KEY')
+    const execArgv = await rejectsWith(
+      resolveIn({ projects: [{ execArgv: ['--x'] } as never] }),
+      'CONFIG_UNKNOWN_KEY',
+    )
+    assert.match(execArgv.message, /"execArgv" belongs to the top-level config only/)
   })
 
   test('a typo inside an inline project is CONFIG_UNKNOWN_KEY', async () => {

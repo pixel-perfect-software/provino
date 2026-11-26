@@ -15,9 +15,14 @@ import { UsageError } from './usage-error.ts'
 /**
  * The pool options a run overrides: only the ones given, so the policy's defaults stand. A limit
  * that makes no sense (`workerMemoryLimit`, `maxFilesPerWorker`, `fileTimeoutMs`, `bail`) is the
- * orchestrator's to refuse (`ORCH_BAD_OPTION`, exit 2); `maxWorkers` it would only round.
+ * orchestrator's to refuse (`ORCH_BAD_OPTION`, exit 2); `maxWorkers` it would only round. The
+ * config's `execArgv` (`configFlags`) goes after the coordinator's own flags, which a fork takes and
+ * a thread inherits by default; with none to add the transports keep that default.
  */
-function poolOptions(options: RunOptions): NonNullable<RunProjectOptions['pool']> {
+function poolOptions(
+  options: RunOptions,
+  configFlags: readonly string[] = [],
+): NonNullable<RunProjectOptions['pool']> {
   if (
     options.maxWorkers !== undefined &&
     (!Number.isSafeInteger(options.maxWorkers) || options.maxWorkers < 1)
@@ -39,6 +44,7 @@ function poolOptions(options: RunOptions): NonNullable<RunProjectOptions['pool']
             ...(maxFilesPerWorker === undefined ? {} : { maxFilesPerWorker }),
           },
         }),
+    ...(configFlags.length === 0 ? {} : { execArgv: [...process.execArgv, ...configFlags] }),
   }
 }
 
@@ -96,13 +102,16 @@ export async function resolveRun(options: RunOptions): Promise<ResolvedRun> {
   const [project, ...others] = resolved.projects
   if (project === undefined) throw new UsageError('the config has no project to run')
   // The command line wins over the config's own defaults.
-  const pool = poolOptions({
-    ...options,
-    ...(options.pool === undefined && resolved.pool !== undefined ? { pool: resolved.pool } : {}),
-    ...(options.maxWorkers === undefined && resolved.maxWorkers !== undefined
-      ? { maxWorkers: resolved.maxWorkers }
-      : {}),
-  })
+  const pool = poolOptions(
+    {
+      ...options,
+      ...(options.pool === undefined && resolved.pool !== undefined ? { pool: resolved.pool } : {}),
+      ...(options.maxWorkers === undefined && resolved.maxWorkers !== undefined
+        ? { maxWorkers: resolved.maxWorkers }
+        : {}),
+    },
+    resolved.execArgv,
+  )
   return { project, others, root: resolved.root, cwd, configPath, env, pool }
 }
 

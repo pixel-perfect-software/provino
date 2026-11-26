@@ -40,6 +40,14 @@ interface TopLevelKeys {
   readonly pool?: PoolKind
   /** The most workers `provino run` starts when the command line names no number. */
   readonly maxWorkers?: number
+  /**
+   * Node flags each forked or threaded worker starts with, after the coordinator's own
+   * `process.execArgv`: one argument per entry, the first a flag (`['--conditions=development']`).
+   * Node reads a relative path in a flag from the working directory. A thread refuses V8 flags such
+   * as `--max-old-space-size`, the coordinator's own included (pass them in `NODE_OPTIONS`). An
+   * `inline` pool or an in-band run shares the coordinator's process and ignores the key.
+   */
+  readonly execArgv?: readonly string[]
 }
 
 /**

@@ -30,6 +30,7 @@ const full: ProvinoConfigInput = {
   },
   pool: 'forks',
   maxWorkers: 4,
+  execArgv: ['--conditions=provino-source'],
   projects: [
     'packages/*',
     { name: 'inline', include: ['test/**/*.test.ts'], timeouts: { test: 1 } },
@@ -46,13 +47,15 @@ expectTypeOf<ConfigResolve['tsconfig']>().toEqualTypeOf<
 >()
 expectTypeOf<ConfigResolve['tsconfig']>().not.toEqualTypeOf<false | string | undefined>()
 expectTypeOf<
-  'timeouts' | 'resolve' | 'environmentOptions' | 'pool' | 'maxWorkers'
+  'timeouts' | 'resolve' | 'environmentOptions' | 'pool' | 'maxWorkers' | 'execArgv'
 >().toExtend<ReservedConfigKey>()
 // A project's own keys cover the per-project ones; the run's keys are the top level's only.
 expectTypeOf<ProjectConfig>().toHaveProperty('timeouts')
 expectTypeOf<ProjectConfig>().toHaveProperty('resolve')
 expectTypeOf<ProjectConfig>().not.toHaveProperty('pool')
 expectTypeOf<ProjectConfig>().not.toHaveProperty('projects')
+expectTypeOf<ProjectConfig>().not.toHaveProperty('execArgv')
+expectTypeOf<ProvinoConfigInput['execArgv']>().toEqualTypeOf<readonly string[] | undefined>()
 
 // `ProvinoConfig` is the config or a (maybe async) function of the env that returns one.
 const asFunction: ProvinoConfig = (env: ConfigEnv) => ({ include: [env.mode] })
