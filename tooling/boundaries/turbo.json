@@ -4,7 +4,7 @@
   "tasks": {
     "test": {
       "cache": false,
-      "dependsOn": ["transit", "provino#build"]
+      "dependsOn": ["transit"]
     }
   }
 }

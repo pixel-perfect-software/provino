@@ -15,8 +15,8 @@ import {
   CANARY,
   migratedDirs,
   RUNNER_BIN,
-  TEST_BUILD,
   TEST_RUNNER,
+  testDependsOn,
   testFilesOf,
   testScript,
 } from './dogfood.ts'
@@ -252,22 +252,23 @@ describe('testScript', () => {
   })
 })
 
-// Every migrated package's `test` task waits for `TEST_BUILD` (`dogfood.ts` says why). A checkout that
-// has built before hides a missing one, so this is the check that sees it.
+// A migrated package's `test` task waits for no build (the workers run source through the shared config's
+// `execArgv`, D206), but for the packages in `BUILT_TEST_DEPENDS_ON`, whose tests need a built `dist`. A
+// checkout that has built before hides a missing `dist`, so this is the check that sees it.
 describe("a migrated package's turbo test task", () => {
-  it("waits for every package's build", () => {
+  it('waits for a build only where BUILT_TEST_DEPENDS_ON says its tests need one', () => {
     const dirs = migratedDirs(ROOT)
     assert.ok(dirs.length > 0, 'no migrated package found')
-    const missing = dirs.flatMap((dir) => {
-      const turbo = JSON.parse(readFileSync(join(ROOT, dir, 'turbo.json'), 'utf8')) as {
-        readonly tasks?: { readonly test?: { readonly dependsOn?: readonly string[] } }
-      }
-      const dependsOn = turbo.tasks?.test?.dependsOn ?? []
-      // `provino`'s own `build` is `TEST_BUILD`.
-      const build = dir === 'packages/provino' ? 'build' : TEST_BUILD
-      return dependsOn.includes(build) ? [] : [`${dir}/turbo.json: ${JSON.stringify(dependsOn)}`]
-    })
-    assert.deepEqual(missing, [])
+    const actual = Object.fromEntries(
+      dirs.map((dir) => {
+        const turbo = JSON.parse(readFileSync(join(ROOT, dir, 'turbo.json'), 'utf8')) as {
+          readonly tasks?: { readonly test?: { readonly dependsOn?: readonly string[] } }
+        }
+        return [dir, turbo.tasks?.test?.dependsOn ?? []]
+      }),
+    )
+    const expected = Object.fromEntries(dirs.map((dir) => [dir, testDependsOn(dir)]))
+    assert.deepEqual(actual, expected)
   })
 })
 

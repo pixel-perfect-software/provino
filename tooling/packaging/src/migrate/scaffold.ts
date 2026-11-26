@@ -8,13 +8,7 @@
 import { existsSync, readdirSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
-import {
-  PACKAGE_CONFIG,
-  SRC_TEST_GLOB,
-  TEST_DEPENDS_ON,
-  TEST_ROOTS,
-  testScript,
-} from '../dogfood.ts'
+import { PACKAGE_CONFIG, SRC_TEST_GLOB, TEST_ROOTS, testDependsOn, testScript } from '../dogfood.ts'
 import { record } from '../package-json.ts'
 import { MigrateError } from './errors.ts'
 
@@ -29,12 +23,12 @@ export default config
 /** The tests projects' shared base (compiler options every migrated package's tests project needs). */
 const TESTS_BASE = '../../tooling/provino/tsconfig.tests.base.json'
 
-const TURBO = {
+const turboFor = (dir: string): Json => ({
   $schema: '../../node_modules/turbo/schema.json',
   extends: ['//'],
   tasks: {
     test: {
-      dependsOn: [...TEST_DEPENDS_ON],
+      dependsOn: [...testDependsOn(dir)],
       inputs: [
         '$TURBO_DEFAULT$',
         '$TURBO_ROOT$/tooling/provino/**',
@@ -42,7 +36,7 @@ const TURBO = {
       ],
     },
   },
-}
+})
 
 type Json = Record<string, unknown>
 type Reference = { path: string }
@@ -294,7 +288,7 @@ export async function scaffoldPackage(
   const { value: manifest } = parseJson(manifestPath, await readFile(manifestPath, 'utf8'), false)
 
   await writeIfMissing(join(packageDir, PACKAGE_CONFIG), CONFIG, changes)
-  await writeIfMissing(join(packageDir, 'turbo.json'), json(TURBO), changes)
+  await writeIfMissing(join(packageDir, 'turbo.json'), json(turboFor(dir)), changes)
 
   // The tests project: `provino` depends on most packages, so the tests cannot sit in the package's
   // own project (a cycle). It references the package's project, `provino` (not itself), the

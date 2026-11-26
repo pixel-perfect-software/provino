@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, it } from 'provino'
-import { TEST_RUNNER } from '../dogfood.ts'
+import { TEST_DEPENDS_ON, TEST_RUNNER } from '../dogfood.ts'
 import { scratchDir } from '../test-support.ts'
 import { scaffoldPackage } from './scaffold.ts'
 
@@ -46,6 +46,13 @@ describe('scaffoldPackage', () => {
       manifest.scripts.test,
       `${TEST_RUNNER} && node --test --conditions=provino-source src/x.test.ts`,
     )
+  })
+
+  it("writes the turbo test task's dependsOn from testDependsOn", async () => {
+    const root = workspace()
+    await scaffoldPackage(root, join(root, 'packages/a'))
+    const turbo = JSON.parse(await readFile(join(root, 'packages/a/turbo.json'), 'utf8'))
+    assert.deepEqual(turbo.tasks.test.dependsOn, [...TEST_DEPENDS_ON])
   })
 
   it("merges into an existing exclude and derives the tests project's references from the dependencies", async () => {

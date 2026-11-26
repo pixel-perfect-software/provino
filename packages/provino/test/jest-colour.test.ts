@@ -5,8 +5,8 @@
 import assert from 'node:assert/strict'
 import { execFile } from 'node:child_process'
 import { createRequire } from 'node:module'
-import { describe, it } from 'node:test'
 import { promisify } from 'node:util'
+import { describe, it } from 'provino'
 
 const execFileAsync = promisify(execFile)
 
@@ -62,7 +62,7 @@ function ours(flag: boolean | undefined, env: Record<string, string>): boolean {
   }).colour
 }
 
-describe('provino jest colour follows supports-color, as Jest does', async () => {
+describe.concurrent('provino jest colour follows supports-color, as Jest does', () => {
   const flags: readonly [string, readonly string[], boolean | undefined][] = [
     ['--colors', ['--colors'], true],
     ['--no-color', ['--no-color'], false],
@@ -74,29 +74,22 @@ describe('provino jest colour follows supports-color, as Jest does', async () =>
     ['FORCE_COLOR unset', {}],
     ['NO_COLOR=1', { NO_COLOR: '1' }],
   ]
-  // What supports-color says for each cell, asked of all the children at once.
-  const cells = await Promise.all(
-    flags.flatMap(([flagName, argv, flag]) =>
-      envs.map(async ([envName, env]) => ({
-        flagName,
-        flag,
-        envName,
-        env,
-        answer: await theirs(argv, env),
-      })),
-    ),
-  )
-  for (const { flagName, flag, envName, env, answer } of cells) {
-    // Declared divergence: on a terminal with no flag, `NO_COLOR` turns Provino's colour off
-    // (reporters.test.ts holds that) where Jest's chalk, which never reads it, colours.
-    const declared = flag === undefined && 'NO_COLOR' in env
-    it(`${flagName} with ${envName}${declared ? ' (declared: NO_COLOR is read)' : ''}`, () => {
-      if (declared) {
-        assert.equal(ours(flag, env), false)
-        assert.equal(answer, true)
-      } else {
-        assert.equal(ours(flag, env), answer)
-      }
-    })
+  // What supports-color says for each cell is asked of a child when its test runs, never when the
+  // file is only imported (`.claude/rules/tests.md`).
+  for (const [flagName, argv, flag] of flags) {
+    for (const [envName, env] of envs) {
+      // Declared divergence: on a terminal with no flag, `NO_COLOR` turns Provino's colour off
+      // (reporters.test.ts holds that) where Jest's chalk, which never reads it, colours.
+      const declared = flag === undefined && 'NO_COLOR' in env
+      it(`${flagName} with ${envName}${declared ? ' (declared: NO_COLOR is read)' : ''}`, async () => {
+        const answer = await theirs(argv, env)
+        if (declared) {
+          assert.equal(ours(flag, env), false)
+          assert.equal(answer, true)
+        } else {
+          assert.equal(ours(flag, env), answer)
+        }
+      })
+    }
   }
 })
