@@ -1,5 +1,21 @@
 # @provino/resolver
 
+## 0.1.0-rc.7
+
+### Patch Changes
+
+- ecc8972: The Vitest config reader: `@provino/dialect-vitest/node` finds `vitest.config.*` or `vite.config.*`, imports it natively (`vitest/config` is served by a stand-in, so reading a config loads neither Vitest nor Vite), applies `test` over Vitest's defaults and the command line over the file, resolves `test.projects` and the `.env*` files, and returns neutral projects; a config with plugins is marked for the Vite bridge. `@provino/resolver` gains `viteAliasMapper` (a `@provino/resolver/vite-alias` subpath), Vite's `resolve.alias` rule, and `@provino/types` gains `NeutralProject.mappers`, which carries it. Bare `provino` now detects a `vite.config.*` with a `test` key as a Vitest project. `provino vitest` itself is still not available.
+- Updated dependencies [28c95d9]
+- Updated dependencies [5a4dce2]
+- Updated dependencies [9f7b73d]
+- Updated dependencies [7daea04]
+- Updated dependencies [c730222]
+- Updated dependencies [ba5e5f7]
+- Updated dependencies [ecc8972]
+- Updated dependencies [55de21e]
+- Updated dependencies [c2970a6]
+  - @provino/types@0.1.0-rc.7
+
 ## 0.1.0-rc.6
 
 ### Patch Changes

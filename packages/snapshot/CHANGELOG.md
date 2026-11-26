@@ -1,5 +1,21 @@
 # @provino/snapshot
 
+## 0.1.0-rc.7
+
+### Patch Changes
+
+- c2970a6: The Vitest dialect has its own `expect`: `@vitest/expect` 5.0.5's matchers (aliases, sinon-chai's names, `toSatisfy` and `toBeOneOf` included) over Provino's front end, failing with Chai's `AssertionError` and Vitest's messages and diff, with Chai loaded only on a failure or a Chai assertion (`expect(x).to.equal(1)`), `expect(value, message)`, and equality that judges values from another realm by their class. `ExpectTable` gains `assertionError`, `chain` and `equals` for it, its `messages` may leave the engine's own policy words out (`ExpectTableMessages`), `ExpectPolicy` gains `settlementCheck` and `messageArgument`, and A Vitest failure carries Vitest's diff (`SerializedError.diff` is now that text, and the dialect's `core.shapeTestError` adds it where an error has none). `SnapshotPolicy.mismatch: 'throw'` makes a snapshot that differs throw at the call, as Vitest's does. `@provino/expect` exports `policyMessages`, the one copy of the words for its async and counting policies.
+- Updated dependencies [28c95d9]
+- Updated dependencies [5a4dce2]
+- Updated dependencies [9f7b73d]
+- Updated dependencies [7daea04]
+- Updated dependencies [c730222]
+- Updated dependencies [ba5e5f7]
+- Updated dependencies [ecc8972]
+- Updated dependencies [55de21e]
+- Updated dependencies [c2970a6]
+  - @provino/types@0.1.0-rc.7
+
 ## 0.1.0-rc.6
 
 ### Patch Changes

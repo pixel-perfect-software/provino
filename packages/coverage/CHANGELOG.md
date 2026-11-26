@@ -1,5 +1,21 @@
 # @provino/coverage
 
+## 0.1.0-rc.7
+
+### Patch Changes
+
+- ce31acb: Error and help messages no longer name internal task ids. A non-empty `plugins` or `alsoServe` says `config key "plugins" isn't supported yet`; `provino --help` no longer says that a build loads the Jest dialect's code or points at the task that builds a refused flag; and the "not implemented yet", "not supported yet" and "not applied" texts of `provino run`, `provino jest` and `provino vitest`, the loader, the environments, core, the orchestrator, coverage, the transform and the inline snapshot matchers drop their task and decision references.
+- Updated dependencies [28c95d9]
+- Updated dependencies [5a4dce2]
+- Updated dependencies [9f7b73d]
+- Updated dependencies [7daea04]
+- Updated dependencies [c730222]
+- Updated dependencies [ba5e5f7]
+- Updated dependencies [ecc8972]
+- Updated dependencies [55de21e]
+- Updated dependencies [c2970a6]
+  - @provino/types@0.1.0-rc.7
+
 ## 0.1.0-rc.6
 
 ### Patch Changes

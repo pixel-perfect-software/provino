@@ -1,5 +1,42 @@
 # @provino/orchestrator
 
+## 0.1.0-rc.7
+
+### Minor Changes
+
+- 9f7b73d: The Vitest command line (`vitestCli` in `@provino/dialect-vitest/node`: Vitest 5.0.5's `parseCLI` and its checks, rebuilt) and the first of Vitest's results (`@provino/dialect-vitest/results`: `createVitestResults`, its `json` document). `provino vitest` runs a Vitest project once, as `vitest run` does, with Vitest's exit codes, `--reporter=json`, `--outputFile`, `--shard` (Vitest's split, `orchestrator.shard.fallback: 'rooted-sha1-slice'`), `--project`, `--bail`, `--passWithNoTests` and the variables Vitest's CLI sets; bare `provino` runs a Vitest project the same way. Every flag, command, reporter option and config key it does not apply is refused by name, or warned about as not applied for a config key (D183: Vitest is parked after this release).
+
+### Patch Changes
+
+- ce31acb: Error and help messages no longer name internal task ids. A non-empty `plugins` or `alsoServe` says `config key "plugins" isn't supported yet`; `provino --help` no longer says that a build loads the Jest dialect's code or points at the task that builds a refused flag; and the "not implemented yet", "not supported yet" and "not applied" texts of `provino run`, `provino jest` and `provino vitest`, the loader, the environments, core, the orchestrator, coverage, the transform and the inline snapshot matchers drop their task and decision references.
+- 334af48: `WatchSessionOptions.configFile`: the config file's path, a project input to the affected index (under the neutral policy a change to it selects every test) and a path the watcher reports whatever the crawl keeps.
+- Updated dependencies [28c95d9]
+- Updated dependencies [5a4dce2]
+- Updated dependencies [9f7b73d]
+- Updated dependencies [7daea04]
+- Updated dependencies [c730222]
+- Updated dependencies [d0821a2]
+- Updated dependencies [021f020]
+- Updated dependencies [6002b7a]
+- Updated dependencies [26b1b86]
+- Updated dependencies [ce31acb]
+- Updated dependencies [ba5e5f7]
+- Updated dependencies [ecc8972]
+- Updated dependencies [55de21e]
+- Updated dependencies [c2970a6]
+  - @provino/core@0.1.0-rc.7
+  - @provino/lazy@0.1.0-rc.7
+  - @provino/types@0.1.0-rc.7
+  - @provino/config@0.1.0-rc.7
+  - @provino/expect@0.1.0-rc.7
+  - @provino/loader@0.1.0-rc.7
+  - @provino/policy@0.1.0-rc.7
+  - @provino/coverage@0.1.0-rc.7
+  - @provino/snapshot@0.1.0-rc.7
+  - @provino/mock@0.1.0-rc.7
+  - @provino/rpc@0.1.0-rc.7
+  - @provino/timers@0.1.0-rc.7
+
 ## 0.1.0-rc.6
 
 ### Patch Changes
