@@ -222,6 +222,19 @@ function isWorkerCount(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && value >= 1
 }
 
+/**
+ * Node flags for the workers: non-empty strings, the first one a flag. A value may follow its flag
+ * as an entry of its own (`['--require', file]`), but one that comes first, or an empty entry,
+ * would reach `node` as the script to run.
+ */
+function isNodeFlags(value: unknown): value is readonly string[] {
+  return (
+    isStringArray(value) &&
+    value.every((entry) => entry !== '') &&
+    (value[0] === undefined || value[0].startsWith('-'))
+  )
+}
+
 function isProjectEntries(value: unknown): value is readonly (ProjectConfig | string)[] {
   return Array.isArray(value) && value.every((entry) => isString(entry) || isRecord(entry))
 }
@@ -393,7 +406,12 @@ export function parseInput(
       isPoolKind,
     ),
     maxWorkers: optional(input, 'maxWorkers', 'a whole number of at least 1', isWorkerCount),
-    execArgv: optional(input, 'execArgv', 'an array of strings', isStringArray),
+    execArgv: optional(
+      input,
+      'execArgv',
+      'an array of Node flags (non-empty strings, the first one starting with "-")',
+      isNodeFlags,
+    ),
     projects: optional(
       input,
       'projects',

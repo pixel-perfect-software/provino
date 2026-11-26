@@ -69,6 +69,12 @@ describe('resolveProjects', () => {
     assert.match(error.message, /"execArgv" belongs to the top-level config only/)
     const bad = await rejectsWith(resolveIn({ execArgv: '--x' } as never), 'CONFIG_INVALID')
     assert.match(bad.message, /execArgv/)
+    // Node would take a first entry that is not a flag, or an empty one, as the script to run.
+    for (const execArgv of [['conditions=x'], ['--x', ''], ['./setup.cjs', '--require']]) {
+      const notFlags = await rejectsWith(resolveIn({ execArgv }), 'CONFIG_INVALID')
+      assert.match(notFlags.message, /execArgv/)
+    }
+    assert.deepEqual((await resolveIn({ execArgv: [] })).execArgv, [])
   })
 
   test('an empty projects list is the config itself', async () => {
