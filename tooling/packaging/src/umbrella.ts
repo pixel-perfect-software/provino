@@ -41,35 +41,6 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
 }
 
 /**
- * The add-ons' worker modules (D187), which the umbrella built until B27f: entries of the public
- * declarations pass still, and nothing else, so the pass's chunk graph (the files in `chunks/` and
- * the aliases Rolldown's declaration bundler gives the types they share) is the one it was. Those
- * aliases were in `etc/provino.api.md` while the root entry's `types` file was a chunk; since
- * B27i no entry's is, no report reads them, and without these entries every report is unchanged
- * (2026-11-26), so they can go. Their own files are not written (`dropDeclarations`): `provino`
- * ships no such module.
- */
-const DECLARATION_ONLY_ENTRIES: Readonly<Record<string, string>> = {
-  '@provino/dialect-jest/runtime': 'worker/jest-runtime',
-  '@provino/dialect-jest/global-setup': 'worker/jest-global-setup',
-  '@provino/dialect-jest/inline-snapshots': 'worker/jest-inline-snapshots',
-  '@provino/dialect-jest/affected': 'worker/jest-affected',
-  '@provino/dialect-vitest/runtime': 'worker/vitest-runtime',
-}
-
-/** Drops the declaration files of `DECLARATION_ONLY_ENTRIES` from the output. */
-function dropDeclarations(): PluginList {
-  return [
-    {
-      name: 'provino-drop-declaration-only-entries',
-      generateBundle(_options, bundle) {
-        for (const name of Object.values(DECLARATION_ONLY_ENTRIES)) delete bundle[`${name}.d.ts`]
-      },
-    },
-  ]
-}
-
-/**
  * The entries `table` names (specifier to entry name), each with the source the `provino-source`
  * condition of that subpath gives in its package: a subpath that moved fails here, by name.
  */
@@ -305,11 +276,12 @@ export function workerRefs(): PluginList {
 const SOURCE_RESOLVE = { conditionNames: ['provino-source', 'import', 'node', 'default'] }
 
 /**
- * The tsdown configs of the `provino` package, built in its directory: the JavaScript, then the
- * declarations. Every `@provino/*` package is inlined (from source, through `provino-source`), the
- * third-party packages the umbrella declares stay external, and nothing else may be imported by
- * the output. The two are separate builds because the chunk groups of the first would name the
- * declarations' own intermediate chunks too, and the two kinds of chunk would overwrite each other.
+ * The tsdown configs of the `provino` package, built in its directory: the JavaScript, the public
+ * declarations and the internal declarations. Every `@provino/*` package is inlined (from source,
+ * through `provino-source`), the third-party packages the umbrella declares stay external, and
+ * nothing else may be imported by the output. The JavaScript and the declarations are separate
+ * builds because the chunk groups of the first would name the declarations' own intermediate chunks
+ * too, and the two kinds of chunk would overwrite each other.
  * `dist` is emptied here, once, so the builds (which run together) never clean each other's files.
  * @internal
  */
@@ -317,10 +289,9 @@ export function umbrellaConfig(dir: string): UserConfig[] {
   const manifest = readManifest(dir)
   rmSync(join(dir, 'dist'), { recursive: true, force: true })
   const entries = umbrellaEntries(dir)
-  const publicEntries = {
-    ...Object.fromEntries(Object.entries(entries).filter(([name]) => !isInternalEntry(name))),
-    ...sourcesOf(dir, DECLARATION_ONLY_ENTRIES),
-  }
+  const publicEntries = Object.fromEntries(
+    Object.entries(entries).filter(([name]) => !isInternalEntry(name)),
+  )
   const internalEntries = Object.fromEntries(
     Object.entries(entries).filter(([name]) => isInternalEntry(name)),
   )
@@ -456,7 +427,7 @@ export function umbrellaConfig(dir: string): UserConfig[] {
       // (B27i): one named after an `index.ts` module took `index.d.ts`, which `types` names.
       outputOptions: { chunkFileNames: 'chunks/[name].d.ts' },
       // `jest.d.ts` and `vitest.d.ts` register their dialect on the registry `config.d.ts` exports.
-      plugins: [...dropDeclarations(), ...augmentationTarget(), ...entryFiles()],
+      plugins: [...augmentationTarget(), ...entryFiles()],
     },
     {
       ...common,

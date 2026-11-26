@@ -61,7 +61,7 @@ export function entryFiles(): PluginList {
             : `${item.name}.js`
           if (item.fileName !== expected) {
             throw new Error(
-              `entry ${item.name}: written to ${item.fileName}, not ${expected}, which its exports name: another chunk took that file name (give the chunks a directory of their own with chunkFileNames)`,
+              `entry ${item.name}: written to ${item.fileName}, not ${expected}, which its exports name: another chunk took that file name. Give that build's chunks a directory of their own with outputOptions.chunkFileNames, as umbrellaConfig's declaration passes do ('chunks/[name].d.ts'); PRESET sets none`,
             )
           }
         }

@@ -132,7 +132,9 @@ describe('the built declarations, as a user compiles them', () => {
       true,
     ),
   )
-  // `provino` alone: `provino/jest` and `provino/vitest` carry the declarations of their dialect.
+  // `provino` alone, as a native project has it: `provino/jest` and `provino/vitest` carry the
+  // declarations of their dialect, and `import … from 'provino'` types the main names of the native
+  // API, each used as a value (the names test below covers every export).
   const alone = once(() =>
     consumer(
       {
@@ -146,15 +148,6 @@ describe('the built declarations, as a user compiles them', () => {
           "export const unknown = defineConfig({ dialect: 'mocha' })",
           '',
         ].join('\n'),
-      },
-      false,
-    ),
-  )
-
-  // `provino` alone, as a native project has it: every name of the native API, used as a value.
-  const native = once(() =>
-    consumer(
-      {
         'native.ts': [
           'import {',
           '  afterAll, afterEach, aroundAll, aroundEach, beforeAll, beforeEach, describe, expect, fn,',
@@ -202,17 +195,12 @@ describe('the built declarations, as a user compiles them', () => {
   )
 
   for (const compiler of COMPILERS) {
-    test(`import … from 'provino' types the native API (${compiler})`, () => {
-      const { status, output } = compile(compiler, native())
-      assert.equal(status, 0, output)
-    })
-
     test(`the add-ons' names and a user's augmentation reach every registry reader (${compiler})`, () => {
       const { status, output } = compile(compiler, withAddOns())
       assert.equal(status, 0, output)
     })
 
-    test(`provino/jest and provino/vitest register their dialect without the add-ons (${compiler})`, () => {
+    test(`provino alone types the native API, and provino/jest and provino/vitest register their dialect (${compiler})`, () => {
       const { status, output } = compile(compiler, alone())
       assert.equal(status, 0, output)
     })
@@ -229,7 +217,14 @@ describe('the built declarations, as a user compiles them', () => {
       ([subpath, conditions]) =>
         !subpath.startsWith('./internal/') && conditions['provino-source']?.endsWith('.ts'),
     )
-    assert.ok(entries.length >= 9, `only ${entries.length} public entries`)
+    // The subpaths a user's program needs; dropping some other entry must not fail this.
+    const subpaths = entries.map(([subpath]) => subpath)
+    for (const required of ['.', './config']) {
+      assert.ok(
+        subpaths.includes(required),
+        `no public entry ${required} among ${subpaths.join(', ')}`,
+      )
+    }
     for (const [subpath, conditions] of entries) {
       const source = exportedNames(join(dir, conditions['provino-source'] ?? ''))
       const built = exportedNames(join(dir, conditions.types ?? ''))
