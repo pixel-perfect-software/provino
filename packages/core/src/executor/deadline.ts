@@ -1,6 +1,6 @@
-// Real-timer deadlines (Track 5 decision 9). Timeouts use timers captured before user code runs
-// (the caller passes the loader's capture; the default is what was global when core loaded), so
-// fake timers can't freeze them. An elapsed-time check on settle catches synchronous overruns
+// Real-timer deadlines (Track 5 decision 9). Timeouts use timers and the monotonic clock captured
+// before user code runs (the caller passes the loader's capture; the default is what was global
+// when core loaded), so fake timers can't freeze or move them. An elapsed-time check on settle catches synchronous overruns
 // when the policy asks (`timeouts.catchSyncOverrun`). `createDeadlines` owns every user call's
 // deadline: its bound, its `CORE_TIMEOUT` message and the test signal it aborts.
 import type { CorePolicy, FormatTimeout, SourceLocation } from '@provino/types'

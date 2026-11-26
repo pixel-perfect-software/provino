@@ -137,7 +137,6 @@ async function project(): Promise<{ readonly dir: string }> {
 async function assertNativeRun(dir: string, status: number | null, output: string): Promise<void> {
   // One test fails on purpose.
   assert.equal(status, 1, output)
-  const { readFile } = await import('node:fs/promises')
   const text = await readFile(join(dir, 'results.json'), 'utf8')
   const view = viewOfNormalized(text)
   assert.equal(view.success, false)
@@ -199,19 +198,15 @@ describe('the native API through provino run (built bin)', () => {
  * (a past date) or its `afterEach` (a future one) ended "timed out" at once, with `useRealTimers`
  * in an `afterEach`.
  */
-const FAKE_CLOCK = `import { afterEach, expect, it, timers } from 'provino'
+const FAKE_CLOCK = `import { afterEach, it, timers } from 'provino'
 
-afterEach(() => {
-  timers.useRealTimers()
-})
+afterEach(() => timers.useRealTimers())
 
 for (const date of ['2030-01-01', '2000-01-01']) {
   it(\`clears the timers after a system time of \${date}\`, () => {
     timers.useFakeTimers()
-    const id = setInterval(() => {}, 1000)
     timers.setSystemTime(new Date(date))
     timers.clearAllTimers()
-    expect(id).toBeDefined()
   })
 }
 `
@@ -308,7 +303,6 @@ describe('the Jest dialect', () => {
       env: QUIET_ENV,
       reporters: [['normalized-json', { outputFile: 'results.json' }]],
     })
-    const { readFile } = await import('node:fs/promises')
     const text = await readFile(join(jest.dir, 'results.json'), 'utf8')
     assert.equal(second.exitCode, 0, text)
     const [file] = [...viewOfNormalized(text).files.values()]
