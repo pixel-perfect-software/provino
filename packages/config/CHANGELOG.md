@@ -1,5 +1,16 @@
 # @provino/config
 
+## 0.1.0-rc.8
+
+### Patch Changes
+
+- 4534450: A native `provino.config.*` takes a top-level `execArgv`: the Node flags each forked or threaded worker starts with (`['--conditions=development']`), added after the coordinator's own. It is top level only (a project in `projects` refuses it), and an `inline` pool or an in-band run ignores it.
+- Updated dependencies [4534450]
+  - @provino/types@0.1.0-rc.8
+  - @provino/policy@0.1.0-rc.8
+  - @provino/resolver@0.1.0-rc.8
+  - @provino/transform@0.1.0-rc.8
+
 ## 0.1.0-rc.7
 
 ### Patch Changes

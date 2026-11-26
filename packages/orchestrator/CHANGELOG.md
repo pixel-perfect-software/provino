@@ -1,5 +1,23 @@
 # @provino/orchestrator
 
+## 0.1.0-rc.8
+
+### Patch Changes
+
+- Updated dependencies [4534450]
+  - @provino/types@0.1.0-rc.8
+  - @provino/config@0.1.0-rc.8
+  - @provino/core@0.1.0-rc.8
+  - @provino/coverage@0.1.0-rc.8
+  - @provino/expect@0.1.0-rc.8
+  - @provino/lazy@0.1.0-rc.8
+  - @provino/loader@0.1.0-rc.8
+  - @provino/mock@0.1.0-rc.8
+  - @provino/policy@0.1.0-rc.8
+  - @provino/rpc@0.1.0-rc.8
+  - @provino/snapshot@0.1.0-rc.8
+  - @provino/timers@0.1.0-rc.8
+
 ## 0.1.0-rc.7
 
 ### Minor Changes
