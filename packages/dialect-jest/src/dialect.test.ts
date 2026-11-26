@@ -232,10 +232,10 @@ test('values that equal the neutral ones are not divergences', () => {
   }
 })
 
-test('the default isolation tier is registry (DECISIONS D6), and the DOM environments stay on realm', () => {
+test('the default isolation tier is registry (DECISIONS D6), the DOM environments included (D207)', () => {
   assert.deepEqual(resolved.orchestrator.isolationDefault, {
     default: 'registry',
-    byEnvironment: { jsdom: 'realm', 'happy-dom': 'realm' },
+    byEnvironment: {},
   })
 })
 

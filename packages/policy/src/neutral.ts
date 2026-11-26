@@ -304,11 +304,12 @@ export const neutralPolicy: Policy = deepFreeze({
     coverageProvider: 'v8',
     coverageReporters: ['text', 'html', 'json'],
     slowTestThresholdMs: 300,
-    // DOM globals would leak between files in a shared realm.
-    isolationDefault: {
-      default: 'registry',
-      byEnvironment: { jsdom: 'realm', 'happy-dom': 'realm' },
-    },
+    // D207: `registry` for every environment, the DOM ones included, until the `realm` tier is
+    // built (T2.8). The environment's exact global restore (`populateGlobal`, `@provino/env-shared`)
+    // keeps DOM globals from leaking between files under `registry`. `jsdom` and `happy-dom` get
+    // `realm` back here when that tier ships. A dialect that sets no `byEnvironment` (Jest) inherits
+    // this.
+    isolationDefault: { default: 'registry', byEnvironment: {} },
     envDefault: 'node',
     environmentPragmas: ['provino-environment'],
     environmentConditions: moduleRef<EnvironmentConditions>(BEHAVIOURS, 'environmentConditions'),

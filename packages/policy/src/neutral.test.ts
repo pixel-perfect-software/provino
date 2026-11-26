@@ -62,10 +62,7 @@ const pinned: Readonly<Record<string, unknown>> = {
     retryEnd: 0,
     retryExit: 0,
   },
-  'orchestrator.isolationDefault': {
-    default: 'registry',
-    byEnvironment: { jsdom: 'realm', 'happy-dom': 'realm' },
-  },
+  'orchestrator.isolationDefault': { default: 'registry', byEnvironment: {} },
   'orchestrator.bail': { checkAfter: 'test' },
   // B23c: no neutral changed-files provider; the lexer reads the graph; a change to the project's
   // own inputs reruns it; a recorded graph beats a rescan (all ours).
