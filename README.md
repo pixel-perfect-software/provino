@@ -46,6 +46,7 @@ On a terminal, Provino draws its own live view while the run goes. A pipe, CI, a
 - 📸 **Snapshots byte for byte,** with `-u`, `--ci` and obsolete snapshots handled as Jest handles them.
 - 🧩 **Your setup, as it is:** `projects`, `moduleNameMapper`, your transformers, `jsdom` and custom environments, and `globalSetup`.
 - ✏️ **Your editor,** vscode-jest and neotest-jest, with `provino jest` as the Jest command.
+- 🌱 **Provino-native projects.** A `provino.config.ts` and `import { describe, it, expect, fn } from 'provino'`: Provino's own matchers, mocks and timers, with nothing from Jest or Vitest installed or loaded. [Provino-native projects →](wiki/native.md)
 - 🦥 **Lazy variables,** RSpec style: `import { lazy } from 'provino'` for values that are built on first read, memoized per test and overridden in a nested `describe`. [Lazy variables →](wiki/lazy-variables.md)
 - 📊 **Coverage** with `--coverage`: Istanbul or V8, Jest's reports and thresholds.
 - 🧵 **Sharding that balances:** Jest's split, or by recorded time.
@@ -54,7 +55,7 @@ On a terminal, Provino draws its own live view while the run goes. A pipe, CI, a
 ## 📋 Requirements
 
 - **Node.js** 22.15 or later, or 24 or later (24 recommended).
-- **A Jest project.** Provino matches Jest 30.5's behaviour.
+- **A Jest project,** to use `provino jest`. Provino matches Jest 30.5's behaviour. A native project needs only `provino`.
 
 ```ts
 import { lazy } from 'provino'
@@ -83,11 +84,53 @@ A project that uses only `provino.config` and `import … from 'provino'` needs 
 
 ## 🧭 Getting started
 
+With a Jest project:
+
 ```bash
 pnpm exec provino jest --listTests        # the files it would run
 pnpm exec provino jest src/cart.test.ts   # one file first
 pnpm exec provino jest                    # the whole suite
 ```
+
+With no Jest at all, add `provino`, a config and a test that imports from `provino`. (A `.ts` config is read by Node, which strips types by default from 22.18; on 22.15 to 22.17 use `provino.config.mjs`.)
+
+```ts
+// provino.config.ts
+import { defineConfig } from 'provino/config'
+
+export default defineConfig({ include: ['src/**/*.test.ts'] })
+```
+
+```ts
+// src/native.test.ts
+import { describe, expect, fn, it, test } from 'provino'
+
+describe('native', () => {
+  it('adds', () => {
+    expect(1 + 1).toBe(2)
+  })
+  it('records a call', () => {
+    const f = fn()
+    f('a')
+    expect(f.mock.calls).toEqual([['a']])
+  })
+})
+
+test('an async test', async () => {
+  expect(await Promise.resolve(3)).toBeGreaterThan(2)
+})
+```
+
+<!-- capture: a real run of this project. No terminal, so the `provino` reporter was named; the lines are the ones a terminal ends with -->
+```console
+$ pnpm exec provino
+✅ src/native.test.ts · 3 tests · 28ms
+
+🎉 3 tests passed in 1 file · 166ms
+🐢 slowest: src/native.test.ts 28ms
+```
+
+[Provino-native projects →](wiki/native.md): the config, the test API, mocks, watch mode and what isn't there yet.
 
 ## ⌨️ Commands
 
@@ -100,16 +143,19 @@ pnpm exec provino jest                    # the whole suite
 | `provino jest --shard=i/n`           | Run one shard; add `--timings <file>` to cut by recorded time        |
 | `provino jest --watch`               | Rerun the tests a change reaches; `--watchAll` reruns them all       |
 | `provino jest -o`                    | Run only the tests for files changed since the last commit           |
+| `provino` or `provino run`           | Run a native project from its `provino.config.*`                     |
+| `provino run --watch`                | Rerun the tests a change reaches                                     |
 | `provino --help`                     | Every command and option                                             |
 
 ## 🚧 Not in place yet
 
-`provino vitest` comes next. Watch mode (`--watch`, `--watchAll`) works, except that `--coverage`, `--collectTests` and `--detectOpenHandles` are refused by name with it, and coverage from saved reports (`--merge-reports`) is planned. [Jest compatibility](wiki/compatibility.md) has the full list. If a test passes under Jest and fails under Provino, that's a bug: please [open an issue](https://github.com/pixel-perfect-software/provino/issues).
+`provino vitest` comes next. Watch mode (`--watch`, `--watchAll`) works, except that `--coverage`, `--collectTests` and `--detectOpenHandles` are refused by name with it, and coverage from saved reports (`--merge-reports`) is planned. [Jest compatibility](wiki/compatibility.md) has the full list. A native project has no snapshots yet, and `provino run` has no coverage. If a test passes under Jest and fails under Provino, that's a bug: please [open an issue](https://github.com/pixel-perfect-software/provino/issues).
 
 ## 📚 Learn more
 
 - [Why Provino](wiki/why-provino.md): the problem, the goal, and the go/no-go bar.
 - [Jest compatibility](wiki/compatibility.md): what works, and every gap.
+- [Provino-native projects](wiki/native.md): no Jest, one import, Provino's own policy.
 - [Output](wiki/output.md): the terminal view, its flags, and the HTML report.
 - [Lazy variables](wiki/lazy-variables.md): `lazy`, scopes, shared examples.
 - [How it works](wiki/how-it-works.md)

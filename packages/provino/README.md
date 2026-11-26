@@ -45,6 +45,46 @@ On a terminal, Provino draws its own live view while the run goes. A pipe, CI, a
 
 A flag Provino can't run yet is refused by name. `provino vitest` comes next. Watch mode (`--watch`, `--watchAll`) works, except that `--coverage`, `--collectTests` and `--detectOpenHandles` are refused by name with it, and coverage from saved reports (`--merge-reports`) is planned. [Jest compatibility](https://github.com/pixel-perfect-software/provino/blob/main/wiki/compatibility.md) has the full list. If a test passes under Jest and fails under Provino, please [open an issue](https://github.com/pixel-perfect-software/provino/issues).
 
+## 🌱 Without Jest
+
+A project with a `provino.config.ts` and tests that import from `provino` needs `provino` alone, and installs and loads nothing from Jest or Vitest. (A `.ts` config is read by Node, which strips types by default from 22.18; on 22.15 to 22.17 use `provino.config.mjs`.)
+
+```bash
+pnpm add -D provino@rc
+```
+
+```ts
+// provino.config.ts
+import { defineConfig } from 'provino/config'
+
+export default defineConfig({ include: ['src/**/*.test.ts'] })
+```
+
+```ts
+// src/cart.test.ts
+import { expect, fn, it } from 'provino'
+
+it('records a call', () => {
+  const f = fn()
+  f('a')
+  expect(f.mock.calls).toEqual([['a']])
+})
+```
+
+```bash
+pnpm exec provino          # run it
+pnpm exec provino run --watch
+```
+
+[Provino-native projects →](https://github.com/pixel-perfect-software/provino/blob/main/wiki/native.md): the config, the test API, mocks, watch mode, and what isn't there yet.
+
+## 📚 Learn more
+
+- [Provino-native projects](https://github.com/pixel-perfect-software/provino/blob/main/wiki/native.md): no Jest, one import, Provino's own policy.
+- [Jest compatibility](https://github.com/pixel-perfect-software/provino/blob/main/wiki/compatibility.md): what `provino jest` does, and every gap.
+- [Lazy variables](https://github.com/pixel-perfect-software/provino/blob/main/wiki/lazy-variables.md): `lazy`, scopes, shared examples.
+- [Output](https://github.com/pixel-perfect-software/provino/blob/main/wiki/output.md): the terminal view, its flags, and the HTML report.
+
 ## 📝 License
 
 MIT © [Tyler Robertson](https://github.com/TylerNRobertson) @ [Pixel Perfect Software Inc.](https://github.com/pixel-perfect-software). `provino` includes code from Jest, Vitest and others, under their own MIT licenses; see `THIRD_PARTY_NOTICES.md` in this package.
