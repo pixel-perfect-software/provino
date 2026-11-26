@@ -13,17 +13,16 @@ export const RUNNER_BIN = 'node_modules/provino-runner/dist/cli.js'
 export const TEST_RUNNER: string = `node ../../${RUNNER_BIN} run`
 
 /**
- * The build a migrated package's `test` task waits for (its turbo `dependsOn`; `provino`'s own is
- * `build`): `provino`'s, whose `^build` builds every package. The runner is installed, not built,
- * but a nested run's forked workers find their entry with Node's own resolution
- * (`import.meta.resolve('@provino/orchestrator/worker/main')`), and the runner's process has no
- * `provino-source` condition to hand them, so they load each package's `dist`. D206's `execArgv`
- * key, in a pinned rc, lets it go.
+ * A migrated package's turbo `test.dependsOn`, as the scaffold writes it: no build. The runner is
+ * installed, not built, and its forked workers get `provino-source` from the shared config's
+ * `execArgv` (D206, `tooling/provino/base.ts`), so a nested run loads source as the tests' own
+ * process does. A package whose tests run built output keeps a `build` dependency of its own, and
+ * says why next to it (`provino`: its `exports.test.ts` and built-bin tests run `dist`).
  */
-export const TEST_BUILD = 'provino#build'
+export const TEST_DEPENDS_ON: readonly string[] = ['transit']
 
-/** A migrated package's turbo `test.dependsOn`, as the scaffold writes it. */
-export const TEST_DEPENDS_ON: readonly string[] = ['transit', TEST_BUILD]
+/** The `test.dependsOn` of `provino`, whose tests run its own built `dist`. */
+export const PROVINO_TEST_DEPENDS_ON: readonly string[] = ['transit', 'build']
 
 /**
  * The packages whose test files CI splits across its shards (`test-shards.ts`): `provino`'s

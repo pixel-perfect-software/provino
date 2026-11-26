@@ -137,7 +137,7 @@
   },
   "scripts": {
     "build": "tsdown --config ../../tooling/packaging/tsdown.umbrella.config.ts",
-    "test": "node ../../tooling/packaging/src/runner-shard.ts && node ../../tooling/packaging/src/node-test.ts --conditions=provino-source src/index.test.ts test/bootstrap/canary.test.ts test/jest-colour.test.ts test/jest-github-actions-colour.test.ts"
+    "test": "node ../../tooling/packaging/src/runner-shard.ts && node ../../tooling/packaging/src/node-test.ts --conditions=provino-source src/index.test.ts test/bootstrap/canary.test.ts"
   },
   "dependencies": {
     "@bcoe/v8-coverage": "catalog:",

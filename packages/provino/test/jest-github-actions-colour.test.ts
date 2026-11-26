@@ -4,7 +4,7 @@
 // `createStyle` builds from the run's colour decision.
 import assert from 'node:assert/strict'
 import { createRequire } from 'node:module'
-import { afterEach, describe, it, mock } from 'node:test'
+import { afterAll, afterEach, beforeAll, describe, it } from 'provino'
 import { createJestGitHubActionsReporter } from '@provino/dialect-jest/node'
 import type { AggregatedResult, TestResult } from '@provino/dialect-jest/results'
 import { createStyle } from 'provino/reporters'
@@ -30,9 +30,16 @@ function chalkOracle(): InstanceType<Chalk['Instance']> {
 }
 
 const written: string[] = []
-mock.method(process.stderr, 'write', (chunk: string | Uint8Array): boolean => {
-  written.push(String(chunk))
-  return true
+const realWrite = process.stderr.write
+// Installed in `before` and put back in `after`: a test file does no work when it is only imported.
+beforeAll(() => {
+  process.stderr.write = ((chunk: string | Uint8Array): boolean => {
+    written.push(String(chunk))
+    return true
+  }) as typeof process.stderr.write
+})
+afterAll(() => {
+  process.stderr.write = realWrite
 })
 afterEach(() => {
   written.length = 0

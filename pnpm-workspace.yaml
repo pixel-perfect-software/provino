@@ -35,7 +35,7 @@ allowBuilds:
 catalog:
   # D191: the runner of this repo's own suites (`provino-runner/config`, the bin the `test` scripts run).
   # Bumped on purpose, one rc at a time, and never pointed at the checkout.
-  provino-runner: npm:provino@0.1.0-rc.7
+  provino-runner: npm:provino@0.1.0-rc.8
   # The hoist corpus runs Jest's real plugin through Babel (T3.4); the recorder's `jestEsm`
   # fixtures add Babel's CJS output, which a real ESM-syntax Jest project has in some form.
   "@babel/core": 7.29.7
