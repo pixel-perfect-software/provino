@@ -177,6 +177,35 @@ describe('the circus mirror', () => {
     assert.equal((failure?.event.error as Error | undefined)?.message, 'boom')
   })
 
+  test('startedAt and duration come from the real clock: a Date.now that fake timers moved far away changes neither', async () => {
+    const realNow = Date.now
+    let started: unknown
+    let duration: unknown
+    try {
+      await observe(
+        ({ test }) => {
+          test('a', () => {
+            // What `jest.useFakeTimers()` then `jest.setSystemTime(new Date('2000-01-01'))` does to `Date.now()`.
+            Date.now = () => new Date('2000-01-01').getTime()
+          })
+        },
+        {},
+        (event) => {
+          const found = event.test as { startedAt: unknown; duration: unknown } | undefined
+          if (event.name === 'test_done') ({ startedAt: started, duration } = found ?? {})
+        },
+      )
+    } finally {
+      Date.now = realNow
+    }
+    // The real clock: started just now, and a test that took no time took a little.
+    assert.ok(
+      typeof started === 'number' && Math.abs(started - realNow()) < 60_000,
+      String(started),
+    )
+    assert.ok(typeof duration === 'number' && duration >= 0 && duration < 60_000, String(duration))
+  })
+
   test('state: hasStarted and the timeout come with run_start, the running test is null after test_done', async () => {
     const seen = await observe(({ test }) => test('a', () => undefined), {
       maxConcurrency: 7,

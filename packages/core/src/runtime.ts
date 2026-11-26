@@ -25,7 +25,12 @@ import { type CurrentTestService, currentTest, reportAsyncContext } from './curr
 import type { DefinitionEnv } from './definitions/table.ts'
 import { listenForProcessErrors, ProcessErrors, type ProcessLike } from './errors/process-errors.ts'
 import { CoreError, serializeError } from './errors.ts'
-import { capturedTimers, createDeadlines, type RealTimers } from './executor/deadline.ts'
+import {
+  capturedNow,
+  capturedTimers,
+  createDeadlines,
+  type RealTimers,
+} from './executor/deadline.ts'
 import {
   Executor,
   type Outcome,
@@ -71,7 +76,7 @@ export interface RuntimeOptions {
   readonly testIds?: readonly string[]
   /** The timers deadlines use. Default: those global when core loaded. */
   readonly realTimers?: RealTimers
-  /** A monotonic clock in ms. Default `performance.now`. */
+  /** A monotonic clock in ms. Default: `performance.now` as it was when core loaded, so fake timers can't move it. */
   readonly now?: () => number
 }
 
@@ -197,7 +202,7 @@ export interface Runtime {
 export async function createRuntime(options: RuntimeOptions): Promise<Runtime> {
   reportAsyncContext()
   const { policy, sink } = options
-  const now = options.now ?? (() => performance.now())
+  const now = options.now ?? capturedNow
   const timers = options.realTimers ?? capturedTimers
   const timeoutMessage =
     policy.timeouts.message === null

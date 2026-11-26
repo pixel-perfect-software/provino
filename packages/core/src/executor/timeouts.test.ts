@@ -852,3 +852,108 @@ describe('setDefaultTimeout (jest.setTimeout)', () => {
     assert.equal(codeOf(await running, 'slow'), 'CORE_TIMEOUT')
   })
 })
+
+describe('the clock the deadlines read', () => {
+  /**
+   * Fake timers that fake `performance` as `timers.useFakeTimers()` does, and what
+   * `timers.setSystemTime(date)` then `timers.clearAllTimers()` leave of it: `reset` keeps the
+   * offset `setSystemTime` made, so the fake `performance.now()` reads years behind the real one
+   * (a date ahead) or ahead of it (a date behind). `restore` is `timers.useRealTimers()`. A script
+   * that uses it sets no `now`: the deadlines read the runtime's own clock.
+   */
+  function clockMover(): { move(date: Date): void; restore(): void } {
+    let fake: ReturnType<typeof FakeTimers.install> | undefined
+    return {
+      move(date) {
+        fake = FakeTimers.install({ toFake: ['performance'], now: Date.now() })
+        fake.setSystemTime(date)
+        fake.reset()
+      },
+      restore() {
+        fake?.uninstall()
+        fake = undefined
+      },
+    }
+  }
+
+  for (const [direction, date] of [
+    ['ahead', '2030-01-01'],
+    ['back', '2000-01-01'],
+  ] as const) {
+    describe(`a fake clock moved ${direction} and cleared`, () => {
+      test('leaves a test and its afterEach in time', async () => {
+        const mover = clockMover()
+        try {
+          const run = await runScript(({ test, afterEach }) => {
+            afterEach(mover.restore)
+            test('moves', () => mover.move(new Date(date)))
+          })
+          assert.deepEqual(run.errors.moves, [])
+          assert.equal(run.states.moves, 'pass')
+        } finally {
+          mover.restore()
+        }
+      })
+
+      // No synchronous overrun check (Jest's policy): only the deadline's timer is under test. It
+      // was armed for what was left of 5000 ms on the moved clock: 1 ms for a date behind, and
+      // none at all for a date ahead.
+      test('leaves an async test its whole timeout: not cut sooner, and not left to hang', async () => {
+        const mover = clockMover()
+        const { started, signal } = startSignal()
+        try {
+          const running = runScript(
+            ({ test, afterEach }) => {
+              afterEach(mover.restore)
+              test('hangs', async () => {
+                mover.move(new Date(date))
+                signal()
+                await hang()
+              })
+            },
+            { timeouts: { test: 5000, catchSyncOverrun: false } },
+            { realTimers: timersOf(clock) },
+          )
+          const state = watch(running)
+          await reached(started, running)
+          await clock.tickAsync(4999)
+          assert.equal(state.settled, false)
+          await clock.tickAsync(1)
+          // Checked before waiting on it: with no deadline the run never ends.
+          assert.equal(state.settled, true)
+          assert.equal(codeOf(await running, 'hangs'), 'CORE_TIMEOUT')
+        } finally {
+          mover.restore()
+        }
+      })
+
+      test('lets an async test that settles inside its timeout pass', async () => {
+        const mover = clockMover()
+        const { started, signal } = startSignal()
+        const release = Promise.withResolvers<void>()
+        try {
+          const running = runScript(
+            ({ test, afterEach }) => {
+              afterEach(mover.restore)
+              test('waits', async () => {
+                mover.move(new Date(date))
+                signal()
+                await release.promise
+              })
+            },
+            { timeouts: { test: 5000, catchSyncOverrun: false } },
+            { realTimers: timersOf(clock) },
+          )
+          await reached(started, running)
+          await clock.tickAsync(100)
+          release.resolve()
+          const run = await running
+          assert.deepEqual(run.errors.waits, [])
+          assert.equal(run.states.waits, 'pass')
+        } finally {
+          mover.restore()
+        }
+      })
+    })
+  }
+})

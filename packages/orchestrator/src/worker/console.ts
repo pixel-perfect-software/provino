@@ -24,7 +24,7 @@ export interface ConsoleCaptureOptions {
   readonly emit: (event: RuntimeEventOf<'console'>) => void
   /** The task running now (the current-test lookup), or `null` outside any task. */
   readonly currentTaskId: () => TaskId | null
-  /** The event clock. Default `performance.now`, core's clock. */
+  /** The event clock. Default: `performance.now`, read from the global at each call (fake timers can move it). */
   readonly now?: () => number
   /**
    * Whether a console call keeps its call site as the event's `origin` (`orchestrator.consoleOrigin`

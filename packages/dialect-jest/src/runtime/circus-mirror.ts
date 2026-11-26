@@ -22,6 +22,13 @@
 import type { LifecycleEvent, LifecycleHookRef, LifecycleRef } from '@provino/types'
 import formatNodeAssertErrors from './vendor/jest-circus/formatNodeAssertErrors.ts'
 
+/**
+ * `Date.now` as it was when this module loaded, before any test code: jest-circus reads `jestNow`
+ * (jest-util's saved native `Date.now`) for `startedAt` and `duration`, so fake timers that move
+ * the system time (`jest.setSystemTime`) leave them alone.
+ */
+const realNow: () => number = Date.now
+
 /** The part of Jest's `globalConfig` the mirror's state reads (JSON, from the environment's options). */
 export interface CircusConfig {
   readonly testLocationInResults?: boolean
@@ -501,7 +508,7 @@ export function createCircusMirror(
       case 'test-start': {
         const entry = test(event.ref)
         state.currentlyRunningTest = entry
-        entry.startedAt = Date.now()
+        entry.startedAt = realNow()
         entry.invocations += 1
         if (!entry.concurrent) return call({ name: 'test_start', test: entry })
         // circus's `dispatch` awaits each of its own handlers before the environment's, so in a
@@ -569,7 +576,7 @@ export function createCircusMirror(
         // `state.expand` is Jest's `globalConfig.expand`, `false` unless `--expand`.
         const expand = state.expand === true
         entry.errors = entry.errors.map((have) => formatNodeAssertErrors(have, expand))
-        entry.duration = entry.startedAt === null ? null : Date.now() - entry.startedAt
+        entry.duration = entry.startedAt === null ? null : realNow() - entry.startedAt
         entry.status = 'done'
         state.currentlyRunningTest = null
         return call({ name: 'test_done', test: entry })
