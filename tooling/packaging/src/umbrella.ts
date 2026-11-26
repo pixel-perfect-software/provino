@@ -11,7 +11,14 @@ import {
   sharedRegistries,
 } from './internal-entries.ts'
 import { readManifest, runtimeDependencyNames } from './package-json.ts'
-import { DTS_ONLY, entriesOf, PRESET } from './preset.ts'
+import {
+  chunkFileName,
+  DTS_ONLY,
+  type EntryOutputs,
+  entriesOf,
+  entryFiles,
+  PRESET,
+} from './preset.ts'
 
 /**
  * The modules a worker loads by file URL (DECISIONS D21): the coordinator resolves each with
@@ -38,34 +45,6 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   // The native runtime (B27b, D186): the served `provino` module and its globals, for a project
   // with no dialect.
   '@provino/api': 'worker/api',
-}
-
-/**
- * The add-ons' worker modules (D187), which the umbrella built until B27f: entries of the public
- * declarations pass still, and nothing else. The pass's chunk graph, and with it the names
- * Rolldown's declaration bundler gives the types its chunks share (the mangled names
- * `etc/provino.api.md` lists, D67), is then the one it was: without them every one of those
- * names moved, with no public change. Their own files are not written (`dropDeclarations`):
- * `provino` ships no such module.
- */
-const DECLARATION_ONLY_ENTRIES: Readonly<Record<string, string>> = {
-  '@provino/dialect-jest/runtime': 'worker/jest-runtime',
-  '@provino/dialect-jest/global-setup': 'worker/jest-global-setup',
-  '@provino/dialect-jest/inline-snapshots': 'worker/jest-inline-snapshots',
-  '@provino/dialect-jest/affected': 'worker/jest-affected',
-  '@provino/dialect-vitest/runtime': 'worker/vitest-runtime',
-}
-
-/** Drops the declaration files of `DECLARATION_ONLY_ENTRIES` from the output. */
-function dropDeclarations(): PluginList {
-  return [
-    {
-      name: 'provino-drop-declaration-only-entries',
-      generateBundle(_options, bundle) {
-        for (const name of Object.values(DECLARATION_ONLY_ENTRIES)) delete bundle[`${name}.d.ts`]
-      },
-    },
-  ]
 }
 
 /**
@@ -300,26 +279,38 @@ export function workerRefs(): PluginList {
   ]
 }
 
+/** What the JavaScript build and the declaration passes write for each of their entries. */
+const JS_ONLY: EntryOutputs = { js: true, declarations: false }
+const DECLARATIONS_ONLY: EntryOutputs = { js: false, declarations: true }
+
 /** Both builds resolve the `@provino/*` packages to their sources (the `provino-source` condition). */
 const SOURCE_RESOLVE = { conditionNames: ['provino-source', 'import', 'node', 'default'] }
 
 /**
- * The tsdown configs of the `provino` package, built in its directory: the JavaScript, then the
- * declarations. Every `@provino/*` package is inlined (from source, through `provino-source`), the
- * third-party packages the umbrella declares stay external, and nothing else may be imported by
- * the output. The two are separate builds because the chunk groups of the first would name the
- * declarations' own intermediate chunks too, and the two kinds of chunk would overwrite each other.
+ * The tsdown configs of the `provino` package, built in its directory: the JavaScript, the public
+ * declarations and the internal declarations. Every `@provino/*` package is inlined (from source,
+ * through `provino-source`), the third-party packages the umbrella declares stay external, and
+ * nothing else may be imported by the output. The JavaScript and the declarations are separate
+ * builds because the chunk groups of the first would name the declarations' own intermediate chunks
+ * too, and the two kinds of chunk would overwrite each other.
  * `dist` is emptied here, once, so the builds (which run together) never clean each other's files.
  * @internal
  */
 export function umbrellaConfig(dir: string): UserConfig[] {
-  const manifest = readManifest(dir)
   rmSync(join(dir, 'dist'), { recursive: true, force: true })
+  return umbrellaPasses(dir)
+}
+
+/**
+ * `umbrellaConfig`'s three builds, read from the manifests and touching no file.
+ * @internal
+ */
+export function umbrellaPasses(dir: string): UserConfig[] {
+  const manifest = readManifest(dir)
   const entries = umbrellaEntries(dir)
-  const publicEntries = {
-    ...Object.fromEntries(Object.entries(entries).filter(([name]) => !isInternalEntry(name))),
-    ...sourcesOf(dir, DECLARATION_ONLY_ENTRIES),
-  }
+  const publicEntries = Object.fromEntries(
+    Object.entries(entries).filter(([name]) => !isInternalEntry(name)),
+  )
   const internalEntries = Object.fromEntries(
     Object.entries(entries).filter(([name]) => isInternalEntry(name)),
   )
@@ -441,7 +432,7 @@ export function umbrellaConfig(dir: string): UserConfig[] {
           ],
         },
       },
-      plugins: workerRefs(),
+      plugins: [...workerRefs(), ...entryFiles(Object.keys(entries), JS_ONLY)],
     },
     // The declarations, in two passes: the public entries, then the add-ons' engine
     // (`internal/*`, D187). One pass would share declaration chunks between them, so the internal
@@ -451,8 +442,14 @@ export function umbrellaConfig(dir: string): UserConfig[] {
       entry: publicEntries,
       dts: DTS_ONLY,
       deps: { alwaysBundle: PROVINO_SCOPE, dts: { alwaysBundle: PROVINO_SCOPE } },
+      // Its shared declaration chunks go under `chunks/`, so none can take an entry's file name
+      // (B27i): one named after an `index.ts` module took `index.d.ts`, which `types` names.
+      outputOptions: { chunkFileNames: chunkFileName },
       // `jest.d.ts` and `vitest.d.ts` register their dialect on the registry `config.d.ts` exports.
-      plugins: [...dropDeclarations(), ...augmentationTarget()],
+      plugins: [
+        ...augmentationTarget(),
+        ...entryFiles(Object.keys(publicEntries), DECLARATIONS_ONLY),
+      ],
     },
     {
       ...common,
@@ -461,7 +458,10 @@ export function umbrellaConfig(dir: string): UserConfig[] {
       deps: { alwaysBundle: PROVINO_SCOPE, dts: { alwaysBundle: PROVINO_SCOPE } },
       // Its shared declaration chunks go under `internal/`, where no public pass writes.
       outputOptions: { chunkFileNames: 'internal/chunks/[name].d.ts' },
-      plugins: sharedRegistries(),
+      plugins: [
+        ...sharedRegistries(),
+        ...entryFiles(Object.keys(internalEntries), DECLARATIONS_ONLY),
+      ],
     },
   ]
 }
