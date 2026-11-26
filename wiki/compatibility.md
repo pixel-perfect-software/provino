@@ -34,6 +34,7 @@ Provino's tests compare almost everything here with Jest 30.5, either against re
 
 **Your tests**
 - Jest's globals: `describe`, `test`/`it`, the four hooks, `.only`/`.skip`, `.each` (with Jest's titles), `done` callbacks, and `import … from '@jest/globals'`.
+- `import { describe, it, test, expect, beforeAll, afterAll, beforeEach, afterEach } from 'provino'` also works under the Jest dialect: each name forwards to the global of that name. The names only a [native project](native.md) has (`fn`, `spyOn`, `mock`, `timers`, `aroundEach`, `onTestFinished`, …) throw `PROVINO_NATIVE_ONLY` there, and the message names the `jest.*` member to use.
 - `expect` with Jest's matchers (copied from Jest), asymmetric matchers and `expect.extend`.
 - Mock functions, spies, and `jest.mock` (hoisted, with a factory, automock or a `__mocks__` file), plus `clearMocks`, `resetMocks` and `restoreMocks`.
 - Modern fake timers: `jest.useFakeTimers()` and the `fakeTimers` config key.
