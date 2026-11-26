@@ -855,11 +855,15 @@ describe('setDefaultTimeout (jest.setTimeout)', () => {
 
 describe('the clock the deadlines read', () => {
   /**
-   * Fake timers that fake `performance` as `timers.useFakeTimers()` does, and what
-   * `timers.setSystemTime(date)` then `timers.clearAllTimers()` leave of it: `reset` keeps the
+   * The user's fake timers: they fake the global `performance` as `timers.useFakeTimers()` does, and
+   * what `timers.setSystemTime(date)` then `timers.clearAllTimers()` leave of it: `reset` keeps the
    * offset `setSystemTime` made, so the fake `performance.now()` reads years behind the real one
-   * (a date ahead) or ahead of it (a date behind). `restore` is `timers.useRealTimers()`. A script
-   * that uses it sets no `now`: the deadlines read the runtime's own clock.
+   * (a date ahead) or ahead of it (a date behind). `restore` is `timers.useRealTimers()`.
+   *
+   * A test that gives the runtime no `now` (the first case) holds its default clock, which must be
+   * the real one. A test that gives it a test clock (`clockOptions`: `now` and the timers are one
+   * clock, so no real millisecond reaches an exact boundary) holds that the deadline reads that
+   * clock and never this global one.
    */
   function clockMover(): { move(date: Date): void; restore(): void } {
     let fake: ReturnType<typeof FakeTimers.install> | undefined
@@ -895,9 +899,9 @@ describe('the clock the deadlines read', () => {
         }
       })
 
-      // No synchronous overrun check (Jest's policy): only the deadline's timer is under test. It
-      // was armed for what was left of 5000 ms on the moved clock: 1 ms for a date behind, and
-      // none at all for a date ahead.
+      // No synchronous overrun check (Jest's policy): only the deadline's timer is under test. On the
+      // global clock it was armed for what was left of 5000 ms there: 1 ms for a date behind, and
+      // none at all for a date ahead. On the test clock, which the test alone moves, it is 5000 ms.
       test('leaves an async test its whole timeout: not cut sooner, and not left to hang', async () => {
         const mover = clockMover()
         const { started, signal } = startSignal()
@@ -912,7 +916,7 @@ describe('the clock the deadlines read', () => {
               })
             },
             { timeouts: { test: 5000, catchSyncOverrun: false } },
-            { realTimers: timersOf(clock) },
+            clockOptions(clock),
           )
           const state = watch(running)
           await reached(started, running)
@@ -942,7 +946,7 @@ describe('the clock the deadlines read', () => {
               })
             },
             { timeouts: { test: 5000, catchSyncOverrun: false } },
-            { realTimers: timersOf(clock) },
+            clockOptions(clock),
           )
           await reached(started, running)
           await clock.tickAsync(100)
