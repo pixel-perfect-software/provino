@@ -9,13 +9,13 @@ import { once } from 'node:events'
 import { mkdir, mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import { after, describe, it } from 'node:test'
+import { afterAll, describe, it } from 'provino'
 import { JEST, noColorEnv, provinoRun } from './live-jest.ts'
 import { loadFixture, materialize, underRoot } from './recorded.ts'
 import { startCli } from './support.ts'
 
 const made: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

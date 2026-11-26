@@ -3,7 +3,7 @@
 // run through `provino jest` and held to what real Jest 30.5.2 recorded: the exit code (0 only when
 // every golden test passed) and each test's status, file by file.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { provinoRun, sorted } from './live-jest.ts'
 import { loadFixture, materialize } from './recorded.ts'
 

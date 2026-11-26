@@ -4,7 +4,7 @@
 // trees (`env/*`), test by test: each test's status is the recorded one (a declared divergence
 // aside), and real Jest run live on the same temp tree gives the same statuses again.
 import assert from 'node:assert/strict'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { liveJest, provinoRun, sorted } from './live-jest.ts'
 import { loadFixture, materialize } from './recorded.ts'
 import { linkEnvironments } from './recorded-run.ts'

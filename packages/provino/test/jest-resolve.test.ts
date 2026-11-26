@@ -4,7 +4,7 @@
 import assert from 'node:assert/strict'
 import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
-import { describe, it } from 'node:test'
+import { describe, it } from 'provino'
 import { provinoRun, sorted } from './live-jest.ts'
 import { FIXTURES, loadFixture, materialize } from './recorded.ts'
 

@@ -11,8 +11,8 @@ import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { Writable } from 'node:stream'
-import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { afterAll, describe, it } from 'provino'
 import { viewOfNormalized } from './support.ts'
 
 const FIXTURE: string = fileURLToPath(
@@ -21,7 +21,7 @@ const FIXTURE: string = fileURLToPath(
 const JEST: string = createRequire(join(FIXTURE, 'x.js')).resolve('jest/bin/jest')
 
 const temps: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(temps.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

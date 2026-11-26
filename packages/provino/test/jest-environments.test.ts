@@ -8,8 +8,8 @@ import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { after, describe, it } from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { afterAll, describe, it } from 'provino'
 import { liveJest, provinoRun, sorted } from './live-jest.ts'
 import { loadFixture, materialize, underRoot } from './recorded.ts'
 import { spawnCli } from './support.ts'
@@ -44,7 +44,7 @@ const ENVIRONMENTS = [
 ] as const
 
 const made: string[] = []
-after(async () => {
+afterAll(async () => {
   await Promise.all(made.map((dir) => rm(dir, { recursive: true, force: true })))
 })
 

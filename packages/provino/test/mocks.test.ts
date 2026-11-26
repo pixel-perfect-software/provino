@@ -2,8 +2,8 @@
 // inline. The project is generated into $TMPDIR as text (no `.js` is committed, D13).
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
-import { describe, it } from 'node:test'
 import type { PoolKind } from '@provino/types'
+import { describe, it } from 'provino'
 import { run } from 'provino/node'
 import { Collect, type Project, trackedProjects, viewOfNormalized } from './support.ts'
 
