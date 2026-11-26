@@ -196,9 +196,8 @@ export interface OrchestratorPolicy {
   /**
    * Isolation tier when config sets none: a default, plus overrides per environment name. Track 1's
    * scalar, widened to carry Track 2's `defaultTier(environment)` as data.
-   * Neutral: `registry`, with no override per environment until the `realm` tier is built (D207).
-   * Jest: `registry` (DECISIONS D6; Track 1 and Track 2 said `realm`). Vitest: `registry`, `jsdom` and
-   * `happy-dom` named too. research: track-01 L232, track-02 L455
+   * Jest: `registry` (DECISIONS D6; Track 1 and Track 2 said `realm`). Vitest: `registry`. The neutral
+   * `byEnvironment` is empty until the `realm` tier is built (D207). research: track-01 L232, track-02 L455
    */
   readonly isolationDefault: {
     readonly default: IsolationTier

@@ -51,11 +51,9 @@ const TRACK_1_DIVERGENCES: readonly string[] = [
   'orchestrator.coverageProvider',
   'orchestrator.coverageReporters',
   'orchestrator.slowTestThresholdMs',
-  // Differs again since #151, by `byEnvironment` only: D6 gives both dialects `registry` as the
-  // default, and Vitest names `jsdom` and `happy-dom` on `registry` itself (its DOM environments set
-  // up on the worker's own global) where Jest inherits the neutral value, which names none (D207).
-  // The claim is the `own` pair in `claims/orchestrator.ts` (`ISOLATION` and `VITEST_ISOLATION`,
-  // pinned by each dialect's `dialect.test.ts`).
+  // Differs again since #151, by `byEnvironment` only: D6 gives both dialects `registry`, Vitest names
+  // its DOM environments and Jest takes the neutral value (D207). The claim is the `own` pair in
+  // `claims/orchestrator.ts` (`ISOLATION` and `VITEST_ISOLATION`, pinned by each `dialect.test.ts`).
   'orchestrator.isolationDefault',
   'report.displaySeparator',
   'report.failureTitleBullet',

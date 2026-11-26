@@ -1,11 +1,20 @@
 // B27d, acceptance row 7: the config keys reach the worker. The test files use the Jest dialect's
-// globals, since the native API is B27b's; every key under test is the neutral config's own.
+// globals, since the native API is B27b's; every key under test is the neutral config's own. The
+// last block is a native project (no dialect), whose files import from `provino`.
 import assert from 'node:assert/strict'
 import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { describe, it } from 'node:test'
 import { run } from 'provino/node'
-import { Collect, nativeProject, type ProjectFiles, QUIET_ENV, trackedProjects } from './support.ts'
+import {
+  Collect,
+  nativeProject,
+  notedPids,
+  type ProjectFiles,
+  QUIET_ENV,
+  trackedProjects,
+} from './support.ts'
 
 const makeProject = trackedProjects()
 
@@ -129,29 +138,25 @@ describe('provino.config keys reach the worker', () => {
   })
 })
 
-// A native project (no dialect) names a DOM environment and no `isolation`: the neutral default
-// for it is `registry`, since the `realm` tier is not built (T2.8). The environment's exact global
-// restore (`populateGlobal`) keeps one file's DOM state from reaching the next in the same worker.
+// A native project (no dialect) names a DOM environment and no `isolation`: the default is
+// `registry` (D207), and the environment's exact global restore keeps one file's DOM state from the
+// next. Both files have one source and run on one worker (a worker that leaked a global would be
+// replaced, and its successor would pass either way), so the second file's clean start is the proof.
 describe('a native project with a DOM environment and no isolation', () => {
-  // Each file asserts the other's marks are absent before it sets its own, so whichever runs second
-  // proves the reset; one worker serves both.
-  const dom = (mark: string): string => `import { expect, test } from 'provino'
+  const DOM = `import { appendFileSync } from 'node:fs'
+import { expect, test } from 'provino'
 
-test('the window starts clean and takes this file’s marks', () => {
+test('the window starts clean, and the file leaves a mark on it', () => {
+  appendFileSync(new URL('../workers.pids', import.meta.url), \`\${process.pid}\\n\`)
   expect(window).toBe(globalThis)
-  expect(document.title).toBe('')
-  expect(document.body.innerHTML).toBe('')
   expect(window.leaked).toBeUndefined()
-  document.title = '${mark}'
-  document.body.innerHTML = '<p id="${mark}"></p>'
-  window.leaked = '${mark}'
-  expect(window.leaked).toBe('${mark}')
+  window.leaked = true
 })
 `
 
-  it('jsdom runs every file green, each on a window the last one left clean', async () => {
+  it('jsdom runs two files green on one worker, the second on a window the first left clean', async () => {
     const dir = await nativeProject(
-      { 'tests/a.test.ts': dom('a'), 'tests/b.test.ts': dom('b') },
+      { 'tests/a.test.ts': DOM, 'tests/b.test.ts': DOM },
       "export default { include: ['tests/**/*.test.ts'], environment: 'jsdom' }\n",
     )
     const stderr = new Collect()
@@ -164,11 +169,13 @@ test('the window starts clean and takes this file’s marks', () => {
       pool: 'forks',
       maxWorkers: 1,
     })
-    const states = new Map(ran.summary?.files.map((file) => [file.file.path, file.state]))
     assert.equal(ran.exitCode, 0, stderr.text)
-    assert.deepEqual([...states].sort(), [
-      ['tests/a.test.ts', 'pass'],
-      ['tests/b.test.ts', 'pass'],
-    ])
+    assert.deepEqual(
+      ran.summary?.files.map((f) => f.state),
+      ['pass', 'pass'],
+    )
+    const pids = await notedPids(join(dir, 'workers.pids'))
+    assert.equal(pids.length, 2)
+    assert.equal(new Set(pids).size, 1, `two workers: ${pids.join(', ')}`)
   })
 })

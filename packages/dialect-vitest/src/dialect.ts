@@ -248,8 +248,7 @@ export const vitestPolicy: PolicyOverrides = {
     // Ours (D6 for Jest; Vitest isolates each file in its own module graph, as `registry` does).
     // A DOM environment too: Vitest 5.0.5's `jsdom` and `happy-dom` set up on the worker's own
     // global (`populateGlobal`), and only a `vm*` pool gives them a context of their own, so they
-    // stay on `registry`. The neutral value names no environment (D207), so this entry is
-    // Vitest's own and stays when the realm tier gives the neutral DOM environments `realm`.
+    // stay on `registry`; the neutral value names none (D207).
     isolationDefault: {
       default: 'registry',
       byEnvironment: { jsdom: 'registry', 'happy-dom': 'registry' },
