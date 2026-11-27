@@ -16,7 +16,7 @@ import type { Reporter, ReporterEvents, ReporterHandlers } from '@provino/types'
 import { BenchError } from '../errors.ts'
 import { SAMPLE_PREFIX } from '../internal/limits.ts'
 import { median, quantile } from '../stats.ts'
-import { realPaceClock, waitUntil } from './pace.ts'
+import { type PaceClock, realPaceClock, waitUntil } from './pace.ts'
 import {
   type FirstFrameResult,
   type FramesResult,
@@ -257,7 +257,7 @@ export function runHeapLeg(tests: number, rounds: number): HeapResult {
 }
 
 /** The width of a batch of the paced replay: events due in each 10 ms are sent together. */
-const BATCH_MS = 10
+export const BATCH_MS = 10
 
 /** What one paced replay measured. */
 interface PacedRun {
@@ -280,6 +280,7 @@ async function pacedReplay(
   tests: number,
   testsPerSec: number,
   sink: TerminalStream,
+  clock: PaceClock,
 ): Promise<PacedRun> {
   const reporter = provinoReporter({
     stream: sink,
@@ -296,22 +297,22 @@ async function pacedReplay(
   const last = events.length - 1
   const durationMs = (tests / testsPerSec) * 1000
   const waits = new Float64Array(last)
-  const start = performance.now()
+  const start = clock.now()
   let sent = 0
   for (let batch = 0; sent < last; batch++) {
     const due = start + batch * BATCH_MS
-    await waitUntil(due, realPaceClock)
+    await waitUntil(due, clock)
     const upTo = Math.min(last, Math.ceil((((batch + 1) * BATCH_MS) / durationMs) * last))
     for (; sent < upTo; sent++) {
       const event = events[sent] as StreamEvent
       await emit(event.name, ...event.args)
-      waits[sent] = performance.now() - due
+      waits[sent] = clock.now() - due
     }
   }
-  const beforeEnd = performance.now()
+  const beforeEnd = clock.now()
   const endEvent = events[last] as StreamEvent
   await emit(endEvent.name, ...endEvent.args)
-  const end = performance.now()
+  const end = clock.now()
   const all = Array.from(waits)
   return {
     perSec: (last / (beforeEnd - start)) * 1000,
@@ -327,14 +328,22 @@ async function pacedReplay(
  * `writeMs`, interleaved over `rounds`. Both sides are one sink implementation; `writeMs` 0 is
  * the control. The throughput runs from the first event to the last delivered before `run:end`:
  * its flush is the one write nobody can skip, and `ratioWithEnd` counts it. The wait of each event
- * is printed for both, with no bar.
+ * is printed for both, with no bar. `clock` is the one the replay reads and waits on (the real one
+ * by default); a test gives a fake, so the pacing is checked without real time. A slow sink spins
+ * on the real clock, so a fake clock with `writeMs` above 0 is refused: it would measure nothing.
  */
 export async function runSlowSinkLeg(
   tests: number,
   rounds: number,
   testsPerSec = 5000,
   writeMs = 5,
+  clock: PaceClock = realPaceClock,
 ): Promise<SlowSinkResult> {
+  if (clock !== realPaceClock && writeMs > 0) {
+    throw new RangeError(
+      `a slow sink (writeMs ${writeMs}) spins on real time, so it cannot run on a fake clock`,
+    )
+  }
   const stream = buildStream(specForTests(tests))
   const runs: Record<'fast' | 'slow', PacedRun[]> = { fast: [], slow: [] }
   for (let round = 0; round < rounds + 1; round++) {
@@ -345,6 +354,7 @@ export async function runSlowSinkLeg(
         stream.counts.tests,
         testsPerSec,
         countingSink(subject === 'fast' ? 0 : writeMs),
+        clock,
       )
       if (round > 0) runs[subject].push(result) // the first round is discarded
     }
