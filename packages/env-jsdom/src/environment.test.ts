@@ -105,6 +105,23 @@ test('a window is on the global, with the defaults', () => {
   })
 })
 
+test('standIns puts the APIs jsdom lacks on the global only when on, and teardown removes them', () => {
+  const names = ['matchMedia', 'ResizeObserver']
+  const read = (): string[] =>
+    names.filter((n) => typeof Reflect.get(globalThis, n) !== 'undefined')
+  for (const [standIns, expected] of [
+    [false, []],
+    [true, names],
+  ] as const) {
+    guarded(() => {
+      const instance = setUp({ standIns })
+      assert.deepEqual(read(), expected)
+      tearDown(instance)
+      assert.deepEqual(read(), [])
+    })
+  }
+})
+
 test('url, html and userAgent options reach the window', () => {
   guarded(() => {
     const instance = setUp({

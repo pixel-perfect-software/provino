@@ -9,6 +9,7 @@ Provino's own jsdom environment (Track 8, T8.3's jsdom part; B17c part 3). Runs 
 | Path | Role |
 |---|---|
 | `src/environment.ts` | `jsdomEnvironment` (`Environment<'jsdom', JsdomEnvironmentOptions>`, realm `worker`): `prepare`, `setup`, the error-event bridge |
+| `src/stand-ins.ts` | `installStandIns(window)`: the browser APIs jsdom lacks, when the `standIns` option is on |
 | `src/errors.ts` | `JsdomEnvironmentError`: `ENV_JSDOM_NOT_INSTALLED`, `ENV_JSDOM_NOT_PREPARED`, `ENV_JSDOM_REALM_UNSUPPORTED` |
 
 ## What `setup` does
@@ -21,13 +22,17 @@ Provino's own jsdom environment (Track 8, T8.3's jsdom part; B17c part 3). Runs 
 
 `teardown` removes the error handler and closes the window, and in a `finally` (so a `close()` that throws still restores) runs the snapshot's `restore()`. That alone puts back the populated keys and whatever the test added or changed; `populated.restore()` is not called, since a populated key the test made non-configurable would make it throw before the report. It returns an `EnvironmentTeardownReport` naming any key it could not restore (D22), else nothing.
 
+## Stand-ins (`src/stand-ins.ts`, option `standIns`)
+
+Off in this package (default `false`): a Vitest-dialect project with `environment: 'jsdom'` reaches it too, and Vitest's jsdom has none of these (`compat`). `@provino/config`'s `resolveProject` does not name it: `NativeRuntimeRefs.environmentOptions` (`provino`'s `built-ins.ts`: `{ jsdom: { standIns: true } }`) is the default for a project with **no dialect**, by resolved environment name, under the project's own `environmentOptions` (`{ standIns: false }` wins), so a native project gets them (`speed`: no setup file each). It installs, each only where the window lacks it and as a writable, configurable property (so a project's assignment or `defineProperty` replaces it): `window.matchMedia` (never matches, an `EventTarget` of the window behind the listener methods), `Element.prototype.scrollIntoView` (no-op), `animate` (a finished `Animation`-shaped object) and `ResizeObserver` (never calls back). `getClientRects` always replaces jsdom's, which answers `[]`: a fresh zero `DOMRect` per call for a connected element whose computed `display`, and every ancestor's (through shadow hosts), is not `none` and whose own is not `contents` (no box; its children keep theirs); else an empty list. The ancestor walk calls `getComputedStyle` per node, so one call costs the element's depth: `display` is not inherited, so no ancestor can be skipped, which is the cost of honouring a stylesheet's `display: none`. The prototypes belong to the window, which `teardown` closes; `matchMedia` and `ResizeObserver` are populated onto the global and put back by the snapshot.
+
 ## The user agent across the peer range (`src/window.ts`)
 
 `createDom(jsdomModule, options, console)` builds the window and is what the tests run against jsdom 26.1.0 (`jsdom-26`, a catalog alias, with a type shim) and 30. A user agent must not turn subresource loading on. Decided by what the installed jsdom exports, not by a version: with `ResourceLoader` (26 to 29) it is a `ResourceLoader` subclass whose `fetch` returns `null`, since a plain `resources` object is refused there; without it (30, where any `resources` value sets `loadSubresources`) `navigator.userAgent` is defined after construction, and XHR keeps jsdom's own header. jsdom 26 to 29 call the console method `sendTo`, 30 `forwardTo`; both are handled.
 
 ## Options
 
-`EnvironmentOptionsMap['jsdom']` in `@provino/types`: `url`, `html`, `userAgent`, `pretendToBeVisual`, `jsdom`, and `customExportConditions`. **`customExportConditions` is not read here:** the coordinator calls the policy's `orchestrator.environmentConditions` with the options, and the neutral behaviour (`@provino/policy`) returns the option when it is a list of strings, else `['browser']` for jsdom. Vitest's dialect has its own, `vitestEnvironmentConditions` (`node`, whatever the environment: recorded, `env/conditions-vitest-jsdom`).
+`EnvironmentOptionsMap['jsdom']` in `@provino/types`: `url`, `html`, `userAgent`, `pretendToBeVisual`, `standIns`, `jsdom`, and `customExportConditions`. **`customExportConditions` is not read here:** the coordinator calls the policy's `orchestrator.environmentConditions` with the options, and the neutral behaviour (`@provino/policy`) returns the option when it is a list of strings, else `['browser']` for jsdom. Vitest's dialect has its own, `vitestEnvironmentConditions` (`node`, whatever the environment: recorded, `env/conditions-vitest-jsdom`).
 
 ## Not copied from Vitest
 
@@ -37,5 +42,6 @@ Provino's own jsdom environment (Track 8, T8.3's jsdom part; B17c part 3). Runs 
 ## Tests
 
 - `src/environment.test.ts`: on the real global, each case synchronous and inside `guarded` (puts the touched keys back whatever `teardown` did): defaults, options, exact restore, a window per file, `window.close()`, the error bridge with and without a listener of the test's own, the Node fetch classes, the error codes.
+- `src/stand-ins.test.ts`: each stand-in on and off over jsdom 26 and 30, a project's own value, `getClientRects` for connected, disconnected, `hidden`, `display: none` and `display: contents` elements and a rect per call. `environment.test.ts` holds the global after teardown. `packages/provino/test/native-jsdom-stand-ins.test.ts`: a native project through the source bin, on and off.
 - `test/env-jsdom.test-d.ts`: the public types. `packages/provino/test/env-jsdom.test.ts`: the environment through `run()` on forks.
 - `pnpm bench:env` (`@provino/bench`) holds T8.3's bar against a raw `JSDOM` loop.

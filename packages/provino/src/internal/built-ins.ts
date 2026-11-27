@@ -54,6 +54,9 @@ function nativeRuntime(served: string): NativeRuntimeRefs {
     globals: { module: import.meta.resolve('@provino/api'), export: 'provinoGlobals' },
     modules: [served],
     hoist: nativeHoistPolicy(served),
+    // A native project's jsdom gets the stand-ins for what jsdom lacks (`speed`: no setup file each);
+    // `environmentOptions: { standIns: false }` turns them off.
+    environmentOptions: { jsdom: { standIns: true } },
     matcherTable: {
       module: import.meta.resolve('@provino/expect/table'),
       export: 'provinoExpectTable',

@@ -217,6 +217,12 @@ export interface EnvironmentOptionsMap {
     readonly pretendToBeVisual?: boolean
     /** The export conditions the resolver uses for this project's imports (replaces `browser`). */
     readonly customExportConditions?: readonly string[]
+    /**
+     * Install no-op stand-ins for what jsdom lacks (`matchMedia`, `scrollIntoView`, `animate`,
+     * `ResizeObserver`, and a `getClientRects` that gives a rendered element one empty box), each only
+     * where the window has none. Off unless set; a native project's config turns it on by default.
+     */
+    readonly standIns?: boolean
     readonly jsdom?: Readonly<Record<string, unknown>>
   }
   readonly 'happy-dom': {

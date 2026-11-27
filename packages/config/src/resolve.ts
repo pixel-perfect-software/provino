@@ -661,6 +661,11 @@ async function finishProject(
       `unknown environment "${environment}"; the known environments are ${known.length === 0 ? 'none' : known.map((n) => `"${n}"`).join(', ')}`,
     )
   }
+  // A native runtime's per-environment defaults, under the project's own options.
+  const environmentOptions: EnvironmentRef['options'] = {
+    ...entry(native?.environmentOptions ?? {}, environment),
+    ...input.environmentOptions,
+  }
   const { isolationDefault } = policy.orchestrator
   const isolation =
     input.isolation ??
@@ -700,7 +705,7 @@ async function finishProject(
         packageResolution,
       ),
     ]),
-    loaderConditions(policy, environment, input.environmentOptions),
+    loaderConditions(policy, environment, environmentOptions),
   )
   const globalValues = nonEmpty(input.globalValues)
   const fakeTimers = nonEmpty(input.fakeTimers)
@@ -712,7 +717,7 @@ async function finishProject(
     environment: {
       module: environmentRef.module,
       export: environmentRef.export,
-      options: input.environmentOptions,
+      options: environmentOptions,
       ...(input.environmentResolverOptions === undefined
         ? {}
         : { resolverOptions: input.environmentResolverOptions }),

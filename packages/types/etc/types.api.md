@@ -873,6 +873,7 @@ export interface EnvironmentOptionsMap {
         readonly userAgent?: string;
         readonly pretendToBeVisual?: boolean;
         readonly customExportConditions?: readonly string[];
+        readonly standIns?: boolean;
         readonly jsdom?: Readonly<Record<string, unknown>>;
     };
     // (undocumented)
@@ -2274,6 +2275,7 @@ export interface ModuleTransformer {
 
 // @public
 export interface NativeRuntimeRefs {
+    readonly environmentOptions?: Readonly<Record<string, EnvironmentRef["options"]>>;
     readonly globals: ModuleRef<GlobalsFactory>;
     readonly hoist?: HoistPolicy;
     readonly matcherTable: ModuleRef<MatcherTableFactory>;

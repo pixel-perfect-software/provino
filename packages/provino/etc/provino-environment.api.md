@@ -45,6 +45,7 @@ export interface EnvironmentOptionsMap {
         readonly userAgent?: string;
         readonly pretendToBeVisual?: boolean;
         readonly customExportConditions?: readonly string[];
+        readonly standIns?: boolean;
         readonly jsdom?: Readonly<Record<string, unknown>>;
     };
     // (undocumented)

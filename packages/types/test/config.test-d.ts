@@ -93,6 +93,16 @@ const native: NativeRuntimeRefs = {
   globals: globalsRef,
 }
 expectTypeOf(native).toExtend<CloneSafe<NativeRuntimeRefs>>()
+const withDefaults: NativeRuntimeRefs = {
+  ...native,
+  environmentOptions: { jsdom: { standIns: true } },
+}
+expectTypeOf(withDefaults).toExtend<CloneSafe<NativeRuntimeRefs>>()
+const closureDefaults: NativeRuntimeRefs = {
+  ...native,
+  // @ts-expect-error an environment's options are JSON
+  environmentOptions: { jsdom: { x: () => 1 } },
+}
 // @ts-expect-error the matcher table crosses by ref, not as the factory itself
 const closureTable: NativeRuntimeRefs = { ...native, matcherTable: () => ({}) }
 // @ts-expect-error the served modules are named
@@ -105,6 +115,7 @@ const noModules: NativeRuntimeRefs = {
 export {
   aliasArray,
   badPool,
+  closureDefaults,
   closureOptions,
   closureTable,
   full,

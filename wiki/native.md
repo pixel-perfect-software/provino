@@ -85,7 +85,7 @@ Node itself reads the config file, so a `.ts` config needs Node 22.18 or later, 
 | `root` | The project's directory, relative to the config file's directory (default: that directory). It must exist |
 | `name` | The project's name, printed before its files when a run has several projects |
 | `environment` | `node` (default) or `jsdom`. `jsdom` needs the `jsdom` package (`>=26 <31`) |
-| `environmentOptions` | Options for the environment, as JSON (`{ url: 'http://example.test/' }` for `jsdom`) |
+| `environmentOptions` | Options for the environment, as JSON (`{ url: 'http://example.test/' }` for `jsdom`). A native `jsdom` project also gets stand-ins for what jsdom lacks: `window.matchMedia` (never matches), no-op `scrollIntoView`, `animate` and `ResizeObserver`, and a `getClientRects` that gives a connected element that is displayed (it and every ancestor) one empty box, so a focus trap finds its tab stops. Each is added only where the window has none, and your own assignment replaces it. Turn them off with `environmentOptions: { standIns: false }` |
 | `isolation` | How files are kept apart in a worker: `registry` (default, for `jsdom` too: a fresh module registry per file), `none` (modules load once per worker and are shared), `process` (a worker per file). `realm` is not available yet |
 | `globals` | `true` installs the API as globals (see [globals](#globals)) |
 | `setupFiles` | Modules imported before each test file: a path (`./test/setup.ts`) or a package name |

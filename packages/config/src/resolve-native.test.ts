@@ -84,6 +84,36 @@ describe('a project with no dialect', () => {
     assert.deepEqual(resolved.config.loader.hoist, NATIVE.hoist)
   })
 
+  test('native environment defaults sit under the project environmentOptions', async () => {
+    const jsdom = {
+      ...options({ ...NATIVE, environmentOptions: { jsdom: { standIns: true } } }),
+      environments: { ...ENVIRONMENTS, jsdom: ENVIRONMENTS.node },
+    }
+    const on = await resolveProject({ environment: 'jsdom' }, jsdom)
+    assert.deepEqual(on.config.environment.options, { standIns: true })
+    const off = await resolveProject(
+      { environment: 'jsdom', environmentOptions: { standIns: false, url: 'http://a.test/' } },
+      jsdom,
+    )
+    assert.deepEqual(off.config.environment.options, { standIns: false, url: 'http://a.test/' })
+    const node = await resolveProject({}, jsdom)
+    assert.deepEqual(node.config.environment.options, {})
+    const none = await resolveProject({ environment: 'jsdom' }, { ...jsdom, native: NATIVE })
+    assert.deepEqual(none.config.environment.options, {})
+  })
+
+  test('a project with a dialect keeps the options as given', async () => {
+    const jsdom = {
+      ...options({ ...NATIVE, environmentOptions: { jsdom: { standIns: true } } }),
+      environments: { ...ENVIRONMENTS, jsdom: ENVIRONMENTS.node },
+    }
+    const dialect = await resolveProject(
+      { dialect: 'scoped' as never, environment: 'jsdom' },
+      jsdom,
+    )
+    assert.deepEqual(dialect.config.environment.options, {})
+  })
+
   test('a native project makes asset and style imports modules; one with no native refs does not', async () => {
     assert.equal((await resolveProject({}, options())).policy.module.assetImports, 'built-in')
     assert.equal((await resolveProject({}, options(null))).policy.module.assetImports, 'off')
