@@ -1802,6 +1802,7 @@ export type LoadActual = (id: string, importer: string, options?: LoadActualOpti
 
 // @public
 export interface LoadActualOptions {
+    readonly moduleValue?: boolean;
     readonly scratch?: boolean;
     readonly sync?: boolean;
 }
@@ -2175,6 +2176,7 @@ export interface ModuleMockRegistry {
     generation(): number;
     materialize(id: string, options?: MaterializeOptions): unknown;
     mockFor(specifier: string, from: string): unknown;
+    moduleValueFile?(id: string): string | null;
     onGenerateMock(callback: (moduleId: string, moduleMock: unknown) => unknown): void;
     onResetModules(): void;
     register(specifier: string, spec: MockSpec, options: ModuleMockRegisterOptions): void;

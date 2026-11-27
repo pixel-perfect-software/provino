@@ -599,10 +599,18 @@ export class Registry {
       sync && policy.awaitFactory && policy.syncMocks === 'settle'
         ? mocks.materialize(id, SETTLE_NOW)
         : mocks.materialize(id)
+    // Under 'settle' a mock built from `require`'s view of a file is seen by an `import` as an
+    // `import` of that file would see it, whichever edge built it (`moduleValueFile`).
+    const valueFile =
+      style === 'esm' && policy.factoryShape === 'namespace' && policy.syncMocks === 'settle'
+        ? (mocks.moduleValueFile?.(id) ?? null)
+        : null
     const shape =
-      style === 'esm' && policy.factoryShape === 'module-value'
-        ? (value: unknown): unknown => cjsNamespace(value, policy.interopDefault, this.#cache)
-        : (value: unknown): unknown => value
+      valueFile !== null
+        ? (value: unknown): unknown => this.importViewOf(valueFile, value)
+        : style === 'esm' && policy.factoryShape === 'module-value'
+          ? (value: unknown): unknown => cjsNamespace(value, policy.interopDefault, this.#cache)
+          : (value: unknown): unknown => value
     if (policy.awaitFactory && isThenable(served)) {
       return new Pending(Promise.resolve(served).then(shape))
     }
@@ -797,6 +805,34 @@ export class Registry {
     return scratch ? this.#inScratch(() => this.#actualAsync(id)) : this.#actualAsync(id)
   }
 
+  /**
+   * `require`'s view (`actualSync`'s) through the async path, which waits for a graph that awaits
+   * (`LoadActualOptions.moduleValue`).
+   */
+  actualValueAsync(id: string, scratch = false): Promise<unknown> {
+    const load = (): Promise<unknown> => this.#actualAsync(id, true)
+    return scratch ? this.#inScratch(load) : load()
+  }
+
+  /**
+   * What an `import` of `file` sees when `require` of it gives `value` (a mock built from that
+   * view, `ModuleMockRegistry.moduleValueFile`): an ES module's view as it is, a JSON file's
+   * value as its `default`, a CommonJS value or an external's through the interop, as
+   * `actualAsync` gives each.
+   */
+  importViewOf(file: string, value: unknown): unknown {
+    const target = this.#maybeInline(this.#actualTarget(file))
+    if (target.kind !== 'user') return cjsNamespace(value, this.#interop, this.#cache)
+    const format = recordFor(this.#state, target.id, false).format
+    if (format === 'esm') return value
+    if (format === 'json') {
+      const namespace = moduleNamespace()
+      namespace.default = value
+      return namespace
+    }
+    return cjsNamespace(value, this.#interop, this.#cache)
+  }
+
   #actualTarget(id: string): Found {
     if (id.startsWith('virtual:')) {
       throw new LoaderError('LOADER_NO_REAL_MODULE', `there is no real module behind ${id}`)
@@ -819,10 +855,12 @@ export class Registry {
     return this.#viewOf(instance)
   }
 
-  async #actualAsync(id: string): Promise<unknown> {
+  /** `moduleValue`: `require`'s view of a module that isn't ESM, not its namespace. */
+  async #actualAsync(id: string, moduleValue = false): Promise<unknown> {
     const target = this.#maybeInline(this.#actualTarget(id))
     if (target.kind !== 'user') {
-      return cjsNamespace(this.#requireExternal(target), this.#interop, this.#cache)
+      const required = this.#requireExternal(target)
+      return moduleValue ? required : cjsNamespace(required, this.#interop, this.#cache)
     }
     this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, false)
@@ -833,8 +871,11 @@ export class Registry {
     const instance = this.#instances.get(record.id)
     if (instance === undefined) throw new Error(`${record.id} was evaluated in no instance map`)
     await evaluated
-    if (record.format !== 'esm') return this.#importValueOfInstance(instance)
-    return this.#viewOf(instance)
+    if (record.format === 'esm') return this.#viewOf(instance)
+    if (!moduleValue) return this.#importValueOfInstance(instance)
+    return record.format === 'json'
+      ? Reflect.get(instance.exports ?? {}, 'default')
+      : instance.module?.exports
   }
 
   #viewOf(instance: Instance): object {

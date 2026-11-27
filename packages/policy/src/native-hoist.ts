@@ -45,8 +45,9 @@ export function nativeHoistPolicy(module: string): HoistPolicy<NativeHoistedCall
     // code (`API_MOCK_SPECIFIER`, `API_MOCK_FACTORY`), so nothing stays behind silently.
     hoistCalls: { mock: 'any', unmock: 'any' },
     importedCalls: NATIVE_HOISTED_CALLS.map((exportName) => ({ module, exportName })),
-    // A `mock` inside `isolateModules(() => { … })` belongs to that isolation: it moves to the top
-    // of the callback, not of the file, and registers in the isolation's overlay.
+    // A `mock` inside `isolateModules(() => { … })` moves to the top of the callback, not of the
+    // file, so it runs before the callback's own imports. The registration is the file's, as any
+    // other is (it outlives the callback); only the mock's value is the isolation's overlay.
     callbackScopes: NATIVE_CALLBACK_SCOPES.map((exportName) => ({ module, exportName })),
     hoistValues: [],
     rewriteImportArg: [],

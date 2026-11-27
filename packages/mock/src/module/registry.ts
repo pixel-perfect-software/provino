@@ -87,6 +87,9 @@ const NOT_MOCKED: MockDecision = Object.freeze({ mocked: false })
 const SCRATCH_LOAD: LoadActualOptions = Object.freeze({ scratch: true })
 const SYNC_LOAD: LoadActualOptions = Object.freeze({ sync: true })
 const SYNC_SCRATCH_LOAD: LoadActualOptions = Object.freeze({ scratch: true, sync: true })
+// `require`'s view on the async path, under `syncMocks: 'settle'` (`#settles`).
+const VALUE_LOAD: LoadActualOptions = Object.freeze({ moduleValue: true })
+const VALUE_SCRATCH_LOAD: LoadActualOptions = Object.freeze({ scratch: true, moduleValue: true })
 
 // The names @vitest/vitest's `filterPublicKeys` lets through without an error
 // (runtime/moduleRunner/moduleMocker.ts L37-L52).
@@ -134,6 +137,17 @@ class Registry implements ModuleMockRegistry {
   /** The ids whose factory the current call stack, or async continuation, is inside; made on the first factory. */
   #inside: AsyncLocalStorage<ReadonlySet<string>> | null = null
   #values = new Map<string, unknown>()
+  /**
+   * Under `#settles`: the file whose `require` value each id's mock was built from, so one cached
+   * mock serves both edges (`moduleValueFile`). A factory's id has none.
+   */
+  readonly #valueFiles = new Map<string, string>()
+  /**
+   * A sync edge can settle a mock (`syncMocks: 'settle'` under `awaitFactory`): every mock but a
+   * factory's is built from `require`'s view, whichever edge asks first, and the loader shapes it
+   * for an `import`. Otherwise the shape is the actual path's, as before.
+   */
+  readonly #settles: boolean
   #overlay: Map<string, unknown> | null = null
   /** Manual mocks by id; a root mock for an uninstalled package is seeded here by `decideUnresolved`. */
   readonly #manual = new Map<string, ManualMock | null>()
@@ -151,6 +165,7 @@ class Registry implements ModuleMockRegistry {
     this.#options = options
     this.#policy = options.policy
     this.#automock = options.policy.automock
+    this.#settles = options.policy.awaitFactory && options.policy.syncMocks === 'settle'
     this.#rootMocks =
       options.rootMocks ??
       createRootMockIndex({ roots: options.roots, extensions: options.extensions })
@@ -317,6 +332,11 @@ class Registry implements ModuleMockRegistry {
     return value
   }
 
+  moduleValueFile(requested: string): string | null {
+    this.#live()
+    return this.#valueFiles.get(this.#canonical.get(requested) ?? requested) ?? null
+  }
+
   mockFor(specifier: string, from: string): unknown {
     this.#live()
     return this.materialize(this.#idFor(specifier, from))
@@ -375,6 +395,7 @@ class Registry implements ModuleMockRegistry {
     this.#deep.clear()
     this.#onGenerate.length = 0
     this.#values.clear()
+    this.#valueFiles.clear()
     this.#manual.clear()
     this.#overlay = null
     this.#inside?.disable()
@@ -501,33 +522,42 @@ class Registry implements ModuleMockRegistry {
 
   /** `sync`: built for a sync edge (`MaterializeOptions.sync`), with no Promise where none is needed. */
   #create(id: string, sync: boolean): unknown {
-    const load = sync ? SYNC_LOAD : undefined
     const entry = this.#entries.get(id)
+    const load = sync ? SYNC_LOAD : this.#settles ? VALUE_LOAD : undefined
+    /** The real load of `file`; under `#settles` its value is `require`'s view of `file`. */
+    const actual = (file: string, from: string): unknown => {
+      if (this.#settles) this.#valueFiles.set(id, file)
+      return this.#options.loadActual(file, from, load)
+    }
     if (entry === undefined) {
       const manual = this.#manualFor(id, undefined)
-      if (manual !== null) return this.#options.loadActual(manual.path, '', load)
-      return this.#automockOf(id, '', false, sync)
+      if (manual !== null) return actual(manual.path, '')
+      if (this.#settles) this.#valueFiles.set(id, id)
+      return this.#automockOf(id, '', false, sync, this.#settles)
     }
     const spec = entry.spec
     switch (spec.kind) {
       case 'factory':
+        this.#valueFiles.delete(id)
         return this.#runFactory(id, entry, spec.factory, sync)
       case 'redirect':
-        return this.#options.loadActual(spec.to, entry.from, load)
+        return actual(spec.to, entry.from)
       case 'automock': {
         // `mock(p)` prefers a manual mock; a spy (`{ spy: true }`) never does.
         if (!spec.spy) {
           const manual = this.#manualFor(id, entry)
-          if (manual !== null) return this.#options.loadActual(manual.path, entry.from, load)
+          if (manual !== null) return actual(manual.path, entry.from)
         }
-        return this.#automockOf(id, entry.from, spec.spy, sync)
+        if (this.#settles) this.#valueFiles.set(id, id)
+        return this.#automockOf(id, entry.from, spec.spy, sync, this.#settles)
       }
       case 'unmock':
-        return this.#options.loadActual(id, entry.from, load)
+        return actual(id, entry.from)
     }
   }
 
-  #automockOf(id: string, from: string, spy: boolean, sync = false): unknown {
+  /** `moduleValue`: built from `require`'s view on the async path too (`#settles`). */
+  #automockOf(id: string, from: string, spy: boolean, sync = false, moduleValue = false): unknown {
     const options = this.#options
     const build = (actual: unknown): unknown => {
       try {
@@ -551,7 +581,11 @@ class Registry implements ModuleMockRegistry {
     let actual: unknown
     try {
       actual = this.#scratch(() =>
-        options.loadActual(id, from, sync ? SYNC_SCRATCH_LOAD : SCRATCH_LOAD),
+        options.loadActual(
+          id,
+          from,
+          sync ? SYNC_SCRATCH_LOAD : moduleValue ? VALUE_SCRATCH_LOAD : SCRATCH_LOAD,
+        ),
       )
     } catch (error) {
       this.#automocking.delete(id)

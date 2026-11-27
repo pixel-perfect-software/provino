@@ -232,6 +232,13 @@ export interface LoadActualOptions {
    * `syncMocks: 'settle'`.
    */
   readonly sync?: boolean
+  /**
+   * Give `require`'s view on the async path too (a CommonJS module's `module.exports`, a JSON
+   * file's value, an external's required value), still waiting for a graph that awaits. Under
+   * `syncMocks: 'settle'` a mock is built from this one shape whichever edge asks first
+   * (`ModuleMockRegistry.moduleValueFile`).
+   */
+  readonly moduleValue?: boolean
 }
 
 /**
@@ -288,6 +295,14 @@ export interface ModuleMockRegistry {
    * `awaitFactory`, or when `loadActual` returns one, unless `options.sync` settles it at once.
    */
   materialize(id: string, options?: MaterializeOptions): unknown
+  /**
+   * Under `syncMocks: 'settle'`: the file whose `require` value the mock `materialize` gives
+   * for `id` was built from (an automock's module, a manual mock's or a redirect's file), so an
+   * `import` edge sees it as an `import` of that file would; `null` when the value is no module
+   * value (a factory's result is its namespace already). Optional: without it every value is
+   * served as it is.
+   */
+  moduleValueFile?(id: string): string | null
   /**
    * The mocked value of `specifier` as `from` names it, whether or not it is registered: the
    * registration's, else the manual mock, else an automock (`jest.requireMock`, `vi.importMock`).

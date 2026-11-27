@@ -485,3 +485,65 @@ test('an automock of a graph with top-level await is refused on the sync path by
       !String((error as Error).message).includes('its mock is asynchronous'),
   )
 })
+
+// The neutral policy under 'settle' (D215): a CommonJS module's mock is one value whichever edge
+// builds it, seen by `require` as the CommonJS value and by `import` as its namespace.
+function legacyTree(): string {
+  return writeTree({
+    'legacy.cjs':
+      "module.exports = function legacy() { return 'real' }\nmodule.exports.named = () => 'named'\n",
+    'node_modules/pkg/package.json': '{ "name": "pkg", "main": "index.js" }\n',
+    'node_modules/pkg/index.js':
+      "module.exports = function pkg() { return 'real' }\nmodule.exports.named = () => 'named'\n",
+    'imp-legacy.ts': "import legacy, { named } from './legacy.cjs'\nexport { legacy, named }\n",
+    'req-legacy.cjs': "module.exports = require('./legacy.cjs')\n",
+    'imp-pkg.ts': "import pkg, { named } from 'pkg'\nexport { pkg, named }\n",
+    'req-pkg.cjs': "module.exports = require('pkg')\n",
+    'entry.test.ts': '',
+  })
+}
+
+interface Seen {
+  readonly required: unknown
+  readonly imported: { readonly default: unknown; readonly named: unknown }
+}
+
+async function seenThrough(
+  order: 'require first' | 'import first',
+  name: 'legacy' | 'pkg',
+): Promise<Seen> {
+  const root = legacyTree()
+  const policy = neutralPolicy.module
+  const { files } = fileWithMocks(loaderFor(root, { policy }), join(root, 'entry.test.ts'), {
+    policy,
+  })
+  files.registerMock(name === 'pkg' ? 'pkg' : './legacy.cjs', null, {
+    kind: 'automock',
+    spy: false,
+  })
+  const from = at(root, 'x.ts')
+  const req = (): unknown => files.require(`./req-${name}.cjs`, from)
+  const imp = async (): Promise<Seen['imported']> => {
+    const module = await files.import<Record<string, unknown>>(`./imp-${name}.ts`, from)
+    return { default: module[name], named: module.named }
+  }
+  if (order === 'require first') {
+    const required = req()
+    return { required, imported: await imp() }
+  }
+  const imported = await imp()
+  return { required: req(), imported }
+}
+
+for (const name of ['legacy', 'pkg'] as const) {
+  for (const order of ['require first', 'import first'] as const) {
+    test(`syncMocks settle: an automocked ${name === 'pkg' ? 'module.exports = fn package' : 'CommonJS file'} is one mock in each edge's shape, ${order}`, async () => {
+      const { required, imported } = await seenThrough(order, name)
+      assert.equal(typeof required, 'function', 'require gets the CommonJS value, callable')
+      assert.equal((required as () => unknown)(), undefined, 'and it is the automock')
+      assert.equal(imported.default, required, 'import gets the same mock as its default')
+      assert.equal(imported.named, (required as { named: unknown }).named)
+      assert.equal(typeof imported.named, 'function')
+    })
+  }
+}
