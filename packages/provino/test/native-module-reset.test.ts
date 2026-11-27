@@ -6,16 +6,15 @@
 // `ModulePolicy.syncMocks: 'settle'`); the async form loads the mock through `await import`. The subject project uses the new API; this file itself never imports it (it runs
 // on the pinned runner).
 import assert from 'node:assert/strict'
-import { readFile } from 'node:fs/promises'
-import { join } from 'node:path'
 import { describe, test } from 'provino'
 import {
   NATIVE_CONFIG,
   nativeProject,
   nativeRunArgs,
+  outcomesByFile,
+  POOLS,
   runBuilt,
   spawnCli,
-  viewOfNormalized,
 } from './support.ts'
 
 const SOURCES: Readonly<Record<string, string>> = {
@@ -158,18 +157,6 @@ it('a mock registered inside an isolation follows the registry after it', async 
 })
 `
 
-/** Each file's error (or its tests' outcomes), by file name, from a run's normalized JSON. */
-async function outcomes(dir: string): Promise<ReadonlyMap<string, string>> {
-  const view = viewOfNormalized(await readFile(join(dir, 'results.json'), 'utf8'))
-  const found = new Map<string, string>()
-  for (const [path, file] of view.files) {
-    const name = path.split('/').at(-1) ?? path
-    found.set(name, file.fileError ?? [...file.tests.values()].map(String).join(','))
-  }
-  return found
-}
-
-const POOLS = ['forks', 'threads', 'inline'] as const
 const FILES = { ...SOURCES, 'tests/reset.test.ts': RESET, 'tests/after.test.ts': AFTER }
 const PASSED = {
   'after.test.ts': 'passed',
@@ -178,7 +165,7 @@ const PASSED = {
 
 async function assertRun(dir: string, code: number | null, output: string): Promise<void> {
   // The outcomes first: a failing test's text says more than the exit code.
-  assert.deepEqual(Object.fromEntries(await outcomes(dir)), PASSED)
+  assert.deepEqual(Object.fromEntries(await outcomesByFile(dir)), PASSED)
   assert.equal(code, 0, output)
 }
 
@@ -229,7 +216,7 @@ describe("resetModules under isolation 'none'", () => {
     const output = `${run.stdout}\n${run.stderr}`
     assert.equal(run.code, 0, output)
     assert.deepEqual(
-      Object.fromEntries(await outcomes(dir)),
+      Object.fromEntries(await outcomesByFile(dir)),
       { 'first.test.ts': 'passed', 'second.test.ts': 'passed' },
       output,
     )
@@ -243,7 +230,7 @@ describe("resetModules under isolation 'none'", () => {
     const dir = await nativeProject(files, config)
     const run = await spawnCli(nativeRunArgs('forks'), { cwd: dir })
     assert.equal(run.code, 1, `${run.stdout}\n${run.stderr}`)
-    const found = [...(await outcomes(dir)).values()].toSorted()
+    const found = [...(await outcomesByFile(dir)).values()].toSorted()
     assert.deepEqual(found, ['failed', 'passed'])
   })
 })

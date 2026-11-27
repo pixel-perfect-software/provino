@@ -54,17 +54,21 @@ async function builtProject(): Promise<string> {
 
 type Load = readonly [main: string, file: string]
 
-/** The `dist/` files each recorded process loaded, with the main module of that process. */
-async function distLoads(args: readonly string[]): Promise<readonly Load[]> {
-  const dir = await builtProject()
+/** The `dist/` files each process of the built bin run `args` from `dir` loaded, with its main module. */
+async function loadsOf(dir: string, args: readonly string[]): Promise<readonly Load[]> {
   const logs = scratch('provino-loads-')
-  const run = runBuilt(['jest', '--ci', ...args], {
+  const run = runBuilt(args, {
     cwd: dir,
     preloads: ['load-recorder'],
     env: { PROVINO_LOAD_LOG: logs },
   })
   assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
   return readLoads(logs)
+}
+
+/** `loadsOf` for `provino jest --ci` on a project with two passing tests. */
+async function distLoads(args: readonly string[]): Promise<readonly Load[]> {
+  return loadsOf(await builtProject(), ['jest', '--ci', ...args])
 }
 
 /** The `dist/` files each process the log directory holds loaded, with that process's main module. */
@@ -89,14 +93,7 @@ async function nativeDistLoads(args: readonly string[]): Promise<readonly Load[]
     },
     "export default { include: ['tests/**/*.test.ts'], coverage: { provider: 'istanbul', reporters: ['text-summary'] } }\n",
   )
-  const logs = scratch('provino-loads-')
-  const run = runBuilt(['run', '--config', 'provino.config.mjs', '--maxWorkers', '1', ...args], {
-    cwd: dir,
-    preloads: ['load-recorder'],
-    env: { PROVINO_LOAD_LOG: logs },
-  })
-  assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
-  return readLoads(logs)
+  return loadsOf(dir, ['run', '--config', 'provino.config.mjs', '--maxWorkers', '1', ...args])
 }
 
 const covered = (loads: readonly Load[]): readonly Load[] =>

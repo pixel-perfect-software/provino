@@ -68,6 +68,7 @@ function poolOptions(
  * @internal
  */
 export interface ResolvedRun {
+  /** The projects as the config resolved them: `coveredRun` adds the worker config for coverage. */
   readonly project: ResolvedProject
   readonly others: readonly ResolvedProject[]
   readonly root: string | undefined
@@ -78,8 +79,6 @@ export interface ResolvedRun {
   readonly pool: NonNullable<RunProjectOptions['pool']>
   /** The config's `coverage` key with its defaults applied (`enabled` is the config's own say). */
   readonly coverage: ResolvedCoverage
-  /** Whether this run collects coverage (`--coverage` or `coverage.enabled`, never under watch): the projects then carry the worker config for it. */
-  readonly collectCoverage: boolean
 }
 
 /**
@@ -87,11 +86,7 @@ export interface ResolvedRun {
  * `ConfigError`, which `reportRunError` says.
  * @internal
  */
-export async function resolveRun(
-  options: RunOptions,
-  /** A watch session collects no coverage (`coverage.enabled` is then ignored). */
-  watching = false,
-): Promise<ResolvedRun> {
+export async function resolveRun(options: RunOptions): Promise<ResolvedRun> {
   if (typeof options.config !== 'string' || options.config === '') {
     throw new UsageError('run() needs the path of a config file')
   }
@@ -120,16 +115,7 @@ export async function resolveRun(
     }
     throw error
   })
-  if (resolved.projects[0] === undefined) throw new UsageError('the config has no project to run')
-  const collectCoverage = !watching && (options.coverage === true || resolved.coverage.enabled)
-  const [project, ...others] = collectCoverage
-    ? withCoverage(
-        resolved.projects,
-        resolved.coverage,
-        resolved.root ?? resolved.projects[0].rootDir,
-        configPath,
-      )
-    : resolved.projects
+  const [project, ...others] = resolved.projects
   if (project === undefined) throw new UsageError('the config has no project to run')
   // The command line wins over the config's own defaults.
   const pool = poolOptions(
@@ -151,8 +137,23 @@ export async function resolveRun(
     env,
     pool,
     coverage: resolved.coverage,
-    collectCoverage,
   }
+}
+
+/**
+ * `resolved` for a run that collects coverage (`--coverage` or `coverage.enabled`): its projects
+ * carry the worker config for it. A watch session collects none.
+ * @internal
+ */
+export function coveredRun(resolved: ResolvedRun): ResolvedRun {
+  const { coverage, configPath } = resolved
+  const [project = resolved.project, ...others] = withCoverage(
+    [resolved.project, ...resolved.others],
+    coverage,
+    coverage.root,
+    configPath,
+  )
+  return { ...resolved, project, others }
 }
 
 /**
@@ -162,6 +163,20 @@ export async function resolveRun(
  */
 export function patternFilters(patterns: readonly string[] | undefined): readonly FileFilter[] {
   return (patterns ?? []).map((value) => ({ kind: 'regex', value }))
+}
+
+/**
+ * The files of `project` (as `discoverProject` found them) that `filters` keep: Jest's
+ * `testPathPatterns`, against the project's root and the run's working directory.
+ * @internal
+ */
+export function selectByPatterns(
+  files: Parameters<typeof selectFiles>[0],
+  filters: readonly FileFilter[],
+  project: ResolvedProject,
+  cwd: string,
+): ReturnType<typeof selectFiles> {
+  return selectFiles(files, filters, { rootDir: project.rootDir, cwd })
 }
 
 /** Said when test path patterns kept no file, so a mistyped one (or a mistyped command) reads clearly. */
@@ -184,10 +199,20 @@ export async function patternsSelectNothing(
   if (filters.length === 0) return false
   for (const project of [resolved.project, ...resolved.others]) {
     const files = await discoverProject(project)
-    const selected = selectFiles(files, filters, { rootDir: project.rootDir, cwd: resolved.cwd })
-    if (selected.length > 0) return false
+    if (selectByPatterns(files, filters, project, resolved.cwd).length > 0) return false
   }
   return true
+}
+
+/** Says (once) that the command line's patterns select no file, when none of the projects has one. */
+export async function reportNoMatch(
+  options: RunOptions,
+  resolved: ResolvedRun,
+  stderr: NodeJS.WritableStream,
+): Promise<void> {
+  if (await patternsSelectNothing(options, resolved)) {
+    stderr.write(noMatchLine(options.testPathPatterns ?? []))
+  }
 }
 
 /**
@@ -221,10 +246,7 @@ export function executeOptionsOf(
     ...(options.shard === undefined && others.length === 0
       ? {
           fileCount: async () =>
-            selectFiles(await discoverProject(project), fileFilters, {
-              rootDir: project.rootDir,
-              cwd,
-            }).length,
+            selectByPatterns(await discoverProject(project), fileFilters, project, cwd).length,
         }
       : {}),
     ...(fileFilters.length === 0 ? {} : { fileFilters }),

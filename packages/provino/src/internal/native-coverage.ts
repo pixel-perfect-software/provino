@@ -7,13 +7,12 @@ import type { JsonValue, RunCoverageOptions } from '@provino/types'
 import {
   type CoverageReporter,
   type CoverageTexts,
-  createCoverageReporter,
+  createCoverageRun,
 } from './coverage-reporter.ts'
-import { outputFor, styleOf } from './reporters.ts'
 import type { ResolvedRun } from './run-setup.ts'
 
 /** The lines the coverage reporter prints around the reports: Provino's own words. */
-export const nativeCoverageTexts: CoverageTexts & { readonly untestedNotice: string } = {
+export const nativeCoverageTexts: CoverageTexts = {
   untestedNotice: 'Running coverage on untested files...',
   untestedFailure: (path, message, stack) =>
     `Failed to collect coverage from ${path}\nERROR: ${message}${stack === undefined ? '' : `\nSTACK: ${stack}`}`,
@@ -55,44 +54,25 @@ export function nativeCoverageFor(
   },
 ): NativeCoverage {
   const { coverage, env, project } = resolved
-  const { stdout, stderr } = io
-  const columns: unknown = Reflect.get(stdout, 'columns')
-  const output = outputFor({ env, stderr: stdout, ci: io.ci })
-  const style = styleOf(output)
-  const options: RunCoverageOptions = {
-    provider: coverage.provider,
-    reporters: coverage.reporters.map(
-      ([name, given]): readonly [string, Record<string, JsonValue>] => [
-        name,
-        { ...(typeof columns === 'number' && columns > 0 ? { maxCols: columns } : {}), ...given },
-      ],
-    ),
-    directory: coverage.directory,
-    watermarks: WATERMARKS,
-    thresholds: coverage.thresholds,
-  }
-  const reporter = createCoverageReporter({
-    options,
-    stdout,
-    stderr,
-    consoleColour: output.colour,
-    style,
+  return createCoverageRun({
+    options: (columns) => ({
+      provider: coverage.provider,
+      reporters: coverage.reporters.map(
+        ([name, given]): readonly [string, Record<string, JsonValue>] => [
+          name,
+          { ...(columns === undefined ? {} : { maxCols: columns }), ...given },
+        ],
+      ),
+      directory: coverage.directory,
+      watermarks: WATERMARKS,
+      thresholds: coverage.thresholds,
+    }),
     texts: nativeCoverageTexts,
-  })
-  const hooks: RunCoverageHooks = {
-    thresholds: options.thresholds,
-    thresholdsCwd: resolved.root ?? project.rootDir,
+    env,
+    ci: io.ci,
+    stdout: io.stdout,
+    stderr: io.stderr,
+    thresholdsCwd: coverage.root,
     reportEmptyRun: io.passWithNoTests ?? project.policy.orchestrator.passWithNoTests,
-    ...(output.live
-      ? {
-          onUntested: {
-            start: () => stderr.write(style.bold(style.dim(nativeCoverageTexts.untestedNotice))),
-            end: () => {
-              if (Reflect.get(stderr, 'isTTY') === true) stderr.write('\x1b[999D\x1b[K')
-            },
-          },
-        }
-      : {}),
-  }
-  return { reporter, hooks }
+  })
 }

@@ -15,7 +15,6 @@ import {
   type ChangeSource,
   type CoalesceClock,
   createWatchSession,
-  selectFiles,
   type WatchSession,
 } from '@provino/orchestrator'
 import { detectOutput, isCi } from '@provino/reporters'
@@ -26,12 +25,12 @@ import { type ExecuteOptions, executeProject } from './execute.ts'
 import { DOCUMENT_REPORTERS, isDocumentReporter } from './reporter-names.ts'
 import {
   executeOptionsOf,
-  noMatchLine,
   patternFilters,
-  patternsSelectNothing,
   type ResolvedRun,
+  reportNoMatch,
   reportRunError,
   resolveRun,
+  selectByPatterns,
 } from './run-setup.ts'
 import { latchInterrupts, type RunInterrupts } from './watch-interrupt.ts'
 import { createWatchQueue, type Trigger } from './watch-queue.ts'
@@ -122,10 +121,11 @@ async function watchLoop(
   const { env } = first
   // A watch run collects no coverage: a config that asks for it gets one line saying so.
   if (first.coverage.enabled) stderr.write(COVERAGE_NOTICE)
-  // Reruns force `passWithNoTests`, so a pattern that selects nothing is said once, here.
-  if (await patternsSelectNothing(options, first)) {
-    stderr.write(noMatchLine(options.testPathPatterns ?? []))
-  }
+  // Every run, a related one included, stays inside the command line's patterns.
+  const filters = patternFilters(options.testPathPatterns)
+  // Reruns force `passWithNoTests`, so a pattern that selects nothing is said once: after the first
+  // run, and only when it ran no file.
+  let sayNoMatch = true
   const stderrIsTerminal = Reflect.get(stderr, 'isTTY') === true
   const columns: unknown = Reflect.get(stderr, 'columns')
   // The reporters' own rule for a live terminal (not CI, not dumb, not an agent's), and a
@@ -239,15 +239,14 @@ async function watchLoop(
     } else if (trigger.kind === 'changed') {
       const selection: AffectedSelection = { kind: 'related', paths: trigger.paths }
       // A selection replaces the file filters, so the command line's patterns restrict the files it
-      // reached here: every run of a watch stays inside them.
-      const filters = patternFilters(options.testPathPatterns)
+      // reached here.
       extra =
         filters.length === 0
           ? { selection }
           : {
               selection,
               fileFilter: (project, files) =>
-                selectFiles(files, filters, { rootDir: project.rootDir, cwd: resolved.cwd }),
+                selectByPatterns(files, filters, project, resolved.cwd),
             }
     }
     interrupts.begin()
@@ -269,6 +268,10 @@ async function watchLoop(
     }
     if (quitting) return
     lastExit = result.exitCode
+    if (sayNoMatch) {
+      sayNoMatch = false
+      if (result.summary?.files.length === 0) await reportNoMatch(options, resolved, stderr)
+    }
     if (result.summary !== null) {
       const projects = [resolved.project, ...resolved.others]
       queue.record(
@@ -292,7 +295,7 @@ async function watchLoop(
     stderr.write(`Provino: ${basename(old.resolved.configPath)} changed, loading it again\n`)
     let next: Round
     try {
-      next = await open(await resolveRun(options, true))
+      next = await open(await resolveRun(options))
     } catch (error) {
       if (reportRunError(error, stderr) === undefined) throw error
       stderr.write('Provino: keeping the previous config until it changes again\n')
@@ -364,7 +367,7 @@ export async function runNativeWatch(
 ): Promise<number> {
   const stderr = options.stderr ?? process.stderr
   try {
-    const first = await resolveRun(options, true)
+    const first = await resolveRun(options)
     // A signal that came during the load: nothing to watch.
     if (options.signal?.aborted === true) return 0
     return await watchLoop(options, mode, io, first)

@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs'
 import { readFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, test } from 'provino'
-import { nativeProject, runBuilt, spawnCli } from './support.ts'
+import { nativeProject, runBin, spawnCli } from './support.ts'
 
 const A = `export function add(a: number, b: number): number {
   return a + b
@@ -92,10 +92,8 @@ describe('provino run --coverage', () => {
           }),
         )
         const args = ['run', '--config', 'provino.config.mjs', '--maxWorkers', '1', '--coverage']
-        const ran =
-          bin === 'source' ? await spawnCli(args, { cwd: dir }) : runBuilt(args, { cwd: dir })
-        const code = 'code' in ran ? ran.code : ran.status
-        assert.equal(code, 0, `${ran.stdout}\n${ran.stderr}`)
+        const ran = await runBin(bin, args, { cwd: dir })
+        assert.equal(ran.status, 0, `${ran.stdout}\n${ran.stderr}`)
         assert.match(ran.stdout, /File\s+\|\s+% Stmts/)
 
         const summary = JSON.parse(
@@ -111,11 +109,8 @@ describe('provino run --coverage', () => {
         }
 
         const jestArgs = ['jest', '--config', 'jest.config.json', '--ci', '--coverage']
-        const jest =
-          bin === 'source'
-            ? await spawnCli(jestArgs, { cwd: dir })
-            : runBuilt(jestArgs, { cwd: dir })
-        assert.equal('code' in jest ? jest.code : jest.status, 0, `${jest.stdout}\n${jest.stderr}`)
+        const jest = await runBin(bin, jestArgs, { cwd: dir })
+        assert.equal(jest.status, 0, `${jest.stdout}\n${jest.stderr}`)
         const jestSummary = JSON.parse(
           await readFile(join(dir, 'jest-coverage', 'coverage-summary.json'), 'utf8'),
         ) as Summary

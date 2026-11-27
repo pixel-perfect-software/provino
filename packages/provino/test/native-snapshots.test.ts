@@ -8,12 +8,13 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { describe, test } from 'provino'
 import {
+  type BinKind,
   nativeProject,
   nativeRunArgs,
   readLoadLogs,
+  runBin,
   runBuilt,
   scratch,
-  spawnCli,
   viewOfNormalized,
 } from './support.ts'
 
@@ -89,14 +90,14 @@ type Run = (
   dir: string,
 ) => Promise<{ status: number | null; output: string }>
 
-const built: Run = async (args, dir) => {
-  const run = runBuilt(args, { cwd: dir })
-  return { status: run.status, output: `${run.stdout}\n${run.stderr}` }
-}
-const source: Run = async (args, dir) => {
-  const run = await spawnCli(args, { cwd: dir })
-  return { status: run.code, output: `${run.stdout}\n${run.stderr}` }
-}
+const on =
+  (kind: BinKind): Run =>
+  async (args, dir) => {
+    const run = await runBin(kind, args, { cwd: dir })
+    return { status: run.status, output: `${run.stdout}\n${run.stderr}` }
+  }
+const built = on('built')
+const source = on('source')
 
 /** Write, match, fail in CI on a changed value without writing, then rewrite with `-u`. */
 async function lifecycle(run: Run, pool: string): Promise<void> {

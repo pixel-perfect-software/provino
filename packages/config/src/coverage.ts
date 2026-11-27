@@ -27,6 +27,8 @@ export interface ResolvedCoverage {
     CoverageReporterName,
     Readonly<Record<string, JsonValue>>,
   ])[]
+  /** The run's root, absolute: where `directory`, the globs and the threshold groups resolve. */
+  readonly root: string
   /** Absolute. */
   readonly directory: string
   /** The threshold groups, in the config's order. */
@@ -59,6 +61,7 @@ export function resolveCoverage(
     reporters: (coverage?.reporters ?? ['text', 'lcovonly']).map((entry) =>
       typeof entry === 'string' ? [entry, {}] : [entry[0], entry[1]],
     ),
+    root: runRoot,
     directory: resolve(runRoot, coverage?.directory ?? reportsDirectory),
     thresholds: Object.entries(coverage?.thresholds ?? {}).map(([name, group]) => ({
       name,

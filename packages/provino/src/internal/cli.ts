@@ -51,6 +51,14 @@ function isPoolKind(value: string): value is PoolKind {
   return POOL_KINDS.some((kind) => kind === value)
 }
 
+/** The arguments before a `--` (the flags) and from it on, which are test path patterns, whatever they look like. */
+function splitAtDashDash(
+  args: readonly string[],
+): [flags: readonly string[], tail: readonly string[]] {
+  const end = args.indexOf('--')
+  return end < 0 ? [args, []] : [args.slice(0, end), args.slice(end)]
+}
+
 /**
  * `--bail` with no count is `--bail=1`, and `--bail 2` is `--bail=2` (a test path pattern of
  * only digits needs `--bail=1 2` or `--`): `parseArgs` has no option with an optional value.
@@ -59,10 +67,6 @@ function bailWithCount(args: readonly string[]): string[] {
   const out: string[] = []
   for (let index = 0; index < args.length; index++) {
     const arg = args[index] as string
-    if (arg === '--') {
-      out.push(...args.slice(index))
-      break
-    }
     if (arg !== '--bail') {
       out.push(arg)
       continue
@@ -195,10 +199,7 @@ export function parseRunArgs(
 ): Extract<RunCommand, { readonly type: 'help' | 'run' }> {
   let parsed: ReturnType<typeof parse>
   try {
-    // `--` ends the flags: what follows is patterns, copied through as it is.
-    const end = args.indexOf('--')
-    const flags = end < 0 ? args : args.slice(0, end)
-    const tail = end < 0 ? [] : args.slice(end)
+    const [flags, tail] = splitAtDashDash(args)
     parsed = parse([...bailWithCount(flags).map(longFormOfShortWithEquals), ...tail])
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error), { cause: error })
@@ -368,17 +369,13 @@ function parseCommand(command: string | undefined, args: readonly string[]): Run
  */
 async function runBare(args: readonly string[], io: CliIo): Promise<number> {
   const cwd = io.cwd ?? process.cwd()
+  const [flags, tail] = splitAtDashDash(args)
   const rest: string[] = []
   let dialect: string | undefined
-  for (let index = 0; index < args.length; index++) {
-    const arg = args[index] as string
-    if (arg === '--') {
-      // The rest are test path patterns, whatever they look like.
-      rest.push(...args.slice(index))
-      break
-    }
+  for (let index = 0; index < flags.length; index++) {
+    const arg = flags[index] as string
     if (arg === '--dialect') {
-      dialect = args[++index]
+      dialect = flags[++index]
       if (dialect === undefined) throw new UsageError('--dialect needs jest or vitest')
     } else if (arg.startsWith('--dialect=')) {
       dialect = arg.slice('--dialect='.length)
@@ -386,6 +383,7 @@ async function runBare(args: readonly string[], io: CliIo): Promise<number> {
       rest.push(arg)
     }
   }
+  rest.push(...tail)
   if (dialect !== undefined && dialect !== 'jest' && dialect !== 'vitest') {
     throw new UsageError(`--dialect must be jest or vitest (got "${dialect}")`)
   }

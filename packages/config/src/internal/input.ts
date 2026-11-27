@@ -58,21 +58,21 @@ const COVERAGE_KEYS: readonly string[] = Object.keys({
 } satisfies Record<keyof ConfigCoverage, true>)
 
 /** The reporters `istanbul-reports` has, which `coverage.reporters` may name. */
-const COVERAGE_REPORTERS: readonly CoverageReporterName[] = [
-  'clover',
-  'cobertura',
-  'html',
-  'html-spa',
-  'json',
-  'json-summary',
-  'lcov',
-  'lcovonly',
-  'none',
-  'teamcity',
-  'text',
-  'text-lcov',
-  'text-summary',
-]
+const COVERAGE_REPORTERS: readonly string[] = Object.keys({
+  clover: true,
+  cobertura: true,
+  html: true,
+  'html-spa': true,
+  json: true,
+  'json-summary': true,
+  lcov: true,
+  lcovonly: true,
+  none: true,
+  teamcity: true,
+  text: true,
+  'text-lcov': true,
+  'text-summary': true,
+} satisfies Record<CoverageReporterName, true>)
 
 const COVERAGE_METRICS: readonly string[] = Object.keys({
   statements: true,

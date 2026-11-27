@@ -67,7 +67,7 @@ import {
 import type { JestWatchInput } from './jest-watch.ts'
 import { takeProvinoFlags } from './provino-flags.ts'
 import { HOST_REPORTERS } from './reporter-names.ts'
-import { type DisplayOptions, outputFor, styleFor, styleOf } from './reporters.ts'
+import { type DisplayOptions, outputFor, styleFor } from './reporters.ts'
 import {
   chooseProjects,
   noProjectsMessage,
@@ -449,48 +449,23 @@ async function coverageFor(
 ): Promise<{ readonly reporter: CoverageReporter; readonly hooks: RunCoverageHooks } | undefined> {
   if (!globalConfig.collectCoverage) return undefined
   // The reporter brings `@provino/coverage/node`: loaded only when the run collects (T1.10).
-  const { createCoverageReporter } = await import('./coverage-reporter.ts')
+  const { createCoverageRun } = await import('./coverage-reporter.ts')
   const { env, stdout, stderr } = io
-  const columns = (stdout as { columns?: unknown }).columns
-  // Jest's chalk and `istanbul-lib-report`'s console writer follow stdout's colour support.
-  const output = outputFor({ env, stderr: stdout, ci: globalConfig.ci, colour: io.colour })
-  const style = styleOf(output)
-  const options = jestCoverageOptions(globalConfig, {
+  // Jest's chalk and `istanbul-lib-report`'s console writer follow stdout's colour support, and
+  // the threshold groups resolve against the process's directory.
+  return createCoverageRun({
+    options: (stdoutColumns) => jestCoverageOptions(globalConfig, { env, stdoutColumns }),
+    texts: jestCoverageTexts,
     env,
-    stdoutColumns: typeof columns === 'number' && columns > 0 ? columns : undefined,
-  })
-  const reporter = createCoverageReporter({
-    options,
+    ci: globalConfig.ci,
+    colour: io.colour,
     stdout,
     stderr,
-    consoleColour: output.colour,
-    style,
-    texts: jestCoverageTexts,
-  })
-  // jest-util's `isInteractive`: stdout a terminal, not dumb, not CI.
-  const interactive = output.live
-  // The thresholds are checked in the coordinator (`CoverageSummary.thresholdFailures`); Jest
-  // resolves a relative group against the process's directory.
-  const hooks: RunCoverageHooks = {
-    thresholds: options.thresholds,
     thresholdsCwd: io.cwd,
     // runJest.ts: with no test file Jest ends with its message, unless `--passWithNoTests` lets the
     // scheduler run on an empty list, which the CoverageReporter then reports.
     reportEmptyRun,
-    ...(interactive
-      ? {
-          onUntested: {
-            start: () => stderr.write(style.bold(style.dim(jestCoverageTexts.untestedNotice))),
-            // `clearLine(process.stderr)`: only on a terminal.
-            end: () => {
-              if ((stderr as { isTTY?: unknown }).isTTY === true)
-                stderr.write('\u001b[999D\u001b[K')
-            },
-          },
-        }
-      : {}),
-  }
-  return { reporter, hooks }
+  })
 }
 
 /**

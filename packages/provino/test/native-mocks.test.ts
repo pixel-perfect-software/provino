@@ -12,6 +12,8 @@ import {
   NATIVE_CONFIG,
   nativeProject,
   nativeRunArgs,
+  outcomesByFile,
+  POOLS,
   runBuilt,
   spawnCli,
   viewOfNormalized,
@@ -161,7 +163,6 @@ async function assertMocksRun(dir: string, status: number | null, output: string
   assert.deepEqual(tests, EXPECTED, text)
 }
 
-const POOLS = ['forks', 'threads', 'inline'] as const
 const TESTS = { 'tests/mocking.test.ts': MOCKING, 'tests/other.test.ts': OTHER }
 
 describe('native module mocks through provino run (source bin)', () => {
@@ -183,18 +184,6 @@ describe('native module mocks through provino run (built bin)', () => {
     })
   }
 })
-
-/** Each file's error (or `passed`), by file name, from a run's normalized JSON. */
-async function outcomes(dir: string): Promise<ReadonlyMap<string, string>> {
-  const view = viewOfNormalized(await readFile(join(dir, 'results.json'), 'utf8'))
-  const found = new Map<string, string>()
-  for (const [path, file] of view.files) {
-    const name = path.split('/').at(-1) ?? path
-    const statuses = [...file.tests.values()].map(String)
-    found.set(name, file.fileError ?? statuses.join(','))
-  }
-  return found
-}
 
 /** Test files whose factories read bindings the hoist has moved below them, and a misplaced mock. */
 const PLACEMENT: Readonly<Record<string, string>> = {
@@ -245,7 +234,7 @@ describe('factories and placement', () => {
     const dir = await nativeProject({ ...SOURCES, ...PLACEMENT })
     const run = await spawnCli(nativeRunArgs('forks'), { cwd: dir })
     assert.equal(run.code, 1, `${run.stdout}\n${run.stderr}`)
-    const found = await outcomes(dir)
+    const found = await outcomesByFile(dir)
     assert.equal(found.get('earlier-import.test.ts'), 'passed')
     assert.match(
       found.get('nested.test.ts') ?? '',
@@ -291,7 +280,7 @@ describe('a mock in a helper module', () => {
     const dir = await nativeProject({ ...SOURCES, ...SHARED_HELPER })
     const run = await spawnCli(nativeRunArgs('forks'), { cwd: dir })
     assert.equal(run.code, 0, `${run.stdout}\n${run.stderr}`)
-    const found = await outcomes(dir)
+    const found = await outcomesByFile(dir)
     assert.deepEqual(
       [found.get('first.test.ts'), found.get('second.test.ts')],
       ['passed', 'passed'],
@@ -303,7 +292,7 @@ describe('a mock in a helper module', () => {
     const dir = await nativeProject({ ...SOURCES, ...SHARED_HELPER }, config)
     const run = await spawnCli(nativeRunArgs('forks'), { cwd: dir })
     assert.equal(run.code, 1, `${run.stdout}\n${run.stderr}`)
-    const found = await outcomes(dir)
+    const found = await outcomesByFile(dir)
     // The first file to load the helper fails on the refusal; the next gets no mock, and fails.
     const texts = [found.get('first.test.ts') ?? '', found.get('second.test.ts') ?? '']
     assert.ok(
@@ -355,7 +344,7 @@ describe('requireActual and mocked (B28)', () => {
       const dir = await nativeProject({ ...SOURCES, ...REQUIRE_ACTUAL })
       const run = await spawnCli(nativeRunArgs(pool), { cwd: dir })
       assert.equal(run.code, 0, `${run.stdout}\n${run.stderr}`)
-      const found = await outcomes(dir)
+      const found = await outcomesByFile(dir)
       assert.equal(found.get('require-actual.test.ts'), 'passed,passed,passed,passed')
     })
   }
@@ -399,7 +388,7 @@ describe('an aliased module with a manual mock (B28)', () => {
         const dir = await nativeProject({ ...aliasedManual(suffix) }, config)
         const run = await spawnCli(nativeRunArgs(pool), { cwd: dir })
         assert.equal(run.code, 0, `${run.stdout}\n${run.stderr}`)
-        const found = await outcomes(dir)
+        const found = await outcomesByFile(dir)
         assert.equal(found.get('aliased.test.ts'), 'passed,passed')
       })
     }
