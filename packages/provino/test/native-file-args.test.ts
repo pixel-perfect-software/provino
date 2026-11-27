@@ -86,9 +86,11 @@ describe('file arguments', () => {
 
   test('after -- every argument is a pattern: --bail and --dialect are not flags there', async () => {
     const dir = await nativeProject(FILES)
-    const bailed = await spawnCli([...RUN, '--', '--bail', '3'], { cwd: dir })
+    // A pattern also matches the absolute path (Jest's rule), and a temp directory's random name can
+    // hold a digit, so the count is a word no such path holds.
+    const bailed = await spawnCli([...RUN, '--', '--bail', 'three'], { cwd: dir })
     assert.equal(bailed.code, 1, bailed.stderr)
-    assert.match(bailed.stderr, /no test file matches any of the patterns "--bail", "3"/)
+    assert.match(bailed.stderr, /no test file matches any of the patterns "--bail", "three"/)
     const bare = await spawnCli(['--maxWorkers', '1', '--', '--dialect', 'jest'], { cwd: dir })
     assert.equal(bare.code, 1, bare.stderr)
     assert.match(bare.stderr, /no test file matches any of the patterns "--dialect", "jest"/)
