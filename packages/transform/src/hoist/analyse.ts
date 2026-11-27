@@ -182,17 +182,35 @@ interface Candidate {
   readonly unit: Unit | null
 }
 
+const NO_CALLS: NonNullable<HoistPolicy['importedCalls']> = Object.freeze([])
+
+/** The modules a policy's `importedCalls` and `callbackScopes` come from: fixed by the policy, so built once. */
+const callModules = new WeakMap<HoistPolicy, ReadonlySet<string>>()
+
+function callModulesOf(policy: HoistPolicy): ReadonlySet<string> {
+  let modules = callModules.get(policy)
+  if (modules === undefined) {
+    modules = new Set(
+      [...(policy.importedCalls ?? NO_CALLS), ...(policy.callbackScopes ?? NO_CALLS)].map(
+        (call) => call.module,
+      ),
+    )
+    callModules.set(policy, modules)
+  }
+  return modules
+}
+
 export function analyse(
   code: string,
   program: Program,
   policy: HoistPolicy,
   original?: string,
 ): Analysis {
-  const importedCalls = policy.importedCalls ?? []
-  const callbackScopes = policy.callbackScopes ?? []
+  const importedCalls = policy.importedCalls ?? NO_CALLS
+  const callbackScopes = policy.callbackScopes ?? NO_CALLS
   const { named: importedLocals, namespaces: namespaceLocals } = importedCallLocals(
     program,
-    new Set([...importedCalls, ...callbackScopes].map((call) => call.module)),
+    callModulesOf(policy),
   )
   // A policy of imported calls alone (the native one) has nothing to find in a file that imports
   // none of them: no walk at all.

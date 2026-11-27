@@ -8,20 +8,10 @@ import type { ApiHost, ProvinoApi } from './types.ts'
 
 /**
  * The names of `ProvinoApi` that act on the module registry. Plain members: in the slot, the
- * served module and the globals alike.
+ * served module and the globals alike, so nothing filters on them and no runtime list is kept.
  * @internal
  */
-export const PROVINO_MODULE_REGISTRY_NAMES: readonly [
-  'resetModules',
-  'isolateModules',
-  'isolateModulesAsync',
-] = ['resetModules', 'isolateModules', 'isolateModulesAsync'] as const
-
-/**
- * A name in `PROVINO_MODULE_REGISTRY_NAMES`.
- * @internal
- */
-export type ProvinoModuleRegistryName = (typeof PROVINO_MODULE_REGISTRY_NAMES)[number]
+export type ProvinoModuleRegistryName = 'resetModules' | 'isolateModules' | 'isolateModulesAsync'
 
 function assertCallback(fn: unknown, member: ProvinoModuleRegistryName): void {
   if (typeof fn === 'function') return

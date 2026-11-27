@@ -87,13 +87,16 @@ interface Instance {
   view: object | null
 }
 
+/** What a sync edge asks of `materialize` under `syncMocks: 'settle'`: one object, no allocation per edge. */
+const SETTLE_NOW: MaterializeOptions = Object.freeze({ sync: true })
+
+/** A mocked edge's value as it is. */
+const IDENTITY = (value: unknown): unknown => value
+
 /**
  * A mock's value that isn't ready (a factory's Promise under `awaitFactory`), kept apart from a
  * module whose own value is a Promise.
  */
-/** What a sync edge asks of `materialize` under `syncMocks: 'settle'`: one object, no allocation per edge. */
-const SETTLE_NOW: MaterializeOptions = Object.freeze({ sync: true })
-
 class Pending {
   readonly promise: Promise<unknown>
   constructor(promise: Promise<unknown>) {
@@ -214,9 +217,22 @@ export class Registry {
    * evaluates a module once, and calls the one wrapper the worker made.
    */
   readonly #freshWrappers: boolean
+  /** The mock policy's keys, read once (`#mocked` runs per edge): `awaitFactory`. */
+  readonly #awaitFactory: boolean
+  /** `awaitFactory` with `syncMocks: 'settle'`: a sync edge asks `materialize` to settle. */
+  readonly #settlesSync: boolean
+  /** `factoryShape: 'namespace'` under 'settle': an `import` may see a `require`-built mock as its file. */
+  readonly #importsValueFile: boolean
+  /** `factoryShape: 'module-value'`: an `import` sees a mock through the CommonJS interop. */
+  readonly #interopsMocks: boolean
 
   constructor(state: Records, sharedAcrossFiles = false) {
     this.#state = state
+    const policy = state.options.policy
+    this.#awaitFactory = policy.awaitFactory
+    this.#settlesSync = policy.awaitFactory && policy.syncMocks === 'settle'
+    this.#importsValueFile = policy.factoryShape === 'namespace' && policy.syncMocks === 'settle'
+    this.#interopsMocks = policy.factoryShape === 'module-value'
     this.#maps = [new Map()]
     this.#reevaluates = reevaluatesExternals(state.options.policy) && !sharedAcrossFiles
     this.#freshWrappers = !sharedAcrossFiles
@@ -594,24 +610,20 @@ export class Registry {
    * `syncMocks: 'settle'` the registry builds what it can without a Promise (`MaterializeOptions`).
    */
   #mocked(mocks: ModuleMockRegistry, id: string, style: Style, sync: boolean): unknown {
-    const policy = this.#state.options.policy
     const served =
-      sync && policy.awaitFactory && policy.syncMocks === 'settle'
-        ? mocks.materialize(id, SETTLE_NOW)
-        : mocks.materialize(id)
+      sync && this.#settlesSync ? mocks.materialize(id, SETTLE_NOW) : mocks.materialize(id)
     // Under 'settle' a mock built from `require`'s view of a file is seen by an `import` as an
     // `import` of that file would see it, whichever edge built it (`moduleValueFile`).
     const valueFile =
-      style === 'esm' && policy.factoryShape === 'namespace' && policy.syncMocks === 'settle'
-        ? (mocks.moduleValueFile?.(id) ?? null)
-        : null
+      style === 'esm' && this.#importsValueFile ? (mocks.moduleValueFile?.(id) ?? null) : null
+    const interop = this.#interop
     const shape =
       valueFile !== null
         ? (value: unknown): unknown => this.importViewOf(valueFile, value)
-        : style === 'esm' && policy.factoryShape === 'module-value'
-          ? (value: unknown): unknown => cjsNamespace(value, policy.interopDefault, this.#cache)
-          : (value: unknown): unknown => value
-    if (policy.awaitFactory && isThenable(served)) {
+        : style === 'esm' && this.#interopsMocks
+          ? (value: unknown): unknown => cjsNamespace(value, interop, this.#cache)
+          : IDENTITY
+    if (this.#awaitFactory && isThenable(served)) {
       return new Pending(Promise.resolve(served).then(shape))
     }
     return shape(served)
@@ -800,18 +812,15 @@ export class Registry {
     return scratch ? this.#inScratch(() => this.#actualSync(id)) : this.#actualSync(id)
   }
 
-  /** The same through `import`: a CommonJS module as its namespace. */
-  actualAsync(id: string, scratch = false): Promise<unknown> {
-    return scratch ? this.#inScratch(() => this.#actualAsync(id)) : this.#actualAsync(id)
-  }
-
   /**
-   * `require`'s view (`actualSync`'s) through the async path, which waits for a graph that awaits
-   * (`LoadActualOptions.moduleValue`).
+   * The same through `import`: a CommonJS module as its namespace. `moduleValue`
+   * (`LoadActualOptions.moduleValue`) gives `require`'s view (`actualSync`'s) through this async
+   * path instead, which waits for a graph that awaits.
    */
-  actualValueAsync(id: string, scratch = false): Promise<unknown> {
-    const load = (): Promise<unknown> => this.#actualAsync(id, true)
-    return scratch ? this.#inScratch(load) : load()
+  actualAsync(id: string, scratch = false, moduleValue = false): Promise<unknown> {
+    return scratch
+      ? this.#inScratch(() => this.#actualAsync(id, moduleValue))
+      : this.#actualAsync(id, moduleValue)
   }
 
   /**
