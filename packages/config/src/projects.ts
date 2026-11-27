@@ -118,20 +118,6 @@ async function inOrder<Value>(promises: readonly Promise<Value>[]): Promise<Valu
   return values
 }
 
-/** Two projects with one root would run each of its files twice. */
-function assertUniqueRoots(projects: readonly ResolvedProject[]): void {
-  const seen = new Set<string>()
-  for (const { rootDir } of projects) {
-    if (seen.has(rootDir)) {
-      throw new ConfigError(
-        'CONFIG_INVALID',
-        `two projects have the root "${rootDir}": each file would run in both`,
-      )
-    }
-    seen.add(rootDir)
-  }
-}
-
 /** A project name that two projects share is an error: reporters and filters tell projects apart by it. */
 function assertUniqueNames(projects: readonly ResolvedProject[]): void {
   const seen = new Set<string>()
@@ -203,7 +189,6 @@ export async function resolveProjects(
     }
   }
   const projects = await inOrder(pending)
-  assertUniqueRoots(projects)
   assertUniqueNames(projects)
   const reportsDirectory = projects[0]?.policy.coverage.reportsDirectory ?? 'coverage'
   return {
