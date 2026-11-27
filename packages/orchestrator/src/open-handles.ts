@@ -10,6 +10,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, relative, sep } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
+import { isProvinoStackFrame } from '@provino/reporters'
 import type { OpenHandle } from '@provino/types'
 
 /** Resources that don't keep a process open, or don't last: Jest's list, kept as it is. */
@@ -191,9 +192,15 @@ function shown(frame: Frame, root: string | undefined): string {
   return frame.text.replace(written, relative(root, file).split(sep).join('/'))
 }
 
-/** Whether a frame is worth showing: Node's own and Provino's are left out. */
+/**
+ * Whether a frame is worth showing: Node's own and Provino's are left out. Provino's are this
+ * copy's packages (`isOwnFile`) and any Provino the reporters' rule knows (`isProvinoStackFrame`):
+ * the worker's timer wrapper sits between Node's frames and the project's call that made a timer,
+ * and a runner other than this copy (a suite run on an installed Provino) has it elsewhere.
+ */
 function isShownFrame(frame: Frame): boolean {
-  return frame.file === undefined ? !frame.text.includes('node:') : !isOwnFile(frame.file)
+  if (frame.file === undefined) return !frame.text.includes('node:')
+  return !isOwnFile(frame.file) && !isProvinoStackFrame(frame.text)
 }
 
 /**

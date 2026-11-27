@@ -216,6 +216,44 @@ describe('collectOpenHandles', () => {
     }
   })
 
+  it('leaves out the frame of an installed Provino’s timer wrapper, so the project’s call is the first one', async () => {
+    // A runner whose worker wraps `setTimeout` (#227's window wrappers) puts its own frame between
+    // Node's and the project's. It sits under `node_modules/provino`, not this checkout's packages.
+    await project(
+      'node_modules/provino/dist/worker/main.mjs',
+      [
+        'const original = globalThis.setTimeout',
+        'export function setTimeout(callback, delay) {',
+        '  return original(callback, delay)',
+        '}',
+        '',
+      ].join('\n'),
+    )
+    const mod = await project(
+      'wrapped.mjs',
+      [
+        "import { setTimeout as wrapped } from './node_modules/provino/dist/worker/main.mjs'",
+        'export function leak() {',
+        '  return wrapped(() => {}, 60_000)',
+        '}',
+        '',
+      ].join('\n'),
+    )
+    const tracker = collectOpenHandles({ roots: [dir] })
+    const timer = mod.leak?.() as NodeJS.Timeout
+    try {
+      const handles = await tracker.collect()
+      assert.equal(handles.length, 1, JSON.stringify(handles))
+      assert.match(handles[0]?.frames[0] ?? '', /\(wrapped\.mjs:3:17\)$/)
+      assert.deepEqual(
+        handles[0]?.frames.filter((frame) => frame.includes('node_modules/provino/')),
+        [],
+      )
+    } finally {
+      clearTimeout(timer)
+    }
+  })
+
   it('stops tracking and forgets what it saw on dispose, with nothing to wait for', async () => {
     const mod = await project(
       'disposed.mjs',
