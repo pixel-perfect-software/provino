@@ -77,8 +77,6 @@ export interface ResolvedRun {
   readonly configPath: string
   readonly env: NonNullable<RunOptions['env']>
   readonly pool: NonNullable<RunProjectOptions['pool']>
-  /** The config's `uniqueFiles`: no file may belong to two projects. */
-  readonly uniqueFiles: boolean
   /** The config's `coverage` key with its defaults applied (`enabled` is the config's own say). */
   readonly coverage: ResolvedCoverage
 }
@@ -138,7 +136,6 @@ export async function resolveRun(options: RunOptions): Promise<ResolvedRun> {
     configPath,
     env,
     pool,
-    uniqueFiles: resolved.uniqueFiles,
     coverage: resolved.coverage,
   }
 }
@@ -230,13 +227,14 @@ export function executeOptionsOf(
   stdout: NonNullable<RunOptions['stdout']>,
   stderr: NonNullable<RunOptions['stderr']>,
 ): ExecuteOptions {
-  const { project, others, root, cwd, env, pool, uniqueFiles } = resolved
+  const { project, others, root, cwd, env, pool } = resolved
   const fileFilters = patternFilters(options.testPathPatterns)
   return {
     project,
     ...(others.length === 0 ? {} : { others }),
     ...(root === undefined ? {} : { root }),
-    ...(uniqueFiles ? { uniqueFiles: true } : {}),
+    // Native projects may share a root: no file may belong to two of them.
+    uniqueFiles: true,
     cwd,
     stdout,
     stderr,

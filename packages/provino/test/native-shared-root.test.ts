@@ -1,6 +1,8 @@
 // A native config whose projects share a root and select different files runs each file once, in
 // its own project's environment; a file both projects select is refused before anything runs
 // (exit 2, naming the projects and the file). Through the source bin.
+import { symlink } from 'node:fs/promises'
+import { join } from 'node:path'
 import { describe, expect, test } from 'provino'
 import { nativeProject, nativeRunArgs, outcomesByFile, spawnCli } from './support.ts'
 
@@ -69,5 +71,21 @@ describe('projects that share a root', () => {
     const ran = await spawnCli([...nativeRunArgs('forks'), 'b.test'], { cwd: dir })
     expect(ran.code).toBe(2)
     expect(ran.stderr).toMatch(/projects "node" and "again" both run a\.test\.ts/)
+  })
+
+  test('a root that is a symlink into another project tree is judged by real path', async () => {
+    const dir = await nativeProject(
+      {
+        'sub/x.test.ts': "import { it } from 'provino'\nit('x', () => {})\n",
+      },
+      `export default {
+  projects: [{ name: 'real', include: ['sub/*.test.ts'] }, 'alias'],
+}
+`,
+    )
+    await symlink(join(dir, 'sub'), join(dir, 'alias'), 'dir')
+    const ran = await spawnCli(nativeRunArgs('forks'), { cwd: dir })
+    expect(ran.code).toBe(2)
+    expect(ran.stderr).toMatch(/both run x\.test\.ts|both run sub\/x\.test\.ts/)
   })
 })

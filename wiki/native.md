@@ -161,7 +161,7 @@ export default defineConfig({
   })
   ```
 
-  A file must belong to one project only. When two projects discover the same file the run exits 2 before any test starts: `Provino: projects "node" and "window" both run src/a.test.ts: give their include globs no file in common` (at most three files are named, then a count). The check reads each project's discovered files before file arguments or `-t` narrow the run, and a watch run repeats it every time it starts. `provino jest` is not checked: Jest runs a file in every project that matches it.
+  A file must belong to one project only, judged by real path (a project whose root is a symlink into another's tree counts too). Projects whose roots nest (`.` and `packages/a`) are checked the same way: if both select one file, the run is refused, where earlier versions ran that file twice without a word. When two projects discover the same file the run exits 2 before any test starts: `Provino: projects "node" and "window" both run src/a.test.ts: give their include globs no file in common` (at most three files are named, then a count). The check reads each project's discovered files before file arguments or `-t` narrow the run, and a watch run repeats it every time it starts (a new file that causes an overlap fails that run with the same message and exit code 2, and the session keeps watching). `provino jest` is not checked: Jest runs a file in every project that matches it.
 - With several projects a file's line starts with its project's name: `PASS core packages/core/src/core.test.ts`.
 
 ## Writing tests

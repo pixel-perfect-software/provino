@@ -15,6 +15,8 @@ import {
   type ChangeSource,
   type CoalesceClock,
   createWatchSession,
+  ExitCode,
+  OrchestratorError,
   type WatchSession,
 } from '@provino/orchestrator'
 import { detectOutput, isCi } from '@provino/reporters'
@@ -262,6 +264,12 @@ async function watchLoop(
     } catch (error) {
       // A run cut short by the session closing under it has nothing to say.
       if (quitting) return
+      // A new file that two projects both select fails this run, not the session.
+      if (error instanceof OrchestratorError && error.code === 'ORCH_OVERLAPPING_PROJECTS') {
+        stderr.write(`Provino: ${error.message}\n`)
+        lastExit = ExitCode.UsageError
+        return
+      }
       throw error
     } finally {
       interrupts.end()

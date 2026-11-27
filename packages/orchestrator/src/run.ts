@@ -1,5 +1,6 @@
 // The coordinator's run (U3, minimal): discover the project's files, order them, push them
 // through the pool, and report to the bus. The CLI, `run()` and config loading are `provino`'s.
+import { realpath } from 'node:fs/promises'
 import { totalmem } from 'node:os'
 import { join, relative, resolve } from 'node:path'
 import { pruneTransformCache, type ResolvedProject, withTransformCache } from '@provino/config'
@@ -398,30 +399,45 @@ const OVERLAP_FILES_SHOWN = 3
 
 /**
  * Refuses a run in which one file was discovered by two projects (`RunProjectOptions.uniqueFiles`).
- * The first pair that shares a file is named, with up to three of the files (relative to the first
- * project's root) and a count of the rest. An unnamed project is its 1-based place in the list.
+ * Each project's root is resolved to its real path once and its files are keyed under it, so a
+ * root that is a symlink into another project's tree still meets that project's files (a symlinked
+ * directory inside a root is not followed here). The first pair that shares a file is named, with
+ * up to three of the files (relative to the first project's root) and a count of the rest. An
+ * unnamed project is its 1-based place in the list.
  */
-function assertNoSharedFiles(
-  found: readonly { readonly everything: readonly DiscoveredFile[] }[],
-  projects: readonly ResolvedProject[],
-): void {
+async function assertNoSharedFiles(
+  everyFile: readonly {
+    readonly member: Member
+    readonly everything: readonly DiscoveredFile[]
+  }[],
+): Promise<void> {
+  const roots = await Promise.all(
+    everyFile.map(({ member }) =>
+      realpath(member.project.rootDir).catch(() => member.project.rootDir),
+    ),
+  )
   const label = (index: number): string => {
-    const name = projects[index]?.name ?? ''
+    const { name } = everyFile[index]?.member.project ?? { name: '' }
     return JSON.stringify(name === '' ? `#${String(index + 1)}` : name)
   }
   const owners = new Map<string, number>()
-  for (const [index, { everything }] of found.entries()) {
-    const shared = new Map<number, string[]>()
+  for (const [index, { everything }] of everyFile.entries()) {
+    const root = roots[index] ?? ''
+    let owner: number | undefined
+    const paths: string[] = []
     for (const file of everything) {
-      const owner = owners.get(file.path)
-      if (owner === undefined) owners.set(file.path, index)
-      else shared.set(owner, [...(shared.get(owner) ?? []), file.path])
+      const real = join(root, file.relativePath)
+      const first = owners.get(real)
+      if (first === undefined) owners.set(real, index)
+      else if (owner === undefined || owner === first) {
+        owner = first
+        paths.push(real)
+      }
     }
-    const [first] = shared
-    if (first === undefined) continue
-    const [owner, paths] = first
-    const root = projects[owner]?.rootDir ?? ''
-    const named = paths.slice(0, OVERLAP_FILES_SHOWN).map((path) => relative(root, path))
+    if (owner === undefined) continue
+    const named = paths
+      .slice(0, OVERLAP_FILES_SHOWN)
+      .map((path) => relative(roots[owner] ?? '', path))
     const more = paths.length - named.length
     throw new OrchestratorError(
       'ORCH_OVERLAPPING_PROJECTS',
@@ -1314,9 +1330,7 @@ export async function runProjectsOn(
         return { member, everything, discovered }
       }),
     )
-    if (options.uniqueFiles === true) {
-      assertNoSharedFiles(everyFile, projects)
-    }
+    if (options.uniqueFiles === true && everyFile.length > 1) await assertNoSharedFiles(everyFile)
     // Jest shards the one list of every project's files, after the file filters.
     const shards =
       shard === undefined

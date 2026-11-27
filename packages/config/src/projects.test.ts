@@ -436,16 +436,15 @@ describe('projects globs (D199: tinyglobby)', () => {
   })
   afterAll(() => temp.dispose())
 
+  const resolveAt = (input: Parameters<typeof resolveProjects>[0], base = join(temp.dir, 'real')) =>
+    resolveProjects(input, {
+      configPath: join(base, 'provino.config.mjs'),
+      dialects: [],
+      environments: ENVIRONMENTS,
+      ci: false,
+    })
   const names = async (projects: readonly string[], base = join(temp.dir, 'real')) => {
-    const config = await resolveProjects(
-      { projects },
-      {
-        configPath: join(base, 'provino.config.mjs'),
-        dialects: [],
-        environments: ENVIRONMENTS,
-        ci: false,
-      },
-    )
+    const config = await resolveAt({ projects }, base)
     return config.projects.map((project) => project.name)
   }
 
@@ -468,24 +467,15 @@ describe('projects globs (D199: tinyglobby)', () => {
   })
 
   test('two projects may share a root: the run refuses only a file both would run', async () => {
-    const config = await resolveProjects(
-      {
-        projects: [
-          { name: 'node', include: ['*.test.ts'] },
-          { name: 'window', include: ['*.test.tsx'] },
-        ],
-      },
-      {
-        configPath: join(temp.dir, 'real', 'provino.config.mjs'),
-        dialects: [],
-        environments: ENVIRONMENTS,
-        ci: false,
-      },
-    )
+    const config = await resolveAt({
+      projects: [
+        { name: 'node', include: ['*.test.ts'] },
+        { name: 'window', include: ['*.test.tsx'] },
+      ],
+    })
     assert.deepEqual(
       config.projects.map((project) => project.rootDir),
       [join(temp.dir, 'real'), join(temp.dir, 'real')],
     )
-    assert.equal(config.uniqueFiles, true)
   })
 })

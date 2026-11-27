@@ -51,14 +51,6 @@ export interface ResolvedConfig {
    * collect it.
    */
   readonly coverage: ResolvedCoverage
-  /**
-   * No test file may belong to more than one project: a native config's projects may share a
-   * `rootDir` as long as their `include` globs select different files, and the coordinator
-   * refuses a run in which one file is found by two projects (it can only know once discovery has
-   * run). Always `true` here; a dialect that allows overlapping projects (Jest's) never goes
-   * through `resolveProjects`, so the coordinator's default is off.
-   */
-  readonly uniqueFiles: boolean
 }
 
 /**
@@ -172,7 +164,6 @@ export async function resolveProjects(
     const project = await resolveProject(input, options)
     return {
       projects: [project],
-      uniqueFiles: true,
       ...run,
       coverage: resolveCoverage(
         parsed.coverage,
@@ -202,7 +193,6 @@ export async function resolveProjects(
   const reportsDirectory = projects[0]?.policy.coverage.reportsDirectory ?? 'coverage'
   return {
     projects,
-    uniqueFiles: true,
     root,
     ...run,
     coverage: resolveCoverage(parsed.coverage, root, reportsDirectory),
