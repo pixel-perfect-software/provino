@@ -467,8 +467,25 @@ describe('projects globs (D199: tinyglobby)', () => {
     assert.ok(!found.includes('real'), found.join())
   })
 
-  test('two projects with one root are CONFIG_INVALID', async () => {
-    const error = await rejectsWith(names(['packages/a', 'packages/a']), 'CONFIG_INVALID')
-    assert.match(error.message, /packages\/a/)
+  test('two projects may share a root: the run refuses only a file both would run', async () => {
+    const config = await resolveProjects(
+      {
+        projects: [
+          { name: 'node', include: ['*.test.ts'] },
+          { name: 'window', include: ['*.test.tsx'] },
+        ],
+      },
+      {
+        configPath: join(temp.dir, 'real', 'provino.config.mjs'),
+        dialects: [],
+        environments: ENVIRONMENTS,
+        ci: false,
+      },
+    )
+    assert.deepEqual(
+      config.projects.map((project) => project.rootDir),
+      [join(temp.dir, 'real'), join(temp.dir, 'real')],
+    )
+    assert.equal(config.uniqueFiles, true)
   })
 })

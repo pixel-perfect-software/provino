@@ -8,6 +8,7 @@ import {
   loadProject,
   loadProjects,
   pruneTransformCache,
+  type ResolvedConfig,
   type ResolvedGlobalSetup,
   type ResolvedProject,
   type ResolveNeutralProjectOptions,
@@ -50,6 +51,7 @@ expectTypeOf(loadProject).parameter(0).toEqualTypeOf<string>()
 expectTypeOf(loadProject).returns.toEqualTypeOf<Promise<ResolvedProject>>()
 
 expectTypeOf<ResolvedProject['dialect']>().toEqualTypeOf<Dialect | null>()
+expectTypeOf<ResolvedConfig['uniqueFiles']>().toEqualTypeOf<boolean>()
 expectTypeOf<ResolvedProject['policy']>().toEqualTypeOf<Policy>()
 expectTypeOf<ResolvedProject['isolation']>().toEqualTypeOf<IsolationTier>()
 // The run gives every project its seed, so a resolved config has one only when the reader brought it.

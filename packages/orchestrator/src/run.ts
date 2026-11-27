@@ -1,7 +1,7 @@
 // The coordinator's run (U3, minimal): discover the project's files, order them, push them
 // through the pool, and report to the bus. The CLI, `run()` and config loading are `provino`'s.
 import { totalmem } from 'node:os'
-import { join, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import { pruneTransformCache, type ResolvedProject, withTransformCache } from '@provino/config'
 import { readIsolatePragma, reevaluatesExternals, tierFor } from '@provino/loader'
 import { serializeError } from '@provino/rpc'
@@ -257,6 +257,14 @@ export interface RunProjectOptions {
    */
   readonly bail?: { readonly count: number }
   /**
+   * A file may belong to one project only: when two projects discover the same file (before
+   * `fileFilters`, `fileFilter` or a selection narrow anything) the run is refused as
+   * `ORCH_OVERLAPPING_PROJECTS`, naming the projects and the files, before `run:start`. Default
+   * `false`: Jest runs a file once in each project that matches it (`runPath` tells the runs
+   * apart). A watch session checks again on every run.
+   */
+  readonly uniqueFiles?: boolean
+  /**
    * Report what is still open after the last file, and where it was made (`--detectOpenHandles`).
    * It needs the files to run in this process, so the pool is `inline` whatever `pool.kind` says.
    * The handles are `RunSummary.openHandles`.
@@ -383,6 +391,43 @@ export function discoverProject(project: ResolvedProject): Promise<readonly Disc
         discovery,
         globMatchesOn: project.policy.orchestrator.globMatchesOn,
       })
+}
+
+/** How many shared files an overlap message names before it counts the rest. */
+const OVERLAP_FILES_SHOWN = 3
+
+/**
+ * Refuses a run in which one file was discovered by two projects (`RunProjectOptions.uniqueFiles`).
+ * The first pair that shares a file is named, with up to three of the files (relative to the first
+ * project's root) and a count of the rest. An unnamed project is its 1-based place in the list.
+ */
+function assertNoSharedFiles(
+  found: readonly { readonly everything: readonly DiscoveredFile[] }[],
+  projects: readonly ResolvedProject[],
+): void {
+  const label = (index: number): string => {
+    const name = projects[index]?.name ?? ''
+    return JSON.stringify(name === '' ? `#${String(index + 1)}` : name)
+  }
+  const owners = new Map<string, number>()
+  for (const [index, { everything }] of found.entries()) {
+    const shared = new Map<number, string[]>()
+    for (const file of everything) {
+      const owner = owners.get(file.path)
+      if (owner === undefined) owners.set(file.path, index)
+      else shared.set(owner, [...(shared.get(owner) ?? []), file.path])
+    }
+    const [first] = shared
+    if (first === undefined) continue
+    const [owner, paths] = first
+    const root = projects[owner]?.rootDir ?? ''
+    const named = paths.slice(0, OVERLAP_FILES_SHOWN).map((path) => relative(root, path))
+    const more = paths.length - named.length
+    throw new OrchestratorError(
+      'ORCH_OVERLAPPING_PROJECTS',
+      `projects ${label(owner)} and ${label(index)} both run ${named.join(', ')}${more > 0 ? ` and ${String(more)} more` : ''}: give their include globs no file in common`,
+    )
+  }
 }
 
 /** `new RegExp` with the policy's flags, once; the workers get the string. */
@@ -1269,6 +1314,9 @@ export async function runProjectsOn(
         return { member, everything, discovered }
       }),
     )
+    if (options.uniqueFiles === true) {
+      assertNoSharedFiles(everyFile, projects)
+    }
     // Jest shards the one list of every project's files, after the file filters.
     const shards =
       shard === undefined

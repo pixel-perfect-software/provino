@@ -149,7 +149,19 @@ export default defineConfig({
 - A directory that has its own `provino.config.*` uses it, and is named for the directory unless the config names it. A glob matches directories, never `node_modules`, and never the config's own directory.
 - An entry that starts with `!` leaves out what the globs matched.
 - Each project has its own `include`, `setupFiles`, `environment`, `isolation`, `timeouts` and `resolve`. The top level's keys are **not** inherited. A project has no `projects`, `pool`, `maxWorkers` or `execArgv`.
-- Names must be unique, and two projects can't share a `root`. A glob that matches nothing is an error.
+- Names must be unique. A glob that matches nothing is an error.
+- Projects may share a `root`, so one directory can run some files in node and others in jsdom (the native runner reads no per-file environment docblock; projects are how a file picks its environment):
+
+  ```ts
+  export default defineConfig({
+    projects: [
+      { name: 'node', include: ['src/**/*.test.ts'] },
+      { name: 'window', include: ['src/**/*.test.tsx'], environment: 'jsdom' },
+    ],
+  })
+  ```
+
+  A file must belong to one project only. When two projects discover the same file the run exits 2 before any test starts: `Provino: projects "node" and "window" both run src/a.test.ts: give their include globs no file in common` (at most three files are named, then a count). The check reads each project's discovered files before file arguments or `-t` narrow the run, and a watch run repeats it every time it starts. `provino jest` is not checked: Jest runs a file in every project that matches it.
 - With several projects a file's line starts with its project's name: `PASS core packages/core/src/core.test.ts`.
 
 ## Writing tests

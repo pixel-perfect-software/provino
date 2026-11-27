@@ -84,6 +84,8 @@ export interface ExecuteOptions {
   readonly forceSignal?: AbortSignal | undefined
   /** End the run once this many tests have failed. */
   readonly bail?: { readonly count: number }
+  /** No file may belong to two projects (a native config's projects): refused before the run. */
+  readonly uniqueFiles?: boolean
   /** Report the handles still open after the run; runs in band. */
   readonly detectOpenHandles?: boolean
   /** The run's own global hooks (Jest's root `globalSetup` and `globalTeardown`). */
@@ -227,6 +229,7 @@ function run(
     ...(options.detectLeaks === undefined ? {} : { detectLeaks: options.detectLeaks }),
     ...(options.logHeapUsage === true ? { logHeapUsage: true } : {}),
     ...(options.bail === undefined ? {} : { bail: options.bail }),
+    ...(options.uniqueFiles === true ? { uniqueFiles: true } : {}),
     ...(options.shard === undefined ? {} : { shard: options.shard }),
     ...(options.timings === undefined ? {} : { timings: options.timings }),
     ...(options.coverage === undefined ? {} : { coverage: options.coverage }),

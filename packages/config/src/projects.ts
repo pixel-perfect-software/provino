@@ -51,6 +51,14 @@ export interface ResolvedConfig {
    * collect it.
    */
   readonly coverage: ResolvedCoverage
+  /**
+   * No test file may belong to more than one project: a native config's projects may share a
+   * `rootDir` as long as their `include` globs select different files, and the coordinator
+   * refuses a run in which one file is found by two projects (it can only know once discovery has
+   * run). Always `true` here; a dialect that allows overlapping projects (Jest's) never goes
+   * through `resolveProjects`, so the coordinator's default is off.
+   */
+  readonly uniqueFiles: boolean
 }
 
 /**
@@ -118,20 +126,6 @@ async function inOrder<Value>(promises: readonly Promise<Value>[]): Promise<Valu
   return values
 }
 
-/** Two projects with one root would run each of its files twice. */
-function assertUniqueRoots(projects: readonly ResolvedProject[]): void {
-  const seen = new Set<string>()
-  for (const { rootDir } of projects) {
-    if (seen.has(rootDir)) {
-      throw new ConfigError(
-        'CONFIG_INVALID',
-        `two projects have the root "${rootDir}": each file would run in both`,
-      )
-    }
-    seen.add(rootDir)
-  }
-}
-
 /** A project name that two projects share is an error: reporters and filters tell projects apart by it. */
 function assertUniqueNames(projects: readonly ResolvedProject[]): void {
   const seen = new Set<string>()
@@ -178,6 +172,7 @@ export async function resolveProjects(
     const project = await resolveProject(input, options)
     return {
       projects: [project],
+      uniqueFiles: true,
       ...run,
       coverage: resolveCoverage(
         parsed.coverage,
@@ -203,11 +198,11 @@ export async function resolveProjects(
     }
   }
   const projects = await inOrder(pending)
-  assertUniqueRoots(projects)
   assertUniqueNames(projects)
   const reportsDirectory = projects[0]?.policy.coverage.reportsDirectory ?? 'coverage'
   return {
     projects,
+    uniqueFiles: true,
     root,
     ...run,
     coverage: resolveCoverage(parsed.coverage, root, reportsDirectory),
