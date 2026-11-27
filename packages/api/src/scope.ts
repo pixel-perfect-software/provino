@@ -24,6 +24,7 @@ import {
   isMockFunction,
   type Mock,
   type Mocked,
+  type MockRegistry,
   type MockTarget,
   replaceProperty,
   type Stubs,
@@ -82,7 +83,7 @@ const builtByHost = new WeakMap<ApiHost, Built>()
  * dispose reach them. Stubs act on `process.env` and the global the test sees.
  */
 function stubsOver(host: ApiHost): () => Stubs {
-  const byRegistry = new WeakMap<object, Stubs>()
+  const byRegistry = new WeakMap<MockRegistry, Stubs>()
   return () => {
     const registry = host.mocks()
     let stubs = byRegistry.get(registry)
