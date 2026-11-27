@@ -62,6 +62,40 @@ describe("Provino's table under errorShape: 'assertion-error'", () => {
     )
   })
 
+  test('an empty or non-string message labels nothing', () => {
+    const { expect } = engine()
+    const untyped = expect as (...a: unknown[]) => { toBe(e: unknown): void }
+    for (const label of ['', 5]) {
+      assert.throws(
+        () => untyped(1, label).toBe(2),
+        (error: unknown) =>
+          /^expect\(received\)\.toBe\(expected\)/.test(assertTableError(error, 'toBe').message),
+      )
+    }
+  })
+
+  test('the label is kept on a .resolves and a .rejects failure', async () => {
+    await assert.rejects(
+      () => engine().expect(Promise.resolve(1), 'the label').resolves.toBe(2),
+      (error: unknown) =>
+        /^the label\n\nexpect\(received\)\.resolves\.toBe/.test(
+          assertTableError(error, 'toBe').message,
+        ),
+    )
+    await assert.rejects(
+      () => engine().expect(Promise.resolve(1), 'the label').rejects.toBe(1),
+      (error: unknown) => /^the label\n\n/.test(assertTableError(error, 'toBe').message),
+    )
+  })
+
+  test('expect.soft(value, message) keeps the label on the held error', () => {
+    const { expect, source } = engine()
+    assert.ok(expect.soft !== undefined)
+    expect.soft(1, 'the label').toBe(2)
+    const [held] = source.current().suppressedErrors
+    assert.match(assertTableError(held, 'toBe').message, /^the label\n\nexpect\(received\)/)
+  })
+
   test('without a message the failure starts with the matcher text', () => {
     assert.throws(
       () => engine().expect(1).toBe(2),

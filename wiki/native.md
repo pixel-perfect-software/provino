@@ -260,6 +260,7 @@ it('sees what the first one did', () => {
   // Received: 2.1
   ```
 
+- `expect.poll` takes no message.
 - `expect.extend` adds matchers, in a test file or in a setup file.
 - An assertion on a promise (`.resolves`, `.rejects`, `expect.poll`) must be awaited. One that is not fails the test and says so.
 - `toMatchSnapshot`, `toMatchInlineSnapshot`, `toThrowErrorMatchingSnapshot` and `toThrowErrorMatchingInlineSnapshot` are there: see [Snapshots](#snapshots).
