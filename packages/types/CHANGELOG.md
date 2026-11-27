@@ -1,5 +1,12 @@
 # @provino/types
 
+## 0.1.0-rc.9
+
+### Patch Changes
+
+- 6e68b21: `provino run --coverage` and a top-level `coverage` key in `provino.config.*` collect code coverage for a native project: V8 by default (or `istanbul`), the files that count by `include` and `exclude` globs, `reporters` (default `text` and `lcovonly`), `directory` and Jest-shaped `thresholds`. A watch run collects none and says so.
+- 6e68b21: A project with no dialect gets snapshots: `toMatchSnapshot`, `toMatchInlineSnapshot` (comparing a stored value), `toThrowErrorMatchingSnapshot` and `toThrowErrorMatchingInlineSnapshot` are in the native matcher table, and the `.snap` files are Jest 30.5's format, written by the vendored pretty-format, which a worker loads only on its first snapshot. A mock in a snapshot prints as Jest's does (`[MockFunction]`, named only after `mockName()`), and an obsolete snapshot fails a local run, as Jest's does. `NativeRuntimeRefs` gains `snapshot: { printer, writer? }`.
+
 ## 0.1.0-rc.8
 
 ### Patch Changes
