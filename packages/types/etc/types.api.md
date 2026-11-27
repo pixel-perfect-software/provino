@@ -1016,7 +1016,7 @@ export interface ExpectPolicy {
 // @public
 export interface ExpectStatic extends InvertibleAsymmetric {
     // (undocumented)
-    (actual: unknown): Assertion;
+    (actual: unknown, message?: string): Assertion;
     // (undocumented)
     readonly [asymmetric: string]: unknown;
     // (undocumented)
@@ -1041,7 +1041,7 @@ export interface ExpectStatic extends InvertibleAsymmetric {
     poll?: (fn: (context: PollContext) => unknown, options?: PollOptions) => PollAssertion;
     // (undocumented)
     setState(state: Partial<MatcherState>): void;
-    soft?: (actual: unknown) => Assertion;
+    soft?: (actual: unknown, message?: string) => Assertion;
     unreachable?: (message?: string) => never;
 }
 

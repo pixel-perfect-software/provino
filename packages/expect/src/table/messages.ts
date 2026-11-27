@@ -8,7 +8,7 @@ const call = ({ matcherName, isNot, promise }: MatcherCall): string =>
 
 /** The table's `messages`. */
 export const messages: ExpectTableMessages = {
-  tooManyArguments: () => 'expect() takes one value; pass a message through the matcher instead',
+  tooManyArguments: () => 'expect() takes a value and an optional message',
   noMessage: () => 'the assertion failed',
   invalidResult: (result) =>
     `a matcher must return { pass, message }, but it returned ${show(result)}`,

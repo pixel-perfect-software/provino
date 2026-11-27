@@ -65,7 +65,7 @@ export interface ExpectPolicy {
   /**
    * Whether `expect(actual, message)` takes a message after the value, which the table words a
    * failure with. `false`: a second argument is `messages.tooManyArguments`. Jest: `false`.
-   * Vitest: `true` (`fixtures/expect/messages/extend-and-misuse`). Neutral: `false`.
+   * Vitest: `true` (`fixtures/expect/messages/extend-and-misuse`). Neutral: `true`.
    */
   readonly messageArgument: boolean
   /** Equality edge cases (Track 7 `expect.equality.*`). */

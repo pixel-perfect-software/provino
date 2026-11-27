@@ -259,8 +259,9 @@ export const neutralPolicy: Policy = deepFreeze({
     errorShape: 'assertion-error',
     // Ours: `.resolves`/`.rejects` check their value where they are read, as the error shape's runner does.
     settlementCheck: 'at-read',
-    // Ours: `expect` takes the value alone.
-    messageArgument: false,
+    // Ours: `expect(value, message)` labels a failure, as a Vitest suite writes it (no recorded
+    // claim: a neutral-only value).
+    messageArgument: true,
     equality: { errors: 'assert', invalidDate: 'equal' },
     soft: true,
     poll: { enabled: true, intervalMs: 50, timeoutMs: 1000 },

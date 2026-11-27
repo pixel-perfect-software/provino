@@ -249,6 +249,17 @@ it('sees what the first one did', () => {
 `expect` has the usual matchers: `toBe`, `toEqual`, `toStrictEqual`, `toMatchObject`, `toContain`, `toContainEqual`, `toHaveLength`, `toHaveProperty`, `toMatch`, `toThrow`, `toBeInstanceOf`, `toBeTypeOf`, `toSatisfy`, the truthiness and comparison ones (`toBeTruthy`, `toBeNull`, `toBeDefined`, `toBeNaN`, `toBeGreaterThan`, `toBeCloseTo`, …) and the mock matchers (`toHaveBeenCalled`, `toHaveBeenCalledWith`, `toHaveReturned`, … with their Times, Last and Nth forms). It also has `.not`, `.resolves`, `.rejects`, `expect.any`, `expect.anything`, `expect.objectContaining`, `expect.arrayContaining`, `expect.stringContaining`, `expect.stringMatching`, `expect.closeTo`, `expect.assertions`, `expect.hasAssertions`, `expect.soft` (the test goes on after a failure, and fails at the end) and `expect.poll`.
 
 - A failure is an `AssertionError` with Jest's layout: `expect(received).toBe(expected)`, a blank line, then `Expected:` and `Received:`, and a diff for objects.
+- `expect(value, message)` (and `expect.soft(value, message)`) labels an assertion. On a failure the message is the first line, then a blank line, then the matcher's usual text, so the measured values stay in it:
+
+  ```ts
+  expect(contrast, 'ink on the card').toBeGreaterThanOrEqual(3)
+  // ink on the card
+  //
+  // expect(received).toBeGreaterThanOrEqual(expected)
+  // Expected: >= 3
+  // Received: 2.1
+  ```
+
 - `expect.extend` adds matchers, in a test file or in a setup file.
 - An assertion on a promise (`.resolves`, `.rejects`, `expect.poll`) must be awaited. One that is not fails the test and says so.
 - `toMatchSnapshot`, `toMatchInlineSnapshot`, `toThrowErrorMatchingSnapshot` and `toThrowErrorMatchingInlineSnapshot` are there: see [Snapshots](#snapshots).
