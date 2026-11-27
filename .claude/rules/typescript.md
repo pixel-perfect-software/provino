@@ -7,6 +7,7 @@ paths:
 
 # Package source rules
 
+- **TypeScript only.** No `.js`, `.mjs` or `.cjs` files anywhere in the repo (Rust is the one other language). Logic that must run before Node's type stripping is on (22.15 needs `--experimental-strip-types`) goes in a `package.json` script line or a CI env var, and a config file a tool insists on as JS needs a TS alternative or a question to Tyler first.
 - **ESM only.** No `require` in source, no CJS output. `verbatimModuleSyntax` is on, so type-only imports use `import type`.
 - **Relative imports use the `.ts` extension** (`rewriteRelativeImportExtensions`). Cross-package imports use the package name; the `provino-source` export condition points them at `src/` for tests (DECISIONS S1).
 - **`erasableSyntaxOnly`.** No `enum`, no `namespace`, no parameter properties and no other syntax that needs a transform. Our tests run on Node's type stripping.
