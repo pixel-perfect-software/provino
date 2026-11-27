@@ -10,18 +10,14 @@ function exporting(value: string): string {
   return `exports.value = ${JSON.stringify(value)}\n`
 }
 
-/** The packages a dependency imports from: none of them has an `exports` map. */
-const LEGACY_PACKAGES: Readonly<Record<string, string>> = {
+const LEGACY_PROJECT: Readonly<Record<string, string>> = {
+  // The packages a dependency imports from: none of them has an `exports` map.
   'node_modules/other/package.json': '{"name":"other","version":"1.0.0","main":"index.js"}\n',
   'node_modules/other/index.js': exporting('from other'),
   'node_modules/other/sub.js': exporting('from other/sub'),
   'node_modules/other/lib/index.js': exporting('from other/lib'),
   'node_modules/@scope/other/package.json': '{"name":"@scope/other","version":"1.0.0"}\n',
   'node_modules/@scope/other/sub.js': exporting('from @scope/other/sub'),
-}
-
-const LEGACY_PROJECT: Readonly<Record<string, string>> = {
-  ...LEGACY_PACKAGES,
   'node_modules/esm-dep/package.json':
     '{"name":"esm-dep","type":"module","exports":"./index.js"}\n',
   'node_modules/esm-dep/index.js': [

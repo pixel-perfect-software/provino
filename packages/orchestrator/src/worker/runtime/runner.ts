@@ -693,9 +693,7 @@ export function createRuntimeRunner(): WorkerRunner {
     parts.unmapStacks = installSourceMappedStacks(parts.loader, {
       frameNames: policy.module.stackFrameNames,
     })
-    // A shared external's own imports are Node's: a bare import of a subpath into a package with no
-    // `exports` map (`next/server`) resolves as `require` would, where Node's ES module resolution
-    // adds no extension.
+    // A shared external's own subpath imports resolve as `require` would (`legacy-subpath.ts`).
     parts.unhookSubpaths = installLegacySubpathFallback()
     // D127 / P42: a shared external whose first load, while a file runs, reads a per-file global
     // is evaluated again for each later file; B23f: so is one whose load adds or replaces a key of

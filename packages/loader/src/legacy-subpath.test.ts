@@ -2,27 +2,12 @@
 // package with no `exports` map resolves as `require` would. `legacySubpathTarget` is the decision,
 // over temp trees; the installed hook is process-wide, so it runs in a child process only.
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
-import { tmpdir } from 'node:os'
-import { dirname, join } from 'node:path'
+import { writeFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { afterAll, beforeAll, describe, expect, it } from 'provino'
+import { beforeAll, describe, expect, it } from 'provino'
+import { writeTree } from './internal/test-support.ts'
 import { legacySubpathTarget } from './legacy-subpath.ts'
-
-const roots: string[] = []
-afterAll(() => {
-  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true })
-})
-
-function writeTree(files: Readonly<Record<string, string>>): string {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'provino-legacy-subpath-')))
-  roots.push(root)
-  for (const [path, content] of Object.entries(files)) {
-    mkdirSync(dirname(join(root, path)), { recursive: true })
-    writeFileSync(join(root, path), content)
-  }
-  return root
-}
 
 const CJS = 'exports.value = 1\n'
 
@@ -40,6 +25,18 @@ const TREE: Readonly<Record<string, string>> = {
   'node_modules/esm-dep/package.json':
     '{"name":"esm-dep","type":"module","exports":"./index.js"}\n',
   'node_modules/esm-dep/index.js': "import { value } from 'legacy/sub'\nexport { value }\n",
+  ...Object.fromEntries(
+    ['before', 'after', 'removed'].flatMap((name) => [
+      [
+        `node_modules/dep-${name}/package.json`,
+        `{"name":"dep-${name}","type":"module","exports":"./index.js"}\n`,
+      ],
+      [
+        `node_modules/dep-${name}/index.js`,
+        "import { value } from 'legacy/sub'\nexport { value }\n",
+      ],
+    ]),
+  ),
   'app/main.js': '',
 }
 
@@ -98,13 +95,18 @@ describe('legacySubpathTarget', () => {
     expect(legacySubpathTarget('legacy/sub', importer, new Error('no code'))).toBeUndefined()
   })
 
+  it('has no answer, and does not throw, for an importer URL that is no path', () => {
+    const remote = 'file://remote-host/x/node_modules/a/i.js'
+    expect(legacySubpathTarget('other/sub', remote, NOT_FOUND)).toBeUndefined()
+  })
+
   it('has no answer for a package that is not installed or a subpath require cannot find', () => {
     expect(legacySubpathTarget('absent/sub', importer, NOT_FOUND)).toBeUndefined()
     expect(legacySubpathTarget('legacy/missing', importer, NOT_FOUND)).toBeUndefined()
   })
 })
 
-/** What the child prints: how each of three fresh trees loaded the ES module dependency. */
+/** What the child prints: how each of three ES module dependencies loaded. */
 interface Observed {
   readonly before: string
   readonly after: { readonly viaImport: unknown; readonly viaRequire: unknown }
@@ -113,7 +115,7 @@ interface Observed {
 
 describe('installLegacySubpathFallback', () => {
   it('lets a shared external import a subpath, and its returned call removes the hook', () => {
-    const [before, after, removed] = [writeTree(TREE), writeTree(TREE), writeTree(TREE)]
+    const tree = writeTree(TREE)
     const scratch = writeTree({})
     const module = pathToFileURL(join(import.meta.dirname, 'legacy-subpath.ts')).href
     const entry = join(scratch, 'entry.mjs')
@@ -124,26 +126,24 @@ describe('installLegacySubpathFallback', () => {
         "import { join } from 'node:path'",
         "import { pathToFileURL } from 'node:url'",
         `import { installLegacySubpathFallback } from ${JSON.stringify(module)}`,
-        'const [before, after, removed] = process.argv.slice(2)',
-        "const dep = (root) => join(root, 'node_modules/esm-dep/index.js')",
+        'const tree = process.argv[2]',
+        "const dep = (name) => join(tree, 'node_modules', `dep-${name}`, 'index.js')",
         'const code = (error) => error?.code ?? String(error)',
         'const observed = {}',
-        "try { await import(pathToFileURL(dep(before)).href); observed.before = 'loaded' } catch (error) { observed.before = code(error) }",
+        "try { await import(pathToFileURL(dep('before')).href); observed.before = 'loaded' } catch (error) { observed.before = code(error) }",
         'const uninstall = installLegacySubpathFallback()',
-        'const viaImport = (await import(pathToFileURL(dep(after)).href)).value',
-        "const viaRequire = createRequire(join(after, 'x.js'))(dep(after)).value",
+        "const viaImport = (await import(pathToFileURL(dep('after')).href)).value",
+        "const viaRequire = createRequire(join(tree, 'x.js'))(dep('after')).value",
         'observed.after = { viaImport, viaRequire }',
         'uninstall()',
-        "try { await import(pathToFileURL(dep(removed)).href); observed.removed = 'loaded' } catch (error) { observed.removed = code(error) }",
+        "try { await import(pathToFileURL(dep('removed')).href); observed.removed = 'loaded' } catch (error) { observed.removed = code(error) }",
         'console.log(JSON.stringify(observed))',
         '',
       ].join('\n'),
     )
-    const ran = spawnSync(
-      process.execPath,
-      ['--conditions=provino-source', entry, before, after, removed],
-      { encoding: 'utf8' },
-    )
+    const ran = spawnSync(process.execPath, ['--conditions=provino-source', entry, tree], {
+      encoding: 'utf8',
+    })
     expect(ran.status === 0 ? 'exited 0' : ran.stderr).toBe('exited 0')
     const observed = JSON.parse(ran.stdout.trim().split('\n').at(-1) ?? '') as Observed
     expect(observed).toEqual({

@@ -8,10 +8,10 @@
 // for such a specifier, imported from a file under `node_modules`, is the subpath resolved as
 // `require` resolves it, which is the file Node's own error names. A package with an `exports` map
 // keeps Node's error, as does every relative or absolute specifier.
-import { readFileSync, statSync } from 'node:fs'
-import { createRequire, registerHooks } from 'node:module'
-import { dirname, join, sep } from 'node:path'
+import { readFileSync } from 'node:fs'
+import { createRequire, findPackageJSON, registerHooks } from 'node:module'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { packageDirOf } from './graph/package-dir.ts'
 
 /** The codes Node's ES module resolution throws for a file it does not complete. */
 const RETRIED: ReadonlySet<string> = new Set(['ERR_MODULE_NOT_FOUND', 'ERR_UNSUPPORTED_DIR_IMPORT'])
@@ -31,23 +31,11 @@ function packageSubpath(
   return subpath === '' ? undefined : { name: parts.slice(0, size).join('/'), subpath }
 }
 
-/** The directory Node's lookup takes the package `name` from: `node_modules/<name>`, walking up from `from`. */
-function packageDirectory(name: string, from: string): string | undefined {
-  let dir = dirname(from)
-  for (;;) {
-    const candidate = join(dir, 'node_modules', name)
-    if (statSync(candidate, { throwIfNoEntry: false })?.isDirectory() === true) return candidate
-    const parent = dirname(dir)
-    if (parent === dir) return undefined
-    dir = parent
-  }
-}
-
-/** Whether the package at `dir` has no `exports` map (a missing `package.json` has none). */
-function hasNoExports(dir: string): boolean {
+/** Whether the package whose `package.json` is `manifestPath` has no `exports` map. */
+function hasNoExports(manifestPath: string): boolean {
   let text: string
   try {
-    text = readFileSync(join(dir, 'package.json'), 'utf8')
+    text = readFileSync(manifestPath, 'utf8')
   } catch {
     return true
   }
@@ -81,12 +69,13 @@ export function legacySubpathTarget(
   if (parentURL?.startsWith('file:') !== true) return undefined
   const bare = packageSubpath(specifier)
   if (bare === undefined) return undefined
-  const parent = fileURLToPath(parentURL)
-  if (!parent.split(sep).includes('node_modules')) return undefined
-  const dir = packageDirectory(bare.name, parent)
-  if (dir === undefined || !hasNoExports(dir)) return undefined
+  // Anything below can throw its own error (an unreadable directory, a `file:` URL that is no
+  // path, an absent package); the hook must rethrow Node's, so every such case is no answer.
   try {
-    return pathToFileURL(createRequire(join(dir, 'package.json')).resolve(`./${bare.subpath}`)).href
+    if (packageDirOf(fileURLToPath(parentURL)) === null) return undefined
+    const manifest = findPackageJSON(bare.name, parentURL)
+    if (manifest === undefined || !hasNoExports(manifest)) return undefined
+    return pathToFileURL(createRequire(manifest).resolve(`./${bare.subpath}`)).href
   } catch {
     return undefined
   }
