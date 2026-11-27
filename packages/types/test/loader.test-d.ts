@@ -65,6 +65,9 @@ expectTypeOf(loader).toExtend<Disposable>()
 
 // The loader evaluates Track 3's transform record, synchronously.
 expectTypeOf<ReturnType<ModuleTransformer['transform']>>().toEqualTypeOf<TransformRecord>()
+expectTypeOf<ModuleTransformer['handles']>().toEqualTypeOf<
+  ((filename: string) => boolean) | undefined
+>()
 expectTypeOf<TransformRecord['hasTopLevelAwait']>().toEqualTypeOf<boolean>()
 // D38: the hoister's rewritten imports, as specifiers.
 expectTypeOf<TransformRecord['lateDeps']>().toEqualTypeOf<readonly string[]>()

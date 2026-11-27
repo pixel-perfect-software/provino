@@ -421,7 +421,12 @@ A test file, or a module it imports, can import a file that is not code, as it w
 | `.css`, `.scss`, `.sass`, `.less`, `.styl`, `.stylus`, `.pcss`, `.postcss`, `.sss` | An empty module whose default export is `''` |
 | `*.module.<style extension>` | A default export where every name reads as itself (`styles.foo === 'foo'`); symbols, `then` and `__esModule` read as `undefined` |
 
-`require()` of one from a CommonJS module sees what it would see for any ES module with that default export. A `mock('./logo.svg', () => ({ default: 'x' }))` replaces it as it replaces any module. A small `.svg` that Vite would inline as a `data:` URL is still its path here, and a query (`?url`, `?raw`) is not read: the file imports as it would without one.
+`require()` of one from a CommonJS module sees what it would see for any ES module with that default export. A `mock('./logo.svg', () => ({ default: 'x' }))` replaces it as it replaces any module.
+
+- **Queries.** `?raw` imports the file's text (UTF-8) and `?url` its URL, as in Vite; any other query imports as none. They apply to the files in the table only.
+- **Dependencies.** A package's asset or stylesheet (`import 'some-lib/dist/style.css'`) is built in too, and so is a `./button.css` a package you `inline` imports. A package Node loads itself keeps Node's behaviour for its own imports, so a `.css` import there fails as it does outside Provino.
+- **Your own transform.** A Jest-style `transform` entry that matches the file takes it, and nothing is built in.
+- **Limits.** A CSS module has a default export only: a named import reads `undefined`, as in Vitest without CSS processing. A small `.svg` that Vite would inline as a `data:` URL is still its path here, and URLs are not percent-encoded (Vite's dev server writes them as they are).
 
 This is on for a project with no dialect only. A Jest project maps these files with `moduleNameMapper`, and a Vitest project leaves them to Vite.
 

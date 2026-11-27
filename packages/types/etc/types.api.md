@@ -2266,6 +2266,7 @@ export type ModuleScopeValues = (from: ModuleId) => Readonly<Record<string, unkn
 
 // @public
 export interface ModuleTransformer {
+    handles?(filename: string): boolean;
     // (undocumented)
     transform(request: TransformRequest): TransformRecord;
 }
