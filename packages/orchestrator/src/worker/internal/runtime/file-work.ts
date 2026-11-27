@@ -43,10 +43,21 @@
 // one map entry (and the `Timeout` with its callback kept alive) per fired timeout of a window
 // file, until its settle; an immediate can't be re-armed and is dropped when it runs.
 //
-// The wrappers go on the global once per worker, at boot, before any file loads anything, and only
-// for a worker whose isolation is not `none` (there the window outlives its files), so a package
-// that captures `setImmediate` as it loads captures the wrapper. While no window file is tracked
-// they pass the call through with nothing allocated (`openFiles.size === 0`).
+// **Where they go (#230).** Only in a worker that runs a window, and only when its isolation is not
+// `none` (there the window outlives its files): the runner puts them on the global at the worker's
+// first window file, right after that file's environment `setup` and before any of its modules
+// load (`installWindowWork` in `runner.ts`), so a package that captures `setImmediate` as it loads
+// captures the wrapper. A worker whose environment has no window keeps Node's own functions, so its
+// timer calls cost what Node's do and no frame of Provino's sits in a stack captured at a timer's
+// creation. That first file's environment read the global before they went on, and its teardown
+// puts back what it read, so the runner then `reinstate`s them for the files after it. The timing
+// holds because a worker runs one environment: boot loads only Provino's own modules, the
+// environment and the dialect's factories, and a native project has no docblock environment (no
+// `environmentResolver`). A dialect that turned the key on and resolved docblocks could run a
+// non-window file first, and a shared package it loaded would keep Node's own timers in the
+// worker's later window files. Where Provino prints a stack captured at a timer's creation (the
+// open-handle report), the wrappers' frames are left out as Provino's own. While no window file is
+// tracked they pass the call through with nothing allocated (`openFiles.size === 0`).
 //
 // **The bound.** `DRAIN_TURNS` (50) whole turns or `DRAIN_MS` (50 ms), whichever comes first. A
 // React commit's queued flush and the effects it schedules take one to three turns; React's
@@ -59,7 +70,10 @@
 // medians of 7 rounds, 2026-11-27): Node's own 111 ns; the wrappers while no window file runs 118 ns;
 // while one runs, for code outside its context, 134 ns (an `AsyncLocalStorage` read); for the file's
 // own work 368 ns (the callback's wrapper, the map entry and the timeout's own `Symbol.toPrimitive`).
-// With the key off, or under isolation `none`, nothing is installed.
+// Again on 2026-11-27 (`local`, the same method, on a machine running other work, so every number
+// is higher): Node's own 199 ns, the wrappers idle 206 ns, a window file's code outside its context
+// 215 ns and its own work 471 ns. With the key off, under isolation `none`, or in a worker that runs
+// no window, nothing is installed and a timer call is Node's own.
 import { nativeNow, nativeSetTimeout, nextMacrotask } from '../../timers.ts'
 
 /** The most event-loop turns the drain waits for a file's work: about 2 ms for a loop of immediates. */
@@ -109,9 +123,18 @@ interface Settled {
   readonly cleared: number
 }
 
-/** The wrappers on a global: `track` opens a window file's record, `uninstall` takes them off. */
+/**
+ * The wrappers on a global: `track` opens a window file's record, `reinstate` puts them back where
+ * an environment's restore put Node's own back, `uninstall` takes them off.
+ */
 export interface FileWorkTracking {
   track(): FileWork
+  /**
+   * Puts each wrapper back on the global where the global holds Node's own function again: the
+   * first window file's environment read the global before the wrappers went on, and its teardown
+   * restores what it read. Anything else that replaced them stays.
+   */
+  reinstate(): void
   uninstall(): void
 }
 
@@ -215,6 +238,7 @@ export function installFileWorkTracking(
   }
   const target = global as Record<string, unknown>
   const restores: (() => void)[] = []
+  const reinstates: (() => void)[] = []
   for (const { set, clear } of PAIRS) {
     const original = target[set]
     const originalClear = target[clear]
@@ -302,6 +326,10 @@ export function installFileWorkTracking(
     // Node's timer globals are writable data properties, so an assignment keeps their attributes.
     target[set] = wrapped
     target[clear] = wrappedClear
+    reinstates.push(() => {
+      if (target[set] === original) target[set] = wrapped
+      if (target[clear] === originalClear) target[clear] = wrappedClear
+    })
     restores.push(() => {
       // Only while the global still holds ours: whatever replaced them since stays.
       if (target[set] === wrapped) target[set] = original
@@ -319,6 +347,9 @@ export function installFileWorkTracking(
       }
       openFiles.add(work)
       return work
+    },
+    reinstate(): void {
+      for (const reinstate of reinstates) reinstate()
     },
     uninstall(): void {
       const entry = installed.get(global)

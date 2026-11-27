@@ -5,7 +5,8 @@
 // options steer failures: `failSetup` and `failTeardown`. `leak: 'a,b'` makes `teardown` report
 // those keys as globals it could not remove (D22), without actually leaving anything behind.
 // `slowTeardown` makes it end later, after a macrotask and a file system round trip, as a teardown
-// that does real I/O would. `prepareGlobal: 'name'` makes `prepare` define that global.
+// that does real I/O would. `prepareGlobal: 'name'` makes `prepare` define that global. `window: true`
+// puts a `document` on the global for the file, so the worker takes the file for a window's.
 import { stat } from 'node:fs/promises'
 import { setImmediate as macrotask } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
@@ -47,6 +48,7 @@ export const recordingEnvironment: Environment<
     ;(globalThis as Traced).__signals?.push(context.signal)
     if (context.options.failSetup === true) throw new Error('setup failed')
     const before = new Set(Reflect.ownKeys(globalThis))
+    if (context.options.window === true) Reflect.set(globalThis, 'document', {})
     return {
       global: globalThis,
       // With `listen: true` the instance traces the lifecycle events it gets (`event:<type>`, and
