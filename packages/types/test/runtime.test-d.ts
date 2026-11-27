@@ -73,6 +73,30 @@ api.each([{ a: 1 }, { a: 2 }])('row $a', (row) => {
 })
 // @ts-expect-error an object row is one argument
 api.each([{ a: 1 }])('row', (row, extra: number) => [row, extra])
+// A table of literal rows: a callback may read only the first columns, and one that reads every
+// column still accepts each row.
+api.each([
+  ['ms', 'ms'],
+  ['types-ms', 'types-ms'],
+])('%s', (name) => {
+  expectTypeOf(name).toEqualTypeOf<'ms' | 'types-ms'>()
+})
+api.each([
+  ['a', 1],
+  ['b', 2],
+])('%s', () => undefined)
+const crossed = [
+  [1, 'a'],
+  ['b', 2],
+] as const
+// @ts-expect-error the second row's first column is a string, not a number
+api.each(crossed)('row', (a: number, b: string) => [a, b])
+// @ts-expect-error a callback cannot take more parameters than the row has columns
+api.each([['a', 1]])('%s', (a, b, c) => [a, b, c])
+// Rows of different lengths stay a union of the rows.
+api.each([[1], [2, 'b']])('row', (...row) => {
+  expectTypeOf(row).toEqualTypeOf<[1] | [2, 'b']>()
+})
 // A table mixing tuples and other rows spreads none of them: each row is one argument.
 api.each([[1, 2], 'x'] as const)('row', (row) => {
   expectTypeOf(row).toEqualTypeOf<readonly [1, 2] | 'x'>()

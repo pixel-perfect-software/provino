@@ -50,6 +50,31 @@ export type MockReturn<T extends MockTarget> = T extends (...args: never[]) => i
     : never
 
 /**
+ * What a mock's implementation methods accept: the target itself, generics and `this` included.
+ * An overloaded function is taken as its last overload, the one its call signature and
+ * `MockParameters` already read, so its mock is given one implementation rather than one per
+ * overload.
+ * @public
+ */
+export type MockImplementation<T extends MockTarget> =
+  IsOverloaded<T> extends true ? (...args: MockParameters<T>) => MockReturn<T> : T
+
+/**
+ * Whether a function has more than one call signature. Inferring from a two-signature pattern
+ * reads the last two overloads, or the one signature twice.
+ */
+type IsOverloaded<T> = T extends {
+  (...args: infer A1): infer R1
+  (...args: infer A2): infer R2
+}
+  ? Same<[A1, R1], [A2, R2]> extends true
+    ? false
+    : true
+  : false
+
+type Same<A, B> = (<G>() => G extends A ? 1 : 2) extends <G>() => G extends B ? 1 : 2 ? true : false
+
+/**
  * One entry of `mock.results`. `incomplete` is a call still running.
  * @public
  */
@@ -91,14 +116,20 @@ export interface MockInstance<T extends MockTarget = UnknownFunction> {
   readonly _isMockFunction: true
   getMockName(): string
   mockName(name: string): this
-  getMockImplementation(): T | undefined
+  getMockImplementation(): MockImplementation<T> | undefined
   mockClear(): this
   mockReset(): this
   mockRestore(): void
-  mockImplementation(implementation: T): this
-  mockImplementationOnce(implementation: T): this
-  withImplementation(implementation: T, callback: () => Promise<unknown>): Promise<this | undefined>
-  withImplementation(implementation: T, callback: () => unknown): this | undefined
+  mockImplementation(implementation: MockImplementation<T>): this
+  mockImplementationOnce(implementation: MockImplementation<T>): this
+  withImplementation(
+    implementation: MockImplementation<T>,
+    callback: () => Promise<unknown>,
+  ): Promise<this | undefined>
+  withImplementation(
+    implementation: MockImplementation<T>,
+    callback: () => unknown,
+  ): this | undefined
   mockReturnThis(): this
   mockReturnValue(value: MockReturn<T>): this
   mockReturnValueOnce(value: MockReturn<T>): this

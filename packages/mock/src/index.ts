@@ -34,6 +34,7 @@ export type {
   MockedClass,
   MockedFunction,
   MockedObject,
+  MockImplementation,
   MockInstance,
   MockParameters,
   MockResult,

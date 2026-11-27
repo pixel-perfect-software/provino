@@ -81,6 +81,41 @@ createMockFn(policy, registry, { impl: 1 })
 // @ts-expect-error a mock needs a policy and a registry
 createMockFn()
 
+// The implementation methods take the target itself, generics and `this` included; an overloaded
+// target is given one implementation, of its last overload.
+const identity = createMockFn<<X>(x: X) => X>(policy, registry)
+identity.mockImplementation((x) => x)
+// @ts-expect-error the implementation returns the type parameter
+identity.mockImplementation(() => 1)
+interface Counter {
+  count: number
+}
+const bump = createMockFn<(this: Counter, by: number) => number>(policy, registry)
+bump.mockImplementation(function (by) {
+  expectTypeOf(this).toEqualTypeOf<Counter>()
+  return this.count + by
+})
+declare function original(this: Counter, by: number): number
+expectTypeOf(bump.getMockImplementation()).toExtend<typeof original | undefined>()
+expectTypeOf(identity.getMockImplementation()).toExtend<(<X>(x: X) => X) | undefined>()
+declare function read(path: string): string
+declare function read(path: number): number
+const reader = createMockFn<typeof read>(policy, registry)
+reader.mockImplementation((path) => {
+  expectTypeOf(path).toEqualTypeOf<number>()
+  return path + 1
+})
+const run = (): undefined => undefined
+reader.withImplementation((path) => path * 2, run)
+// @ts-expect-error the implementation takes the last overload's parameter type
+reader.mockImplementationOnce((path: string) => path)
+// @ts-expect-error the implementation returns the last overload's return type
+reader.withImplementation((path) => String(path), run)
+// @ts-expect-error a `this`-typed implementation reads the target's `this`
+bump.mockImplementationOnce(function (this: { other: string }, by) {
+  return by
+})
+
 // `isMockFunction`.
 declare const unknownValue: unknown
 if (isMockFunction(policy, unknownValue)) {

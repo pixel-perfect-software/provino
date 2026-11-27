@@ -14,6 +14,8 @@ import {
   type MockedClass,
   type MockedFunction,
   type MockedObject,
+  type MockImplementation,
+  type MockInstance,
   mock,
   mocked,
   mocks,
@@ -175,3 +177,28 @@ resetModules('./dep.ts')
 isolateModules('./dep.ts')
 // @ts-expect-error isolateModulesAsync takes a function that returns a Promise
 isolateModulesAsync(() => 1)
+
+// An overloaded function takes an implementation of its last overload (the full cases are in
+// @provino/mock's type tests).
+declare function read(path: string): string
+declare function read(path: number): number
+const overloaded = { read }
+const mockedRead = mocked(overloaded).read
+mockedRead.mockImplementation((path) => path + 1)
+spyOn(overloaded, 'read').mockImplementation((path) => path + 1)
+const readImpl: MockImplementation<typeof read> | undefined = mockedRead.getMockImplementation()
+expectTypeOf(readImpl).toEqualTypeOf<((path: number) => number) | undefined>()
+// @ts-expect-error the implementation takes the last overload's parameter type
+mockedRead.mockImplementation((path: string) => path)
+
+// Coming from @types/jest (wiki/native.md): what to write where provino is stricter.
+spyOn(console, 'log').mockImplementation(() => {})
+const exitSpy: MockInstance<typeof process.exit> = spyOn(process, 'exit')
+expectTypeOf(exitSpy.mock.calls).toEqualTypeOf<[code?: number | string | null | undefined][]>()
+type Apply = (name: string, count: number) => string
+const applied = fn<Apply>((name, count) => name.repeat(count))
+expectTypeOf(applied.mock.calls).toEqualTypeOf<[name: string, count: number][]>()
+mock('node:path', () => ({
+  ...requireActual<typeof import('node:path')>('node:path'),
+  sep: '/',
+}))

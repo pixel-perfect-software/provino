@@ -45,6 +45,7 @@ export type {
   MockedClass,
   MockedFunction,
   MockedObject,
+  MockImplementation,
   MockInstance,
 } from '@provino/mock'
 

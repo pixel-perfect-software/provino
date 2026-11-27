@@ -807,7 +807,7 @@ export interface EachApi<Ctx> {
 }
 
 // @public
-export type EachRowArgs<Row> = [Row] extends [readonly unknown[]] ? [...Row] : [Row];
+export type EachRowArgs<Row> = [Row] extends [readonly unknown[]] ? RowColumns<Row> : [Row];
 
 // @public
 export type EachTableKind = "rows" | "template" | "mixed";

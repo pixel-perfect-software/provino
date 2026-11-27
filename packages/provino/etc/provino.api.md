@@ -107,11 +107,14 @@ export type MockedFunction<T extends FunctionLike> = Mock<T> & { [K in keyof T]:
 export type MockedObject<T extends object> = { [K in keyof T]: T[K] extends ClassLike ? MockedClass<T[K]> : T[K] extends FunctionLike ? MockedFunction<T[K]> : T[K] extends object ? MockedObject<T[K]> : T[K]; } & T;
 
 // @public
+export type MockImplementation<T extends MockTarget> = IsOverloaded<T> extends true ? (...args: MockParameters<T>) => MockReturn<T> : T;
+
+// @public
 export interface MockInstance<T extends MockTarget = UnknownFunction> {
     // (undocumented)
     [Symbol.dispose](): void;
     // (undocumented)
-    getMockImplementation(): T | undefined;
+    getMockImplementation(): MockImplementation<T> | undefined;
     // (undocumented)
     getMockName(): string;
     // (undocumented)
@@ -121,9 +124,9 @@ export interface MockInstance<T extends MockTarget = UnknownFunction> {
     // (undocumented)
     mockClear(): this;
     // (undocumented)
-    mockImplementation(implementation: T): this;
+    mockImplementation(implementation: MockImplementation<T>): this;
     // (undocumented)
-    mockImplementationOnce(implementation: T): this;
+    mockImplementationOnce(implementation: MockImplementation<T>): this;
     // (undocumented)
     mockName(name: string): this;
     // (undocumented)
@@ -150,9 +153,9 @@ export interface MockInstance<T extends MockTarget = UnknownFunction> {
     mockThrowOnce(value: unknown): this;
     whenCalledWith(...args: unknown[]): Mock<T>;
     // (undocumented)
-    withImplementation(implementation: T, callback: () => Promise<unknown>): Promise<this | undefined>;
+    withImplementation(implementation: MockImplementation<T>, callback: () => Promise<unknown>): Promise<this | undefined>;
     // (undocumented)
-    withImplementation(implementation: T, callback: () => unknown): this | undefined;
+    withImplementation(implementation: MockImplementation<T>, callback: () => unknown): this | undefined;
 }
 
 // @public
