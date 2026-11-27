@@ -183,6 +183,7 @@ interface Candidate {
 }
 
 const NO_CALLS: NonNullable<HoistPolicy['importedCalls']> = Object.freeze([])
+const NO_NAMES: readonly string[] = Object.freeze([])
 
 /** The modules a policy's `importedCalls` and `callbackScopes` come from: fixed by the policy, so built once. */
 const callModules = new WeakMap<HoistPolicy, ReadonlySet<string>>()
@@ -208,7 +209,7 @@ export function analyse(
 ): Analysis {
   const importedCalls = policy.importedCalls ?? NO_CALLS
   const callbackScopes = policy.callbackScopes ?? NO_CALLS
-  const globalCallbackScopes = new Set(policy.globalCallbackScopes ?? [])
+  const globalCallbackScopes = policy.globalCallbackScopes ?? NO_NAMES
   const { named: importedLocals, namespaces: namespaceLocals } = importedCallLocals(
     program,
     callModulesOf(policy),
@@ -365,7 +366,7 @@ export function analyse(
    * hoisted call there moves to the top of that body, as `enclosing-block` would move it.
    */
   function isCallbackScope(block: Node, index: number): boolean {
-    if (callbackScopes.length === 0 && globalCallbackScopes.size === 0) return false
+    if (callbackScopes.length === 0 && globalCallbackScopes.length === 0) return false
     const fn = stack[index - 1]
     const call = stack[index - 2]
     if (
@@ -379,10 +380,9 @@ export function analyse(
     const callee = call.callee
     if (
       callee.type === 'Identifier' &&
-      globalCallbackScopes.has(callee.name) &&
+      globalCallbackScopes.includes(callee.name) &&
       !call.optional &&
-      declarationOf(callee.name) === null &&
-      !tracker.isDeclaredInMergedScope(callee.name)
+      isUnboundGlobal(callee.name)
     ) {
       return true
     }
@@ -402,17 +402,16 @@ export function analyse(
     return importedCall(call)
   }
 
+  /** Whether `name` here is the global: no declaration of it in scope, nor in a merged scope. */
+  function isUnboundGlobal(name: string): boolean {
+    return declarationOf(name) === null && !tracker.isDeclaredInMergedScope(name)
+  }
+
   function isMockObject(expr: Expression): boolean {
     if (expr.type === 'Identifier') {
       for (const matcher of policy.objects) {
         if (matcher.kind === 'global') {
-          if (
-            matcher.name === expr.name &&
-            declarationOf(expr.name) === null &&
-            !tracker.isDeclaredInMergedScope(expr.name)
-          ) {
-            return true
-          }
+          if (matcher.name === expr.name && isUnboundGlobal(expr.name)) return true
         } else if (matcher.kind === 'name') {
           if (matcher.name === expr.name) return true
         } else if (matcher.kind === 'import') {

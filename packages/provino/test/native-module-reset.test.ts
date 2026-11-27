@@ -211,7 +211,7 @@ it('a mock at the top of the global isolateModulesAsync callback is registered i
 
 describe('the global isolation calls under globals: true', () => {
   test('a mock at the top of their callback hoists inside it', async () => {
-    const config = NATIVE_CONFIG.replace('] }', '], globals: true }')
+    const config = "export default { include: ['tests/**/*.test.ts'], globals: true }\n"
     const dir = await nativeProject(
       { ...SOURCES, 'tests/global.test.ts': GLOBAL_ISOLATION },
       config,

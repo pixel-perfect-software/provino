@@ -71,8 +71,9 @@ export interface HoistPolicy<Calls extends string = string, Values extends strin
   /**
    * Global names that are callback scopes too, as `callbackScopes` are: a call to one with no
    * binding of that name in scope (`isolateModules(() => { mock('./a') })` where the runner injects
-   * `isolateModules` as a global) makes its callback a scope of its own. Set only when the project
-   * injects those globals. None when absent.
+   * `isolateModules` as a global) makes its callback a scope of its own. Only the bare call
+   * counts, not `globalThis.isolateModules(…)`. Harmless where the name is not a global: an
+   * unbound call fails at run time anyway. None when absent.
    */
   readonly globalCallbackScopes?: readonly string[]
   /** `['hoisted']` for Vitest, `[]` for Jest. */
