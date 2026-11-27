@@ -145,15 +145,36 @@ describe('native snapshots through provino run', () => {
       loaded.some((url) => url.endsWith('/dist/worker/snapshot-printer-impl.js')),
       loaded.join('\n'),
     )
+    // Nothing was written into a source file, so no process loaded the inline writer.
+    assert.ok(
+      !loaded.some((url) => url.endsWith('/dist/worker/snapshot-inline.js')),
+      loaded.join('\n'),
+    )
   })
 
-  test('an inline snapshot with nothing stored fails: the native runtime has no writer yet', async () => {
+  test('an inline snapshot with nothing stored is written into the test file, by the inline writer (B28 Phase 7)', async () => {
     const file =
-      "import { expect, it } from 'provino'\nit('new', () => { expect(1).toMatchInlineSnapshot() })\n"
+      "import { expect, it } from 'provino'\nit('new', () => { expect({ a: 1 }).toMatchInlineSnapshot() })\n"
     const dir = await nativeProject({ 'tests/inline.test.ts': file })
-    const run = await built(nativeRunArgs('forks'), dir)
-    assert.equal(run.status, 1, run.output)
-    assert.equal((await statuses(dir)).get('new'), 'failed')
-    assert.equal(await readFile(join(dir, 'tests', 'inline.test.ts'), 'utf8'), file)
+    const logs = scratch('provino-native-inline-loads-')
+    const run = runBuilt(nativeRunArgs('forks'), {
+      cwd: dir,
+      preloads: ['load-recorder'],
+      env: { PROVINO_LOAD_LOG: logs },
+    })
+    assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
+    assert.equal((await statuses(dir)).get('new'), 'passed')
+    assert.equal(
+      await readFile(join(dir, 'tests', 'inline.test.ts'), 'utf8'),
+      "import { expect, it } from 'provino'\nit('new', () => { expect({ a: 1 }).toMatchInlineSnapshot(`\n{\n  \"a\": 1,\n}\n`) })\n",
+    )
+    const loaded = readLoadLogs(logs).flatMap(({ urls }) => urls)
+    assert.ok(
+      loaded.some((url) => url.endsWith('/dist/worker/snapshot-inline.js')),
+      loaded.join('\n'),
+    )
+    // A second run matches what the first wrote, and writes nothing.
+    const again = await built([...nativeRunArgs('forks'), '--ci'], dir)
+    assert.equal(again.status, 0, again.output)
   })
 })

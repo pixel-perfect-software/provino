@@ -49,6 +49,9 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   // (`@provino/expect/table` re-exports it) and `require`s this file on the first snapshot, so a run
   // without one never reads it.
   '@provino/snapshot/printer-impl': 'worker/snapshot-printer-impl',
+  // The native inline snapshot writer (B28): the coordinator loads it by ref the first time a run
+  // has an inline snapshot to write, and it imports Oxc's parser only then.
+  '@provino/snapshot/inline': 'worker/snapshot-inline',
 }
 
 /**

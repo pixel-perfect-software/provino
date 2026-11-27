@@ -6,6 +6,7 @@
 | `deep-merge.ts` | Jest v30.5.2 (https://github.com/jestjs/jest, MIT, © Meta Platforms, Inc. and affiliates), `packages/jest-snapshot/src/utils.ts` L25-L135 | ported to `unknown` and a record type; how property matchers merge into the received value |
 | `pretty-format/` | pretty-format 30.5.1 (Jest `v30.5.2` checkout, `packages/pretty-format/src/`: `index.ts`, `collections.ts`, `types.ts`, `plugins/*`) | copied, patched; how a snapshot value prints (D210) |
 | `jest-snapshot/mock-serializer.ts` | Jest v30.5.2, `packages/jest-snapshot/src/mockSerializer.ts` | copied, one import patched; how a mock function prints |
+| `jest-snapshot/escape-backtick.ts` | Jest v30.5.2, `packages/jest-snapshot-utils/src/utils.ts` L167-L168 (`@jest/snapshot-utils` 30.5.1) | copied, unpatched; how the native inline writer (`../inline/index.ts`) escapes a snapshot for a template literal |
 | `react-is/v18.ts`, `react-is/v19.ts` | react-is 18.3.1 (`cjs/react-is.production.min.js`) and 19.3.1 (`cjs/react-is.production.js`), MIT, © Meta Platforms, Inc. and affiliates | ported to TypeScript, only the predicates the React plugin calls; they stand in for `@jest/react-is-18` and `@jest/react-is-19` |
 | `ansi-styles/index.ts` | ansi-styles 5.2.0 (https://github.com/chalk/ansi-styles, MIT, © Sindre Sorhus), `index.js` | ported to TypeScript; the colours of `highlight: true` |
 

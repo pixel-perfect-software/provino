@@ -11,6 +11,7 @@ import {
   type SnapshotUpdateMode,
   serializeSnapFile,
 } from '@provino/snapshot'
+import { nativeInlineSnapshotWriter } from '@provino/snapshot/inline'
 import {
   cleanObsoleteSnapshotFiles,
   createSnapshotAggregate,
@@ -30,6 +31,7 @@ import {
   unwrapMatcherSnapshotState,
 } from '@provino/snapshot/runtime'
 import type {
+  InlineSnapshotWriterFactory,
   SnapshotFileReport,
   SnapshotPolicy,
   SnapshotPrinter,
@@ -170,3 +172,17 @@ cleanObsoleteSnapshotFiles({ ...crawl, testPathOf: undefined })
 cleanObsoleteSnapshotFiles({ ...crawl, update: 'sometimes' })
 // @ts-expect-error the inverse needs the extension
 defaultSnapshotTestPath('/a.snap', {})
+
+// B28 Phase 7: the native inline writer is a writer factory, and its codes are the error's.
+expectTypeOf(nativeInlineSnapshotWriter).toEqualTypeOf<InlineSnapshotWriterFactory>()
+expectTypeOf(nativeInlineSnapshotWriter()).returns.toEqualTypeOf<Promise<readonly string[]>>()
+expectTypeOf<'SNAPSHOT_INLINE_PARSE'>().toExtend<SnapshotErrorCode>()
+expectTypeOf<'SNAPSHOT_INLINE_NOT_FOUND'>().toExtend<SnapshotErrorCode>()
+expectTypeOf<'SNAPSHOT_INLINE_SAME_CALL'>().toExtend<SnapshotErrorCode>()
+// @ts-expect-error the writer is told the project
+void nativeInlineSnapshotWriter()([])
+// @ts-expect-error an edit has a line and a column
+void nativeInlineSnapshotWriter()([{ file: '/a.ts', snapshot: 'x' }], {
+  rootDir: '/',
+  prettierPath: null,
+})

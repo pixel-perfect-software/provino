@@ -40,7 +40,8 @@ export const JEST_BUILT_INS: Readonly<Record<string, EnvironmentModule>> = {
  * The native runtime (D185, D186, D188; `ResolveOptions.native`): what a project with no dialect
  * gets in place of a dialect's scope, globals and matcher table. The served `provino` module and its
  * globals come from `@provino/api`, the matchers from `@provino/expect/table` (Provino's own table,
- * B27c), the snapshot printer from `@provino/snapshot/printer` through the table's module (B28). Refs only: the coordinator
+ * B27c), the snapshot printer from `@provino/snapshot/printer` through the table's module and the inline
+ * snapshot writer from `@provino/snapshot/inline` (B28). Refs only: the coordinator
  * resolves them and loads none of them (D21).
  * @internal
  */
@@ -63,6 +64,12 @@ function nativeRuntime(served: string): NativeRuntimeRefs {
     snapshotPrinter: {
       module: import.meta.resolve('@provino/expect/table'),
       export: 'nativeSnapshotPrinter',
+    },
+    // Writes inline snapshots into the source, in the coordinator (B28 Phase 7): loaded the first
+    // time a run has an inline snapshot to write, and Oxc's parser only then.
+    snapshotWriter: {
+      module: import.meta.resolve('@provino/snapshot/inline'),
+      export: 'nativeInlineSnapshotWriter',
     },
   }
 }

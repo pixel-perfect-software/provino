@@ -19,6 +19,12 @@ export type SnapshotErrorCode =
   | 'SNAPSHOT_BAD_KEY'
   /** A serializer isn't a pretty-format plugin. */
   | 'SNAPSHOT_BAD_SERIALIZER'
+  /** The native inline writer can't parse the source file it must write into. */
+  | 'SNAPSHOT_INLINE_PARSE'
+  /** The native inline writer finds no matcher call where an edit says the call is. */
+  | 'SNAPSHOT_INLINE_NOT_FOUND'
+  /** One matcher call took more than one inline snapshot (a helper called twice). */
+  | 'SNAPSHOT_INLINE_SAME_CALL'
 
 /**
  * An error from the snapshot engine. Tests assert on `code`, not on the text.

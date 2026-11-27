@@ -165,6 +165,16 @@
       "bannedPackages": "native",
       "note": "B28 (D211): the native snapshot printer. index.ts is a shim the native matcher table re-exports; impl.ts (the ./printer-impl subpath) composes the vendored pretty-format in ../vendor and is loaded by require(esm) on the first snapshot."
     },
+    "@provino/snapshot/inline": {
+      "dir": "packages/snapshot/src/inline",
+      "layer": 2,
+      "runsIn": "coordinator",
+      "deps": ["@provino/types", "@provino/snapshot"],
+      "slices": ["snapshot"],
+      "neutral": true,
+      "bannedPackages": "native",
+      "note": "B28 Phase 7 (D211, D214): the native inline snapshot writer, loaded by ref (NativeRuntimeRefs.snapshotWriter). It imports oxc-parser on its first write and splices the template into the source; no Babel."
+    },
     "@provino/coverage": {
       "dir": "packages/coverage",
       "layer": 2,

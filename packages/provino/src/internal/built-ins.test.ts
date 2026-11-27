@@ -4,9 +4,10 @@ import { describe, test } from 'provino'
 import { NATIVE_RUNTIME } from './built-ins.ts'
 
 describe('NATIVE_RUNTIME', () => {
-  test("the snapshot printer writes Jest's format and has no inline writer yet (B28)", async () => {
+  test("the snapshot printer writes Jest's format, and the inline writer is the native one (B28)", async () => {
     const { snapshotPrinter, snapshotWriter } = NATIVE_RUNTIME
-    assert.equal(snapshotWriter, undefined)
+    assert.equal(snapshotWriter?.export, 'nativeInlineSnapshotWriter')
+    assert.equal(snapshotWriter?.module, import.meta.resolve('@provino/snapshot/inline'))
     const loaded = (await import(snapshotPrinter?.module ?? '')) as Record<string, unknown>
     const factory = loaded[snapshotPrinter?.export ?? ''] as () => {
       serialize(value: unknown, options: { format: object; plugins: never[] }): string
@@ -18,9 +19,13 @@ describe('NATIVE_RUNTIME', () => {
   })
 
   test('every ref is an absolute file: URL whose module has the named export (D21)', async () => {
-    const { moduleScope, globals, matcherTable, snapshotPrinter } = NATIVE_RUNTIME
+    const { moduleScope, globals, matcherTable, snapshotPrinter, snapshotWriter } = NATIVE_RUNTIME
     assert.ok(snapshotPrinter !== undefined, 'the native runtime has a snapshot printer (B28)')
-    for (const ref of [moduleScope, globals, matcherTable, snapshotPrinter]) {
+    assert.ok(
+      snapshotWriter !== undefined,
+      'the native runtime has an inline snapshot writer (B28)',
+    )
+    for (const ref of [moduleScope, globals, matcherTable, snapshotPrinter, snapshotWriter]) {
       assert.ok(ref.module.startsWith('file:'), ref.module)
       const loaded: unknown = await import(ref.module)
       assert.equal(typeof Reflect.get(loaded as object, ref.export), 'function', ref.export)

@@ -1513,6 +1513,9 @@ importers:
       '@provino/resolver':
         specifier: workspace:*
         version: link:../resolver
+      '@provino/snapshot':
+        specifier: workspace:*
+        version: link:../snapshot
       '@provino/timers':
         specifier: workspace:*
         version: link:../timers
@@ -1643,6 +1646,9 @@ importers:
       '@provino/types':
         specifier: workspace:*
         version: link:../types
+      oxc-parser:
+        specifier: 'catalog:'
+        version: 0.159.0
     devDependencies:
       '@provino/policy':
         specifier: workspace:*
