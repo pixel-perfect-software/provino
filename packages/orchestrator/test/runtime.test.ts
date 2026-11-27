@@ -1590,12 +1590,12 @@ describe('a shared external that reads a per-file global as it loads (D127, P42)
   })
 
   it('is read under the key it was written under, also for projects that share a cache key', async () => {
-    // `n` for a native load (Node's module has an id), `i` for one through a file's registry.
+    // `n` for a native load (Node's own `Module` instance), `i` for one through a file's registry (a plain object).
     const p = await project({
       ...files,
       'node_modules/hooker/index.js': [
         "const { appendFileSync } = require('node:fs')",
-        "appendFileSync(require('node:path').join(__dirname, 'loads.txt'), typeof module.id === 'string' ? 'n' : 'i')",
+        "appendFileSync(require('node:path').join(__dirname, 'loads.txt'), module instanceof require('node:module') ? 'n' : 'i')",
         'afterEach(() => {})',
         'module.exports = {}',
       ].join('\n'),

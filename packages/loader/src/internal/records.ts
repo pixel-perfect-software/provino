@@ -45,7 +45,7 @@ import {
 import { loaderMessage } from './messages.ts'
 import { DATA, fileOf, HOOKED_URL } from './module-id.ts'
 import { createReevaluateState, type ReevaluateState } from './reevaluate.ts'
-import { blankHashbang, CJS_PARAMS, dataSource } from './source.ts'
+import { blankHashbang, CJS_PARAMS, CJS_WRAPPER, dataSource } from './source.ts'
 import { type InlineRules, isEvaluableExternal, isThirdParty, NO_RULES } from './third-party.ts'
 
 /**
@@ -145,7 +145,7 @@ export interface ModuleRecord {
 const DYNAMIC_IMPORT = '__vite_ssr_dynamic_import__'
 const ESM_PARAMS = `__vite_ssr_exports__, __vite_ssr_import_meta__, __vite_ssr_import__, ${DYNAMIC_IMPORT}, __vite_ssr_exportAll__, ${LATE_IMPORT}`
 /** What an ES module gets under `ModulePolicy.injectCjsGlobals`, when its source names them. */
-const CJS_GLOBALS: readonly string[] = ['require', '__filename', '__dirname']
+const CJS_GLOBALS: readonly string[] = CJS_WRAPPER.filter((name) => name !== 'exports')
 
 export function toModuleId(path: string): ModuleId {
   return path as ModuleId
