@@ -66,7 +66,7 @@ Pure functions, by `ModulePolicy.interopDefault`, held to B13b's fake loader's r
 
 ## Scope bindings (Gaps 2 and 5)
 
-`LoaderOptions.moduleScope.names` (the dialect's, through `config`: Jest's `jest`) and, for ES modules under `injectCjsGlobals`, `require`, `__filename` and `__dirname`. A word scan at the first compile (`scopeOf`) keeps the names the source uses; a module that names none gets no outer function and pays nothing. A module that names one is compiled as `(function (jest, …) { return function (<wrapper params>) { … } })`, so its own `const require = …` shadows the binding instead of clashing with a parameter. The values come from `FileRegistryOptions.moduleScope(from)`, once per module evaluation; a name with no value falls back to the global of that name.
+`LoaderOptions.moduleScope.names` (the dialect's, through `config`: Jest's `jest`) and, for ES modules under `injectCjsGlobals`, `require`, `module`, `__filename` and `__dirname`. `module` is a fresh object per evaluation (`id`, `path`, `filename`, `exports: {}`, `loaded: false`, `children`, `paths`), and `require.main` is `undefined`, so `require.main === module` is false for an imported file, as under Jest. A word scan at the first compile (`scopeOf`) keeps the names the source uses; a module that names none gets no outer function and pays nothing. A module that names one is compiled as `(function (jest, …) { return function (<wrapper params>) { … } })`, so its own `const require = …` shadows the binding instead of clashing with a parameter. The values come from `FileRegistryOptions.moduleScope(from)`, once per module evaluation; a name with no value falls back to the global of that name.
 
 ## Message codes (`src/internal/messages.ts`, Gap 4)
 

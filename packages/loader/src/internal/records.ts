@@ -145,7 +145,7 @@ export interface ModuleRecord {
 const DYNAMIC_IMPORT = '__vite_ssr_dynamic_import__'
 const ESM_PARAMS = `__vite_ssr_exports__, __vite_ssr_import_meta__, __vite_ssr_import__, ${DYNAMIC_IMPORT}, __vite_ssr_exportAll__, ${LATE_IMPORT}`
 /** What an ES module gets under `ModulePolicy.injectCjsGlobals`, when its source names them. */
-const CJS_GLOBALS: readonly string[] = ['require', '__filename', '__dirname']
+const CJS_GLOBALS: readonly string[] = ['require', 'module', '__filename', '__dirname']
 
 export function toModuleId(path: string): ModuleId {
   return path as ModuleId

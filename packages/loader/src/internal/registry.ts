@@ -1070,6 +1070,7 @@ export class Registry {
     return scope.map((name) => {
       if (!dialect.includes(name)) {
         if (name === 'require') return this.#requireFor(record)
+        if (name === 'module') return this.#moduleFor(record)
         if (name === '__filename') return record.path
         if (name === '__dirname') return dirname(record.path)
       }
@@ -1087,6 +1088,22 @@ export class Registry {
     const resolved = resolveOrMissing(this.#state, specifier, record.path, kind)
     setResolved(this.#state, record, specifier, resolved)
     return resolved
+  }
+
+  /**
+   * The `module` an ES module sees under `injectCjsGlobals`: its own object, never the main one, so
+   * `require.main === module` is false for any file the loader runs.
+   */
+  #moduleFor(record: ModuleRecord): object {
+    return {
+      id: record.path,
+      path: dirname(record.path),
+      filename: record.path,
+      exports: {},
+      loaded: false,
+      children: [],
+      paths: [],
+    }
   }
 
   #requireFor(record: ModuleRecord): NodeJS.Require {
