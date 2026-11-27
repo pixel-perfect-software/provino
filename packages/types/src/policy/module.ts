@@ -167,6 +167,21 @@ export interface ModulePolicy {
    */
   readonly moduleSyncCondition: 'never' | 'import-and-sync-require'
   /**
+   * Whether the loader makes a module of its own for an asset or style file a project imports
+   * (`import logo from './logo.svg'`, `import './app.css'`) instead of failing the file with
+   * `TRANSFORM_UNSUPPORTED_FILE`. `off`: such a file is not a module, as before. `built-in`: an
+   * asset (an image, media, font, `.webmanifest`, `.pdf` or `.txt` file) is a module whose default
+   * export is its URL as Vite's dev server writes it (`/src/logo.svg`, or `/@fs/<path>` outside
+   * the root), a style file (`.css`, `.scss`, `.module.css`, ...) an empty one, and a CSS module's
+   * default export an object that answers each name with itself. Neither is transformed, cached
+   * or instrumented, and a mock still decides first.
+   *
+   * Provino's own key (D7, no ground truth applies): `built-in` for a project with no dialect,
+   * `off` for both dialects (Jest maps such files with `moduleNameMapper`, and real Vitest hands
+   * them to Vite). Neutral: `off`.
+   */
+  readonly assetImports: 'off' | 'built-in'
+  /**
    * Whether a mock reaches the modules in `node_modules` that import the mocked one (T2.6, D39). When
    * `true`, a package whose imports lead to a module the file mocks is loaded per file through that
    * file's registry (inlined), so the mock reaches it; the next file sees the shared module. When

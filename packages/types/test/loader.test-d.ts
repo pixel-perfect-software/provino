@@ -161,6 +161,11 @@ void requireKind
 // @ts-expect-error a boolean is not a moduleSyncCondition
 const moduleSyncOn: ModulePolicy = { ...modulePolicy, moduleSyncCondition: true }
 void moduleSyncOn
+// An asset or style import is a module the loader makes (`assetImports`), off unless a native project asks.
+expectTypeOf<ModulePolicy['assetImports']>().toEqualTypeOf<'off' | 'built-in'>()
+// @ts-expect-error a boolean is not an assetImports value
+const assetsOn: ModulePolicy = { ...modulePolicy, assetImports: true }
+void assetsOn
 // B23f: a shared external that patches a watched global is evaluated per file under a boolean key.
 expectTypeOf<ModulePolicy['reevaluatePatchingExternals']>().toEqualTypeOf<boolean>()
 // @ts-expect-error exactOptionalPropertyTypes: a required key is never `undefined`

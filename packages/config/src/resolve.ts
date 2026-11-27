@@ -3,6 +3,7 @@ import { dirname, isAbsolute, resolve } from 'node:path'
 import {
   callBehaviour,
   createBehaviourLoader,
+  nativeModulePolicy,
   nativeSnapshotPolicy,
   resolvePolicy,
   serializePolicy,
@@ -592,6 +593,7 @@ function nativeLayer(native: NativeRuntimeRefs | undefined): PolicyOverrides | u
   if (native === undefined) return undefined
   return {
     expect: { matcherTable: native.matcherTable },
+    module: nativeModulePolicy,
     ...(native.snapshot === undefined ? {} : { snapshot: nativeSnapshotPolicy(native.snapshot) }),
   }
 }

@@ -2200,6 +2200,7 @@ export type ModuleMocksFactory = (context: ModuleMocksContext) => ModuleMockRegi
 // @public
 export interface ModulePolicy {
     readonly actual: "sync-require" | "async-import";
+    readonly assetImports: "off" | "built-in";
     readonly automock: boolean;
     readonly automockShape: "metadata" | "deep";
     readonly awaitFactory: boolean;

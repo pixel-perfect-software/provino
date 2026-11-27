@@ -25,6 +25,7 @@ import type {
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
 import { type GraphEdge, inGraph } from '../graph/index.ts'
 import { reevaluatesExternals } from '../reevaluation.ts'
+import { assetKindOf, assetRunnerSource } from './assets.ts'
 import { type ClaimsState, compileClaims, isClaimedExternal } from './claims.ts'
 import {
   createEdgeKindState,
@@ -474,15 +475,33 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
   // A `data:` URL is a user module whose source is the URL itself: evaluated per registry, as
   // jest-runtime evaluates one per test file, where Node's own `import()` shares it (compat).
   const data = path.startsWith(DATA) ? dataSource(path) : null
-  const text = data === null ? readFileSync(path, 'utf8') : data.text
+  const thirdParty = isThirdParty(path, state.inlineRules)
+  const assetKind =
+    data === null && !thirdParty && state.options.policy.assetImports === 'built-in'
+      ? assetKindOf(fileOf(id))
+      : null
+  // An asset or style module is never read: it may be binary.
+  const text = data !== null ? data.text : assetKind !== null ? '' : readFileSync(path, 'utf8')
   // What the transforms see: a data: module is JavaScript, named as a module in the root.
   const filename = data === null ? path : join(state.options.root, '[data].mjs')
   // A node_modules file only gets here when a mock made it inline (T2.6), a transform takes it
   // (B23e), or `inline` names it.
-  const thirdParty = isThirdParty(path, state.inlineRules)
   let record: ModuleRecord
   let transformKeyOf = ''
-  if (data?.json === true || path.endsWith('.json')) {
+  if (assetKind !== null) {
+    // Built in (`ModulePolicy.assetImports`): never read, transformed, cached or instrumented.
+    record = makeRecord(
+      id,
+      path,
+      'esm',
+      assetRunnerSource(assetKind, state.options.root, path),
+      () => null,
+      [],
+      [],
+      false,
+      false,
+    )
+  } else if (data?.json === true || path.endsWith('.json')) {
     record = makeRecord(id, path, 'json', text, () => null, [], [], false, false)
   } else if (/\.(?:wasm|node)$/.test(path)) {
     throw new LoaderError('LOADER_UNSUPPORTED_MODULE', `cannot load ${path} as a user module`)

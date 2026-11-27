@@ -68,6 +68,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'module.mockResolveKind': ['require', 'import'],
   'module.edgeResolveKind': ['as-written', 'importer-format'],
   'module.moduleSyncCondition': ['never', 'import-and-sync-require'],
+  'module.assetImports': ['off', 'built-in'],
   'module.automockShape': ['metadata', 'deep'],
   'module.stackFrameNames': ['mapped-name', 'engine'],
   'module.nativeLoadPatches': ['apply', 'skip'],
