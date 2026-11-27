@@ -64,6 +64,13 @@ test('a dependency’s frames stay hidden beside one of the user’s', () => {
   ])
 })
 
+test('an empty cause or aggregated error whose frames are a dependency’s is still skipped', () => {
+  // Under the Jest dialect too: an error that says nothing is not printed for its library frames.
+  const empty = error('', { stack: stackOf('flush (/work/app/node_modules/ui/index.js:1:1)') })
+  const text = formatError(error('boom', { cause: empty, errors: [empty] }))
+  expect(text).not.toMatch(/Caused by:|Also:/)
+})
+
 test('an error with only Node’s and Provino’s frames shows none', () => {
   const stack = stackOf(
     `run (${PACKAGES}core/src/executor/executor.ts:640:9)`,

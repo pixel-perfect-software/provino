@@ -12,9 +12,10 @@
 // `isMessageLoopRunning`), so a cancelled flush would leave every later file's work unscheduled. So
 // the file's pending one-shot work is first drained, while the window is still there: the worker
 // yields whole event-loop turns while an immediate or a timeout of at most 1 ms that the file
-// queued is pending, at most `DRAIN_TURNS` turns and `DRAIN_MS` ms, and then clears what is left
-// (a longer timeout, or a loop that outran the bound). An error the drained work throws is an
-// uncaught exception the runtime charges as it charges any late one.
+// queued is pending, at most `DRAIN_TURNS` (50) turns and `DRAIN_MS` (50 ms), and then clears what
+// is left (a longer timeout, a timeout that fired and may be `refresh()`ed, or a loop that outran
+// the bound). An error the drained work throws is an uncaught exception the runtime charges as it
+// charges any late one.
 //
 // **Whose work it is** is read from the async context: the wrappers ask the runner's `fileScope`
 // store (`FileScope.work`) for the file whose code is running, so a callback a file queued, and
@@ -26,9 +27,26 @@
 // file uses it first and keep it for every later file, so closing those with the first file would
 // break the package for the rest of the worker.
 //
-// The wrappers go on the global once per worker, at boot, before any file loads anything, so a
-// package that captures `setImmediate` as it loads captures the wrapper. While no window file is
-// tracked they pass the call through with nothing allocated (`openFiles === 0`).
+// **Clears the wrappers don't see.** A tracked timeout cleared by its numeric id
+// (`clearTimeout(+handle)`, which Node accepts once `Symbol.toPrimitive` gave the id) is found
+// through the id: a tracked timeout's `Symbol.toPrimitive` notes the id it gives (`primitiveOf`,
+// only on tracked handles). A timer cleared through `node:timers`' own `clearTimeout` or
+// `clearImmediate` is never seen, so before each drain turn the entries whose handle is no longer
+// live are dropped (`prune`). The signal is Node's `_destroyed` on a `Timeout` and an
+// `Immediate` (internal, but set by every clear and by the callback's run on Node 22.15, 24.22 and
+// 26.13, and put back to `false` by `refresh()`; `hasRef()` stays true after a clear). It is
+// read only when it is a boolean: a handle without it counts as live, and the bound still caps the
+// wait for one cleared out of sight.
+//
+// **A timeout that fired stays noted** (not waited for) until the file settles, so a `refresh()`
+// after it fired (a debounce, a keep-alive) re-arms a timer the settle still clears. The cost is
+// one map entry (and the `Timeout` with its callback kept alive) per fired timeout of a window
+// file, until its settle; an immediate can't be re-armed and is dropped when it runs.
+//
+// The wrappers go on the global once per worker, at boot, before any file loads anything, and only
+// for a worker whose isolation is not `none` (there the window outlives its files), so a package
+// that captures `setImmediate` as it loads captures the wrapper. While no window file is tracked
+// they pass the call through with nothing allocated (`openFiles.size === 0`).
 //
 // **The bound.** `DRAIN_TURNS` (50) whole turns or `DRAIN_MS` (50 ms), whichever comes first. A
 // React commit's queued flush and the effects it schedules take one to three turns; React's
@@ -37,28 +55,35 @@
 // work that never ends, and such a loop is then cleared (a shared scheduler cut off there keeps its
 // flag set: the one case left stuck).
 //
-// **Cost** (`local`, Node 24.22, one `setTimeout` plus its `clearTimeout`, 200,000 times): Node's
-// own 213 ns; the wrappers while no window file runs 228 ns; while one runs, for code outside its
-// context, 235 ns (an `AsyncLocalStorage` read); for the file's own work 528 ns (the callback's
-// wrapper and the map entries). With the key off nothing is installed.
-import { nativeSetImmediate, nativeSetTimeout } from '../../timers.ts'
+// **Cost** (`local`, Node 24.22.1, one `setTimeout` plus its `clearTimeout`, 200,000 times,
+// medians of 7 rounds, 2026-11-27): Node's own 111 ns; the wrappers while no window file runs 118 ns;
+// while one runs, for code outside its context, 134 ns (an `AsyncLocalStorage` read); for the file's
+// own work 368 ns (the callback's wrapper, the map entry and the timeout's own `Symbol.toPrimitive`).
+// With the key off, or under isolation `none`, nothing is installed.
+import { nativeNow, nativeSetTimeout, nextMacrotask } from '../../timers.ts'
 
 /** The most event-loop turns the drain waits for a file's work: about 2 ms for a loop of immediates. */
 export const DRAIN_TURNS = 50
 /** The longest the drain waits for a file's work, however few turns that is. */
-export const DRAIN_MS = 50
+const DRAIN_MS = 50
 
 /** A timeout this short (Node makes 0 and anything below 1 into 1 ms) is drained, not just cleared. */
 const SHORT_TIMEOUT_MS = 1
 
 type Callback = (...args: unknown[]) => unknown
 
-/** One pending piece of work: how to clear it, and whether the drain waits for it. */
-interface Pending {
+/** What the drain waits for: an immediate, a timeout of at most 1 ms, or nothing (`undefined`). */
+type Wait = 'immediate' | 'timer' | undefined
+
+/** One pending piece of work's kind: one object per kind and global, shared by every handle. */
+interface Entry {
   readonly clear: (handle: unknown) => void
-  readonly drained: boolean
-  /** An immediate, which the next check phase runs: the drain's turn is then an immediate too. */
-  readonly immediate: boolean
+  readonly wait: Wait
+  /**
+   * What the entry becomes once nothing waits for it (its callback ran, or its handle is no longer
+   * live): a timeout stays noted, since `refresh()` can re-arm it; `undefined` drops it.
+   */
+  after: Entry | undefined
 }
 
 /**
@@ -69,13 +94,17 @@ interface Pending {
 export interface FileWork {
   /** False once settled: work the file's context queues later passes through. */
   open: boolean
-  readonly pending: Map<unknown, Pending>
-  /** How many entries of `pending` the drain waits for. */
-  drainable: number
+  readonly pending: Map<unknown, Entry>
+  /** Pending immediates, which the drain waits for. */
+  immediates: number
+  /** Pending timeouts of at most 1 ms, which the drain waits for. */
+  shortTimers: number
+  /** The ids tracked timeouts gave (`+handle`), so a clear by id finds the handle. */
+  ids: Map<number, object> | undefined
 }
 
-/** What `settle` did: the turns it waited and the pieces of work it cleared. */
-export interface Settled {
+/** What `settle` did: the turns it waited and the live pieces of work it cleared. */
+interface Settled {
   readonly turns: number
   readonly cleared: number
 }
@@ -90,7 +119,7 @@ export interface FileWorkTracking {
 const installed = new WeakMap<object, { tracking: FileWorkTracking; users: number }>()
 
 /** Window files being tracked in this module, so the untracked path is one comparison. */
-let openFiles = 0
+const openFiles = new Set<FileWork>()
 
 /** The file each tracked handle belongs to, so a clear made from any context finds it. */
 const owners = new WeakMap<object, FileWork>()
@@ -100,11 +129,73 @@ const PAIRS = [
   { set: 'setTimeout', clear: 'clearTimeout' },
 ] as const
 
+function count(work: FileWork, wait: Wait, by: 1 | -1): void {
+  if (wait === 'immediate') work.immediates += by
+  else if (wait === 'timer') work.shortTimers += by
+}
+
+/** Whether the drain still waits for anything of the file's. */
+function waiting(work: FileWork): boolean {
+  return work.immediates > 0 || work.shortTimers > 0
+}
+
+/** Drops a handle's entry: it was cleared. */
 function forget(work: FileWork, handle: unknown): void {
   const entry = work.pending.get(handle)
   if (entry === undefined) return
   work.pending.delete(handle)
-  if (entry.drained) work.drainable--
+  count(work, entry.wait, -1)
+}
+
+/** Nothing waits for a handle any more: its entry becomes `after`, or goes. */
+function standDown(work: FileWork, handle: unknown, entry: Entry): void {
+  count(work, entry.wait, -1)
+  if (entry.after === undefined) work.pending.delete(handle)
+  else if (entry.after !== entry) work.pending.set(handle, entry.after)
+}
+
+/** Whether Node still has the timer queued: `_destroyed` when Node gives it, else assumed live. */
+function isLive(handle: unknown): boolean {
+  if (typeof handle !== 'object' || handle === null) return true
+  return (handle as { _destroyed?: unknown })._destroyed !== true
+}
+
+/** Stands down the waited-for entries whose handle a clear the wrappers never saw has ended. */
+function prune(work: FileWork): void {
+  if (!waiting(work)) return
+  for (const [handle, entry] of work.pending) {
+    if (entry.wait !== undefined && !isLive(handle)) standDown(work, handle, entry)
+  }
+}
+
+/**
+ * A tracked timeout's own `Symbol.toPrimitive`: Node's (the id a numeric `clearTimeout` takes),
+ * and the id noted against the file, so that clear finds the handle.
+ */
+function primitiveOf(this: object, hint: unknown): unknown {
+  const prototype = Object.getPrototypeOf(this) as Record<symbol, unknown>
+  const id = Reflect.apply(prototype[Symbol.toPrimitive] as Callback, this, [hint])
+  const work = owners.get(this)
+  if (work !== undefined && typeof id === 'number') {
+    work.ids ??= new Map()
+    work.ids.set(id, this)
+  }
+  return id
+}
+
+/** The tracked handle a clear names: the handle itself, or the one an id was given for. */
+function trackedHandle(handle: unknown): { work: FileWork; handle: unknown } | undefined {
+  if (typeof handle === 'object' && handle !== null) {
+    const work = owners.get(handle)
+    return work === undefined ? undefined : { work, handle }
+  }
+  if (typeof handle !== 'number' && typeof handle !== 'string') return undefined
+  const id = Number(handle)
+  for (const work of openFiles) {
+    const found = work.ids?.get(id)
+    if (found !== undefined) return { work, handle: found }
+  }
+  return undefined
 }
 
 /**
@@ -131,39 +222,56 @@ export function installFileWorkTracking(
     const clearFn = originalClear as (handle: unknown) => void
     const immediate = set === 'setImmediate'
     const call = original as Callback
+    // This pair's kinds of entry, made once: `waited` is what the drain waits for (an immediate, a
+    // short timeout), `kept` a timeout it doesn't (a longer one, or one that ran), cleared at settle.
+    const kept: Entry = { clear: clearFn, wait: undefined, after: undefined }
+    kept.after = kept
+    const waited: Entry = {
+      clear: clearFn,
+      wait: immediate ? 'immediate' : 'timer',
+      after: immediate ? undefined : kept,
+    }
     /** Hands Node `callback` in place of the file's, and notes the handle against `work`. */
     const noting = (
       work: FileWork,
       callback: Callback,
+      entry: Entry,
       delay: unknown,
-      queue: (fn: Callback) => unknown,
+      rest: unknown[],
     ): unknown => {
       let handle: unknown
-      handle = queue(function (this: unknown, ...args: unknown[]): unknown {
-        forget(work, handle)
+      const fn = function (this: unknown, ...args: unknown[]): unknown {
+        const now = work.pending.get(handle)
+        if (now !== undefined) standDown(work, handle, now)
         return Reflect.apply(callback, this, args)
-      })
-      const drained = immediate || !(Number(delay) > SHORT_TIMEOUT_MS)
-      work.pending.set(handle, { clear: clearFn, drained, immediate })
-      if (drained) work.drainable++
-      if (typeof handle === 'object' && handle !== null) owners.set(handle, work)
+      }
+      handle = immediate ? call(fn, ...rest) : call(fn, delay, ...rest)
+      work.pending.set(handle, entry)
+      count(work, entry.wait, 1)
+      if (typeof handle === 'object' && handle !== null) {
+        owners.set(handle, work)
+        const timeout = handle as Record<symbol, unknown>
+        if (!immediate && typeof timeout[Symbol.toPrimitive] === 'function') {
+          timeout[Symbol.toPrimitive] = primitiveOf
+        }
+      }
       return handle
     }
     /** The file whose code queues this, while its window is up; `undefined` passes it through. */
     const fileOf = (callback: unknown): FileWork | undefined => {
-      if (openFiles === 0 || typeof callback !== 'function') return undefined
+      if (openFiles.size === 0 || typeof callback !== 'function') return undefined
       const work = current()
       return work?.open === true ? work : undefined
     }
     // The untracked path passes the arguments on as they came, with no `arguments` object and no
-    // `this` (Node's timers read neither): about 15 ns over Node's own (`local`, the header's Cost).
+    // `this` (Node's timers read neither): a few ns over Node's own (`local`, the header's Cost).
     const wrapped: Callback = immediate
       ? {
           setImmediate(callback: unknown, ...rest: unknown[]): unknown {
             const work = fileOf(callback)
             if (work === undefined)
               return rest.length === 0 ? call(callback) : call(callback, ...rest)
-            return noting(work, callback as Callback, 0, (fn) => call(fn, ...rest))
+            return noting(work, callback as Callback, waited, undefined, rest)
           },
         }.setImmediate
       : {
@@ -172,16 +280,17 @@ export function installFileWorkTracking(
             if (work === undefined) {
               return rest.length === 0 ? call(callback, delay) : call(callback, delay, ...rest)
             }
-            return noting(work, callback as Callback, delay, (fn) => call(fn, delay, ...rest))
+            const entry = Number(delay) > SHORT_TIMEOUT_MS ? kept : waited
+            return noting(work, callback as Callback, entry, delay, rest)
           },
         }.setTimeout
     const wrappedClear = {
-      [clear](this: unknown, handle: unknown): void {
-        if (openFiles !== 0 && typeof handle === 'object' && handle !== null) {
-          const work = owners.get(handle)
-          if (work !== undefined) forget(work, handle)
+      [clear](handle: unknown): void {
+        if (openFiles.size !== 0) {
+          const found = trackedHandle(handle)
+          if (found !== undefined) forget(found.work, found.handle)
         }
-        clearFn.call(this, handle)
+        clearFn(handle)
       },
     }[clear] as (handle: unknown) => void
     // `util.promisify` reads its custom form off the function a package holds.
@@ -201,8 +310,15 @@ export function installFileWorkTracking(
   }
   const tracking: FileWorkTracking = {
     track(): FileWork {
-      openFiles++
-      return { open: true, pending: new Map(), drainable: 0 }
+      const work: FileWork = {
+        open: true,
+        pending: new Map(),
+        immediates: 0,
+        shortTimers: 0,
+        ids: undefined,
+      }
+      openFiles.add(work)
+      return work
     },
     uninstall(): void {
       const entry = installed.get(global)
@@ -219,14 +335,8 @@ export function installFileWorkTracking(
 
 /** One whole event-loop turn: an immediate when only immediates wait, else the next timer. */
 function nextTurn(work: FileWork): Promise<void> {
-  let onlyImmediates = true
-  for (const entry of work.pending.values()) {
-    if (entry.drained && !entry.immediate) onlyImmediates = false
-  }
-  return new Promise((resolve) => {
-    if (onlyImmediates) nativeSetImmediate(resolve)
-    else nativeSetTimeout(resolve, SHORT_TIMEOUT_MS)
-  })
+  if (work.shortTimers === 0) return nextMacrotask()
+  return new Promise((resolve) => nativeSetTimeout(resolve, SHORT_TIMEOUT_MS))
 }
 
 /**
@@ -235,28 +345,28 @@ function nextTurn(work: FileWork): Promise<void> {
  * teardown; a second call does nothing.
  * @internal
  */
-export async function settleFileWork(
-  work: FileWork,
-  now: () => number = performance.now.bind(performance),
-): Promise<Settled> {
+export async function settleFileWork(work: FileWork): Promise<Settled> {
   if (!work.open) return { turns: 0, cleared: 0 }
   let turns = 0
-  try {
-    const deadline = work.drainable > 0 ? now() + DRAIN_MS : 0
-    while (work.drainable > 0 && turns < DRAIN_TURNS && now() < deadline) {
+  prune(work)
+  if (waiting(work)) {
+    const deadline = nativeNow() + DRAIN_MS
+    while (waiting(work) && turns < DRAIN_TURNS && nativeNow() < deadline) {
       await nextTurn(work)
       turns++
+      prune(work)
     }
-  } finally {
-    work.open = false
-    openFiles--
   }
+  work.open = false
+  openFiles.delete(work)
   let cleared = 0
   for (const [handle, entry] of work.pending) {
+    if (isLive(handle)) cleared++
     entry.clear(handle)
-    cleared++
   }
   work.pending.clear()
-  work.drainable = 0
+  work.immediates = 0
+  work.shortTimers = 0
+  work.ids = undefined
   return { turns, cleared }
 }

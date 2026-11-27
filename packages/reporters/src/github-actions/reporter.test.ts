@@ -104,6 +104,22 @@ describe('the github-actions reporter', () => {
     assert.match(relative ?? '', /file=src\/d\.test\.ts,line=8,col=2/)
   })
 
+  test('falls back to the test’s own line when every frame is a dependency’s or Node’s', async () => {
+    // A callback a package queued threw: the stack text prints the dependency's frames, but the
+    // annotation stays on the test file, which is the one a pull request shows.
+    const stack = [
+      'Error: window is not defined',
+      '    at flush (/project/node_modules/ui/index.js:19:13)',
+      '    at process.processImmediate (node:internal/timers:574:21)',
+    ].join('\n')
+    const [line] = await annotations([
+      fails('a.test.ts', [error('window is not defined', { stack })], {
+        location: { line: 4, column: 3 },
+      }),
+    ])
+    assert.match(line ?? '', /^::error file=a\.test\.ts,line=4,col=3,/)
+  })
+
   test('falls back to the test’s own line, then to the file alone', async () => {
     const [own] = await annotations([
       fails('a.test.ts', [error('boom')], { location: { line: 4, column: 3 } }),

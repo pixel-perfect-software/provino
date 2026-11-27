@@ -180,7 +180,8 @@ interface Booted {
   tier: Exclude<IsolationTier, 'process'>
   /**
    * The wrappers that note a window file's one-shot work (`orchestrator.windowFileWork:
-   * 'drain-then-cancel'`, `file-work.ts`), put on the global at boot; `undefined` with the key off.
+   * 'drain-then-cancel'`, `file-work.ts`), put on the global at boot; `undefined` with the key off
+   * and under isolation `none`.
    */
   fileWork: FileWorkTracking | undefined
   /**
@@ -684,9 +685,11 @@ export function createRuntimeRunner(): WorkerRunner {
     const policy: Policy = config.policy
     // Before anything loads a package: one that takes `setImmediate` as it loads (React's
     // scheduler) must take the wrapper that notes a window file's work (#227, `file-work.ts`), and
-    // D127's baseline below reads the wrappers as the worker's own globals.
+    // D127's baseline below reads the wrappers as the worker's own globals. Under isolation `none`
+    // the environment outlives its files, so nothing is tracked and nothing is installed.
     parts.fileWork =
-      policy.orchestrator.windowFileWork === 'drain-then-cancel'
+      policy.orchestrator.windowFileWork === 'drain-then-cancel' &&
+      context.init.isolation !== 'none'
         ? installFileWorkTracking(globalThis, () => fileScope.getStore()?.work)
         : undefined
     const behaviours = createBehaviourLoader()
@@ -1153,13 +1156,9 @@ export function createRuntimeRunner(): WorkerRunner {
         instance = set.instance
         thisFile.environment = instance
         environmentName = set.name
-        // A file-scoped window: what the file queues on the timers from now on is noted, to be
-        // drained and cleared before the window closes. A worker-scoped one outlives its files.
-        if (
-          worker.fileWork !== undefined &&
-          worker.scope === 'file' &&
-          'document' in instance.global
-        ) {
+        // A window (the wrappers are there only for file-scoped environments): what the file
+        // queues on the timers from now on is noted, to be drained and cleared before it closes.
+        if (worker.fileWork !== undefined && 'document' in instance.global) {
           thisFile.work = worker.fileWork.track()
         }
         // The fake clock of this file, on the environment's global (the registry tier keeps one

@@ -1,17 +1,61 @@
 // The settling of a window file's one-shot work (`file-work.ts`, #227), over a stand-in global
 // whose timers record what they are asked: the drain's turns, its bound, what it clears, and what
-// passes through untouched.
+// passes through untouched; then over Node's own timers for what only Node's handles carry (the
+// liveness a `node:timers` clear leaves, and a clear by numeric id).
+import * as nodeTimers from 'node:timers'
 import { promisify } from 'node:util'
-import { describe, expect, test } from 'provino'
-import { DRAIN_TURNS, type FileWork, installFileWorkTracking, settleFileWork } from './file-work.ts'
+import { afterEach, describe, expect, test } from 'provino'
+import {
+  DRAIN_TURNS,
+  type FileWork,
+  type FileWorkTracking,
+  installFileWorkTracking,
+  settleFileWork,
+} from './file-work.ts'
+
+/** A stand-in timeout: never fires by itself; `fire` runs it, as Node marks a fired one. */
+class StandInTimeout {
+  _destroyed = false
+  readonly id: number
+  readonly fn: () => void
+  readonly #armed: Map<number, StandInTimeout>
+  constructor(id: number, fn: () => void, armed: Map<number, StandInTimeout>) {
+    this.id = id
+    this.fn = fn
+    this.#armed = armed
+  }
+  fire(): void {
+    this.#armed.delete(this.id)
+    this._destroyed = true
+    this.fn()
+  }
+  refresh(): this {
+    this._destroyed = false
+    this.#armed.set(this.id, this)
+    return this
+  }
+  [Symbol.toPrimitive](): number {
+    return this.id
+  }
+}
 
 /** A global whose `setImmediate` is Node's and whose `setTimeout` only records (no real wait). */
 function standIn() {
-  const timeouts = new Map<object, () => void>()
+  const timeouts = new Map<number, StandInTimeout>()
   const cleared: unknown[] = []
   const interval = (): void => {}
+  let nextId = 1
   const realImmediate = (fn: () => void): NodeJS.Immediate => setImmediate(fn)
   Object.defineProperty(realImmediate, promisify.custom, { value: 'custom', configurable: true })
+  /** The stand-in's own clear, which the wrappers never see (as `node:timers`' is). */
+  const rawClearTimeout = (handle: unknown): void => {
+    cleared.push(handle)
+    const timeout = typeof handle === 'number' ? timeouts.get(handle) : handle
+    if (timeout instanceof StandInTimeout) {
+      timeout._destroyed = true
+      timeouts.delete(timeout.id)
+    }
+  }
   const target: Record<string, unknown> = {
     setImmediate: realImmediate,
     clearImmediate: (handle: NodeJS.Immediate) => {
@@ -19,33 +63,34 @@ function standIn() {
       clearImmediate(handle)
     },
     setTimeout: (fn: () => void) => {
-      const handle = {}
-      timeouts.set(handle, fn)
+      const handle = new StandInTimeout(nextId++, fn, timeouts)
+      timeouts.set(handle.id, handle)
       return handle
     },
-    clearTimeout: (handle: object) => {
-      cleared.push(handle)
-      timeouts.delete(handle)
-    },
+    clearTimeout: rawClearTimeout,
     setInterval: interval,
   }
-  return { target, timeouts, cleared, interval }
+  return { target, timeouts, cleared, interval, rawClearTimeout }
 }
 
 type Timers = {
   setImmediate(fn: () => void): unknown
-  setTimeout(fn: () => void, ms?: number): object
+  setTimeout(fn: () => void, ms?: number): StandInTimeout
   clearTimeout(handle: unknown): void
 }
 
-function setUp() {
-  const global = standIn()
+/** Every tracking a test installed, taken off after it. */
+const installs: FileWorkTracking[] = []
+afterEach(() => {
+  for (const tracking of installs.splice(0)) tracking.uninstall()
+})
+
+/** Tracking over `target`, with `open` making a file current and `leave` making none. */
+function tracked<T extends object>(target: T) {
   let current: FileWork | undefined
-  const tracking = installFileWorkTracking(global.target, () => current)
-  const timers = global.target as unknown as Timers
+  const tracking = installFileWorkTracking(target, () => current)
+  installs.push(tracking)
   return {
-    ...global,
-    timers,
     tracking,
     open(): FileWork {
       current = tracking.track()
@@ -57,124 +102,154 @@ function setUp() {
   }
 }
 
+function setUp() {
+  const global = standIn()
+  return { ...global, ...tracked(global.target), timers: global.target as unknown as Timers }
+}
+
+/** Node's own timers on an object of their own (the worker's global is never touched). */
+function nodeGlobal() {
+  const target = { setImmediate, clearImmediate, setTimeout, clearTimeout }
+  return { target, ...tracked(target) }
+}
+
 describe('settling a window file’s work', () => {
   test('nothing pending: no turn and nothing cleared', async () => {
     const t = setUp()
-    try {
-      const work = t.open()
-      expect(await settleFileWork(work)).toEqual({ turns: 0, cleared: 0 })
-    } finally {
-      t.tracking.uninstall()
-    }
+    const work = t.open()
+    expect(await settleFileWork(work)).toEqual({ turns: 0, cleared: 0 })
   })
 
   test('a queued immediate runs while the window is up, and a scheduler-style flag clears', async () => {
     const t = setUp()
-    try {
-      const work = t.open()
-      let posted = true
-      t.timers.setImmediate(() => {
-        posted = false
-      })
-      const settled = await settleFileWork(work)
-      expect(posted).toBe(false)
-      expect(settled.cleared).toBe(0)
-      expect(settled.turns).toBeGreaterThan(0)
-    } finally {
-      t.tracking.uninstall()
-    }
+    const work = t.open()
+    let posted = true
+    t.timers.setImmediate(() => {
+      posted = false
+    })
+    const settled = await settleFileWork(work)
+    expect(posted).toBe(false)
+    expect(settled.cleared).toBe(0)
+    expect(settled.turns).toBeGreaterThan(0)
   })
 
   test('a loop that reschedules itself is cut off at the bound and cleared', async () => {
     const t = setUp()
-    try {
-      const work = t.open()
-      let runs = 0
-      const loop = (): void => {
-        runs++
-        t.timers.setImmediate(loop)
-      }
+    const work = t.open()
+    let runs = 0
+    const loop = (): void => {
+      runs++
       t.timers.setImmediate(loop)
-      const settled = await settleFileWork(work)
-      expect(settled.turns).toBe(DRAIN_TURNS)
-      expect(settled.cleared).toBe(1)
-      const after = runs
-      await new Promise((resolve) => setImmediate(resolve))
-      await new Promise((resolve) => setImmediate(resolve))
-      expect(runs).toBe(after)
-    } finally {
-      t.tracking.uninstall()
     }
+    t.timers.setImmediate(loop)
+    const settled = await settleFileWork(work)
+    expect(settled.turns).toBe(DRAIN_TURNS)
+    expect(settled.cleared).toBe(1)
+    const after = runs
+    await new Promise((resolve) => setImmediate(resolve))
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(runs).toBe(after)
   })
 
   test('a longer timeout is cleared without waiting for it; a 0 ms one is waited for', async () => {
     const t = setUp()
-    try {
-      const work = t.open()
-      const long = t.timers.setTimeout(() => {}, 5000)
-      expect(work.drainable).toBe(0)
-      expect(await settleFileWork(work)).toEqual({ turns: 0, cleared: 1 })
-      expect(t.cleared).toEqual([long])
-      const next = t.open()
-      t.timers.setTimeout(() => {})
-      expect(next.drainable).toBe(1)
-      next.pending.clear()
-      next.drainable = 0
-      await settleFileWork(next)
-    } finally {
-      t.tracking.uninstall()
-    }
+    const work = t.open()
+    const long = t.timers.setTimeout(() => {}, 5000)
+    expect(work.shortTimers).toBe(0)
+    expect(await settleFileWork(work)).toEqual({ turns: 0, cleared: 1 })
+    expect(t.cleared).toEqual([long])
+    const next = t.open()
+    const short = t.timers.setTimeout(() => {})
+    expect(next.shortTimers).toBe(1)
+    t.timers.clearTimeout(short)
+    expect(next.shortTimers).toBe(0)
+    await settleFileWork(next)
   })
 
-  test('a clear, from any context, forgets the work; so does its callback running', async () => {
+  test('a clear, from any context, forgets the work; its callback running stops the wait', async () => {
     const t = setUp()
-    try {
-      const work = t.open()
-      const handle = t.timers.setTimeout(() => {}, 0)
-      t.leave()
-      t.timers.clearTimeout(handle)
-      expect(work.pending.size).toBe(0)
-      expect(work.drainable).toBe(0)
-      const again = t.open()
-      t.timers.setTimeout(() => {}, 0)
-      const [, fire] = [...t.timeouts.entries()].at(-1) ?? []
-      fire?.()
-      expect(again.pending.size).toBe(0)
-      expect(again.drainable).toBe(0)
-      await settleFileWork(work)
-      await settleFileWork(again)
-    } finally {
-      t.tracking.uninstall()
-    }
+    const work = t.open()
+    const handle = t.timers.setTimeout(() => {}, 0)
+    t.leave()
+    t.timers.clearTimeout(handle)
+    expect(work.pending.size).toBe(0)
+    expect(work.shortTimers).toBe(0)
+    const again = t.open()
+    t.timers.setTimeout(() => {}, 0).fire()
+    expect(again.shortTimers).toBe(0)
+    await settleFileWork(work)
+    expect(await settleFileWork(again)).toEqual({ turns: 0, cleared: 0 })
+  })
+
+  test('a timeout cleared by its numeric id stops the wait', async () => {
+    const t = setUp()
+    const work = t.open()
+    const handle = t.timers.setTimeout(() => {}, 0)
+    t.timers.clearTimeout(+handle)
+    expect(await settleFileWork(work)).toEqual({ turns: 0, cleared: 0 })
+  })
+
+  test('a timeout cleared where the wrappers can’t see it stops the wait', async () => {
+    const t = setUp()
+    const work = t.open()
+    t.rawClearTimeout(t.timers.setTimeout(() => {}, 0))
+    expect(await settleFileWork(work)).toEqual({ turns: 0, cleared: 0 })
+  })
+
+  test('a timeout refreshed after it fired is still cleared at the settle', async () => {
+    // A debounce or a keep-alive: the callback ran, then `refresh()` armed the timer again.
+    const t = setUp()
+    const work = t.open()
+    const handle = t.timers.setTimeout(() => {}, 20)
+    handle.fire()
+    handle.refresh()
+    expect(await settleFileWork(work)).toEqual({ turns: 0, cleared: 1 })
+    expect(t.cleared).toEqual([handle])
+    expect(t.timeouts.size).toBe(0)
   })
 
   test('work with no file in its context, and after the file settled, passes through', async () => {
     const t = setUp()
-    try {
-      const work = t.open()
-      t.leave()
-      t.timers.setTimeout(() => {}, 0)
-      expect(work.pending.size).toBe(0)
-      await settleFileWork(work)
-      t.timers.setTimeout(() => {}, 0)
-      expect(work.pending.size).toBe(0)
-      expect(await settleFileWork(work)).toEqual({ turns: 0, cleared: 0 })
-    } finally {
-      t.tracking.uninstall()
-    }
+    const work = t.open()
+    t.leave()
+    t.timers.setTimeout(() => {}, 0)
+    expect(work.pending.size).toBe(0)
+    await settleFileWork(work)
+    t.timers.setTimeout(() => {}, 0)
+    expect(work.pending.size).toBe(0)
+    expect(await settleFileWork(work)).toEqual({ turns: 0, cleared: 0 })
+  })
+})
+
+describe('over Node’s own timers', () => {
+  test('a timeout and an immediate cleared through node:timers stop the wait', async () => {
+    const t = nodeGlobal()
+    const work = t.open()
+    nodeTimers.clearTimeout(t.target.setTimeout(() => {}, 0))
+    nodeTimers.clearImmediate(t.target.setImmediate(() => {}))
+    expect(await settleFileWork(work)).toEqual({ turns: 0, cleared: 0 })
+  })
+
+  test('a timeout cleared by its numeric id stops the wait, and the id still clears it', async () => {
+    const t = nodeGlobal()
+    const work = t.open()
+    let fired = false
+    const handle = t.target.setTimeout(() => {
+      fired = true
+    }, 0)
+    t.target.clearTimeout(+handle)
+    expect(await settleFileWork(work)).toEqual({ turns: 0, cleared: 0 })
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(fired).toBe(false)
   })
 })
 
 describe('the wrappers on a global', () => {
   test('intervals are not wrapped; the others keep their name and promisify form', () => {
     const t = setUp()
-    try {
-      expect(t.target.setInterval).toBe(t.interval)
-      expect((t.target.setImmediate as { name: string }).name).toBe('setImmediate')
-      expect((t.target.setImmediate as Record<symbol, unknown>)[promisify.custom]).toBe('custom')
-    } finally {
-      t.tracking.uninstall()
-    }
+    expect(t.target.setInterval).toBe(t.interval)
+    expect((t.target.setImmediate as { name: string }).name).toBe('setImmediate')
+    expect((t.target.setImmediate as Record<symbol, unknown>)[promisify.custom]).toBe('custom')
   })
 
   test('a second install shares the first, and the last uninstall puts the originals back', () => {

@@ -408,7 +408,15 @@ In a `jsdom` file, `setImmediate` and `setTimeout` are Node's, so work can still
 1. It runs the pending `setImmediate` and 0 ms `setTimeout` callbacks while the window is still there. It waits up to 50 event-loop turns or 50 ms, whichever comes first. The late commit runs against the window, and React's scheduler is ready for the next file. An error thrown there is reported like any error after the file's last test.
 2. Then it cancels the file's `setImmediate` and `setTimeout` callbacks that are still pending: longer timeouts, and a loop that kept rescheduling itself past the bound. None of them fires into the next file.
 
-This does not touch `setInterval` timers or `MessageChannel` ports. Packages from `node_modules` are shared by every file a worker runs. Such a package may start an interval or open a port in whichever file uses it first and keep it for the later ones, so closing those with the first file would break the package for the rest of the worker. One limit: a shared package whose work is still running at the bound has it cut off, and a scheduler cut off that way can be left stuck for the worker's later files. With `isolation: 'none'` the window outlives its files, and nothing is run or cancelled.
+A timeout cleared by its numeric id (`clearTimeout(+handle)`) or through `node:timers`' own `clearTimeout` and `clearImmediate` stops counting, so the wait doesn't run on for it. A timeout that already fired is still cancelled if `refresh()` armed it again, as a debounce or a keep-alive does.
+
+This does not touch `setInterval` timers or `MessageChannel` ports. Packages from `node_modules` are shared by every file a worker runs. Such a package may start an interval or open a port in whichever file uses it first and keep it for the later ones, so closing those with the first file would break the package for the rest of the worker. With `isolation: 'none'` the window outlives its files, and nothing is run or cancelled.
+
+Limits:
+
+- A shared package whose work is still running at the bound has it cut off, and a scheduler cut off that way can be left stuck for the worker's later files.
+- Whether a timer cleared through `node:timers` is gone is read from Node's own handle (an internal field, there on Node 22, 24 and 26). On a Node that drops it, such a timer would be waited for until the bound, and cancelled then.
+- A timeout that fired stays noted until the file ends, so a file that sets many short timeouts holds on to each one (and its callback) until then.
 
 ### Module mocks
 

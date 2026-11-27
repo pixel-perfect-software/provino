@@ -130,7 +130,7 @@ export function header(error: Pick<SerializedError, 'name' | 'message'>): string
 function saysNothing(error: SerializedError): boolean {
   return (
     header(error) === 'Error' &&
-    frames(error).length === 0 &&
+    userFrames(error).length === 0 &&
     error.cause === undefined &&
     (error.errors ?? []).length === 0
   )
@@ -175,33 +175,47 @@ export function isProvinoFrame(frame: string, packages: string | undefined): boo
   return false
 }
 
-/**
- * Whether a frame is Node's or a dependency's, as Jest's `removeInternalStackEntries` has it:
- * `node:` internals and anything under `node_modules` say nothing about the user's code.
- */
-function isLibraryFrame(frame: string): boolean {
-  return (
-    frame.includes('node:') ||
-    frame.includes('node_modules') ||
-    isProvinoFrame(frame, PROVINO_PACKAGES)
-  )
+/** Whether a frame is Node's (`node:` internals) or one of Provino's own packages. */
+function isInternalFrame(frame: string): boolean {
+  return frame.includes('node:') || isProvinoFrame(frame, PROVINO_PACKAGES)
 }
 
 /**
- * The stack's frame lines (`at …`), without the header V8 puts before them or a library's frames.
- * When every frame is a library's (a callback a package queued, such as a scheduler's flush, threw
- * with no frame of the user's on its stack), the dependencies' frames are kept instead, so the
- * error still says where it came from; Node's and Provino's own stay out. Jest keeps a
- * dependency's frames too (`removeInternalStackEntries` drops only its own and Node's).
+ * Whether a frame is Node's, Provino's or a dependency's, as Jest's `removeInternalStackEntries`
+ * has it: those and anything under `node_modules` say nothing about the user's code.
  */
-export function frames(error: SerializedError): string[] {
-  const all = (error.stack ?? '')
+function isLibraryFrame(frame: string): boolean {
+  return isInternalFrame(frame) || frame.includes('node_modules')
+}
+
+/** The stack's frame lines (`at …`), without the header V8 puts before them. */
+function frameLines(error: SerializedError): string[] {
+  return (error.stack ?? '')
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line.startsWith('at '))
+}
+
+/**
+ * The stack's frames in the user's own code: a library's left out. What says where an error
+ * happened (an annotation's file, a failure's location) and whether an error says anything.
+ */
+export function userFrames(error: SerializedError): string[] {
+  return frameLines(error).filter((line) => !isLibraryFrame(line))
+}
+
+/**
+ * The frames an error prints: the user's. When there is none (a callback a package queued, such as
+ * a scheduler's flush, threw with no frame of the user's on its stack), the dependencies' frames
+ * instead, so the error still says where it came from; Node's and Provino's own stay out. Jest
+ * keeps a dependency's frames too (`removeInternalStackEntries` drops only its own and Node's).
+ * Only for the text of the stack: a location reads `userFrames`.
+ */
+export function frames(error: SerializedError): string[] {
+  const all = frameLines(error)
   const user = all.filter((line) => !isLibraryFrame(line))
   if (user.length > 0) return user
-  return all.filter((line) => !line.includes('node:') && !isProvinoFrame(line, PROVINO_PACKAGES))
+  return all.filter((line) => !isInternalFrame(line))
 }
 
 /**

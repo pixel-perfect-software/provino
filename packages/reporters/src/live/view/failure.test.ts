@@ -128,6 +128,25 @@ test('the failure block: title path, error text without its stack, location, the
   assert.ok(!lines.join('\n').includes('at f'), 'no stack frames: the location says where')
 })
 
+test('a failure whose every frame is a dependency’s or Node’s is placed at its test', () => {
+  const failure = {
+    title: ['t'],
+    location: at('/project/a.test.ts', 7),
+    errors: [
+      error('window is not defined', {
+        stack: [
+          'Error: window is not defined',
+          '    at flush (/project/node_modules/ui/index.js:19:13)',
+          '    at process.processImmediate (node:internal/timers:574:21)',
+        ].join('\n'),
+      }),
+    ],
+  }
+  const place = placeOf(failure, '/project')
+  assert.deepEqual(place.where, at('/project/a.test.ts', 7))
+  assert.deepEqual(place.frames, [])
+})
+
 test('a link wraps the location where the terminal draws them', () => {
   const failure = { title: ['t'], location: at('/project/a b.ts', 1), errors: [error('boom')] }
   const text = failureLines(failure, placeOf(failure, '/project'), {

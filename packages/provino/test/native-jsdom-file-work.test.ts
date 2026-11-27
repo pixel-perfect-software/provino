@@ -72,6 +72,23 @@ const REACT_LATE = [
   '',
 ].join('\n')
 
+/**
+ * Runs `dir` on `pool` through the source bin: the exit code and the outcomes of the files named
+ * (`a` for `a.test.ts`), by name.
+ */
+async function runFiles(
+  dir: string,
+  pool: string,
+  names: readonly string[],
+): Promise<{ code: number | null; outcomes: Record<string, string | undefined> }> {
+  const ran = await spawnCli(nativeRunArgs(pool), { cwd: dir })
+  const found = await outcomesByFile(dir)
+  return {
+    code: ran.code,
+    outcomes: Object.fromEntries(names.map((name) => [name, found.get(`${name}.test.ts`)])),
+  }
+}
+
 /** `react` and `react-dom` from this package's devDependencies, linked into a project. */
 function linkReact(dir: string): void {
   const modules = fileURLToPath(new URL('../node_modules/', import.meta.url))
@@ -92,14 +109,10 @@ describe('work a native jsdom file queued as it ended', () => {
         },
         JSDOM_CONFIG,
       )
-      const ran = await spawnCli(nativeRunArgs(pool), { cwd: dir })
-      const outcomes = await outcomesByFile(dir)
-      expect({
-        a: outcomes.get('a.test.ts'),
-        b: outcomes.get('b.test.ts'),
-        c: outcomes.get('c.test.ts'),
-      }).toEqual({ a: 'passed', b: 'passed', c: 'passed' })
-      expect(ran.code).toBe(0)
+      expect(await runFiles(dir, pool, ['a', 'b', 'c'])).toEqual({
+        code: 0,
+        outcomes: { a: 'passed', b: 'passed', c: 'passed' },
+      })
     })
   }
 
@@ -113,14 +126,10 @@ describe('work a native jsdom file queued as it ended', () => {
       JSDOM_CONFIG,
     )
     linkReact(dir)
-    const ran = await spawnCli(nativeRunArgs('forks'), { cwd: dir })
-    const outcomes = await outcomesByFile(dir)
-    expect({
-      a: outcomes.get('a.test.ts'),
-      b: outcomes.get('b.test.ts'),
-      c: outcomes.get('c.test.ts'),
-    }).toEqual({ a: 'passed', b: 'passed', c: 'passed' })
-    expect(ran.code).toBe(0)
+    expect(await runFiles(dir, 'forks', ['a', 'b', 'c'])).toEqual({
+      code: 0,
+      outcomes: { a: 'passed', b: 'passed', c: 'passed' },
+    })
   })
 
   test("a test's own setImmediate flush still runs during the test", async () => {
@@ -136,9 +145,10 @@ describe('work a native jsdom file queued as it ended', () => {
       '',
     ].join('\n')
     const dir = await nativeProject({ 'tests/flush.test.ts': flush }, JSDOM_CONFIG)
-    const ran = await spawnCli(nativeRunArgs('forks'), { cwd: dir })
-    expect((await outcomesByFile(dir)).get('flush.test.ts')).toBe('passed')
-    expect(ran.code).toBe(0)
+    expect(await runFiles(dir, 'forks', ['flush'])).toEqual({
+      code: 0,
+      outcomes: { flush: 'passed' },
+    })
   })
 
   test('a timeout a file left does not fire into the next file of the worker', async () => {
@@ -160,13 +170,10 @@ describe('work a native jsdom file queued as it ended', () => {
       { 'tests/a.test.ts': leaving('a'), 'tests/b.test.ts': leaving('b') },
       JSDOM_CONFIG,
     )
-    const ran = await spawnCli(nativeRunArgs('forks'), { cwd: dir })
-    const outcomes = await outcomesByFile(dir)
-    expect({ a: outcomes.get('a.test.ts'), b: outcomes.get('b.test.ts') }).toEqual({
-      a: 'passed,passed',
-      b: 'passed,passed',
+    expect(await runFiles(dir, 'forks', ['a', 'b'])).toEqual({
+      code: 0,
+      outcomes: { a: 'passed,passed', b: 'passed,passed' },
     })
-    expect(ran.code).toBe(0)
   })
 
   test("a shared package's interval and its own MessagePort keep working in the next file", async () => {
@@ -205,12 +212,9 @@ describe('work a native jsdom file queued as it ended', () => {
       { ...ticker, 'tests/a.test.ts': using, 'tests/b.test.ts': using },
       JSDOM_CONFIG,
     )
-    const ran = await spawnCli(nativeRunArgs('forks'), { cwd: dir })
-    const outcomes = await outcomesByFile(dir)
-    expect({ a: outcomes.get('a.test.ts'), b: outcomes.get('b.test.ts') }).toEqual({
-      a: 'passed',
-      b: 'passed',
+    expect(await runFiles(dir, 'forks', ['a', 'b'])).toEqual({
+      code: 0,
+      outcomes: { a: 'passed', b: 'passed' },
     })
-    expect(ran.code).toBe(0)
   })
 })

@@ -12,7 +12,7 @@ import { CUT_NOTE, MAX_ERROR_TEXT } from '../../internal/clean-text.ts'
 import { posixRelative } from '../../internal/posix-relative.ts'
 import { frameLocation } from '../../internal/views/location.ts'
 import type { Style } from '../../style.ts'
-import { formatError, frames } from '../../text/format.ts'
+import { formatError, userFrames } from '../../text/format.ts'
 import type { FailedTest } from '../model/state.ts'
 import { hyperlink } from '../terminal/ansi.ts'
 import type { Glyphs } from '../terminal/glyphs.ts'
@@ -95,7 +95,7 @@ function relativeFrame(frame: string, cwd: string): string {
  */
 export function placeOf(failure: FailedTest, cwd: string): FailurePlace {
   const [first] = failure.errors
-  const list = first === undefined ? [] : frames(first)
+  const list = first === undefined ? [] : userFrames(first)
   let where = first?.location
   if (where === undefined) {
     for (const frame of list) {
