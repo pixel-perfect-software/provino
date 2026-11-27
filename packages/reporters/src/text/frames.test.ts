@@ -3,7 +3,7 @@
 // (`node_modules/provino/dist`, `node_modules/@provino/<name>`).
 import assert from 'node:assert/strict'
 import { fileURLToPath } from 'node:url'
-import { test } from 'provino'
+import { expect, test } from 'provino'
 import { error } from '../internal/test-support.ts'
 import { formatError, frames, isProvinoFrame } from './format.ts'
 
@@ -35,6 +35,41 @@ test('an install’s frames are left out as a dependency’s are', () => {
   assert.deepEqual(frames(error('boom', { stack })), [
     'at Object.<anonymous> (/work/app/a.test.ts:3:11)',
   ])
+})
+
+test('an error whose every frame is a dependency’s or Node’s still shows the dependency’s frames', () => {
+  // A callback a package queued (a scheduler's flush) throws with no frame of the user's on its stack.
+  const stack = stackOf(
+    'flush (/work/app/node_modules/ui/cjs/ui.development.js:19555:13)',
+    'Immediate.loop (/work/app/node_modules/scheduler/cjs/scheduler.development.js:45:48)',
+    `run (${PACKAGES}orchestrator/src/worker/start.ts:210:5)`,
+    'process.processImmediate (node:internal/timers:574:21)',
+  )
+  expect(frames(error('window is not defined', { stack }))).toEqual([
+    'at flush (/work/app/node_modules/ui/cjs/ui.development.js:19555:13)',
+    'at Immediate.loop (/work/app/node_modules/scheduler/cjs/scheduler.development.js:45:48)',
+  ])
+  expect(formatError(error('window is not defined', { stack }))).toMatch(
+    /ui\.development\.js:19555:13/,
+  )
+})
+
+test('a dependency’s frames stay hidden beside one of the user’s', () => {
+  const stack = stackOf(
+    'flush (/work/app/node_modules/ui/index.js:1:1)',
+    'Object.<anonymous> (/work/app/a.test.ts:3:11)',
+  )
+  expect(frames(error('boom', { stack }))).toEqual([
+    'at Object.<anonymous> (/work/app/a.test.ts:3:11)',
+  ])
+})
+
+test('an error with only Node’s and Provino’s frames shows none', () => {
+  const stack = stackOf(
+    `run (${PACKAGES}core/src/executor/executor.ts:640:9)`,
+    'process.processImmediate (node:internal/timers:574:21)',
+  )
+  expect(frames(error('boom', { stack }))).toEqual([])
 })
 
 test('a user’s own packages/core/src file is not Provino’s', () => {

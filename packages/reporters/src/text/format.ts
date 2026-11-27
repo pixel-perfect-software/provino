@@ -187,12 +187,21 @@ function isLibraryFrame(frame: string): boolean {
   )
 }
 
-/** The stack's frame lines (`at …`), without the header V8 puts before them or a library's frames. */
+/**
+ * The stack's frame lines (`at …`), without the header V8 puts before them or a library's frames.
+ * When every frame is a library's (a callback a package queued, such as a scheduler's flush, threw
+ * with no frame of the user's on its stack), the dependencies' frames are kept instead, so the
+ * error still says where it came from; Node's and Provino's own stay out. Jest keeps a
+ * dependency's frames too (`removeInternalStackEntries` drops only its own and Node's).
+ */
 export function frames(error: SerializedError): string[] {
-  return (error.stack ?? '')
+  const all = (error.stack ?? '')
     .split('\n')
     .map((line) => line.trim())
-    .filter((line) => line.startsWith('at ') && !isLibraryFrame(line))
+    .filter((line) => line.startsWith('at '))
+  const user = all.filter((line) => !isLibraryFrame(line))
+  if (user.length > 0) return user
+  return all.filter((line) => !line.includes('node:') && !isProvinoFrame(line, PROVINO_PACKAGES))
 }
 
 /**
