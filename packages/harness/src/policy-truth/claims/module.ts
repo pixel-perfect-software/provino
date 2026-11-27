@@ -114,6 +114,20 @@ export const moduleClaims: Claims = {
       "Provino's own key (B28, D7): Vitest's mocker hooks imports only, so a require of a mocked module keeps the refusal by name",
     ),
   ),
+  'module.assetImports': each(
+    own(
+      'packages/dialect-jest/src/dialect.test.ts',
+      'assetImports',
+      'off',
+      "Provino's own key (D7), on for a native project only: Jest maps an asset with moduleNameMapper, so its dialect keeps the failure",
+    ),
+    own(
+      'packages/dialect-vitest/src/dialect.test.ts',
+      'assetImports',
+      'off',
+      "Provino's own key (D7), on for a native project only: real Vitest hands an asset to Vite, and adding it here needs a recording",
+    ),
+  ),
   'module.awaitFactory': mod(
     'mod-do-mock',
     'mod-factory-async',

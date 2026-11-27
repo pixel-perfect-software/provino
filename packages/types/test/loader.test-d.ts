@@ -65,6 +65,9 @@ expectTypeOf(loader).toExtend<Disposable>()
 
 // The loader evaluates Track 3's transform record, synchronously.
 expectTypeOf<ReturnType<ModuleTransformer['transform']>>().toEqualTypeOf<TransformRecord>()
+expectTypeOf<ModuleTransformer['handles']>().toEqualTypeOf<
+  ((filename: string) => boolean) | undefined
+>()
 expectTypeOf<TransformRecord['hasTopLevelAwait']>().toEqualTypeOf<boolean>()
 // D38: the hoister's rewritten imports, as specifiers.
 expectTypeOf<TransformRecord['lateDeps']>().toEqualTypeOf<readonly string[]>()
@@ -161,6 +164,11 @@ void requireKind
 // @ts-expect-error a boolean is not a moduleSyncCondition
 const moduleSyncOn: ModulePolicy = { ...modulePolicy, moduleSyncCondition: true }
 void moduleSyncOn
+// An asset or style import is a module the loader makes (`assetImports`), off unless a native project asks.
+expectTypeOf<ModulePolicy['assetImports']>().toEqualTypeOf<'off' | 'built-in'>()
+// @ts-expect-error a boolean is not an assetImports value
+const assetsOn: ModulePolicy = { ...modulePolicy, assetImports: true }
+void assetsOn
 // B23f: a shared external that patches a watched global is evaluated per file under a boolean key.
 expectTypeOf<ModulePolicy['reevaluatePatchingExternals']>().toEqualTypeOf<boolean>()
 // @ts-expect-error exactOptionalPropertyTypes: a required key is never `undefined`

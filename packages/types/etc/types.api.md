@@ -2201,6 +2201,7 @@ export type ModuleMocksFactory = (context: ModuleMocksContext) => ModuleMockRegi
 // @public
 export interface ModulePolicy {
     readonly actual: "sync-require" | "async-import";
+    readonly assetImports: "off" | "built-in";
     readonly automock: boolean;
     readonly automockShape: "metadata" | "deep";
     readonly awaitFactory: boolean;
@@ -2266,6 +2267,7 @@ export type ModuleScopeValues = (from: ModuleId) => Readonly<Record<string, unkn
 
 // @public
 export interface ModuleTransformer {
+    handles?(filename: string): boolean;
     // (undocumented)
     transform(request: TransformRequest): TransformRecord;
 }

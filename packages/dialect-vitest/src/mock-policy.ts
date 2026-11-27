@@ -84,6 +84,8 @@ export const vitestModulePolicy: ModulePolicy = {
   edgeResolveKind: 'as-written',
   // Not recorded yet (T11.16): no edge adds the `module-sync` condition.
   moduleSyncCondition: 'never',
+  // Provino's own key (D7): real Vitest hands an asset or style file to Vite; adding it here needs a recording.
+  assetImports: 'off',
   // Recorded, Vitest 5.0.5: `mod-shared-dep` and `mod-shared-dep-root` (a mock reaches only a direct import).
   mocksReachShared: false,
   // Recorded, Vitest 5.0.5: `module/vitest-externals-two-files` (with `isolate` on, its default,

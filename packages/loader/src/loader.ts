@@ -207,7 +207,7 @@ export const createLoader: CreateLoader = (options) => {
       // V8 reports a vm script by the `file:` URL of its filename; a path is accepted too.
       const path = pathOfUrl(url)
       const record = state.records.get(toModuleId(path))
-      if (record === undefined || record.wrapperLength === null) return null
+      if (record === undefined || record.wrapperLength === null || record.builtIn) return null
       return {
         path: record.path,
         // What V8 compiled after the wrapper (the hashbang a comment, the same length).
