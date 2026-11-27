@@ -1,6 +1,6 @@
 {
   "name": "@provino/config",
-  "version": "0.1.0-rc.10",
+  "version": "0.1.0-rc.11",
   "description": "Provino's config: loading a config file, selecting the dialect, and resolving a project's policy, globs, environment and isolation into the config its workers get.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {

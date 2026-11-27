@@ -1,5 +1,18 @@
 # @provino/dialect-vitest
 
+## 0.1.0-rc.11
+
+### Patch Changes
+
+- cfb5974: A native project can import an asset or a style file. `import logo from './logo.svg'` is the file's URL as a Vite dev server writes it (`/src/logo.svg`, or `/@fs/<path>` outside the project root), a `.css` or `.scss` import is an empty module, and a `*.module.css` import is an object that answers each name with itself. `?raw` imports the file's text and `?url` its URL. A `mock()` of the file still wins, so does a transform the project configures for it, and a dependency's own asset or stylesheet import works too. Projects on the Jest or Vitest dialect are unchanged.
+- Updated dependencies [514f338]
+- Updated dependencies [bb82b45]
+- Updated dependencies [8660a21]
+- Updated dependencies [2ae79f4]
+- Updated dependencies [cfb5974]
+- Updated dependencies [b2ab699]
+  - provino@0.1.0-rc.11
+
 ## 0.1.0-rc.10
 
 ### Patch Changes

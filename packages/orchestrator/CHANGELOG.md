@@ -1,5 +1,31 @@
 # @provino/orchestrator
 
+## 0.1.0-rc.11
+
+### Patch Changes
+
+- 514f338: A native config takes a `define` key: compile-time replacements in the project's own modules, as a bundler's `define` makes them, so a module that reads `import.meta.env.DEV` or `process.env.NODE_ENV` runs without the runner emulating a bundler.
+- b2ab699: Projects of a `provino.config.*` may share a root when their `include` globs select different files, so some files of one `src/` can run in node and others in jsdom. A run is refused (exit 2) only when a file would run in more than one project, and the message names the projects and the files. In a watch session a new file that makes an overlap fails that run, not the session.
+  
+  Behaviour change: projects whose roots nest (for example `.` and `packages/a`) and that both select one file used to run it twice without a word; the run is now refused, so give their `include` globs no file in common.
+- Updated dependencies [514f338]
+- Updated dependencies [bb82b45]
+- Updated dependencies [8660a21]
+- Updated dependencies [cfb5974]
+- Updated dependencies [b2ab699]
+  - @provino/config@0.1.0-rc.11
+  - @provino/types@0.1.0-rc.11
+  - @provino/loader@0.1.0-rc.11
+  - @provino/expect@0.1.0-rc.11
+  - @provino/policy@0.1.0-rc.11
+  - @provino/core@0.1.0-rc.11
+  - @provino/coverage@0.1.0-rc.11
+  - @provino/lazy@0.1.0-rc.11
+  - @provino/mock@0.1.0-rc.11
+  - @provino/rpc@0.1.0-rc.11
+  - @provino/snapshot@0.1.0-rc.11
+  - @provino/timers@0.1.0-rc.11
+
 ## 0.1.0-rc.10
 
 ### Patch Changes
