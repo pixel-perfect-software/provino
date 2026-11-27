@@ -50,6 +50,16 @@ export type MockReturn<T extends MockTarget> = T extends (...args: never[]) => i
     : never
 
 /**
+ * What a mock's implementation methods accept. A function is taken as its last overload, the one
+ * its call signature and `MockParameters` already read, so an overloaded function's mock is given
+ * one implementation rather than one per overload; a class stays as it is.
+ * @public
+ */
+export type MockImplementation<T extends MockTarget> = T extends FunctionLike
+  ? (...args: MockParameters<T>) => MockReturn<T>
+  : T
+
+/**
  * One entry of `mock.results`. `incomplete` is a call still running.
  * @public
  */
@@ -91,14 +101,20 @@ export interface MockInstance<T extends MockTarget = UnknownFunction> {
   readonly _isMockFunction: true
   getMockName(): string
   mockName(name: string): this
-  getMockImplementation(): T | undefined
+  getMockImplementation(): MockImplementation<T> | undefined
   mockClear(): this
   mockReset(): this
   mockRestore(): void
-  mockImplementation(implementation: T): this
-  mockImplementationOnce(implementation: T): this
-  withImplementation(implementation: T, callback: () => Promise<unknown>): Promise<this | undefined>
-  withImplementation(implementation: T, callback: () => unknown): this | undefined
+  mockImplementation(implementation: MockImplementation<T>): this
+  mockImplementationOnce(implementation: MockImplementation<T>): this
+  withImplementation(
+    implementation: MockImplementation<T>,
+    callback: () => Promise<unknown>,
+  ): Promise<this | undefined>
+  withImplementation(
+    implementation: MockImplementation<T>,
+    callback: () => unknown,
+  ): this | undefined
   mockReturnThis(): this
   mockReturnValue(value: MockReturn<T>): this
   mockReturnValueOnce(value: MockReturn<T>): this

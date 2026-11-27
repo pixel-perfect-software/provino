@@ -104,7 +104,41 @@ export type ImportFile = (path: string, evaluated?: () => void) => Promise<unkno
  * check distributing over a mixed table's union of row types.
  * @public
  */
-export type EachRowArgs<Row> = [Row] extends [readonly unknown[]] ? [...Row] : [Row]
+export type EachRowArgs<Row> = [Row] extends [readonly unknown[]] ? RowColumns<Row> : [Row]
+
+/**
+ * The columns of a table of tuple rows, one type per position. A table of several literal rows
+ * is a union of tuples, and a callback that reads only the first columns is not assignable to a
+ * rest parameter of that union, so the union is merged position by position into one tuple. A
+ * table whose rows differ in length keeps the union.
+ */
+type RowColumns<Row extends readonly unknown[]> =
+  IsUnion<Row['length']> extends true
+    ? [...Row]
+    : Zip<LastOf<Row>, Row> extends infer Columns extends unknown[]
+      ? Columns
+      : never
+
+type Zip<Shape, Row extends readonly unknown[]> = {
+  -readonly [I in keyof Shape]: ColumnOf<Row, I>
+}
+
+type ColumnOf<Row extends readonly unknown[], I> = Row extends unknown
+  ? I extends keyof Row
+    ? Row[I]
+    : never
+  : never
+
+type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : never
+
+type LastOf<U> =
+  UnionToIntersection<U extends unknown ? () => U : never> extends () => infer L ? L : never
+
+type UnionToIntersection<U> = (U extends unknown ? (arg: U) => void : never) extends (
+  arg: infer I,
+) => void
+  ? I
+  : never
 
 /**
  * `.each` (rows spread into arguments) and `.for` (the row and the context).

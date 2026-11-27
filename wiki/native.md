@@ -298,6 +298,19 @@ it('types the mock', () => {
 })
 ```
 
+#### Coming from @types/jest
+
+Provino's mock types are stricter than `@types/jest` in six places. Each has a one-line fix:
+
+- `fn()` with no implementation is `Mock<(...args: unknown[]) => unknown>`. Give it the function type, `fn<(out: string) => boolean>()`, or an implementation.
+- `mockImplementation` needs an implementation. To silence a method, write `spyOn(console, 'log').mockImplementation(() => {})`.
+- `Mock` and `MockInstance` default to unknown arguments. Annotate with the function type, `MockInstance<typeof process.exit>`.
+- `fn(impl)` infers its type from the implementation. Annotate the parameters, or pass the type argument, `fn<Apply>(…)`.
+- A mock factory returns an object. Cast what `requireActual` returned by giving it a type argument before spreading it.
+- `requireActual` returns a record of unknown values without a type argument. Write `requireActual<typeof import('node:path')>('node:path')`.
+
+A mocked or spied overloaded function takes an implementation of its last overload, as its call signature already does. `.each` rows give a callback one parameter per column, and a callback may take only the first columns.
+
 ### Resetting modules
 
 `resetModules()` drops the file's module cache: the next `import` or `require` of a module runs it again, so a module-level memo is fresh. Registered mocks stay.
