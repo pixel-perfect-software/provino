@@ -39,6 +39,7 @@ import {
 import { createLazyRuntime, installLazyRuntime } from '@provino/lazy'
 import {
   createProjectLoader,
+  installLegacySubpathFallback,
   installSourceMappedStacks,
   type ProjectCoverage,
   reevaluatesExternals,
@@ -214,6 +215,8 @@ interface Booted {
   disposeModuleScope: (() => void) | undefined
   /** Puts back the `Error.prepareStackTrace` the worker found (`installSourceMappedStacks`). */
   unmapStacks: (() => void) | undefined
+  /** Removes the worker's resolve hook for a shared external's own imports (`installLegacySubpathFallback`). */
+  unhookSubpaths: (() => void) | undefined
   /** What every file's snapshot state is built from: the policy's behaviours, loaded once. */
   snapshots: SnapshotBehaviours
   /** The worker's coverage collector, when the project asks for coverage (B23b, T8.8). */
@@ -690,6 +693,10 @@ export function createRuntimeRunner(): WorkerRunner {
     parts.unmapStacks = installSourceMappedStacks(parts.loader, {
       frameNames: policy.module.stackFrameNames,
     })
+    // A shared external's own imports are Node's: a bare import of a subpath into a package with no
+    // `exports` map (`next/server`) resolves as `require` would, where Node's ES module resolution
+    // adds no extension.
+    parts.unhookSubpaths = installLegacySubpathFallback()
     // D127 / P42: a shared external whose first load, while a file runs, reads a per-file global
     // is evaluated again for each later file; B23f: so is one whose load adds or replaces a key of
     // the global (`reevaluatePatchingExternals`), which the environment's restore takes away. The
@@ -1319,6 +1326,7 @@ export function createRuntimeRunner(): WorkerRunner {
           coverageLoader = undefined
         },
         () => torn.unmapStacks?.(),
+        () => torn.unhookSubpaths?.(),
         () => torn.uninstallLazy?.(),
         () => torn.disposeModuleScope?.(),
         () => torn.slot?.uninstall(),
