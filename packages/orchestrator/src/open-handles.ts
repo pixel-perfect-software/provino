@@ -10,7 +10,6 @@ import { readFileSync } from 'node:fs'
 import { dirname, relative, sep } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 import { fileURLToPath } from 'node:url'
-import { isProvinoStackFrame } from '@provino/reporters'
 import type { OpenHandle } from '@provino/types'
 
 /** Resources that don't keep a process open, or don't last: Jest's list, kept as it is. */
@@ -33,6 +32,13 @@ const STACK_LIMIT = 100
 
 /** Provino's own packages: siblings of this one, in a checkout (`packages/`) and installed (`@provino/`). */
 const OWN_PREFIX = dirname(dirname(dirname(fileURLToPath(import.meta.url)))) + sep
+
+/**
+ * An installed Provino's packages, `node_modules/provino` and `node_modules/@provino/<name>`, on a
+ * decoded file path: a runner other than this copy (a suite run on an installed Provino) puts its
+ * worker's timer wrapper there, between Node's frames and the project's call that made a timer.
+ */
+const INSTALLED_OWN = /[\\/]node_modules[\\/](?:provino|@provino[\\/][^\\/]+)[\\/]/
 
 /**
  * What `collectOpenHandles` needs to know about the run.
@@ -96,9 +102,9 @@ function frameOf(site: NodeJS.CallSite): Frame {
   }
 }
 
-/** Whether a file is one of Provino's own packages. */
+/** Whether a file is one of Provino's own packages: this copy's, or an installed one's. */
 function isOwnFile(file: string): boolean {
-  return file.startsWith(OWN_PREFIX)
+  return file.startsWith(OWN_PREFIX) || INSTALLED_OWN.test(file)
 }
 
 /** Whether a file is the project's: under a root, and not a dependency or one of Provino's packages. */
@@ -192,15 +198,9 @@ function shown(frame: Frame, root: string | undefined): string {
   return frame.text.replace(written, relative(root, file).split(sep).join('/'))
 }
 
-/**
- * Whether a frame is worth showing: Node's own and Provino's are left out. Provino's are this
- * copy's packages (`isOwnFile`) and any Provino the reporters' rule knows (`isProvinoStackFrame`):
- * the worker's timer wrapper sits between Node's frames and the project's call that made a timer,
- * and a runner other than this copy (a suite run on an installed Provino) has it elsewhere.
- */
+/** Whether a frame is worth showing: Node's own and Provino's are left out. */
 function isShownFrame(frame: Frame): boolean {
-  if (frame.file === undefined) return !frame.text.includes('node:')
-  return !isOwnFile(frame.file) && !isProvinoStackFrame(frame.text)
+  return frame.file === undefined ? !frame.text.includes('node:') : !isOwnFile(frame.file)
 }
 
 /**

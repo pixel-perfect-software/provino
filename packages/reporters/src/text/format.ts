@@ -175,17 +175,6 @@ export function isProvinoFrame(frame: string, packages: string | undefined): boo
   return false
 }
 
-/**
- * Whether a stack frame line is one of Provino's own, by the rule the text reporters hide them
- * with (`isProvinoFrame` over this checkout's packages, or an install's `node_modules/provino` and
- * `@provino/*`): for a caller that prints frames it captured itself, such as the open-handle report,
- * where a frame of Provino's (the worker's timer wrapper) would otherwise sit above the user's.
- * @internal
- */
-export function isProvinoStackFrame(frame: string): boolean {
-  return isProvinoFrame(frame, PROVINO_PACKAGES)
-}
-
 /** Whether a frame is Node's (`node:` internals) or one of Provino's own packages. */
 function isInternalFrame(frame: string): boolean {
   return frame.includes('node:') || isProvinoFrame(frame, PROVINO_PACKAGES)
