@@ -16,6 +16,7 @@ import type { Reporter, ReporterEvents, ReporterHandlers } from '@provino/types'
 import { BenchError } from '../errors.ts'
 import { SAMPLE_PREFIX } from '../internal/limits.ts'
 import { median, quantile } from '../stats.ts'
+import { realPaceClock, waitUntil } from './pace.ts'
 import {
   type FirstFrameResult,
   type FramesResult,
@@ -269,9 +270,10 @@ interface PacedRun {
 /**
  * The stream through the bus into a sink, with the real scheduler, at `testsPerSec`: the events
  * are spread evenly over the run's time and sent in batches, each at its slot on the monotonic
- * clock (`start + k x 10 ms`). A batch that is late is sent as soon as the loop is free, never
- * skipped, and the loop yields between events' turns so the frame timer can fire. Each event's
- * wait is the time from its batch's scheduled send to the end of its delivery through the bus.
+ * clock (`start + k x 10 ms`). A batch is never sent before its slot (`waitUntil`), so no wait is
+ * negative; one that is late is sent as soon as the loop is free, never skipped, and the loop
+ * yields between events' turns so the frame timer can fire. Each event's wait is the time from its
+ * batch's scheduled send to the end of its delivery through the bus.
  */
 async function pacedReplay(
   events: readonly StreamEvent[],
@@ -298,9 +300,7 @@ async function pacedReplay(
   let sent = 0
   for (let batch = 0; sent < last; batch++) {
     const due = start + batch * BATCH_MS
-    const delay = due - performance.now()
-    if (delay > 1) await new Promise<void>((resolve) => setTimeout(resolve, delay))
-    else await new Promise<void>((resolve) => setImmediate(resolve))
+    await waitUntil(due, realPaceClock)
     const upTo = Math.min(last, Math.ceil((((batch + 1) * BATCH_MS) / durationMs) * last))
     for (; sent < upTo; sent++) {
       const event = events[sent] as StreamEvent
