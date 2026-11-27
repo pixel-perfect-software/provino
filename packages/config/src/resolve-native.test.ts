@@ -84,6 +84,28 @@ describe('a project with no dialect', () => {
     assert.deepEqual(resolved.config.loader.hoist, NATIVE.hoist)
   })
 
+  test('a jsdom environment gets the browser stand-ins unless environmentOptions turn them off', async () => {
+    const jsdom = { ...options(), environments: { ...ENVIRONMENTS, jsdom: ENVIRONMENTS.node } }
+    const on = await resolveProject({ environment: 'jsdom' }, jsdom)
+    assert.deepEqual(on.config.environment.options, { standIns: true })
+    const off = await resolveProject(
+      { environment: 'jsdom', environmentOptions: { standIns: false, url: 'http://a.test/' } },
+      jsdom,
+    )
+    assert.deepEqual(off.config.environment.options, { standIns: false, url: 'http://a.test/' })
+    const node = await resolveProject({}, options())
+    assert.deepEqual(node.config.environment.options, {})
+  })
+
+  test('a project with a dialect keeps the options as given', async () => {
+    const jsdom = { ...options(), environments: { ...ENVIRONMENTS, jsdom: ENVIRONMENTS.node } }
+    const dialect = await resolveProject(
+      { dialect: 'scoped' as never, environment: 'jsdom' },
+      jsdom,
+    )
+    assert.deepEqual(dialect.config.environment.options, {})
+  })
+
   test('the snapshot printer brings the native snapshot slice (B28)', async () => {
     const resolved = await resolveProject({}, options())
     assert.deepEqual(

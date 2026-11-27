@@ -42,6 +42,10 @@ useNode(jsdomEnvironment)
 // @ts-expect-error not an option of the jsdom environment
 const bad: JsdomEnvironmentOptions = { width: 3 }
 void bad
+expectTypeOf<JsdomEnvironmentOptions['standIns']>().toEqualTypeOf<boolean | undefined>()
+// @ts-expect-error standIns is a boolean
+const notABoolean: JsdomEnvironmentOptions = { standIns: 'yes' }
+void notABoolean
 // @ts-expect-error customExportConditions is a list of strings
 const notAList: JsdomEnvironmentOptions = { customExportConditions: 'browser' }
 void notAList

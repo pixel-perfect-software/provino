@@ -18,12 +18,14 @@ import type {
 } from '@provino/types'
 import type { DOMWindow } from 'jsdom'
 import { JsdomEnvironmentError } from './errors.ts'
+import { installStandIns } from './stand-ins.ts'
 import { createDom, type JsdomModule } from './window.ts'
 
 /**
  * The options of the jsdom environment: `url`, `html`, `userAgent`, `pretendToBeVisual`,
- * `customExportConditions` (read by the policy's `environmentConditions`, not here) and `jsdom`,
- * anything else the `JSDOM` constructor takes.
+ * `customExportConditions` (read by the policy's `environmentConditions`, not here), `standIns`
+ * (browser APIs jsdom lacks, off here and on for a native project) and `jsdom`, anything else the
+ * `JSDOM` constructor takes.
  * @public
  */
 export type JsdomEnvironmentOptions = EnvironmentOptionsMap['jsdom']
@@ -160,6 +162,7 @@ export const jsdomEnvironment: Environment<'jsdom', JsdomEnvironmentOptions> = {
     const dom = createDom(prepared, context.options, context.console)
     const win = dom.window
     const clearErrors = bridgeErrors(win)
+    if (context.options.standIns === true) installStandIns(win)
 
     const nodeGlobals: Record<string, unknown> = globalThis as unknown as Record<string, unknown>
     const winGlobals: Record<string, unknown> = win as unknown as Record<string, unknown>

@@ -370,7 +370,11 @@ export async function resolveProjectInput(
         projectLayer(parsed.include, parsed.exclude, parsed.globals, parsed.timeouts),
       ],
       environment: parsed.environment,
-      environmentOptions: parsed.environmentOptions ?? {},
+      environmentOptions: nativeEnvironmentOptions(
+        dialect,
+        parsed.environment,
+        parsed.environmentOptions ?? {},
+      ),
       isolation: parsed.isolation,
       setupFiles: [],
       setupFilesAfterEnv: parsed.setupFiles ?? [],
@@ -382,6 +386,20 @@ export async function resolveProjectInput(
     },
     options,
   )
+}
+
+/**
+ * A native project's jsdom gets the stand-ins for the browser APIs jsdom lacks (`standIns`, read by
+ * `@provino/env-jsdom`) unless its `environmentOptions` say otherwise. A project with a dialect keeps
+ * what that runner's own environment has, so it gets none.
+ */
+function nativeEnvironmentOptions(
+  dialect: Dialect | null,
+  environment: string | undefined,
+  options: EnvironmentRef['options'],
+): EnvironmentRef['options'] {
+  if (dialect !== null || environment !== 'jsdom') return options
+  return { standIns: true, ...options }
 }
 
 /**
