@@ -141,3 +141,8 @@ These sections are in [`NOTES.md`](NOTES.md), under their own headings: sharding
 ## Coverage (B23b)
 
 Worker: `worker/runtime/runner.ts` `startCoverage` imports `@provino/coverage/runtime` only when `SerializedProjectConfig.coverage` is set (`worker/internal/runtime/config.ts` parses it, `ORCH_BAD_CONFIG` on a bad one), starts V8's profiler before the project's files load, gives the loader the instrumenter and filter, and sends `coverage` events (Istanbul: per file, before the environment's teardown; V8: one take at `stop`). Coordinator: `dispatch.ts` hands each `coverage` event to a `RawCoverageStore` (`coverage-store.ts`, loaded by `load-coverage.ts` only when a project asks); `coverage.ts` `finishCoverage` merges, adds the files no test loaded (crawled per project like Jest's `hasteFS.matchFilesWithGlob`; a failure is `untestedFailures`), converts V8 takes, remaps, and puts the result in `RunSummary.coverage` before `run:end`; `exit-code.ts` turns a missed threshold into the failure code. Tests: `test/coverage-collect.test.ts` (inline, forks, threads; warm caches equal cold), `coverage-merge.test.ts` (3 workers by 2 shards equal one run, both providers), `coverage-run.test.ts`. See `packages/coverage/CLAUDE.md`.
+
+## B28 notes
+
+- **`coverage.excludeGlobs`** crosses to the worker in `parseProjectConfig` (`config.ts`), beside the other coverage fields.
+- **File arguments** reach `runProject` as `fileFilters` of kind `regex` (an invalid one is `ORCH_BAD_PATTERN`, exit 2). In watch, `provino` restricts every run, related ones too, with `RunProjectOptions.fileFilter` and `selectFiles` (`@public`), since a `selection` replaces `fileFilters`.

@@ -59,4 +59,12 @@ Loads a project's config file and resolves it into everything the coordinator an
 
 ## Coverage (B23b)
 
-`NeutralProject.coverage` (a `SerializedCoverageConfig`, set by a dialect reader when coverage is on; a `provino.config.*` project has no coverage key yet, T1.4) is carried through `resolveNeutralProject` to `SerializedProjectConfig.coverage`, which is what makes a worker load `@provino/coverage/runtime`. Nothing here imports `@provino/coverage`.
+`NeutralProject.coverage` (a `SerializedCoverageConfig`, set by a dialect reader when coverage is on) is carried through `resolveNeutralProject` to `SerializedProjectConfig.coverage`, which is what makes a worker load `@provino/coverage/runtime`. Nothing here imports `@provino/coverage`.
+
+## The `coverage` key (B28, D212)
+
+`ConfigCoverage` (`@provino/types`, top level only: inside a project it is `CONFIG_UNKNOWN_KEY` saying it belongs to the top-level config) is parsed in `internal/input.ts` into `ResolvedConfig.coverage` (`ResolvedCoverage`, defaults applied: `enabled` false, provider `v8`, reporters `['text', 'lcovonly']`, directory the policy's `reportsDirectory`, `exclude` `['**/node_modules/**']`). An unknown reporter name is `CONFIG_INVALID`. `src/coverage.ts` has `withCoverage(projects, coverage, runRoot)`: called by `provino` only when the run collects coverage (the flag or `enabled`, never under watch), it gives each project's `SerializedProjectConfig.coverage` its worker config (`globalRoot` the run root, `projectRoot` the project's `rootDir`, `include` with `includeRoot: true`, `excludeGlobs`, the project's own include globs made absolute as `testFiles`, the config file and setup files as `excludePaths`). Only strings and arrays cross to the worker (NN4). `resolve-native.test.ts` and `coverage.test.ts` hold it.
+
+## The native snapshot slice (B28, D211)
+
+For a project with no dialect, `resolve.ts` layers `@provino/policy`'s `nativeSnapshotPolicy({ snapshotPrinter, snapshotWriter })` from `NativeRuntimeRefs` over the neutral policy (Jest's `.snap` header, joins and format keys; the printer and the inline writer as refs, which `assertWorkerConfig` checks like the others).
