@@ -728,6 +728,10 @@ export function packageCopy(modules: 'all' | 'without-add-ons' = 'all'): string 
 /** A native project's config: no dialect, no globals, the TypeScript tests under `tests/`. */
 export const NATIVE_CONFIG: string = "export default { include: ['tests/**/*.test.ts'] }\n"
 
+/** `NATIVE_CONFIG` on the `jsdom` environment. */
+export const NATIVE_JSDOM_CONFIG: string =
+  "export default { include: ['tests/**/*.test.ts'], environment: 'jsdom' }\n"
+
 /**
  * A project with no dialect in a temp directory, removed after the test file: `package.json`
  * (`type: module`), `provino.config.mjs` (`config`), `files` and `node_modules/provino` linked to
@@ -767,4 +771,21 @@ export function nativeRunArgs(pool: string): string[] {
     '--outputFile',
     'results.json',
   ]
+}
+
+/**
+ * Runs `dir` on `pool` through the source bin (`nativeRunArgs`): the exit code and the outcomes of
+ * the files named (`a` for `a.test.ts`), by name.
+ */
+export async function runFiles(
+  dir: string,
+  pool: string,
+  names: readonly string[],
+): Promise<{ code: number | null; outcomes: Record<string, string | undefined> }> {
+  const ran = await spawnCli(nativeRunArgs(pool), { cwd: dir })
+  const found = await outcomesByFile(dir)
+  return {
+    code: ran.code,
+    outcomes: Object.fromEntries(names.map((name) => [name, found.get(`${name}.test.ts`)])),
+  }
 }

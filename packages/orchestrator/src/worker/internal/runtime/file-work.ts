@@ -55,7 +55,12 @@
 // environment and the dialect's factories, and a native project has no docblock environment (no
 // `environmentResolver`). A dialect that turned the key on and resolved docblocks could run a
 // non-window file first, and a shared package it loaded would keep Node's own timers in the
-// worker's later window files. Where Provino prints a stack captured at a timer's creation (the
+// worker's later window files. A worker in the coordinator's process (`WorkerInit.sharesProcess`:
+// `--pool inline`, a run in band) puts them on at boot instead, before anything loads, window or
+// not: it shares Node's module cache with the workers before it in that process, so a package a
+// node project's worker loaded first would hold Node's own `setImmediate` in a later jsdom
+// project's worker. The trade-off is that such a worker's timer calls go through the idle wrapper
+// even when it never runs a window. Where Provino prints a stack captured at a timer's creation (the
 // open-handle report), the wrappers' frames are left out as Provino's own. While no window file is
 // tracked they pass the call through with nothing allocated (`openFiles.size === 0`).
 //
@@ -70,10 +75,8 @@
 // medians of 7 rounds, 2026-11-27): Node's own 111 ns; the wrappers while no window file runs 118 ns;
 // while one runs, for code outside its context, 134 ns (an `AsyncLocalStorage` read); for the file's
 // own work 368 ns (the callback's wrapper, the map entry and the timeout's own `Symbol.toPrimitive`).
-// Again on 2026-11-27 (`local`, the same method, on a machine running other work, so every number
-// is higher): Node's own 199 ns, the wrappers idle 206 ns, a window file's code outside its context
-// 215 ns and its own work 471 ns. With the key off, under isolation `none`, or in a worker that runs
-// no window, nothing is installed and a timer call is Node's own.
+// With the key off, under isolation `none`, or in a worker of its own process that runs no window,
+// nothing is installed and a timer call is Node's own.
 import { nativeNow, nativeSetTimeout, nextMacrotask } from '../../timers.ts'
 
 /** The most event-loop turns the drain waits for a file's work: about 2 ms for a loop of immediates. */

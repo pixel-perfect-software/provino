@@ -17,7 +17,7 @@ function timersAreNodes(expected: boolean): string {
     '    setImmediate === timers.setImmediate,',
     '    clearImmediate === timers.clearImmediate,',
     '  ]',
-    `  expect(same.join()).toBe('${[expected, expected, expected, expected].join()}')`,
+    `  expect(same.join()).toBe('${Array(4).fill(expected).join()}')`,
     '})',
   ].join('\n')
 }

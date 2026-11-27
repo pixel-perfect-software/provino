@@ -186,8 +186,8 @@ interface Booted {
   tracksWindowWork: boolean
   /**
    * The wrappers that note a window file's one-shot work, once the worker's first window file has
-   * put them on the global (`installWindowWork`); `undefined` until then, and in a worker that never
-   * runs a window.
+   * put them on the global (`installWindowWork`), or its boot in a process it shares
+   * (`WorkerInit.sharesProcess`); `undefined` until then, and in a worker that never runs a window.
    */
   fileWork: FileWorkTracking | undefined
   /**
@@ -689,14 +689,16 @@ export function createRuntimeRunner(): WorkerRunner {
     const config = parseProjectConfig(context.init.config)
     // A SerializedPolicy is a Policy whose behaviour keys are all refs: nothing to deserialize.
     const policy: Policy = config.policy
-    // The wrappers that note a window file's work (#227, `file-work.ts`) go on at the worker's first
-    // window file, once its environment is set up and before any of its modules load
-    // (`installWindowWork`): a worker that never runs a window keeps Node's own timers (#230).
-    // Under isolation `none` the environment outlives its files, so nothing is tracked.
+    // Where the window-file timer wrappers go on: `installWindowWork`.
     parts.tracksWindowWork =
       policy.orchestrator.windowFileWork === 'drain-then-cancel' &&
       context.init.isolation !== 'none'
-    parts.fileWork = undefined
+    // A worker in the coordinator's process shares Node's module cache with the workers before it
+    // there, so a package a node project's worker loaded holds Node's own `setImmediate`: it takes
+    // the wrappers now, before anything loads, and D127's baseline below reads them as its own.
+    if (parts.tracksWindowWork && context.init.sharesProcess === true) {
+      parts.fileWork = installFileWorkTracking(globalThis, () => fileScope.getStore()?.work)
+    }
     const behaviours = createBehaviourLoader()
     parts.coverage = await startCoverage(
       config.coverage,
@@ -1005,17 +1007,16 @@ export function createRuntimeRunner(): WorkerRunner {
   /**
    * The timer wrappers that note a window file's work (#227, #230), put on the global by the
    * worker's first window file, after its environment's `setup` and before any of its modules load,
-   * so a package that takes `setImmediate` as it loads (React's scheduler) takes the wrapper. They
-   * go into D127's baseline as the worker's own globals (`adoptingGlobals`), so a shared external
-   * that reads `setTimeout` as it loads is not taken for one that reads a per-file global.
+   * so a package that takes `setImmediate` as it loads (React's scheduler) takes the wrapper; a
+   * worker that shares its process put them on at boot. They go into D127's baseline as the
+   * worker's own globals (`adoptingGlobals`), so a shared external that reads `setTimeout` as it
+   * loads is not taken for one that reads a per-file global.
    */
   async function installWindowWork(worker: Booted): Promise<FileWorkTracking> {
-    if (worker.fileWork !== undefined) return worker.fileWork
-    const tracking = await adoptingGlobals(globalBaseline, () =>
+    worker.fileWork ??= await adoptingGlobals(globalBaseline, () =>
       installFileWorkTracking(globalThis, () => fileScope.getStore()?.work),
     )
-    worker.fileWork = tracking
-    return tracking
+    return worker.fileWork
   }
 
   /**
@@ -1177,8 +1178,9 @@ export function createRuntimeRunner(): WorkerRunner {
         instance = set.instance
         thisFile.environment = instance
         environmentName = set.name
-        // A window (the wrappers are there only for file-scoped environments): what the file
-        // queues on the timers from now on is noted, to be drained and cleared before it closes.
+        // A window (the wrappers are on the global once the worker's first window file, or its
+        // boot in a shared process, installed them): what the file queues on the timers from now
+        // on is noted, to be drained and cleared before it closes.
         if (worker.tracksWindowWork && 'document' in instance.global) {
           thisFile.work = (await installWindowWork(worker)).track()
         }

@@ -145,6 +145,14 @@ export interface WorkerInit {
    * pool would have replaced it.
    */
   readonly memoryLimitBytes?: number
+  /**
+   * Set by the pool for a worker of a transport that runs it in the coordinator's process
+   * (`TransportFactory.sharesProcess`: inline, and so a run in band). Such a worker shares Node's
+   * module cache with the workers before it in that process, so a package one of them loaded keeps
+   * what it took from the global then. Absent for a fork or a thread, which has a module cache of
+   * its own.
+   */
+  readonly sharesProcess?: true
 }
 
 /**
