@@ -1,5 +1,27 @@
 # @provino/orchestrator
 
+## 0.1.0-rc.10
+
+### Patch Changes
+
+- 4a3ad73: A dependency that Node loads itself (an ES module in `node_modules`) can import a subpath of a package with no `exports` map without its extension, as `import { NextResponse } from 'next/server'` does: the worker resolves it as `require` would. Before, the test file failed to load with "Cannot find module … Did you mean to import …?".
+- Updated dependencies [4a3ad73]
+- Updated dependencies [43cab28]
+- Updated dependencies [b4b4581]
+- Updated dependencies [921fde7]
+  - @provino/loader@0.1.0-rc.10
+  - @provino/policy@0.1.0-rc.10
+  - @provino/types@0.1.0-rc.10
+  - @provino/mock@0.1.0-rc.10
+  - @provino/config@0.1.0-rc.10
+  - @provino/core@0.1.0-rc.10
+  - @provino/expect@0.1.0-rc.10
+  - @provino/snapshot@0.1.0-rc.10
+  - @provino/timers@0.1.0-rc.10
+  - @provino/coverage@0.1.0-rc.10
+  - @provino/lazy@0.1.0-rc.10
+  - @provino/rpc@0.1.0-rc.10
+
 ## 0.1.0-rc.9
 
 ### Patch Changes

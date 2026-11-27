@@ -1,5 +1,14 @@
 # @provino/mock
 
+## 0.1.0-rc.10
+
+### Patch Changes
+
+- 921fde7: A mocked or spied overloaded function now takes one implementation, typed as its last overload, in `mockImplementation`, `mockImplementationOnce` and `withImplementation`. A `.each` table of several literal rows no longer rejects a callback that reads only the first columns.
+- Updated dependencies [43cab28]
+- Updated dependencies [921fde7]
+  - @provino/types@0.1.0-rc.10
+
 ## 0.1.0-rc.9
 
 ### Patch Changes

@@ -1,5 +1,14 @@
 # @provino/expect
 
+## 0.1.0-rc.10
+
+### Patch Changes
+
+- Updated dependencies [43cab28]
+- Updated dependencies [921fde7]
+  - @provino/types@0.1.0-rc.10
+  - @provino/snapshot@0.1.0-rc.10
+
 ## 0.1.0-rc.9
 
 ### Patch Changes

@@ -1,5 +1,12 @@
 # @provino/types
 
+## 0.1.0-rc.10
+
+### Patch Changes
+
+- 43cab28: Under `globals: true`, a `mock()` at the top of the global `isolateModules` or `isolateModulesAsync` callback is hoisted to the top of that callback, as it is with the imported functions (`mock` itself is still imported from `provino`, and only the bare call `isolateModules(…)` counts, not `globalThis.isolateModules(…)`), instead of failing the file with `HOIST_NOT_TOP_LEVEL`. `HoistPolicy` gains the optional `globalCallbackScopes`.
+- 921fde7: A mocked or spied overloaded function now takes one implementation, typed as its last overload, in `mockImplementation`, `mockImplementationOnce` and `withImplementation`. A `.each` table of several literal rows no longer rejects a callback that reads only the first columns.
+
 ## 0.1.0-rc.9
 
 ### Patch Changes

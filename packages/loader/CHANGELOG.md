@@ -1,5 +1,18 @@
 # @provino/loader
 
+## 0.1.0-rc.10
+
+### Patch Changes
+
+- 4a3ad73: A dependency that Node loads itself (an ES module in `node_modules`) can import a subpath of a package with no `exports` map without its extension, as `import { NextResponse } from 'next/server'` does: the worker resolves it as `require` would. Before, the test file failed to load with "Cannot find module … Did you mean to import …?".
+- b4b4581: A native ES module that names `module` (an entry point bundled to CommonJS that checks `require.main === module`) no longer throws `ReferenceError: module is not defined`: it gets a `module` object of its own, so the check is false when the file is imported.
+- Updated dependencies [43cab28]
+- Updated dependencies [921fde7]
+  - @provino/policy@0.1.0-rc.10
+  - @provino/transform@0.1.0-rc.10
+  - @provino/types@0.1.0-rc.10
+  - @provino/resolver@0.1.0-rc.10
+
 ## 0.1.0-rc.9
 
 ### Patch Changes
