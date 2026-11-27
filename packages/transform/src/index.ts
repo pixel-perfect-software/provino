@@ -11,6 +11,7 @@ export {
   pruneCache,
   pruneCacheIfWritten,
 } from './cache/index.ts'
+export { refusedDefines } from './define-check.ts'
 export type { TransformErrorCode, TransformParseFailure } from './errors.ts'
 export { TransformError } from './errors.ts'
 export { LATE_IMPORT } from './hoist/apply.ts'

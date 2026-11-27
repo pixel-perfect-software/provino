@@ -14,7 +14,6 @@ import type {
 import { afterAll, beforeAll, describe, test } from 'provino'
 import { ConfigError } from './errors.ts'
 import { makeTempDir, pipe, rejectsWith, type TempDir } from './internal/test-support.ts'
-import { resolveProjects } from './projects.ts'
 import {
   type ResolvedProject,
   type ResolveProjectOptions,
@@ -1326,24 +1325,21 @@ describe('resolveProject', () => {
       assert.equal('define' in (await resolveWith({ define: {} })).config.loader, false)
     })
 
-    test('an inline project takes its own define', async () => {
-      const resolved = await resolveProjects(
-        {
-          projects: [
-            { name: 'a', root: temp.dir, define: { X: 1 } },
-            { name: 'b', root: dirname(temp.dir) },
-          ],
-        },
-        { ...base() },
+    test('a key that names nothing a define can replace is CONFIG_INVALID naming it', async () => {
+      const keys = ['', '1x', 'a-b', 'a..b', '.a', 'a.', 'a b', 'a[0]', 'a()', 'a.1']
+      // `import.meta` alone would break `import.meta.url`; a reserved word starts no name;
+      // `__proto__` would be dropped by an object assignment.
+      keys.push(
+        'import.meta',
+        'import',
+        'import.foo',
+        'this',
+        'this.x',
+        'new',
+        'class',
+        '__proto__',
       )
-      assert.deepEqual(
-        resolved.projects.map((project) => project.config.loader.define),
-        [{ X: '1' }, undefined],
-      )
-    })
-
-    test('a key that is not an identifier or a dotted chain is CONFIG_INVALID naming it', async () => {
-      for (const key of ['', '1x', 'a-b', 'a..b', '.a', 'a.', 'a b', 'a[0]', 'a()', 'a.1']) {
+      for (const key of keys) {
         const error = await rejectsWith(
           resolveWith({ define: { [key]: '1' } } as never),
           'CONFIG_INVALID',
@@ -1361,6 +1357,18 @@ describe('resolveProject', () => {
         assert.ok(error.message.includes('define["X"]'), error.message)
       }
       await rejectsWith(resolveWith({ define: { X: { f: () => 1 } } } as never), 'CONFIG_INVALID')
+    })
+
+    test('a value Oxc does not take as one expression is CONFIG_INVALID naming the key and the reason', async () => {
+      for (const value of ['1 +', 'a; b', '"a" "b"', 'a) + (b']) {
+        const error = await rejectsWith(
+          resolveWith({ define: { X: value } } as never),
+          'CONFIG_INVALID',
+        )
+        assert.ok(error.message.includes('define["X"]'), error.message)
+        assert.ok(error.message.includes('Unexpected token'), error.message)
+      }
+      await resolveWith({ define: { X: 'a, b', Y: '{"DEV":true}', 'import.meta.env.Z': '1' } })
     })
 
     test('define must be an object', async () => {

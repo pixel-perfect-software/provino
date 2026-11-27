@@ -244,8 +244,8 @@ for (const extension of ['ts', 'tsx', 'js']) {
     )
     assert.deepEqual(whole.diagnostics, [])
     assert.doesNotMatch(whole.code, /import\.meta\.env/)
-    assert.match(whole.code, /\{\s*DEV: true\s*\}|\{\s*"DEV": true\s*\}/)
-    assert.match(whole.code, /\.DEV|\["DEV"\]/)
+    assert.match(whole.code, /export const a = \{ "DEV": true \}\.DEV;/)
+    assert.match(whole.code, /export const b = \{ "DEV": true \}\[key\];/)
   })
 }
 

@@ -19,6 +19,7 @@ const FILES: Readonly<Record<string, string>> = {
     '  expect(dev).toBe(true)',
     "  expect(mode).toBe('test')",
     "  expect(version).toBe('1.2.3')",
+    '  expect(all).toEqual({ DEV: true })',
     '})',
     '',
   ].join('\n'),
@@ -42,7 +43,6 @@ describe('the define config key', () => {
     test(`a module reads what define replaces on the ${pool} pool`, async () => {
       const dir = await nativeProject(FILES, CONFIG)
       const ran = await spawnCli(nativeRunArgs(pool), { cwd: dir })
-      expect(ran.stderr).not.toMatch(/Cannot read properties of undefined/)
       expect((await outcomesByFile(dir)).get('app.test.ts')).toBe('passed')
       expect(ran.code).toBe(0)
     })

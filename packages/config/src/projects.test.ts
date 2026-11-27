@@ -40,6 +40,16 @@ describe('resolveProjects', () => {
       ci: false,
     })
 
+  test('an inline project takes its own define', async () => {
+    const config = await resolveIn({
+      projects: [{ name: 'a', root: 'inline', define: { X: 1 } }, { name: 'b' }],
+    })
+    assert.deepEqual(
+      config.projects.map((project) => project.config.loader.define),
+      [{ X: '1' }, undefined],
+    )
+  })
+
   test('a config with no projects is the one project, with its run defaults', async () => {
     const config = await resolveIn({
       name: 'solo',

@@ -295,11 +295,12 @@ function loaderConfig(value: unknown): SerializedLoaderConfig {
 /** `loader.define`: each replacement's source text, by the name it replaces. */
 function defineMap(value: unknown): Readonly<Record<string, string>> {
   const map = record(value, 'loader.define')
-  const out: Record<string, string> = {}
-  for (const [name, replacement] of Object.entries(map)) {
-    out[name] = text(replacement, `loader.define["${name}"]`)
-  }
-  return out
+  return Object.fromEntries(
+    Object.entries(map).map(([name, replacement]) => [
+      name,
+      text(replacement, `loader.define["${name}"]`),
+    ]),
+  )
 }
 
 /** The project's coverage settings: the globs and patterns are strings, the paths absolute. */
