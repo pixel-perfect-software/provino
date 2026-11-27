@@ -1,6 +1,6 @@
 {
   "name": "@provino/env-jsdom",
-  "version": "0.1.0-rc.9",
+  "version": "0.1.0-rc.10",
   "description": "Provino's own jsdom test environment: a fresh window per file, put on the worker's global and removed exactly afterwards.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {

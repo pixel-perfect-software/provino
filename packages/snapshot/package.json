@@ -1,6 +1,6 @@
 {
   "name": "@provino/snapshot",
-  "version": "0.1.0-rc.9",
+  "version": "0.1.0-rc.10",
   "description": "Provino's snapshot engine: the .snap file format and the per-file state machine, with the printer and the words supplied by a dialect.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {

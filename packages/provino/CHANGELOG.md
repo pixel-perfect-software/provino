@@ -1,5 +1,14 @@
 # provino
 
+## 0.1.0-rc.10
+
+### Patch Changes
+
+- 4a3ad73: A dependency that Node loads itself (an ES module in `node_modules`) can import a subpath of a package with no `exports` map without its extension, as `import { NextResponse } from 'next/server'` does: the worker resolves it as `require` would. Before, the test file failed to load with "Cannot find module … Did you mean to import …?".
+- 43cab28: Under `globals: true`, a `mock()` at the top of the global `isolateModules` or `isolateModulesAsync` callback is hoisted to the top of that callback, as it is with the imported functions (`mock` itself is still imported from `provino`, and only the bare call `isolateModules(…)` counts, not `globalThis.isolateModules(…)`), instead of failing the file with `HOIST_NOT_TOP_LEVEL`. `HoistPolicy` gains the optional `globalCallbackScopes`.
+- b4b4581: A native ES module that names `module` (an entry point bundled to CommonJS that checks `require.main === module`) no longer throws `ReferenceError: module is not defined`: it gets a `module` object of its own, so the check is false when the file is imported.
+- 921fde7: A mocked or spied overloaded function now takes one implementation, typed as its last overload, in `mockImplementation`, `mockImplementationOnce` and `withImplementation`. A `.each` table of several literal rows no longer rejects a callback that reads only the first columns.
+
 ## 0.1.0-rc.9
 
 ### Patch Changes
