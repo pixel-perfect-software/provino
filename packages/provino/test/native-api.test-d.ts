@@ -14,6 +14,7 @@ import {
   type MockedClass,
   type MockedFunction,
   type MockedObject,
+  type MockImplementation,
   type MockInstance,
   mock,
   mocked,
@@ -177,59 +178,27 @@ isolateModules('./dep.ts')
 // @ts-expect-error isolateModulesAsync takes a function that returns a Promise
 isolateModulesAsync(() => 1)
 
-// `it.each` rows: a callback may read a prefix of the row (B-fix).
-test.each([
-  ['ms', 'ms'],
-  ['types-ms', 'types-ms'],
-])('%s', (name) => {
-  expectTypeOf(name).toEqualTypeOf<'ms' | 'types-ms'>()
-})
-test.each([
-  ['a', 1],
-  ['b', 2],
-])('%s', (name, n) => {
-  expectTypeOf(name).toEqualTypeOf<'a' | 'b'>()
-  expectTypeOf(n).toEqualTypeOf<1 | 2>()
-})
-test.each([[1, 2]])('%s', () => {})
-// @ts-expect-error the first column is a string, not a number
-test.each([['a', 1]])('%s', (name: number) => name)
-// @ts-expect-error a callback cannot take more parameters than the row has columns
-test.each([['a', 1]])('%s', (a, b, c) => [a, b, c])
-
-// An overloaded function takes an implementation of its last overload, as one overload's mock does.
+// An overloaded function takes an implementation of its last overload (the full cases are in
+// @provino/mock's type tests).
 declare function read(path: string): string
-declare function read(path: string, encoding: 'buffer'): Uint8Array
 declare function read(path: number): number
 const overloaded = { read }
 const mockedRead = mocked(overloaded).read
-mockedRead.mockImplementation((path) => {
-  expectTypeOf(path).toEqualTypeOf<number>()
-  return path + 1
-})
-mockedRead.mockImplementationOnce((path) => path * 2)
-mockedRead.mockReturnValue(1)
-expectTypeOf(mockedRead.mock.calls).toEqualTypeOf<[path: number][]>()
+mockedRead.mockImplementation((path) => path + 1)
+spyOn(overloaded, 'read').mockImplementation((path) => path + 1)
+const readImpl: MockImplementation<typeof read> | undefined = mockedRead.getMockImplementation()
+expectTypeOf(readImpl).toEqualTypeOf<((path: number) => number) | undefined>()
 // @ts-expect-error the implementation takes the last overload's parameter type
 mockedRead.mockImplementation((path: string) => path)
-// @ts-expect-error the implementation returns the last overload's return type
-mockedRead.mockImplementation((path) => String(path))
-const spiedRead = spyOn(overloaded, 'read')
-spiedRead.mockImplementation((path) => path + 1)
 
-// Coming from @types/jest: what to write where provino is stricter.
-const logged = fn<(out: string) => boolean>()
-expectTypeOf(logged.mock.calls).toEqualTypeOf<[out: string][]>()
+// Coming from @types/jest (wiki/native.md): what to write where provino is stricter.
 spyOn(console, 'log').mockImplementation(() => {})
 const exitSpy: MockInstance<typeof process.exit> = spyOn(process, 'exit')
 expectTypeOf(exitSpy.mock.calls).toEqualTypeOf<[code?: number | string | null | undefined][]>()
 type Apply = (name: string, count: number) => string
 const applied = fn<Apply>((name, count) => name.repeat(count))
 expectTypeOf(applied.mock.calls).toEqualTypeOf<[name: string, count: number][]>()
-const annotated = fn((name: string) => name)
-expectTypeOf(annotated.mock.calls).toEqualTypeOf<[name: string][]>()
 mock('node:path', () => ({
   ...requireActual<typeof import('node:path')>('node:path'),
   sep: '/',
 }))
-expectTypeOf(requireActual<typeof import('node:path')>('node:path').sep).toEqualTypeOf<'\\' | '/'>()

@@ -109,18 +109,25 @@ export type EachRowArgs<Row> = [Row] extends [readonly unknown[]] ? RowColumns<R
 /**
  * The columns of a table of tuple rows, one type per position. A table of several literal rows
  * is a union of tuples, and a callback that reads only the first columns is not assignable to a
- * rest parameter of that union, so the union is merged position by position into one tuple. A
- * table whose rows differ in length keeps the union.
+ * rest parameter of that union, so the union is merged position by position into one tuple; a
+ * callback that takes every column still has to accept each row's value at each position. A
+ * table whose rows differ in length, or whose rows are arrays of no fixed length, keeps the rows.
  */
-type RowColumns<Row extends readonly unknown[]> =
-  IsUnion<Row['length']> extends true
+type RowColumns<Row extends readonly unknown[]> = number extends Row['length']
+  ? [...Row]
+  : IsUnion<Row['length']> extends true
     ? [...Row]
-    : Zip<LastOf<Row>, Row> extends infer Columns extends unknown[]
+    : Zip<Shape<Row['length']>, Row> extends infer Columns extends unknown[]
       ? Columns
       : never
 
-type Zip<Shape, Row extends readonly unknown[]> = {
-  -readonly [I in keyof Shape]: ColumnOf<Row, I>
+/** A tuple of `N` unknowns, the shape the columns are mapped over. */
+type Shape<N extends number, S extends unknown[] = []> = S['length'] extends N
+  ? S
+  : Shape<N, [...S, unknown]>
+
+type Zip<S extends unknown[], Row extends readonly unknown[]> = {
+  [I in keyof S]: ColumnOf<Row, I>
 }
 
 type ColumnOf<Row extends readonly unknown[], I> = Row extends unknown
@@ -130,15 +137,6 @@ type ColumnOf<Row extends readonly unknown[], I> = Row extends unknown
   : never
 
 type IsUnion<T, U = T> = T extends unknown ? ([U] extends [T] ? false : true) : never
-
-type LastOf<U> =
-  UnionToIntersection<U extends unknown ? () => U : never> extends () => infer L ? L : never
-
-type UnionToIntersection<U> = (U extends unknown ? (arg: U) => void : never) extends (
-  arg: infer I,
-) => void
-  ? I
-  : never
 
 /**
  * `.each` (rows spread into arguments) and `.for` (the row and the context).
