@@ -220,6 +220,22 @@ export interface OrchestratorPolicy {
    */
   readonly processObject: ProcessObject
   /**
+   * What happens to the one-shot work a file queued on the worker's own timers (a `setImmediate`, a
+   * `setTimeout`) when the file's window closes: a file-scoped environment whose global has a
+   * `document`. `drain-then-cancel`: while the window is still there the worker runs the file's
+   * pending immediates and shortest timeouts, for a bounded number of event-loop turns, so a shared
+   * package's queued flush (React's scheduler) runs with the window and clears its "flush posted"
+   * flag; then it clears the file's immediates and timeouts still pending, so none fires into the
+   * next file. Intervals and message ports are left alone (a shared package may keep them for every
+   * file). The bound, what counts as the file's work and the limits are in `wiki/native.md` ("Work
+   * left queued when a jsdom file ends") and `@provino/orchestrator`'s `file-work.ts`. `outlives-file`:
+   * nothing is done, and such work runs whenever it is due. Under isolation `none` the environment
+   * outlives its files and nothing is done either. Ours (#227): neutral `drain-then-cancel`; Jest
+   * `outlives-file` (a Jest project's window is its own `jest-environment-jsdom`, D44, whose timers
+   * the dialect cancels itself); Vitest `outlives-file` (its value before the key).
+   */
+  readonly windowFileWork: 'drain-then-cancel' | 'outlives-file'
+  /**
    * Docblock pragmas that pick a file's environment. Also Track 11's `environmentPragma`.
    * Jest: `['jest-environment']`. Vitest: `['vitest-environment', 'jest-environment']`. research: track-08 L515
    */

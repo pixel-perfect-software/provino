@@ -305,6 +305,9 @@ export const neutralPolicy: Policy = deepFreeze({
     consoleOrigin: 'none',
     // Ours: a file's `process` listeners and `env` changes stay in the file.
     processObject: 'per-file',
+    // Ours (#227): a window file's queued one-shot work runs while its window is there, and what is
+    // left is cleared when it closes, so none of it throws into the next file's tests.
+    windowFileWork: 'drain-then-cancel',
     passWithNoTests: false,
     exitCodes: { failure: 1, noTests: 1, unhandled: 1, usage: 2 },
     unhandledErrors: 'fail-run',

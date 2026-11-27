@@ -2570,6 +2570,7 @@ export interface OrchestratorPolicy {
         readonly interruptedFiles: "report" | "drop";
     };
     readonly watchDefault: "never" | "tty-not-ci";
+    readonly windowFileWork: "drain-then-cancel" | "outlives-file";
 }
 
 // @public

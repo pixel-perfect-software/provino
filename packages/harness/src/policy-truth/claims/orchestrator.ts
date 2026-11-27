@@ -489,6 +489,23 @@ export const orchestratorClaims: Claims = {
     ],
     pending('T11.16', 'no Vitest fixture records which `process` a test file sees'),
   ),
+  // Ours (#227): what a window file's queued work does when its window closes. Neither dialect's
+  // window reaches the worker's settling (a Jest project's is its own class, whose timers the
+  // dialect cancels; Vitest's keeps its value from before the key).
+  'orchestrator.windowFileWork': each(
+    own(
+      'packages/dialect-jest/src/dialect.test.ts',
+      'windowFileWork',
+      'outlives-file',
+      'the key is ours: the Jest dialect cancels a window file’s timers itself (window-timers.ts)',
+    ),
+    own(
+      'packages/dialect-vitest/src/dialect.test.ts',
+      'windowFileWork',
+      'outlives-file',
+      'the key is ours: a Vitest jsdom file’s queued work is left as it was before the key',
+    ),
+  ),
   'orchestrator.exitCodes.failure': golden('orchestrator-exit-codes', { read: exitCode }),
   'orchestrator.exitCodes.noTests': golden('orchestrator-no-tests', { read: exitCode }),
   // A flag the runner doesn't know: Jest names it, Vitest's cac throws; both exit with 1. A bad

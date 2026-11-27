@@ -66,6 +66,7 @@ const pinned: Readonly<Record<string, unknown>> = {
   },
   'orchestrator.isolationDefault': { default: 'registry', byEnvironment: {} },
   'orchestrator.bail': { checkAfter: 'test' },
+  'orchestrator.windowFileWork': 'drain-then-cancel',
   // B23c: no neutral changed-files provider; the lexer reads the graph; a change to the project's
   // own inputs reruns it; a recorded graph beats a rescan (all ours).
   'orchestrator.changedFiles': null,

@@ -104,6 +104,12 @@ import {
   readGlobalBaseline,
   watchPerFileGlobals,
 } from '../internal/runtime/external-probe.ts'
+import {
+  type FileWork,
+  type FileWorkTracking,
+  installFileWorkTracking,
+  settleFileWork,
+} from '../internal/runtime/file-work.ts'
 import { installGlobals, splitGlobals } from '../internal/runtime/globals.ts'
 import { lazyReportSink } from '../internal/runtime/lazy-sink.ts'
 import {
@@ -172,6 +178,12 @@ interface Booted {
     | undefined
   /** The file registry tier: `process` is the pool's business and runs as `registry`. */
   tier: Exclude<IsolationTier, 'process'>
+  /**
+   * The wrappers that note a window file's one-shot work (`orchestrator.windowFileWork:
+   * 'drain-then-cancel'`, `file-work.ts`), put on the global at boot; `undefined` with the key off
+   * and under isolation `none`.
+   */
+  fileWork: FileWorkTracking | undefined
   /**
    * How long an environment instance lives: `worker` for isolation `none` (nothing is isolated, so
    * the environment, the globals and the registry last as long as the worker), `file` otherwise.
@@ -482,6 +494,12 @@ interface FileScope {
   tornDown: boolean
   /** The file's environment once it is set up: whose `globalReads` the external probe hears. */
   environment: EnvironmentInstance | undefined
+  /**
+   * The one-shot work the file queued on the worker's timers, noted while its window is up
+   * (`file-work.ts`): drained and cleared before the window closes. `undefined` for a file with no
+   * window, under isolation `none`, and with `orchestrator.windowFileWork` off.
+   */
+  work: FileWork | undefined
 }
 
 /**
@@ -665,6 +683,15 @@ export function createRuntimeRunner(): WorkerRunner {
     const config = parseProjectConfig(context.init.config)
     // A SerializedPolicy is a Policy whose behaviour keys are all refs: nothing to deserialize.
     const policy: Policy = config.policy
+    // Before anything loads a package: one that takes `setImmediate` as it loads (React's
+    // scheduler) must take the wrapper that notes a window file's work (#227, `file-work.ts`), and
+    // D127's baseline below reads the wrappers as the worker's own globals. Under isolation `none`
+    // the environment outlives its files, so nothing is tracked and nothing is installed.
+    parts.fileWork =
+      policy.orchestrator.windowFileWork === 'drain-then-cancel' &&
+      context.init.isolation !== 'none'
+        ? installFileWorkTracking(globalThis, () => fileScope.getStore()?.work)
+        : undefined
     const behaviours = createBehaviourLoader()
     parts.coverage = await startCoverage(
       config.coverage,
@@ -1118,6 +1145,7 @@ export function createRuntimeRunner(): WorkerRunner {
         clock: undefined,
         tornDown: false,
         environment: undefined,
+        work: undefined,
       }
       fallback = thisFile
       let environmentName = worker.environment.environment.name
@@ -1128,6 +1156,11 @@ export function createRuntimeRunner(): WorkerRunner {
         instance = set.instance
         thisFile.environment = instance
         environmentName = set.name
+        // A window (the wrappers are there only for file-scoped environments): what the file
+        // queues on the timers from now on is noted, to be drained and cleared before it closes.
+        if (worker.fileWork !== undefined && 'document' in instance.global) {
+          thisFile.work = worker.fileWork.track()
+        }
         // The fake clock of this file, on the environment's global (the registry tier keeps one
         // global per file): each callback it schedules runs as the test that scheduled it.
         thisFile.clock = createFakeClock(instance.global, worker.modules.policy.timers, {
@@ -1232,11 +1265,17 @@ export function createRuntimeRunner(): WorkerRunner {
       // The real timers go back first: a callback the mock teardown or the environment fires must
       // not meet a fake clock of a file that is over.
       const disposeClock = () => thisFile.clock?.dispose()
+      // With the real timers back and the window still up: the file's queued one-shot work runs
+      // (a shared scheduler's flush clears its own flag), then what is left is cleared (#227).
+      const settleWork = async (): Promise<void> => {
+        if (thisFile.work !== undefined) await settleFileWork(thisFile.work)
+      }
       errors.push(
         ...(await runAll(
           worker.scope === 'file'
             ? [
                 disposeClock,
+                settleWork,
                 disposeModuleMocks,
                 disposeMocks,
                 teardownEnvironment,
@@ -1328,6 +1367,8 @@ export function createRuntimeRunner(): WorkerRunner {
         () => torn.uninstallLazy?.(),
         () => torn.disposeModuleScope?.(),
         () => torn.slot?.uninstall(),
+        // The timer wrappers come off the global (a package that took one keeps a pass-through).
+        () => torn.fileWork?.uninstall(),
         // The worker environment's teardown ran with its signal still live.
         () => workerLifetime.abort(),
         // Last, once this worker's own are out: what an outer worker in this process held.

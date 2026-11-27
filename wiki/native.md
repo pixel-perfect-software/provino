@@ -401,6 +401,23 @@ it('fakes the clock', async () => {
 
 The members are `useFakeTimers`, `useRealTimers`, `isFakeTimers`, `runAllTimers`, `runOnlyPendingTimers`, `advanceTimersByTime`, `advanceTimersToNextTimer` (each with an `Async` form), `advanceTimersToNextFrame`, `runAllTicks`, `clearAllTimers`, `getTimerCount`, `setSystemTime`, `getRealSystemTime`, `getMockedSystemTime`, `setTimerTickMode` and `now`.
 
+#### Work left queued when a jsdom file ends
+
+In a `jsdom` file, `setImmediate` and `setTimeout` are Node's, so work can still be queued when the file's last test ends. React's scheduler is one case: it flushes a commit that lands as the test ends with `setImmediate`. Before the window closes, Provino handles the real timers' work that the file queued (fake timers are already gone by then):
+
+1. It runs the pending `setImmediate` and 0 ms `setTimeout` callbacks while the window is still there. It waits up to 50 event-loop turns or 50 ms, whichever comes first. The late commit runs against the window, and React's scheduler is ready for the next file. An error thrown there is reported like any error after the file's last test.
+2. Then it cancels the file's `setImmediate` and `setTimeout` callbacks that are still pending: longer timeouts, and a loop that kept rescheduling itself past the bound. None of them fires into the next file.
+
+A timeout cleared by its numeric id (`clearTimeout(+handle)`) or through `node:timers`' own `clearTimeout` and `clearImmediate` stops counting, so the wait doesn't run on for it. A timeout that already fired is still cancelled if `refresh()` armed it again, as a debounce or a keep-alive does.
+
+This does not touch `setInterval` timers or `MessageChannel` ports. Packages from `node_modules` are shared by every file a worker runs. Such a package may start an interval or open a port in whichever file uses it first and keep it for the later ones, so closing those with the first file would break the package for the rest of the worker. With `isolation: 'none'` the window outlives its files, and nothing is run or cancelled.
+
+Limits:
+
+- A shared package whose work is still running at the bound has it cut off, and a scheduler cut off that way can be left stuck for the worker's later files.
+- Whether a timer cleared through `node:timers` is gone is read from Node's own handle (an internal field, there on Node 22, 24 and 26). On a Node that drops it, such a timer would be waited for until the bound, and cancelled then.
+- A timeout that fired stays noted until the file ends, so a file that sets many short timeouts holds on to each one (and its callback) until then.
+
 ### Module mocks
 
 `mock(specifier, factory?)`, `unmock(specifier)`, `importActual(specifier)` and `requireActual(specifier)` replace a module for one test file, or reach the real one. A `mock` or `unmock` at the top level of the file is **hoisted** above the file's imports, which then load after it, so it can sit below them:

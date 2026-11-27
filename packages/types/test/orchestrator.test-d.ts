@@ -13,6 +13,7 @@ import type {
   Inject,
   IsolationTier,
   OpenHandle,
+  OrchestratorPolicy,
   PoolOptions,
   ReporterBus,
   ReporterEvents,
@@ -347,6 +348,13 @@ const vitestWorker: WorkerKey = { ...plainKey, dialect: 'vitest' }
 // @ts-expect-error exactOptionalPropertyTypes: an absent dialect is left out, not `undefined`
 const undefinedDialect: WorkerKey = { ...plainKey, dialect: undefined }
 
+// A window file's queued work (#227): two values, no other.
+expectTypeOf<OrchestratorPolicy['windowFileWork']>().toEqualTypeOf<
+  'drain-then-cancel' | 'outlives-file'
+>()
+// @ts-expect-error the work is drained then cancelled, or outlives the file: there is no cancel-only
+const cancelOnly: OrchestratorPolicy['windowFileWork'] = 'cancel'
+
 export {
   bad,
   badCoverage,
@@ -354,6 +362,7 @@ export {
   badReason,
   badTerminate,
   badTier,
+  cancelOnly,
   fileDoneClean,
   fileDoneHeapText,
   fileDoneLeaks,
