@@ -26,14 +26,22 @@ test('the printer and the writer are the refs given', () => {
   assert.deepEqual(snapshot.inline.writer, writer)
 })
 
-test('without a writer an inline snapshot has none, and the other inline keys stay neutral', () => {
+test('without a writer an inline snapshot has none, writes at column 0, and the other inline keys stay neutral', () => {
   const { snapshot } = resolvePolicy({
     snapshot: nativeSnapshotPolicy({ snapshotPrinter: printer }),
   })
   assert.equal(snapshot.inline.writer, null)
-  const { writer: _writer, ...rest } = snapshot.inline
-  const { writer: _neutral, ...neutralRest } = neutralPolicy.snapshot.inline
+  assert.equal(snapshot.inline.indent, 'column0')
+  const { writer: _writer, indent: _indent, ...rest } = snapshot.inline
+  const { writer: _neutral, indent: _neutralIndent, ...neutralRest } = neutralPolicy.snapshot.inline
   assert.deepEqual(rest, neutralRest)
+})
+
+test('an obsolete snapshot fails a local run too (D216)', () => {
+  const { snapshot } = resolvePolicy({
+    snapshot: nativeSnapshotPolicy({ snapshotPrinter: printer }),
+  })
+  assert.deepEqual(snapshot.obsolete, { failLocal: true, failCI: true })
 })
 
 test('it changes only the format keys, the printer and the writer', () => {
@@ -44,6 +52,7 @@ test('it changes only the format keys, the printer and the writer', () => {
     'hintJoin',
     'inline',
     'keyJoin',
+    'obsolete',
     'printer',
   ])
   const { snapshot } = resolvePolicy({ snapshot: layer })

@@ -3,7 +3,7 @@ import { spawnSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
 import { describe, test } from 'provino'
 import { flipped, neutral, policies } from './internal/test-support.ts'
-import { createMockFn, isMockFunction, MOCK_BRAND } from './mock-fn.ts'
+import { createMockFn, isMockFunction, MOCK_BRAND, MOCK_EXPLICIT_NAME } from './mock-fn.ts'
 import { createMockRegistry } from './registry.ts'
 import { spyOn } from './spy.ts'
 import type { UnknownFunction } from './types.ts'
@@ -230,6 +230,16 @@ for (const [name, policy] of policies) {
       assert.equal(proxy(), 'stubbed')
       assert.equal(proxy.mock.calls.length, 2)
       assert.equal(proxy.mockClear, f.mockClear)
+    })
+
+    test('the explicit name is null until mockName names the mock, and a reset clears it', () => {
+      const { fn } = fnOf(policy)
+      const f = fn() as unknown as Record<symbol, () => string | null>
+      assert.equal(f[MOCK_EXPLICIT_NAME]?.(), null)
+      ;(f as unknown as { mockName(n: string): unknown }).mockName('named')
+      assert.equal(f[MOCK_EXPLICIT_NAME]?.(), 'named')
+      ;(f as unknown as { mockReset(): unknown }).mockReset()
+      assert.equal(f[MOCK_EXPLICIT_NAME]?.(), null)
     })
 
     test('mockName sets and reset returns the default; length follows the implementation', () => {

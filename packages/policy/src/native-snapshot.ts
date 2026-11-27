@@ -33,7 +33,9 @@ export function nativeSnapshotPolicy(
     keyJoin: ' ',
     hintJoin: ': ',
     format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null, extra: {} },
+    // D216 (compat): Jest fails a local run that leaves a snapshot obsolete; the neutral policy doesn't.
+    obsolete: { failLocal: true, failCI: true },
     printer: refs.snapshotPrinter,
-    inline: { writer: refs.snapshotWriter ?? null },
+    inline: { indent: 'column0', writer: refs.snapshotWriter ?? null },
   }
 }

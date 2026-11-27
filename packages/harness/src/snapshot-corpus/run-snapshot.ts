@@ -131,6 +131,7 @@ export async function runSnapshotEndToEnd(
   try {
     await copyFixture(fixture, root)
     await writeRunnerFiles(fixture, recordedRunner(profile), root)
+    if (profile === 'native') await mapJestApiToNative(root, runnableFiles(fixture, profile))
 
     const { serializers, format } = configuredSnapshot(fixture, profile)
     const require = createRequire(import.meta.url)
@@ -184,6 +185,20 @@ export async function runSnapshotEndToEnd(
       else process.env[name] = value
     }
     await rm(root, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Maps the Jest API a recorded test file calls to the native API's names, as moving a suite does:
+ * `jest.fn` is `fn` and `jest.spyOn` is `spyOn`. They are read off `globalThis`, so a local named
+ * `fn` in the test (as in `const fn = jest.fn()`) doesn't shadow them.
+ */
+async function mapJestApiToNative(root: string, files: readonly string[]): Promise<void> {
+  for (const file of files) {
+    const absolute = path.join(root, file)
+    const source = await readFile(absolute, 'utf8')
+    const mapped = source.replaceAll(/\bjest\.(fn|spyOn)\b/g, 'globalThis.$1')
+    if (mapped !== source) await writeFile(absolute, mapped)
   }
 }
 

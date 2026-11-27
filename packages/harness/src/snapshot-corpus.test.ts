@@ -72,7 +72,6 @@ const HELD_BY_PROVINO_JEST: Readonly<Record<string, string>> = {
  * fixtures that would otherwise run drift apart, so an entry goes when its reason does.
  */
 const NATIVE_EXCLUDED: Readonly<Record<string, string>> = {
-  'snapshot/mock-fn': "`jest.fn`/`vi.fn`: the native API's is `fn`",
   'snapshot/file-snapshot':
     "`toMatchFileSnapshot`, Vitest's slice: a `*.vitest.test.ts` file, recorded by Vitest only",
   'snapshot/format': '`snapshotFormat`, a Jest config key a native config has none of',
@@ -92,8 +91,6 @@ const NATIVE_EXCLUDED: Readonly<Record<string, string>> = {
     "DV: Babel reprint. Jest reprints the call with Babel's generator, so the thrown callback's body comes out reindented with a semicolon; the native writer puts the template in and leaves the call as written",
   'snapshot/inline-update':
     "DV: Babel reprint. Jest reprints the call with Babel's generator, so the thrown callback's body comes out reindented with a semicolon; the native writer puts the template in and leaves the call as written",
-  'snapshot/obsolete-local':
-    'an obsolete snapshot fails a local Jest run (`obsolete.failLocal`); the native slice keeps the neutral rule, which does not',
 }
 
 /** Pairs whose stored files the run must leave as they were, bytes and mtime, with why. */
@@ -103,7 +100,7 @@ const UNTOUCHED: Readonly<Record<string, string>> = {
 }
 
 /** The pairs the check ran and the snapshot tests in them, pinned so it cannot pass by running nothing. */
-const EXPECTED = { pairs: 53, evidenceOnly: 11, tests: 154, native: 25, nativeTests: 84 } as const
+const EXPECTED = { pairs: 53, evidenceOnly: 11, tests: 154, native: 27, nativeTests: 86 } as const
 
 const fixtures: Fixture[] = await Promise.all(
   (await findFixtures(path.join(defaultFixturesRoot(), 'snapshot'))).map((dir) => readFixture(dir)),

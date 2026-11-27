@@ -32,6 +32,12 @@ describe('nativeSnapshotPolicy against jestPolicy.snapshot', () => {
     assert.deepEqual(resolvedNative.extension, resolvedJest.extension)
   })
 
+  test("the obsolete rule and the inline indent are Jest's", () => {
+    assert.ok(jest !== undefined)
+    assert.deepEqual(native.obsolete, jest.obsolete)
+    assert.equal(native.inline?.indent, jest.inline?.indent)
+  })
+
   test("the printer is the native one, never the Jest dialect's", () => {
     assert.deepEqual(native.printer, printer)
     assert.notDeepEqual(native.printer, jest?.printer)

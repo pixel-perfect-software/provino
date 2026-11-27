@@ -21,6 +21,34 @@ const {
   AsymmetricMatcher,
 } = plugins
 
+/** The key a mock engine reads `mockName(name)`'s name under (`MOCK_EXPLICIT_NAME` in `@provino/mock`). */
+const EXPLICIT_NAME = Symbol.for('@provino/mock.explicit-name')
+
+/** The mock function Jest's serializer reads: its name and its calls. */
+interface MockView {
+  getMockName(): string
+  readonly mock: unknown
+  readonly [EXPLICIT_NAME]?: () => string | null
+}
+
+/**
+ * The mock serializer for a native mock. Jest prints `[MockFunction]` for a mock nothing named and
+ * `[MockFunction name]` for one `mockName` named, and Jest's own default name is the one its
+ * serializer leaves out. A native mock's default (`fn()`, or a spy's method name) is another string,
+ * so a mock that says nothing named it is shown to Jest's serializer under Jest's default. A mock
+ * with no such answer (one a project brings) goes through as it is.
+ */
+const nativeMockSerializer: Plugin = {
+  test: mockSerializer.test,
+  serialize(val, config, indentation, depth, refs, printer): string {
+    const mock = val as MockView
+    const named = mock[EXPLICIT_NAME]?.()
+    const shown: unknown =
+      named === null ? { getMockName: () => 'jest.fn()', mock: mock.mock } : val
+    return mockSerializer.serialize(shown, config, indentation, depth, refs, printer)
+  },
+} as Plugin
+
 /**
  * The built-in plugins, in Jest's order (jest-snapshot `plugins.ts` L9-L22). A serializer added by
  * a project or a test goes in front of them.
@@ -31,7 +59,7 @@ const BUILT_IN: readonly Plugin[] = [
   DOMElement,
   DOMCollection,
   Immutable,
-  mockSerializer,
+  nativeMockSerializer,
   AsymmetricMatcher,
 ]
 

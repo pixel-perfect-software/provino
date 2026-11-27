@@ -1,7 +1,7 @@
 // @provino/mock: mock functions, spies, replaced properties and stubs, with a per-file registry.
 // Neutral: every Jest/Vitest difference is a `MockPolicy` value the dialect supplies.
 export { MockError, MockTypeError } from './errors.ts'
-export { createMockFn, isMockFunction, MOCK_BRAND } from './mock-fn.ts'
+export { createMockFn, isMockFunction, MOCK_BRAND, MOCK_EXPLICIT_NAME } from './mock-fn.ts'
 export {
   type AutomockMaker,
   type AutomockMode,

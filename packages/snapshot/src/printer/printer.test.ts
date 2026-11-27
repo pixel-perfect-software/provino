@@ -201,6 +201,21 @@ describe('the native snapshot printer', () => {
     expect(nativeSnapshotPrinter().serialize(7, { format: {}, plugins: [plugin] })).toBe('seven')
   })
 
+  it('prints a mock nothing named as Jest prints an unnamed one, and a named one with its name', () => {
+    // What a native mock answers: its default name from getMockName, the explicit one under the key.
+    const native = (shown: string, explicit: string | null): object =>
+      Object.assign(mockFunction(shown, []) as object, {
+        [Symbol.for('@provino/mock.explicit-name')]: () => explicit,
+      })
+    const printer = nativeSnapshotPrinter()
+    const print = (value: unknown): string => printer.serialize(value, { format: {}, plugins: [] })
+    expect(print(native('fn()', null))).toBe('[MockFunction]')
+    expect(print(native('method', null))).toBe('[MockFunction]')
+    expect(print(native('myMock', 'myMock'))).toBe('[MockFunction myMock]')
+    // A mock from elsewhere has no such answer: its own name is shown, as Jest's serializer does.
+    expect(print(mockFunction('other', []))).toBe('[MockFunction other]')
+  })
+
   it('has no runner name in its words', () => {
     const info = {
       matcherName: 'toMatchSnapshot',
