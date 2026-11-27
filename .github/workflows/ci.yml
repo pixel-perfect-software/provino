@@ -4,6 +4,12 @@ name: CI
 # them again (PR runs use a different ref, so the concurrency group can't cancel a duplicate):
 # every job skips a `pull_request` run whose head is a `task/**` branch. Any other PR head
 # (Dependabot, a hand-named branch) still gets a full run.
+#
+# A push to main is the exception to the concurrency group below: it gets a group of its own (its
+# commit) and is never cancelled. The README's CI badge shows main's latest finished run, and a
+# cancelled run reads as failing, so a burst of merges would leave the badge red while the newest
+# run is still going. A group holds one running and one pending run, so turning cancellation off
+# alone would still cancel the pending one; a group per commit gives every main commit a full run.
 on:
   push:
     branches: [main, "task/**"]
@@ -13,8 +19,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  group: ci-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   TURBO_TELEMETRY_DISABLED: "1"
