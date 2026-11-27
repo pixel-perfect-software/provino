@@ -235,6 +235,11 @@ test('values that equal the neutral ones are not divergences', () => {
   }
 })
 
+test('windowFileWork is outlives-file: the dialect cancels a window file’s timers itself (#227)', () => {
+  assert.equal(resolved.orchestrator.windowFileWork, 'outlives-file')
+  assert.equal(neutralPolicy.orchestrator.windowFileWork, 'drain-then-cancel')
+})
+
 test('the default isolation tier is registry (DECISIONS D6), the DOM environments included (D207)', () => {
   assert.deepEqual(resolved.orchestrator.isolationDefault, {
     default: 'registry',

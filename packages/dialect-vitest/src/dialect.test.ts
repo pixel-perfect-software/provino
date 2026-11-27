@@ -39,6 +39,11 @@ test('the values that are Provino`s own: the isolation tier, the hoisting id, th
   assert.equal(resolved.expect.valueFormatter, 'pretty-format')
 })
 
+test('windowFileWork is outlives-file: a jsdom file’s queued work is left as before the key (#227)', () => {
+  assert.equal(resolved.orchestrator.windowFileWork, 'outlives-file')
+  assert.equal(neutralPolicy.orchestrator.windowFileWork, 'drain-then-cancel')
+})
+
 test('core.formatValue is the neutral printer: Vitest has no done and ignores a returned value', () => {
   assert.deepEqual(resolved.core.formatValue, neutralPolicy.core.formatValue)
   assert.equal(resolved.core.firstArg, 'context')

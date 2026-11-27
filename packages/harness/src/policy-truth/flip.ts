@@ -91,6 +91,7 @@ export const DOMAINS: Readonly<Record<string, readonly string[]>> = {
   'orchestrator.noTestsFile': ['fail', 'fail-unless-pass-with-no-tests', 'pass'],
   'orchestrator.consoleOrigin': ['stack', 'none'],
   'orchestrator.processObject': ['per-file', 'shared'],
+  'orchestrator.windowFileWork': ['drain-then-cancel', 'outlives-file'],
   'orchestrator.unhandledErrors': ['fail-run', 'ignore'],
   'orchestrator.coverageProvider': ['v8', 'istanbul'],
   'orchestrator.isolationDefault.default': ['none', 'registry', 'realm', 'process'],

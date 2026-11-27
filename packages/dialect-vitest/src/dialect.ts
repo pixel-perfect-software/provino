@@ -238,6 +238,8 @@ export const vitestPolicy: PolicyOverrides = {
     // Vitest 5.0.5's node environment (`integrations/env/node.ts`) builds no global, so a test sees
     // its worker's own `process`; not recorded yet (T11.16).
     processObject: 'shared',
+    // Ours (#227): the worker leaves a Vitest jsdom file's queued work as it was before the key.
+    windowFileWork: 'outlives-file',
     passWithNoTests: false,
     // `usage` is `cli/unknown-flag`: cac throws on an unknown option and the process exits 1.
     exitCodes: { failure: 1, noTests: 1, unhandled: 1, usage: 1 },

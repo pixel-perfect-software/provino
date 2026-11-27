@@ -487,6 +487,9 @@ export const jestPolicy: PolicyOverrides = {
     // in the worker sees none of an earlier one's listeners or `env` changes
     // (`env/process-per-file-listeners`, `env/process-per-file-env`).
     processObject: 'per-file',
+    // Ours (#227): a Jest project's window is its own environment class (D44), whose timers the
+    // dialect cancels with the window itself (`runtime/window-timers.ts`).
+    windowFileWork: 'outlives-file',
     // research: track-01 L227
     passWithNoTests: false,
     // research: track-01 L228, track-09 L563; `usage` is `cli/unknown-flag` and `cli/bad-config`.
