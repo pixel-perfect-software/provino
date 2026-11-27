@@ -1,6 +1,6 @@
 {
   "name": "@provino/dialect-jest",
-  "version": "0.1.0-rc.11",
+  "version": "0.1.0-rc.12",
   "description": "Provino's Jest 30.5 dialect: Jest's policy values, config reader, command-line parser and runtime API, so a Jest project runs on Provino.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {

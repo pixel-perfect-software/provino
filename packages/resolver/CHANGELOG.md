@@ -1,5 +1,12 @@
 # @provino/resolver
 
+## 0.1.0-rc.12
+
+### Patch Changes
+
+- Updated dependencies [22f6272]
+  - @provino/types@0.1.0-rc.12
+
 ## 0.1.0-rc.11
 
 ### Patch Changes

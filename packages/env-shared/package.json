@@ -1,6 +1,6 @@
 {
   "name": "@provino/env-shared",
-  "version": "0.1.0-rc.11",
+  "version": "0.1.0-rc.12",
   "description": "Provino's shared DOM environment code: populating a window onto the worker's global and putting the global back exactly as it was.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {
