@@ -33,7 +33,7 @@ const NATIVE: NativeRuntimeRefs = {
   modules: ['provino'],
   globals: moduleRef('file:///native/api.mjs', 'provinoGlobals'),
   hoist: nativeHoistPolicy('provino'),
-  snapshotPrinter: PRINTER,
+  snapshot: { printer: PRINTER },
 }
 
 const scoped = defineDialect({
@@ -88,22 +88,26 @@ describe('a project with no dialect', () => {
     const resolved = await resolveProject({}, options())
     assert.deepEqual(
       resolved.policy.snapshot,
-      resolvePolicy({ snapshot: nativeSnapshotPolicy({ snapshotPrinter: PRINTER }) }).snapshot,
+      resolvePolicy({ snapshot: nativeSnapshotPolicy({ printer: PRINTER }) }).snapshot,
     )
     assert.deepEqual(resolved.config.policy.snapshot.printer, PRINTER)
     assert.equal(resolved.config.policy.snapshot.inline.writer, null)
   })
 
-  test('a snapshot writer is the inline writer; without a printer the slice stays neutral', async () => {
-    const snapshotWriter = moduleRef<InlineSnapshotWriterFactory>(
+  test('a snapshot writer is the inline writer; a writer with no printer is a type error and is refused', async () => {
+    const writer = moduleRef<InlineSnapshotWriterFactory>(
       'file:///native/writer.mjs',
       'nativeInlineSnapshotWriter',
     )
-    const written = await resolveProject({}, options({ ...NATIVE, snapshotWriter }))
-    assert.deepEqual(written.config.policy.snapshot.inline.writer, snapshotWriter)
-    const { snapshotPrinter: _printer, ...withoutPrinter } = NATIVE
-    const bare = await resolveProject({}, options({ ...withoutPrinter, snapshotWriter }))
-    assert.deepEqual(bare.policy.snapshot, neutralPolicy.snapshot)
+    const written = await resolveProject(
+      {},
+      options({ ...NATIVE, snapshot: { printer: PRINTER, writer } }),
+    )
+    assert.deepEqual(written.config.policy.snapshot.inline.writer, writer)
+    // @ts-expect-error a writer cannot be set without a printer
+    const writerOnly: NativeRuntimeRefs = { ...NATIVE, snapshot: { writer } }
+    const error = await rejectsWith(resolveProject({}, options(writerOnly)), 'CONFIG_INVALID')
+    assert.match(error.message, /^native\.snapshot\.printer must be a \{ module, export \} ref/)
   })
 
   test("a project's own policy layers over the native snapshot slice", async () => {
@@ -192,13 +196,7 @@ describe('bad refs are config errors', () => {
     assert.match(error.message, /^native\.hoist must be a hoist policy/)
   })
 
-  for (const key of [
-    'matcherTable',
-    'moduleScope',
-    'globals',
-    'snapshotPrinter',
-    'snapshotWriter',
-  ] as const) {
+  for (const key of ['matcherTable', 'moduleScope', 'globals'] as const) {
     test(`a relative ${key} ref is CONFIG_INVALID naming native.${key}`, async () => {
       const bad: NativeRuntimeRefs = {
         ...NATIVE,
@@ -206,6 +204,24 @@ describe('bad refs are config errors', () => {
       }
       const error = await rejectsWith(resolveProject({}, options(bad)), 'CONFIG_INVALID')
       assert.match(error.message, new RegExp(`^native\\.${key}\\.module must be an absolute path`))
+    })
+  }
+
+  for (const key of ['printer', 'writer'] as const) {
+    test(`a relative snapshot ${key} ref is CONFIG_INVALID naming native.snapshot.${key}`, async () => {
+      const bad: NativeRuntimeRefs = {
+        ...NATIVE,
+        snapshot: {
+          printer: PRINTER,
+          writer: PRINTER as never,
+          ...{ [key]: { module: './native.mjs', export: 'x' } },
+        },
+      }
+      const error = await rejectsWith(resolveProject({}, options(bad)), 'CONFIG_INVALID')
+      assert.match(
+        error.message,
+        new RegExp(`^native\\.snapshot\\.${key}\\.module must be an absolute path`),
+      )
     })
   }
 

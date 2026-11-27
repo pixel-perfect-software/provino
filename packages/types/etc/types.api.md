@@ -2275,8 +2275,10 @@ export interface NativeRuntimeRefs {
     readonly matcherTable: ModuleRef<MatcherTableFactory>;
     readonly modules: readonly string[];
     readonly moduleScope: ModuleRef<ModuleScopeFactory>;
-    readonly snapshotPrinter?: ModuleRef<SnapshotPrinterFactory>;
-    readonly snapshotWriter?: ModuleRef<InlineSnapshotWriterFactory>;
+    readonly snapshot?: {
+        readonly printer: ModuleRef<SnapshotPrinterFactory>;
+        readonly writer?: ModuleRef<InlineSnapshotWriterFactory>;
+    };
 }
 
 // @public

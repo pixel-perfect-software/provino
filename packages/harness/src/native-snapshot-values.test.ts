@@ -12,7 +12,7 @@ const printer = moduleRef<SnapshotPrinterFactory>(
   'file:///native/printer.mjs',
   'nativeSnapshotPrinter',
 )
-const native = nativeSnapshotPolicy({ snapshotPrinter: printer })
+const native = nativeSnapshotPolicy({ printer })
 const jest = jestPolicy.snapshot
 
 describe('nativeSnapshotPolicy against jestPolicy.snapshot', () => {

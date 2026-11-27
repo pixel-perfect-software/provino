@@ -590,12 +590,9 @@ function resolverKeys(input: ProjectInput): Partial<SerializedLoaderConfig> {
  */
 function nativeLayer(native: NativeRuntimeRefs | undefined): PolicyOverrides | undefined {
   if (native === undefined) return undefined
-  const { snapshotPrinter, snapshotWriter } = native
   return {
     expect: { matcherTable: native.matcherTable },
-    ...(snapshotPrinter === undefined
-      ? {}
-      : { snapshot: nativeSnapshotPolicy({ snapshotPrinter, snapshotWriter }) }),
+    ...(native.snapshot === undefined ? {} : { snapshot: nativeSnapshotPolicy(native.snapshot) }),
   }
 }
 

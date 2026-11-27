@@ -72,9 +72,12 @@ async function refuseStale(
   files: readonly string[],
   written: ReadonlySet<string>,
 ): Promise<void> {
-  for (const file of files) {
-    if (!written.has(file)) continue
-    const now = inlineSourceHash(await readFile(file, 'utf8'))
+  const checked = files.filter((file) => written.has(file))
+  const hashes = await Promise.all(
+    checked.map(async (file) => inlineSourceHash(await readFile(file, 'utf8'))),
+  )
+  for (const [index, file] of checked.entries()) {
+    const now = hashes[index]
     if (edits.some((edit) => edit.file === file && edit.sourceHash !== now)) {
       throw new SnapshotError(
         'SNAPSHOT_INLINE_STALE',

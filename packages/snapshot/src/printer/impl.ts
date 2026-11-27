@@ -4,6 +4,7 @@ import type {
   SnapshotPrinter,
   SnapshotSerializeOptions,
 } from '@provino/types'
+import { escapeBacktickString } from '../text.ts'
 import mockSerializer from '../vendor/jest-snapshot/mock-serializer.ts'
 import {
   format,
@@ -69,8 +70,6 @@ const SERIALIZE_DEFAULTS = { escapeRegex: true, indent: 2, printFunctionName: fa
 const NOT_WRITTEN =
   'New snapshot was not written. The update flag must be explicitly passed to write a new snapshot.\n\n' +
   'This is likely because this test is run in a continuous integration (CI) environment in which snapshots are not written by default.'
-
-const escapeBacktickString = (text: string): string => text.replaceAll(/`|\\|\${/g, '\\$&')
 
 function snapshotName(info: SnapshotMessageInfo): string {
   const { currentTestName, hint, count } = info

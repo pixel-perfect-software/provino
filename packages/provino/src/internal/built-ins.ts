@@ -61,15 +61,17 @@ function nativeRuntime(served: string): NativeRuntimeRefs {
     // Jest's `.snap` format through the vendored pretty-format (B28): a shim the worker loads at
     // its start, whose implementation loads on the first snapshot.
     // The table's module re-exports it, so a native worker loads no file more at its start.
-    snapshotPrinter: {
-      module: import.meta.resolve('@provino/expect/table'),
-      export: 'nativeSnapshotPrinter',
-    },
-    // Writes inline snapshots into the source, in the coordinator (B28 Phase 7): loaded the first
-    // time a run has an inline snapshot to write, and Oxc's parser only then.
-    snapshotWriter: {
-      module: import.meta.resolve('@provino/snapshot/inline'),
-      export: 'nativeInlineSnapshotWriter',
+    snapshot: {
+      printer: {
+        module: import.meta.resolve('@provino/expect/table'),
+        export: 'nativeSnapshotPrinter',
+      },
+      // Writes inline snapshots into the source, in the coordinator (B28 Phase 7): loaded the first
+      // time a run has an inline snapshot to write, and Oxc's parser only then.
+      writer: {
+        module: import.meta.resolve('@provino/snapshot/inline'),
+        export: 'nativeInlineSnapshotWriter',
+      },
     },
   }
 }

@@ -28,7 +28,8 @@ import type {
   SnapshotViewMatchResult,
   SnapshotViewSource,
 } from '@provino/types'
-import { readSnapFile, writeFileAtomically } from './files.ts'
+import { writeFileAtomically } from '../write-atomically.ts'
+import { readSnapFile } from './files.ts'
 import { topFrame } from './frame.ts'
 
 /**

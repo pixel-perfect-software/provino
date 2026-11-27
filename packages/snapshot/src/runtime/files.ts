@@ -1,5 +1,4 @@
-// The worker's file I/O for snapshots: read a `.snap` file, write one so that a reader never sees
-// half of it (a temp file in the same directory, then a rename).
+// The worker's file I/O for snapshots: read a `.snap` file.
 import { existsSync, readFileSync } from 'node:fs'
 import {
   checkSnapHeader,
@@ -8,8 +7,6 @@ import {
   SnapshotError,
   type SnapshotUpdateMode,
 } from '@provino/snapshot'
-
-export { writeFileAtomically } from '../write-atomically.ts'
 
 /**
  * A `.snap` file as the state starts from it.

@@ -17,7 +17,7 @@ export {
   type NativeHoistedCall,
   nativeHoistPolicy,
 } from './native-hoist.ts'
-export { type NativeSnapshotRefs, nativeSnapshotPolicy } from './native-snapshot.ts'
+export { nativeSnapshotPolicy } from './native-snapshot.ts'
 export { neutralPolicy } from './neutral.ts'
 export { resolvePolicy } from './resolve.ts'
 export { serializePolicy } from './serialize.ts'

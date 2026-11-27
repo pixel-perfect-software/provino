@@ -54,9 +54,17 @@ export function assertNativeRefs(native: NativeRuntimeRefs): void {
   checkRef(native.matcherTable, 'native.matcherTable')
   checkRef(native.moduleScope, 'native.moduleScope')
   checkRef(native.globals, 'native.globals')
-  if (native.snapshotPrinter !== undefined)
-    checkRef(native.snapshotPrinter, 'native.snapshotPrinter')
-  if (native.snapshotWriter !== undefined) checkRef(native.snapshotWriter, 'native.snapshotWriter')
+  const snapshot: unknown = native.snapshot
+  if (snapshot !== undefined) {
+    if (!isRecord(snapshot)) {
+      throw new ConfigError(
+        'CONFIG_INVALID',
+        `native.snapshot must be an object of refs (got ${describe(snapshot)})`,
+      )
+    }
+    checkRef(snapshot.printer, 'native.snapshot.printer')
+    if (snapshot.writer !== undefined) checkRef(snapshot.writer, 'native.snapshot.writer')
+  }
   const hoist: unknown = native.hoist
   if (hoist !== undefined && (!isRecord(hoist) || typeof hoist.id !== 'string')) {
     throw new ConfigError(

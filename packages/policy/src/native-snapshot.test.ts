@@ -20,7 +20,7 @@ const writer = moduleRef<InlineSnapshotWriterFactory>(
 
 test('the printer and the writer are the refs given', () => {
   const { snapshot } = resolvePolicy({
-    snapshot: nativeSnapshotPolicy({ snapshotPrinter: printer, snapshotWriter: writer }),
+    snapshot: nativeSnapshotPolicy({ printer, writer }),
   })
   assert.deepEqual(snapshot.printer, printer)
   assert.deepEqual(snapshot.inline.writer, writer)
@@ -28,7 +28,7 @@ test('the printer and the writer are the refs given', () => {
 
 test('without a writer an inline snapshot has none, writes at column 0, and the other inline keys stay neutral', () => {
   const { snapshot } = resolvePolicy({
-    snapshot: nativeSnapshotPolicy({ snapshotPrinter: printer }),
+    snapshot: nativeSnapshotPolicy({ printer }),
   })
   assert.equal(snapshot.inline.writer, null)
   assert.equal(snapshot.inline.indent, 'column0')
@@ -39,13 +39,13 @@ test('without a writer an inline snapshot has none, writes at column 0, and the 
 
 test('an obsolete snapshot fails a local run too (D216)', () => {
   const { snapshot } = resolvePolicy({
-    snapshot: nativeSnapshotPolicy({ snapshotPrinter: printer }),
+    snapshot: nativeSnapshotPolicy({ printer }),
   })
   assert.deepEqual(snapshot.obsolete, { failLocal: true, failCI: true })
 })
 
 test('it changes only the format keys, the printer and the writer', () => {
-  const layer = nativeSnapshotPolicy({ snapshotPrinter: printer })
+  const layer = nativeSnapshotPolicy({ printer })
   assert.deepEqual(Object.keys(layer).sort(), [
     'format',
     'header',
@@ -63,6 +63,6 @@ test('it changes only the format keys, the printer and the writer', () => {
 })
 
 test('the resolved policy serializes (it crosses to a worker)', () => {
-  const policy = resolvePolicy({ snapshot: nativeSnapshotPolicy({ snapshotPrinter: printer }) })
+  const policy = resolvePolicy({ snapshot: nativeSnapshotPolicy({ printer }) })
   assert.deepEqual(serializePolicy(policy).snapshot.printer, printer)
 })

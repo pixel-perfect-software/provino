@@ -10,7 +10,7 @@ import { messages } from './messages.ts'
 import { diffLines, show } from './print.ts'
 
 /**
- * The native snapshot printer the table's snapshot matchers print with (`NativeRuntimeRefs.snapshotPrinter`),
+ * The native snapshot printer the table's snapshot matchers print with (`NativeRuntimeRefs.snapshot.printer`),
  * re-exported here so it rides the module a native worker loads at its start (B28): a shim, whose
  * vendored pretty-format loads on the first snapshot.
  * @public

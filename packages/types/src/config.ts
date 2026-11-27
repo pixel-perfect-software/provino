@@ -241,16 +241,18 @@ export interface NativeRuntimeRefs {
    */
   readonly hoist?: HoistPolicy
   /**
-   * The snapshot printer (B28): with it, the native policy's snapshot slice writes Jest's `.snap`
-   * format (`nativeSnapshotPolicy` in `@provino/policy`). None: the neutral slice, with no printer,
-   * so a snapshot matcher fails with `SNAPSHOT_NO_PRINTER`.
+   * The native snapshot refs (B28): with them, the native policy's snapshot slice writes Jest's
+   * `.snap` format (`nativeSnapshotPolicy` in `@provino/policy`). None: the neutral slice, with no
+   * printer, so a snapshot matcher fails with `SNAPSHOT_NO_PRINTER`.
    */
-  readonly snapshotPrinter?: ModuleRef<SnapshotPrinterFactory>
-  /**
-   * Writes inline snapshots into the source, in the coordinator (`SnapshotPolicy.inline.writer`).
-   * None: an inline snapshot that would be written fails instead. Used only with `snapshotPrinter`.
-   */
-  readonly snapshotWriter?: ModuleRef<InlineSnapshotWriterFactory>
+  readonly snapshot?: {
+    readonly printer: ModuleRef<SnapshotPrinterFactory>
+    /**
+     * Writes inline snapshots into the source, in the coordinator (`SnapshotPolicy.inline.writer`).
+     * None: an inline snapshot that would be written fails instead.
+     */
+    readonly writer?: ModuleRef<InlineSnapshotWriterFactory>
+  }
 }
 
 /**

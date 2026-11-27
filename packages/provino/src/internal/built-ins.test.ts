@@ -5,11 +5,11 @@ import { NATIVE_RUNTIME } from './built-ins.ts'
 
 describe('NATIVE_RUNTIME', () => {
   test("the snapshot printer writes Jest's format, and the inline writer is the native one (B28)", async () => {
-    const { snapshotPrinter, snapshotWriter } = NATIVE_RUNTIME
-    assert.equal(snapshotWriter?.export, 'nativeInlineSnapshotWriter')
-    assert.equal(snapshotWriter?.module, import.meta.resolve('@provino/snapshot/inline'))
-    const loaded = (await import(snapshotPrinter?.module ?? '')) as Record<string, unknown>
-    const factory = loaded[snapshotPrinter?.export ?? ''] as () => {
+    const { printer, writer } = NATIVE_RUNTIME.snapshot ?? {}
+    assert.equal(writer?.export, 'nativeInlineSnapshotWriter')
+    assert.equal(writer?.module, import.meta.resolve('@provino/snapshot/inline'))
+    const loaded = (await import(printer?.module ?? '')) as Record<string, unknown>
+    const factory = loaded[printer?.export ?? ''] as () => {
       serialize(value: unknown, options: { format: object; plugins: never[] }): string
     }
     assert.equal(
@@ -19,13 +19,11 @@ describe('NATIVE_RUNTIME', () => {
   })
 
   test('every ref is an absolute file: URL whose module has the named export (D21)', async () => {
-    const { moduleScope, globals, matcherTable, snapshotPrinter, snapshotWriter } = NATIVE_RUNTIME
-    assert.ok(snapshotPrinter !== undefined, 'the native runtime has a snapshot printer (B28)')
-    assert.ok(
-      snapshotWriter !== undefined,
-      'the native runtime has an inline snapshot writer (B28)',
-    )
-    for (const ref of [moduleScope, globals, matcherTable, snapshotPrinter, snapshotWriter]) {
+    const { moduleScope, globals, matcherTable, snapshot } = NATIVE_RUNTIME
+    const { printer, writer } = snapshot ?? {}
+    assert.ok(printer !== undefined, 'the native runtime has a snapshot printer (B28)')
+    assert.ok(writer !== undefined, 'the native runtime has an inline snapshot writer (B28)')
+    for (const ref of [moduleScope, globals, matcherTable, printer, writer]) {
       assert.ok(ref.module.startsWith('file:'), ref.module)
       const loaded: unknown = await import(ref.module)
       assert.equal(typeof Reflect.get(loaded as object, ref.export), 'function', ref.export)

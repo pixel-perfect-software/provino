@@ -1,19 +1,4 @@
-import type {
-  InlineSnapshotWriterFactory,
-  ModuleRef,
-  PolicyOverrides,
-  SnapshotPrinterFactory,
-} from '@provino/types'
-
-/**
- * The refs `nativeSnapshotPolicy` takes: `NativeRuntimeRefs`' snapshot printer, and its inline
- * writer when it has one.
- * @public
- */
-export interface NativeSnapshotRefs {
-  readonly snapshotPrinter: ModuleRef<SnapshotPrinterFactory>
-  readonly snapshotWriter?: ModuleRef<InlineSnapshotWriterFactory> | undefined
-}
+import type { NativeRuntimeRefs, PolicyOverrides } from '@provino/types'
 
 /**
  * The native runtime's snapshot slice (B28, D211): a project with no dialect writes the `.snap`
@@ -26,7 +11,7 @@ export interface NativeSnapshotRefs {
  * @public
  */
 export function nativeSnapshotPolicy(
-  refs: NativeSnapshotRefs,
+  refs: NonNullable<NativeRuntimeRefs['snapshot']>,
 ): NonNullable<PolicyOverrides['snapshot']> {
   return {
     header: '// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing',
@@ -35,7 +20,7 @@ export function nativeSnapshotPolicy(
     format: { escapeString: false, printBasicPrototype: false, maxOutputLength: null, extra: {} },
     // D216 (compat): Jest fails a local run that leaves a snapshot obsolete; the neutral policy doesn't.
     obsolete: { failLocal: true, failCI: true },
-    printer: refs.snapshotPrinter,
-    inline: { indent: 'column0', writer: refs.snapshotWriter ?? null },
+    printer: refs.printer,
+    inline: { indent: 'column0', writer: refs.writer ?? null },
   }
 }

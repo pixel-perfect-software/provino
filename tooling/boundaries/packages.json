@@ -173,7 +173,7 @@
       "slices": ["snapshot"],
       "neutral": true,
       "bannedPackages": "native",
-      "note": "B28 Phase 7 (D211, D214): the native inline snapshot writer, loaded by ref (NativeRuntimeRefs.snapshotWriter). It imports oxc-parser on its first write and splices the template into the source; no Babel."
+      "note": "B28 Phase 7 (D211, D214): the native inline snapshot writer, loaded by ref (NativeRuntimeRefs.snapshot.writer). It imports oxc-parser on its first write and splices the template into the source; no Babel."
     },
     "@provino/coverage": {
       "dir": "packages/coverage",

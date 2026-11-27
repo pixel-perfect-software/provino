@@ -67,4 +67,4 @@ Loads a project's config file and resolves it into everything the coordinator an
 
 ## The native snapshot slice (B28, D211)
 
-For a project with no dialect, `resolve.ts` layers `@provino/policy`'s `nativeSnapshotPolicy({ snapshotPrinter, snapshotWriter })` from `NativeRuntimeRefs` over the neutral policy (Jest's `.snap` header, joins and format keys; the printer and the inline writer as refs, which `assertWorkerConfig` checks like the others).
+For a project with no dialect, `resolve.ts` layers `@provino/policy`'s `nativeSnapshotPolicy(native.snapshot)` from `NativeRuntimeRefs` over the neutral policy (Jest's `.snap` header, joins and format keys; the printer and the inline writer as refs, which `assertWorkerConfig` checks like the others).
