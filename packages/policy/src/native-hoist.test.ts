@@ -23,8 +23,10 @@ test('the isolation calls are callback scopes, from the served module, not hoist
   assert.deepEqual(NATIVE_CALLBACK_SCOPES, ['isolateModules', 'isolateModulesAsync'])
   for (const name of NATIVE_CALLBACK_SCOPES)
     assert.equal(Object.hasOwn(policy.hoistCalls, name), false)
-  // Bumped with callbackScopes (B28), so a transform cached under the old rules is not reused.
-  assert.equal(policy.id, 'provino-native-2:served')
+  // The same names as bare globals, for `globals: true`.
+  assert.deepEqual(policy.globalCallbackScopes, [...NATIVE_CALLBACK_SCOPES])
+  // Bumped with globalCallbackScopes, so a transform cached under the old rules is not reused.
+  assert.equal(policy.id, 'provino-native-3:served')
 })
 
 test('the served module is the one given, and its import stays static', () => {

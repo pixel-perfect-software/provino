@@ -1339,6 +1339,7 @@ export interface HoistPolicy<Calls extends string = string, Values extends strin
     readonly chainable: boolean;
     // (undocumented)
     readonly factoryReferences: "allow" | FactoryReferenceRule;
+    readonly globalCallbackScopes?: readonly string[];
     // (undocumented)
     readonly hoistCalls: { readonly [M in Calls]: HoistArgRule; };
     readonly hoistValues: readonly Values[];

@@ -38,7 +38,7 @@ export type NativeHoistedCall = (typeof NATIVE_HOISTED_CALLS)[number]
 export function nativeHoistPolicy(module: string): HoistPolicy<NativeHoistedCall, never> {
   return defineHoistPolicy<NativeHoistedCall, never>({
     // Part of the transform cache's fingerprint: bump it when a value here changes.
-    id: `provino-native-2:${module}`,
+    id: `provino-native-3:${module}`,
     // No mock object: each call is a named import itself (import-aware, never a global name).
     objects: [],
     // Every top-level call hoists whatever its arguments; the API checks them when it runs, with a
@@ -49,6 +49,9 @@ export function nativeHoistPolicy(module: string): HoistPolicy<NativeHoistedCall
     // file, so it runs before the callback's own imports. The registration is the file's, as any
     // other is (it outlives the callback); only the mock's value is the isolation's overlay.
     callbackScopes: NATIVE_CALLBACK_SCOPES.map((exportName) => ({ module, exportName })),
+    // The same calls by bare global name, for `globals: true`. Without that setting the name is
+    // unbound (a ReferenceError at run time), and the hoister only reads a call with no binding.
+    globalCallbackScopes: NATIVE_CALLBACK_SCOPES,
     hoistValues: [],
     rewriteImportArg: [],
     chainable: false,

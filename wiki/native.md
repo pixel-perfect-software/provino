@@ -302,7 +302,7 @@ it('types the mock', () => {
 
 `resetModules()` drops the file's module cache: the next `import` or `require` of a module runs it again, so a module-level memo is fresh. Registered mocks stay.
 
-`isolateModules(fn)` and `isolateModulesAsync(fn)` run the callback in a module registry of its own and return what it returns; the registry is dropped after. A `mock()` at the top of the callback is hoisted to the top of the callback, so it registers inside the isolation: a `require` there sees the mock, while the code outside sees the real module. They can't nest (the second call fails with a `nested-isolation` error).
+`isolateModules(fn)` and `isolateModulesAsync(fn)` run the callback in a module registry of its own and return what it returns; the registry is dropped after. A `mock()` at the top of the callback is hoisted to the top of the callback, so it registers inside the isolation, whether `isolateModules` is imported or is the global under `globals: true` (`mock` itself is always imported from `provino`; `globals: true` installs no global `mock`, and only the bare call `isolateModules(…)` counts, not `globalThis.isolateModules(…)`): a `require` there sees the mock, while the code outside sees the real module. They can't nest (the second call fails with a `nested-isolation` error).
 
 ```ts
 import { expect, isolateModules, it, mock } from 'provino'

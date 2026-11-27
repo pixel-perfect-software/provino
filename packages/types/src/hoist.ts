@@ -68,6 +68,14 @@ export interface HoistPolicy<Calls extends string = string, Values extends strin
    * `HOIST_NOT_TOP_LEVEL`. Recognised by binding, as `importedCalls` are. None when absent.
    */
   readonly callbackScopes?: readonly { readonly module: string; readonly exportName: string }[]
+  /**
+   * Global names that are callback scopes too, as `callbackScopes` are: a call to one with no
+   * binding of that name in scope (`isolateModules(() => { mock('./a') })` where the runner injects
+   * `isolateModules` as a global) makes its callback a scope of its own. Only the bare call
+   * counts, not `globalThis.isolateModules(…)`. Harmless where the name is not a global: an
+   * unbound call fails at run time anyway. None when absent.
+   */
+  readonly globalCallbackScopes?: readonly string[]
   /** `['hoisted']` for Vitest, `[]` for Jest. */
   readonly hoistValues: readonly Values[]
   /**

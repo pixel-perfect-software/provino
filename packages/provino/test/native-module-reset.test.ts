@@ -187,6 +187,46 @@ describe('native module reset through provino run (built bin)', () => {
   })
 })
 
+// Under `globals: true` `isolateModules` and `isolateModulesAsync` are globals (no import), and a
+// `mock` at the top of their callback is hoisted to the top of it, as with the imported ones.
+const GLOBAL_ISOLATION = `import { mock } from 'provino'
+
+it('a mock at the top of the global isolateModules callback is registered inside it', () => {
+  const read = isolateModules(() => {
+    mock('../src/dep.ts', () => ({ value: () => 'mocked' }))
+    return require('../src/uses-dep.ts').viaDep()
+  })
+  expect(read).toBe('mocked')
+})
+
+it('a mock at the top of the global isolateModulesAsync callback is registered inside it', async () => {
+  const read = await isolateModulesAsync(async () => {
+    mock('../src/dep.ts', () => ({ value: () => 'mocked' }))
+    const user = await import('../src/uses-dep.ts')
+    return user.viaDep()
+  })
+  expect(read).toBe('mocked')
+})
+`
+
+describe('the global isolation calls under globals: true', () => {
+  test('a mock at the top of their callback hoists inside it', async () => {
+    const config = "export default { include: ['tests/**/*.test.ts'], globals: true }\n"
+    const dir = await nativeProject(
+      { ...SOURCES, 'tests/global.test.ts': GLOBAL_ISOLATION },
+      config,
+    )
+    const run = await spawnCli(nativeRunArgs('forks'), { cwd: dir })
+    const output = `${run.stdout}\n${run.stderr}`
+    assert.deepEqual(
+      Object.fromEntries(await outcomesByFile(dir)),
+      { 'global.test.ts': 'passed,passed' },
+      output,
+    )
+    assert.equal(run.code, 0, output)
+  })
+})
+
 /** Two files sharing one worker under isolation `none`: each counts, then resets. */
 const SHARED: Readonly<Record<string, string>> = {
   ...SOURCES,
