@@ -1,5 +1,15 @@
 # @provino/coverage
 
+## 0.1.0-rc.11
+
+### Patch Changes
+
+- Updated dependencies [514f338]
+- Updated dependencies [bb82b45]
+- Updated dependencies [8660a21]
+- Updated dependencies [cfb5974]
+  - @provino/types@0.1.0-rc.11
+
 ## 0.1.0-rc.10
 
 ### Patch Changes

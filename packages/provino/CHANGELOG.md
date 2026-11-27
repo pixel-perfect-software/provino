@@ -1,5 +1,18 @@
 # provino
 
+## 0.1.0-rc.11
+
+### Patch Changes
+
+- 514f338: A native config takes a `define` key: compile-time replacements in the project's own modules, as a bundler's `define` makes them, so a module that reads `import.meta.env.DEV` or `process.env.NODE_ENV` runs without the runner emulating a bundler.
+- bb82b45: A native project takes `expect(value, message)` and `expect.soft(value, message)`: the message is the first line of a failure, then a blank line, then the matcher's text with the measured values. A third argument is refused as "expect() takes a value and an optional message".
+- 8660a21: A native project's jsdom has `matchMedia`, `scrollIntoView`, `animate`, `ResizeObserver` and a client rect for a displayed element, so a setup file no longer writes them. Turn them off with `environmentOptions: { standIns: false }`.
+- 2ae79f4: A native project can stand in a global or an environment variable for one test with `stubGlobal`, `stubEnv`, `unstubAllGlobals` and `unstubAllEnvs`, including a global Node lacks (`location`) or has as a getter (`navigator`), which `replaceProperty` refuses. Each stand-in is put back before the next test.
+- cfb5974: A native project can import an asset or a style file. `import logo from './logo.svg'` is the file's URL as a Vite dev server writes it (`/src/logo.svg`, or `/@fs/<path>` outside the project root), a `.css` or `.scss` import is an empty module, and a `*.module.css` import is an object that answers each name with itself. `?raw` imports the file's text and `?url` its URL. A `mock()` of the file still wins, so does a transform the project configures for it, and a dependency's own asset or stylesheet import works too. Projects on the Jest or Vitest dialect are unchanged.
+- b2ab699: Projects of a `provino.config.*` may share a root when their `include` globs select different files, so some files of one `src/` can run in node and others in jsdom. A run is refused (exit 2) only when a file would run in more than one project, and the message names the projects and the files. In a watch session a new file that makes an overlap fails that run, not the session.
+  
+  Behaviour change: projects whose roots nest (for example `.` and `packages/a`) and that both select one file used to run it twice without a word; the run is now refused, so give their `include` globs no file in common.
+
 ## 0.1.0-rc.10
 
 ### Patch Changes

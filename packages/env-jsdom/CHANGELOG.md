@@ -1,5 +1,17 @@
 # @provino/env-jsdom
 
+## 0.1.0-rc.11
+
+### Patch Changes
+
+- 8660a21: A native project's jsdom has `matchMedia`, `scrollIntoView`, `animate`, `ResizeObserver` and a client rect for a displayed element, so a setup file no longer writes them. Turn them off with `environmentOptions: { standIns: false }`.
+- Updated dependencies [514f338]
+- Updated dependencies [bb82b45]
+- Updated dependencies [8660a21]
+- Updated dependencies [cfb5974]
+  - @provino/types@0.1.0-rc.11
+  - @provino/env-shared@0.1.0-rc.11
+
 ## 0.1.0-rc.10
 
 ### Patch Changes
