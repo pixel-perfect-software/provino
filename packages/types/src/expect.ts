@@ -168,7 +168,7 @@ export interface PendingAssertion {
  * @public
  */
 export interface ExpectMessages {
-  /** `expect(a, b)` where the dialect allows one argument. */
+  /** `expect(a, b, c)`: more arguments than the dialect's `messageArgument` allows. */
   tooManyArguments(): string
   /** A failed matcher result without a message. */
   noMessage(): string
@@ -399,7 +399,7 @@ export interface InvertibleAsymmetric {
  * @public
  */
 export interface ExpectStatic extends InvertibleAsymmetric {
-  (actual: unknown): Assertion
+  (actual: unknown, message?: string): Assertion
   readonly not: InvertibleAsymmetric & { readonly [asymmetric: string]: unknown }
   any(type: unknown): AsymmetricMatcherLike
   anything(): AsymmetricMatcherLike
@@ -408,7 +408,7 @@ export interface ExpectStatic extends InvertibleAsymmetric {
   assertions(expected: number): void
   hasAssertions(): void
   /** Present when `ExpectPolicy.soft` is on: a failure is recorded and the test goes on. */
-  soft?: (actual: unknown) => Assertion
+  soft?: (actual: unknown, message?: string) => Assertion
   /** Present when `ExpectPolicy.poll.enabled` is on. */
   poll?: (fn: (context: PollContext) => unknown, options?: PollOptions) => PollAssertion
   /** Present when the dialect's table words it (`ExpectMessages.unreachable`). */

@@ -233,6 +233,8 @@ export function executeOptionsOf(
     project,
     ...(others.length === 0 ? {} : { others }),
     ...(root === undefined ? {} : { root }),
+    // Native projects may share a root: no file may belong to two of them.
+    uniqueFiles: true,
     cwd,
     stdout,
     stderr,

@@ -25,6 +25,7 @@ import type {
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
 import { type GraphEdge, inGraph } from '../graph/index.ts'
 import { reevaluatesExternals } from '../reevaluation.ts'
+import { assetKindOf, assetQueryOf, assetRootOf, assetRunnerSource } from './assets.ts'
 import { type ClaimsState, compileClaims, isClaimedExternal } from './claims.ts'
 import {
   createEdgeKindState,
@@ -135,6 +136,8 @@ export interface ModuleRecord {
    * none gets no outer function and pays nothing.
    */
   scope: readonly string[] | null
+  /** Made by the loader itself (an asset or style file): no source of the project's to cover. */
+  builtIn: boolean
   /** The transform cache key of this module's variant (coverage maps V8's scripts by it); empty for JSON. */
   transformKey: string
   /** Characters the wrapper put before the body, once compiled (the same in both modes). */
@@ -157,6 +160,9 @@ export function toModuleId(path: string): ModuleId {
  */
 function isExternal(state: Records, path: string): boolean {
   if (path.endsWith('.node')) return true
+  // Under `built-in` an asset or style file is a module the loader makes, wherever it lives: Node
+  // would refuse it (`ERR_UNKNOWN_FILE_EXTENSION`).
+  if (state.assetRoot !== null && assetKindOf(path) !== null) return false
   return state.claims === null
     ? isThirdParty(path, state.inlineRules)
     : isClaimedExternal(state.claims, path)
@@ -178,6 +184,8 @@ export interface Records {
   readonly edgeKinds: EdgeKindState
   /** `LoaderOptions.inline`, normalized once. */
   readonly inlineRules: InlineRules
+  /** The real root asset URLs are made from, under `ModulePolicy.assetImports` `built-in`; else `null`. */
+  readonly assetRoot: string | null
   /** The files the transforms take (`LoaderOptions.transformClaims`); `null` for none. */
   readonly claims: ClaimsState | null
   /**
@@ -262,6 +270,7 @@ export function createRecords(options: LoaderOptions, runtime?: RuntimeCapabilit
     reevaluate: createReevaluateState(),
     edgeKinds,
     inlineRules,
+    assetRoot: options.policy.assetImports === 'built-in' ? assetRootOf(options.root) : null,
     claims,
     diverging,
     evaluable,
@@ -474,15 +483,41 @@ export function recordFor(state: Records, id: ModuleId, isTest: boolean): Module
   // A `data:` URL is a user module whose source is the URL itself: evaluated per registry, as
   // jest-runtime evaluates one per test file, where Node's own `import()` shares it (compat).
   const data = path.startsWith(DATA) ? dataSource(path) : null
-  const text = data === null ? readFileSync(path, 'utf8') : data.text
+  const thirdParty = isThirdParty(path, state.inlineRules)
+  // Under `built-in` the loader makes the module of an asset or style file, unless a transform the
+  // project configured takes it.
+  const assetKind =
+    data === null && state.assetRoot !== null && state.options.transformer.handles?.(path) !== true
+      ? assetKindOf(path)
+      : null
+  const query = assetKind === null ? null : assetQueryOf(id.slice(path.length))
+  // An asset or style module is read only under `?raw`, as text: it may be binary.
+  const text =
+    data !== null
+      ? data.text
+      : assetKind !== null && query !== 'raw'
+        ? ''
+        : readFileSync(path, 'utf8')
   // What the transforms see: a data: module is JavaScript, named as a module in the root.
   const filename = data === null ? path : join(state.options.root, '[data].mjs')
-  // A node_modules file only gets here when a mock made it inline (T2.6), a transform takes it
-  // (B23e), or `inline` names it.
-  const thirdParty = isThirdParty(path, state.inlineRules)
   let record: ModuleRecord
   let transformKeyOf = ''
-  if (data?.json === true || path.endsWith('.json')) {
+  if (assetKind !== null && state.assetRoot !== null) {
+    // Built in (`ModulePolicy.assetImports`): never transformed, cached or instrumented, and
+    // never reported to coverage.
+    record = makeRecord(
+      id,
+      path,
+      'esm',
+      assetRunnerSource(assetKind, state.assetRoot, path, query, text),
+      () => null,
+      [],
+      [],
+      false,
+      false,
+    )
+    record.builtIn = true
+  } else if (data?.json === true || path.endsWith('.json')) {
     record = makeRecord(id, path, 'json', text, () => null, [], [], false, false)
   } else if (/\.(?:wasm|node)$/.test(path)) {
     throw new LoaderError('LOADER_UNSUPPORTED_MODULE', `cannot load ${path} as a user module`)
@@ -631,6 +666,7 @@ function makeRecord(
     compiledSync: null,
     compiledAsync: null,
     scope: null,
+    builtIn: false,
     transformKey: '',
     wrapperLength: null,
   }
@@ -888,6 +924,7 @@ function wrapperScript(
   if (mode === 'sync') record.compiledSync = wrapper
   else record.compiledAsync = wrapper
   record.wrapperLength = prefix.length
+  if (record.builtIn) return wrapper
   for (const listener of state.listeners) {
     listener({
       id: record.id,

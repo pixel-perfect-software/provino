@@ -587,6 +587,7 @@ export const createPipeline: CreatePipeline = (options) => {
 
   return {
     transform,
+    handles: (filename) => options.transformers?.handles(filename) === true,
     transformAsync: async (request) => {
       const host = options.transformers
       if (host?.handles(request.filename) === true) {

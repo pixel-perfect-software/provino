@@ -17,6 +17,7 @@ export {
   type NativeHoistedCall,
   nativeHoistPolicy,
 } from './native-hoist.ts'
+export { nativeModulePolicy } from './native-module.ts'
 export { nativeSnapshotPolicy } from './native-snapshot.ts'
 export { neutralPolicy } from './neutral.ts'
 export { resolvePolicy } from './resolve.ts'

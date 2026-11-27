@@ -9,6 +9,7 @@ import { StandardSchemaV1 } from '@standard-schema/spec';
 
 // @public
 export interface BaseConfig {
+    readonly define?: Readonly<Record<string, JsonValue>>;
     readonly dialects?: readonly Dialect[];
     // (undocumented)
     readonly environment?: string;

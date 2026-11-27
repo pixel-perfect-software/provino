@@ -171,6 +171,11 @@ export interface TransformRequest {
  */
 export interface ModuleTransformer {
   transform(request: TransformRequest): TransformRecord
+  /**
+   * Whether a transform the project configured takes the file at absolute `filename` (a rule matches
+   * and no ignore pattern does). Absent: none does.
+   */
+  handles?(filename: string): boolean
 }
 
 /**

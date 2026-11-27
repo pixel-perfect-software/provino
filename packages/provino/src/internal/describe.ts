@@ -50,6 +50,7 @@ export function usageMessage(error: unknown): string | undefined {
     error instanceof OrchestratorError &&
     (error.code === 'ORCH_BAD_PATTERN' ||
       error.code === 'ORCH_BAD_OPTION' ||
+      error.code === 'ORCH_OVERLAPPING_PROJECTS' ||
       error.code === 'ORCH_BAD_TIMINGS')
   ) {
     return `Provino: ${error.message}`

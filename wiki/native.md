@@ -91,6 +91,7 @@ Node itself reads the config file, so a `.ts` config needs Node 22.18 or later, 
 | `setupFiles` | Modules imported before each test file: a path (`./test/setup.ts`) or a package name |
 | `timeouts` | `{ test, hook, teardown }` in ms. Defaults 5000, 10000 and 10000; `0` is no limit. A timeout given to a test or hook wins |
 | `resolve` | `conditions` (export conditions added after the environment's, such as `['development']`), `aliases` (`{ '@/*': './src/*' }`) and `tsconfig` (`'auto'` is the nearest `tsconfig.json`, a path, or `false`) |
+| `define` | Compile-time replacements in your own modules, as a bundler's `define` makes them: see [define](#define) |
 | `coverage` | Code coverage: see [Coverage](#coverage). Top level only |
 | `projects` | See [Projects](#projects). Top level only |
 | `pool` | `forks` (default), `threads` or `inline`: the pool when the command line names none. Top level only |
@@ -100,6 +101,26 @@ Node itself reads the config file, so a `.ts` config needs Node 22.18 or later, 
 Reporters are not config keys: name them on the command line (`--reporter`). A key the config does not know is a usage error that names the nearest one: `unknown config key "incude"; did you mean "include"?` (exit 2). A non-empty `plugins` or `alsoServe` is refused by name too.
 
 Naming a dialect (`dialect: 'jest'`) makes the project a Jest project, which needs [`@provino/dialect-jest`](compatibility.md) installed.
+
+### define
+
+`define` replaces an expression with a value where your modules read it, before they run, as esbuild, Vite and webpack's DefinePlugin do. Provino emulates nothing of a bundler, so a project names what its own bundler substitutes. A Vite app reads `import.meta.env` in its source, and Vite fills it in when it builds the app; a native run has no such object, so the module throws `Cannot read properties of undefined (reading 'DEV')`. Give the same values here:
+
+```ts
+export default defineConfig({
+  define: {
+    'import.meta.env.DEV': true,
+    'import.meta.env.MODE': '"test"',
+    __APP_VERSION__: '"1.2.3"',
+  },
+})
+```
+
+A key is an identifier or a dotted chain of identifiers (`__APP_VERSION__`, `process.env.NODE_ENV`, `import.meta.env.DEV`, `import.meta.env`); any other key is a config error naming `define["<key>"]`. A string value is the source text of an expression, so `'"test"'` is the string `test` and `'true'` is the boolean. Any other JSON value (a number, boolean, `null`, array or object) is written as its JSON text, which is how `{ 'import.meta.env': { DEV: true, BASE_URL: '/' } }` makes both `import.meta.env.DEV` and `import.meta.env[key]` work. Give the whole object or the single members; a more specific key wins where both match.
+
+- **Reach.** Only the modules Provino transforms take it: your test files, your source and a `node_modules` package a transform claims. A `node_modules` package that Node loads itself does not, as a bundler's `define` leaves a dependency it does not bundle alone. Any other `import.meta` (`import.meta.url`) still works as before.
+- **Coverage.** With `define` set, every file takes Oxc's transform and its source map. Without it, a `.ts` file collected for coverage is instead stripped in place (types become spaces, so positions stay put and no map is needed). So under `--coverage` a project with `define` maps positions through Oxc's map, which can differ slightly from the in-place strip's.
+- The key is for a project with no dialect; a Jest project's config has no such key, and Vitest's own `define` handling is unchanged.
 
 ## Coverage
 
@@ -149,7 +170,19 @@ export default defineConfig({
 - A directory that has its own `provino.config.*` uses it, and is named for the directory unless the config names it. A glob matches directories, never `node_modules`, and never the config's own directory.
 - An entry that starts with `!` leaves out what the globs matched.
 - Each project has its own `include`, `setupFiles`, `environment`, `isolation`, `timeouts` and `resolve`. The top level's keys are **not** inherited. A project has no `projects`, `pool`, `maxWorkers` or `execArgv`.
-- Names must be unique, and two projects can't share a `root`. A glob that matches nothing is an error.
+- Names must be unique. A glob that matches nothing is an error.
+- Projects may share a `root`, so one directory can run some files in node and others in jsdom (the native runner reads no per-file environment docblock; projects are how a file picks its environment):
+
+  ```ts
+  export default defineConfig({
+    projects: [
+      { name: 'node', include: ['src/**/*.test.ts'] },
+      { name: 'window', include: ['src/**/*.test.tsx'], environment: 'jsdom' },
+    ],
+  })
+  ```
+
+  A file must belong to one project only, judged by real path (a project whose root is a symlink into another's tree counts too). Projects whose roots nest (`.` and `packages/a`) are checked the same way: if both select one file, the run is refused, where earlier versions ran that file twice without a word. When two projects discover the same file the run exits 2 before any test starts: `Provino: projects "node" and "window" both run src/a.test.ts: give their include globs no file in common` (at most three files are named, then a count). The check reads each project's discovered files before file arguments or `-t` narrow the run, and a watch run repeats it every time it starts (a new file that causes an overlap fails that run with the same message and exit code 2, and the session keeps watching). `provino jest` is not checked: Jest runs a file in every project that matches it.
 - With several projects a file's line starts with its project's name: `PASS core packages/core/src/core.test.ts`.
 
 ## Writing tests
@@ -249,6 +282,18 @@ it('sees what the first one did', () => {
 `expect` has the usual matchers: `toBe`, `toEqual`, `toStrictEqual`, `toMatchObject`, `toContain`, `toContainEqual`, `toHaveLength`, `toHaveProperty`, `toMatch`, `toThrow`, `toBeInstanceOf`, `toBeTypeOf`, `toSatisfy`, the truthiness and comparison ones (`toBeTruthy`, `toBeNull`, `toBeDefined`, `toBeNaN`, `toBeGreaterThan`, `toBeCloseTo`, …) and the mock matchers (`toHaveBeenCalled`, `toHaveBeenCalledWith`, `toHaveReturned`, … with their Times, Last and Nth forms). It also has `.not`, `.resolves`, `.rejects`, `expect.any`, `expect.anything`, `expect.objectContaining`, `expect.arrayContaining`, `expect.stringContaining`, `expect.stringMatching`, `expect.closeTo`, `expect.assertions`, `expect.hasAssertions`, `expect.soft` (the test goes on after a failure, and fails at the end) and `expect.poll`.
 
 - A failure is an `AssertionError` with Jest's layout: `expect(received).toBe(expected)`, a blank line, then `Expected:` and `Received:`, and a diff for objects.
+- `expect(value, message)` (and `expect.soft(value, message)`) labels an assertion. On a failure the message is the first line, then a blank line, then the matcher's usual text, so the measured values stay in it:
+
+  ```ts
+  expect(contrast, 'ink on the card').toBeGreaterThanOrEqual(3)
+  // ink on the card
+  //
+  // expect(received).toBeGreaterThanOrEqual(expected)
+  // Expected: >= 3
+  // Received: 2.1
+  ```
+
+- `expect.poll` takes no message.
 - `expect.extend` adds matchers, in a test file or in a setup file.
 - An assertion on a promise (`.resolves`, `.rejects`, `expect.poll`) must be awaited. One that is not fails the test and says so.
 - `toMatchSnapshot`, `toMatchInlineSnapshot`, `toThrowErrorMatchingSnapshot` and `toThrowErrorMatchingInlineSnapshot` are there: see [Snapshots](#snapshots).
@@ -410,6 +455,25 @@ it('snapshots a value', () => {
 ### Lazy variables
 
 `lazy` comes from `provino` too: values built on first read, kept for one test, overridden in a nested `describe`. See [Lazy variables](lazy-variables.md).
+
+## Importing assets and styles
+
+A test file, or a module it imports, can import a file that is not code, as it would in a Vite app. Provino makes a module for it and never reads or transforms the file:
+
+| File | What it imports as |
+| --- | --- |
+| An image, audio, video, font, `.webmanifest`, `.pdf` or `.txt` file (the list is Vite's `KNOWN_ASSET_TYPES`) | `export default` its URL: `/` and the path from the project root (`/src/logo.svg`), or `/@fs/` and the absolute path for a file outside the root |
+| `.css`, `.scss`, `.sass`, `.less`, `.styl`, `.stylus`, `.pcss`, `.postcss`, `.sss` | An empty module whose default export is `''` |
+| `*.module.<style extension>` | A default export where every name reads as itself (`styles.foo === 'foo'`); symbols, `then` and `__esModule` read as `undefined` |
+
+`require()` of one from a CommonJS module sees what it would see for any ES module with that default export. A `mock('./logo.svg', () => ({ default: 'x' }))` replaces it as it replaces any module.
+
+- **Queries.** `?raw` imports the file's text (UTF-8) and `?url` its URL, as in Vite; any other query imports as none. They apply to the files in the table only.
+- **Dependencies.** A package's asset or stylesheet (`import 'some-lib/dist/style.css'`) is built in too, and so is a `./button.css` a package you `inline` imports. A package Node loads itself keeps Node's behaviour for its own imports, so a `.css` import there fails as it does outside Provino.
+- **Your own transform.** A Jest-style `transform` entry that matches the file takes it, and nothing is built in.
+- **Limits.** A CSS module has a default export only: a named import reads `undefined`, as in Vitest without CSS processing. A small `.svg` that Vite would inline as a `data:` URL is still its path here, and URLs are not percent-encoded (Vite's dev server writes them as they are).
+
+This is on for a project with no dialect only. A Jest project maps these files with `moduleNameMapper`, and a Vitest project leaves them to Vite.
 
 ## Globals
 

@@ -147,6 +147,31 @@ describe('provino run --watch with test path patterns', () => {
   })
 })
 
+describe('provino run --watch with projects that share a root', () => {
+  it('a new file both projects select fails that run, not the session', async () => {
+    const watch = await start(['--watch'], {
+      config: `export default {
+  projects: [
+    { name: 'one', include: ['tests/*.test.ts'] },
+    { name: 'two', include: ['tests/x-*.test.ts'] },
+  ],
+}
+`,
+    })
+    await watch.stderr.waitFor(TOTALS, 1)
+    await writeFile(
+      watch.project.path('tests/x-new.test.ts'),
+      "import { test } from 'provino'\ntest('x', () => {})\n",
+    )
+    watch.change('tests/x-new.test.ts')
+    await watch.stderr.waitFor(/projects "one" and "two" both run/g, 1)
+    watch.change('tests/x-new.test.ts')
+    await watch.stderr.waitFor(/projects "one" and "two" both run/g, 2)
+    watch.controller.abort()
+    assert.equal(await watch.result, 2)
+  })
+})
+
 describe('provino run --watch', () => {
   it('runs every file, then the files a change reaches, and every file for a project input', async () => {
     const watch = await start(['--watch'])

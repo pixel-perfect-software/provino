@@ -130,7 +130,9 @@ expectTypeOf<MatcherState['pendingAsync']>().toEqualTypeOf<Set<PendingAssertion>
 expectTypeOf<PendingAssertion['kind']>().toEqualTypeOf<'settled' | 'poll'>()
 
 // `soft`, `poll` and `unreachable` are optional: a dialect's policy and table decide.
-expectTypeOf(expect.soft).toEqualTypeOf<((actual: unknown) => Assertion) | undefined>()
+expectTypeOf(expect.soft).toEqualTypeOf<
+  ((actual: unknown, message?: string) => Assertion) | undefined
+>()
 expectTypeOf(expect.poll).toEqualTypeOf<
   ((fn: (context: PollContext) => unknown, options?: PollOptions) => PollAssertion) | undefined
 >()

@@ -114,6 +114,11 @@ describe('a project with no dialect', () => {
     assert.deepEqual(dialect.config.environment.options, {})
   })
 
+  test('a native project makes asset and style imports modules; one with no native refs does not', async () => {
+    assert.equal((await resolveProject({}, options())).policy.module.assetImports, 'built-in')
+    assert.equal((await resolveProject({}, options(null))).policy.module.assetImports, 'off')
+  })
+
   test('the snapshot printer brings the native snapshot slice (B28)', async () => {
     const resolved = await resolveProject({}, options())
     assert.deepEqual(
@@ -188,6 +193,11 @@ describe('a project with a dialect ignores them', () => {
     assert.deepEqual(resolved.config.globals, scoped.globals?.factory)
     // A dialect with no hoist policy of its own gets none: the native one is the native API's.
     assert.equal(resolved.config.loader.hoist, null)
+  })
+
+  test('a dialect project keeps asset imports off', async () => {
+    const resolved = await resolveProject({ dialect: 'scoped' as never }, options())
+    assert.equal(resolved.policy.module.assetImports, 'off')
   })
 
   test("a reader's project with a dialect", async () => {

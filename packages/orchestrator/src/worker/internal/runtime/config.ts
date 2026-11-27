@@ -288,7 +288,19 @@ function loaderConfig(value: unknown): SerializedLoaderConfig {
     ...(loader.reevaluate === undefined
       ? {}
       : { reevaluate: absolutePaths(loader.reevaluate, 'loader.reevaluate') }),
+    ...(loader.define === undefined ? {} : { define: defineMap(loader.define) }),
   }
+}
+
+/** `loader.define`: each replacement's source text, by the name it replaces. */
+function defineMap(value: unknown): Readonly<Record<string, string>> {
+  const map = record(value, 'loader.define')
+  return Object.fromEntries(
+    Object.entries(map).map(([name, replacement]) => [
+      name,
+      text(replacement, `loader.define["${name}"]`),
+    ]),
+  )
 }
 
 /** The project's coverage settings: the globs and patterns are strings, the paths absolute. */

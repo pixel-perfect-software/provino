@@ -311,6 +311,9 @@ export const jestPolicy: PolicyOverrides = {
     // `supportsSyncEvaluate` (`Resolution.ts` L35-48), which differs by Node version: the loader's
     // `edge-kind.test.ts` holds the gate on its capability seam.
     moduleSyncCondition: 'import-and-sync-require',
+    // Provino's own key (D7): Jest maps an asset with `moduleNameMapper`, so an unmapped one fails the
+    // file as it does in Jest. Only a project with no dialect has the built-in asset modules.
+    assetImports: 'off',
     // Recorded, Jest 30.5.2: `mod-shared-dep` and `mod-shared-dep-root` (a mock reaches the packages that require it).
     mocksReachShared: true,
     // Recorded, Jest 30.5.2: `ecosystem/rtl-cleanup` and `ecosystem/jest-canvas-mock` (jest-runtime

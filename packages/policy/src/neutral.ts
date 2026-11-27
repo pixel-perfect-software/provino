@@ -208,6 +208,9 @@ export const neutralPolicy: Policy = deepFreeze({
     edgeResolveKind: 'as-written',
     // Ours (speed): no `module-sync` condition, so no capability probe; lookups are as before.
     moduleSyncCondition: 'never',
+    // Ours: an asset or style import is a failed transform, as it always was; a native project turns
+    // the built-in modules on (`nativeModulePolicy`).
+    assetImports: 'off',
     // T2.6: R3 makes mock-aware inlining the default (D39, B13d Gap 11).
     mocksReachShared: true,
     // Ours (speed): a shared package loads once per worker, whatever it reads while it loads (D127).
@@ -259,8 +262,9 @@ export const neutralPolicy: Policy = deepFreeze({
     errorShape: 'assertion-error',
     // Ours: `.resolves`/`.rejects` check their value where they are read, as the error shape's runner does.
     settlementCheck: 'at-read',
-    // Ours: `expect` takes the value alone.
-    messageArgument: false,
+    // Ours: `expect(value, message)` labels a failure, as a Vitest suite writes it (no recorded
+    // claim: a neutral-only value).
+    messageArgument: true,
     equality: { errors: 'assert', invalidDate: 'equal' },
     soft: true,
     poll: { enabled: true, intervalMs: 50, timeoutMs: 1000 },

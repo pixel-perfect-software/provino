@@ -200,6 +200,7 @@ export async function buildProjectLoader(
     tsconfig,
     hoist: config.hoist,
     runnerForm: true,
+    ...(config.define === undefined ? {} : { define: config.define }),
     cache: config.cacheDir === undefined ? false : { dir: config.cacheDir },
     ...(config.codeIdentity === undefined ? {} : { codeIdentity: config.codeIdentity }),
     ...(transformers === undefined ? {} : { transformers }),
