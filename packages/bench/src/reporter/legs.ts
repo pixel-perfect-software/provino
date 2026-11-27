@@ -271,8 +271,9 @@ interface PacedRun {
  * The stream through the bus into a sink, with the real scheduler, at `testsPerSec`: the events
  * are spread evenly over the run's time and sent in batches, each at its slot on the monotonic
  * clock (`start + k x 10 ms`). A batch is never sent before its slot (`waitUntil`), so no wait is
- * negative; one that is late is sent as soon as the loop is free, never skipped, and the loop yields between events' turns so the frame timer can fire. Each event's
- * wait is the time from its batch's scheduled send to the end of its delivery through the bus.
+ * negative; one that is late is sent as soon as the loop is free, never skipped, and the loop
+ * yields between events' turns so the frame timer can fire. Each event's wait is the time from its
+ * batch's scheduled send to the end of its delivery through the bus.
  */
 async function pacedReplay(
   events: readonly StreamEvent[],
