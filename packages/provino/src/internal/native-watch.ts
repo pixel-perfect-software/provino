@@ -26,7 +26,9 @@ import { type ExecuteOptions, executeProject } from './execute.ts'
 import { DOCUMENT_REPORTERS, isDocumentReporter } from './reporter-names.ts'
 import {
   executeOptionsOf,
+  noMatchLine,
   patternFilters,
+  patternsSelectNothing,
   type ResolvedRun,
   reportRunError,
   resolveRun,
@@ -120,6 +122,10 @@ async function watchLoop(
   const { env } = first
   // A watch run collects no coverage: a config that asks for it gets one line saying so.
   if (first.coverage.enabled) stderr.write(COVERAGE_NOTICE)
+  // Reruns force `passWithNoTests`, so a pattern that selects nothing is said once, here.
+  if (await patternsSelectNothing(options, first)) {
+    stderr.write(noMatchLine(options.testPathPatterns ?? []))
+  }
   const stderrIsTerminal = Reflect.get(stderr, 'isTTY') === true
   const columns: unknown = Reflect.get(stderr, 'columns')
   // The reporters' own rule for a live terminal (not CI, not dumb, not an agent's), and a

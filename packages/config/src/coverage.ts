@@ -21,7 +21,7 @@ export interface ResolvedCoverage {
   readonly provider: 'v8' | 'istanbul'
   /** Globs relative to the run's root; none means every file the tests load. */
   readonly include: readonly string[]
-  /** Globs relative to the run's root. */
+  /** Globs relative to the run's root; `**\/node_modules/**` is always first. */
   readonly exclude: readonly string[]
   readonly reporters: readonly (readonly [
     CoverageReporterName,
@@ -33,10 +33,13 @@ export interface ResolvedCoverage {
   readonly thresholds: readonly CoverageThresholdGroup[]
 }
 
+/** Never counted, whichever provider: V8's filter has no `node_modules` step of its own. */
+const NODE_MODULES_GLOB = '**/node_modules/**'
+
 /**
  * Applies the defaults to a parsed `coverage` key: provider `v8` (no instrumentation), reporters
- * `text` and `lcovonly` (no HTML pages unless asked), `**\/node_modules/**` excluded (V8's own
- * filter has no `node_modules` step), and the report directory the policy names (`reportsDirectory`)
+ * `text` and `lcovonly` (no HTML pages unless asked), `**\/node_modules/**` always excluded (V8's own
+ * filter has no `node_modules` step; a given `exclude` adds to it), and the report directory the policy names (`reportsDirectory`)
  * under `runRoot`. All of those are speed choices. `directory` is made absolute against `runRoot`.
  * @internal
  */
@@ -49,7 +52,10 @@ export function resolveCoverage(
     enabled: coverage?.enabled === true,
     provider: coverage?.provider ?? 'v8',
     include: coverage?.include ?? [],
-    exclude: coverage?.exclude ?? ['**/node_modules/**'],
+    exclude: [
+      NODE_MODULES_GLOB,
+      ...(coverage?.exclude ?? []).filter((glob) => glob !== NODE_MODULES_GLOB),
+    ],
     reporters: (coverage?.reporters ?? ['text', 'lcovonly']).map((entry) =>
       typeof entry === 'string' ? [entry, {}] : [entry[0], entry[1]],
     ),

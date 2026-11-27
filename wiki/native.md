@@ -121,7 +121,7 @@ export default defineConfig({
 | `enabled` | Collect coverage on every run. Default `false`; `--coverage` turns it on for one run |
 | `provider` | `v8` (default: no instrumentation) or `istanbul` (instruments each file as it loads) |
 | `include` | Globs of the files that count, relative to the run's root; a leading `!` leaves files out. Default: every file the tests load. A file it names that no test loaded counts at zero |
-| `exclude` | Globs of files that never count. Default `['**/node_modules/**']`; a list you give replaces it |
+| `exclude` | Globs of files that never count. `**/node_modules/**` never counts, with either provider; a list you give adds to it |
 | `reporters` | Istanbul's report names, each a name or `[name, options]`: `text`, `text-summary`, `lcov`, `lcovonly`, `json`, `json-summary`, `html`, `clover`, `cobertura` and the rest. Default `['text', 'lcovonly']`; an unknown name is a config error |
 | `directory` | Where the reports go, relative to the run's root. Default `coverage` |
 | `thresholds` | Jest's `coverageThreshold` shape: `global`, or a path or glob, each with a minimum percentage per metric (`statements`, `branches`, `functions`, `lines`). A negative number is the most uncovered items allowed. A missed threshold prints a line on stderr and the run exits 1 |

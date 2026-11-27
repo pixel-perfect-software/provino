@@ -38,6 +38,17 @@ describe('the coverage key', () => {
     assert.equal(projects[0]?.config.coverage, undefined)
   })
 
+  test('a given exclude keeps the node_modules exclusion, whichever provider', async () => {
+    for (const provider of ['v8', 'istanbul'] as const) {
+      const { coverage, projects } = await resolveInput({
+        coverage: { enabled: true, provider, exclude: ['src/gen/**', '**/node_modules/**'] },
+      })
+      assert.deepEqual(coverage.exclude, ['**/node_modules/**', 'src/gen/**'])
+      const [counted] = withCoverage(projects, coverage, temp.dir, configPath)
+      assert.deepEqual(counted?.config.coverage?.excludeGlobs, ['**/node_modules/**', 'src/gen/**'])
+    }
+  })
+
   test('takes every key, with the directory made absolute against the run root', async () => {
     const { coverage } = await resolveInput({
       coverage: {
@@ -53,7 +64,8 @@ describe('the coverage key', () => {
     assert.equal(coverage.enabled, true)
     assert.equal(coverage.provider, 'istanbul')
     assert.deepEqual(coverage.include, ['src/**/*.ts', '!src/skip.ts'])
-    assert.deepEqual(coverage.exclude, ['src/gen/**'])
+    // A given list adds to the node_modules exclusion; it never replaces it.
+    assert.deepEqual(coverage.exclude, ['**/node_modules/**', 'src/gen/**'])
     assert.deepEqual(coverage.reporters, [
       ['json-summary', {}],
       ['lcov', { projectRoot: 'x' }],
@@ -145,7 +157,7 @@ describe('withCoverage', () => {
     assert.equal(serialized.projectRoot, projects[0]?.rootDir)
     assert.deepEqual(serialized.include, ['src/**/*.ts'])
     assert.equal(serialized.includeRoot, true)
-    assert.deepEqual(serialized.excludeGlobs, ['src/gen/**'])
+    assert.deepEqual(serialized.excludeGlobs, ['**/node_modules/**', 'src/gen/**'])
     assert.deepEqual(serialized.testFiles, [
       join(temp.dir, 'src/**/*.test.ts'),
       `!${join(temp.dir, 'src/skip.test.ts')}`,

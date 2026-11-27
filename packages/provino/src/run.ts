@@ -1,23 +1,27 @@
 import type { ExecuteOptions } from './internal/execute.ts'
 import { executeProject } from './internal/execute.ts'
-import { executeOptionsOf, reportRunError, resolveRun } from './internal/run-setup.ts'
+import {
+  executeOptionsOf,
+  noMatchLine,
+  patternsSelectNothing,
+  type ResolvedRun,
+  reportRunError,
+  resolveRun,
+} from './internal/run-setup.ts'
 import type { RunOptions, RunResult } from './types.ts'
 
-/** Said when test path patterns kept no file, so a mistyped one (or a mistyped command) reads clearly. */
-function noMatchLine(patterns: readonly string[]): string {
-  const named = patterns.map((pattern) => JSON.stringify(pattern)).join(', ')
-  return `Provino: no test file matches ${patterns.length === 1 ? 'the pattern' : 'any of the patterns'} ${named}\n`
-}
-
-/** `executeProject`, then the no-match line when the patterns left no file to run. */
+/** `executeProject`, then the no-match line when the patterns themselves selected no file. */
 async function executeProjectNamingPatterns(
   options: RunOptions,
+  resolved: ResolvedRun,
   execute: ExecuteOptions,
   stderr: NonNullable<RunOptions['stderr']>,
 ): Promise<RunResult> {
   const result = await executeProject(execute)
-  const patterns = options.testPathPatterns ?? []
-  if (patterns.length > 0 && result.summary?.files.length === 0) stderr.write(noMatchLine(patterns))
+  // Only a run with no file asks: a shard or an interrupt can leave none while the patterns matched.
+  if (result.summary?.files.length === 0 && (await patternsSelectNothing(options, resolved))) {
+    stderr.write(noMatchLine(options.testPathPatterns ?? []))
+  }
   return result
 }
 
@@ -28,7 +32,8 @@ async function execute(
 ): Promise<RunResult> {
   const resolved = await resolveRun(options)
   const base: ExecuteOptions = executeOptionsOf(options, resolved, stdout, stderr)
-  if (!resolved.collectCoverage) return executeProjectNamingPatterns(options, base, stderr)
+  if (!resolved.collectCoverage)
+    return executeProjectNamingPatterns(options, resolved, base, stderr)
   // The coverage reporter brings `@provino/coverage/node`: loaded only for a run that collects (T1.10).
   const { nativeCoverageFor } = await import('./internal/native-coverage.ts')
   const coverage = nativeCoverageFor(resolved, {
@@ -39,6 +44,7 @@ async function execute(
   })
   const result = await executeProjectNamingPatterns(
     options,
+    resolved,
     {
       ...base,
       // Before the text reporters, so the table and the threshold lines come ahead of the summary.

@@ -174,6 +174,16 @@ describe('provino run --watch', () => {
     assert.equal(await watch.result, 0)
   })
 
+  it('says once, at the start, that the patterns select no file', async () => {
+    const watch = await start(['--watch', 'nothing-like-this'])
+    await watch.stderr.waitFor(/no test file matches the pattern "nothing-like-this"/g, 1)
+    watch.change('src/a.ts')
+    await watch.stderr.waitFor(TOTALS, 1)
+    watch.controller.abort()
+    await watch.result
+    assert.equal(watch.stderr.text.split('no test file matches').length - 1, 1)
+  })
+
   it('a config that enables coverage runs without it and says so once', async () => {
     const watch = await start(['--watch'], {
       config:

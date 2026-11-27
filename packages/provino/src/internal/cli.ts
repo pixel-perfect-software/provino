@@ -59,6 +59,10 @@ function bailWithCount(args: readonly string[]): string[] {
   const out: string[] = []
   for (let index = 0; index < args.length; index++) {
     const arg = args[index] as string
+    if (arg === '--') {
+      out.push(...args.slice(index))
+      break
+    }
     if (arg !== '--bail') {
       out.push(arg)
       continue
@@ -191,7 +195,11 @@ export function parseRunArgs(
 ): Extract<RunCommand, { readonly type: 'help' | 'run' }> {
   let parsed: ReturnType<typeof parse>
   try {
-    parsed = parse(bailWithCount(args).map(longFormOfShortWithEquals))
+    // `--` ends the flags: what follows is patterns, copied through as it is.
+    const end = args.indexOf('--')
+    const flags = end < 0 ? args : args.slice(0, end)
+    const tail = end < 0 ? [] : args.slice(end)
+    parsed = parse([...bailWithCount(flags).map(longFormOfShortWithEquals), ...tail])
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error), { cause: error })
   }
@@ -364,6 +372,11 @@ async function runBare(args: readonly string[], io: CliIo): Promise<number> {
   let dialect: string | undefined
   for (let index = 0; index < args.length; index++) {
     const arg = args[index] as string
+    if (arg === '--') {
+      // The rest are test path patterns, whatever they look like.
+      rest.push(...args.slice(index))
+      break
+    }
     if (arg === '--dialect') {
       dialect = args[++index]
       if (dialect === undefined) throw new UsageError('--dialect needs jest or vitest')

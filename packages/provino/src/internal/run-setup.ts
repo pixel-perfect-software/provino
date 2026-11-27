@@ -164,6 +164,32 @@ export function patternFilters(patterns: readonly string[] | undefined): readonl
   return (patterns ?? []).map((value) => ({ kind: 'regex', value }))
 }
 
+/** Said when test path patterns kept no file, so a mistyped one (or a mistyped command) reads clearly. */
+export function noMatchLine(patterns: readonly string[]): string {
+  const named = patterns.map((pattern) => JSON.stringify(pattern)).join(', ')
+  return `Provino: no test file matches ${patterns.length === 1 ? 'the pattern' : 'any of the patterns'} ${named}\n`
+}
+
+/**
+ * Whether the command line's patterns select no file at all in any project: the only case the
+ * no-match line is for. A shard that got none, or a run cut short before a file was queued, has
+ * files the patterns select, so neither says it.
+ * @internal
+ */
+export async function patternsSelectNothing(
+  options: RunOptions,
+  resolved: ResolvedRun,
+): Promise<boolean> {
+  const filters = patternFilters(options.testPathPatterns)
+  if (filters.length === 0) return false
+  for (const project of [resolved.project, ...resolved.others]) {
+    const files = await discoverProject(project)
+    const selected = selectFiles(files, filters, { rootDir: project.rootDir, cwd: resolved.cwd })
+    if (selected.length > 0) return false
+  }
+  return true
+}
+
 /**
  * What `run()` and a watch run both hand `executeProject`: the project, where output goes, the
  * reporters, the pool and every run option `options` carries. A watch run adds its session and

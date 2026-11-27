@@ -96,7 +96,10 @@ export interface ConfigCoverage {
    * None: every file the tests load.
    */
   readonly include?: readonly string[]
-  /** Files that never count, as globs relative to the run's root. Default: `['**\/node_modules/**']`. */
+  /**
+   * Files that never count, as globs relative to the run's root. `**\/node_modules/**` never counts
+   * either way: a list given here adds to it.
+   */
   readonly exclude?: readonly string[]
   /** The reports to write, each a name or `[name, options]`. Default: `['text', 'lcovonly']`. */
   readonly reporters?: readonly (

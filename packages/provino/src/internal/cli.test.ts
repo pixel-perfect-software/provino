@@ -226,6 +226,12 @@ describe('parseRunArgs', () => {
     assert.equal(bail('--bail', '3'), 3)
     assert.equal(bail('--bail=0'), 0, 'zero is off, as in Jest')
     assert.equal(bail(), undefined)
+    // After `--` everything is a pattern, whatever it looks like.
+    const after = parseRunArgs(['--config', 'c.mjs', '--bail', '--', '--bail', '3', '-t=x'])
+    assert.deepEqual(after, {
+      type: 'run',
+      options: { config: 'c.mjs', bail: 1, testPathPatterns: ['--bail', '3', '-t=x'] },
+    })
     // A flag after a bare --bail is a flag, not its count.
     assert.deepEqual(parseRunArgs(['--config', 'c.mjs', '--bail', '--ci']), {
       type: 'run',
