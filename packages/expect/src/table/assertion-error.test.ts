@@ -14,7 +14,12 @@ const THIS_FILE = fileURLToPath(import.meta.url)
 function engine(): TestEngine & { readonly expect: ExpectStatic } {
   const built = testEngine({
     table: provinoExpectTable(),
-    policy: { errorShape: 'assertion-error', settlementCheck: 'at-read', soft: true },
+    policy: {
+      errorShape: 'assertion-error',
+      settlementCheck: 'at-read',
+      soft: true,
+      messageArgument: true,
+    },
   })
   built.current.enter(testTask('t'))
   return built
@@ -39,6 +44,71 @@ describe("Provino's table under errorShape: 'assertion-error'", () => {
         assert.match(made.message, /Expected: 2/)
         return true
       },
+    )
+  })
+
+  test('a message labels the failure: its own line, a blank line, then the matcher text', () => {
+    assert.throws(
+      () => engine().expect(2.1, 'ink on the card').toBeGreaterThanOrEqual(3),
+      (error: unknown) => {
+        const made = assertTableError(error, 'toBeGreaterThanOrEqual')
+        assert.match(
+          made.message,
+          /^ink on the card\n\nexpect\(received\)\.toBeGreaterThanOrEqual\(expected\)/,
+        )
+        assert.match(made.message, /Received: 2\.1/)
+        return true
+      },
+    )
+  })
+
+  test('an empty or non-string message labels nothing', () => {
+    const { expect } = engine()
+    const untyped = expect as (...a: unknown[]) => { toBe(e: unknown): void }
+    for (const label of ['', 5]) {
+      assert.throws(
+        () => untyped(1, label).toBe(2),
+        (error: unknown) =>
+          /^expect\(received\)\.toBe\(expected\)/.test(assertTableError(error, 'toBe').message),
+      )
+    }
+  })
+
+  test('the label is kept on a .resolves and a .rejects failure', async () => {
+    await assert.rejects(
+      () => engine().expect(Promise.resolve(1), 'the label').resolves.toBe(2),
+      (error: unknown) =>
+        /^the label\n\nexpect\(received\)\.resolves\.toBe/.test(
+          assertTableError(error, 'toBe').message,
+        ),
+    )
+    await assert.rejects(
+      () => engine().expect(Promise.resolve(1), 'the label').rejects.toBe(1),
+      (error: unknown) => /^the label\n\n/.test(assertTableError(error, 'toBe').message),
+    )
+  })
+
+  test('expect.soft(value, message) keeps the label on the held error', () => {
+    const { expect, source } = engine()
+    assert.ok(expect.soft !== undefined)
+    expect.soft(1, 'the label').toBe(2)
+    const [held] = source.current().suppressedErrors
+    assert.match(assertTableError(held, 'toBe').message, /^the label\n\nexpect\(received\)/)
+  })
+
+  test('without a message the failure starts with the matcher text', () => {
+    assert.throws(
+      () => engine().expect(1).toBe(2),
+      (error: unknown) =>
+        /^expect\(received\)\.toBe\(expected\)/.test(assertTableError(error, 'toBe').message),
+    )
+  })
+
+  test('a third argument is refused in words that match the policy', () => {
+    const { expect } = engine()
+    assert.throws(
+      () => (expect as (...a: unknown[]) => unknown)(1, 'a', 'b'),
+      /^Error: expect\(\) takes a value and an optional message$/,
     )
   })
 

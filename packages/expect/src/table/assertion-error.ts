@@ -20,7 +20,14 @@ export class ProvinoAssertionError extends Error {
   readonly expected: unknown
 
   constructor(result: MatcherResult, message: string, call: MatcherCall) {
-    super(message, call.settlement === 'rejected' ? { cause: result.actual } : undefined)
+    // `expect(actual, message)`: the label is the message's first line, then a blank line. Only a
+    // non-empty string labels (an empty one, or an untyped caller's non-string, adds nothing).
+    super(
+      typeof call.message === 'string' && call.message !== ''
+        ? `${call.message}\n\n${message}`
+        : message,
+      call.settlement === 'rejected' ? { cause: result.actual } : undefined,
+    )
     this.matcherName = call.matcherName
     this.actual = result.actual
     this.expected = result.expected
