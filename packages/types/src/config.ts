@@ -194,6 +194,16 @@ export interface BaseConfig {
   readonly environmentOptions?: Readonly<Record<string, JsonValue>>
   readonly timeouts?: ConfigTimeouts
   readonly resolve?: ConfigResolve
+  /**
+   * Compile-time replacements in the project's own modules, as a bundler's `define` makes them
+   * (esbuild, Vite, webpack's DefinePlugin): each key, an identifier or a dotted member chain
+   * (`__APP_VERSION__`, `process.env.NODE_ENV`, `import.meta.env.DEV`, `import.meta.env`), is
+   * replaced where it is read. A string is the source text of an expression (`'"test"'` is the
+   * string test, `'true'` the boolean); any other JSON value is written as its JSON text, so
+   * `{ 'import.meta.env.DEV': true }` and `{ 'import.meta.env': { DEV: true } }` work. Only modules
+   * Provino transforms take it, not a `node_modules` package Node loads itself.
+   */
+  readonly define?: Readonly<Record<string, JsonValue>>
   /** Dialects to load. Default: the two built-ins. */
   readonly dialects?: readonly Dialect[]
   readonly plugins?: readonly ProvinoPlugin[]
@@ -332,6 +342,11 @@ export interface SerializedLoaderConfig {
   readonly conditions: readonly string[]
   /** `auto`: the nearest `tsconfig.json`; a path: that file (absolute); `false`: none. */
   readonly tsconfig: 'auto' | false | string
+  /**
+   * The config's `define`, as the source text of each replacement (strings only, so it clones);
+   * absent for none. Every file the pipeline transforms takes Oxc's transform when it is set.
+   */
+  readonly define?: Readonly<Record<string, string>>
   /** Mappers in the order they run; the first hit wins. Loaded by `ModuleRef` in the worker (each factory's `module` is absolute). */
   readonly mappers: readonly SerializedModuleMapper[]
   /**

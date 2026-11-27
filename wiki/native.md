@@ -91,6 +91,7 @@ Node itself reads the config file, so a `.ts` config needs Node 22.18 or later, 
 | `setupFiles` | Modules imported before each test file: a path (`./test/setup.ts`) or a package name |
 | `timeouts` | `{ test, hook, teardown }` in ms. Defaults 5000, 10000 and 10000; `0` is no limit. A timeout given to a test or hook wins |
 | `resolve` | `conditions` (export conditions added after the environment's, such as `['development']`), `aliases` (`{ '@/*': './src/*' }`) and `tsconfig` (`'auto'` is the nearest `tsconfig.json`, a path, or `false`) |
+| `define` | Compile-time replacements in your own modules, as a bundler's `define` makes them: see [define](#define) |
 | `coverage` | Code coverage: see [Coverage](#coverage). Top level only |
 | `projects` | See [Projects](#projects). Top level only |
 | `pool` | `forks` (default), `threads` or `inline`: the pool when the command line names none. Top level only |
@@ -100,6 +101,26 @@ Node itself reads the config file, so a `.ts` config needs Node 22.18 or later, 
 Reporters are not config keys: name them on the command line (`--reporter`). A key the config does not know is a usage error that names the nearest one: `unknown config key "incude"; did you mean "include"?` (exit 2). A non-empty `plugins` or `alsoServe` is refused by name too.
 
 Naming a dialect (`dialect: 'jest'`) makes the project a Jest project, which needs [`@provino/dialect-jest`](compatibility.md) installed.
+
+### define
+
+`define` replaces an expression with a value where your modules read it, before they run, as esbuild, Vite and webpack's DefinePlugin do. Provino emulates nothing of a bundler, so a project names what its own bundler substitutes. A Vite app reads `import.meta.env` in its source, and Vite fills it in when it builds the app; a native run has no such object, so the module throws `Cannot read properties of undefined (reading 'DEV')`. Give the same values here:
+
+```ts
+export default defineConfig({
+  define: {
+    'import.meta.env.DEV': true,
+    'import.meta.env.MODE': '"test"',
+    __APP_VERSION__: '"1.2.3"',
+  },
+})
+```
+
+A key is an identifier or a dotted chain of identifiers (`__APP_VERSION__`, `process.env.NODE_ENV`, `import.meta.env.DEV`, `import.meta.env`); any other key is a config error naming `define["<key>"]`. A string value is the source text of an expression, so `'"test"'` is the string `test` and `'true'` is the boolean. Any other JSON value (a number, boolean, `null`, array or object) is written as its JSON text, which is how `{ 'import.meta.env': { DEV: true, BASE_URL: '/' } }` makes both `import.meta.env.DEV` and `import.meta.env[key]` work. Give the whole object or the single members; a more specific key wins where both match.
+
+- **Reach.** Only the modules Provino transforms take it: your test files, your source and a `node_modules` package a transform claims. A `node_modules` package that Node loads itself does not, as a bundler's `define` leaves a dependency it does not bundle alone. Any other `import.meta` (`import.meta.url`) still works as before.
+- **Coverage.** With `define` set, every file takes Oxc's transform and its source map. Without it, a `.ts` file collected for coverage is instead stripped in place (types become spaces, so positions stay put and no map is needed). So under `--coverage` a project with `define` maps positions through Oxc's map, which can differ slightly from the in-place strip's.
+- The key is for a project with no dialect; a Jest project's config has no such key, and Vitest's own `define` handling is unchanged.
 
 ## Coverage
 

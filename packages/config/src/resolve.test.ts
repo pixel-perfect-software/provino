@@ -1294,6 +1294,90 @@ describe('resolveProject', () => {
     })
   })
 
+  describe('define', () => {
+    test('a string is source text and any other JSON value is its JSON text', async () => {
+      const project = await resolveWith({
+        define: {
+          'import.meta.env.DEV': true,
+          'import.meta.env.MODE': '"test"',
+          'process.env.NODE_ENV': '"test"',
+          __APP_VERSION__: '"1.2.3"',
+          __COUNT__: 3,
+          __NOTHING__: null,
+          __LIST__: [1, 'a'],
+          'import.meta.env': { DEV: true, BASE_URL: '/' },
+        },
+      })
+      assert.deepEqual(project.config.loader.define, {
+        'import.meta.env.DEV': 'true',
+        'import.meta.env.MODE': '"test"',
+        'process.env.NODE_ENV': '"test"',
+        __APP_VERSION__: '"1.2.3"',
+        __COUNT__: '3',
+        __NOTHING__: 'null',
+        __LIST__: '[1,"a"]',
+        'import.meta.env': '{"DEV":true,"BASE_URL":"/"}',
+      })
+    })
+
+    test('no define, or an empty one, leaves the loader without the field', async () => {
+      assert.equal('define' in (await resolveWith({})).config.loader, false)
+      assert.equal('define' in (await resolveWith({ define: {} })).config.loader, false)
+    })
+
+    test('a key that names nothing a define can replace is CONFIG_INVALID naming it', async () => {
+      const keys = ['', '1x', 'a-b', 'a..b', '.a', 'a.', 'a b', 'a[0]', 'a()', 'a.1']
+      // `import.meta` alone would break `import.meta.url`; a reserved word starts no name;
+      // `__proto__` would be dropped by an object assignment.
+      keys.push(
+        'import.meta',
+        'import',
+        'import.foo',
+        'this',
+        'this.x',
+        'new',
+        'class',
+        '__proto__',
+      )
+      for (const key of keys) {
+        const error = await rejectsWith(
+          resolveWith({ define: { [key]: '1' } } as never),
+          'CONFIG_INVALID',
+        )
+        assert.ok(error.message.includes(`define[${JSON.stringify(key)}]`), error.message)
+      }
+    })
+
+    test('a value that is not JSON, or a blank string, is CONFIG_INVALID naming the key', async () => {
+      for (const value of [() => 1, undefined, Number.NaN, Number.POSITIVE_INFINITY, '', '  ']) {
+        const error = await rejectsWith(
+          resolveWith({ define: { X: value } } as never),
+          'CONFIG_INVALID',
+        )
+        assert.ok(error.message.includes('define["X"]'), error.message)
+      }
+      await rejectsWith(resolveWith({ define: { X: { f: () => 1 } } } as never), 'CONFIG_INVALID')
+    })
+
+    test('a value Oxc does not take as one expression is CONFIG_INVALID naming the key and the reason', async () => {
+      for (const value of ['1 +', 'a; b', '"a" "b"', 'a) + (b']) {
+        const error = await rejectsWith(
+          resolveWith({ define: { X: value } } as never),
+          'CONFIG_INVALID',
+        )
+        assert.ok(error.message.includes('define["X"]'), error.message)
+        assert.ok(error.message.includes('Unexpected token'), error.message)
+      }
+      await resolveWith({ define: { X: 'a, b', Y: '{"DEV":true}', 'import.meta.env.Z': '1' } })
+    })
+
+    test('define must be an object', async () => {
+      for (const define of [[], 'X', 1, null]) {
+        await rejectsWith(resolveWith({ define } as never), 'CONFIG_INVALID')
+      }
+    })
+  })
+
   describe('keys of the whole run', () => {
     test('pool and maxWorkers are checked', async () => {
       await resolveWith({ pool: 'threads', maxWorkers: 2 })
