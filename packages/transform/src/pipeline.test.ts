@@ -202,6 +202,53 @@ test('plain JavaScript passes through untouched, unless define is set', () => {
   assert.notEqual(defined.map, null)
 })
 
+// A native config's `define` (#210): Oxc replaces what a Vite app writes, in every module kind,
+// and the module-runner step still turns any other `import.meta` into the wrapper's.
+for (const extension of ['ts', 'tsx', 'js']) {
+  test(`define replaces member chains, a whole object and an identifier in a .${extension} module`, () => {
+    const root = writeTree({})
+    const file = join(root, `app.${extension}`)
+    const source = [
+      'export const dev = import.meta.env.DEV',
+      'export const mode = import.meta.env.MODE',
+      'export const node = process.env.NODE_ENV',
+      'export const version = __APP_VERSION__',
+      'export const url = import.meta.url',
+      '',
+    ].join('\n')
+    const chains = createPipeline(
+      options(root, {
+        define: {
+          'import.meta.env.DEV': 'true',
+          'import.meta.env.MODE': '"test"',
+          'process.env.NODE_ENV': '"test"',
+          __APP_VERSION__: '"1.2.3"',
+        },
+      }),
+    ).transform(request(file, source))
+    assert.deepEqual(chains.diagnostics, [])
+    assert.match(chains.code, /dev = true/)
+    assert.match(chains.code, /mode = "test"/)
+    assert.match(chains.code, /node = "test"/)
+    assert.match(chains.code, /version = "1.2.3"/)
+    assert.doesNotMatch(chains.code, /import\.meta\.env/)
+    assert.match(toModuleRunner(file, chains).code, /__vite_ssr_import_meta__\.url/)
+
+    const whole = createPipeline(
+      options(root, { define: { 'import.meta.env': '{"DEV":true}' } }),
+    ).transform(
+      request(
+        file,
+        "const key = 'DEV'\nexport const a = import.meta.env.DEV\nexport const b = import.meta.env[key]\n",
+      ),
+    )
+    assert.deepEqual(whole.diagnostics, [])
+    assert.doesNotMatch(whole.code, /import\.meta\.env/)
+    assert.match(whole.code, /\{\s*DEV: true\s*\}|\{\s*"DEV": true\s*\}/)
+    assert.match(whole.code, /\.DEV|\["DEV"\]/)
+  })
+}
+
 test('tsconfig options shape the output, through extends and JSONC', () => {
   const root = writeTree({
     'node_modules/@acme/tsconfig/base.json': JSON.stringify({

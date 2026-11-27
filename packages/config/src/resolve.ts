@@ -379,6 +379,7 @@ export async function resolveProjectInput(
       aliases: aliasesOf(parsed.resolve?.aliases, rootDir),
       extraConditions: parsed.resolve?.conditions ?? [],
       tsconfig: tsconfigOf(parsed.resolve?.tsconfig, rootDir),
+      define: parsed.define,
     },
     options,
   )
@@ -553,6 +554,8 @@ interface ProjectInput {
   readonly extraConditions?: readonly string[] | undefined
   /** `loader.tsconfig`; `'auto'` when absent. */
   readonly tsconfig?: SerializedLoaderConfig['tsconfig'] | undefined
+  /** `define`, as source text (a `provino.config.*` project's only). */
+  readonly define?: SerializedLoaderConfig['define'] | undefined
 }
 
 /** `record`, or `undefined` when it has no keys: an empty one is no setting. */
@@ -708,6 +711,7 @@ async function finishProject(
       extensions: Object.freeze([...LOADER_EXTENSIONS]),
       conditions: [...new Set([...conditions, ...(input.extraConditions ?? [])])],
       tsconfig: input.tsconfig ?? 'auto',
+      ...(input.define === undefined ? {} : { define: input.define }),
       mappers: [],
       typescript: 'oxc',
       ...(input.transform === undefined ? {} : { transform: input.transform }),

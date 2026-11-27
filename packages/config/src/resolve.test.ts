@@ -14,6 +14,7 @@ import type {
 import { afterAll, beforeAll, describe, test } from 'provino'
 import { ConfigError } from './errors.ts'
 import { makeTempDir, pipe, rejectsWith, type TempDir } from './internal/test-support.ts'
+import { resolveProjects } from './projects.ts'
 import {
   type ResolvedProject,
   type ResolveProjectOptions,
@@ -1291,6 +1292,81 @@ describe('resolveProject', () => {
         'CONFIG_INVALID',
       )
       await rejectsWith(resolveWith({ environmentOptions: [] } as never), 'CONFIG_INVALID')
+    })
+  })
+
+  describe('define', () => {
+    test('a string is source text and any other JSON value is its JSON text', async () => {
+      const project = await resolveWith({
+        define: {
+          'import.meta.env.DEV': true,
+          'import.meta.env.MODE': '"test"',
+          'process.env.NODE_ENV': '"test"',
+          __APP_VERSION__: '"1.2.3"',
+          __COUNT__: 3,
+          __NOTHING__: null,
+          __LIST__: [1, 'a'],
+          'import.meta.env': { DEV: true, BASE_URL: '/' },
+        },
+      })
+      assert.deepEqual(project.config.loader.define, {
+        'import.meta.env.DEV': 'true',
+        'import.meta.env.MODE': '"test"',
+        'process.env.NODE_ENV': '"test"',
+        __APP_VERSION__: '"1.2.3"',
+        __COUNT__: '3',
+        __NOTHING__: 'null',
+        __LIST__: '[1,"a"]',
+        'import.meta.env': '{"DEV":true,"BASE_URL":"/"}',
+      })
+    })
+
+    test('no define, or an empty one, leaves the loader without the field', async () => {
+      assert.equal('define' in (await resolveWith({})).config.loader, false)
+      assert.equal('define' in (await resolveWith({ define: {} })).config.loader, false)
+    })
+
+    test('an inline project takes its own define', async () => {
+      const resolved = await resolveProjects(
+        {
+          projects: [
+            { name: 'a', root: temp.dir, define: { X: 1 } },
+            { name: 'b', root: dirname(temp.dir) },
+          ],
+        },
+        { ...base() },
+      )
+      assert.deepEqual(
+        resolved.projects.map((project) => project.config.loader.define),
+        [{ X: '1' }, undefined],
+      )
+    })
+
+    test('a key that is not an identifier or a dotted chain is CONFIG_INVALID naming it', async () => {
+      for (const key of ['', '1x', 'a-b', 'a..b', '.a', 'a.', 'a b', 'a[0]', 'a()', 'a.1']) {
+        const error = await rejectsWith(
+          resolveWith({ define: { [key]: '1' } } as never),
+          'CONFIG_INVALID',
+        )
+        assert.ok(error.message.includes(`define[${JSON.stringify(key)}]`), error.message)
+      }
+    })
+
+    test('a value that is not JSON, or a blank string, is CONFIG_INVALID naming the key', async () => {
+      for (const value of [() => 1, undefined, Number.NaN, Number.POSITIVE_INFINITY, '', '  ']) {
+        const error = await rejectsWith(
+          resolveWith({ define: { X: value } } as never),
+          'CONFIG_INVALID',
+        )
+        assert.ok(error.message.includes('define["X"]'), error.message)
+      }
+      await rejectsWith(resolveWith({ define: { X: { f: () => 1 } } } as never), 'CONFIG_INVALID')
+    })
+
+    test('define must be an object', async () => {
+      for (const define of [[], 'X', 1, null]) {
+        await rejectsWith(resolveWith({ define } as never), 'CONFIG_INVALID')
+      }
     })
   })
 
