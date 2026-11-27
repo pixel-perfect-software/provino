@@ -84,8 +84,11 @@ describe('a project with no dialect', () => {
     assert.deepEqual(resolved.config.loader.hoist, NATIVE.hoist)
   })
 
-  test('a jsdom environment gets the browser stand-ins unless environmentOptions turn them off', async () => {
-    const jsdom = { ...options(), environments: { ...ENVIRONMENTS, jsdom: ENVIRONMENTS.node } }
+  test('native environment defaults sit under the project environmentOptions', async () => {
+    const jsdom = {
+      ...options({ ...NATIVE, environmentOptions: { jsdom: { standIns: true } } }),
+      environments: { ...ENVIRONMENTS, jsdom: ENVIRONMENTS.node },
+    }
     const on = await resolveProject({ environment: 'jsdom' }, jsdom)
     assert.deepEqual(on.config.environment.options, { standIns: true })
     const off = await resolveProject(
@@ -93,12 +96,17 @@ describe('a project with no dialect', () => {
       jsdom,
     )
     assert.deepEqual(off.config.environment.options, { standIns: false, url: 'http://a.test/' })
-    const node = await resolveProject({}, options())
+    const node = await resolveProject({}, jsdom)
     assert.deepEqual(node.config.environment.options, {})
+    const none = await resolveProject({ environment: 'jsdom' }, { ...jsdom, native: NATIVE })
+    assert.deepEqual(none.config.environment.options, {})
   })
 
   test('a project with a dialect keeps the options as given', async () => {
-    const jsdom = { ...options(), environments: { ...ENVIRONMENTS, jsdom: ENVIRONMENTS.node } }
+    const jsdom = {
+      ...options({ ...NATIVE, environmentOptions: { jsdom: { standIns: true } } }),
+      environments: { ...ENVIRONMENTS, jsdom: ENVIRONMENTS.node },
+    }
     const dialect = await resolveProject(
       { dialect: 'scoped' as never, environment: 'jsdom' },
       jsdom,

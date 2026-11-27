@@ -241,6 +241,12 @@ export interface NativeRuntimeRefs {
    */
   readonly hoist?: HoistPolicy
   /**
+   * Default `EnvironmentRef.options` by environment name (`{ jsdom: { standIns: true } }`), under the
+   * project's own `environmentOptions`. Looked up by the resolved environment, so it covers an
+   * `envDefault` too. None: no defaults.
+   */
+  readonly environmentOptions?: Readonly<Record<string, EnvironmentRef['options']>>
+  /**
    * The native snapshot refs (B28): with them, the native policy's snapshot slice writes Jest's
    * `.snap` format (`nativeSnapshotPolicy` in `@provino/policy`). None: the neutral slice, with no
    * printer, so a snapshot matcher fails with `SNAPSHOT_NO_PRINTER`.

@@ -1,4 +1,4 @@
-// Browser APIs jsdom 30 lacks, installed on a window when the `standIns` option is on: no-op
+// Browser APIs jsdom lacks, installed on a window when the `standIns` option is on: no-op
 // `scrollIntoView`, `animate` and `ResizeObserver`, a `matchMedia` that never matches, and a
 // `getClientRects` that gives a rendered element one empty box. Each is defined only where the window
 // has none (a later jsdom that implements one keeps its own), writable and configurable so a
@@ -47,8 +47,6 @@ function animate(win: DOMWindow): () => object {
   return () => {
     const done = Promise.resolve()
     const animation: Bag = {
-      finished: done,
-      ready: done,
       playState: 'finished',
       pending: false,
       id: '',
@@ -82,27 +80,9 @@ class StandInResizeObserver {
   disconnect(): void {}
 }
 
-/** One empty box at the origin, from the window's `DOMRect` when it has one. */
-function emptyRect(win: DOMWindow): object {
-  const Rect = (win as unknown as Bag).DOMRect
-  if (typeof Rect === 'function') return new (Rect as new (...a: number[]) => object)(0, 0, 0, 0)
-  return Object.freeze({
-    x: 0,
-    y: 0,
-    width: 0,
-    height: 0,
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    toJSON() {
-      return { x: 0, y: 0, width: 0, height: 0, top: 0, right: 0, bottom: 0, left: 0 }
-    },
-  })
-}
-
-function rectList(rects: readonly object[]): object {
-  return Object.assign([...rects], { item: (index: number) => rects[index] ?? null })
+/** A `getClientRects` answer: the rects as an array with `item`, as a `DOMRectList` reads. */
+function rectList(rects: object[]): object {
+  return Object.assign(rects, { item: (index: number) => rects[index] ?? null })
 }
 
 /** Whether an element and every ancestor (through shadow roots) has a computed `display` other than `none`. */
@@ -124,9 +104,13 @@ export function installStandIns(win: DOMWindow): void {
   if (lacks(win, 'ResizeObserver')) define(win, 'ResizeObserver', StandInResizeObserver)
   if (lacks(proto, 'scrollIntoView')) define(proto, 'scrollIntoView', function scrollIntoView() {})
   if (lacks(proto, 'animate')) define(proto, 'animate', animate(win))
-  // One rect per rendered element: a focus trap that counts the controls with a box needs it.
-  const rect = emptyRect(win)
+  // One fresh rect per rendered element (a focus trap that counts the controls with a box needs it);
+  // an element whose own `display` is `contents` has no box, its children keep theirs.
   define(proto, 'getClientRects', function getClientRects(this: Element) {
-    return rendered(win, this) ? rectList([rect]) : rectList([])
+    return rectList(
+      rendered(win, this) && win.getComputedStyle(this).display !== 'contents'
+        ? [new win.DOMRect(0, 0, 0, 0)]
+        : [],
+    )
   })
 }
