@@ -62,6 +62,7 @@ export interface AsymmetricMatcherLike {
 
 // @public
 export interface BaseConfig {
+    readonly define?: Readonly<Record<string, JsonValue>>;
     readonly dialects?: readonly Dialect[];
     // (undocumented)
     readonly environment?: string;
@@ -3208,6 +3209,7 @@ export interface SerializedLoaderConfig {
     readonly cacheDir?: string;
     readonly codeIdentity?: string;
     readonly conditions: readonly string[];
+    readonly define?: Readonly<Record<string, string>>;
     readonly esmExtensions?: readonly string[];
     readonly extensions: readonly string[];
     readonly hoist: HoistPolicy | null;
