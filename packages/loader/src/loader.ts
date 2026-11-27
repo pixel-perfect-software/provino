@@ -66,9 +66,10 @@ export const createLoader: CreateLoader = (options) => {
     }
     const loadActual: LoadActual = (id, _importer, actualOptions) => {
       const scratch = actualOptions?.scratch === true
-      return options.policy.actual === 'sync-require'
-        ? registry.actualSync(id, scratch)
-        : registry.actualAsync(id, scratch)
+      if (options.policy.actual === 'sync-require' || actualOptions?.sync === true) {
+        return registry.actualSync(id, scratch)
+      }
+      return registry.actualAsync(id, scratch, actualOptions?.moduleValue === true)
     }
     const mocks: ModuleMockRegistry | null =
       registryOptions.moduleMocks?.({ loadActual, resolver: options.resolver, conditions }) ?? null

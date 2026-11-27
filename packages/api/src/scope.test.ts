@@ -49,7 +49,19 @@ const LAZY_NAMES = [
   'sharedExamples',
 ]
 
-const OWN_NAMES = ['expect', 'fn', 'spyOn', 'replaceProperty', 'isMockFunction', 'mocks', 'timers']
+const OWN_NAMES = [
+  'expect',
+  'fn',
+  'spyOn',
+  'replaceProperty',
+  'isMockFunction',
+  'mocked',
+  'mocks',
+  'timers',
+  'resetModules',
+  'isolateModules',
+  'isolateModulesAsync',
+]
 
 /** Served per module (they resolve from it), in the slot too, never globals. */
 const MODULE_NAMES: readonly string[] = PROVINO_MODULE_MOCK_NAMES
@@ -80,6 +92,19 @@ function fakeHost(tier: FileRegistry['tier'] = 'registry'): {
     importActual: async (...args: unknown[]) => {
       fileCalls.push(['importActual', ...args])
       return { real: true }
+    },
+    requireActual: (...args: unknown[]) => {
+      fileCalls.push(['requireActual', ...args])
+      return { real: true }
+    },
+    resetModules: () => void fileCalls.push(['resetModules']),
+    isolateModules: (fn: () => unknown) => {
+      fileCalls.push(['isolateModules'])
+      return fn()
+    },
+    isolateModulesAsync: async (fn: () => Promise<unknown>) => {
+      fileCalls.push(['isolateModulesAsync'])
+      return await fn()
     },
   } as unknown as FileRegistry
   const host: ApiHost = {
@@ -288,7 +313,7 @@ const isCode = (code: string) => (error: unknown) =>
   error instanceof ProvinoApiError && error.code === code
 
 describe('module mocks', () => {
-  test('mock, unmock and importActual resolve from the module that imported them', async () => {
+  test('mock, unmock, importActual and requireActual resolve from the module that imported them', async () => {
     const { host, fileCalls } = fakeHost()
     const scope = provinoModuleScope(host)
     const fromTest = scope('/project/a.test.ts').provino as unknown as ProvinoApi
@@ -297,6 +322,7 @@ describe('module mocks', () => {
     fromHelper.mock('./dep.ts')
     fromTest.unmock('./other.ts')
     assert.deepEqual(await fromHelper.importActual('./dep.ts'), { real: true })
+    assert.deepEqual(fromHelper.requireActual('./dep.ts'), { real: true })
     assert.deepEqual(
       fileCalls.map((call) => call.slice(0, 3)),
       [
@@ -304,6 +330,7 @@ describe('module mocks', () => {
         ['registerMock', './dep.ts', '/project/lib/helper.ts'],
         ['unregisterMock', './other.ts', '/project/a.test.ts'],
         ['importActual', './dep.ts', '/project/lib/helper.ts'],
+        ['requireActual', './dep.ts', '/project/lib/helper.ts'],
       ],
     )
     // The factory runs as given (wrapped only to explain an uninitialized read); no factory is
@@ -320,11 +347,13 @@ describe('module mocks', () => {
     const slot = Reflect.get(globalThis, PROVINO_API_SLOT) as ProvinoApi
     slot.mock('pkg')
     await slot.importActual('pkg')
+    slot.requireActual('pkg')
     assert.deepEqual(
       fileCalls.map(([kind, specifier, parent]) => [kind, specifier, parent]),
       [
         ['registerMock', 'pkg', null],
         ['importActual', 'pkg', null],
+        ['requireActual', 'pkg', null],
       ],
     )
   })
@@ -336,10 +365,12 @@ describe('module mocks', () => {
       mock(specifier: unknown, factory?: unknown): void
       unmock(specifier: unknown): void
       importActual(specifier: unknown): Promise<unknown>
+      requireActual(specifier: unknown): unknown
     }
     assert.throws(() => misuse.mock(1), isCode('API_MOCK_SPECIFIER'))
     assert.throws(() => misuse.unmock(null), isCode('API_MOCK_SPECIFIER'))
     await assert.rejects(misuse.importActual({}), isCode('API_MOCK_SPECIFIER'))
+    assert.throws(() => misuse.requireActual(1), isCode('API_MOCK_SPECIFIER'))
     assert.throws(() => misuse.mock('./a', { value: 1 }), isCode('API_MOCK_FACTORY'))
     assert.throws(() => misuse.mock('./a', null), /received null/)
     assert.deepEqual(fileCalls, [])
@@ -394,5 +425,48 @@ describe('module mocks', () => {
     const test = scope('/project/a.test.ts').provino as unknown as ProvinoApi
     test.mock('./dep.ts')
     assert.equal(fileCalls.length, 1)
+  })
+})
+
+describe('mocked', () => {
+  test('is the identity: the value itself, in the namespace, the slot and the globals', () => {
+    const { host } = fakeHost()
+    const api = served(host).mocked as <T>(value: T) => T
+    const value = { load: (): number => 1 }
+    assert.equal(api(value), value)
+    assert.equal(api(undefined), undefined)
+    assert.equal(provinoGlobals(host).mocked, api)
+  })
+})
+
+describe('module reset', () => {
+  test("resetModules, isolateModules and isolateModulesAsync reach the file registry running now and return the callback's value", async () => {
+    const { host, fileCalls } = fakeHost()
+    const api = provinoGlobals(host)
+    api.resetModules()
+    assert.equal(
+      api.isolateModules(() => 'sync'),
+      'sync',
+    )
+    assert.equal(await api.isolateModulesAsync(async () => 'async'), 'async')
+    assert.deepEqual(fileCalls, [['resetModules'], ['isolateModules'], ['isolateModulesAsync']])
+    // Plain members: the served module and the slot hold the same functions as the globals.
+    const namespace = served(host)
+    const slot = Reflect.get(globalThis, PROVINO_API_SLOT) as ProvinoApi
+    for (const name of ['resetModules', 'isolateModules', 'isolateModulesAsync'] as const) {
+      assert.equal(namespace[name], api[name], name)
+      assert.equal(slot[name], api[name], name)
+    }
+  })
+
+  test('a callback that is not a function is API_ISOLATE_CALLBACK, before the registry is asked', async () => {
+    const { host, fileCalls } = fakeHost()
+    const misuse = provinoGlobals(host) as unknown as {
+      isolateModules(fn: unknown): unknown
+      isolateModulesAsync(fn: unknown): Promise<unknown>
+    }
+    assert.throws(() => misuse.isolateModules(undefined), isCode('API_ISOLATE_CALLBACK'))
+    await assert.rejects(misuse.isolateModulesAsync('x'), isCode('API_ISOLATE_CALLBACK'))
+    assert.deepEqual(fileCalls, [])
   })
 })

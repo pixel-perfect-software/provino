@@ -32,6 +32,8 @@ export interface OpenSnapshotsOptions {
    * worker's current-test lookup: what a view's snapshots are recorded against.
    */
   readonly currentTestId?: () => string | undefined
+  /** The text the worker loaded a source file from (`SnapshotStateOptions.loadedSource`). */
+  readonly loadedSource?: (file: string) => string | undefined
 }
 
 /**
@@ -77,6 +79,7 @@ export function openFileSnapshots(options: OpenSnapshotsOptions): {
     printer: options.printer ?? missingPrinter(),
     inlineWrites: policy.inline.writer !== null,
     currentTestId: options.currentTestId,
+    loadedSource: options.loadedSource,
   })
   return {
     state,

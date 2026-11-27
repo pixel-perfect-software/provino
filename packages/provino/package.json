@@ -184,6 +184,7 @@
     "@provino/policy": "workspace:*",
     "@provino/reporters": "workspace:*",
     "@provino/resolver": "workspace:*",
+    "@provino/snapshot": "workspace:*",
     "@provino/timers": "workspace:*",
     "@provino/transform": "workspace:*",
     "@provino/types": "workspace:*",

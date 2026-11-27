@@ -34,6 +34,15 @@ import type {
 export const MOCK_BRAND: unique symbol = Symbol.for('@provino/mock.brand')
 
 /**
+ * Reads the name `mockName(name)` gave a mock: a method under this key, which answers `null` for a
+ * mock nothing named. `getMockName()` answers the policy's default (or a spy's method name) then, so
+ * only this tells a printer whether the test named it. A global symbol, so a printer in another
+ * package reads it without importing the engine.
+ * @public
+ */
+export const MOCK_EXPLICIT_NAME: unique symbol = Symbol.for('@provino/mock.explicit-name')
+
+/**
  * The key of a mock's slot: own, enumerable, and never read by anything outside this file. A symbol
  * rather than a `#private` field, because a `Proxy` around a mock must keep working.
  */
@@ -528,6 +537,9 @@ const METHODS = {
   },
   getMockName(this: unknown): string {
     return slotOf(this).mockName()
+  },
+  [MOCK_EXPLICIT_NAME](this: unknown): string | null {
+    return slotOf(this).name
   },
   mockName<S>(this: S, name: string): S {
     const slot = slotOf(this)

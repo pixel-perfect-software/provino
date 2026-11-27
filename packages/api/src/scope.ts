@@ -22,6 +22,7 @@ import {
   createMockFn,
   isMockFunction,
   type Mock,
+  type Mocked,
   type MockTarget,
   replaceProperty,
   spyOn,
@@ -29,6 +30,7 @@ import {
 } from '@provino/mock'
 import { createTimerMembers } from '@provino/timers'
 import { moduleMocksOver, PROVINO_MODULE_MOCK_NAMES } from './module-mocks.ts'
+import { moduleRegistryOver } from './module-registry.ts'
 import type {
   ApiHost,
   ProvinoApi,
@@ -127,8 +129,11 @@ function built(host: ApiHost): Built {
       replaceProperty(host.mockPolicy, host.mocks(), object, key, value),
     isMockFunction: (value: unknown): value is Mock<UnknownFunction> =>
       isMockFunction(host.mockPolicy, value),
+    // Jest's `mocked`: the value, retyped. The cast is the whole feature.
+    mocked: <T>(value: T): Mocked<T> => value as Mocked<T>,
     mocks: mocksOver(host),
     timers: timersOver(host),
+    ...moduleRegistryOver(host),
     ...moduleMocksOver(host, null),
   })
   // Configurable, so the worker's teardown (or a test) can take it out again.
@@ -154,15 +159,15 @@ function built(host: ApiHost): Built {
  * The served `provino` module's factory (`NativeRuntimeRefs.moduleScope`), called once per worker.
  * Each module that imports `provino` gets a frozen namespace of its own, the same one each time it
  * asks, holding the API and the lazy variables: every value is the worker's one object, so
- * `expect === expect` across a file's modules, except `mock`, `unmock` and `importActual`,
+ * `expect === expect` across a file's modules, except `mock`, `unmock`, `importActual` and `requireActual`,
  * which resolve a specifier from that module. It names no binding: a native file gets the API only
  * by importing it, or as globals under `globals: true`.
  * @public
  */
 export function provinoModuleScope(host: ApiHost): ProvinoModuleScope {
   const { api } = built(host)
-  // One namespace per importing module, built on its first import: `mock`, `unmock` and
-  // `importActual` resolve from that module; every other value is the worker's one object.
+  // One namespace per importing module, built on its first import: `mock`, `unmock`,
+  // `importActual` and `requireActual` resolve from that module; every other value is the worker's one object.
   const scopes = new Map<string, Readonly<Record<string, unknown>>>()
   const scopeOf = (from: string): Readonly<Record<string, unknown>> => {
     const known = scopes.get(from)

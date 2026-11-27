@@ -121,6 +121,12 @@ export interface InlineSnapshotEdit {
   readonly column: number
   /** The serialized value, with the extra line breaks. */
   readonly snapshot: string
+  /**
+   * The identity of the text the worker loaded `file` from, which `line` and `column` are
+   * positions in (`inlineSourceHash` of `@provino/snapshot`). Absent when the worker can't tell;
+   * the coordinator then writes the edit only into a file this run hasn't written yet.
+   */
+  readonly sourceHash?: string
 }
 
 /**

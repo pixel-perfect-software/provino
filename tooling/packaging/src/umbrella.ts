@@ -45,6 +45,13 @@ export const WORKER_ENTRIES: Readonly<Record<string, string>> = {
   // The native runtime (B27b, D186): the served `provino` module and its globals, for a project
   // with no dialect.
   '@provino/api': 'worker/api',
+  // The native snapshot printer's vendored pretty-format (B28): its shim rides `worker/expect-table`
+  // (`@provino/expect/table` re-exports it) and `require`s this file on the first snapshot, so a run
+  // without one never reads it.
+  '@provino/snapshot/printer-impl': 'worker/snapshot-printer-impl',
+  // The native inline snapshot writer (B28): the coordinator loads it by ref the first time a run
+  // has an inline snapshot to write, and it imports Oxc's parser only then.
+  '@provino/snapshot/inline': 'worker/snapshot-inline',
 }
 
 /**
@@ -209,6 +216,15 @@ const WATCH = new RegExp(
     .map((alternative) => `[\\\\/]packages[\\\\/]${alternative}`)
     .join('|'),
 )
+
+/**
+ * The coverage reporter and what builds it for `provino run` (B28): both import `@provino/coverage/node`,
+ * so they stay a chunk of their own that `provino jest` and `provino run` import dynamically for a run
+ * that collects coverage. Shared by two dynamic importers they would otherwise land in `coordinator.js`
+ * (`minShareCount: 2`), which would then load the coverage chunk on every run.
+ */
+const COVERAGE_RUN =
+  /[\\/]packages[\\/]provino[\\/]src[\\/]internal[\\/](?:coverage-reporter|native-coverage)\.ts$/
 
 /**
  * The `provino` reporter (B26): `@provino/reporters/live`, the renderer and the live terminal output.
@@ -401,6 +417,13 @@ export function umbrellaPasses(dir: string): UserConfig[] {
             {
               name: 'vitest-node',
               test: VITEST_NODE,
+              priority: 5,
+              includeDependenciesRecursively: false,
+            },
+            // The coverage reporter and the `provino run` wiring that builds it: coverage runs only.
+            {
+              name: 'coverage-run',
+              test: COVERAGE_RUN,
               priority: 5,
               includeDependenciesRecursively: false,
             },

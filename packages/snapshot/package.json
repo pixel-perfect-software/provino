@@ -25,6 +25,21 @@
       "types": "./dist/node/index.d.ts",
       "import": "./dist/node/index.js"
     },
+    "./printer": {
+      "provino-source": "./src/printer/index.ts",
+      "types": "./dist/printer/index.d.ts",
+      "import": "./dist/printer/index.js"
+    },
+    "./printer-impl": {
+      "provino-source": "./src/printer/impl.ts",
+      "types": "./dist/printer/impl.d.ts",
+      "import": "./dist/printer/impl.js"
+    },
+    "./inline": {
+      "provino-source": "./src/inline/index.ts",
+      "types": "./dist/inline/index.d.ts",
+      "import": "./dist/inline/index.js"
+    },
     "./runtime": {
       "provino-source": "./src/runtime/index.ts",
       "types": "./dist/runtime/index.d.ts",
@@ -43,10 +58,12 @@
     "test": "node ../../node_modules/provino-runner/dist/cli.js run"
   },
   "dependencies": {
-    "@provino/types": "workspace:*"
+    "@provino/types": "workspace:*",
+    "oxc-parser": "catalog:"
   },
   "devDependencies": {
     "@provino/policy": "workspace:*",
-    "natural-compare": "catalog:"
+    "natural-compare": "catalog:",
+    "pretty-format": "catalog:"
   }
 }

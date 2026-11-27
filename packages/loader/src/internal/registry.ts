@@ -17,7 +17,13 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { createRequire } from 'node:module'
 import { dirname } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { ModuleId, ModuleMockRegistry, ModuleScopeValues, ResolveKind } from '@provino/types'
+import type {
+  MaterializeOptions,
+  ModuleId,
+  ModuleMockRegistry,
+  ModuleScopeValues,
+  ResolveKind,
+} from '@provino/types'
 import { LoaderError, ModuleNotFoundError } from '../errors.ts'
 import { reevaluatesExternals } from '../reevaluation.ts'
 import { claimedLoad, demoteOnParseFailure, isClaimedUserModule } from './claims.ts'
@@ -80,6 +86,12 @@ interface Instance {
   /** The actual paths' view of an ES module's exports, built once. */
   view: object | null
 }
+
+/** What a sync edge asks of `materialize` under `syncMocks: 'settle'`: one object, no allocation per edge. */
+const SETTLE_NOW: MaterializeOptions = Object.freeze({ sync: true })
+
+/** A mocked edge's value as it is. */
+const IDENTITY = (value: unknown): unknown => value
 
 /**
  * A mock's value that isn't ready (a factory's Promise under `awaitFactory`), kept apart from a
@@ -205,9 +217,22 @@ export class Registry {
    * evaluates a module once, and calls the one wrapper the worker made.
    */
   readonly #freshWrappers: boolean
+  /** The mock policy's keys, read once (`#mocked` runs per edge): `awaitFactory`. */
+  readonly #awaitFactory: boolean
+  /** `awaitFactory` with `syncMocks: 'settle'`: a sync edge asks `materialize` to settle. */
+  readonly #settlesSync: boolean
+  /** `factoryShape: 'namespace'` under 'settle': an `import` may see a `require`-built mock as its file. */
+  readonly #importsValueFile: boolean
+  /** `factoryShape: 'module-value'`: an `import` sees a mock through the CommonJS interop. */
+  readonly #interopsMocks: boolean
 
   constructor(state: Records, sharedAcrossFiles = false) {
     this.#state = state
+    const policy = state.options.policy
+    this.#awaitFactory = policy.awaitFactory
+    this.#settlesSync = policy.awaitFactory && policy.syncMocks === 'settle'
+    this.#importsValueFile = policy.factoryShape === 'namespace' && policy.syncMocks === 'settle'
+    this.#interopsMocks = policy.factoryShape === 'module-value'
     this.#maps = [new Map()]
     this.#reevaluates = reevaluatesExternals(state.options.policy) && !sharedAcrossFiles
     this.#freshWrappers = !sharedAcrossFiles
@@ -476,7 +501,7 @@ export class Registry {
       record === undefined
         ? resolveOrMissing(this.#state, specifier, importer, 'require')
         : this.#targetOf(record, specifier, 'require')
-    const mocked = this.#mockOf(target, specifier, importer, 'cjs')
+    const mocked = this.#mockOf(target, specifier, importer, 'cjs', true)
     if (mocked !== REAL) {
       if (mocked instanceof Pending) {
         throw requireError(`'${specifier}'`, 'its mock is asynchronous')
@@ -495,7 +520,7 @@ export class Registry {
   /** A static import inside `record`'s wrapper, evaluating in `mode`: its target was linked ahead. */
   #importEdge(record: ModuleRecord, specifier: string, mode: Mode): unknown {
     const target = this.#targetOf(record, specifier, 'import')
-    const mocked = this.#mockOf(target, specifier, record.path, 'esm')
+    const mocked = this.#mockOf(target, specifier, record.path, 'esm', mode === 'sync')
     if (mocked !== REAL) return this.#settleFor(mocked, specifier, mode)
     const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#externalImport(found)
@@ -507,7 +532,7 @@ export class Registry {
   /** A late import (D38) on the sync path: what `require()` of a rewritten ES module needs. */
   #lateImportSync(record: ModuleRecord, specifier: string): unknown {
     const target = resolveOrMissing(this.#state, specifier, record.path, 'import')
-    const mocked = this.#mockOf(target, specifier, record.path, 'esm')
+    const mocked = this.#mockOf(target, specifier, record.path, 'esm', true)
     if (mocked !== REAL) return this.#settleFor(mocked, specifier, 'sync')
     const found = this.#maybeInline(target as Found)
     if (found.kind !== 'user') return this.#externalImport(found)
@@ -528,14 +553,23 @@ export class Registry {
    * The mock decision for an edge: the mocked value shaped for the edge, or `REAL`. A specifier
    * that didn't resolve is mocked only if `decideUnresolved` says so, and a module that didn't
    * transform only if `decide` does; otherwise its error is thrown here, when the edge runs.
+   * `sync`: the edge runs synchronously, so a mock that can settle at once does (`syncMocks`).
    */
-  #mockOf(target: Target, specifier: string, importer: string, style: Style): unknown {
+  #mockOf(
+    target: Target,
+    specifier: string,
+    importer: string,
+    style: Style,
+    sync = false,
+  ): unknown {
     const mocks = this.context.mocks
     if (target.kind === 'missing' || target.kind === 'served') {
       const served = target.kind === 'served' ? this.#served(specifier, importer, style) : REAL
       if (served !== REAL) return served
       const found = mocks?.decideUnresolved(specifier, importer)
-      if (mocks !== null && found?.mocked === true) return this.#mocked(mocks, found.id, style)
+      if (mocks !== null && found?.mocked === true) {
+        return this.#mocked(mocks, found.id, style, sync)
+      }
       throw new ModuleNotFoundError(target.error.code, target.error.message)
     }
     if (mocks === null) {
@@ -549,7 +583,7 @@ export class Registry {
       target.kind === 'builtin' ? 'builtin' : style,
       specifier,
     )
-    if (decision.mocked) return this.#mocked(mocks, decision.id, style)
+    if (decision.mocked) return this.#mocked(mocks, decision.id, style, sync)
     if (target.kind === 'failed') throw target.error
     return REAL
   }
@@ -572,16 +606,24 @@ export class Registry {
   /**
    * A mocked module's value for an edge. Under `factoryShape: 'module-value'` an `import` sees it
    * through the CommonJS interop, as it would the real `module.exports`; under `awaitFactory` a
-   * Promise is a result to wait for, otherwise it is the module itself.
+   * Promise is a result to wait for, otherwise it is the module itself. On a sync edge under
+   * `syncMocks: 'settle'` the registry builds what it can without a Promise (`MaterializeOptions`).
    */
-  #mocked(mocks: ModuleMockRegistry, id: string, style: Style): unknown {
-    const policy = this.#state.options.policy
-    const served = mocks.materialize(id)
+  #mocked(mocks: ModuleMockRegistry, id: string, style: Style, sync: boolean): unknown {
+    const served =
+      sync && this.#settlesSync ? mocks.materialize(id, SETTLE_NOW) : mocks.materialize(id)
+    // Under 'settle' a mock built from `require`'s view of a file is seen by an `import` as an
+    // `import` of that file would see it, whichever edge built it (`moduleValueFile`).
+    const valueFile =
+      style === 'esm' && this.#importsValueFile ? (mocks.moduleValueFile?.(id) ?? null) : null
+    const interop = this.#interop
     const shape =
-      style === 'esm' && policy.factoryShape === 'module-value'
-        ? (value: unknown): unknown => cjsNamespace(value, policy.interopDefault, this.#cache)
-        : (value: unknown): unknown => value
-    if (policy.awaitFactory && isThenable(served)) {
+      valueFile !== null
+        ? (value: unknown): unknown => this.importViewOf(valueFile, value)
+        : style === 'esm' && this.#interopsMocks
+          ? (value: unknown): unknown => cjsNamespace(value, interop, this.#cache)
+          : IDENTITY
+    if (this.#awaitFactory && isThenable(served)) {
       return new Pending(Promise.resolve(served).then(shape))
     }
     return shape(served)
@@ -770,9 +812,34 @@ export class Registry {
     return scratch ? this.#inScratch(() => this.#actualSync(id)) : this.#actualSync(id)
   }
 
-  /** The same through `import`: a CommonJS module as its namespace. */
-  actualAsync(id: string, scratch = false): Promise<unknown> {
-    return scratch ? this.#inScratch(() => this.#actualAsync(id)) : this.#actualAsync(id)
+  /**
+   * The same through `import`: a CommonJS module as its namespace. `moduleValue`
+   * (`LoadActualOptions.moduleValue`) gives `require`'s view (`actualSync`'s) through this async
+   * path instead, which waits for a graph that awaits.
+   */
+  actualAsync(id: string, scratch = false, moduleValue = false): Promise<unknown> {
+    return scratch
+      ? this.#inScratch(() => this.#actualAsync(id, moduleValue))
+      : this.#actualAsync(id, moduleValue)
+  }
+
+  /**
+   * What an `import` of `file` sees when `require` of it gives `value` (a mock built from that
+   * view, `ModuleMockRegistry.moduleValueFile`): an ES module's view as it is, a JSON file's
+   * value as its `default`, a CommonJS value or an external's through the interop, as
+   * `actualAsync` gives each.
+   */
+  importViewOf(file: string, value: unknown): unknown {
+    const target = this.#maybeInline(this.#actualTarget(file))
+    if (target.kind !== 'user') return cjsNamespace(value, this.#interop, this.#cache)
+    const format = recordFor(this.#state, target.id, false).format
+    if (format === 'esm') return value
+    if (format === 'json') {
+      const namespace = moduleNamespace()
+      namespace.default = value
+      return namespace
+    }
+    return cjsNamespace(value, this.#interop, this.#cache)
   }
 
   #actualTarget(id: string): Found {
@@ -797,10 +864,12 @@ export class Registry {
     return this.#viewOf(instance)
   }
 
-  async #actualAsync(id: string): Promise<unknown> {
+  /** `moduleValue`: `require`'s view of a module that isn't ESM, not its namespace. */
+  async #actualAsync(id: string, moduleValue = false): Promise<unknown> {
     const target = this.#maybeInline(this.#actualTarget(id))
     if (target.kind !== 'user') {
-      return cjsNamespace(this.#requireExternal(target), this.#interop, this.#cache)
+      const required = this.#requireExternal(target)
+      return moduleValue ? required : cjsNamespace(required, this.#interop, this.#cache)
     }
     this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, false)
@@ -811,8 +880,11 @@ export class Registry {
     const instance = this.#instances.get(record.id)
     if (instance === undefined) throw new Error(`${record.id} was evaluated in no instance map`)
     await evaluated
-    if (record.format !== 'esm') return this.#importValueOfInstance(instance)
-    return this.#viewOf(instance)
+    if (record.format === 'esm') return this.#viewOf(instance)
+    if (!moduleValue) return this.#importValueOfInstance(instance)
+    return record.format === 'json'
+      ? Reflect.get(instance.exports ?? {}, 'default')
+      : instance.module?.exports
   }
 
   #viewOf(instance: Instance): object {

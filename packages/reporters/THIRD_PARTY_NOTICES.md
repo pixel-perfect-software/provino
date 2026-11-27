@@ -14,6 +14,8 @@ This file is the license notice for that code. Source files keep the license hea
 
 `packages/dialect-jest/src/runtime/vendor/jest-snapshot/` and `packages/snapshot/src/vendor/deep-merge.ts` are copied from Jest v30.5.2, `packages/jest-snapshot/src/mockSerializer.ts` and `utils.ts`.
 
+`packages/snapshot/src/vendor/pretty-format/` is copied from `pretty-format` 30.5.1 (Jest's `packages/pretty-format/src`), and `packages/snapshot/src/vendor/jest-snapshot/mock-serializer.ts` from Jest v30.5.2's `mockSerializer.ts`.
+
 Smaller copies from Jest v30.5.x that have no vendor directory, each with its source named in the file's own comments:
 
 - `packages/dialect-jest/src/node/cli-table.ts` is jest-cli's table of command-line options, with each option's description (`src/args.ts`).
@@ -118,6 +120,50 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+```
+
+## react-is
+
+`packages/snapshot/src/vendor/react-is/` is the predicates of react-is 18.3.1 and 19.3.1 (https://github.com/facebook/react) that `pretty-format`'s React plugin calls, ported to TypeScript.
+
+```
+MIT License
+
+Copyright (c) Facebook, Inc. and its affiliates.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+```
+
+## ansi-styles
+
+`packages/snapshot/src/vendor/ansi-styles/` is ansi-styles 5.2.0 by Sindre Sorhus (https://github.com/chalk/ansi-styles), ported to TypeScript. `pretty-format` colours its output with it.
+
+```
+MIT License
+
+Copyright (c) Sindre Sorhus <sindresorhus@gmail.com> (sindresorhus.com)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 ```
 
 ## natural-compare

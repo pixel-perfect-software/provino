@@ -23,7 +23,15 @@ import type { RunOptions } from '../types.ts'
 import { workerStartupEnv } from './compile-cache.ts'
 import { type ExecuteOptions, executeProject } from './execute.ts'
 import { DOCUMENT_REPORTERS, isDocumentReporter } from './reporter-names.ts'
-import { executeOptionsOf, type ResolvedRun, reportRunError, resolveRun } from './run-setup.ts'
+import {
+  executeOptionsOf,
+  patternFilters,
+  type ResolvedRun,
+  reportNoMatch,
+  reportRunError,
+  resolveRun,
+  selectByPatterns,
+} from './run-setup.ts'
 import { latchInterrupts, type RunInterrupts } from './watch-interrupt.ts'
 import { createWatchQueue, type Trigger } from './watch-queue.ts'
 
@@ -58,6 +66,9 @@ export interface NativeWatchIo {
 
 /** `--watch`: the files a change reaches; `--watchAll`: every file on any change. */
 export type WatchMode = 'changed' | 'all'
+
+/** Said once when a config asks for coverage under watch, which collects none. */
+export const COVERAGE_NOTICE = 'Provino: coverage is not collected in watch mode\n'
 
 /** The line after each run on a terminal. */
 export const WATCH_HINT = 'Watching: a runs all, f runs the failed, Enter reruns, q quits'
@@ -108,6 +119,13 @@ async function watchLoop(
   const stderr = options.stderr ?? process.stderr
   const stdin: WatchInput = io.stdin ?? process.stdin
   const { env } = first
+  // A watch run collects no coverage: a config that asks for it gets one line saying so.
+  if (first.coverage.enabled) stderr.write(COVERAGE_NOTICE)
+  // Every run, a related one included, stays inside the command line's patterns.
+  const filters = patternFilters(options.testPathPatterns)
+  // Reruns force `passWithNoTests`, so a pattern that selects nothing is said once: after the first
+  // run, and only when it ran no file.
+  let sayNoMatch = true
   const stderrIsTerminal = Reflect.get(stderr, 'isTTY') === true
   const columns: unknown = Reflect.get(stderr, 'columns')
   // The reporters' own rule for a live terminal (not CI, not dumb, not an agent's), and a
@@ -220,7 +238,16 @@ async function watchLoop(
       extra = { onlyFailures: new Set(queue.failedFiles) }
     } else if (trigger.kind === 'changed') {
       const selection: AffectedSelection = { kind: 'related', paths: trigger.paths }
-      extra = { selection }
+      // A selection replaces the file filters, so the command line's patterns restrict the files it
+      // reached here.
+      extra =
+        filters.length === 0
+          ? { selection }
+          : {
+              selection,
+              fileFilter: (project, files) =>
+                selectByPatterns(files, filters, project, resolved.cwd),
+            }
     }
     interrupts.begin()
     let result: Awaited<ReturnType<typeof executeProject>>
@@ -241,6 +268,10 @@ async function watchLoop(
     }
     if (quitting) return
     lastExit = result.exitCode
+    if (sayNoMatch) {
+      sayNoMatch = false
+      if (result.summary?.files.length === 0) await reportNoMatch(options, resolved, stderr)
+    }
     if (result.summary !== null) {
       const projects = [resolved.project, ...resolved.others]
       queue.record(

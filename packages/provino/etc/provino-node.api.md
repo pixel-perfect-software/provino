@@ -36,6 +36,7 @@ export interface RunOptions {
     readonly cache?: boolean;
     readonly ci?: boolean;
     readonly config: string;
+    readonly coverage?: boolean;
     readonly cwd?: string;
     readonly detectOpenHandles?: boolean;
     readonly emoji?: false;
@@ -55,6 +56,7 @@ export interface RunOptions {
     readonly stderr?: NodeJS.WritableStream;
     readonly stdout?: TextSink;
     readonly testNamePattern?: string;
+    readonly testPathPatterns?: readonly string[];
     readonly timingsFile?: string;
     readonly updateSnapshot?: boolean;
     readonly updateTimings?: boolean;

@@ -8,6 +8,7 @@
 import { existsSync, readFileSync, unlinkSync } from 'node:fs'
 import {
   addExtraLineBreaks,
+  inlineSourceHash,
   keyToTestName,
   normalizeNewlines,
   removeExtraLineBreaks,
@@ -27,7 +28,8 @@ import type {
   SnapshotViewMatchResult,
   SnapshotViewSource,
 } from '@provino/types'
-import { readSnapFile, writeFileAtomically } from './files.ts'
+import { writeFileAtomically } from '../write-atomically.ts'
+import { readSnapFile } from './files.ts'
 import { topFrame } from './frame.ts'
 
 /**
@@ -64,6 +66,12 @@ export interface SnapshotStateOptions {
    * view's snapshots belong to no attempt.
    */
   readonly currentTestId?: (() => string | undefined) | undefined
+  /**
+   * The text the worker loaded a source file from, which a frame's line and column are positions
+   * in, or `undefined` when it can't tell: what an inline edit's `sourceHash` is the hash of.
+   * Asked once per file that takes an inline edit.
+   */
+  readonly loadedSource?: ((file: string) => string | undefined) | undefined
 }
 
 /**
@@ -151,6 +159,8 @@ export class SnapshotState implements SnapshotViewSource {
   private readonly uncheckedKeys: Set<string>
   private readonly rawSnapshots: RawSnapshot[] = []
   private readonly inlineEdits: InlineSnapshotEdit[] = []
+  /** The `sourceHash` of each file an inline edit went into, worked out on its first edit. */
+  private readonly sourceHashes = new Map<string, string | undefined>()
   private readonly attempts = new Map<string, AttemptRecord>()
   private writeCount = 0
   private plugins: SnapshotPlugin[]
@@ -619,9 +629,25 @@ export class SnapshotState implements SnapshotViewSource {
         "Couldn't infer the stack frame of an inline snapshot, so it can't be written",
       )
     }
-    const edit = { file: frame.file, line: frame.line, column: frame.column - 1, snapshot }
+    const sourceHash = this.sourceHashOf(frame.file)
+    const edit: InlineSnapshotEdit = {
+      file: frame.file,
+      line: frame.line,
+      column: frame.column - 1,
+      snapshot,
+      ...(sourceHash === undefined ? {} : { sourceHash }),
+    }
     this.inlineEdits.push(edit)
     this.recordFor(testId)?.inlineEdits.push(edit)
+  }
+
+  /** The hash of the text the worker loaded `file` from, when it can tell. */
+  private sourceHashOf(file: string): string | undefined {
+    if (this.sourceHashes.has(file)) return this.sourceHashes.get(file)
+    const text = this.options.loadedSource?.(file)
+    const hash = text === undefined ? undefined : inlineSourceHash(text)
+    this.sourceHashes.set(file, hash)
+    return hash
   }
 
   private addRaw(file: string, snapshot: string, testId: string | undefined): void {

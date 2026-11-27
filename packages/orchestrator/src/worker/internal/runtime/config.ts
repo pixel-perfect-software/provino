@@ -312,6 +312,9 @@ function coverageConfig(value: unknown): SerializedCoverageConfig {
     testRegex: texts(coverage.testRegex, 'coverage.testRegex'),
     testIgnorePatterns: texts(coverage.testIgnorePatterns, 'coverage.testIgnorePatterns'),
     excludePatterns: texts(coverage.excludePatterns, 'coverage.excludePatterns'),
+    ...(coverage.excludeGlobs === undefined
+      ? {}
+      : { excludeGlobs: texts(coverage.excludeGlobs, 'coverage.excludeGlobs') }),
     excludePaths: absolutePaths(coverage.excludePaths, 'coverage.excludePaths'),
     // `-o` (B23c Phase 6): absent on a full run, which counts every file.
     ...(coverage.changedFiles === undefined

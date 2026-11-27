@@ -2,9 +2,11 @@
 // `ProvinoConfig` (what `defineConfig` takes) and `NativeRuntimeRefs` (D186).
 import type {
   CloneSafe,
+  ConfigCoverage,
   ConfigEnv,
   ConfigResolve,
   ConfigTimeouts,
+  CoverageReporterName,
   GlobalsFactory,
   MatcherTableFactory,
   ModuleRef,
@@ -113,3 +115,29 @@ export {
   projectPool,
   stringTimeout,
 }
+
+// B28: the top-level `coverage` key, the run's own.
+const coverage: ConfigCoverage = {
+  enabled: true,
+  provider: 'istanbul',
+  include: ['src/**/*.ts', '!src/skip.ts'],
+  exclude: ['src/gen/**'],
+  reporters: ['text', ['lcov', { projectRoot: '/x' }]],
+  directory: 'coverage',
+  thresholds: { global: { lines: 80, branches: -2 }, 'src/a.ts': { statements: 100 } },
+}
+expectTypeOf({ coverage }).toExtend<ProvinoConfigInput>()
+expectTypeOf<ProvinoConfigInput['coverage']>().toEqualTypeOf<ConfigCoverage | undefined>()
+expectTypeOf<ProjectConfig>().not.toHaveProperty('coverage')
+expectTypeOf<'coverage'>().toExtend<ReservedConfigKey>()
+expectTypeOf<'lcovonly' | 'text-summary' | 'html-spa'>().toExtend<CoverageReporterName>()
+// @ts-expect-error not a provider
+const _badProvider: ConfigCoverage = { provider: 'babel' }
+// @ts-expect-error not an istanbul-reports reporter
+const _badReporter: ConfigCoverage = { reporters: ['lcovv'] }
+// @ts-expect-error not a coverage metric
+const _badMetric: ConfigCoverage = { thresholds: { global: { paths: 80 } } }
+// @ts-expect-error a threshold is a number
+const _badThreshold: ConfigCoverage = { thresholds: { global: { lines: '80' } } }
+// @ts-expect-error not a key of coverage
+const _badKey: ConfigCoverage = { reporter: ['text'] }

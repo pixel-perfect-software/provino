@@ -71,6 +71,7 @@ import type {
   IsolationTier,
   JsonValue,
   Loader,
+  ModuleId,
   ModuleMockRegistry,
   ModuleMocksFactory,
   ModuleScopeValues,
@@ -506,6 +507,25 @@ interface OpenSnapshots {
 function withLearned(learned: readonly string[], more: readonly string[]): readonly string[] {
   if (more.length === 0) return learned
   return [...new Set([...learned, ...more])]
+}
+
+/**
+ * The text `loader` read a file from, which a frame in it is mapped back to: the one source of
+ * the map it compiled the module with. `undefined` for a module it didn't compile, a map with no
+ * source text, or one composed from several sources (a frame's position may then be in another).
+ * Asked only for a file an inline snapshot is written into.
+ *
+ * Made here, not inline in the per-file run: the file's snapshot state keeps this function, and a
+ * closure made there would keep the whole per-file scope (its registry and environment) reachable
+ * after the file ends, which `--detectLeaks` reports as a leak.
+ */
+function loadedSourceOf(loader: Loader): (file: string) => string | undefined {
+  return (file) => {
+    const map = loader.getSourceMap(file as ModuleId)
+    if (map === null || map.sources.length !== 1) return undefined
+    const text = map.sourcesContent?.[0]
+    return typeof text === 'string' ? text : undefined
+  }
 }
 
 function isEmptyReport(report: SnapshotFileReport): boolean {
@@ -1141,6 +1161,8 @@ export function createRuntimeRunner(): WorkerRunner {
             contextView,
             // The attempt a view's snapshot belongs to, so a retry takes it back too.
             currentTestId,
+            // What an inline edit's positions are in, so the coordinator writes it only there.
+            loadedSource: loadedSourceOf(worker.loader),
           })
           Object.assign(worker.source.file(), { snapshotState: snapshots.matcherSnapshotState })
           return snapshots

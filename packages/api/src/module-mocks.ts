@@ -1,4 +1,4 @@
-// The native API's module-mock members (B27j): `mock`, `unmock` and `importActual`, over the file
+// The native API's module-mock members (B27j, B28): `mock`, `unmock`, `importActual` and `requireActual`, over the file
 // registry running now (`host.registry()`), so a registration lives and dies with its file.
 import type { MockFactory, MockSpec, ModuleId } from '@provino/types'
 import { ProvinoApiError } from './errors.ts'
@@ -9,11 +9,12 @@ import type { ApiHost, ProvinoApi } from './types.ts'
  * imported them, so they are served per module and are never globals.
  * @public
  */
-export const PROVINO_MODULE_MOCK_NAMES: readonly ['mock', 'unmock', 'importActual'] = [
+export const PROVINO_MODULE_MOCK_NAMES: readonly [
   'mock',
   'unmock',
   'importActual',
-] as const
+  'requireActual',
+] = ['mock', 'unmock', 'importActual', 'requireActual'] as const
 
 /**
  * A name in `PROVINO_MODULE_MOCK_NAMES`.
@@ -110,7 +111,7 @@ function assertRegistersPerFile(host: ApiHost, from: string | null, member: stri
 }
 
 /**
- * `mock`, `unmock` and `importActual` for the module `from`: a relative specifier resolves from
+ * `mock`, `unmock`, `importActual` and `requireActual` for the module `from`: a relative specifier resolves from
  * it, as an import of it would. `null` (the slot, which no module owns) resolves from the test
  * file running now. Each acts on the file registry running now, so a mock never outlives its file.
  * @internal
@@ -134,6 +135,10 @@ export function moduleMocksOver(
     importActual: async <T extends object>(specifier: string): Promise<T> => {
       assertSpecifier(specifier, 'importActual')
       return await host.registry().importActual<T>(specifier, parent)
+    },
+    requireActual: <T extends object>(specifier: string): T => {
+      assertSpecifier(specifier, 'requireActual')
+      return host.registry().requireActual<T>(specifier, parent)
     },
   }
 }

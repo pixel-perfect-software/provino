@@ -243,3 +243,32 @@ test('changed files restrict the V8 provider too, and the files are what count',
   assert.equal(filter(`${ROOT}/src/related.ts`), true)
   assert.equal(filter(`${ROOT}/src/other.ts`), false)
 })
+
+test('excludeGlobs leave files out after the include globs, root-relative, with ! negation', () => {
+  for (const provider of ['v8', 'istanbul'] as const) {
+    const filter = createCoverageFilter({
+      ...CONFIG,
+      provider,
+      include: ['src/**/*.ts', '!src/skip.ts'],
+      excludeGlobs: ['src/gen/**', '**/*.d.ts'],
+    })
+    assert.equal(filter(`${ROOT}/src/a.ts`), true, provider)
+    assert.equal(filter(`${ROOT}/src/skip.ts`), false, provider)
+    assert.equal(filter(`${ROOT}/src/gen/x.ts`), false, provider)
+    assert.equal(filter(`${ROOT}/src/types.d.ts`), false, provider)
+  }
+})
+
+test('excludeGlobs apply with no include globs, and an empty list changes nothing', () => {
+  const filter = createCoverageFilter({ ...CONFIG, provider: 'v8', excludeGlobs: ['src/gen/**'] })
+  assert.equal(filter(`${ROOT}/lib/a.ts`), true)
+  assert.equal(filter(`${ROOT}/src/gen/x.ts`), false)
+  const none = createCoverageFilter({ ...CONFIG, provider: 'v8', excludeGlobs: [] })
+  assert.equal(none(`${ROOT}/src/gen/x.ts`), true)
+})
+
+test('a bad exclude glob is COVERAGE_BAD_CONFIG', () => {
+  assert.throws(() => createCoverageFilter({ ...CONFIG, excludeGlobs: [''] }), {
+    code: 'COVERAGE_BAD_CONFIG',
+  })
+})

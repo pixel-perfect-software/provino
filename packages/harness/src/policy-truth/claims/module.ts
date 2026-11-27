@@ -100,6 +100,20 @@ export const moduleClaims: Claims = {
   ]),
   'module.interopDefault': mod('mod-automock-all', 'mod-automock-cjs'),
   'module.resetModulesClearsMocks': mod('mod-do-mock', 'mod-reset-modules'),
+  'module.syncMocks': each(
+    own(
+      'packages/dialect-jest/src/dialect.test.ts',
+      'syncMocks',
+      'refuse',
+      "Provino's own key (B28, D7), read only under awaitFactory, which Jest's is not: its factories are synchronous, so the sync path is as it was",
+    ),
+    own(
+      'packages/dialect-vitest/src/dialect.test.ts',
+      'syncMocks',
+      'refuse',
+      "Provino's own key (B28, D7): Vitest's mocker hooks imports only, so a require of a mocked module keeps the refusal by name",
+    ),
+  ),
   'module.awaitFactory': mod(
     'mod-do-mock',
     'mod-factory-async',

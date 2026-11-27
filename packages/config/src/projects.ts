@@ -1,5 +1,6 @@
 import { basename, dirname, join, resolve } from 'node:path'
 import type { ConfigEnv, PoolKind, ProjectConfig, ProvinoConfigInput } from '@provino/types'
+import { type ResolvedCoverage, resolveCoverage } from './coverage.ts'
 import { findConfigInDirectory } from './discover.ts'
 import { ConfigError } from './errors.ts'
 import { dialectsFor, loadOnce } from './internal/dialect.ts'
@@ -44,6 +45,12 @@ export interface ResolvedConfig {
   readonly maxWorkers?: number
   /** `execArgv`, when the config sets it: the Node flags the run's workers start with, after the coordinator's. */
   readonly execArgv?: readonly string[]
+  /**
+   * The `coverage` key with its defaults applied (`directory` absolute), whether or not the config
+   * sets it: `enabled` says whether the config asks for coverage. `withCoverage` makes the projects
+   * collect it.
+   */
+  readonly coverage: ResolvedCoverage
 }
 
 /**
@@ -167,7 +174,18 @@ export async function resolveProjects(
     ...(parsed.execArgv === undefined ? {} : { execArgv: parsed.execArgv }),
   }
   const entries = parsed.projects ?? []
-  if (entries.length === 0) return { projects: [await resolveProject(input, options)], ...run }
+  if (entries.length === 0) {
+    const project = await resolveProject(input, options)
+    return {
+      projects: [project],
+      ...run,
+      coverage: resolveCoverage(
+        parsed.coverage,
+        project.rootDir,
+        project.policy.coverage.reportsDirectory,
+      ),
+    }
+  }
 
   const root = resolve(dirname(options.configPath), parsed.root ?? '.')
   // An entry starting with "!" leaves out what the globs match (patterns relative to the root).
@@ -187,7 +205,13 @@ export async function resolveProjects(
   const projects = await inOrder(pending)
   assertUniqueRoots(projects)
   assertUniqueNames(projects)
-  return { projects, root, ...run }
+  const reportsDirectory = projects[0]?.policy.coverage.reportsDirectory ?? 'coverage'
+  return {
+    projects,
+    root,
+    ...run,
+    coverage: resolveCoverage(parsed.coverage, root, reportsDirectory),
+  }
 }
 
 /**

@@ -243,6 +243,17 @@ export interface CompiledModuleInfo {
 }
 
 // @public
+export interface ConfigCoverage {
+    readonly directory?: string;
+    readonly enabled?: boolean;
+    readonly exclude?: readonly string[];
+    readonly include?: readonly string[];
+    readonly provider?: "v8" | "istanbul";
+    readonly reporters?: readonly (CoverageReporterName | readonly [CoverageReporterName, Readonly<Record<string, JsonValue>>])[];
+    readonly thresholds?: Readonly<Record<string, MetricThresholds>>;
+}
+
+// @public
 export interface ConfigEnv {
     // (undocumented)
     readonly command: "run" | "watch";
@@ -549,6 +560,9 @@ export interface CoverageProvider {
     // (undocumented)
     readonly name: "v8" | "istanbul";
 }
+
+// @public
+export type CoverageReporterName = "clover" | "cobertura" | "html" | "html-spa" | "json" | "json-summary" | "lcov" | "lcovonly" | "none" | "teamcity" | "text" | "text-lcov" | "text-summary";
 
 // @beta
 export interface CoverageSummary {
@@ -1318,6 +1332,10 @@ export type HoistErrorCode = "HOIST_FACTORY_OUT_OF_SCOPE" | "HOIST_NOT_TOP_LEVEL
 
 // @public
 export interface HoistPolicy<Calls extends string = string, Values extends string = string> {
+    readonly callbackScopes?: readonly {
+        readonly module: string;
+        readonly exportName: string;
+    }[];
     readonly chainable: boolean;
     // (undocumented)
     readonly factoryReferences: "allow" | FactoryReferenceRule;
@@ -1374,6 +1392,7 @@ export interface InlineSnapshotEdit {
     readonly file: string;
     readonly line: number;
     readonly snapshot: string;
+    readonly sourceHash?: string;
 }
 
 // @public
@@ -1784,7 +1803,9 @@ export type LoadActual = (id: string, importer: string, options?: LoadActualOpti
 
 // @public
 export interface LoadActualOptions {
+    readonly moduleValue?: boolean;
     readonly scratch?: boolean;
+    readonly sync?: boolean;
 }
 
 // @public
@@ -2013,6 +2034,11 @@ export interface MatcherState {
 export type MatcherTableFactory = () => ExpectTable;
 
 // @public
+export interface MaterializeOptions {
+    readonly sync?: boolean;
+}
+
+// @public
 export interface MessageLink<Out, In> {
     // (undocumented)
     close(): void;
@@ -2149,8 +2175,9 @@ export interface ModuleMockRegistry {
     // (undocumented)
     exitIsolation(): void;
     generation(): number;
-    materialize(id: string): unknown;
+    materialize(id: string, options?: MaterializeOptions): unknown;
     mockFor(specifier: string, from: string): unknown;
+    moduleValueFile?(id: string): string | null;
     onGenerateMock(callback: (moduleId: string, moduleMock: unknown) => unknown): void;
     onResetModules(): void;
     register(specifier: string, spec: MockSpec, options: ModuleMockRegisterOptions): void;
@@ -2194,6 +2221,7 @@ export interface ModulePolicy {
     readonly resetModulesClearsMocks: boolean;
     readonly rootMocksAutoApply: boolean;
     readonly stackFrameNames: "mapped-name" | "engine";
+    readonly syncMocks: "settle" | "refuse";
     readonly unmockedPathPatterns: readonly RegExp[];
     readonly virtualRelative: boolean;
 }
@@ -2247,6 +2275,10 @@ export interface NativeRuntimeRefs {
     readonly matcherTable: ModuleRef<MatcherTableFactory>;
     readonly modules: readonly string[];
     readonly moduleScope: ModuleRef<ModuleScopeFactory>;
+    readonly snapshot?: {
+        readonly printer: ModuleRef<SnapshotPrinterFactory>;
+        readonly writer?: ModuleRef<InlineSnapshotWriterFactory>;
+    };
 }
 
 // @public
@@ -3126,6 +3158,7 @@ export interface Sequencer {
 // @public
 export interface SerializedCoverageConfig {
     readonly changedFiles?: readonly string[];
+    readonly excludeGlobs?: readonly string[];
     readonly excludePaths: readonly string[];
     readonly excludePatterns: readonly string[];
     readonly force: readonly string[];

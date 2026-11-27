@@ -75,6 +75,40 @@ describe('the native hoist policy', () => {
     assert.match(code, /\(0, __provino_import_0__\.f\)\(\)/)
   })
 
+  test('a mock in an isolateModules callback moves to the top of the callback, and the imports stay static', () => {
+    const code = hoisted(
+      "import { isolateModules, mock } from 'provino'\nimport { a } from './a'\nconst b = isolateModules(() => {\n  const m = require('./b')\n  mock('./b', () => ({ b: 1 }))\n  return m\n})\nuse(a, b)\n",
+    )
+    assertOrder(
+      code,
+      "import { isolateModules, mock } from 'provino'",
+      "import { a } from './a'",
+      'isolateModules(() => {',
+      "mock('./b', () => ({ b: 1 }))",
+      "const m = require('./b')",
+    )
+    assert.doesNotMatch(code, /__provino_import__/)
+  })
+
+  test('the async form is a callback scope too, nested in a test', () => {
+    const code = hoisted(
+      "import { isolateModulesAsync, mock, test } from 'provino'\ntest('t', async () => {\n  await isolateModulesAsync(async () => {\n    const m = await import('./b')\n    mock('./b')\n    return m\n  })\n})\n",
+    )
+    assertOrder(code, 'isolateModulesAsync(async () => {', "mock('./b')", "await import('./b')")
+  })
+
+  test('a mock anywhere else in a function still fails the file (HOIST_NOT_TOP_LEVEL)', () => {
+    const result = hoistMocks(
+      "import { mock, test } from 'provino'\ntest('t', () => {\n  mock('./b')\n})\n",
+      policy,
+      { filename: 'case.test.ts' },
+    )
+    assert.deepEqual(
+      result.diagnostics.map((d) => d.code),
+      ['HOIST_NOT_TOP_LEVEL'],
+    )
+  })
+
   test('the provino import stays static and first', () => {
     const code = hoisted(
       "import { fn, mock } from 'provino'\nimport { a } from './a'\nmock('./a')\n",

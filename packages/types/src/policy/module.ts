@@ -81,6 +81,15 @@ export interface ModulePolicy {
   readonly resetModulesClearsMocks: boolean
   /** Whether a mock factory's promise is awaited. Jest: `false`. Vitest: `true`. research: track-04 L309 */
   readonly awaitFactory: boolean
+  /**
+   * A mocked module reached on the sync path (a `require`, or an ES module a `require` evaluates)
+   * when `awaitFactory` would make it a Promise. `settle`: a factory whose result is no thenable is
+   * the module at once, and an automock or manual mock loads through the sync actual path; a
+   * factory that returns a thenable, or a graph with top-level await, is still refused by name.
+   * `refuse`: every such mock is refused ("its mock is asynchronous"). Provino's own key (D7), read
+   * only under `awaitFactory`. Neutral: `settle`. Jest and Vitest: `refuse` (nothing changes there).
+   */
+  readonly syncMocks: 'settle' | 'refuse'
   /** Reading an export the factory didn't return. Values: B14 records them. research: track-04 L310 */
   readonly missingFactoryExport: 'undefined' | 'throw'
   /** Whether mocking a module that doesn't exist needs a `virtual` flag. Jest: `true`. Vitest: `false`. research: track-04 L313 */

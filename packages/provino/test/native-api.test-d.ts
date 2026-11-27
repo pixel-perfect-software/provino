@@ -7,12 +7,22 @@ import {
   fn,
   importActual,
   isMockFunction,
+  isolateModules,
+  isolateModulesAsync,
+  type Mock,
+  type Mocked,
+  type MockedClass,
+  type MockedFunction,
+  type MockedObject,
   mock,
+  mocked,
   mocks,
   type ProvinoApi,
   type ProvinoMockFactory,
   type ProvinoTimers,
   replaceProperty,
+  requireActual,
+  resetModules,
   spyOn,
   test,
   timers,
@@ -100,3 +110,68 @@ expectTypeOf(importActual<Dep>('./dep.ts')).toEqualTypeOf<Promise<Dep>>()
 expectTypeOf(importActual('./dep.ts')).toEqualTypeOf<Promise<Record<string, unknown>>>()
 // @ts-expect-error the specifier is a string
 importActual(['./dep.ts'])
+
+// `requireActual` is the synchronous `importActual`.
+expectTypeOf(requireActual<Dep>('./dep.ts')).toEqualTypeOf<Dep>()
+expectTypeOf(requireActual('./dep.ts')).toEqualTypeOf<Record<string, unknown>>()
+// @ts-expect-error the specifier is a string
+requireActual(1)
+// It is not a promise: there is nothing to await.
+expectTypeOf(requireActual('./dep.ts')).not.toExtend<Promise<unknown>>()
+
+// `mocked` types a function, a class and an object with the mock methods; the value is the same.
+class Repo {
+  static create(id: number): Repo {
+    return new Repo(id)
+  }
+  readonly id: number
+  constructor(id: number) {
+    this.id = id
+  }
+  find(name: string): string {
+    return name + this.id
+  }
+}
+const api = {
+  load: (id: number): string => String(id),
+  nested: { count: (): number => 1 },
+  flag: true,
+}
+const load = mocked(api.load)
+expectTypeOf(load).toEqualTypeOf<MockedFunction<(id: number) => string>>()
+load.mockReturnValue('one')
+expectTypeOf(load.mock.calls).toEqualTypeOf<[id: number][]>()
+expectTypeOf(load(1)).toEqualTypeOf<string>()
+// @ts-expect-error the return value has the function's type
+load.mockReturnValue(1)
+// @ts-expect-error a mock method that does not exist
+load.notAKey
+const deep = mocked(api)
+expectTypeOf(deep).toEqualTypeOf<Mocked<typeof api>>()
+expectTypeOf(deep).toEqualTypeOf<MockedObject<typeof api>>()
+deep.nested.count.mockReturnValue(2)
+deep.load.mockImplementation((id) => String(id + 1))
+expectTypeOf(deep.flag).toEqualTypeOf<boolean>()
+// @ts-expect-error a key the object does not have
+deep.notAKey
+// @ts-expect-error a plain value has no mock methods
+deep.flag.mockReturnValue
+const klass = mocked(Repo)
+expectTypeOf(klass).toEqualTypeOf<MockedClass<typeof Repo>>()
+klass.mockImplementation(() => new Repo(2) as Mocked<Repo>)
+klass.create.mockReturnValue(new Repo(3))
+expectTypeOf(new klass(1).find).toExtend<(name: string) => string>()
+// A value that is no function or object is unchanged.
+expectTypeOf(mocked(3)).toEqualTypeOf<number>()
+expectTypeOf<Mock<() => void>>().toExtend<() => void>()
+
+// Module reset (B28): `isolateModules` returns its callback's value, the async form a Promise of it.
+expectTypeOf(resetModules()).toEqualTypeOf<void>()
+expectTypeOf(isolateModules(() => 1)).toEqualTypeOf<number>()
+expectTypeOf(isolateModulesAsync(async () => 'one')).toEqualTypeOf<Promise<string>>()
+// @ts-expect-error resetModules takes nothing
+resetModules('./dep.ts')
+// @ts-expect-error isolateModules takes a function
+isolateModules('./dep.ts')
+// @ts-expect-error isolateModulesAsync takes a function that returns a Promise
+isolateModulesAsync(() => 1)

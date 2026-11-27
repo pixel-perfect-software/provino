@@ -641,3 +641,68 @@ describe('automock through the registry', () => {
     })
   })
 })
+
+// `MaterializeOptions.sync` (B28): a sync edge under `awaitFactory` gets what can settle at once.
+describe('materialize: the sync path', () => {
+  const SYNC = { sync: true } as const
+
+  test('a factory whose result is no thenable is the module at once, shaped, and cached for the async path', async () => {
+    const { registry } = build({ policy: vitestLike, files: FILES })
+    registry.register('./dep', { kind: 'factory', factory: () => ({ a: 1 }) }, { from: FROM })
+    const value = registry.materialize('/proj/src/dep.ts', SYNC)
+    assert.ok(!(value instanceof Promise))
+    assert.equal((value as { a: number }).a, 1)
+    // The neutral `missingFactoryExport: 'throw'` shape applies, as on the async path.
+    assert.throws(() => (value as Record<string, unknown>).missing)
+    assert.equal(registry.materialize('/proj/src/dep.ts'), value)
+  })
+
+  test('a factory that returns a thenable stays a Promise for the edge to refuse', async () => {
+    const { registry } = build({ policy: vitestLike, files: FILES })
+    registry.register('./dep', { kind: 'factory', factory: async () => ({ a: 1 }) }, { from: FROM })
+    const value = registry.materialize('/proj/src/dep.ts', SYNC)
+    assert.ok(value instanceof Promise)
+    assert.equal(((await value) as { a: number }).a, 1)
+    // Once it has settled, a later sync edge gets its result.
+    assert.equal((registry.materialize('/proj/src/dep.ts', SYNC) as { a: number }).a, 1)
+  })
+
+  test('a factory that throws throws where the sync edge asked, not as a rejection', () => {
+    const { registry } = build({ policy: vitestLike, files: FILES })
+    const error = new Error('boom')
+    registry.register(
+      './dep',
+      {
+        kind: 'factory',
+        factory: () => {
+          throw error
+        },
+      },
+      { from: FROM },
+    )
+    assert.throws(
+      () => registry.materialize('/proj/src/dep.ts', SYNC),
+      (thrown: unknown) => thrown === error || (thrown as Error).cause === error,
+    )
+  })
+
+  test('an automock loads its real module through the sync actual path, in a scratch layer', () => {
+    const { registry, loadOptions } = build({
+      policy: vitestLike,
+      files: FILES,
+      actuals: { '/proj/src/dep.ts': { compute: (): number => 42 } },
+    })
+    registry.register('./dep', { kind: 'automock', spy: false }, { from: FROM })
+    const value = registry.materialize('/proj/src/dep.ts', SYNC) as { compute: () => unknown }
+    assert.ok(!(value instanceof Promise))
+    assert.equal(value.compute(), undefined)
+    assert.deepEqual(loadOptions, [{ scratch: true, sync: true }])
+  })
+
+  test('without the option nothing changes: the factory is a Promise under awaitFactory', () => {
+    const { registry, loadOptions } = build({ policy: vitestLike, files: FILES })
+    registry.register('./dep', { kind: 'factory', factory: () => ({ a: 1 }) }, { from: FROM })
+    assert.ok(registry.materialize('/proj/src/dep.ts') instanceof Promise)
+    assert.deepEqual(loadOptions, [])
+  })
+})

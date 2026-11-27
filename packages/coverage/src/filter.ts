@@ -68,7 +68,7 @@ const MOCKS = /[\\/]__mocks__[\\/]/
  * The filter of one project's coverage config: whether the module at an absolute path counts.
  * The order is `shouldInstrument`'s: a forced file counts; a test file (unless a test-ignore
  * pattern matches it) does not; with include globs the path must match one (relative to the global root under
- * `includeRoot`); then the excluded patterns and paths, `__mocks__` and JSON files. With no
+ * `includeRoot`); then the exclude globs (matched like the include ones), the excluded patterns and paths, `__mocks__` and JSON files. With no
  * include globs every file the tests load counts, and only such a file is ever asked about. Last,
  * with the Istanbul provider as `babel-plugin-istanbul` does, a file outside the instrument root (`instrumentRoot`, else the project root) or under `node_modules` never counts; with V8, a file whose path does not start with the global root never does.
  * @public
@@ -79,6 +79,11 @@ export function createCoverageFilter(config: SerializedCoverageConfig): (path: s
   const testRegex = config.testRegex.map(regexOf)
   const testIgnore = config.testIgnorePatterns.map(regexOf)
   const include = globsToMatcher(config.include)
+  const hasExcludeGlobs = (config.excludeGlobs?.length ?? 0) > 0
+  const excludeGlobs = hasExcludeGlobs ? globsToMatcher(config.excludeGlobs ?? []) : undefined
+  const hasInclude = config.include.length > 0
+  // The globs see the path against the global root, worked out once and only when one of them runs.
+  const needsRelative = config.includeRoot && (hasInclude || hasExcludeGlobs)
   const exclude = config.excludePatterns.map(regexOf)
   const excludedPaths = new Set(config.excludePaths)
   const changed = config.changedFiles === undefined ? undefined : new Set(config.changedFiles)
@@ -92,12 +97,9 @@ export function createCoverageFilter(config: SerializedCoverageConfig): (path: s
       if (testRegex.some((pattern) => pattern.test(path))) return false
       if (testGlobs(path)) return false
     }
-    if (
-      config.include.length > 0 &&
-      !include(config.includeRoot ? posix(relative(config.globalRoot, path)) : path)
-    ) {
-      return false
-    }
+    const globbed = needsRelative ? posix(relative(config.globalRoot, path)) : path
+    if (hasInclude && !include(globbed)) return false
+    if (excludeGlobs?.(globbed) === true) return false
     if (exclude.some((pattern) => pattern.test(path))) return false
     if (excludedPaths.has(path)) return false
     if (MOCKS.test(path)) return false

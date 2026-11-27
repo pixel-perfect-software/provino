@@ -1,13 +1,63 @@
+import type { ExecuteOptions } from './internal/execute.ts'
 import { executeProject } from './internal/execute.ts'
-import { executeOptionsOf, reportRunError, resolveRun } from './internal/run-setup.ts'
+import type { NativeCoverage } from './internal/native-coverage.ts'
+import {
+  coveredRun,
+  executeOptionsOf,
+  type ResolvedRun,
+  reportNoMatch,
+  reportRunError,
+  resolveRun,
+} from './internal/run-setup.ts'
 import type { RunOptions, RunResult } from './types.ts'
+
+/** `executeProject`, then the no-match line when the patterns themselves selected no file. */
+async function executeProjectNamingPatterns(
+  options: RunOptions,
+  resolved: ResolvedRun,
+  execute: ExecuteOptions,
+  stderr: NonNullable<RunOptions['stderr']>,
+): Promise<RunResult> {
+  const result = await executeProject(execute)
+  // Only a run with no file asks: a shard or an interrupt can leave none while the patterns matched.
+  if (result.summary?.files.length === 0) await reportNoMatch(options, resolved, stderr)
+  return result
+}
 
 async function execute(
   options: RunOptions,
   stdout: NonNullable<RunOptions['stdout']>,
   stderr: NonNullable<RunOptions['stderr']>,
 ): Promise<RunResult> {
-  return executeProject(executeOptionsOf(options, await resolveRun(options), stdout, stderr))
+  // The coverage reporter brings `@provino/coverage/node`: loaded only for a run that collects
+  // (T1.10), and started beside the config's load when `--coverage` already says it does.
+  const loading = options.coverage === true ? import('./internal/native-coverage.ts') : undefined
+  const given = await resolveRun(options)
+  const collects = options.coverage === true || given.coverage.enabled
+  const resolved = collects ? coveredRun(given) : given
+  let extra: Partial<ExecuteOptions> = {}
+  let coverage: NativeCoverage | undefined
+  if (collects) {
+    const { nativeCoverageFor } = await (loading ?? import('./internal/native-coverage.ts'))
+    coverage = nativeCoverageFor(resolved, {
+      stdout,
+      stderr,
+      ci: resolved.project.config.ci,
+      passWithNoTests: options.passWithNoTests,
+    })
+    // Before the text reporters, so the table and the threshold lines come ahead of the summary.
+    extra = { leadingReporters: [coverage.reporter], coverage: coverage.hooks }
+  }
+  const result = await executeProjectNamingPatterns(
+    options,
+    resolved,
+    { ...executeOptionsOf(options, resolved, stdout, stderr), ...extra },
+    stderr,
+  )
+  // Reports that could not be written fail a run that would otherwise pass.
+  return result.exitCode === 0 && coverage?.reporter.reportsFailed() === true
+    ? { ...result, exitCode: resolved.project.policy.orchestrator.exitCodes.failure }
+    : result
 }
 
 /**

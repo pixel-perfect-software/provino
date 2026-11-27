@@ -93,11 +93,24 @@ describe('provino jest', () => {
     assert.doesNotMatch(ended.stderr, /not supported yet/)
   })
 
-  it('exits 2 for a command it does not know', async () => {
-    const dir = await tree(JEST_PROJECT)
-    const unknown = await provino(['jset'], dir)
-    assert.equal(unknown.code, 2)
-    assert.match(unknown.stderr, /unknown command "jset"/)
+  it('takes a word that is not a command as a test path pattern of the bare form (B28)', async () => {
+    const dir = await tree({ ...JEST_PROJECT, 'tests/b.test.js': failing('b') })
+    // `provino a` is `provino jest a`: only tests/a runs, so the failing b is not reached.
+    const only = await provino(['a\\.test'], dir)
+    assert.equal(only.code, 0, only.stderr)
+    assert.match(only.stderr, /PASS tests\/a\.test\.js/)
+    assert.doesNotMatch(only.stderr, /tests\/b\.test\.js/)
+    // A mistyped command is a pattern that matches nothing: the run says so, and exits 1.
+    const typo = await provino(['jset'], dir)
+    assert.equal(typo.code, 1)
+    // Exactly what `provino jest jset` does. On Node 22.15 each child's type-stripping warning
+    // names its own pid, so the pid is the one part that may differ.
+    const explicit = await provino(['jest', 'jset'], dir)
+    const samePid = (run: typeof typo) => ({
+      ...run,
+      stderr: run.stderr.replace(/\(node:\d+\)/g, '(node:PID)'),
+    })
+    assert.deepEqual(samePid(typo), samePid(explicit))
   })
 })
 

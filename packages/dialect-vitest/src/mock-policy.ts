@@ -70,6 +70,9 @@ export const vitestModulePolicy: ModulePolicy = {
   interopDefault: 'node',
   resetModulesClearsMocks: false,
   awaitFactory: true,
+  // Provino's own key (D7): Vitest's mocker hooks imports only, so a require of a mocked module
+  // keeps the refusal by name.
+  syncMocks: 'refuse',
   missingFactoryExport: 'throw',
   requireVirtualFlag: false,
   virtualRelative: false,

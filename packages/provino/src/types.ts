@@ -123,10 +123,24 @@ export interface RunOptions {
    * `orchestrator.passWithNoTests`.
    */
   readonly passWithNoTests?: boolean
+  /**
+   * Run only the test files whose path matches one of these regular expressions (the command
+   * line's `provino run <pattern>…`; Jest's `testPathPatterns`). Each is tried case-insensitively on
+   * the path from the project root and on the absolute path, and a leading `./` anchors it to the
+   * start of the root-relative path. A file that any one matches runs. An invalid expression is a
+   * usage error (exit 2). Default: every file the config finds.
+   */
+  readonly testPathPatterns?: readonly string[]
   /** Run only the tests whose full name matches this regular expression (`-t`). */
   readonly testNamePattern?: string
   /** Rewrite the snapshots that differ (`-u`). Default: write new ones, and none in a CI run. */
   readonly updateSnapshot?: boolean
+  /**
+   * Collect code coverage and write its reports (`--coverage`), whatever the config's
+   * `coverage.enabled` says. Which files count, the provider, the reporters, the directory and the
+   * thresholds are the config's `coverage` key. Not under watch: a watch run collects none.
+   */
+  readonly coverage?: boolean
   /** Order the run by, and record it in, the results cache. Default `true`. */
   readonly cache?: boolean
   /** Where the `normalized-json` reporter writes without an `outputFile`. Default: `process.stdout`. */

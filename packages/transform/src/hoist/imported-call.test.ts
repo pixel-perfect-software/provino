@@ -2,6 +2,7 @@
 // `import { mock } from 'runner'`), the shape of the native API's `mock` (`nativeHoistPolicy` in
 // `@provino/policy`). Recognition is by binding, never by name.
 import assert from 'node:assert/strict'
+import type { HoistPolicy } from '@provino/types'
 import { test } from 'provino'
 import { prefilterFor } from './prefilter.ts'
 import { assertOrder, assertUntouched, errorCodes, hoist } from './test-helpers.ts'
@@ -153,4 +154,69 @@ test('imported call: under enclosing-block placement the call moves to its block
 test('imported call: a policy without the matcher costs nothing new', () => {
   const code = "import { mock } from 'runner'\nfoo()\nmock('./a')\n"
   assertUntouched(code, hoist(code, blockPolicy))
+})
+
+// `HoistPolicy.callbackScopes` (B28): the callback of such a call is a scope of its own, so a
+// hoisted call in it moves to the top of the callback (the native `isolateModules`).
+const scoped: HoistPolicy = {
+  ...policy,
+  callbackScopes: [
+    { module: 'runner', exportName: 'isolate' },
+    { module: 'runner', exportName: 'isolateAsync' },
+  ],
+}
+
+test('callback scope: a mock in the callback moves to its top, and the imports stay static', () => {
+  const code =
+    "import { isolate, mock } from 'runner'\nimport { a } from './a'\nisolate(() => {\n  const m = load('./b')\n  mock('./b', () => ({ b: 1 }))\n  return m\n})\nuse(a)\n"
+  const result = hoist(code, scoped)
+  assert.deepEqual(result.diagnostics, [])
+  assert.equal(result.rewroteImports, false)
+  assertOrder(
+    result.code,
+    "import { a } from './a'",
+    'isolate(() => {',
+    "mock('./b', () => ({ b: 1 }))",
+    "const m = load('./b')",
+    'use(a)',
+  )
+  assert.deepEqual(
+    result.staticMocks.map(({ method, specifier }) => [method, specifier]),
+    [['mock', './b']],
+  )
+})
+
+test('callback scope: a function expression, an async callback, a renamed import and a namespace member', () => {
+  for (const code of [
+    "import { isolate, mock } from 'runner'\nisolate(function () {\n  foo()\n  mock('./b')\n})\n",
+    "import { isolateAsync as iso, mock } from 'runner'\niso(async () => {\n  foo()\n  mock('./b')\n})\n",
+    "import * as r from 'runner'\nr.isolate(() => {\n  foo()\n  r.mock('./b')\n})\n",
+  ]) {
+    const result = hoist(code, scoped)
+    assert.deepEqual(result.diagnostics, [], code)
+    assertOrder(result.code, "mock('./b')", 'foo()')
+  }
+})
+
+test('callback scope: nested in a test, the callback is still its own scope', () => {
+  const code =
+    "import { isolate, mock } from 'runner'\nit('x', () => {\n  isolate(() => {\n    foo()\n    mock('./b')\n  })\n})\n"
+  const result = hoist(code, scoped)
+  assert.deepEqual(result.diagnostics, [])
+  assertOrder(result.code, "it('x', () => {", 'isolate(() => {', "mock('./b')", 'foo()')
+})
+
+test('callback scope: anywhere else in the callback, or with no such policy, is still not top level', () => {
+  for (const code of [
+    // Deeper than the callback's own body.
+    "import { isolate, mock } from 'runner'\nisolate(() => {\n  if (c) {\n    mock('./b')\n  }\n})\n",
+    // Not the first argument.
+    "import { isolate, mock } from 'runner'\nisolate(x, () => {\n  mock('./b')\n})\n",
+    // The same name, not imported from the module.
+    "import { mock } from 'runner'\nconst isolate = (f) => f()\nisolate(() => {\n  mock('./b')\n})\n",
+  ]) {
+    assert.deepEqual(errorCodes(hoist(code, scoped)), ['HOIST_NOT_TOP_LEVEL'], code)
+  }
+  const plain = "import { isolate, mock } from 'runner'\nisolate(() => {\n  mock('./b')\n})\n"
+  assert.deepEqual(errorCodes(hoist(plain, policy)), ['HOIST_NOT_TOP_LEVEL'])
 })

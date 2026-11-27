@@ -447,6 +447,23 @@ export function spawnCli(args: readonly string[], options: CliOptions = {}): Pro
   return startCli(args, options).result()
 }
 
+/** The pools the native end-to-end tests run on. */
+export const POOLS = ['forks', 'threads', 'inline'] as const
+
+/**
+ * Each file's error (or its tests' outcomes, joined), by file name, from the `results.json` that
+ * `nativeRunArgs` makes in `dir`.
+ */
+export async function outcomesByFile(dir: string): Promise<ReadonlyMap<string, string>> {
+  const view = viewOfNormalized(await readFile(join(dir, 'results.json'), 'utf8'))
+  const found = new Map<string, string>()
+  for (const [path, file] of view.files) {
+    const name = path.split('/').at(-1) ?? path
+    found.set(name, file.fileError ?? [...file.tests.values()].map(String).join(','))
+  }
+  return found
+}
+
 /** One file of a `normalized-json` run, as the tests assert on it. */
 export interface NormalizedFileView {
   readonly status: unknown
@@ -563,6 +580,20 @@ export function runBuilt(
     timeout: 120_000,
   })
   return { status: result.status, stdout: result.stdout, stderr: result.stderr }
+}
+
+/** Which bin a test runs: the source one (`spawnCli`) or the built one (`runBuilt`). */
+export type BinKind = 'source' | 'built'
+
+/** Runs `args` on the bin `kind` names, from `options.cwd`, to the end. */
+export async function runBin(
+  kind: BinKind,
+  args: readonly string[],
+  options: { readonly cwd: string },
+): Promise<{ readonly status: number | null; readonly stdout: string; readonly stderr: string }> {
+  if (kind === 'built') return runBuilt(args, options)
+  const run = await spawnCli(args, options)
+  return { status: run.code, stdout: run.stdout, stderr: run.stderr }
 }
 
 /**

@@ -29,6 +29,18 @@ describe('parseRunArgs', () => {
     })
   })
 
+  it('every positional argument is a test path pattern, and -- ends the flags', () => {
+    assert.deepEqual(parseRunArgs(['-c', 'c.mjs', 'math', 'src/a\\.test']), {
+      type: 'run',
+      options: { config: 'c.mjs', testPathPatterns: ['math', 'src/a\\.test'] },
+    })
+    // A flag after a pattern is still a flag; after `--` it is a pattern.
+    assert.deepEqual(parseRunArgs(['math', '-c', 'c.mjs', '--', '--odd']), {
+      type: 'run',
+      options: { config: 'c.mjs', testPathPatterns: ['math', '--odd'] },
+    })
+  })
+
   it('--no-emoji is RunOptions.emoji false, and provino and html are reporter names (D141, D144)', () => {
     assert.deepEqual(parseRunArgs(['-c', 'c.mjs', '--no-emoji', '--reporter', 'provino']), {
       type: 'run',
@@ -136,6 +148,17 @@ describe('parseRunArgs', () => {
     )
   })
 
+  it('--coverage is an option of a plain run, and a watch run refuses it by name', () => {
+    assert.deepEqual(parseRunArgs(['-c', 'c.mjs', '--coverage']), {
+      type: 'run',
+      options: { config: 'c.mjs', coverage: true },
+    })
+    usageError(
+      ['-c', 'c.mjs', '--watch', '--coverage'],
+      /--coverage in watch mode is not supported/,
+    )
+  })
+
   it('gives normalized-json by name without an outputFile', () => {
     assert.deepEqual(parseRunArgs(['--config', 'c.mjs', '--reporter', 'normalized-json']), {
       type: 'run',
@@ -203,6 +226,12 @@ describe('parseRunArgs', () => {
     assert.equal(bail('--bail', '3'), 3)
     assert.equal(bail('--bail=0'), 0, 'zero is off, as in Jest')
     assert.equal(bail(), undefined)
+    // After `--` everything is a pattern, whatever it looks like.
+    const after = parseRunArgs(['--config', 'c.mjs', '--bail', '--', '--bail', '3', '-t=x'])
+    assert.deepEqual(after, {
+      type: 'run',
+      options: { config: 'c.mjs', bail: 1, testPathPatterns: ['--bail', '3', '-t=x'] },
+    })
     // A flag after a bare --bail is a flag, not its count.
     assert.deepEqual(parseRunArgs(['--config', 'c.mjs', '--bail', '--ci']), {
       type: 'run',
@@ -287,7 +316,6 @@ describe('parseRunArgs', () => {
     assert.deepEqual(parseRunArgs([]), { type: 'run', options: {} })
     usageError(['--config'], /--config/)
     usageError(['--config', 'c.mjs', '--nope'], /--nope/)
-    usageError(['--config', 'c.mjs', 'file.test.js'], /file\.test\.js/)
     usageError(['--config', 'c.mjs', '--pool', 'cluster'], /--pool/)
     usageError(['--config', 'c.mjs', '--reporter', 'tap'], /unknown reporter "tap"/)
     // A misspelt name is named as such, not reported as a missing document reporter.

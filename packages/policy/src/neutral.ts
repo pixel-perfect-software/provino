@@ -195,6 +195,9 @@ export const neutralPolicy: Policy = deepFreeze({
     interopDefault: 'node',
     resetModulesClearsMocks: false,
     awaitFactory: true,
+    // Provino's own (D7): a require of a mock settles it at once when it can, so a sync
+    // isolateModules callback can load what it mocks. Speed: no promise where none is needed.
+    syncMocks: 'settle',
     // A missing export would otherwise read as `undefined`.
     missingFactoryExport: 'throw',
     requireVirtualFlag: false,
@@ -335,12 +338,16 @@ export const neutralPolicy: Policy = deepFreeze({
     resultStatusSkipped: 'skipped',
   },
   coverage: {
-    thresholdGrouping: 'all-files',
-    globThresholdScope: 'aggregate',
+    // compat (D212): the native `coverage.thresholds` is Jest's `coverageThreshold` shape, and the
+    // grouping that shape means is the only one `checkThresholds` has; Vitest's (`all-files`,
+    // `aggregate`) is B25's, so it stays Vitest's own. Not neutral-fast: no faster option exists yet.
+    thresholdGrouping: 'every-match',
+    globThresholdScope: 'per-file',
     includeUntestedByDefault: true,
     reportsDirectory: 'coverage',
-    // The faster converter, which B25 builds; until then a run that reaches it is refused.
-    v8Conversion: 'ast',
+    // speed: the only converter that exists until B25 builds the faster `'ast'`, so a native V8
+    // run (D212) can convert. The Vitest dialect keeps its own `'ast'`.
+    v8Conversion: 'v8-to-istanbul',
     v8HitCounts: false,
     // The offsets V8 counted, in the file as it is.
     v8Hashbang: 'kept',

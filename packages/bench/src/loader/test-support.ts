@@ -95,6 +95,8 @@ export const VITESTISH: ModulePolicy = {
   missingFactoryExport: 'undefined',
   mockValueOwner: 'registration',
   mockResolveKind: 'import',
+  // The Vitest dialect's value (`dialect-vitest`'s mock policy), not the neutral `'settle'`.
+  syncMocks: 'refuse',
   mocksReachShared: false,
   reevaluateHookingExternals: false,
   stackFrameNames: 'engine',

@@ -3,13 +3,29 @@
 // is. Fake dialects and refs only (this package names none).
 import assert from 'node:assert/strict'
 import { join } from 'node:path'
-import { defineDialect, moduleRef, nativeHoistPolicy } from '@provino/policy'
-import type { NativeRuntimeRefs } from '@provino/types'
+import {
+  defineDialect,
+  moduleRef,
+  nativeHoistPolicy,
+  nativeSnapshotPolicy,
+  neutralPolicy,
+  resolvePolicy,
+} from '@provino/policy'
+import type {
+  InlineSnapshotWriterFactory,
+  NativeRuntimeRefs,
+  SnapshotPrinterFactory,
+} from '@provino/types'
 import { afterAll, beforeAll, describe, test } from 'provino'
 import { makeTempDir, neutralProject, rejectsWith, type TempDir } from './internal/test-support.ts'
 import { resolveNeutralProject, resolveProject } from './resolve.ts'
 
 const ENVIRONMENTS = { node: { module: 'file:///env/node.mjs', export: 'nodeEnvironment' } }
+
+const PRINTER = moduleRef<SnapshotPrinterFactory>(
+  'file:///native/printer.mjs',
+  'nativeSnapshotPrinter',
+)
 
 const NATIVE: NativeRuntimeRefs = {
   matcherTable: moduleRef('file:///native/table.mjs', 'provinoExpectTable'),
@@ -17,6 +33,7 @@ const NATIVE: NativeRuntimeRefs = {
   modules: ['provino'],
   globals: moduleRef('file:///native/api.mjs', 'provinoGlobals'),
   hoist: nativeHoistPolicy('provino'),
+  snapshot: { printer: PRINTER },
 }
 
 const scoped = defineDialect({
@@ -67,6 +84,41 @@ describe('a project with no dialect', () => {
     assert.deepEqual(resolved.config.loader.hoist, NATIVE.hoist)
   })
 
+  test('the snapshot printer brings the native snapshot slice (B28)', async () => {
+    const resolved = await resolveProject({}, options())
+    assert.deepEqual(
+      resolved.policy.snapshot,
+      resolvePolicy({ snapshot: nativeSnapshotPolicy({ printer: PRINTER }) }).snapshot,
+    )
+    assert.deepEqual(resolved.config.policy.snapshot.printer, PRINTER)
+    assert.equal(resolved.config.policy.snapshot.inline.writer, null)
+  })
+
+  test('a snapshot writer is the inline writer; a writer with no printer is a type error and is refused', async () => {
+    const writer = moduleRef<InlineSnapshotWriterFactory>(
+      'file:///native/writer.mjs',
+      'nativeInlineSnapshotWriter',
+    )
+    const written = await resolveProject(
+      {},
+      options({ ...NATIVE, snapshot: { printer: PRINTER, writer } }),
+    )
+    assert.deepEqual(written.config.policy.snapshot.inline.writer, writer)
+    // @ts-expect-error a writer cannot be set without a printer
+    const writerOnly: NativeRuntimeRefs = { ...NATIVE, snapshot: { writer } }
+    const error = await rejectsWith(resolveProject({}, options(writerOnly)), 'CONFIG_INVALID')
+    assert.match(error.message, /^native\.snapshot\.printer must be a \{ module, export \} ref/)
+  })
+
+  test("a project's own policy layers over the native snapshot slice", async () => {
+    const resolved = await resolveNeutralProject(
+      { ...neutralProject(temp.dir), policy: { snapshot: { keyJoin: ' > ' } } },
+      { dialect: null, environments: ENVIRONMENTS, ci: false, native: NATIVE },
+    )
+    assert.equal(resolved.policy.snapshot.keyJoin, ' > ')
+    assert.deepEqual(resolved.policy.snapshot.printer, PRINTER)
+  })
+
   test('globals: true injects the native globals', async () => {
     const resolved = await resolveProject({ globals: true }, options())
     assert.equal(resolved.policy.core.injectGlobals, true)
@@ -100,6 +152,7 @@ describe('a project with a dialect ignores them', () => {
     const resolved = await resolveProject({ dialect: 'scoped' as never }, options())
     assert.equal(resolved.dialect, scoped)
     assert.equal(resolved.policy.expect.matcherTable, null)
+    assert.deepEqual(resolved.policy.snapshot, neutralPolicy.snapshot)
     assert.deepEqual(resolved.config.moduleScope, scoped.moduleScope?.factory)
     assert.deepEqual(resolved.config.loader.scopeModules, ['@scoped/globals'])
     assert.deepEqual(resolved.config.globals, scoped.globals?.factory)
@@ -147,10 +200,28 @@ describe('bad refs are config errors', () => {
     test(`a relative ${key} ref is CONFIG_INVALID naming native.${key}`, async () => {
       const bad: NativeRuntimeRefs = {
         ...NATIVE,
-        [key]: { ...NATIVE[key], module: './native.mjs' },
+        [key]: { module: './native.mjs', export: 'x' },
       }
       const error = await rejectsWith(resolveProject({}, options(bad)), 'CONFIG_INVALID')
       assert.match(error.message, new RegExp(`^native\\.${key}\\.module must be an absolute path`))
+    })
+  }
+
+  for (const key of ['printer', 'writer'] as const) {
+    test(`a relative snapshot ${key} ref is CONFIG_INVALID naming native.snapshot.${key}`, async () => {
+      const bad: NativeRuntimeRefs = {
+        ...NATIVE,
+        snapshot: {
+          printer: PRINTER,
+          writer: PRINTER as never,
+          ...{ [key]: { module: './native.mjs', export: 'x' } },
+        },
+      }
+      const error = await rejectsWith(resolveProject({}, options(bad)), 'CONFIG_INVALID')
+      assert.match(
+        error.message,
+        new RegExp(`^native\\.snapshot\\.${key}\\.module must be an absolute path`),
+      )
     })
   }
 

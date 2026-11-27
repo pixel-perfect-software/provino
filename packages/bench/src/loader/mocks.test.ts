@@ -10,7 +10,15 @@ import { createMockRegistry, createModuleMockRegistry } from '@provino/mock'
 import { neutralPolicy } from '@provino/policy'
 import type { HoistPolicy, MockDecision, ModuleMockRegistry, ModulePolicy } from '@provino/types'
 import { test } from 'provino'
-import { at, fileWithMocks, HOIST, JESTISH, loaderFor, writeTree } from './test-support.ts'
+import {
+  at,
+  fileWithMocks,
+  HOIST,
+  JESTISH,
+  loaderFor,
+  VITESTISH,
+  writeTree,
+} from './test-support.ts'
 
 /** A registry that mocks nothing and records every `decide` it is asked. */
 function recording(): { readonly registry: ModuleMockRegistry; readonly asked: string[] } {
@@ -411,3 +419,131 @@ test('a test file that fails to load on an unresolved relative mock names itself
     message: `Cannot find module '/missing.ts' imported from ${file}`,
   })
 })
+
+// `ModulePolicy.syncMocks` (B28): a sync edge under `awaitFactory` settles a mock at once when it
+// can ('settle', the neutral value), or refuses every such mock by name ('refuse').
+test('syncMocks settle: a require reaches a sync factory, an automock and a mock an ES module imports; a Promise factory is refused', async () => {
+  const root = writeTree({
+    'dep.ts': "export const value = (): string => 'real'\n",
+    'user.ts': "import { value } from './dep.ts'\nexport const seen = (): string => value()\n",
+    'auto.ts': 'export const compute = (): number => 42\n',
+    'later.ts': "export const later = 'real'\n",
+    'entry.test.ts': '',
+  })
+  const policy: Partial<ModulePolicy> = { ...VITESTISH, syncMocks: 'settle' }
+  const { files } = fileWithMocks(loaderFor(root, { policy }), join(root, 'entry.test.ts'), {
+    policy,
+  })
+  files.registerMock('./dep.ts', null, {
+    kind: 'factory',
+    factory: () => ({ value: () => 'mocked' }),
+  })
+  files.registerMock('./auto.ts', null, { kind: 'automock', spy: false })
+  files.registerMock('./later.ts', null, { kind: 'factory', factory: async () => ({ later: 'x' }) })
+  const from = at(root, 'x.ts')
+  assert.equal(files.require<{ value: () => string }>('./dep.ts', from).value(), 'mocked')
+  // The ES module a require evaluates takes its static import's mock on the same sync path.
+  assert.equal(files.require<{ seen: () => string }>('./user.ts', from).seen(), 'mocked')
+  const auto = files.require<{ compute: () => unknown }>('./auto.ts', from)
+  assert.equal(auto.compute(), undefined)
+  assert.throws(() => files.require('./later.ts', from), /its mock is asynchronous/)
+  // The import path is as it was: it awaits the factory.
+  const later = await files.import<{ later: string }>('./later.ts', from)
+  assert.equal(later.later, 'x')
+})
+
+test('syncMocks refuse: a require of any mock under awaitFactory is refused by name, as before', () => {
+  const root = writeTree({
+    'dep.ts': "export const value = (): string => 'real'\n",
+    'entry.test.ts': '',
+  })
+  const policy: Partial<ModulePolicy> = { ...VITESTISH, syncMocks: 'refuse' }
+  const { files } = fileWithMocks(loaderFor(root, { policy }), join(root, 'entry.test.ts'), {
+    policy,
+  })
+  files.registerMock('./dep.ts', null, {
+    kind: 'factory',
+    factory: () => ({ value: () => 'mocked' }),
+  })
+  assert.throws(() => files.require('./dep.ts', at(root, 'x.ts')), /its mock is asynchronous/)
+})
+
+test('an automock of a graph with top-level await is refused on the sync path by the real load', () => {
+  const root = writeTree({
+    'tla.ts': 'await Promise.resolve()\nexport const late = 1\n',
+    'entry.test.ts': '',
+  })
+  const policy: Partial<ModulePolicy> = { ...VITESTISH, syncMocks: 'settle' }
+  const { files } = fileWithMocks(loaderFor(root, { policy }), join(root, 'entry.test.ts'), {
+    policy,
+  })
+  files.registerMock('./tla.ts', null, { kind: 'automock', spy: false })
+  assert.throws(
+    () => files.require('./tla.ts', at(root, 'x.ts')),
+    (error: unknown) =>
+      (error as { code?: unknown }).code === 'ERR_REQUIRE_ASYNC_MODULE' &&
+      !String((error as Error).message).includes('its mock is asynchronous'),
+  )
+})
+
+// The neutral policy under 'settle' (D215): a CommonJS module's mock is one value whichever edge
+// builds it, seen by `require` as the CommonJS value and by `import` as its namespace.
+function legacyTree(): string {
+  return writeTree({
+    'legacy.cjs':
+      "module.exports = function legacy() { return 'real' }\nmodule.exports.named = () => 'named'\n",
+    'node_modules/pkg/package.json': '{ "name": "pkg", "main": "index.js" }\n',
+    'node_modules/pkg/index.js':
+      "module.exports = function pkg() { return 'real' }\nmodule.exports.named = () => 'named'\n",
+    'imp-legacy.ts': "import legacy, { named } from './legacy.cjs'\nexport { legacy, named }\n",
+    'req-legacy.cjs': "module.exports = require('./legacy.cjs')\n",
+    'imp-pkg.ts': "import pkg, { named } from 'pkg'\nexport { pkg, named }\n",
+    'req-pkg.cjs': "module.exports = require('pkg')\n",
+    'entry.test.ts': '',
+  })
+}
+
+interface Seen {
+  readonly required: unknown
+  readonly imported: { readonly default: unknown; readonly named: unknown }
+}
+
+async function seenThrough(
+  order: 'require first' | 'import first',
+  name: 'legacy' | 'pkg',
+): Promise<Seen> {
+  const root = legacyTree()
+  const policy = neutralPolicy.module
+  const { files } = fileWithMocks(loaderFor(root, { policy }), join(root, 'entry.test.ts'), {
+    policy,
+  })
+  files.registerMock(name === 'pkg' ? 'pkg' : './legacy.cjs', null, {
+    kind: 'automock',
+    spy: false,
+  })
+  const from = at(root, 'x.ts')
+  const req = (): unknown => files.require(`./req-${name}.cjs`, from)
+  const imp = async (): Promise<Seen['imported']> => {
+    const module = await files.import<Record<string, unknown>>(`./imp-${name}.ts`, from)
+    return { default: module[name], named: module.named }
+  }
+  if (order === 'require first') {
+    const required = req()
+    return { required, imported: await imp() }
+  }
+  const imported = await imp()
+  return { required: req(), imported }
+}
+
+for (const name of ['legacy', 'pkg'] as const) {
+  for (const order of ['require first', 'import first'] as const) {
+    test(`syncMocks settle: an automocked ${name === 'pkg' ? 'module.exports = fn package' : 'CommonJS file'} is one mock in each edge's shape, ${order}`, async () => {
+      const { required, imported } = await seenThrough(order, name)
+      assert.equal(typeof required, 'function', 'require gets the CommonJS value, callable')
+      assert.equal((required as () => unknown)(), undefined, 'and it is the automock')
+      assert.equal(imported.default, required, 'import gets the same mock as its default')
+      assert.equal(imported.named, (required as { named: unknown }).named)
+      assert.equal(typeof imported.named, 'function')
+    })
+  }
+}

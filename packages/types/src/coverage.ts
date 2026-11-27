@@ -247,6 +247,11 @@ export interface SerializedCoverageConfig {
   readonly testIgnorePatterns: readonly string[]
   /** Regular expression sources of paths to leave out (`coveragePathIgnorePatterns`). */
   readonly excludePatterns: readonly string[]
+  /**
+   * Globs of files to leave out, matched like `include` (relative to `globalRoot` under
+   * `includeRoot`). A native config's `coverage.exclude`. Absent means none.
+   */
+  readonly excludeGlobs?: readonly string[]
   /** Absolute paths to leave out (the config, setup and transform files). */
   readonly excludePaths: readonly string[]
   /**

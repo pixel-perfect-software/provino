@@ -3,6 +3,7 @@
 // changes fed to the session and its coalescing clock fired by hand, so nothing here waits on time.
 // A test waits for the run's own totals line to be written, not for a delay.
 import assert from 'node:assert/strict'
+import { existsSync } from 'node:fs'
 import { writeFile } from 'node:fs/promises'
 import type { Writable } from 'node:stream'
 import { describe, it } from 'provino'
@@ -33,9 +34,9 @@ const { main } = (await import(new URL('../src/internal/cli.ts', import.meta.url
 const { USAGE } = (await import(new URL('../src/internal/usage.ts', import.meta.url).href)) as {
   USAGE: string
 }
-const { WATCH_HINT } = (await import(
+const { COVERAGE_NOTICE, WATCH_HINT } = (await import(
   new URL('../src/internal/native-watch.ts', import.meta.url).href
-)) as { WATCH_HINT: string }
+)) as { COVERAGE_NOTICE: string; WATCH_HINT: string }
 
 const makeWatchProject = trackedProjects()
 
@@ -117,6 +118,35 @@ async function start(
   }
 }
 
+describe('provino run --watch with test path patterns', () => {
+  it('keeps every run, a related one included, inside the patterns (B28)', async () => {
+    const watch = await start(['--watch', 'tests/a'])
+    await watch.stderr.waitFor(TOTALS, 1)
+    assert.match(watch.stderr.text, /tests\/a\.test\.ts/)
+    assert.doesNotMatch(watch.stderr.text, /tests\/b\.test\.ts/)
+    // A change that reaches only the file the patterns leave out runs nothing.
+    let from = watch.stderr.text.length
+    await writeFile(watch.project.path('src/b.ts'), 'export const b = 1 // edited\n')
+    watch.change('src/b.ts')
+    await watch.stderr.waitFor(TOTALS, 2)
+    assert.doesNotMatch(watch.stderr.text.slice(from), /tests\/b\.test\.ts/)
+    // A change that reaches the file inside them runs it, and a project input still only that one.
+    from = watch.stderr.text.length
+    await writeFile(watch.project.path('src/a.ts'), 'export const a = 1 // edited\n')
+    watch.change('src/a.ts')
+    await watch.stderr.waitFor(TOTALS, 3)
+    assert.match(watch.stderr.text.slice(from), /tests\/a\.test\.ts/)
+    from = watch.stderr.text.length
+    watch.change('package.json')
+    await watch.stderr.waitFor(TOTALS, 4)
+    const segment = watch.stderr.text.slice(from)
+    assert.match(segment, /tests\/a\.test\.ts/)
+    assert.doesNotMatch(segment, /tests\/b\.test\.ts/)
+    watch.controller.abort('SIGINT')
+    await watch.result
+  })
+})
+
 describe('provino run --watch', () => {
   it('runs every file, then the files a change reaches, and every file for a project input', async () => {
     const watch = await start(['--watch'])
@@ -140,6 +170,31 @@ describe('provino run --watch', () => {
     // Off a terminal there are no keys and no hint.
     assert.equal(watch.stdin.listenerCount('data'), 0)
     assert.doesNotMatch(watch.stderr.text, HINT)
+    watch.controller.abort()
+    assert.equal(await watch.result, 0)
+  })
+
+  it('says once, at the start, that the patterns select no file', async () => {
+    const watch = await start(['--watch', 'nothing-like-this'])
+    await watch.stderr.waitFor(/no test file matches the pattern "nothing-like-this"/g, 1)
+    watch.change('src/a.ts')
+    await watch.stderr.waitFor(TOTALS, 1)
+    watch.controller.abort()
+    await watch.result
+    assert.equal(watch.stderr.text.split('no test file matches').length - 1, 1)
+  })
+
+  it('a config that enables coverage runs without it and says so once', async () => {
+    const watch = await start(['--watch'], {
+      config:
+        "export default { include: ['tests/**/*.test.ts'], coverage: { enabled: true, directory: 'cov' } }\n",
+    })
+    await watch.stderr.waitFor(TOTALS, 1)
+    assert.equal(watch.stderr.text.split(COVERAGE_NOTICE).length - 1, 1)
+    assert.equal(existsSync(watch.project.path('cov')), false)
+    watch.change('src/a.ts')
+    await watch.stderr.waitFor(TOTALS, 2)
+    assert.equal(watch.stderr.text.split(COVERAGE_NOTICE).length - 1, 1)
     watch.controller.abort()
     assert.equal(await watch.result, 0)
   })
@@ -338,7 +393,6 @@ describe('provino run --watch', () => {
       [['--watch', '--forceExit'], /--forceExit in watch mode is not supported/],
       [['--watch', '--shard', '1/2', '--forceExit'], /--shard, --forceExit in watch mode are not/],
       [['--watch', '--watchAll'], /--watch and --watchAll are one or the other/],
-      [['--coverage'], /--coverage is not supported by provino run yet/],
     ]
     try {
       for (const [args, message] of cases) {

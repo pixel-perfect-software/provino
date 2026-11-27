@@ -1,7 +1,20 @@
 import { dirname, resolve } from 'node:path'
-import { ConfigError, loadConfigFile, type ResolvedProject, resolveProjects } from '@provino/config'
-import { discoverProject, ExitCode, type RunProjectOptions } from '@provino/orchestrator'
+import {
+  ConfigError,
+  loadConfigFile,
+  type ResolvedCoverage,
+  type ResolvedProject,
+  resolveProjects,
+  withCoverage,
+} from '@provino/config'
+import {
+  discoverProject,
+  ExitCode,
+  type RunProjectOptions,
+  selectFiles,
+} from '@provino/orchestrator'
 import { isCi } from '@provino/reporters'
+import type { FileFilter } from '@provino/types'
 import type { RunOptions } from '../types.ts'
 import { addOnSpecifier, reportAddOnFailure } from './add-on.ts'
 import { builtInDialects, ENVIRONMENTS, NATIVE_RUNTIME } from './built-ins.ts'
@@ -55,6 +68,7 @@ function poolOptions(
  * @internal
  */
 export interface ResolvedRun {
+  /** The projects as the config resolved them: `coveredRun` adds the worker config for coverage. */
   readonly project: ResolvedProject
   readonly others: readonly ResolvedProject[]
   readonly root: string | undefined
@@ -63,6 +77,8 @@ export interface ResolvedRun {
   readonly configPath: string
   readonly env: NonNullable<RunOptions['env']>
   readonly pool: NonNullable<RunProjectOptions['pool']>
+  /** The config's `coverage` key with its defaults applied (`enabled` is the config's own say). */
+  readonly coverage: ResolvedCoverage
 }
 
 /**
@@ -112,7 +128,91 @@ export async function resolveRun(options: RunOptions): Promise<ResolvedRun> {
     },
     resolved.execArgv,
   )
-  return { project, others, root: resolved.root, cwd, configPath, env, pool }
+  return {
+    project,
+    others,
+    root: resolved.root,
+    cwd,
+    configPath,
+    env,
+    pool,
+    coverage: resolved.coverage,
+  }
+}
+
+/**
+ * `resolved` for a run that collects coverage (`--coverage` or `coverage.enabled`): its projects
+ * carry the worker config for it. A watch session collects none.
+ * @internal
+ */
+export function coveredRun(resolved: ResolvedRun): ResolvedRun {
+  const { coverage, configPath } = resolved
+  const [project = resolved.project, ...others] = withCoverage(
+    [resolved.project, ...resolved.others],
+    coverage,
+    coverage.root,
+    configPath,
+  )
+  return { ...resolved, project, others }
+}
+
+/**
+ * The command line's test path patterns as file filters of kind `regex`: Jest's `testPathPatterns`,
+ * case-insensitive over the path (an invalid one is the orchestrator's `ORCH_BAD_PATTERN`, exit 2).
+ * @internal
+ */
+export function patternFilters(patterns: readonly string[] | undefined): readonly FileFilter[] {
+  return (patterns ?? []).map((value) => ({ kind: 'regex', value }))
+}
+
+/**
+ * The files of `project` (as `discoverProject` found them) that `filters` keep: Jest's
+ * `testPathPatterns`, against the project's root and the run's working directory.
+ * @internal
+ */
+export function selectByPatterns(
+  files: Parameters<typeof selectFiles>[0],
+  filters: readonly FileFilter[],
+  project: ResolvedProject,
+  cwd: string,
+): ReturnType<typeof selectFiles> {
+  return selectFiles(files, filters, { rootDir: project.rootDir, cwd })
+}
+
+/** Said when test path patterns kept no file, so a mistyped one (or a mistyped command) reads clearly. */
+export function noMatchLine(patterns: readonly string[]): string {
+  const named = patterns.map((pattern) => JSON.stringify(pattern)).join(', ')
+  return `Provino: no test file matches ${patterns.length === 1 ? 'the pattern' : 'any of the patterns'} ${named}\n`
+}
+
+/**
+ * Whether the command line's patterns select no file at all in any project: the only case the
+ * no-match line is for. A shard that got none, or a run cut short before a file was queued, has
+ * files the patterns select, so neither says it.
+ * @internal
+ */
+export async function patternsSelectNothing(
+  options: RunOptions,
+  resolved: ResolvedRun,
+): Promise<boolean> {
+  const filters = patternFilters(options.testPathPatterns)
+  if (filters.length === 0) return false
+  for (const project of [resolved.project, ...resolved.others]) {
+    const files = await discoverProject(project)
+    if (selectByPatterns(files, filters, project, resolved.cwd).length > 0) return false
+  }
+  return true
+}
+
+/** Says (once) that the command line's patterns select no file, when none of the projects has one. */
+export async function reportNoMatch(
+  options: RunOptions,
+  resolved: ResolvedRun,
+  stderr: NodeJS.WritableStream,
+): Promise<void> {
+  if (await patternsSelectNothing(options, resolved)) {
+    stderr.write(noMatchLine(options.testPathPatterns ?? []))
+  }
 }
 
 /**
@@ -128,6 +228,7 @@ export function executeOptionsOf(
   stderr: NonNullable<RunOptions['stderr']>,
 ): ExecuteOptions {
   const { project, others, root, cwd, env, pool } = resolved
+  const fileFilters = patternFilters(options.testPathPatterns)
   return {
     project,
     ...(others.length === 0 ? {} : { others }),
@@ -143,8 +244,12 @@ export function executeOptionsOf(
     // (`selectsProvino`), so the reporters may need the count before the run: asked only then. A
     // sharded run's count is the shard's, which only the run knows; it is left to the run.
     ...(options.shard === undefined && others.length === 0
-      ? { fileCount: async () => (await discoverProject(project)).length }
+      ? {
+          fileCount: async () =>
+            selectByPatterns(await discoverProject(project), fileFilters, project, cwd).length,
+        }
       : {}),
+    ...(fileFilters.length === 0 ? {} : { fileFilters }),
     pool,
     ...(options.cache === false ? { cache: false } : {}),
     testNamePattern: options.testNamePattern,

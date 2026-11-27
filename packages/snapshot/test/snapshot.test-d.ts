@@ -4,6 +4,7 @@ import {
   deepMerge,
   defaultSnapshotPath,
   evaluateSnapFile,
+  inlineSourceHash,
   keyToTestName,
   naturalCompare,
   SnapshotError,
@@ -11,6 +12,7 @@ import {
   type SnapshotUpdateMode,
   serializeSnapFile,
 } from '@provino/snapshot'
+import { nativeInlineSnapshotWriter } from '@provino/snapshot/inline'
 import {
   cleanObsoleteSnapshotFiles,
   createSnapshotAggregate,
@@ -30,6 +32,7 @@ import {
   unwrapMatcherSnapshotState,
 } from '@provino/snapshot/runtime'
 import type {
+  InlineSnapshotWriterFactory,
   SnapshotFileReport,
   SnapshotPolicy,
   SnapshotPrinter,
@@ -156,6 +159,7 @@ expectTypeOf<NonNullable<SnapshotFileReport['inline']>[number]>().toEqualTypeOf<
   readonly line: number
   readonly column: number
   readonly snapshot: string
+  readonly sourceHash?: string
 }>()
 expectTypeOf<MatchOptions['stack']>().toEqualTypeOf<(() => string) | undefined>()
 expectTypeOf(
@@ -170,3 +174,29 @@ cleanObsoleteSnapshotFiles({ ...crawl, testPathOf: undefined })
 cleanObsoleteSnapshotFiles({ ...crawl, update: 'sometimes' })
 // @ts-expect-error the inverse needs the extension
 defaultSnapshotTestPath('/a.snap', {})
+
+// B28 Phase 7: the native inline writer is a writer factory, and its codes are the error's.
+expectTypeOf(nativeInlineSnapshotWriter).toEqualTypeOf<InlineSnapshotWriterFactory>()
+expectTypeOf(nativeInlineSnapshotWriter()).returns.toEqualTypeOf<Promise<readonly string[]>>()
+expectTypeOf<'SNAPSHOT_INLINE_PARSE'>().toExtend<SnapshotErrorCode>()
+expectTypeOf<'SNAPSHOT_INLINE_NOT_FOUND'>().toExtend<SnapshotErrorCode>()
+expectTypeOf<'SNAPSHOT_INLINE_SAME_CALL'>().toExtend<SnapshotErrorCode>()
+expectTypeOf<'SNAPSHOT_INLINE_STALE'>().toExtend<SnapshotErrorCode>()
+
+// B28 Phase 7: the identity of a loaded source, and where the worker gets the text it hashes.
+expectTypeOf(inlineSourceHash).toEqualTypeOf<(text: string) => string>()
+// @ts-expect-error the hash is of the source's text, not of a buffer
+inlineSourceHash(Buffer.from('x'))
+openFileSnapshots({
+  ...openOptions,
+  loadedSource: (file: string) => (file === '' ? undefined : ''),
+})
+// @ts-expect-error the loaded source is text or `undefined`, not a buffer
+openFileSnapshots({ ...openOptions, loadedSource: () => Buffer.from('x') })
+// @ts-expect-error the writer is told the project
+void nativeInlineSnapshotWriter()([])
+// @ts-expect-error an edit has a line and a column
+void nativeInlineSnapshotWriter()([{ file: '/a.ts', snapshot: 'x' }], {
+  rootDir: '/',
+  prettierPath: null,
+})

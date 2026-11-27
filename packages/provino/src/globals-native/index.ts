@@ -24,6 +24,10 @@ declare global {
   var spyOn: ProvinoApi['spyOn']
   var replaceProperty: ProvinoApi['replaceProperty']
   var isMockFunction: ProvinoApi['isMockFunction']
+  var mocked: ProvinoApi['mocked']
   var mocks: ProvinoApi['mocks']
   var timers: ProvinoApi['timers']
+  var resetModules: ProvinoApi['resetModules']
+  var isolateModules: ProvinoApi['isolateModules']
+  var isolateModulesAsync: ProvinoApi['isolateModulesAsync']
 }

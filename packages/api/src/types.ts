@@ -4,6 +4,7 @@ import type { FixtureTestApi, RuntimeApi, SuiteApi } from '@provino/core'
 import type { createExpect } from '@provino/expect'
 import type {
   Mock,
+  Mocked,
   MockRegistry,
   MockTarget,
   Replaced,
@@ -148,6 +149,31 @@ export type ProvinoApi = {
   readonly importActual: <T extends object = Record<string, unknown>>(
     specifier: string,
   ) => Promise<T>
+  /**
+   * The real module `specifier` names, past any mock of it, loaded synchronously with `require`
+   * semantics: a graph with top-level await throws `ERR_REQUIRE_ASYNC_MODULE`. Use `importActual`
+   * for that.
+   */
+  readonly requireActual: <T extends object = Record<string, unknown>>(specifier: string) => T
+  /**
+   * `value`, typed with the mock methods of `Mocked`: for a function or object a mock stands
+   * behind. It does nothing at run time.
+   */
+  readonly mocked: <T>(value: T) => Mocked<T>
+  /**
+   * Forgets every module instance of the file running now, so the next import or `require`
+   * evaluates the module again (a module-level memo starts fresh). Mock registrations stay. Under
+   * isolation `none` the instances are the worker's, so every later file in it loads afresh too.
+   */
+  readonly resetModules: () => void
+  /**
+   * Runs `fn` with a fresh module registry and module-mock overlay, and returns what it returns:
+   * what `fn` loads is its own, and is gone after it. A `mock` at the top of `fn`'s body is
+   * hoisted to the top of it. Nested inside another isolation, it throws.
+   */
+  readonly isolateModules: <R>(fn: () => R) => R
+  /** `isolateModules` for an async `fn`: the isolation lasts until its Promise settles. */
+  readonly isolateModulesAsync: <R>(fn: () => Promise<R>) => Promise<R>
 }
 
 /**

@@ -19,9 +19,11 @@ export type {
 export type { CloneLeaf, CloneSafe, JsonValue } from './clone-safe.ts'
 export type {
   BaseConfig,
+  ConfigCoverage,
   ConfigEnv,
   ConfigResolve,
   ConfigTimeouts,
+  CoverageReporterName,
   DialectKeys,
   NativeRuntimeRefs,
   PluginKeys,
@@ -160,6 +162,7 @@ export type {
   Loader,
   LoaderOptions,
   LoaderWarning,
+  MaterializeOptions,
   MockDecision,
   MockFactory,
   MockSpec,

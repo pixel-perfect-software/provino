@@ -83,7 +83,7 @@ These are the gaps the code itself names. Any other difference from Jest is a bu
 | --- | --- | --- |
 | Coverage from saved reports: `--merge-reports` | Not built. Workers and shards merge into one report in one run, but not from reports written earlier | Planned |
 | Coverage HTML report | Written, but not compared byte for byte with Jest's (the other reporters are) | Not planned |
-| Coverage under `provino run --config` | Only `provino jest` reads Jest's coverage keys; a Provino config has no coverage section yet | Planned |
+| Coverage under `provino run --config` | `provino jest` reads Jest's coverage keys. A [native project](native.md#coverage) has its own `coverage` key with short names (`include`, `exclude`, `reporters`, `directory`, `thresholds`) and `v8` as the default provider | Not planned |
 | Coverage of a TypeScript file Provino's in-place strip can't take (a non-`declare` enum, a namespace with values, a parameter property, a decorator under `experimentalDecorators`, …) | The file is compiled and remapped instead, so a statement, function or branch end can be `null` and a `line` missing in `coverage-final.json` | Not planned |
 | `coverageProvider: 'v8'`, exact positions | Statements, branches, functions and lines equal Jest's. Seventeen function and branch positions in the sample differ by a column (or a line at a line's end), and a TypeScript class's uninitialized fields count where Babel drops them. Both are pinned per Node version | Not planned |
 | A worker that dies under `coverageProvider: 'v8'` (crash, out of memory, `--fileTimeout`, `--bail`) | V8 coverage is taken once per worker, so the files that worker ran before it died are lost (Jest loses only the file that was running) | Not planned |

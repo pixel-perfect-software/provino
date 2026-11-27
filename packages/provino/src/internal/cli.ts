@@ -51,9 +51,17 @@ function isPoolKind(value: string): value is PoolKind {
   return POOL_KINDS.some((kind) => kind === value)
 }
 
+/** The arguments before a `--` (the flags) and from it on, which are test path patterns, whatever they look like. */
+function splitAtDashDash(
+  args: readonly string[],
+): [flags: readonly string[], tail: readonly string[]] {
+  const end = args.indexOf('--')
+  return end < 0 ? [args, []] : [args.slice(0, end), args.slice(end)]
+}
+
 /**
- * `--bail` with no count is `--bail=1`, and `--bail 2` is `--bail=2` (`provino run` takes no
- * positional arguments): `parseArgs` has no option with an optional value.
+ * `--bail` with no count is `--bail=1`, and `--bail 2` is `--bail=2` (a test path pattern of
+ * only digits needs `--bail=1 2` or `--`): `parseArgs` has no option with an optional value.
  */
 function bailWithCount(args: readonly string[]): string[] {
   const out: string[] = []
@@ -181,7 +189,9 @@ function parseReporters(
 
 /**
  * Parses the arguments after `run`. A flag it doesn't know or a missing or bad value is a
- * `UsageError`; with no `--config` the file is found later (`runCommand`).
+ * `UsageError`; with no `--config` the file is found later (`runCommand`). Every positional
+ * argument is a test path pattern (Jest's `testPathPatterns`: a case-insensitive regular expression
+ * over the file's path); `--` ends the flags.
  * @internal
  */
 export function parseRunArgs(
@@ -189,18 +199,16 @@ export function parseRunArgs(
 ): Extract<RunCommand, { readonly type: 'help' | 'run' }> {
   let parsed: ReturnType<typeof parse>
   try {
-    parsed = parse(bailWithCount(args).map(longFormOfShortWithEquals))
+    const [flags, tail] = splitAtDashDash(args)
+    parsed = parse([...bailWithCount(flags).map(longFormOfShortWithEquals), ...tail])
   } catch (error) {
     throw new UsageError(error instanceof Error ? error.message : String(error), { cause: error })
   }
-  const { values } = parsed
+  const { values, positionals } = parsed
   if (values.help === true) return { type: 'help' }
   const watching = values.watch === true || values.watchAll === true
   if (values.watch === true && values.watchAll === true) {
     throw new UsageError('--watch and --watchAll are one or the other')
-  }
-  if (values.coverage === true && !watching) {
-    throw new UsageError('--coverage is not supported by provino run yet')
   }
   if (watching) {
     // What a watch session can't honour, each named: one list, before anything starts.
@@ -232,8 +240,10 @@ export function parseRunArgs(
     ...(values.pool === undefined ? {} : { pool: values.pool }),
     ...(names.length === 0 ? {} : { reporters }),
     ...(hasViews(views) ? { views } : {}),
+    ...(positionals.length === 0 ? {} : { testPathPatterns: positionals }),
     ...(values.ci === true ? { ci: true } : {}),
     ...(values.updateSnapshot === true ? { updateSnapshot: true } : {}),
+    ...(values.coverage === true ? { coverage: true } : {}),
     ...(values.passWithNoTests === true ? { passWithNoTests: true } : {}),
     ...(values.testNamePattern === undefined ? {} : { testNamePattern: values.testNamePattern }),
     ...(values['no-cache'] === true ? { cache: false } : {}),
@@ -315,7 +325,7 @@ function longFormOfShortWithEquals(arg: string): string {
 }
 
 function parse(args: readonly string[]) {
-  return parseArgs({ args: [...args], allowPositionals: false, strict: true, options: OPTIONS })
+  return parseArgs({ args: [...args], allowPositionals: true, strict: true, options: OPTIONS })
 }
 
 /**
@@ -348,9 +358,9 @@ function parseCommand(command: string | undefined, args: readonly string[]): Run
   if (command === 'run') return parseRunArgs(args)
   if (command === 'jest') return { type: 'jest', args }
   if (command === 'vitest') return { type: 'vitest', args }
-  // Anything else starting with a dash is the bare form: `provino --dialect jest -t foo`.
-  if (command.startsWith('-')) return { type: 'bare', args: [command, ...args] }
-  throw new UsageError(`unknown command "${command}"`)
+  // Anything else is the bare form, as `provino jest <pattern>` is: a flag (`provino --dialect jest
+  // -t foo`) or a test path pattern (`provino math`, `provino src/a.test.ts`).
+  return { type: 'bare', args: [command, ...args] }
 }
 
 /**
@@ -359,12 +369,13 @@ function parseCommand(command: string | undefined, args: readonly string[]): Run
  */
 async function runBare(args: readonly string[], io: CliIo): Promise<number> {
   const cwd = io.cwd ?? process.cwd()
+  const [flags, tail] = splitAtDashDash(args)
   const rest: string[] = []
   let dialect: string | undefined
-  for (let index = 0; index < args.length; index++) {
-    const arg = args[index] as string
+  for (let index = 0; index < flags.length; index++) {
+    const arg = flags[index] as string
     if (arg === '--dialect') {
-      dialect = args[++index]
+      dialect = flags[++index]
       if (dialect === undefined) throw new UsageError('--dialect needs jest or vitest')
     } else if (arg.startsWith('--dialect=')) {
       dialect = arg.slice('--dialect='.length)
@@ -372,6 +383,7 @@ async function runBare(args: readonly string[], io: CliIo): Promise<number> {
       rest.push(arg)
     }
   }
+  rest.push(...tail)
   if (dialect !== undefined && dialect !== 'jest' && dialect !== 'vitest') {
     throw new UsageError(`--dialect must be jest or vitest (got "${dialect}")`)
   }

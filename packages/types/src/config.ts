@@ -2,7 +2,7 @@
 // the keys each feature needs.
 
 import type { JsonValue } from './clone-safe.ts'
-import type { SerializedCoverageConfig } from './coverage.ts'
+import type { MetricThresholds, SerializedCoverageConfig } from './coverage.ts'
 import type {
   Dialect,
   DialectName,
@@ -16,7 +16,14 @@ import type { PluginRegistry, ProvinoPlugin } from './extensions.ts'
 import type { HoistPolicy } from './hoist.ts'
 import type { IsolationTier } from './isolation.ts'
 import type { TransformClaims } from './loader.ts'
-import type { MatcherTableFactory, ModuleRef, PoolKind, SerializedPolicy } from './policy/index.ts'
+import type {
+  InlineSnapshotWriterFactory,
+  MatcherTableFactory,
+  ModuleRef,
+  PoolKind,
+  SerializedPolicy,
+  SnapshotPrinterFactory,
+} from './policy/index.ts'
 import type { SerializedModuleMapper } from './resolve.ts'
 
 /** The keys `ProjectConfig` adds to `BaseConfig`, apart from dialect and plugin options. */
@@ -48,6 +55,65 @@ interface TopLevelKeys {
    * `inline` pool or an in-band run shares the coordinator's process and ignores the key.
    */
   readonly execArgv?: readonly string[]
+  /**
+   * Code coverage for the run. It is the run's own, so a project doesn't take it: one report
+   * directory, one reporter set and one threshold set cover every project.
+   */
+  readonly coverage?: ConfigCoverage
+}
+
+/**
+ * The reporters of Istanbul's `istanbul-reports` that `coverage.reporters` names.
+ * @public
+ */
+export type CoverageReporterName =
+  | 'clover'
+  | 'cobertura'
+  | 'html'
+  | 'html-spa'
+  | 'json'
+  | 'json-summary'
+  | 'lcov'
+  | 'lcovonly'
+  | 'none'
+  | 'teamcity'
+  | 'text'
+  | 'text-lcov'
+  | 'text-summary'
+
+/**
+ * The top-level `coverage` key: collect code coverage and report it. Off unless `enabled` is
+ * true or the run is given `--coverage`.
+ * @public
+ */
+export interface ConfigCoverage {
+  /** Collect coverage on every run. Default: false; `--coverage` turns it on for one run. */
+  readonly enabled?: boolean
+  /** How coverage is collected. Default: `'v8'` (no instrumentation). */
+  readonly provider?: 'v8' | 'istanbul'
+  /**
+   * The files that count, as globs relative to the run's root (a leading `!` leaves files out).
+   * None: every file the tests load.
+   */
+  readonly include?: readonly string[]
+  /**
+   * Files that never count, as globs relative to the run's root. `**\/node_modules/**` never counts
+   * either way: a list given here adds to it.
+   */
+  readonly exclude?: readonly string[]
+  /** The reports to write, each a name or `[name, options]`. Default: `['text', 'lcovonly']`. */
+  readonly reporters?: readonly (
+    | CoverageReporterName
+    | readonly [CoverageReporterName, Readonly<Record<string, JsonValue>>]
+  )[]
+  /** Where the reports go, relative to the run's root. Default: `coverage`. */
+  readonly directory?: string
+  /**
+   * The minimums the run must meet, in Jest's `coverageThreshold` shape: `global` or a path or
+   * glob, each with a minimum percentage per metric (a negative number is a maximum count of
+   * uncovered items). A missed threshold fails the run.
+   */
+  readonly thresholds?: Readonly<Record<string, MetricThresholds>>
 }
 
 /**
@@ -174,6 +240,19 @@ export interface NativeRuntimeRefs {
    * `SerializedLoaderConfig.hoist`. None: nothing hoists.
    */
   readonly hoist?: HoistPolicy
+  /**
+   * The native snapshot refs (B28): with them, the native policy's snapshot slice writes Jest's
+   * `.snap` format (`nativeSnapshotPolicy` in `@provino/policy`). None: the neutral slice, with no
+   * printer, so a snapshot matcher fails with `SNAPSHOT_NO_PRINTER`.
+   */
+  readonly snapshot?: {
+    readonly printer: ModuleRef<SnapshotPrinterFactory>
+    /**
+     * Writes inline snapshots into the source, in the coordinator (`SnapshotPolicy.inline.writer`).
+     * None: an inline snapshot that would be written fails instead.
+     */
+    readonly writer?: ModuleRef<InlineSnapshotWriterFactory>
+  }
 }
 
 /**

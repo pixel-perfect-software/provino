@@ -114,11 +114,9 @@ test('the divergences from the neutral policy are Jest`s', () => {
     a: 'provino',
     b: 'jest',
   })
-  assert.deepEqual(row('coverage.thresholdGrouping'), {
-    path: 'coverage.thresholdGrouping',
-    a: 'all-files',
-    b: 'every-match',
-  })
+  // D212 (B28): the neutral policy took Jest's threshold grouping, so this key no longer diverges.
+  assert.equal(row('coverage.thresholdGrouping'), undefined)
+  assert.equal(resolved.coverage.thresholdGrouping, 'every-match')
 })
 
 // B23f Phase 1: the values; `reevaluatePatchingExternals` is recorded (Phase 3), the others are
@@ -158,6 +156,9 @@ test('the module slice: a missing export reads undefined, and the registry texts
     'mod-reregister: Jest keeps the value',
   )
   assert.equal(neutralPolicy.module.mockValueOwner, 'registration')
+  // Provino's own key (B28): Jest's factories are synchronous, so the sync path keeps its refusal.
+  assert.equal(resolved.module.syncMocks, 'refuse')
+  assert.equal(neutralPolicy.module.syncMocks, 'settle')
   assert.deepEqual(resolved.module.messages, {
     'module-missing':
       "Cannot find module '{specifier}' from '{from}'\n\nTo mock a module that does not exist on disk, pass `{virtual: true}` in the mock options. See https://jestjs.io/docs/jest-object#jestmockmodulename-factory-options",

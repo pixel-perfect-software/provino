@@ -64,7 +64,13 @@ Run it with `pnpm exec provino`. On a terminal, it ends with:
 - Nothing found is exit 2: "found no provino.config.*, Jest config or Vitest config in <directory> or a parent directory".
 - `--config <file>` (`-c`) names the file and skips the search.
 
-`provino run` takes no file argument. Narrow a run with `include`, a project of its own, or `-t <pattern>`, which runs the tests whose full name matches.
+## File arguments
+
+`provino run [pattern…]` (and bare `provino [pattern…]`) runs only the files whose path matches a pattern. A pattern is a case-insensitive regular expression tested against the path, as Jest's test path patterns are, so `src/a.test.ts` and `__tests__/a/b.test.ts` both work, and two patterns select the union of what each matches. A first word that is not a command (`run`, `jest`, `vitest`) is a pattern for the bare form: `provino math` runs the files with `math` in their path, and a mistyped command reads as a pattern that matches nothing, which the message names.
+
+- A run whose patterns match no file is the no-tests outcome: exit 1, with the patterns named; `--passWithNoTests` passes it. A pattern that isn't a valid regular expression is a usage error (exit 2).
+- With `--watch`, every rerun, a related one included, stays inside the patterns.
+- `-t <pattern>` narrows further, to the tests whose full name matches.
 
 ## The config
 
@@ -85,6 +91,7 @@ Node itself reads the config file, so a `.ts` config needs Node 22.18 or later, 
 | `setupFiles` | Modules imported before each test file: a path (`./test/setup.ts`) or a package name |
 | `timeouts` | `{ test, hook, teardown }` in ms. Defaults 5000, 10000 and 10000; `0` is no limit. A timeout given to a test or hook wins |
 | `resolve` | `conditions` (export conditions added after the environment's, such as `['development']`), `aliases` (`{ '@/*': './src/*' }`) and `tsconfig` (`'auto'` is the nearest `tsconfig.json`, a path, or `false`) |
+| `coverage` | Code coverage: see [Coverage](#coverage). Top level only |
 | `projects` | See [Projects](#projects). Top level only |
 | `pool` | `forks` (default), `threads` or `inline`: the pool when the command line names none. Top level only |
 | `maxWorkers` | The most workers when the command line names no number (default: the cores, less one). Top level only |
@@ -93,6 +100,35 @@ Node itself reads the config file, so a `.ts` config needs Node 22.18 or later, 
 Reporters are not config keys: name them on the command line (`--reporter`). A key the config does not know is a usage error that names the nearest one: `unknown config key "incude"; did you mean "include"?` (exit 2). A non-empty `plugins` or `alsoServe` is refused by name too.
 
 Naming a dialect (`dialect: 'jest'`) makes the project a Jest project, which needs [`@provino/dialect-jest`](compatibility.md) installed.
+
+## Coverage
+
+`provino run --coverage`, or `coverage.enabled: true` in the config, collects code coverage for the whole run: one report directory, one set of reporters and one set of thresholds. `coverage` is a top-level key only; inside a project it is a config error.
+
+```ts
+import { defineConfig } from 'provino/config'
+
+export default defineConfig({
+  coverage: {
+    include: ['src/**/*.ts', '!src/generated/**'],
+    thresholds: { global: { statements: 80, branches: 70 } },
+  },
+})
+```
+
+| Key | What it does |
+| --- | --- |
+| `enabled` | Collect coverage on every run. Default `false`; `--coverage` turns it on for one run |
+| `provider` | `v8` (default: no instrumentation) or `istanbul` (instruments each file as it loads) |
+| `include` | Globs of the files that count, relative to the run's root; a leading `!` leaves files out. Default: every file the tests load. A file it names that no test loaded counts at zero |
+| `exclude` | Globs of files that never count. `**/node_modules/**` never counts, with either provider; a list you give adds to it |
+| `reporters` | Istanbul's report names, each a name or `[name, options]`: `text`, `text-summary`, `lcov`, `lcovonly`, `json`, `json-summary`, `html`, `clover`, `cobertura` and the rest. Default `['text', 'lcovonly']`; an unknown name is a config error |
+| `directory` | Where the reports go, relative to the run's root. Default `coverage` |
+| `thresholds` | Jest's `coverageThreshold` shape: `global`, or a path or glob, each with a minimum percentage per metric (`statements`, `branches`, `functions`, `lines`). A negative number is the most uncovered items allowed. A missed threshold prints a line on stderr and the run exits 1 |
+
+- A run with no coverage loads none of the coverage code.
+- `--coverage` with `--watch` is a usage error. A config with `coverage.enabled` under watch runs without coverage and says so once on stderr.
+- The totals and the files in `lcov.info` equal what `provino jest --coverage` reports for an equivalent project and provider.
 
 ## Projects
 
@@ -215,7 +251,7 @@ it('sees what the first one did', () => {
 - A failure is an `AssertionError` with Jest's layout: `expect(received).toBe(expected)`, a blank line, then `Expected:` and `Received:`, and a diff for objects.
 - `expect.extend` adds matchers, in a test file or in a setup file.
 - An assertion on a promise (`.resolves`, `.rejects`, `expect.poll`) must be awaited. One that is not fails the test and says so.
-- There are no snapshot matchers (see [what is not there yet](#not-there-yet)).
+- `toMatchSnapshot`, `toMatchInlineSnapshot`, `toThrowErrorMatchingSnapshot` and `toThrowErrorMatchingInlineSnapshot` are there: see [Snapshots](#snapshots).
 
 ### Mocks
 
@@ -246,6 +282,43 @@ it('spies and replaces', () => {
 - `mocks.clearAll()`, `mocks.resetAll()` and `mocks.restoreAll()` act on every mock of the file.
 - Between tests Provino clears each mock's calls and puts spies and replaced properties back, so none leaks into the next test. A mock's implementation stays unless you reset it.
 
+### Typing mocks
+
+`mocked(value)` is the identity function, typed as `Mocked<T>`: it gives a function or an automocked module object its mock members without a cast. `Mock<T>`, `MockInstance<T>`, `Mocked<T>`, `MockedFunction<T>`, `MockedClass<T>` and `MockedObject<T>` are exported as types from `provino`. `Mocked<T>` is deep, matching how automock shapes an object.
+
+```ts
+import { expect, it, mock, mocked } from 'provino'
+import { send } from '../src/mailer.ts'
+
+mock('../src/mailer.ts')
+
+it('types the mock', () => {
+  mocked(send).mockReturnValue('queued')
+  expect(send('ada@example.com')).toBe('queued')
+})
+```
+
+### Resetting modules
+
+`resetModules()` drops the file's module cache: the next `import` or `require` of a module runs it again, so a module-level memo is fresh. Registered mocks stay.
+
+`isolateModules(fn)` and `isolateModulesAsync(fn)` run the callback in a module registry of its own and return what it returns; the registry is dropped after. A `mock()` at the top of the callback is hoisted to the top of the callback, so it registers inside the isolation: a `require` there sees the mock, while the code outside sees the real module. They can't nest (the second call fails with a `nested-isolation` error).
+
+```ts
+import { expect, isolateModules, it, mock } from 'provino'
+
+it('loads a module with its dependency mocked', () => {
+  const total = isolateModules(() => {
+    mock('../src/prices.ts', () => ({ price: () => 10 }))
+    return require('../src/cart.ts').total()
+  })
+  expect(total).toBe(10)
+})
+```
+
+- Under `isolation: 'none'`, `resetModules` resets the worker's shared module instances, which every file of that worker sees.
+- All three are globals under `globals: true`. `requireActual` is not (like `mock`, it resolves from the calling module).
+
 ### Timers
 
 `timers` is the file's fake clock. Each member that changes the clock returns `timers`, so calls chain.
@@ -272,7 +345,7 @@ The members are `useFakeTimers`, `useRealTimers`, `isFakeTimers`, `runAllTimers`
 
 ### Module mocks
 
-`mock(specifier, factory?)`, `unmock(specifier)` and `importActual(specifier)` replace a module for one test file. A `mock` or `unmock` at the top level of the file is **hoisted** above the file's imports, which then load after it, so it can sit below them:
+`mock(specifier, factory?)`, `unmock(specifier)`, `importActual(specifier)` and `requireActual(specifier)` replace a module for one test file, or reach the real one. A `mock` or `unmock` at the top level of the file is **hoisted** above the file's imports, which then load after it, so it can sit below them:
 
 ```ts
 import { expect, fn, importActual, it, mock } from 'provino'
@@ -295,11 +368,32 @@ it('reaches the real module', async () => {
 - The specifier is resolved from the file that calls `mock`, and every module that imports it sees the mock, a helper module too.
 - A factory returns the module's exports as an object (`default` for the default export) and may be async. It is given `importOriginal`, which loads the real module. Reading an export the factory left out throws.
 - With no factory, the module is automocked: its functions and class methods become mocks, its other values stay.
-- `importActual` gives the real module past any mock of it. Its own imports are still mocked.
+- `importActual` gives the real module past any mock of it. Its own imports are still mocked. `requireActual<T>(specifier)` is the synchronous form, with `require` semantics (Jest's `jest.requireActual`): it works in a test and in a synchronous factory, and a module graph with a top-level `await` fails with `ERR_REQUIRE_ASYNC_MODULE`.
+- With no factory, `mock('@/utils/logger')` finds the manual mock `src/utils/__mocks__/logger.ts` when the specifier goes through `resolve.aliases`, and a helper that imports `./utils/logger` sees the same mock.
+- A factory may be synchronous: one that returns no Promise settles at once, so a `require` of the mocked module works. A factory that returns a Promise, or an automock of a graph with a top-level `await`, is refused by name when it is reached through `require`.
 - Each file has mocks of its own, and none reaches the next file.
 - A factory runs while the file's imports load, so it can read an import written above the `mock` call, but not one below it or a top-level binding of the file. That fails the file: ``mock('../src/a.ts'): the factory read the import `b` before it was initialized``.
 - A `mock` or `unmock` inside a function or block fails the file: `mock() must be called at the top level of the file`. `mock('…', notAFunction)` and a specifier that is not a string are errors too (`API_MOCK_FACTORY`, `API_MOCK_SPECIFIER`).
 - A mock in a helper module applies to every file that imports it, under the default `registry` isolation. Under `isolation: 'none'` the helper loads once per worker, so a `mock` made from it is refused (`API_MOCK_SHARED_MODULE`).
+
+### Snapshots
+
+The four snapshot matchers write and read **Jest 30.5's `.snap` format**, byte for byte, so a suite moved off Jest keeps its snapshot files and a native run leaves them unchanged. The files sit in `__snapshots__/<test file>.snap` beside the test, and the value is printed with a vendored copy of Jest's pretty-format, including its plugins for React elements, DOM nodes, immutable collections and asymmetric matchers.
+
+```ts
+import { expect, it } from 'provino'
+
+it('snapshots a value', () => {
+  expect({ id: 1, tags: ['a'] }).toMatchSnapshot()
+  expect(() => { throw new Error('boom') }).toThrowErrorMatchingInlineSnapshot()
+})
+```
+
+- A new snapshot is written; one that differs fails the test; `-u` (`--updateSnapshot`) rewrites it and drops the obsolete entries of a file it ran. With `--ci`, or the `CI` variable, nothing is written and a missing snapshot fails, unless `-u` is also given (`-u` wins and rewrites).
+- An inline snapshot, new or updated, is written into the test file as a template literal, escaped as Jest escapes it and starting at column 0: there is no formatter, so a project that ran Prettier on Jest's output gets unformatted text. Only the template changes; the rest of the call keeps its layout. Jest reprints the whole call with Babel's generator, so where the call has a callback body (`toThrowErrorMatchingInlineSnapshot` after a thrown error, an updated snapshot) or an object argument over several lines with a comment inside, Jest's file is laid out differently from Provino's. The snapshot text differs in neither case; only the call's layout does. Those three cases are not held against Jest's recordings (the corpus lists them as excluded, "Babel reprint"). Two snapshots written for one call (a helper called twice) fail the test file, as in Jest.
+- The printer and the writer load on the first snapshot a worker takes (the writer's parser on the first inline write), so a run with no snapshots pays nothing.
+- The failure messages and diffs are Provino's own, not Jest's text. `.snap` files with no test file are not looked for (the obsolete-file crawl is off), and there is no `snapshotResolver` or `toMatchFileSnapshot`.
+- The printer loads with `require` of an ES module (Node 22.12 and later), which `--no-require-module` turns off; Provino adds no message for that, so the first snapshot then fails with Node's own error.
 
 ### Lazy variables
 
@@ -314,7 +408,7 @@ import { defineConfig } from 'provino/config'
 export default defineConfig({ globals: true })
 ```
 
-With `globals: true`, `describe`, `suite`, `it`, `test`, the hooks, `aroundEach`, `aroundAll`, `onTestFinished`, `onTestFailed`, `expect`, `fn`, `spyOn`, `replaceProperty`, `isMockFunction`, `mocks` and `timers` are globals, so a suite can drop its imports. `mock`, `unmock` and `importActual` are never globals, because a global `mock` would not be hoisted. `lazy` never is either.
+With `globals: true`, `describe`, `suite`, `it`, `test`, the hooks, `aroundEach`, `aroundAll`, `onTestFinished`, `onTestFailed`, `expect`, `fn`, `spyOn`, `replaceProperty`, `isMockFunction`, `mocks` and `timers` are globals, so a suite can drop its imports. `mock`, `unmock`, `importActual` and `requireActual` are never globals, because a global `mock` would not be hoisted and the others resolve from the calling module. `mocked`, `resetModules`, `isolateModules` and `isolateModulesAsync` are. `lazy` never is.
 
 For TypeScript, add the globals' types, in `tsconfig.json` or with `import 'provino/globals/native'` in a `.d.ts` file:
 
@@ -338,14 +432,15 @@ On a terminal, keys control the session:
 | `q`, Ctrl+C or Ctrl+D | Quit |
 | Ctrl+Z | Suspend, with the terminal put back |
 
-Off a terminal (CI, a pipe, an agent) it reruns on change and reads no keys. The command ends with the exit code of the last run that finished. `--coverage`, `--shard`, `--detectOpenHandles`, `--timings`, `--update-timings` and `--forceExit` with watch are a usage error that names them.
+Off a terminal (CI, a pipe, an agent) it reruns on change and reads no keys. The command ends with the exit code of the last run that finished. `--coverage`, `--shard`, `--detectOpenHandles`, `--timings`, `--update-timings` and `--forceExit` with watch are a usage error that names them. A config with `coverage.enabled` runs without coverage under watch and says so once. File arguments keep every rerun inside the patterns.
 
 ## Not there yet
 
 | What | Today | Status |
 | --- | --- | --- |
-| Snapshots | `toMatchSnapshot` and the other snapshot matchers don't exist: the types list them, but a call fails the test with `… is not a function` | Not yet planned |
-| Coverage under `provino run` | `--coverage` is refused (`--coverage is not supported by provino run yet`), and `coverage` is not a config key | Planned |
+| Snapshot files with no test file | Not reported as obsolete, and `-u` leaves them: only the entries inside a file that ran are checked | Not planned |
+| `snapshotResolver`, `toMatchFileSnapshot` | Not there: snapshots sit in `__snapshots__` beside the test | Not planned |
+| Coverage `--merge-reports`, and the AST converter for V8 coverage | A run converts V8's data with `v8-to-istanbul`; reports from earlier runs are not merged | Planned |
 | `plugins`, `alsoServe` | A non-empty list is refused by name | Planned |
 | `environment: 'happy-dom'` | Not available: a native project's environments are `node` and `jsdom`, and any other name is refused (`unknown environment "happy-dom"; the known environments are "node", "jsdom"`) | Planned |
 | `isolation: 'realm'` | Not available yet: asking for it fails the file with "the realm tier is not implemented yet". A `jsdom` project runs on the `registry` tier like any other | Planned |

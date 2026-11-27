@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'provino'
-import { NATIVE_HOISTED_CALLS, nativeHoistPolicy } from './native-hoist.ts'
+import { NATIVE_CALLBACK_SCOPES, NATIVE_HOISTED_CALLS, nativeHoistPolicy } from './native-hoist.ts'
 
 // Provino's own values (no ground truth applies). What the hoister does under them is held by
 // `provino`'s `native-hoist.test.ts` (the hoister with `NATIVE_RUNTIME.hoist`) and, end to end,
@@ -12,6 +12,19 @@ test('every hoisted call is both recognised and ruled, from one list', () => {
     policy.importedCalls?.map((call) => call.exportName),
     [...NATIVE_HOISTED_CALLS],
   )
+})
+
+test('the isolation calls are callback scopes, from the served module, not hoisted calls', () => {
+  const policy = nativeHoistPolicy('served')
+  assert.deepEqual(
+    policy.callbackScopes,
+    NATIVE_CALLBACK_SCOPES.map((exportName) => ({ module: 'served', exportName })),
+  )
+  assert.deepEqual(NATIVE_CALLBACK_SCOPES, ['isolateModules', 'isolateModulesAsync'])
+  for (const name of NATIVE_CALLBACK_SCOPES)
+    assert.equal(Object.hasOwn(policy.hoistCalls, name), false)
+  // Bumped with callbackScopes (B28), so a transform cached under the old rules is not reused.
+  assert.equal(policy.id, 'provino-native-2:served')
 })
 
 test('the served module is the one given, and its import stays static', () => {

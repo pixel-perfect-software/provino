@@ -254,6 +254,12 @@ describe('a native run loads nothing from Jest or Vitest (B27e, row 8)', () => {
     for (const log of workers) {
       const own = new Set(pathsOf(log).filter((path) => path.startsWith(dist)))
       assert.ok(own.size <= 10, `a native worker loaded ${own.size} files: ${[...own].join(', ')}`)
+      // The snapshot printer's shim rides `worker/expect-table.js`; its vendored pretty-format loads
+      // on the first snapshot only, and these files take none (B28).
+      assert.ok(
+        ![...own].some((path) => path.endsWith(join('worker', 'snapshot-printer-impl.js'))),
+        [...own].join(', '),
+      )
       for (const wanted of [
         'worker/bootstrap.js',
         'worker/main.js',

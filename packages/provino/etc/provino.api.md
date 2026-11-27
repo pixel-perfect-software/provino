@@ -47,6 +47,12 @@ export function includeExamples<R, A extends unknown[]>(group: SharedExamples<R,
 export const isMockFunction: ProvinoApi["isMockFunction"];
 
 // @public
+export const isolateModules: ProvinoApi["isolateModules"];
+
+// @public
+export const isolateModulesAsync: ProvinoApi["isolateModulesAsync"];
+
+// @public
 export const it: ProvinoApi["it"];
 
 // @public
@@ -75,7 +81,79 @@ export class LazyError extends Error {
 export type LazyErrorCode = (typeof LAZY_ERROR_CODES)[number];
 
 // @public
+export interface Mock<T extends MockTarget = UnknownFunction> extends MockInstance<T> {
+    // (undocumented)
+    (...args: MockParameters<T>): MockReturn<T>;
+    // (undocumented)
+    new (...args: MockParameters<T>): MockReturn<T>;
+}
+
+// @public
 export const mock: ProvinoApi["mock"];
+
+// @public
+export type Mocked<T> = T extends ClassLike ? MockedClass<T> : T extends FunctionLike ? MockedFunction<T> : T extends object ? MockedObject<T> : T;
+
+// @public
+export const mocked: ProvinoApi["mocked"];
+
+// @public
+export type MockedClass<T extends ClassLike> = MockInstance<(...args: ConstructorParameters<T>) => Mocked<InstanceType<T>>> & MockedObject<T>;
+
+// @public
+export type MockedFunction<T extends FunctionLike> = Mock<T> & { [K in keyof T]: T[K]; };
+
+// @public
+export type MockedObject<T extends object> = { [K in keyof T]: T[K] extends ClassLike ? MockedClass<T[K]> : T[K] extends FunctionLike ? MockedFunction<T[K]> : T[K] extends object ? MockedObject<T[K]> : T[K]; } & T;
+
+// @public
+export interface MockInstance<T extends MockTarget = UnknownFunction> {
+    // (undocumented)
+    [Symbol.dispose](): void;
+    // (undocumented)
+    getMockImplementation(): T | undefined;
+    // (undocumented)
+    getMockName(): string;
+    // (undocumented)
+    readonly _isMockFunction: true;
+    // (undocumented)
+    readonly mock: MockState<T>;
+    // (undocumented)
+    mockClear(): this;
+    // (undocumented)
+    mockImplementation(implementation: T): this;
+    // (undocumented)
+    mockImplementationOnce(implementation: T): this;
+    // (undocumented)
+    mockName(name: string): this;
+    // (undocumented)
+    mockRejectedValue(value: unknown): this;
+    // (undocumented)
+    mockRejectedValueOnce(value: unknown): this;
+    // (undocumented)
+    mockReset(): this;
+    // (undocumented)
+    mockResolvedValue(value: Awaited<MockReturn<T>>): this;
+    // (undocumented)
+    mockResolvedValueOnce(value: Awaited<MockReturn<T>>): this;
+    // (undocumented)
+    mockRestore(): void;
+    // (undocumented)
+    mockReturnThis(): this;
+    // (undocumented)
+    mockReturnValue(value: MockReturn<T>): this;
+    // (undocumented)
+    mockReturnValueOnce(value: MockReturn<T>): this;
+    // (undocumented)
+    mockThrow(value: unknown): this;
+    // (undocumented)
+    mockThrowOnce(value: unknown): this;
+    whenCalledWith(...args: unknown[]): Mock<T>;
+    // (undocumented)
+    withImplementation(implementation: T, callback: () => Promise<unknown>): Promise<this | undefined>;
+    // (undocumented)
+    withImplementation(implementation: T, callback: () => unknown): this | undefined;
+}
 
 // @public
 export const mocks: ProvinoApi["mocks"];
@@ -110,6 +188,11 @@ export type ProvinoApi = {
     readonly mock: ProvinoMock;
     readonly unmock: (specifier: string) => void;
     readonly importActual: <T extends object = Record<string, unknown>>(specifier: string) => Promise<T>;
+    readonly requireActual: <T extends object = Record<string, unknown>>(specifier: string) => T;
+    readonly mocked: <T>(value: T) => Mocked<T>;
+    readonly resetModules: () => void;
+    readonly isolateModules: <R>(fn: () => R) => R;
+    readonly isolateModulesAsync: <R>(fn: () => Promise<R>) => Promise<R>;
 };
 
 // @public
@@ -191,6 +274,12 @@ export type ProvinoWorkerApiErrorCode = "PROVINO_NO_WORKER_API" | "PROVINO_NATIV
 
 // @public
 export const replaceProperty: ProvinoApi["replaceProperty"];
+
+// @public
+export const requireActual: ProvinoApi["requireActual"];
+
+// @public
+export const resetModules: ProvinoApi["resetModules"];
 
 // @public
 export function sharedContext<R, Out>(name: string, body: ($: SharedLazy<R>) => Values<Out>): SharedContext<R, ContextOutput<R, Out>>;

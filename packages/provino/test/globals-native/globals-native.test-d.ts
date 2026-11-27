@@ -24,3 +24,10 @@ globalThis.jest
 globalThis.mock
 // @ts-expect-error `importActual` is an import too
 globalThis.importActual
+// @ts-expect-error `requireActual` is an import too
+globalThis.requireActual
+expectTypeOf(globalThis.mocked).toEqualTypeOf<ProvinoApi['mocked']>()
+// The module-registry members are plain globals (B28).
+expectTypeOf(globalThis.resetModules).toEqualTypeOf<ProvinoApi['resetModules']>()
+expectTypeOf(globalThis.isolateModules).toEqualTypeOf<ProvinoApi['isolateModules']>()
+expectTypeOf(globalThis.isolateModulesAsync).toEqualTypeOf<ProvinoApi['isolateModulesAsync']>()

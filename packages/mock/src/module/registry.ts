@@ -9,6 +9,8 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { dirname, isAbsolute, relative, resolve, sep } from 'node:path'
 import type {
   LoadActual,
+  LoadActualOptions,
+  MaterializeOptions,
   MockDecision,
   MockPolicy,
   MockSpec,
@@ -81,6 +83,11 @@ interface Entry {
 
 const NOT_MOCKED: MockDecision = Object.freeze({ mocked: false })
 
+/** The `LoadActual` options of each kind of real load, one object each (an automock adds `scratch`). */
+const SYNC_LOAD: LoadActualOptions = Object.freeze({ sync: true })
+// `require`'s view on the async path, under `syncMocks: 'settle'` (`#settles`).
+const VALUE_LOAD: LoadActualOptions = Object.freeze({ moduleValue: true })
+
 // The names @vitest/vitest's `filterPublicKeys` lets through without an error
 // (runtime/moduleRunner/moduleMocker.ts L37-L52).
 const PUBLIC_SYMBOLS: ReadonlySet<symbol> = new Set([
@@ -120,11 +127,24 @@ class Registry implements ModuleMockRegistry {
   readonly #specifiers = new Map<string, string>()
   /** Ids whose value is being built (a factory still running or pending). */
   readonly #building = new Set<string>()
+  /** A cached mock Promise's result once it settles, for the sync path only (`#cached`). */
+  readonly #settledValues = new WeakMap<object, unknown>()
   /** Ids whose automock's real load is running, at any scratch depth (`#automockOf`). */
   readonly #automocking = new Set<string>()
   /** The ids whose factory the current call stack, or async continuation, is inside; made on the first factory. */
   #inside: AsyncLocalStorage<ReadonlySet<string>> | null = null
   #values = new Map<string, unknown>()
+  /**
+   * Under `#settles`: the file whose `require` value each id's mock was built from, so one cached
+   * mock serves both edges (`moduleValueFile`). A factory's id has none.
+   */
+  readonly #valueFiles = new Map<string, string>()
+  /**
+   * A sync edge can settle a mock (`syncMocks: 'settle'` under `awaitFactory`): every mock but a
+   * factory's is built from `require`'s view, whichever edge asks first, and the loader shapes it
+   * for an `import`. Otherwise the shape is the actual path's, as before.
+   */
+  readonly #settles: boolean
   #overlay: Map<string, unknown> | null = null
   /** Manual mocks by id; a root mock for an uninstalled package is seeded here by `decideUnresolved`. */
   readonly #manual = new Map<string, ManualMock | null>()
@@ -142,6 +162,7 @@ class Registry implements ModuleMockRegistry {
     this.#options = options
     this.#policy = options.policy
     this.#automock = options.policy.automock
+    this.#settles = options.policy.awaitFactory && options.policy.syncMocks === 'settle'
     this.#rootMocks =
       options.rootMocks ??
       createRootMockIndex({ roots: options.roots, extensions: options.extensions })
@@ -259,8 +280,9 @@ class Registry implements ModuleMockRegistry {
     return NOT_MOCKED
   }
 
-  materialize(requested: string): unknown {
+  materialize(requested: string, options?: MaterializeOptions): unknown {
     this.#live()
+    const sync = options?.sync === true
     const id = this.#canonical.get(requested) ?? requested
     // Asked for from inside its own factory, which is still building it: the answer would be the
     // factory's own result. Real Jest overflows the stack here; the error is the clear form of that.
@@ -269,16 +291,16 @@ class Registry implements ModuleMockRegistry {
         'circular-mock',
         this.#text('circular-mock', { raw: this.#entries.get(id)?.specifier ?? id }),
       )
-      if (this.#policy.awaitFactory) return Promise.reject(error)
+      if (this.#policy.awaitFactory && !sync) return Promise.reject(error)
       throw error
     }
     const overlay = this.#overlay
-    if (overlay?.has(id)) return overlay.get(id)
-    if (this.#values.has(id)) return this.#values.get(id)
+    if (overlay?.has(id)) return this.#cached(overlay.get(id), sync)
+    if (this.#values.has(id)) return this.#cached(this.#values.get(id), sync)
     this.#building.add(id)
     let value: unknown
     try {
-      value = this.#create(id)
+      value = this.#create(id, sync)
     } catch (error) {
       this.#building.delete(id)
       throw error
@@ -290,14 +312,26 @@ class Registry implements ModuleMockRegistry {
       const settled = (): void => {
         this.#building.delete(id)
       }
-      Promise.resolve(value).then(settled, () => {
-        settled()
-        if (store.get(id) === value) store.delete(id)
-      })
+      Promise.resolve(value).then(
+        (result) => {
+          settled()
+          // Only the sync path reads it: a later `require` of a mock that has settled gets it.
+          this.#settledValues.set(value, result)
+        },
+        () => {
+          settled()
+          if (store.get(id) === value) store.delete(id)
+        },
+      )
     } else {
       this.#building.delete(id)
     }
     return value
+  }
+
+  moduleValueFile(requested: string): string | null {
+    this.#live()
+    return this.#valueFiles.get(this.#canonical.get(requested) ?? requested) ?? null
   }
 
   mockFor(specifier: string, from: string): unknown {
@@ -307,7 +341,7 @@ class Registry implements ModuleMockRegistry {
 
   createMockFromModule(specifier: string, from: string): unknown {
     this.#live()
-    return this.#automockOf(this.#idFor(specifier, from), from, false)
+    return this.#automockOf(this.#idFor(specifier, from), from, false, undefined)
   }
 
   onResetModules(): void {
@@ -358,6 +392,7 @@ class Registry implements ModuleMockRegistry {
     this.#deep.clear()
     this.#onGenerate.length = 0
     this.#values.clear()
+    this.#valueFiles.clear()
     this.#manual.clear()
     this.#overlay = null
     this.#inside?.disable()
@@ -473,33 +508,63 @@ class Registry implements ModuleMockRegistry {
     return found
   }
 
-  #create(id: string): unknown {
+  /**
+   * A cached value as the caller can take it: on the sync path, a Promise that has settled is its
+   * result (`#settledValues`); anything else is as cached.
+   */
+  #cached(value: unknown, sync: boolean): unknown {
+    if (!sync || !isThenable(value)) return value
+    return this.#settledValues.has(value) ? this.#settledValues.get(value) : value
+  }
+
+  /** `sync`: built for a sync edge (`MaterializeOptions.sync`), with no Promise where none is needed. */
+  #create(id: string, sync: boolean): unknown {
     const entry = this.#entries.get(id)
+    const load = sync ? SYNC_LOAD : this.#settles ? VALUE_LOAD : undefined
+    /** The real load of `file`; under `#settles` its value is `require`'s view of `file`. */
+    const actual = (file: string, from: string): unknown => {
+      this.#noteValueFile(id, file)
+      return this.#options.loadActual(file, from, load)
+    }
     if (entry === undefined) {
       const manual = this.#manualFor(id, undefined)
-      if (manual !== null) return this.#options.loadActual(manual.path, '')
-      return this.#automockOf(id, '', false)
+      if (manual !== null) return actual(manual.path, '')
+      this.#noteValueFile(id, id)
+      return this.#automockOf(id, '', false, load)
     }
     const spec = entry.spec
     switch (spec.kind) {
       case 'factory':
-        return this.#runFactory(id, entry, spec.factory)
+        this.#valueFiles.delete(id)
+        return this.#runFactory(id, entry, spec.factory, sync)
       case 'redirect':
-        return this.#options.loadActual(spec.to, entry.from)
+        return actual(spec.to, entry.from)
       case 'automock': {
         // `mock(p)` prefers a manual mock; a spy (`{ spy: true }`) never does.
         if (!spec.spy) {
           const manual = this.#manualFor(id, entry)
-          if (manual !== null) return this.#options.loadActual(manual.path, entry.from)
+          if (manual !== null) return actual(manual.path, entry.from)
         }
-        return this.#automockOf(id, entry.from, spec.spy)
+        this.#noteValueFile(id, id)
+        return this.#automockOf(id, entry.from, spec.spy, load)
       }
       case 'unmock':
-        return this.#options.loadActual(id, entry.from)
+        return actual(id, entry.from)
     }
   }
 
-  #automockOf(id: string, from: string, spy: boolean): unknown {
+  /** Under `#settles`: `file` is the one whose `require` value `id`'s mock was built from. */
+  #noteValueFile(id: string, file: string): void {
+    if (this.#settles) this.#valueFiles.set(id, file)
+  }
+
+  /** `load`: the real load's options (`#create`'s); automock builds are rare, so `scratch` is added per build. */
+  #automockOf(
+    id: string,
+    from: string,
+    spy: boolean,
+    load: LoadActualOptions | undefined,
+  ): unknown {
     const options = this.#options
     const build = (actual: unknown): unknown => {
       try {
@@ -522,7 +587,7 @@ class Registry implements ModuleMockRegistry {
     this.#automocking.add(id)
     let actual: unknown
     try {
-      actual = this.#scratch(() => options.loadActual(id, from, { scratch: true }))
+      actual = this.#scratch(() => options.loadActual(id, from, { ...load, scratch: true }))
     } catch (error) {
       this.#automocking.delete(id)
       throw error
@@ -580,6 +645,7 @@ class Registry implements ModuleMockRegistry {
     id: string,
     entry: Entry,
     factory: (importOriginal: () => Promise<unknown>) => unknown,
+    sync = false,
   ): unknown {
     const importOriginal = (): Promise<unknown> =>
       new Promise((done) => {
@@ -595,11 +661,14 @@ class Registry implements ModuleMockRegistry {
       chain.add(id)
       result = inside.run(chain, () => factory(importOriginal))
     } catch (error) {
-      // Under `awaitFactory` every failure is a rejection, a synchronous throw included.
-      if (this.#policy.awaitFactory) return Promise.reject(helpful(error))
+      // Under `awaitFactory` every failure is a rejection, a synchronous throw included; a sync
+      // edge throws it where it asked.
+      if (this.#policy.awaitFactory && !sync) return Promise.reject(helpful(error))
       throw helpful(error)
     }
-    if (this.#policy.awaitFactory) {
+    // A sync edge takes a result that is no thenable at once; a thenable stays a Promise, which the
+    // edge refuses by name.
+    if (this.#policy.awaitFactory && (!sync || isThenable(result))) {
       return Promise.resolve(result).then(
         (value) => this.#shape(value, entry),
         (error: unknown) => {

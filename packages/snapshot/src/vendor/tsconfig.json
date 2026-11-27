@@ -1,0 +1,21 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
+    "noUncheckedIndexedAccess": false,
+    "isolatedDeclarations": false,
+    "lib": [
+      "es2024",
+      "dom",
+      "dom.iterable"
+    ],
+    "rootDir": ".",
+    "outDir": "../../.tsc/src/vendor"
+  },
+  "include": [
+    "ansi-styles",
+    "pretty-format",
+    "react-is",
+    "jest-snapshot"
+  ]
+}

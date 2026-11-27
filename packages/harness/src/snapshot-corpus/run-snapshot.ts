@@ -8,7 +8,9 @@
 // Provino has the Jest dialect only, so the `vitest` profile is the Jest dialect with Vitest's
 // `snapshot` slice layered over it (header, joins, obsolete rules, error body, format, printer):
 // the keys that decide what a `.snap` holds. Files that call `vi` can't run and are not part of it.
-import { mkdtemp, readFile, realpath, rm, writeFile } from 'node:fs/promises'
+// The `native` profile (B28) is a project with no dialect (`globals: true`), whose snapshot slice is
+// `nativeSnapshotPolicy`'s, held to the Jest recording: its files, flags and golden are Jest's.
+import { mkdtemp, readFile, realpath, rm, stat, utimes, writeFile } from 'node:fs/promises'
 import { createRequire } from 'node:module'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -19,12 +21,20 @@ import { type Fixture, type FixtureRunner, testFilesFor } from '../fixture.ts'
 import { parseNormalizedRun } from '../parse-normalized-run.ts'
 import { copyFixture, writeRunnerFiles } from '../record.ts'
 
-/** The two profiles the corpus runs under. */
-export type SnapshotProfile = FixtureRunner
+/** The profiles the corpus runs under: one per recorded runner, and `native` (B28). */
+export type SnapshotProfile = FixtureRunner | 'native'
+
+/** The profiles, in the order the check runs them. */
+export const SNAPSHOT_PROFILES: readonly SnapshotProfile[] = ['jest', 'vitest', 'native']
+
+/** The runner whose recording a profile is held to: `native` is held to Jest's. */
+export function recordedRunner(profile: SnapshotProfile): FixtureRunner {
+  return profile === 'native' ? 'jest' : profile
+}
 
 /** The test files Provino can run for a profile: the runner's own, less the ones that call `vi`. */
 export function runnableFiles(fixture: Fixture, profile: SnapshotProfile): readonly string[] {
-  return testFilesFor(fixture.files, profile).filter(
+  return testFilesFor(fixture.files, recordedRunner(profile)).filter(
     (file) => !path.posix.basename(file).endsWith('.vitest.test.ts'),
   )
 }
@@ -37,7 +47,15 @@ export interface SnapshotEndToEnd {
   readonly files: Readonly<Record<string, string | null>>
   /** What the run wrote to stderr: Provino's own errors. */
   readonly stderr: string
+  /**
+   * The captured files there before the run that it wrote, removed or gave another mtime (each is
+   * dated in the past first, so a write shows even when it is quick).
+   */
+  readonly touched: readonly string[]
 }
+
+/** The time each existing file in `files` is set to before a run: long past, so a write moves it. */
+const PAST = new Date('2001-01-01T00:00:00Z')
 
 /** A sink that keeps what it is given. */
 function collector(): { readonly stream: Writable; text(): string } {
@@ -55,7 +73,7 @@ function collector(): { readonly stream: Writable; text(): string } {
 
 /** The flags the recorded run was given, as `run()` options. */
 function optionsOf(fixture: Fixture, profile: SnapshotProfile) {
-  const argv = fixture.manifest.run?.argv?.[profile] ?? []
+  const argv = fixture.manifest.run?.argv?.[recordedRunner(profile)] ?? []
   // A flag this runner doesn't map would run differently from the recording, silently.
   const pattern = argv.indexOf('-t')
   argv.forEach((token, index) => {
@@ -81,7 +99,9 @@ function optionsOf(fixture: Fixture, profile: SnapshotProfile) {
 
 /** The config's snapshot keys for a profile, from the fixture's overlay. */
 function configuredSnapshot(fixture: Fixture, profile: SnapshotProfile) {
-  const overlay = fixture.manifest.config?.[profile] as Record<string, unknown> | undefined
+  const overlay = fixture.manifest.config?.[recordedRunner(profile)] as
+    | Record<string, unknown>
+    | undefined
   const section =
     (profile === 'vitest' ? (overlay?.test as Record<string, unknown>) : overlay) ?? {}
   const serializers = Array.isArray(section.snapshotSerializers)
@@ -110,7 +130,8 @@ export async function runSnapshotEndToEnd(
   const previous = options.env.map(([name]) => [name, process.env[name]] as const)
   try {
     await copyFixture(fixture, root)
-    await writeRunnerFiles(fixture, profile, root)
+    await writeRunnerFiles(fixture, recordedRunner(profile), root)
+    if (profile === 'native') await mapJestApiToNative(root, runnableFiles(fixture, profile))
 
     const { serializers, format } = configuredSnapshot(fixture, profile)
     const require = createRequire(import.meta.url)
@@ -121,6 +142,14 @@ export async function runSnapshotEndToEnd(
       serializers: serializers.map((name) => require.resolve(name)),
       format,
     })
+
+    const before = new Map<string, number>()
+    for (const file of captured) {
+      const absolute = path.join(root, file)
+      if ((await readIfThere(absolute)) === null) continue
+      await utimes(absolute, PAST, PAST)
+      before.set(file, (await stat(absolute)).mtimeMs)
+    }
 
     const outputFile = path.join(root, 'normalized.json')
     const stdout = collector()
@@ -144,13 +173,32 @@ export async function runSnapshotEndToEnd(
     const normalized = parseNormalizedRun(await readFile(outputFile, 'utf8'), outputFile)
     const files: Record<string, string | null> = {}
     for (const file of captured) files[file] = await readIfThere(path.join(root, file))
-    return { exitCode, normalized, files, stderr: stderr.text() }
+    const touched: string[] = []
+    for (const [file, mtime] of before) {
+      const after = files[file] === null ? undefined : (await stat(path.join(root, file))).mtimeMs
+      if (after !== mtime) touched.push(file)
+    }
+    return { exitCode, normalized, files, stderr: stderr.text(), touched }
   } finally {
     for (const [name, value] of previous) {
       if (value === undefined) Reflect.deleteProperty(process.env, name)
       else process.env[name] = value
     }
     await rm(root, { recursive: true, force: true })
+  }
+}
+
+/**
+ * Maps the Jest API a recorded test file calls to the native API's names, as moving a suite does:
+ * `jest.fn` is `fn` and `jest.spyOn` is `spyOn`. They are read off `globalThis`, so a local named
+ * `fn` in the test (as in `const fn = jest.fn()`) doesn't shadow them.
+ */
+async function mapJestApiToNative(root: string, files: readonly string[]): Promise<void> {
+  for (const file of files) {
+    const absolute = path.join(root, file)
+    const source = await readFile(absolute, 'utf8')
+    const mapped = source.replaceAll(/\bjest\.(fn|spyOn)\b/g, 'globalThis.$1')
+    if (mapped !== source) await writeFile(absolute, mapped)
   }
 }
 
@@ -164,8 +212,8 @@ async function readIfThere(file: string): Promise<string | null> {
 }
 
 /**
- * Writes the config: the Jest dialect, with Vitest's snapshot slice over it for the `vitest`
- * profile and the fixture's serializers and format over that. It imports the dialect packages by
+ * Writes the config: under `native` a project with no dialect; else the Jest dialect, with Vitest's
+ * snapshot slice over it for the `vitest` profile and the fixture's serializers and format over that. It imports the dialect packages by
  * file URL, so it needs no `node_modules`; this process's `provino-source` condition resolves
  * their own imports.
  */
@@ -178,6 +226,20 @@ async function writeConfig(
     readonly format: Record<string, unknown> | undefined
   },
 ): Promise<void> {
+  if (input.profile === 'native') {
+    // No dialect: the native runtime's table, globals and snapshot slice. A native config has no
+    // serializers or format key, so a fixture that sets one is not run here (`NATIVE_EXCLUDED`).
+    if (input.serializers.length > 0 || input.format !== undefined) {
+      throw new Error(
+        `the native profile can't carry a fixture's snapshotSerializers or snapshotFormat`,
+      )
+    }
+    await writeFile(
+      file,
+      `export default { globals: true, include: ${JSON.stringify(input.include)} }\n`,
+    )
+    return
+  }
   const jest = import.meta.resolve('@provino/dialect-jest')
   const vitest = import.meta.resolve('@provino/dialect-vitest')
   const { escapeString, printBasicPrototype, ...extra } = input.format ?? {}
