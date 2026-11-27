@@ -40,7 +40,7 @@ test('an ES module that checks require.main === module loads as an import', asyn
 test('module is an object with the file as its id and filename, empty exports and not loaded', async () => {
   const { root, registry } = setup({
     'shape.ts':
-      'export const seen = { type: typeof module, id: module.id, filename: module.filename, exports: module.exports, loaded: module.loaded, same: require.main === module }\n',
+      'export const seen = { type: typeof module, id: module.id, filename: module.filename, exports: module.exports, loaded: module.loaded }\n',
   })
   const { seen } = await registry.import<{ seen: unknown }>(join(root, 'shape.ts'))
   const path = join(root, 'shape.ts')
@@ -50,17 +50,25 @@ test('module is an object with the file as its id and filename, empty exports an
     filename: path,
     exports: {},
     loaded: false,
-    same: false,
   })
 })
 
-test('a module of its own naming module shadows the binding, and one that never names it pays nothing', async () => {
+test('a module of its own naming module shadows the binding', async () => {
   const { root, registry } = setup({
     'own.ts': "const module = { id: 'mine' }\nexport const id: string = module.id\n",
-    'plain.ts': 'export const value: number = 1\n',
   })
   assert.equal((await registry.import<{ id: string }>(join(root, 'own.ts'))).id, 'mine')
-  assert.equal((await registry.import<{ value: number }>(join(root, 'plain.ts'))).value, 1)
+})
+
+test('an ES module that feature-detects module takes the CommonJS branch and keeps its ES exports', async () => {
+  const { root, registry } = setup({
+    'detect.ts':
+      "export const api = { v: 1 }\nexport const took: string[] = []\nif (typeof module !== 'undefined' && module.exports) {\n  module.exports = api\n  took.push('cjs')\n} else {\n  took.push('global')\n}\n",
+  })
+  const ns = await registry.import<{ api: { v: number }; took: string[] }>(join(root, 'detect.ts'))
+  assert.deepEqual(ns.took, ['cjs'])
+  assert.deepEqual(Object.keys(ns).sort(), ['api', 'took'])
+  assert.deepEqual(ns.api, { v: 1 })
 })
 
 test('with injectCjsGlobals off, module is not defined', async () => {

@@ -80,7 +80,7 @@ interface Instance {
   /** ESM: the exports object (`interop.ts`); JSON: its namespace. `null` for CJS. */
   readonly exports: Record<string | symbol, unknown> | null
   /** CJS: the `module` object; `require()` returns its `exports`. */
-  readonly module: { exports: unknown } | null
+  readonly module: ModuleObject | null
   promise: Promise<object> | null
   error: unknown
   /** The actual paths' view of an ES module's exports, built once. */
@@ -116,6 +116,18 @@ export const NO_FILE: FileContext = Object.freeze({ mocks: null, scope: null })
 
 /** A specifier that names a file or a URL, not a package or a builtin. */
 const FILE_SPECIFIER = /^(?:\.{1,2}\/|\/|file:)/
+
+/** The `module` a user module sees: a CommonJS wrapper's argument, or an ES module's scope binding. */
+interface ModuleObject {
+  readonly id: string
+  readonly filename: string
+  exports: unknown
+  loaded: boolean
+}
+
+function newModuleObject(record: ModuleRecord): ModuleObject {
+  return { id: record.path, filename: record.path, exports: {}, loaded: false }
+}
 
 /** Not mocked: the edge loads the real module. */
 const REAL: unique symbol = Symbol('real')
@@ -957,7 +969,7 @@ export class Registry {
           : record.format === 'json'
             ? moduleNamespace()
             : esmExports(this.#interop),
-      module: record.format === 'cjs' ? { exports: {} } : null,
+      module: record.format === 'cjs' ? newModuleObject(record) : null,
       promise: null,
       error: undefined,
       view: null,
@@ -1094,16 +1106,8 @@ export class Registry {
    * The `module` an ES module sees under `injectCjsGlobals`: its own object, never the main one, so
    * `require.main === module` is false for any file the loader runs.
    */
-  #moduleFor(record: ModuleRecord): object {
-    return {
-      id: record.path,
-      path: dirname(record.path),
-      filename: record.path,
-      exports: {},
-      loaded: false,
-      children: [],
-      paths: [],
-    }
+  #moduleFor(record: ModuleRecord): ModuleObject {
+    return newModuleObject(record)
   }
 
   #requireFor(record: ModuleRecord): NodeJS.Require {
