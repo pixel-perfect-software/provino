@@ -62,6 +62,7 @@ export interface AsymmetricMatcherLike {
 
 // @public
 export interface BaseConfig {
+    readonly define?: Readonly<Record<string, JsonValue>>;
     readonly dialects?: readonly Dialect[];
     // (undocumented)
     readonly environment?: string;
@@ -1016,7 +1017,7 @@ export interface ExpectPolicy {
 // @public
 export interface ExpectStatic extends InvertibleAsymmetric {
     // (undocumented)
-    (actual: unknown): Assertion;
+    (actual: unknown, message?: string): Assertion;
     // (undocumented)
     readonly [asymmetric: string]: unknown;
     // (undocumented)
@@ -1041,7 +1042,7 @@ export interface ExpectStatic extends InvertibleAsymmetric {
     poll?: (fn: (context: PollContext) => unknown, options?: PollOptions) => PollAssertion;
     // (undocumented)
     setState(state: Partial<MatcherState>): void;
-    soft?: (actual: unknown) => Assertion;
+    soft?: (actual: unknown, message?: string) => Assertion;
     unreachable?: (message?: string) => never;
 }
 
@@ -2200,6 +2201,7 @@ export type ModuleMocksFactory = (context: ModuleMocksContext) => ModuleMockRegi
 // @public
 export interface ModulePolicy {
     readonly actual: "sync-require" | "async-import";
+    readonly assetImports: "off" | "built-in";
     readonly automock: boolean;
     readonly automockShape: "metadata" | "deep";
     readonly awaitFactory: boolean;
@@ -2265,6 +2267,7 @@ export type ModuleScopeValues = (from: ModuleId) => Readonly<Record<string, unkn
 
 // @public
 export interface ModuleTransformer {
+    handles?(filename: string): boolean;
     // (undocumented)
     transform(request: TransformRequest): TransformRecord;
 }
@@ -3208,6 +3211,7 @@ export interface SerializedLoaderConfig {
     readonly cacheDir?: string;
     readonly codeIdentity?: string;
     readonly conditions: readonly string[];
+    readonly define?: Readonly<Record<string, string>>;
     readonly esmExtensions?: readonly string[];
     readonly extensions: readonly string[];
     readonly hoist: HoistPolicy | null;

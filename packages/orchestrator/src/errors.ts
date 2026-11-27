@@ -15,6 +15,8 @@ export type OrchestratorErrorCode =
   | 'ORCH_BAD_PATTERN'
   /** A pool or run option has a value that makes no sense (a `maxFilesPerWorker` of 0, a negative deadline). */
   | 'ORCH_BAD_OPTION'
+  /** Two projects of a run that allows a file in one project only both discovered the same file. */
+  | 'ORCH_OVERLAPPING_PROJECTS'
   /** `runProjects` was given no project. */
   | 'ORCH_NO_PROJECTS'
   /** A worker sent an event the coordinator can't place (a task id it never announced). */

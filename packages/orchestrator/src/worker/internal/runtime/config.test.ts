@@ -77,6 +77,15 @@ describe('parseProjectConfig', () => {
     assert.equal(parseProjectConfig(with_('loader.tsconfig', '/t.json')).loader.tsconfig, '/t.json')
   })
 
+  it('carries loader.define as strings, and refuses a value that is not one', () => {
+    const define = { 'import.meta.env.DEV': 'true', __V__: '"1"' }
+    assert.deepEqual(parseProjectConfig(with_('loader.define', define)).loader.define, define)
+    assert.equal('define' in parseProjectConfig(valid).loader, false)
+    assert.throws(() => parseProjectConfig(with_('loader.define', { X: true })), {
+      code: 'ORCH_BAD_CONFIG',
+    })
+  })
+
   it('throws ORCH_BAD_CONFIG naming the key, for each piece that is missing or the wrong kind', () => {
     const cases: ReadonlyArray<readonly [string, unknown]> = [
       ['name', 3],

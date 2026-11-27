@@ -30,3 +30,20 @@ defineConfig({ execArgv: '--conditions=provino-source' })
 defineConfig({ projects: [{ execArgv: ['--x'] }] })
 // @ts-expect-error resolve has no such key
 defineConfig({ resolve: { conditon: ['x'] } })
+
+// define: a string is source text, any other JSON value is its JSON text.
+defineConfig({
+  define: {
+    'import.meta.env.DEV': true,
+    'import.meta.env.MODE': '"test"',
+    __COUNT__: 3,
+    'import.meta.env': { DEV: true, BASE_URL: '/' },
+  },
+})
+defineConfig({ projects: [{ name: 'a', define: { X: null } }] })
+// @ts-expect-error a function is not a JSON value
+defineConfig({ define: { X: () => 1 } })
+// @ts-expect-error define is an object, not a list
+defineConfig({ define: ['X'] })
+// @ts-expect-error define is an object, not a string
+defineConfig({ define: 'X' })

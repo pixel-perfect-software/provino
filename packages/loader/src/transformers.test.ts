@@ -230,3 +230,35 @@ test('a claimed CommonJS node_modules file Node cannot parse (JSX, Flow) is tran
     'each transformed once per worker; the native one never',
   )
 })
+
+// Under `assetImports: 'built-in'` the loader makes the module of an asset or style file, unless a
+// transform the project configured takes it.
+test('a configured transform for .svg wins over the built-in asset module', async () => {
+  const root = writeTree({
+    'upper.cjs': UPPER,
+    'logo.svg': 'inline svg',
+    'other.svg': '<svg/>',
+    'entry.test.ts': [
+      "import logo from './logo.svg'",
+      "import other from './other.svg'",
+      'export const value = [String(logo), String(other)]',
+      '',
+    ].join('\n'),
+  })
+  const loader = await createProjectLoader(
+    root,
+    config(root, {
+      rules: [
+        {
+          pattern: 'logo\\.svg$',
+          transformer: { module: join(root, 'upper.cjs'), export: 'default' },
+          options: { tag: 'svg' },
+        },
+      ],
+    }),
+    { ...neutralPolicy.module, assetImports: 'built-in' },
+  )
+  const registry = loader.createFileRegistry(join(root, 'entry.test.ts'), { tier: 'registry' })
+  const entry = await registry.import<{ value: string[] }>(join(root, 'entry.test.ts'))
+  assert.deepEqual(entry.value, ['INLINE SVG', '/other.svg'])
+})

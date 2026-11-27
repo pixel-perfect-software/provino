@@ -3,6 +3,7 @@ import { dirname, isAbsolute, resolve } from 'node:path'
 import {
   callBehaviour,
   createBehaviourLoader,
+  nativeModulePolicy,
   nativeSnapshotPolicy,
   resolvePolicy,
   serializePolicy,
@@ -249,6 +250,37 @@ function aliasesOf(
   })
 }
 
+/**
+ * `define` as `SerializedLoaderConfig.define`: the source text of each replacement (a string as
+ * written, any other JSON value as its JSON text), or `undefined` for none.
+ */
+function defineOf(
+  define: Readonly<Record<string, JsonValue>> | undefined,
+): SerializedLoaderConfig['define'] {
+  if (define === undefined) return undefined
+  const entries = Object.entries(define).map(
+    ([key, value]) => [key, typeof value === 'string' ? value : JSON.stringify(value)] as const,
+  )
+  return entries.length === 0 ? undefined : Object.fromEntries(entries)
+}
+
+/**
+ * Asks Oxc, the pipeline's own define handling, about every replacement once, before any worker
+ * starts: a value that is not one expression would fail every transformed file. `@provino/transform`
+ * loads only for a project that sets `define`.
+ */
+async function assertDefineExpressions(define: NonNullable<SerializedLoaderConfig['define']>) {
+  const { refusedDefines } = await import('@provino/transform')
+  const [refused] = Object.entries(refusedDefines(define))
+  if (refused !== undefined) {
+    const [key, reason] = refused
+    throw new ConfigError(
+      'CONFIG_INVALID',
+      `config key "define[${JSON.stringify(key)}]" must be one expression Oxc accepts (${reason}): ${JSON.stringify(define[key])}`,
+    )
+  }
+}
+
 /** `resolve.tsconfig` as `SerializedLoaderConfig.tsconfig`: a path is made absolute against the root. */
 function tsconfigOf(
   tsconfig: ConfigResolve['tsconfig'],
@@ -341,6 +373,8 @@ export async function resolveProjectInput(
       'config key "projects" holds several projects: resolve it with resolveProjects',
     )
   }
+  const define = defineOf(parsed.define)
+  if (define !== undefined) await assertDefineExpressions(define)
   const rootDir = resolve(dirname(options.configPath), parsed.root ?? '.')
   // The root check and `detect`'s read of the root are independent; a bad root is reported first.
   const [, dialect] = await inParallel(
@@ -379,6 +413,7 @@ export async function resolveProjectInput(
       aliases: aliasesOf(parsed.resolve?.aliases, rootDir),
       extraConditions: parsed.resolve?.conditions ?? [],
       tsconfig: tsconfigOf(parsed.resolve?.tsconfig, rootDir),
+      define,
     },
     options,
   )
@@ -553,6 +588,8 @@ interface ProjectInput {
   readonly extraConditions?: readonly string[] | undefined
   /** `loader.tsconfig`; `'auto'` when absent. */
   readonly tsconfig?: SerializedLoaderConfig['tsconfig'] | undefined
+  /** `define`, as source text (a `provino.config.*` project's only). */
+  readonly define?: SerializedLoaderConfig['define'] | undefined
 }
 
 /** `record`, or `undefined` when it has no keys: an empty one is no setting. */
@@ -592,6 +629,7 @@ function nativeLayer(native: NativeRuntimeRefs | undefined): PolicyOverrides | u
   if (native === undefined) return undefined
   return {
     expect: { matcherTable: native.matcherTable },
+    module: nativeModulePolicy,
     ...(native.snapshot === undefined ? {} : { snapshot: nativeSnapshotPolicy(native.snapshot) }),
   }
 }
@@ -708,6 +746,7 @@ async function finishProject(
       extensions: Object.freeze([...LOADER_EXTENSIONS]),
       conditions: [...new Set([...conditions, ...(input.extraConditions ?? [])])],
       tsconfig: input.tsconfig ?? 'auto',
+      ...(input.define === undefined ? {} : { define: input.define }),
       mappers: [],
       typescript: 'oxc',
       ...(input.transform === undefined ? {} : { transform: input.transform }),

@@ -30,6 +30,7 @@ const PROJECT_KEYS: readonly string[] = Object.keys({
   environmentOptions: true,
   timeouts: true,
   resolve: true,
+  define: true,
   dialects: true,
   plugins: true,
   name: true,
@@ -159,6 +160,8 @@ export interface ParsedInput {
   readonly environmentOptions: Readonly<Record<string, JsonValue>> | undefined
   readonly timeouts: ConfigTimeouts | undefined
   readonly resolve: ConfigResolve | undefined
+  /** `define` as the user wrote it (`defineOf` turns it into source text). */
+  readonly define: Readonly<Record<string, JsonValue>> | undefined
   /** Top-level only: the defaults `run` takes when the command line names none. */
   readonly pool: PoolKind | undefined
   readonly maxWorkers: number | undefined
@@ -444,6 +447,89 @@ function parseResolve(input: object): ConfigResolve | undefined {
   return value
 }
 
+/** An identifier or a dotted chain of them: `__X__`, `process.env.NODE_ENV`, `import.meta.env`. */
+const DEFINE_KEY = /^[A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*$/
+
+/** Words that start no replaceable name (`import` only as `import.meta.<member>`). */
+const RESERVED_FIRST = new Set([
+  'this',
+  'new',
+  'class',
+  'function',
+  'super',
+  'typeof',
+  'void',
+  'delete',
+  'in',
+  'instanceof',
+  'return',
+  'var',
+  'let',
+  'const',
+  'if',
+  'else',
+  'for',
+  'while',
+  'do',
+  'switch',
+  'case',
+  'default',
+  'break',
+  'continue',
+  'throw',
+  'try',
+  'catch',
+  'finally',
+  'with',
+  'yield',
+  'await',
+  'null',
+  'true',
+  'false',
+  'enum',
+  'export',
+  'extends',
+  'debugger',
+  'import',
+])
+
+/** Whether `key` names something a define may replace. */
+function isDefineKey(key: string): boolean {
+  if (!DEFINE_KEY.test(key) || key === '__proto__') return false
+  const [first = '', second, third] = key.split('.')
+  if (first === 'import') return second === 'meta' && third !== undefined
+  return !RESERVED_FIRST.has(first)
+}
+
+/**
+ * `define`: a string is an expression's source text as written, any other JSON value is its JSON
+ * text (the rule Vite's `define` has; not checked against its source). A key or value that is
+ * neither is `CONFIG_INVALID` naming `define["<key>"]`. Whether a string is one expression is
+ * Oxc's to say (`resolveProjectInput` asks it).
+ */
+function parseDefine(input: object): Readonly<Record<string, JsonValue>> | undefined {
+  const value = optional(input, 'define', 'an object', isRecord)
+  if (value === undefined) return undefined
+  const out: [string, JsonValue][] = []
+  for (const [key, replacement] of Object.entries(value)) {
+    const name = `define[${JSON.stringify(key)}]`
+    if (!isDefineKey(key)) {
+      throw invalid(
+        name,
+        'a key that is an identifier or a dotted chain of them (not a reserved word, `__proto__` or `import.meta` alone)',
+        key,
+      )
+    }
+    if (typeof replacement === 'string') {
+      if (replacement.trim() === '') throw invalid(name, 'a non-blank expression', replacement)
+    } else if (!isJsonValue(replacement)) {
+      throw invalid(name, 'a string of source text or a JSON value', replacement)
+    }
+    out.push([key, replacement])
+  }
+  return out.length === 0 ? undefined : Object.fromEntries(out)
+}
+
 /**
  * Checks the keys `resolveProject` reads, and refuses the ones nothing handles yet. A key that
  * isn't one of them is `CONFIG_UNKNOWN_KEY`, unless it is the name of a dialect in `dialects` (the
@@ -504,6 +590,7 @@ export function parseInput(
     ),
     timeouts: parseTimeouts(input),
     resolve: parseResolve(input),
+    define: parseDefine(input),
     pool: optional(
       input,
       'pool',

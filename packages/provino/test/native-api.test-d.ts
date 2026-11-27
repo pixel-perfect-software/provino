@@ -61,6 +61,11 @@ const later = fn<(name: string) => boolean>()
 expectTypeOf(later.mock.calls).toEqualTypeOf<[name: string][]>()
 // @ts-expect-error the mock takes its type's parameters
 later(1)
+expectTypeOf(expect(1, 'a label')).toEqualTypeOf<ReturnType<typeof expect>>()
+// @ts-expect-error the message is a string
+expect(1, 2)
+// @ts-expect-error one value and one message
+expect(1, 'a label', 'more')
 expectTypeOf(isMockFunction(add)).toEqualTypeOf<boolean>()
 
 // `spyOn` takes a method's key; a value property goes through `replaceProperty`.

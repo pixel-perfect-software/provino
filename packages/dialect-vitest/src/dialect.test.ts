@@ -154,6 +154,10 @@ test('mapperMiss is null: Vitest has no moduleNameMapper, so a miss is a not-fou
   assert.equal(vitestModulePolicy.mapperMiss, null)
 })
 
+test("module.assetImports is off: real Vitest hands an asset to Vite (Provino's own key, D7)", () => {
+  assert.equal(vitestModulePolicy.assetImports, 'off')
+})
+
 test("module.syncMocks is refuse: Provino's own key (B28), and Vitest's mocker hooks imports only", () => {
   assert.equal(vitestModulePolicy.syncMocks, 'refuse')
 })

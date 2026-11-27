@@ -42,6 +42,8 @@ const pinned: Readonly<Record<string, unknown>> = {
   'module.messages': {},
   'snapshot.header': '// Provino Snapshot v1',
   'expect.errorShape': 'assertion-error',
+  // Ours: `expect(value, message)` labels a failure.
+  'expect.messageArgument': true,
   // B23f: ours. An assertion made outside any test counts for no test; a shared package that patches
   // a global stays shared (speed); no extra microtask turns anywhere.
   'expect.outsideTestCounts': 'drop',
