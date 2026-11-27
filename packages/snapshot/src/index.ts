@@ -12,6 +12,7 @@ export {
   type SnapshotData,
   serializeSnapFile,
 } from './snap-file.ts'
+export { inlineSourceHash } from './source-hash.ts'
 export {
   addExtraLineBreaks,
   escapeBacktickString,

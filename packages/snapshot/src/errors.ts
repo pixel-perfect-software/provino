@@ -25,6 +25,11 @@ export type SnapshotErrorCode =
   | 'SNAPSHOT_INLINE_NOT_FOUND'
   /** One matcher call took more than one inline snapshot (a helper called twice). */
   | 'SNAPSHOT_INLINE_SAME_CALL'
+  /**
+   * An inline snapshot's position is in a text of its source file other than the one on disk: this
+   * run already wrote inline snapshots into it after the test file loaded it. A re-run writes it.
+   */
+  | 'SNAPSHOT_INLINE_STALE'
 
 /**
  * An error from the snapshot engine. Tests assert on `code`, not on the text.

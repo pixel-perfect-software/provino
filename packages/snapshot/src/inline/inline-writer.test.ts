@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises'
+import { link, mkdtemp, readdir, readFile, rm, stat, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import type { InlineSnapshotEdit } from '@provino/types'
@@ -218,5 +218,21 @@ describe('nativeInlineSnapshotWriter', () => {
     assert.equal(await a.read(), 'expect(1).toMatchInlineSnapshot(`1`)\n')
     assert.equal(await b.read(), 'expect(2).toMatchInlineSnapshot(`2`)\n')
     assert.deepEqual(await write([], options), [])
+  })
+
+  test('writes the file through a temp file and a rename, never truncating it in place', async () => {
+    const text = "expect('x').toMatchInlineSnapshot()\n"
+    const s = await source(text)
+    // A second name for the file's old contents: a rewrite in place changes them too.
+    const old = `${s.file}.old`
+    await link(s.file, old)
+    await write([s.at('toMatchInlineSnapshot', '"x"')], options)
+    assert.equal(await s.read(), 'expect(\'x\').toMatchInlineSnapshot(`"x"`)\n')
+    assert.equal(await readFile(old, 'utf8'), text)
+    assert.deepEqual(
+      (await readdir(dir)).filter((name) => name.endsWith('.tmp')),
+      [],
+      'no temp file is left',
+    )
   })
 })

@@ -16,7 +16,7 @@
 //
 // Oxc's parser is imported the first time there is something to write: a run that writes no inline
 // snapshot never loads it.
-import { readFile, writeFile } from 'node:fs/promises'
+import { readFile } from 'node:fs/promises'
 import type {
   InlineSnapshotEdit,
   InlineSnapshotWriteOptions,
@@ -26,6 +26,7 @@ import type {
 import type { ParserOptions } from 'oxc-parser'
 import { SnapshotError } from '../errors.ts'
 import { escapeBacktickString } from '../vendor/jest-snapshot/escape-backtick.ts'
+import { writeFileAtomically } from '../write-atomically.ts'
 
 /** What this writer reads of a parsed node: Oxc's ESTree nodes carry UTF-16 offsets. */
 interface SpanNode {
@@ -240,7 +241,9 @@ export const nativeInlineSnapshotWriter: InlineSnapshotWriterFactory = (): Inlin
     for (const [file, fileEdits] of byFile) {
       const source = await readFile(file, 'utf8')
       const next = await withSnapshots(parse, file, source, fileEdits)
-      if (next !== source) await writeFile(file, next)
+      // Through a temp file and a rename, as a `.snap` file is: a failed or cut-short write never
+      // leaves the user's file empty or half written.
+      if (next !== source) writeFileAtomically(file, next)
     }
     return []
   }

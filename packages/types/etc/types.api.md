@@ -1392,6 +1392,7 @@ export interface InlineSnapshotEdit {
     readonly file: string;
     readonly line: number;
     readonly snapshot: string;
+    readonly sourceHash?: string;
 }
 
 // @public

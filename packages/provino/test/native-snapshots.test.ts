@@ -177,4 +177,50 @@ describe('native snapshots through provino run', () => {
     const again = await built([...nativeRunArgs('forks'), '--ci'], dir)
     assert.equal(again.status, 0, again.output)
   })
+
+  test('a helper two test files write into is never written from out-of-date positions (B28 Phase 7)', async () => {
+    // `a` on line 2, `b` (holding a snapshot) on line 3, `d` on line 7. x's multi-line snapshot
+    // puts four more lines after line 2, so y's line 7, from the text before, is `b` afterwards.
+    const helper = [
+      "import { expect } from 'provino'",
+      'export const a = (v: unknown): void => { expect(v).toMatchInlineSnapshot() }',
+      'export const b = (v: unknown): void => { expect(v).toMatchInlineSnapshot(`"keep"`) }',
+      '// filler 1',
+      '// filler 2',
+      '// filler 3',
+      'export const d = (v: unknown): void => { expect(v).toMatchInlineSnapshot() }',
+      '',
+    ].join('\n')
+    const dir = await nativeProject({
+      'tests/helper.ts': helper,
+      // The larger file runs first, so its write is the one the other file's positions predate.
+      'tests/x.test.ts': `import { it } from 'provino'\nimport { a } from './helper.ts'\n${'// x\n'.repeat(40)}it('x', () => { a({ a: 1 }) })\n`,
+      'tests/y.test.ts':
+        "import { it } from 'provino'\nimport { d } from './helper.ts'\nit('y', () => { d('NEW') })\n",
+    })
+    const read = () => readFile(join(dir, 'tests', 'helper.ts'), 'utf8')
+    // One worker runs both files, so the second runs on the helper as the worker first loaded it.
+    const first = await built(nativeRunArgs('forks'), dir)
+    assert.match(await read(), /b = .*toMatchInlineSnapshot\(`"keep"`\)/, first.output)
+    // The worker's helper is still the text from before the first file's write, so the second
+    // file's edit is refused: its file fails, saying to re-run.
+    assert.equal(first.status, 1, first.output)
+    const view = viewOfNormalized(await readFile(join(dir, 'results.json'), 'utf8'))
+    const refused = [...view.files.values()].flatMap((file) =>
+      file.fileError === undefined ? [] : [file.fileError],
+    )
+    assert.equal(refused.length, 1, first.output)
+    assert.match(String(refused[0]), /out of date\. Run the tests again to write them/)
+    // Each run writes what the one before refused, until both are in.
+    const second = await built(nativeRunArgs('forks'), dir)
+    assert.equal(second.status, 0, second.output)
+    assert.equal(
+      await read(),
+      helper
+        .replace('toMatchInlineSnapshot() }', 'toMatchInlineSnapshot(`\n{\n  "a": 1,\n}\n`) }')
+        .replace('toMatchInlineSnapshot() }', 'toMatchInlineSnapshot(`"NEW"`) }'),
+    )
+    const ci = await built([...nativeRunArgs('forks'), '--ci'], dir)
+    assert.equal(ci.status, 0, ci.output)
+  })
 })

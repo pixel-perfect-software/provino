@@ -4,6 +4,7 @@ import {
   deepMerge,
   defaultSnapshotPath,
   evaluateSnapFile,
+  inlineSourceHash,
   keyToTestName,
   naturalCompare,
   SnapshotError,
@@ -158,6 +159,7 @@ expectTypeOf<NonNullable<SnapshotFileReport['inline']>[number]>().toEqualTypeOf<
   readonly line: number
   readonly column: number
   readonly snapshot: string
+  readonly sourceHash?: string
 }>()
 expectTypeOf<MatchOptions['stack']>().toEqualTypeOf<(() => string) | undefined>()
 expectTypeOf(
@@ -179,6 +181,18 @@ expectTypeOf(nativeInlineSnapshotWriter()).returns.toEqualTypeOf<Promise<readonl
 expectTypeOf<'SNAPSHOT_INLINE_PARSE'>().toExtend<SnapshotErrorCode>()
 expectTypeOf<'SNAPSHOT_INLINE_NOT_FOUND'>().toExtend<SnapshotErrorCode>()
 expectTypeOf<'SNAPSHOT_INLINE_SAME_CALL'>().toExtend<SnapshotErrorCode>()
+expectTypeOf<'SNAPSHOT_INLINE_STALE'>().toExtend<SnapshotErrorCode>()
+
+// B28 Phase 7: the identity of a loaded source, and where the worker gets the text it hashes.
+expectTypeOf(inlineSourceHash).toEqualTypeOf<(text: string) => string>()
+// @ts-expect-error the hash is of the source's text, not of a buffer
+inlineSourceHash(Buffer.from('x'))
+openFileSnapshots({
+  ...openOptions,
+  loadedSource: (file: string) => (file === '' ? undefined : ''),
+})
+// @ts-expect-error the loaded source is text or `undefined`, not a buffer
+openFileSnapshots({ ...openOptions, loadedSource: () => Buffer.from('x') })
 // @ts-expect-error the writer is told the project
 void nativeInlineSnapshotWriter()([])
 // @ts-expect-error an edit has a line and a column
