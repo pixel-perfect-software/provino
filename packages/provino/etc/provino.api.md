@@ -185,6 +185,10 @@ export type ProvinoApi = {
     readonly fn: <T extends MockTarget = UnknownFunction>(impl?: T) => Mock<T>;
     readonly spyOn: ProvinoSpyOn;
     readonly replaceProperty: <T extends object, K extends keyof T>(object: T, key: K, value: T[K]) => Replaced<T[K]>;
+    readonly stubGlobal: (name: PropertyKey, value: unknown) => void;
+    readonly stubEnv: (name: string, value: string | undefined) => void;
+    readonly unstubAllGlobals: () => void;
+    readonly unstubAllEnvs: () => void;
     readonly isMockFunction: (value: unknown) => value is Mock<UnknownFunction>;
     readonly mocks: ProvinoMocks;
     readonly timers: ProvinoTimers;
@@ -294,6 +298,12 @@ export function sharedExamples<R, A extends unknown[] = []>(name: string, body: 
 export const spyOn: ProvinoApi["spyOn"];
 
 // @public
+export const stubEnv: ProvinoApi["stubEnv"];
+
+// @public
+export const stubGlobal: ProvinoApi["stubGlobal"];
+
+// @public
 export const suite: ProvinoApi["suite"];
 
 // @public
@@ -304,6 +314,12 @@ export const timers: ProvinoApi["timers"];
 
 // @public
 export const unmock: ProvinoApi["unmock"];
+
+// @public
+export const unstubAllEnvs: ProvinoApi["unstubAllEnvs"];
+
+// @public
+export const unstubAllGlobals: ProvinoApi["unstubAllGlobals"];
 
 // @public @deprecated
 export type WorkerApi = Pick<JestGlobals, "afterAll" | "afterEach" | "beforeAll" | "beforeEach" | "describe" | "expect" | "it" | "test">;

@@ -95,6 +95,10 @@ const NATIVE_ONLY: ReadonlySet<string> = new Set([
   'aroundAll',
   'onTestFinished',
   'onTestFailed',
+  'stubGlobal',
+  'stubEnv',
+  'unstubAllGlobals',
+  'unstubAllEnvs',
 ])
 
 /**
@@ -276,6 +280,32 @@ export const spyOn: ProvinoApi['spyOn'] = bound('spyOn')
  * @public
  */
 export const replaceProperty: ProvinoApi['replaceProperty'] = bound('replaceProperty')
+
+/**
+ * `stubGlobal`: stands a value in for a global, even a missing or accessor one, until
+ * `unstubAllGlobals()` or the end of the test (native API).
+ * @public
+ */
+export const stubGlobal: ProvinoApi['stubGlobal'] = bound('stubGlobal')
+
+/**
+ * `stubEnv`: sets an environment variable (`undefined` deletes it) until `unstubAllEnvs()` or
+ * the end of the test (native API).
+ * @public
+ */
+export const stubEnv: ProvinoApi['stubEnv'] = bound('stubEnv')
+
+/**
+ * `unstubAllGlobals`: puts back every global `stubGlobal` stood in for (native API).
+ * @public
+ */
+export const unstubAllGlobals: ProvinoApi['unstubAllGlobals'] = bound('unstubAllGlobals')
+
+/**
+ * `unstubAllEnvs`: puts back every environment variable `stubEnv` changed (native API).
+ * @public
+ */
+export const unstubAllEnvs: ProvinoApi['unstubAllEnvs'] = bound('unstubAllEnvs')
 
 /**
  * `isMockFunction`: whether a value is a mock function (native API).

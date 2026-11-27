@@ -138,6 +138,20 @@ export type ProvinoApi = {
     key: K,
     value: T[K],
   ) => Replaced<T[K]>
+  /**
+   * Stands `value` in for the global `name` (even one that is missing or an accessor, like
+   * `location` or `navigator` in Node) until `unstubAllGlobals()` or the end of the test.
+   */
+  readonly stubGlobal: (name: PropertyKey, value: unknown) => void
+  /**
+   * Sets the environment variable `name` to `value` (`undefined` deletes it) until
+   * `unstubAllEnvs()` or the end of the test.
+   */
+  readonly stubEnv: (name: string, value: string | undefined) => void
+  /** Puts back every global `stubGlobal` stood in for. */
+  readonly unstubAllGlobals: () => void
+  /** Puts back every environment variable `stubEnv` changed. */
+  readonly unstubAllEnvs: () => void
   readonly isMockFunction: (value: unknown) => value is Mock<UnknownFunction>
   readonly mocks: ProvinoMocks
   readonly timers: ProvinoTimers

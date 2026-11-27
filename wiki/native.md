@@ -280,7 +280,8 @@ it('spies and replaces', () => {
 - `fn(impl?)` makes a mock function. Its `.mock` holds `calls`, `results`, `instances` and `lastCall`, and it has `mockReturnValue`, `mockImplementation`, `mockResolvedValue`, `mockRejectedValue`, `mockClear`, `mockReset`, `mockRestore`, `whenCalledWith` and the `Once` forms.
 - `spyOn(object, key)` replaces a method with a mock that calls through; `spyOn(object, key, 'get' | 'set')` spies on an accessor. `replaceProperty(object, key, value)` replaces a plain value and returns something with `restore()` and `replaceValue()`.
 - `mocks.clearAll()`, `mocks.resetAll()` and `mocks.restoreAll()` act on every mock of the file.
-- Between tests Provino clears each mock's calls and puts spies and replaced properties back, so none leaks into the next test. A mock's implementation stays unless you reset it.
+- `stubGlobal(name, value)` stands a value in for a global for the rest of the test, and `stubEnv(name, value)` sets an environment variable (`undefined` deletes it). Use `stubGlobal` rather than `replaceProperty` for a global that does not exist in Node (`location`, `document`, `window`) or is an accessor there (`navigator`): `replaceProperty` refuses both. `unstubAllGlobals()` and `unstubAllEnvs()` put them back inside a test.
+- Between tests Provino clears each mock's calls and puts spies, replaced properties, stubbed globals and stubbed environment variables back, so none leaks into the next test. A mock's implementation stays unless you reset it.
 
 ### Typing mocks
 
@@ -420,7 +421,7 @@ import { defineConfig } from 'provino/config'
 export default defineConfig({ globals: true })
 ```
 
-With `globals: true`, `describe`, `suite`, `it`, `test`, the hooks, `aroundEach`, `aroundAll`, `onTestFinished`, `onTestFailed`, `expect`, `fn`, `spyOn`, `replaceProperty`, `isMockFunction`, `mocks` and `timers` are globals, so a suite can drop its imports. `mock`, `unmock`, `importActual` and `requireActual` are never globals, because a global `mock` would not be hoisted and the others resolve from the calling module. `mocked`, `resetModules`, `isolateModules` and `isolateModulesAsync` are. `lazy` never is.
+With `globals: true`, `describe`, `suite`, `it`, `test`, the hooks, `aroundEach`, `aroundAll`, `onTestFinished`, `onTestFailed`, `expect`, `fn`, `spyOn`, `replaceProperty`, `stubGlobal`, `stubEnv`, `unstubAllGlobals`, `unstubAllEnvs`, `isMockFunction`, `mocks` and `timers` are globals, so a suite can drop its imports. `mock`, `unmock`, `importActual` and `requireActual` are never globals, because a global `mock` would not be hoisted and the others resolve from the calling module. `mocked`, `resetModules`, `isolateModules` and `isolateModulesAsync` are. `lazy` never is.
 
 For TypeScript, add the globals' types, in `tsconfig.json` or with `import 'provino/globals/native'` in a `.d.ts` file:
 

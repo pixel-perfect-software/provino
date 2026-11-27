@@ -20,11 +20,13 @@ import {
 } from '@provino/lazy'
 import {
   createMockFn,
+  createStubs,
   isMockFunction,
   type Mock,
   type Mocked,
   type MockTarget,
   replaceProperty,
+  type Stubs,
   spyOn,
   type UnknownFunction,
 } from '@provino/mock'
@@ -74,6 +76,24 @@ interface Built {
 
 const builtByHost = new WeakMap<ApiHost, Built>()
 
+/**
+ * The stubs of one host's files, one set per file's mock registry, made on a file's first stub:
+ * the registry's between-test steps (the policy's `unstubEnvs` and `unstubGlobals`) and its
+ * dispose reach them. Stubs act on `process.env` and the global the test sees.
+ */
+function stubsOver(host: ApiHost): () => Stubs {
+  const byRegistry = new WeakMap<object, Stubs>()
+  return () => {
+    const registry = host.mocks()
+    let stubs = byRegistry.get(registry)
+    if (stubs === undefined) {
+      stubs = createStubs(registry, process.env, globalThis)
+      byRegistry.set(registry, stubs)
+    }
+    return stubs
+  }
+}
+
 function timersOver(host: ApiHost): ProvinoTimers {
   // `facadeReturns` comes from the host's policy (the neutral one says 'all': every member that
   // changes the clock returns this object), so the interface's types hold for the native runtime.
@@ -99,6 +119,7 @@ function built(host: ApiHost): Built {
   const known = builtByHost.get(host)
   if (known !== undefined) return known
   const { api } = host
+  const stubs = stubsOver(host)
   const made: ProvinoApi = Object.freeze({
     describe: api.describe,
     suite: api.suite,
@@ -127,6 +148,11 @@ function built(host: ApiHost): Built {
       )) as ProvinoSpyOn,
     replaceProperty: <T extends object, K extends keyof T>(object: T, key: K, value: T[K]) =>
       replaceProperty(host.mockPolicy, host.mocks(), object, key, value),
+    // The engine's stubs chain; native's return nothing, as `replaceProperty`'s siblings do.
+    stubGlobal: (name: PropertyKey, value: unknown): void => void stubs().stubGlobal(name, value),
+    stubEnv: (name: string, value: string | undefined): void => void stubs().stubEnv(name, value),
+    unstubAllGlobals: (): void => void stubs().unstubAllGlobals(),
+    unstubAllEnvs: (): void => void stubs().unstubAllEnvs(),
     isMockFunction: (value: unknown): value is Mock<UnknownFunction> =>
       isMockFunction(host.mockPolicy, value),
     // Jest's `mocked`: the value, retyped. The cast is the whole feature.
