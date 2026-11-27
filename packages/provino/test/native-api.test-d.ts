@@ -26,9 +26,13 @@ import {
   requireActual,
   resetModules,
   spyOn,
+  stubEnv,
+  stubGlobal,
   test,
   timers,
   unmock,
+  unstubAllEnvs,
+  unstubAllGlobals,
 } from 'provino'
 
 // `describe.each` spreads an array row into the body's parameters.
@@ -207,3 +211,16 @@ mock('node:path', () => ({
   ...requireActual<typeof import('node:path')>('node:path'),
   sep: '/',
 }))
+
+// `stubEnv` takes a string or `undefined` (which deletes the variable), `stubGlobal` any value; the unstubs take nothing.
+stubEnv('MODE', 'test')
+stubEnv('MODE', undefined)
+stubGlobal('flag', { on: true })
+expectTypeOf(unstubAllEnvs()).toBeVoid()
+expectTypeOf(unstubAllGlobals()).toBeVoid()
+// @ts-expect-error an env value is a string or undefined
+stubEnv('MODE', 1)
+// @ts-expect-error an env variable needs a value
+stubEnv('MODE')
+// @ts-expect-error a global needs a value
+stubGlobal('flag')

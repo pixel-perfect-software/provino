@@ -72,6 +72,19 @@ api.replaceProperty(target, 'level', 2)
 // @ts-expect-error the new value has the property's type
 api.replaceProperty(target, 'level', 'two')
 
+// The stubs return nothing and take a string (or undefined) for an environment variable.
+expectTypeOf(api.stubGlobal('x', 1)).toEqualTypeOf<void>()
+expectTypeOf(api.stubEnv('X', 'y')).toEqualTypeOf<void>()
+api.stubEnv('X', undefined)
+// @ts-expect-error an environment variable is a string or undefined
+api.stubEnv('X', 1)
+// @ts-expect-error the value is required
+api.stubGlobal('x')
+// @ts-expect-error the value is required
+api.stubEnv('X')
+expectTypeOf<ProvinoGlobalsApi>().toHaveProperty('stubGlobal')
+expectTypeOf<ProvinoGlobalsApi>().toHaveProperty('unstubAllEnvs')
+
 // The module-registry members are plain members: globals too (B28).
 expectTypeOf<ProvinoGlobalsApi>().toHaveProperty('resetModules')
 expectTypeOf(api.isolateModules(() => ({ n: 1 }))).toEqualTypeOf<{ n: number }>()

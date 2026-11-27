@@ -54,6 +54,10 @@ const OWN_NAMES = [
   'fn',
   'spyOn',
   'replaceProperty',
+  'stubGlobal',
+  'stubEnv',
+  'unstubAllGlobals',
+  'unstubAllEnvs',
   'isMockFunction',
   'mocked',
   'mocks',
@@ -240,6 +244,32 @@ describe('provinoModuleScope', () => {
     assert.equal(mock.mock.calls.length, 0)
     // The implementation `fn` was given stays; the one set later goes.
     assert.equal(mock(), 'real')
+  })
+
+  test('stubs stand in for a missing global, an accessor and an env variable, then restore', () => {
+    const { host, next } = fakeHost()
+    const api = provinoGlobals(host)
+    const global = globalThis as Record<PropertyKey, unknown>
+    const navigatorBefore = Object.getOwnPropertyDescriptor(globalThis, 'navigator')
+    assert.equal('stubbedHere' in global, false)
+    api.stubGlobal('stubbedHere', { a: 1 })
+    api.stubGlobal('navigator', { userAgent: 'x' })
+    api.stubEnv('PROVINO_STUB_TEST', 'one')
+    assert.deepEqual(global.stubbedHere, { a: 1 })
+    assert.equal((global.navigator as { userAgent: string }).userAgent, 'x')
+    assert.equal(process.env.PROVINO_STUB_TEST, 'one')
+    api.stubEnv('PROVINO_STUB_TEST', undefined)
+    assert.equal('PROVINO_STUB_TEST' in process.env, false)
+    // The registry's between-test step (the neutral policy's `unstubEnvs` and `unstubGlobals`) puts them back.
+    host.mocks().beforeEach({}, neutralPolicy.mock.between)
+    assert.equal('stubbedHere' in global, false)
+    assert.deepEqual(Object.getOwnPropertyDescriptor(globalThis, 'navigator'), navigatorBefore)
+    assert.equal('PROVINO_STUB_TEST' in process.env, false)
+    // A second file's registry has its own stubs.
+    next()
+    api.stubEnv('PROVINO_STUB_TEST', 'two')
+    api.unstubAllEnvs()
+    assert.equal('PROVINO_STUB_TEST' in process.env, false)
   })
 
   test('`timers` drives the clock of the file running now, and chains (facadeReturns: all)', () => {
