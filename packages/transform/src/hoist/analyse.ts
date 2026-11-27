@@ -208,6 +208,7 @@ export function analyse(
 ): Analysis {
   const importedCalls = policy.importedCalls ?? NO_CALLS
   const callbackScopes = policy.callbackScopes ?? NO_CALLS
+  const globalCallbackScopes = new Set(policy.globalCallbackScopes ?? [])
   const { named: importedLocals, namespaces: namespaceLocals } = importedCallLocals(
     program,
     callModulesOf(policy),
@@ -364,7 +365,7 @@ export function analyse(
    * hoisted call there moves to the top of that body, as `enclosing-block` would move it.
    */
   function isCallbackScope(block: Node, index: number): boolean {
-    if (callbackScopes.length === 0) return false
+    if (callbackScopes.length === 0 && globalCallbackScopes.size === 0) return false
     const fn = stack[index - 1]
     const call = stack[index - 2]
     if (
@@ -374,6 +375,16 @@ export function analyse(
       call.arguments[0] !== fn
     ) {
       return false
+    }
+    const callee = call.callee
+    if (
+      callee.type === 'Identifier' &&
+      globalCallbackScopes.has(callee.name) &&
+      !call.optional &&
+      declarationOf(callee.name) === null &&
+      !tracker.isDeclaredInMergedScope(callee.name)
+    ) {
+      return true
     }
     const found = importedCallee(call)
     return (

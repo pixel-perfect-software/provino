@@ -220,3 +220,36 @@ test('callback scope: anywhere else in the callback, or with no such policy, is 
   const plain = "import { isolate, mock } from 'runner'\nisolate(() => {\n  mock('./b')\n})\n"
   assert.deepEqual(errorCodes(hoist(plain, policy)), ['HOIST_NOT_TOP_LEVEL'])
 })
+
+// `HoistPolicy.globalCallbackScopes`: the same scopes by global name, for a runner that injects
+// them (the native `isolateModules` under `globals: true`).
+const globalScoped: HoistPolicy = { ...policy, globalCallbackScopes: ['isolate', 'isolateAsync'] }
+
+test("global callback scope: a mock in the global call's callback moves to its top", () => {
+  for (const [call, code] of [
+    [
+      'isolate',
+      "import { mock } from 'runner'\nisolate(() => {\n  foo()\n  mock('./b')\n  return 1\n})\n",
+    ],
+    [
+      'isolateAsync',
+      "import { mock } from 'runner'\nawait isolateAsync(async () => {\n  foo()\n  mock('./b')\n})\n",
+    ],
+  ] as const) {
+    const result = hoist(code, globalScoped)
+    assert.deepEqual(result.diagnostics, [], call)
+    assertOrder(result.code, `${call}(`, "mock('./b')", 'foo()')
+  }
+})
+
+test('global callback scope: a local binding of the name, an optional call and no such policy are not scopes', () => {
+  for (const code of [
+    "import { mock } from 'runner'\nconst isolate = (f) => f()\nisolate(() => {\n  mock('./b')\n})\n",
+    "import { mock } from 'runner'\nfunction run(isolate) {\n  isolate(() => {\n    mock('./b')\n  })\n}\n",
+    "import { mock } from 'runner'\nisolate?.(() => {\n  mock('./b')\n})\n",
+  ]) {
+    assert.deepEqual(errorCodes(hoist(code, globalScoped)), ['HOIST_NOT_TOP_LEVEL'], code)
+  }
+  const plain = "import { mock } from 'runner'\nisolate(() => {\n  mock('./b')\n})\n"
+  assert.deepEqual(errorCodes(hoist(plain, policy)), ['HOIST_NOT_TOP_LEVEL'])
+})

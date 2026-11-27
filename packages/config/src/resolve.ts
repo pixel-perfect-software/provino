@@ -3,6 +3,7 @@ import { dirname, isAbsolute, resolve } from 'node:path'
 import {
   callBehaviour,
   createBehaviourLoader,
+  NATIVE_CALLBACK_SCOPES,
   nativeSnapshotPolicy,
   resolvePolicy,
   serializePolicy,
@@ -12,6 +13,7 @@ import type {
   ConfigTimeouts,
   Dialect,
   EnvironmentRef,
+  HoistPolicy,
   IsolationTier,
   JsonValue,
   ModuleRef,
@@ -596,6 +598,18 @@ function nativeLayer(native: NativeRuntimeRefs | undefined): PolicyOverrides | u
   }
 }
 
+/**
+ * The native runtime's hoist policy for a project: with globals injected, the global
+ * `isolateModules` and `isolateModulesAsync` are callback scopes as the imported ones are (a
+ * `mock` at the top of their callback hoists to the top of it). The id changes with them, so the
+ * transform cache never serves one project's output to the other.
+ */
+function nativeHoist(hoist: HoistPolicy | undefined, injectGlobals: boolean): HoistPolicy | null {
+  if (hoist === undefined) return null
+  if (!injectGlobals) return hoist
+  return { ...hoist, id: `${hoist.id}+globals`, globalCallbackScopes: NATIVE_CALLBACK_SCOPES }
+}
+
 /** The steps every project shares once its input is read: policy, environment, the worker config. */
 async function finishProject(
   input: ProjectInput,
@@ -696,7 +710,7 @@ async function finishProject(
     loader: {
       // The dialect's hoist policy crosses by value: data, with `RegExp` and `Set` leaves (B13c Gap 12).
       // With no dialect, the native runtime's (B27j): `mock`/`unmock` imported from its served module.
-      hoist: dialect?.loader?.hoist ?? native?.hoist ?? null,
+      hoist: dialect?.loader?.hoist ?? nativeHoist(native?.hoist, policy.core.injectGlobals),
       // A module's own bindings (Jest's `jest`) are part of what `injectGlobals` injects: off, the
       // wrapper declares none, so a module that names one gets a `ReferenceError` as in jest-runtime
       // (and `typeof jest` is 'undefined').

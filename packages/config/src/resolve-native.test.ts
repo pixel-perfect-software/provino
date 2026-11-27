@@ -84,6 +84,19 @@ describe('a project with no dialect', () => {
     assert.deepEqual(resolved.config.loader.hoist, NATIVE.hoist)
   })
 
+  test('with globals injected, the global isolation calls are hoist callback scopes', async () => {
+    const off = await resolveProject({}, options())
+    assert.equal(off.config.loader.hoist?.globalCallbackScopes, undefined)
+    const on = await resolveProject({ globals: true }, options())
+    assert.deepEqual(on.config.loader.hoist?.globalCallbackScopes, [
+      'isolateModules',
+      'isolateModulesAsync',
+    ])
+    // The cache fingerprint differs, so one project's transform is never served to the other.
+    assert.notEqual(on.config.loader.hoist?.id, off.config.loader.hoist?.id)
+    assert.deepEqual(structuredClone(on.config).loader.hoist, on.config.loader.hoist)
+  })
+
   test('the snapshot printer brings the native snapshot slice (B28)', async () => {
     const resolved = await resolveProject({}, options())
     assert.deepEqual(
