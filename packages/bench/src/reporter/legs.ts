@@ -257,7 +257,7 @@ export function runHeapLeg(tests: number, rounds: number): HeapResult {
 }
 
 /** The width of a batch of the paced replay: events due in each 10 ms are sent together. */
-const BATCH_MS = 10
+export const BATCH_MS = 10
 
 /** What one paced replay measured. */
 interface PacedRun {
@@ -329,8 +329,8 @@ async function pacedReplay(
  * the control. The throughput runs from the first event to the last delivered before `run:end`:
  * its flush is the one write nobody can skip, and `ratioWithEnd` counts it. The wait of each event
  * is printed for both, with no bar. `clock` is the one the replay reads and waits on (the real one
- * by default); a test gives a fake, so the pacing is checked without real time. A `writeMs` above 0
- * still spins on the real clock.
+ * by default); a test gives a fake, so the pacing is checked without real time. A slow sink spins
+ * on the real clock, so a fake clock with `writeMs` above 0 is refused: it would measure nothing.
  */
 export async function runSlowSinkLeg(
   tests: number,
@@ -339,6 +339,11 @@ export async function runSlowSinkLeg(
   writeMs = 5,
   clock: PaceClock = realPaceClock,
 ): Promise<SlowSinkResult> {
+  if (clock !== realPaceClock && writeMs > 0) {
+    throw new RangeError(
+      `a slow sink (writeMs ${writeMs}) spins on real time, so it cannot run on a fake clock`,
+    )
+  }
   const stream = buildStream(specForTests(tests))
   const runs: Record<'fast' | 'slow', PacedRun[]> = { fast: [], slow: [] }
   for (let round = 0; round < rounds + 1; round++) {
