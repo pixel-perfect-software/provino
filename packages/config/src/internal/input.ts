@@ -503,7 +503,7 @@ function isDefineKey(key: string): boolean {
 
 /**
  * `define`: a string is an expression's source text as written, any other JSON value is its JSON
- * text (the rule Vite's `define` has; unverified against its source). A key or value that is
+ * text (the rule Vite's `define` has; not checked against its source). A key or value that is
  * neither is `CONFIG_INVALID` naming `define["<key>"]`. Whether a string is one expression is
  * Oxc's to say (`resolveProjectInput` asks it).
  */
