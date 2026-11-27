@@ -1,5 +1,13 @@
 # @provino/snapshot
 
+## 0.1.0-rc.9
+
+### Patch Changes
+
+- Updated dependencies [6e68b21]
+- Updated dependencies [6e68b21]
+  - @provino/types@0.1.0-rc.9
+
 ## 0.1.0-rc.8
 
 ### Patch Changes

@@ -1,6 +1,6 @@
 {
   "name": "@provino/core",
-  "version": "0.1.0-rc.8",
+  "version": "0.1.0-rc.9",
   "description": "Provino's test runtime: collector, executor, hooks, test context and the current-test lookup.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {

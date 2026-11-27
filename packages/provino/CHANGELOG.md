@@ -1,5 +1,17 @@
 # provino
 
+## 0.1.0-rc.9
+
+### Patch Changes
+
+- 6e68b21: Add `mocked` and the `Mocked`, `MockedFunction`, `MockedClass` and `MockedObject` types, and a synchronous `requireActual`, to the native API.
+- 6e68b21: `provino run` and the bare `provino` take test path patterns: `provino run math src/a.test.ts` runs the files whose path matches any of them (case-insensitive regular expressions, as Jest's path patterns are). A word that is not a command is a pattern for the bare form, a pattern that matches no file is named, and `--watch` keeps every rerun inside the patterns. `RunOptions` gains `testPathPatterns`.
+- 6e68b21: A project with no dialect writes inline snapshots: `toMatchInlineSnapshot()` and `toThrowErrorMatchingInlineSnapshot()` with nothing in them (or with `-u`, a snapshot that differs) put the value into the test file as a template literal, escaped and at column 0 as Jest writes it without Prettier. Only the template changes; the rest of the call keeps its layout. Two snapshots for one call (a helper called twice) fail the test file, as in Jest. The file is replaced atomically, and an edit recorded from text the run has already rewritten (two test files writing into one shared helper) fails with `SNAPSHOT_INLINE_STALE` and is written by a re-run, under `provino jest` too.
+- 6e68b21: A native test file can reset its modules: `resetModules()`, `isolateModules(fn)` and `isolateModulesAsync(fn)` from `provino` (also globals under `globals: true`). Each isolation returns its callback's value, and a `mock()` at the top of its callback is hoisted to the top of the callback, so it registers inside the isolation. A `require` of a mocked module settles the mock at once when it can: a factory that returns no Promise, or an automock or `__mocks__` file built through a synchronous load; a factory that returns a Promise, or a graph with top-level await, is refused by name.
+- 6e68b21: `provino run --coverage` and a top-level `coverage` key in `provino.config.*` collect code coverage for a native project: V8 by default (or `istanbul`), the files that count by `include` and `exclude` globs, `reporters` (default `text` and `lcovonly`), `directory` and Jest-shaped `thresholds`; `node_modules` never counts. A watch run collects none and says so.
+- 6e68b21: A project with no dialect gets snapshots: `toMatchSnapshot`, `toMatchInlineSnapshot` (comparing a stored value), `toThrowErrorMatchingSnapshot` and `toThrowErrorMatchingInlineSnapshot` are in the native matcher table, and the `.snap` files are Jest 30.5's format, written by the vendored pretty-format, which a worker loads only on its first snapshot. A mock in a snapshot prints as Jest's does (`[MockFunction]`, named only after `mockName()`), and an obsolete snapshot fails a local run, as Jest's does. `NativeRuntimeRefs` gains `snapshot: { printer, writer? }`.
+- 6e68b21: Add the snapshot printer a native run will use: Jest 30.5's pretty-format, its plugins and its serialize defaults, vendored into `@provino/snapshot`, so a native snapshot is written as the same bytes.
+
 ## 0.1.0-rc.8
 
 ### Patch Changes
