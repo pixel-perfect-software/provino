@@ -267,6 +267,24 @@ describe('the wrappers on a global', () => {
     expect(wrapped).not.toBe(original)
   })
 
+  test("reinstate puts a wrapper back where Node's own came back, and leaves any other function", () => {
+    // The first window file's environment read the global before the wrappers went on, and its
+    // restore puts back what it read: Node's own setTimeout, and here a replaced clearTimeout.
+    const global = standIn()
+    const original = global.target.setTimeout
+    const tracking = installFileWorkTracking(global.target, () => undefined)
+    installs.push(tracking)
+    const wrapped = global.target.setTimeout
+    const replaced = (): void => {}
+    global.target.setTimeout = original
+    global.target.clearTimeout = replaced
+    tracking.reinstate()
+    expect(global.target.setTimeout).toBe(wrapped)
+    expect(global.target.clearTimeout).toBe(replaced)
+    tracking.reinstate()
+    expect(global.target.setTimeout).toBe(wrapped)
+  })
+
   test('a timer function something else put on the global since is left there', () => {
     const global = standIn()
     const tracking = installFileWorkTracking(global.target, () => undefined)

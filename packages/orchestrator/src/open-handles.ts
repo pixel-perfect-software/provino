@@ -34,6 +34,13 @@ const STACK_LIMIT = 100
 const OWN_PREFIX = dirname(dirname(dirname(fileURLToPath(import.meta.url)))) + sep
 
 /**
+ * An installed Provino's packages, `node_modules/provino` and `node_modules/@provino/<name>`, on a
+ * decoded file path: a runner other than this copy (a suite run on an installed Provino) puts its
+ * worker's timer wrapper there, between Node's frames and the project's call that made a timer.
+ */
+const INSTALLED_OWN = /[\\/]node_modules[\\/](?:provino|@provino[\\/][^\\/]+)[\\/]/
+
+/**
  * What `collectOpenHandles` needs to know about the run.
  * @public
  */
@@ -95,9 +102,9 @@ function frameOf(site: NodeJS.CallSite): Frame {
   }
 }
 
-/** Whether a file is one of Provino's own packages. */
+/** Whether a file is one of Provino's own packages: this copy's, or an installed one's. */
 function isOwnFile(file: string): boolean {
-  return file.startsWith(OWN_PREFIX)
+  return file.startsWith(OWN_PREFIX) || INSTALLED_OWN.test(file)
 }
 
 /** Whether a file is the project's: under a root, and not a dependency or one of Provino's packages. */

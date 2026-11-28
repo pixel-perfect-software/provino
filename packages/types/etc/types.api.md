@@ -4017,6 +4017,7 @@ export interface WorkerInit {
     readonly key: WorkerKey;
     readonly memoryLimitBytes?: number;
     readonly provided: Readonly<Partial<ProvidedContext>>;
+    readonly sharesProcess?: true;
     // (undocumented)
     readonly workerId: number;
 }

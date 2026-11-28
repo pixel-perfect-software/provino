@@ -991,7 +991,7 @@ describe('recycling (T9.5)', () => {
   describe('the limit on a worker’s init: what its fileDone.memoryBytes is compared with', () => {
     // The pool starts a worker with the limit it enforces, so the worker collects garbage exactly
     // when the pool would replace it: forks and threads, `0` as 0, never for a worker that shares
-    // the process, and none without a limit.
+    // the process (whose init says it shares the process instead), and none without a limit.
     const cases: readonly [
       name: string,
       transport: { readonly kind: PoolKind; readonly sharesProcess?: boolean },
@@ -1028,6 +1028,7 @@ describe('recycling (T9.5)', () => {
             provided: {},
             config: undefined,
             ...(sent === undefined ? {} : { memoryLimitBytes: sent }),
+            ...(transport.sharesProcess === true ? { sharesProcess: true } : {}),
           },
         ])
       })

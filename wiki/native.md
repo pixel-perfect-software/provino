@@ -410,6 +410,8 @@ In a `jsdom` file, `setImmediate` and `setTimeout` are Node's, so work can still
 
 A timeout cleared by its numeric id (`clearTimeout(+handle)`) or through `node:timers`' own `clearTimeout` and `clearImmediate` stops counting, so the wait doesn't run on for it. A timeout that already fired is still cancelled if `refresh()` armed it again, as a debounce or a keep-alive does.
 
+Only a worker that runs `jsdom` files does this. Its first file puts Provino's wrappers on `setImmediate`, `setTimeout` and their clears once its window is set up, before any of the file's modules load, and they stay for the worker's later files. A worker of a `node` project keeps Node's own timer functions. Under `--pool inline` (and a run in band) every worker runs in one process and shares its packages, so there the wrappers go on as each worker starts, `node` projects' too. The wrappers' frames are left out of the stacks Provino prints, so a `--detectOpenHandles` report points at your code.
+
 This does not touch `setInterval` timers or `MessageChannel` ports. Packages from `node_modules` are shared by every file a worker runs. Such a package may start an interval or open a port in whichever file uses it first and keep it for the later ones, so closing those with the first file would break the package for the rest of the worker. With `isolation: 'none'` the window outlives its files, and nothing is run or cancelled.
 
 Limits:

@@ -7,9 +7,7 @@ import { symlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'provino'
-import { nativeProject, nativeRunArgs, outcomesByFile, POOLS, spawnCli } from './support.ts'
-
-const JSDOM_CONFIG = "export default { include: ['tests/**/*.test.ts'], environment: 'jsdom' }\n"
+import { NATIVE_JSDOM_CONFIG, nativeProject, POOLS, runFiles } from './support.ts'
 
 /**
  * A queue that takes `setImmediate` once, as it loads, and posts one flush while work is waiting:
@@ -72,23 +70,6 @@ const REACT_LATE = [
   '',
 ].join('\n')
 
-/**
- * Runs `dir` on `pool` through the source bin: the exit code and the outcomes of the files named
- * (`a` for `a.test.ts`), by name.
- */
-async function runFiles(
-  dir: string,
-  pool: string,
-  names: readonly string[],
-): Promise<{ code: number | null; outcomes: Record<string, string | undefined> }> {
-  const ran = await spawnCli(nativeRunArgs(pool), { cwd: dir })
-  const found = await outcomesByFile(dir)
-  return {
-    code: ran.code,
-    outcomes: Object.fromEntries(names.map((name) => [name, found.get(`${name}.test.ts`)])),
-  }
-}
-
 /** `react` and `react-dom` from this package's devDependencies, linked into a project. */
 function linkReact(dir: string): void {
   const modules = fileURLToPath(new URL('../node_modules/', import.meta.url))
@@ -107,7 +88,7 @@ describe('work a native jsdom file queued as it ended', () => {
           'tests/b.test.ts': queuesAsItEnds('b'),
           'tests/c.test.ts': queuesAsItEnds('c'),
         },
-        JSDOM_CONFIG,
+        NATIVE_JSDOM_CONFIG,
       )
       expect(await runFiles(dir, pool, ['a', 'b', 'c'])).toEqual({
         code: 0,
@@ -116,6 +97,49 @@ describe('work a native jsdom file queued as it ended', () => {
     })
   }
 
+  test('on an inline run, work a jsdom project queues through a package a node project loaded first still runs with the window', async () => {
+    // The two projects' workers run one after another in one process and share Node's module
+    // cache, so `late-queue` keeps the `setImmediate` it took as the node project's file loaded it.
+    const dir = await nativeProject(
+      {
+        ...LATE_QUEUE,
+        'node/first.test.ts': [
+          "import { writeFileSync } from 'node:fs'",
+          "import { expect, it } from 'provino'",
+          "import { schedule } from 'late-queue'",
+          "it('loads the queue first', async () => {",
+          '  await new Promise((resolve) => schedule(resolve))',
+          "  writeFileSync(new URL('../node-ran', import.meta.url), '')",
+          "  expect(typeof document).toBe('undefined')",
+          '})',
+          '',
+        ].join('\n'),
+        'window/second.test.ts': [
+          "import { existsSync } from 'node:fs'",
+          "import { expect, it } from 'provino'",
+          "import { schedule } from 'late-queue'",
+          "it('queues work that reads the window as it ends', async () => {",
+          "  expect(existsSync(new URL('../node-ran', import.meta.url))).toBe(true)",
+          '  await new Promise((resolve) => schedule(resolve))',
+          "  schedule(() => { if (typeof document === 'undefined') throw new Error('ran after the window closed') })",
+          '})',
+          '',
+        ].join('\n'),
+      },
+      [
+        'export default { projects: [',
+        "  { name: 'node', root: 'node', include: ['*.test.ts'] },",
+        "  { name: 'window', root: 'window', include: ['*.test.ts'], environment: 'jsdom' },",
+        '] }',
+        '',
+      ].join('\n'),
+    )
+    expect(await runFiles(dir, 'inline', ['first', 'second'])).toEqual({
+      code: 0,
+      outcomes: { first: 'passed', second: 'passed' },
+    })
+  })
+
   test("React's late commit passes, and React still renders in the next files of the worker", async () => {
     const dir = await nativeProject(
       {
@@ -123,7 +147,7 @@ describe('work a native jsdom file queued as it ended', () => {
         'tests/b.test.ts': REACT_LATE,
         'tests/c.test.ts': REACT_LATE,
       },
-      JSDOM_CONFIG,
+      NATIVE_JSDOM_CONFIG,
     )
     linkReact(dir)
     expect(await runFiles(dir, 'forks', ['a', 'b', 'c'])).toEqual({
@@ -144,7 +168,7 @@ describe('work a native jsdom file queued as it ended', () => {
       '})',
       '',
     ].join('\n')
-    const dir = await nativeProject({ 'tests/flush.test.ts': flush }, JSDOM_CONFIG)
+    const dir = await nativeProject({ 'tests/flush.test.ts': flush }, NATIVE_JSDOM_CONFIG)
     expect(await runFiles(dir, 'forks', ['flush'])).toEqual({
       code: 0,
       outcomes: { flush: 'passed' },
@@ -168,7 +192,7 @@ describe('work a native jsdom file queued as it ended', () => {
       ].join('\n')
     const dir = await nativeProject(
       { 'tests/a.test.ts': leaving('a'), 'tests/b.test.ts': leaving('b') },
-      JSDOM_CONFIG,
+      NATIVE_JSDOM_CONFIG,
     )
     expect(await runFiles(dir, 'forks', ['a', 'b'])).toEqual({
       code: 0,
@@ -210,7 +234,7 @@ describe('work a native jsdom file queued as it ended', () => {
     ].join('\n')
     const dir = await nativeProject(
       { ...ticker, 'tests/a.test.ts': using, 'tests/b.test.ts': using },
-      JSDOM_CONFIG,
+      NATIVE_JSDOM_CONFIG,
     )
     expect(await runFiles(dir, 'forks', ['a', 'b'])).toEqual({
       code: 0,

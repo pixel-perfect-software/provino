@@ -154,6 +154,9 @@ expectTypeOf<CoordinatorToWorker>().toExtend<CloneSafe<CoordinatorToWorker>>()
 expectTypeOf<WorkerToCoordinator>().toExtend<CloneSafe<WorkerToCoordinator>>()
 expectTypeOf<WorkerInit>().toExtend<CloneSafe<WorkerInit>>()
 expectTypeOf<WorkerInit['captureConsole']>().toEqualTypeOf<true | undefined>()
+expectTypeOf<WorkerInit['sharesProcess']>().toEqualTypeOf<true | undefined>()
+// @ts-expect-error a mark that is there or absent, never `false`
+const sharesNot: WorkerInit = { ...({} as WorkerInit), sharesProcess: false }
 // The limit the pool puts on a fork's or a thread's init: a number of bytes, or none.
 expectTypeOf<WorkerInit['memoryLimitBytes']>().toEqualTypeOf<number | undefined>()
 // @ts-expect-error a count of bytes, not Jest's '512MB' text (the config reader turns that into bytes)
@@ -375,6 +378,7 @@ export {
   keyWithoutTier,
   noFrames,
   noLimit,
+  sharesNot,
   textLimit,
   undefinedDialect,
   undefinedHash,

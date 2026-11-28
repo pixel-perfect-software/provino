@@ -179,9 +179,15 @@ interface Booted {
   /** The file registry tier: `process` is the pool's business and runs as `registry`. */
   tier: Exclude<IsolationTier, 'process'>
   /**
-   * The wrappers that note a window file's one-shot work (`orchestrator.windowFileWork:
-   * 'drain-then-cancel'`, `file-work.ts`), put on the global at boot; `undefined` with the key off
-   * and under isolation `none`.
+   * Whether the worker notes a window file's one-shot work (`orchestrator.windowFileWork:
+   * 'drain-then-cancel'` and isolation not `none`, `file-work.ts`): the wrappers go on at its
+   * first window file. False with the key off and under `none`.
+   */
+  tracksWindowWork: boolean
+  /**
+   * The wrappers that note a window file's one-shot work, once the worker's first window file has
+   * put them on the global (`installWindowWork`), or its boot in a process it shares
+   * (`WorkerInit.sharesProcess`); `undefined` until then, and in a worker that never runs a window.
    */
   fileWork: FileWorkTracking | undefined
   /**
@@ -683,15 +689,16 @@ export function createRuntimeRunner(): WorkerRunner {
     const config = parseProjectConfig(context.init.config)
     // A SerializedPolicy is a Policy whose behaviour keys are all refs: nothing to deserialize.
     const policy: Policy = config.policy
-    // Before anything loads a package: one that takes `setImmediate` as it loads (React's
-    // scheduler) must take the wrapper that notes a window file's work (#227, `file-work.ts`), and
-    // D127's baseline below reads the wrappers as the worker's own globals. Under isolation `none`
-    // the environment outlives its files, so nothing is tracked and nothing is installed.
-    parts.fileWork =
+    // Where the window-file timer wrappers go on: `installWindowWork`.
+    parts.tracksWindowWork =
       policy.orchestrator.windowFileWork === 'drain-then-cancel' &&
       context.init.isolation !== 'none'
-        ? installFileWorkTracking(globalThis, () => fileScope.getStore()?.work)
-        : undefined
+    // A worker in the coordinator's process shares Node's module cache with the workers before it
+    // there, so a package a node project's worker loaded holds Node's own `setImmediate`: it takes
+    // the wrappers now, before anything loads, and D127's baseline below reads them as its own.
+    if (parts.tracksWindowWork && context.init.sharesProcess === true) {
+      parts.fileWork = installFileWorkTracking(globalThis, () => fileScope.getStore()?.work)
+    }
     const behaviours = createBehaviourLoader()
     parts.coverage = await startCoverage(
       config.coverage,
@@ -998,6 +1005,21 @@ export function createRuntimeRunner(): WorkerRunner {
   }
 
   /**
+   * The timer wrappers that note a window file's work (#227, #230), put on the global by the
+   * worker's first window file, after its environment's `setup` and before any of its modules load,
+   * so a package that takes `setImmediate` as it loads (React's scheduler) takes the wrapper; a
+   * worker that shares its process put them on at boot. They go into D127's baseline as the
+   * worker's own globals (`adoptingGlobals`), so a shared external that reads `setTimeout` as it
+   * loads is not taken for one that reads a per-file global.
+   */
+  async function installWindowWork(worker: Booted): Promise<FileWorkTracking> {
+    worker.fileWork ??= await adoptingGlobals(globalBaseline, () =>
+      installFileWorkTracking(globalThis, () => fileScope.getStore()?.work),
+    )
+    return worker.fileWork
+  }
+
+  /**
    * The environment instance for a file: a new one for scope `file` (given the file's `signal`),
    * and for scope `worker` the worker's one while the files want the same kind of environment
    * (given the worker's lifetime signal, because it outlives the file it was made for; its
@@ -1156,10 +1178,11 @@ export function createRuntimeRunner(): WorkerRunner {
         instance = set.instance
         thisFile.environment = instance
         environmentName = set.name
-        // A window (the wrappers are there only for file-scoped environments): what the file
-        // queues on the timers from now on is noted, to be drained and cleared before it closes.
-        if (worker.fileWork !== undefined && 'document' in instance.global) {
-          thisFile.work = worker.fileWork.track()
+        // A window (the wrappers are on the global once the worker's first window file, or its
+        // boot in a shared process, installed them): what the file queues on the timers from now
+        // on is noted, to be drained and cleared before it closes.
+        if (worker.tracksWindowWork && 'document' in instance.global) {
+          thisFile.work = (await installWindowWork(worker)).track()
         }
         // The fake clock of this file, on the environment's global (the registry tier keeps one
         // global per file): each callback it schedules runs as the test that scheduled it.
@@ -1270,6 +1293,9 @@ export function createRuntimeRunner(): WorkerRunner {
       const settleWork = async (): Promise<void> => {
         if (thisFile.work !== undefined) await settleFileWork(thisFile.work)
       }
+      // The first window file's environment read the global before the wrappers went on, so its
+      // restore put Node's own timers back: the wrappers return for the files after it.
+      const reinstateWrappers = () => worker.fileWork?.reinstate()
       errors.push(
         ...(await runAll(
           worker.scope === 'file'
@@ -1279,6 +1305,7 @@ export function createRuntimeRunner(): WorkerRunner {
                 disposeModuleMocks,
                 disposeMocks,
                 teardownEnvironment,
+                reinstateWrappers,
                 restoreMatchers,
                 disposeRegistry,
               ]

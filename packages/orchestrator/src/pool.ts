@@ -340,10 +340,12 @@ export function createPool(options: PoolOptions, deps: PoolDeps): Pool {
 
   /**
    * What a worker is started with: the caller's init plus `recycleLimit`, so the worker collects
-   * its garbage once before it reports a heap over it (`WorkerInit.memoryLimitBytes`).
+   * its garbage once before it reports a heap over it (`WorkerInit.memoryLimitBytes`), and
+   * `sharesProcess` for a worker that runs in this process.
    */
   function initOf(key: WorkerKey, workerId: number): WorkerInit {
     const init = deps.init(key, workerId)
+    if (sharesProcess) return { ...init, sharesProcess: true }
     return recycleLimit === undefined ? init : { ...init, memoryLimitBytes: recycleLimit }
   }
 
