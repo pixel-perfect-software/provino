@@ -2565,6 +2565,61 @@ test('reevaluatePatchingExternals: an ES module package that adds a global as it
   }
 })
 
+test('reevaluatePatchingExternals: under interopDefault node, a package an ES module imports that adds a global as it loads is evaluated per file from the next file (#233)', async () => {
+  // The async preload (`import()`, Node's own namespaces) is the external's first native load here.
+  const root = writeTree({
+    'node_modules/writes-cjs/package.json': JSON.stringify({
+      name: 'writes-cjs',
+      main: 'index.js',
+    }),
+    'node_modules/writes-cjs/index.js':
+      'globalThis.__provinoWritesCjs = (globalThis.__provinoWritesCjs ?? 0) + 1\nmodule.exports = { token: {} }\n',
+    'node_modules/plain-cjs/package.json': JSON.stringify({ name: 'plain-cjs', main: 'index.js' }),
+    'node_modules/plain-cjs/index.js': 'module.exports = { token: {} }\n',
+    'a.test.mjs':
+      "import writes from 'writes-cjs'\nimport plain from 'plain-cjs'\nexport { writes, plain }\n",
+    'b.test.mjs':
+      "import writes from 'writes-cjs'\nimport plain from 'plain-cjs'\nexport { writes, plain }\n",
+  })
+  interface Imported {
+    readonly writes: { readonly token: object }
+    readonly plain: { readonly token: object }
+  }
+  const loader = loaderFor(root, { reevaluatePatchingExternals: true, interopDefault: 'node' })
+  const watched: string[] = []
+  loader.watchExternalLoads(writeProbe(watched))
+  const load = (name: string) =>
+    loader
+      .createFileRegistry(join(root, name), { tier: 'registry' })
+      .import<Imported>(join(root, name))
+  const flag = (): unknown => Reflect.get(globalThis, '__provinoWritesCjs')
+  try {
+    const first = await load('a.test.mjs')
+    assert.deepEqual(
+      watched.map((path) => path.slice(root.length + 1)).sort(),
+      ['node_modules/plain-cjs/index.js', 'node_modules/writes-cjs/index.js'],
+      'each external’s first preload is a window',
+    )
+    assert.equal(flag(), 1)
+    const learned = loader.takeLearnedExternals().map((path) => path.slice(root.length + 1))
+    assert.deepEqual(
+      learned,
+      ['node_modules/writes-cjs/index.js'],
+      'only the writing package is learned',
+    )
+    const second = await load('b.test.mjs')
+    assert.equal(flag(), 2, 'the second file evaluates the package again')
+    assert.notEqual(second.writes.token, first.writes.token, 'writes-cjs is the second file’s own')
+    assert.equal(
+      second.plain.token,
+      first.plain.token,
+      'a package that writes nothing stays shared',
+    )
+  } finally {
+    Reflect.deleteProperty(globalThis, '__provinoWritesCjs')
+  }
+})
+
 test('reevaluateHookingExternals: a package whose closure Node would resolve to another build under the environment’s conditions goes through the registry from the first file', () => {
   // `split` maps a `browser` build, the DOM environment's; Node's own `require` finds the other.
   const source =

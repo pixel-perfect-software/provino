@@ -693,15 +693,33 @@ export async function importServedByHooks(specifier: string, notFound: unknown):
  * 'node'` (Node's own namespaces). Under `babel` nothing is preloaded: the edge `require`s the
  * external when it runs, as Jest's CommonJS output does, so a mocked package never loads.
  */
-export async function preloadAsync(state: Records, target: Target): Promise<void> {
+export async function preloadAsync(
+  state: Records,
+  target: Target,
+  windowed?: WindowedPreload,
+): Promise<void> {
   if (target.kind !== 'external' && target.kind !== 'builtin') return
   if (state.options.policy.interopDefault !== 'node') return
   const key = externalKey(target)
   if (state.externals.has(key)) return
   const specifier = target.kind === 'builtin' ? target.id : pathToFileURL(target.path).href
-  const namespace: object = await import(specifier)
-  state.externals.set(key, namespace)
+  const preload = async (): Promise<void> => {
+    // Another preload of the same external may have finished while this one waited its turn.
+    if (state.externals.has(key)) return
+    const namespace: object = await import(specifier)
+    state.externals.set(key, namespace)
+  }
+  // The first native load of an external is a watched window (D127), here as in `require`.
+  if (windowed !== undefined && target.kind === 'external') await windowed(target.path, preload)
+  else await preload()
 }
+
+/**
+ * The window a registry that evaluates externals per file opens around an external's first
+ * preload (`watchedLoadAsync`): it calls `load` once, or not at all when the path is evaluated per
+ * file already.
+ */
+export type WindowedPreload = (path: string, load: () => Promise<void>) => Promise<void>
 
 /**
  * One dep of `record` at link time: its target, with a user module transformed (and queued on
@@ -737,7 +755,11 @@ function linkDep(
  * that doesn't transform `failed`; each fails only when its edge runs. Late deps are not linked:
  * the mocks register first.
  */
-export async function linkAsync(state: Records, root: ModuleRecord): Promise<void> {
+export async function linkAsync(
+  state: Records,
+  root: ModuleRecord,
+  windowed?: WindowedPreload,
+): Promise<void> {
   const stack = [root]
   while (stack.length > 0) {
     const record = stack.pop()
@@ -745,7 +767,7 @@ export async function linkAsync(state: Records, root: ModuleRecord): Promise<voi
     record.linked = true
     for (const specifier of record.deps) {
       const target = linkDep(state, record, specifier, stack)
-      if (record.format === 'esm') await preloadAsync(state, target)
+      if (record.format === 'esm') await preloadAsync(state, target, windowed)
     }
   }
   markAsyncGraphs(state)

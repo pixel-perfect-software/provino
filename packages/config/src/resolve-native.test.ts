@@ -119,6 +119,15 @@ describe('a project with no dialect', () => {
     assert.equal((await resolveProject({}, options(null))).policy.module.assetImports, 'off')
   })
 
+  test('a native project evaluates the packages that read or write a file’s globals again in each file; one with no native refs does not (#233)', async () => {
+    const native = (await resolveProject({}, options())).policy.module
+    assert.equal(native.reevaluateHookingExternals, true)
+    assert.equal(native.reevaluatePatchingExternals, true)
+    const neutral = (await resolveProject({}, options(null))).policy.module
+    assert.equal(neutral.reevaluateHookingExternals, false)
+    assert.equal(neutral.reevaluatePatchingExternals, false)
+  })
+
   test('the snapshot printer brings the native snapshot slice (B28)', async () => {
     const resolved = await resolveProject({}, options())
     assert.deepEqual(

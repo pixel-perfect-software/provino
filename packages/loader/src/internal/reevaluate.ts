@@ -34,6 +34,8 @@ export interface ReevaluateState {
   readonly perFile: PerFileGraph
   /** Whether a watched load is running: a load inside it is part of it, never a window of its own. */
   watching: boolean
+  /** The last async window's end: the next async window waits for it (`watchedLoadAsync`). */
+  asyncTail: Promise<void>
 }
 
 /**
@@ -434,6 +436,7 @@ export function createReevaluateState(): ReevaluateState {
     watchers: new Set(),
     perFile: createPerFileGraph(),
     watching: false,
+    asyncTail: Promise.resolve(),
   }
 }
 
@@ -480,45 +483,114 @@ export function watchedLoad<T>(
   ownPackage: (file: string) => readonly string[],
 ): T {
   if (state.watching || state.watchers.size === 0 || state.active.has(path)) return load()
-  const ends: (() => boolean)[] = []
-  /** Node's cache before the load: read only once a window is open, as only then can it learn. */
-  let before: readonly string[] | undefined
-  let loadFailed = false
+  const window: OpenWindow = { ends: [], before: undefined, loadFailed: false }
   state.watching = true
   try {
-    for (const watcher of state.watchers) {
-      const end = watcher(path)
-      if (end !== null) ends.push(end)
-    }
-    if (ends.length > 0) before = Object.keys(nativeCache)
+    openWindow(state, path, window)
     try {
       return load()
     } catch (error) {
-      loadFailed = true
+      window.loadFailed = true
       throw error
     }
   } finally {
-    state.watching = false
-    let perFile = false
-    let failure: { readonly error: unknown } | undefined
-    for (const end of ends) {
-      try {
-        if (end()) perFile = true
-      } catch (error) {
-        failure ??= { error }
-      }
-    }
-    if (perFile && before !== undefined) {
-      const known = new Set(before)
-      learn(state, path)
-      for (const file of ownPackage(path)) if (keep(file)) learn(state, file)
-      for (const file of Object.keys(nativeCache)) {
-        if (!known.has(file) && keep(file)) learn(state, file)
-      }
-    }
-    // biome-ignore lint/correctness/noUnsafeFinally: an end that threw must not pass silently.
-    if (failure !== undefined && !loadFailed) throw failure.error
+    closeWindow(state, path, window, keep, ownPackage)
   }
+}
+
+/**
+ * `watchedLoad` for a load that awaits: the async preload of an external (`import()`, under
+ * `interopDefault: 'node'`, which a native project uses). One window is open at a time, so a load
+ * that starts while another's is open waits for it to close (`state.asyncTail`), and `load` is
+ * called once its turn comes: it must do nothing when the external is loaded by then. Code that
+ * runs while the window is open, from another module's evaluation, counts for it as a load inside
+ * it does.
+ */
+export async function watchedLoadAsync<T>(
+  state: ReevaluateState,
+  path: string,
+  load: () => Promise<T>,
+  keep: (file: string) => boolean,
+  ownPackage: (file: string) => readonly string[],
+): Promise<T> {
+  if (state.watching || state.watchers.size === 0 || state.active.has(path)) return load()
+  const before = state.asyncTail
+  let release: () => void = () => undefined
+  state.asyncTail = new Promise<void>((resolve) => {
+    release = resolve
+  })
+  try {
+    await before
+    // A load that was waited for may have learned this path, or opened a window of its own
+    // between the check above and now: the same two questions again.
+    if (state.watching || state.watchers.size === 0 || state.active.has(path)) return await load()
+    const window: OpenWindow = { ends: [], before: undefined, loadFailed: false }
+    state.watching = true
+    try {
+      openWindow(state, path, window)
+      try {
+        return await load()
+      } catch (error) {
+        window.loadFailed = true
+        throw error
+      }
+    } finally {
+      closeWindow(state, path, window, keep, ownPackage)
+    }
+  } finally {
+    release()
+  }
+}
+
+/** What a window keeps from its open to its close. */
+interface OpenWindow {
+  /** Each watcher's call that ends its window. */
+  readonly ends: (() => boolean)[]
+  /** Node's cache before the load: read only once a window is open, as only then can it learn. */
+  before: readonly string[] | undefined
+  loadFailed: boolean
+}
+
+/** Opens every watcher's window on `path`; one that throws as it opens is closed by the caller's `closeWindow`. */
+function openWindow(state: ReevaluateState, path: string, window: OpenWindow): void {
+  for (const watcher of state.watchers) {
+    const end = watcher(path)
+    if (end !== null) window.ends.push(end)
+  }
+  if (window.ends.length > 0) window.before = Object.keys(nativeCache)
+}
+
+/**
+ * Closes every window a watcher opened, whatever throws (each end is called; the first end's
+ * error is thrown after the load's result is known, unless the load threw), and learns the load
+ * when a watcher saw a per-file global read or written.
+ */
+function closeWindow(
+  state: ReevaluateState,
+  path: string,
+  window: OpenWindow,
+  keep: (file: string) => boolean,
+  ownPackage: (file: string) => readonly string[],
+): void {
+  state.watching = false
+  let perFile = false
+  let failure: { readonly error: unknown } | undefined
+  for (const end of window.ends) {
+    try {
+      if (end()) perFile = true
+    } catch (error) {
+      failure ??= { error }
+    }
+  }
+  if (perFile && window.before !== undefined) {
+    const known = new Set(window.before)
+    learn(state, path)
+    for (const file of ownPackage(path)) if (keep(file)) learn(state, file)
+    for (const file of Object.keys(nativeCache)) {
+      if (!known.has(file) && keep(file)) learn(state, file)
+    }
+  }
+  if (failure !== undefined && !window.loadFailed) throw failure.error
 }
 
 /**
