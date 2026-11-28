@@ -1,5 +1,12 @@
 # @provino/dialect-jest
 
+## 0.1.0-rc.13
+
+### Patch Changes
+
+- Updated dependencies [ad3db57]
+  - provino@0.1.0-rc.13
+
 ## 0.1.0-rc.12
 
 ### Patch Changes

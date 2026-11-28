@@ -1,6 +1,6 @@
 {
   "name": "@provino/policy",
-  "version": "0.1.0-rc.12",
+  "version": "0.1.0-rc.13",
   "description": "Provino's policy runtime: neutral defaults, layer resolution, dialect definitions, behaviour loading, serialization and policy diffs.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {
