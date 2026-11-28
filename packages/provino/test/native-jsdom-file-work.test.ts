@@ -3,11 +3,14 @@
 // ends; the file's own `setImmediate` flush helpers; a timer a file left that must not fire into
 // the next file; and what a shared package keeps across files (its interval, its own port).
 // Through the source bin.
-import { symlinkSync } from 'node:fs'
-import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'provino'
-import { NATIVE_JSDOM_CONFIG, nativeProject, POOLS, runFiles } from './support.ts'
+import {
+  linkDevDependencies,
+  NATIVE_JSDOM_CONFIG,
+  nativeProject,
+  POOLS,
+  runFiles,
+} from './support.ts'
 
 /**
  * A queue that takes `setImmediate` once, as it loads, and posts one flush while work is waiting:
@@ -69,14 +72,6 @@ const REACT_LATE = [
   '})',
   '',
 ].join('\n')
-
-/** `react` and `react-dom` from this package's devDependencies, linked into a project. */
-function linkReact(dir: string): void {
-  const modules = fileURLToPath(new URL('../node_modules/', import.meta.url))
-  for (const name of ['react', 'react-dom']) {
-    symlinkSync(join(modules, name), join(dir, 'node_modules', name), 'dir')
-  }
-}
 
 describe('work a native jsdom file queued as it ended', () => {
   for (const pool of POOLS) {
@@ -149,7 +144,7 @@ describe('work a native jsdom file queued as it ended', () => {
       },
       NATIVE_JSDOM_CONFIG,
     )
-    linkReact(dir)
+    linkDevDependencies(dir, ['react', 'react-dom'])
     expect(await runFiles(dir, 'forks', ['a', 'b', 'c'])).toEqual({
       code: 0,
       outcomes: { a: 'passed', b: 'passed', c: 'passed' },

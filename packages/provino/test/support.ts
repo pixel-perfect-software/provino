@@ -661,6 +661,18 @@ export function linkProvino(
 const PACKAGE_DIR = fileURLToPath(new URL('..', import.meta.url))
 
 /**
+ * Links `names` from this package's `node_modules` (its devDependencies) into `dir/node_modules`,
+ * a scoped name under its scope's directory.
+ */
+export function linkDevDependencies(dir: string, names: readonly string[]): void {
+  for (const name of names) {
+    const link = join(dir, 'node_modules', name)
+    mkdirSync(dirname(link), { recursive: true })
+    symlinkSync(join(PACKAGE_DIR, 'node_modules', name), link, 'dir')
+  }
+}
+
+/**
  * Copies a built package (`dist` and `package.json`: this one's, or the package at `from`) into
  * `target`, as an install of its own at that path. Its dependencies are whatever `target`'s parents
  * hold. A package that is not built fails here, by name, instead of as a missing file later.

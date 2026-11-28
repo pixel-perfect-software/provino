@@ -200,8 +200,8 @@ test('two links interleaved at an await mid-walk end with a full scan’s flags'
   )
   const record = (file: string): ModuleRecord =>
     recordFor(state, toModuleId(join(root, file)), false)
-  const first = linkAsync(state, record('one.ts'))
-  const second = linkAsync(state, record('two.ts'))
+  const first = linkAsync(state, record('one.ts'), undefined)
+  const second = linkAsync(state, record('two.ts'), undefined)
   // A sync link while both are suspended reads records the async walks have linked only in part.
   linkSync(state, record('sync.ts'))
   assertFlags(state, 'while both walks are suspended')

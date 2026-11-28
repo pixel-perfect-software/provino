@@ -206,7 +206,7 @@ export interface ModulePolicy {
    * recorded by `ecosystem/rtl-cleanup` and `ecosystem/jest-canvas-mock` (Jest 30.5.2). Vitest:
    * `true`, as each isolated file evaluates an externalized package again; recorded by
    * `module/vitest-externals-two-files` (Vitest 5.0.5). Neutral: `false`
-   * (speed: one evaluation per worker).
+   * (speed: one evaluation per worker). A native project: `true` (`nativeModulePolicy`, D221).
    */
   readonly reevaluateHookingExternals: boolean
   /**
@@ -222,7 +222,8 @@ export interface ModulePolicy {
    * by `ecosystem/load-time-global`, `ecosystem/msw-setup-file` and `ecosystem/msw-node` (Jest
    * 30.5.2). Vitest: `true`, recorded by `module/vitest-externals-two-files` (Vitest 5.0.5).
    * Neutral: `false` (speed: one evaluation per worker,
-   * and no second walk of the global per watched load).
+   * and no second walk of the global per watched load). A native project: `true`
+   * (`nativeModulePolicy`, D221).
    */
   readonly reevaluatePatchingExternals: boolean
   /** Paths `automock` leaves real (Jest `unmockedModulePathPatterns`). Jest: `[]`. Vitest: `[]`. research: track-04 L316 */

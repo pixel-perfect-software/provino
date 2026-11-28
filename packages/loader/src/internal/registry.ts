@@ -44,6 +44,7 @@ import {
   type Compiled,
   compile,
   externalKey,
+  type FirstLoad,
   type Found,
   importServedByHooks,
   linkAsync,
@@ -222,6 +223,7 @@ export class Registry {
    * neither is an external.
    */
   readonly #reevaluates: boolean
+  readonly #firstLoad: FirstLoad | undefined
   /**
    * Whether each evaluation runs a fresh wrapper function (`compile`'s `fresh`): in a registry of
    * one file, every module evaluated here is evaluated again in the next file's, and a fresh
@@ -248,6 +250,7 @@ export class Registry {
     this.#maps = [new Map()]
     this.#reevaluates = reevaluatesExternals(state.options.policy) && !sharedAcrossFiles
     this.#freshWrappers = !sharedAcrossFiles
+    this.#firstLoad = this.#reevaluates ? (path) => this.#watchedFirstLoad(path) : undefined
   }
 
   get #instances(): Map<ModuleId, Instance> {
@@ -460,7 +463,7 @@ export class Registry {
     // An entry the file asked for: no edge of another module leads to it.
     this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, isTest)
-    await linkAsync(this.#state, record)
+    await this.#link(record)
     const value = this.#evaluateForImport(record)
     if (evaluated === undefined) return value
     if (!(value instanceof Promise)) {
@@ -503,7 +506,7 @@ export class Registry {
     if (found.kind !== 'user') return this.#externalAsync(found)
     this.#noteLoad(importer, found.id)
     const record = recordFor(this.#state, found.id, false)
-    await linkAsync(this.#state, record)
+    await this.#link(record)
     return this.#evaluateForImport(record)
   }
 
@@ -778,9 +781,20 @@ export class Registry {
       state.required.set(key, value)
       return value
     }
-    // The external's first native load in this worker: a window the worker may watch (D127). One
-    // that throws on an ES module the transforms leave out is the dialect's `require-esm` error.
-    const native = (): unknown => createRequire(target.path)(key)
+    // One that throws on an ES module the transforms leave out is the dialect's `require-esm` error.
+    return this.#loadNative(
+      target.path,
+      (error) => requireEsmError(state.options, state.edgeKinds, target.path, error) ?? error,
+    )
+  }
+
+  /**
+   * The external's first native load in this worker: a window the worker may watch (D127), whose
+   * result `required` keeps. `fail` makes the error a load throws the one the caller wants.
+   */
+  #loadNative(path: string, fail: (error: unknown) => unknown): unknown {
+    const state = this.#state
+    const native = (): unknown => createRequire(path)(path)
     const skipsPatches = state.options.policy.nativeLoadPatches === 'skip'
     const load = (): unknown => {
       try {
@@ -788,16 +802,37 @@ export class Registry {
         // loader (Jest's runtime never calls Node's), as Provino found the loader.
         return skipsPatches ? withNodeLoader(native) : native()
       } catch (error) {
-        throw requireEsmError(state.options, state.edgeKinds, target.path, error) ?? error
+        throw fail(error)
       }
     }
     const value: unknown = this.#reevaluates
-      ? watchedLoad(state.reevaluate, target.path, load, state.evaluable, (file) =>
+      ? watchedLoad(state.reevaluate, path, load, state.evaluable, (file) =>
           packageClosure(state.inline, state.options, file),
         )
       : load()
-    state.required.set(key, value)
+    state.required.set(path, value)
     return value
+  }
+
+  /**
+   * The preload's first load of an external (`FirstLoad`): not one already loaded or not
+   * evaluable here. Node's own error codes are kept: a graph `require` cannot evaluate (top-level
+   * await, or `require(esm)` off) is `import()`'s, unwatched, and any other error is the load's,
+   * since `import()` would evaluate a CommonJS module that threw a second time.
+   */
+  #watchedFirstLoad(path: string): void {
+    const state = this.#state
+    if (state.required.has(path) || !state.evaluable(path)) return
+    try {
+      this.#loadNative(path, (error) => error)
+    } catch (error) {
+      const code = (error as { code?: unknown } | null)?.code
+      if (code !== 'ERR_REQUIRE_ASYNC_MODULE' && code !== 'ERR_REQUIRE_ESM') throw error
+    }
+  }
+
+  #link(record: ModuleRecord): Promise<void> {
+    return linkAsync(this.#state, record, this.#firstLoad)
   }
 
   /** What an `import` of an external sees, synchronously: Node's namespace when preloaded, else the interop over `require`. */
@@ -810,7 +845,7 @@ export class Registry {
   }
 
   async #externalAsync(target: Found): Promise<object> {
-    await preloadAsync(this.#state, target)
+    await preloadAsync(this.#state, target, this.#firstLoad)
     return this.#externalImport(target)
   }
 
@@ -885,7 +920,7 @@ export class Registry {
     }
     this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, false)
-    await linkAsync(this.#state, record)
+    await this.#link(record)
     // The instance this load evaluates, taken before its await: afterwards `#instances` may name
     // another context's map.
     const evaluated = this.#evaluateForImport(record)
