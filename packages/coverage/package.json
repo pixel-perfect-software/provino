@@ -1,6 +1,6 @@
 {
   "name": "@provino/coverage",
-  "version": "0.1.0-rc.13",
+  "version": "0.1.0-rc.14",
   "description": "Provino's code coverage: the Istanbul instrumenter and V8 collectors that run in a worker, and the merge, reports and thresholds that run in the coordinator.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {
