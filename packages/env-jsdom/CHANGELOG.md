@@ -1,5 +1,12 @@
 # @provino/env-jsdom
 
+## 0.1.0-rc.14
+
+### Patch Changes
+
+- @provino/env-shared@0.1.0-rc.14
+  - @provino/types@0.1.0-rc.14
+
 ## 0.1.0-rc.13
 
 ### Patch Changes

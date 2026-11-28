@@ -1,5 +1,15 @@
 # @provino/config
 
+## 0.1.0-rc.14
+
+### Patch Changes
+
+- Updated dependencies [f8d64af]
+  - @provino/policy@0.1.0-rc.14
+  - @provino/resolver@0.1.0-rc.14
+  - @provino/transform@0.1.0-rc.14
+  - @provino/types@0.1.0-rc.14
+
 ## 0.1.0-rc.13
 
 ### Patch Changes
