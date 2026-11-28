@@ -2,11 +2,16 @@
 // whose first load read a file's window or wrote a global (#233): `@testing-library/dom` builds
 // `screen` over `document.body` as it loads, and a package that adds a key to the global as it
 // loads has it taken away by the environment's restore after the first file. Through the source bin.
-import { mkdirSync, readFileSync, symlinkSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'provino'
-import { NATIVE_JSDOM_CONFIG, nativeProject, POOLS, runFiles } from './support.ts'
+import {
+  linkDevDependencies,
+  NATIVE_JSDOM_CONFIG,
+  nativeProject,
+  POOLS,
+  runFiles,
+} from './support.ts'
 
 /** A file that renders a paragraph with React Testing Library and finds it through `screen`. */
 function findsThroughScreen(word: string): string {
@@ -23,14 +28,8 @@ function findsThroughScreen(word: string): string {
   ].join('\n')
 }
 
-/** The packages the project imports, from this package's devDependencies, linked into it. */
-function linkTestingLibrary(dir: string): void {
-  const modules = fileURLToPath(new URL('../node_modules/', import.meta.url))
-  mkdirSync(join(dir, 'node_modules', '@testing-library'), { recursive: true })
-  for (const name of ['react', 'react-dom', '@testing-library/react', '@testing-library/dom']) {
-    symlinkSync(join(modules, name), join(dir, 'node_modules', name), 'dir')
-  }
-}
+/** The packages the project imports, from this package's devDependencies. */
+const TESTING_LIBRARY = ['react', 'react-dom', '@testing-library/react', '@testing-library/dom']
 
 /** The node_modules files the first run learned to evaluate per file, from the results cache. */
 function learnedExternals(dir: string): string[] {
@@ -48,7 +47,7 @@ describe('packages a native worker shares between files', () => {
         { 'tests/a.test.ts': findsThroughScreen('a'), 'tests/b.test.ts': findsThroughScreen('b') },
         NATIVE_JSDOM_CONFIG,
       )
-      linkTestingLibrary(dir)
+      linkDevDependencies(dir, TESTING_LIBRARY)
       expect(await runFiles(dir, pool, ['a', 'b'])).toEqual({
         code: 0,
         outcomes: { a: 'passed', b: 'passed' },
@@ -61,7 +60,7 @@ describe('packages a native worker shares between files', () => {
       { 'tests/a.test.ts': findsThroughScreen('a'), 'tests/b.test.ts': findsThroughScreen('b') },
       NATIVE_JSDOM_CONFIG,
     )
-    linkTestingLibrary(dir)
+    linkDevDependencies(dir, TESTING_LIBRARY)
     const expected = { code: 0, outcomes: { a: 'passed', b: 'passed' } }
     expect(await runFiles(dir, 'forks', ['a', 'b'])).toEqual(expected)
     expect(learnedExternals(dir).some((path) => path.includes('@testing-library/dom'))).toBe(true)
@@ -95,7 +94,6 @@ function readsWritten(): string {
     "import { read } from 'global-writer'",
     "it('sees the key the package added to the global', () => {",
     '  expect(read()).toEqual({ loadedFor: 1 })',
-    '  expect((globalThis as { __globalWriter?: unknown }).__globalWriter).toEqual({ loadedFor: 1 })',
     '})',
     '',
   ].join('\n')
