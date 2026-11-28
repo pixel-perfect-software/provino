@@ -1,6 +1,6 @@
 {
   "name": "@provino/resolver",
-  "version": "0.1.0-rc.12",
+  "version": "0.1.0-rc.13",
   "description": "Provino's module resolver: oxc-resolver with dialect mappers, conditions per call kind, and tsconfig paths and references.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {

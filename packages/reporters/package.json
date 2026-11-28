@@ -1,6 +1,6 @@
 {
   "name": "@provino/reporters",
-  "version": "0.1.0-rc.12",
+  "version": "0.1.0-rc.13",
   "description": "Provino's reporters: the reporter bus, and the default, verbose, dot, agent, json, junit, github-actions and html reporters.",
   "homepage": "https://github.com/pixel-perfect-software/provino#readme",
   "bugs": {
