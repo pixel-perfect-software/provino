@@ -696,38 +696,27 @@ export async function importServedByHooks(specifier: string, notFound: unknown):
 export async function preloadAsync(
   state: Records,
   target: Target,
-  firstLoad?: FirstLoad,
+  firstLoad: FirstLoad | undefined,
 ): Promise<void> {
   if (target.kind !== 'external' && target.kind !== 'builtin') return
   if (state.options.policy.interopDefault !== 'node') return
   const key = externalKey(target)
   if (state.externals.has(key)) return
-  const specifier = target.kind === 'builtin' ? target.id : pathToFileURL(target.path).href
-  // The first native load of an external is a watched window (D127), here as in `require`: a
-  // synchronous `require` of the file the `import()` below then takes the namespace of.
-  if (
-    firstLoad !== undefined &&
-    target.kind === 'external' &&
-    !state.required.has(key) &&
-    state.evaluable(target.path)
-  ) {
-    try {
-      firstLoad(target.path)
-    } catch (error) {
-      // A graph `require` cannot evaluate (top-level await, or `require(esm)` off) is `import()`'s,
-      // unwatched. Any other error is the load's: `import()` would evaluate a CommonJS module that
-      // threw a second time.
-      const code = (error as { code?: unknown } | null)?.code
-      if (code !== 'ERR_REQUIRE_ASYNC_MODULE' && code !== 'ERR_REQUIRE_ESM') throw error
-    }
+  if (firstLoad !== undefined && target.kind === 'external') {
+    // An external already evaluated per file is inlined at its edge: a native load here is thrown away.
+    if (state.reevaluate.active.has(target.path)) return
+    firstLoad(target.path)
   }
+  const specifier = target.kind === 'builtin' ? target.id : pathToFileURL(target.path).href
   const namespace: object = await import(specifier)
   state.externals.set(key, namespace)
 }
 
 /**
- * The watched first load a registry that evaluates externals per file passes to `preloadAsync`:
- * a synchronous native `require` of the external at `path`, recorded as a `require` records it.
+ * The watched first native load of an external (D127) that a registry evaluating externals per
+ * file passes to `linkAsync` and `preloadAsync`, `undefined` for any other: a synchronous
+ * `require` of the file the preload's `import()` then takes the namespace of. It loads nothing
+ * already loaded or not evaluable, and leaves a file `require` can't evaluate to `import()`.
  */
 export type FirstLoad = (path: string) => void
 
@@ -768,7 +757,7 @@ function linkDep(
 export async function linkAsync(
   state: Records,
   root: ModuleRecord,
-  firstLoad?: FirstLoad,
+  firstLoad: FirstLoad | undefined,
 ): Promise<void> {
   const stack = [root]
   while (stack.length > 0) {
