@@ -2565,58 +2565,184 @@ test('reevaluatePatchingExternals: an ES module package that adds a global as it
   }
 })
 
-test('reevaluatePatchingExternals: under interopDefault node, a package an ES module imports that adds a global as it loads is evaluated per file from the next file (#233)', async () => {
-  // The async preload (`import()`, Node's own namespaces) is the external's first native load here.
+// Under interopDefault 'node' an external's first native load is the async import() preload (#233).
+// The loader makes it a synchronous require inside the window, then import()s the same instance.
+const NODE_INTEROP = { reevaluatePatchingExternals: true, interopDefault: 'node' } as const
+
+function counted(name: string, rest = ''): string {
+  return 'globalThis.' + name + ' = (globalThis.' + name + ' ?? 0) + 1\n' + rest
+}
+
+function nodeInteropLoad(
+  root: string,
+  loader: Loader,
+  watched: string[],
+): (name: string) => Promise<unknown> {
+  loader.watchExternalLoads(writeProbe(watched))
+  return (name) =>
+    loader.createFileRegistry(join(root, name), { tier: 'registry' }).import(join(root, name))
+}
+
+const relative = (root: string, paths: readonly string[]): string[] =>
+  paths.map((path) => path.slice(root.length + 1)).sort()
+
+test('reevaluatePatchingExternals: under interopDefault node, a CommonJS and an ES module package that add a global as they load are each evaluated once in the first file and per file from the next (#233)', async () => {
   const root = writeTree({
     'node_modules/writes-cjs/package.json': JSON.stringify({
       name: 'writes-cjs',
       main: 'index.js',
     }),
-    'node_modules/writes-cjs/index.js':
-      'globalThis.__provinoWritesCjs = (globalThis.__provinoWritesCjs ?? 0) + 1\nmodule.exports = { token: {} }\n',
+    'node_modules/writes-cjs/index.js': counted('__pcCjs', 'module.exports = { token: {} }\n'),
+    'node_modules/writes-esm/package.json': JSON.stringify({
+      name: 'writes-esm',
+      type: 'module',
+      exports: './index.js',
+    }),
+    'node_modules/writes-esm/index.js': counted('__pcEsm', 'export const token = {}\n'),
     'node_modules/plain-cjs/package.json': JSON.stringify({ name: 'plain-cjs', main: 'index.js' }),
     'node_modules/plain-cjs/index.js': 'module.exports = { token: {} }\n',
     'a.test.mjs':
-      "import writes from 'writes-cjs'\nimport plain from 'plain-cjs'\nexport { writes, plain }\n",
+      "import cjs from 'writes-cjs'\nimport * as esm from 'writes-esm'\nimport plain from 'plain-cjs'\nexport { cjs, esm, plain }\n",
     'b.test.mjs':
-      "import writes from 'writes-cjs'\nimport plain from 'plain-cjs'\nexport { writes, plain }\n",
+      "import cjs from 'writes-cjs'\nimport * as esm from 'writes-esm'\nimport plain from 'plain-cjs'\nexport { cjs, esm, plain }\n",
   })
   interface Imported {
-    readonly writes: { readonly token: object }
+    readonly cjs: { readonly token: object }
+    readonly esm: { readonly token: object }
     readonly plain: { readonly token: object }
   }
-  const loader = loaderFor(root, { reevaluatePatchingExternals: true, interopDefault: 'node' })
+  const loader = loaderFor(root, NODE_INTEROP)
   const watched: string[] = []
-  loader.watchExternalLoads(writeProbe(watched))
-  const load = (name: string) =>
-    loader
-      .createFileRegistry(join(root, name), { tier: 'registry' })
-      .import<Imported>(join(root, name))
-  const flag = (): unknown => Reflect.get(globalThis, '__provinoWritesCjs')
+  const load = nodeInteropLoad(root, loader, watched)
+  const counts = (): unknown[] => [
+    Reflect.get(globalThis, '__pcCjs'),
+    Reflect.get(globalThis, '__pcEsm'),
+  ]
   try {
-    const first = await load('a.test.mjs')
+    const first = (await load('a.test.mjs')) as Imported
     assert.deepEqual(
-      watched.map((path) => path.slice(root.length + 1)).sort(),
-      ['node_modules/plain-cjs/index.js', 'node_modules/writes-cjs/index.js'],
-      'each external’s first preload is a window',
+      counts(),
+      [1, 1],
+      'each is evaluated once in file 1 (not by require and import)',
     )
-    assert.equal(flag(), 1)
-    const learned = loader.takeLearnedExternals().map((path) => path.slice(root.length + 1))
-    assert.deepEqual(
-      learned,
-      ['node_modules/writes-cjs/index.js'],
-      'only the writing package is learned',
-    )
-    const second = await load('b.test.mjs')
-    assert.equal(flag(), 2, 'the second file evaluates the package again')
-    assert.notEqual(second.writes.token, first.writes.token, 'writes-cjs is the second file’s own')
+    assert.deepEqual(relative(root, watched), [
+      'node_modules/plain-cjs/index.js',
+      'node_modules/writes-cjs/index.js',
+      'node_modules/writes-esm/index.js',
+    ])
+    assert.deepEqual(relative(root, loader.takeLearnedExternals()), [
+      'node_modules/writes-cjs/index.js',
+      'node_modules/writes-esm/index.js',
+    ])
+    const second = (await load('b.test.mjs')) as Imported
+    assert.deepEqual(counts(), [2, 2], 'file 2 evaluates both again')
+    assert.notEqual(second.cjs.token, first.cjs.token)
+    assert.notEqual(second.esm.token, first.esm.token)
     assert.equal(
       second.plain.token,
       first.plain.token,
       'a package that writes nothing stays shared',
     )
   } finally {
-    Reflect.deleteProperty(globalThis, '__provinoWritesCjs')
+    Reflect.deleteProperty(globalThis, '__pcCjs')
+    Reflect.deleteProperty(globalThis, '__pcEsm')
+  }
+})
+
+test('reevaluatePatchingExternals: under interopDefault node, first loads that run at once each get their own window: only the package that writes is learned (#233)', async () => {
+  const root = writeTree({
+    'node_modules/writes-cjs/package.json': JSON.stringify({
+      name: 'writes-cjs',
+      main: 'index.js',
+    }),
+    'node_modules/writes-cjs/index.js': counted('__pcConc', 'module.exports = { token: {} }\n'),
+    'node_modules/plain-cjs/package.json': JSON.stringify({ name: 'plain-cjs', main: 'index.js' }),
+    'node_modules/plain-cjs/index.js': 'module.exports = { token: {} }\n',
+    'w.mjs': "import writes from 'writes-cjs'\nexport default writes\n",
+    'p.mjs': "import plain from 'plain-cjs'\nexport default plain\n",
+    'a.test.mjs':
+      "const [w, p] = await Promise.all([import('./w.mjs'), import('./p.mjs')])\nexport { w, p }\n",
+  })
+  const loader = loaderFor(root, NODE_INTEROP)
+  const watched: string[] = []
+  const load = nodeInteropLoad(root, loader, watched)
+  try {
+    await load('a.test.mjs')
+    assert.deepEqual(relative(root, watched), [
+      'node_modules/plain-cjs/index.js',
+      'node_modules/writes-cjs/index.js',
+    ])
+    assert.deepEqual(
+      relative(root, loader.takeLearnedExternals()),
+      ['node_modules/writes-cjs/index.js'],
+      'the reader is learned and the other is not charged with its write',
+    )
+  } finally {
+    Reflect.deleteProperty(globalThis, '__pcConc')
+  }
+})
+
+test('reevaluatePatchingExternals: under interopDefault node, an external with top-level await loads once, unwatched and not learned, and a later first load in the file still has its window (#233)', async () => {
+  const root = writeTree({
+    'node_modules/tla/package.json': JSON.stringify({
+      name: 'tla',
+      type: 'module',
+      exports: './index.js',
+    }),
+    'node_modules/tla/index.js': counted(
+      '__pcTla',
+      'await Promise.resolve()\nexport const token = {}\n',
+    ),
+    'node_modules/writes-cjs/package.json': JSON.stringify({
+      name: 'writes-cjs',
+      main: 'index.js',
+    }),
+    'node_modules/writes-cjs/index.js': counted('__pcAfter', 'module.exports = { token: {} }\n'),
+    'a.test.mjs':
+      "import * as tla from 'tla'\nimport writes from 'writes-cjs'\nexport { tla, writes }\n",
+  })
+  const loader = loaderFor(root, NODE_INTEROP)
+  const watched: string[] = []
+  const load = nodeInteropLoad(root, loader, watched)
+  try {
+    await load('a.test.mjs')
+    assert.equal(Reflect.get(globalThis, '__pcTla'), 1, 'evaluated once')
+    assert.deepEqual(relative(root, loader.takeLearnedExternals()), [
+      'node_modules/writes-cjs/index.js',
+    ])
+  } finally {
+    Reflect.deleteProperty(globalThis, '__pcTla')
+    Reflect.deleteProperty(globalThis, '__pcAfter')
+  }
+})
+
+test('reevaluatePatchingExternals: under interopDefault node, a package that throws after adding a global reaches the importer once and is evaluated through the registry in the next file (#233)', async () => {
+  const root = writeTree({
+    'node_modules/throws-cjs/package.json': JSON.stringify({
+      name: 'throws-cjs',
+      main: 'index.js',
+    }),
+    'node_modules/throws-cjs/index.js': counted(
+      '__pcThrows',
+      "throw new Error('boom from throws-cjs')\n",
+    ),
+    'a.test.mjs': "import t from 'throws-cjs'\nexport default t\n",
+    'b.test.mjs': "import t from 'throws-cjs'\nexport default t\n",
+  })
+  const loader = loaderFor(root, NODE_INTEROP)
+  const watched: string[] = []
+  const load = nodeInteropLoad(root, loader, watched)
+  try {
+    await assert.rejects(load('a.test.mjs'), /boom from throws-cjs/)
+    assert.equal(Reflect.get(globalThis, '__pcThrows'), 1, 'evaluated once, not again by import()')
+    assert.deepEqual(relative(root, loader.takeLearnedExternals()), [
+      'node_modules/throws-cjs/index.js',
+    ])
+    await assert.rejects(load('b.test.mjs'), /boom from throws-cjs/)
+    assert.equal(Reflect.get(globalThis, '__pcThrows'), 2, 'the next file evaluates it again')
+    assert.equal(watched.length, 1, 'and does not watch it again')
+  } finally {
+    Reflect.deleteProperty(globalThis, '__pcThrows')
   }
 })
 

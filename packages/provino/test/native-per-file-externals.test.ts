@@ -2,7 +2,7 @@
 // whose first load read a file's window or wrote a global (#233): `@testing-library/dom` builds
 // `screen` over `document.body` as it loads, and a package that adds a key to the global as it
 // loads has it taken away by the environment's restore after the first file. Through the source bin.
-import { mkdirSync, symlinkSync } from 'node:fs'
+import { mkdirSync, readFileSync, symlinkSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { describe, expect, test } from 'provino'
@@ -32,6 +32,15 @@ function linkTestingLibrary(dir: string): void {
   }
 }
 
+/** The node_modules files the first run learned to evaluate per file, from the results cache. */
+function learnedExternals(dir: string): string[] {
+  const file = join(dir, 'node_modules', '.cache', 'provino', 'results.json')
+  const data = JSON.parse(readFileSync(file, 'utf8')) as {
+    externals?: Record<string, Record<string, string>>
+  }
+  return Object.values(data.externals ?? {}).flatMap((entries) => Object.keys(entries))
+}
+
 describe('packages a native worker shares between files', () => {
   for (const pool of POOLS) {
     test(`screen of Testing Library searches the second file's own document, on the ${pool} pool`, async () => {
@@ -55,6 +64,7 @@ describe('packages a native worker shares between files', () => {
     linkTestingLibrary(dir)
     const expected = { code: 0, outcomes: { a: 'passed', b: 'passed' } }
     expect(await runFiles(dir, 'forks', ['a', 'b'])).toEqual(expected)
+    expect(learnedExternals(dir).some((path) => path.includes('@testing-library/dom'))).toBe(true)
     expect(await runFiles(dir, 'forks', ['a', 'b'])).toEqual(expected)
   })
 

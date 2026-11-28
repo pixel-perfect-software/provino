@@ -44,6 +44,7 @@ import {
   type Compiled,
   compile,
   externalKey,
+  type FirstLoad,
   type Found,
   importServedByHooks,
   linkAsync,
@@ -59,9 +60,8 @@ import {
   type Target,
   targetOfId,
   toModuleId,
-  type WindowedPreload,
 } from './records.ts'
-import { watchedLoad, watchedLoadAsync } from './reevaluate.ts'
+import { watchedLoad } from './reevaluate.ts'
 import { requireEsmError } from './require-esm.ts'
 
 /** How the edge loads: `import` (a namespace) or `require` (the value itself). */
@@ -224,11 +224,12 @@ export class Registry {
    */
   readonly #reevaluates: boolean
   /**
-   * The window around an external's first async preload (`import()` under `interopDefault:
-   * 'node'`), where `#reevaluates`; `undefined` otherwise. The preload is the first native load of
-   * an external there, as `#requireExternal`'s is under `babel`.
+   * The watched first load of an external's async preload (`import()` under `interopDefault:
+   * 'node'`), where `#reevaluates`; `undefined` otherwise. A synchronous `require` of the file
+   * the `import()` then takes the namespace of: the first native load of an external there, as
+   * `#requireExternal`'s is under `babel`.
    */
-  readonly #windowedPreload: WindowedPreload | undefined
+  readonly #firstLoad: FirstLoad | undefined
   /**
    * Whether each evaluation runs a fresh wrapper function (`compile`'s `fresh`): in a registry of
    * one file, every module evaluated here is evaluated again in the next file's, and a fresh
@@ -255,12 +256,7 @@ export class Registry {
     this.#maps = [new Map()]
     this.#reevaluates = reevaluatesExternals(state.options.policy) && !sharedAcrossFiles
     this.#freshWrappers = !sharedAcrossFiles
-    this.#windowedPreload = this.#reevaluates
-      ? (path, load) =>
-          watchedLoadAsync(state.reevaluate, path, load, state.evaluable, (file) =>
-            packageClosure(state.inline, state.options, file),
-          )
-      : undefined
+    this.#firstLoad = this.#reevaluates ? (path) => this.#requireFirst(path) : undefined
   }
 
   get #instances(): Map<ModuleId, Instance> {
@@ -473,7 +469,7 @@ export class Registry {
     // An entry the file asked for: no edge of another module leads to it.
     this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, isTest)
-    await linkAsync(this.#state, record, this.#windowedPreload)
+    await linkAsync(this.#state, record, this.#firstLoad)
     const value = this.#evaluateForImport(record)
     if (evaluated === undefined) return value
     if (!(value instanceof Promise)) {
@@ -516,7 +512,7 @@ export class Registry {
     if (found.kind !== 'user') return this.#externalAsync(found)
     this.#noteLoad(importer, found.id)
     const record = recordFor(this.#state, found.id, false)
-    await linkAsync(this.#state, record, this.#windowedPreload)
+    await linkAsync(this.#state, record, this.#firstLoad)
     return this.#evaluateForImport(record)
   }
 
@@ -813,6 +809,25 @@ export class Registry {
     return value
   }
 
+  /**
+   * The first native load of the external at `path` for the preload: a watched `require` of its
+   * absolute path (the file `import()` takes), recorded as `#requireExternal` records it. Its
+   * errors are not rewritten: the preload tells Node's own codes apart.
+   */
+  #requireFirst(path: string): void {
+    const state = this.#state
+    const native = (): unknown => createRequire(path)(path)
+    const skipsPatches = state.options.policy.nativeLoadPatches === 'skip'
+    const value = watchedLoad(
+      state.reevaluate,
+      path,
+      () => (skipsPatches ? withNodeLoader(native) : native()),
+      state.evaluable,
+      (file) => packageClosure(state.inline, state.options, file),
+    )
+    state.required.set(path, value)
+  }
+
   /** What an `import` of an external sees, synchronously: Node's namespace when preloaded, else the interop over `require`. */
   #externalImport(target: Found): object {
     if (this.#interop === 'node') {
@@ -823,7 +838,7 @@ export class Registry {
   }
 
   async #externalAsync(target: Found): Promise<object> {
-    await preloadAsync(this.#state, target, this.#windowedPreload)
+    await preloadAsync(this.#state, target, this.#firstLoad)
     return this.#externalImport(target)
   }
 
@@ -898,7 +913,7 @@ export class Registry {
     }
     this.#touched?.add(target.id)
     const record = recordFor(this.#state, target.id, false)
-    await linkAsync(this.#state, record, this.#windowedPreload)
+    await linkAsync(this.#state, record, this.#firstLoad)
     // The instance this load evaluates, taken before its await: afterwards `#instances` may name
     // another context's map.
     const evaluated = this.#evaluateForImport(record)

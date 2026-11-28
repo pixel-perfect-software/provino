@@ -696,30 +696,40 @@ export async function importServedByHooks(specifier: string, notFound: unknown):
 export async function preloadAsync(
   state: Records,
   target: Target,
-  windowed?: WindowedPreload,
+  firstLoad?: FirstLoad,
 ): Promise<void> {
   if (target.kind !== 'external' && target.kind !== 'builtin') return
   if (state.options.policy.interopDefault !== 'node') return
   const key = externalKey(target)
   if (state.externals.has(key)) return
   const specifier = target.kind === 'builtin' ? target.id : pathToFileURL(target.path).href
-  const preload = async (): Promise<void> => {
-    // Another preload of the same external may have finished while this one waited its turn.
-    if (state.externals.has(key)) return
-    const namespace: object = await import(specifier)
-    state.externals.set(key, namespace)
+  // The first native load of an external is a watched window (D127), here as in `require`: a
+  // synchronous `require` of the file the `import()` below then takes the namespace of.
+  if (
+    firstLoad !== undefined &&
+    target.kind === 'external' &&
+    !state.required.has(key) &&
+    state.evaluable(target.path)
+  ) {
+    try {
+      firstLoad(target.path)
+    } catch (error) {
+      // A graph `require` cannot evaluate (top-level await, or `require(esm)` off) is `import()`'s,
+      // unwatched. Any other error is the load's: `import()` would evaluate a CommonJS module that
+      // threw a second time.
+      const code = (error as { code?: unknown } | null)?.code
+      if (code !== 'ERR_REQUIRE_ASYNC_MODULE' && code !== 'ERR_REQUIRE_ESM') throw error
+    }
   }
-  // The first native load of an external is a watched window (D127), here as in `require`.
-  if (windowed !== undefined && target.kind === 'external') await windowed(target.path, preload)
-  else await preload()
+  const namespace: object = await import(specifier)
+  state.externals.set(key, namespace)
 }
 
 /**
- * The window a registry that evaluates externals per file opens around an external's first
- * preload (`watchedLoadAsync`): it calls `load` once, or not at all when the path is evaluated per
- * file already.
+ * The watched first load a registry that evaluates externals per file passes to `preloadAsync`:
+ * a synchronous native `require` of the external at `path`, recorded as a `require` records it.
  */
-export type WindowedPreload = (path: string, load: () => Promise<void>) => Promise<void>
+export type FirstLoad = (path: string) => void
 
 /**
  * One dep of `record` at link time: its target, with a user module transformed (and queued on
@@ -758,7 +768,7 @@ function linkDep(
 export async function linkAsync(
   state: Records,
   root: ModuleRecord,
-  windowed?: WindowedPreload,
+  firstLoad?: FirstLoad,
 ): Promise<void> {
   const stack = [root]
   while (stack.length > 0) {
@@ -767,7 +777,7 @@ export async function linkAsync(
     record.linked = true
     for (const specifier of record.deps) {
       const target = linkDep(state, record, specifier, stack)
-      if (record.format === 'esm') await preloadAsync(state, target, windowed)
+      if (record.format === 'esm') await preloadAsync(state, target, firstLoad)
     }
   }
   markAsyncGraphs(state)
